@@ -1,0 +1,4 @@
+# ignore building directories
+build/
+dist/
+src/AutoV/Spec/Parser/.antlr/

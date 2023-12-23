@@ -1,0 +1,136 @@
+#pragma once
+
+#include <values.h>
+#include <nodes.h>
+#include <utils.h>
+#include <log.h>
+#include <unordered_set>
+
+
+namespace autov {
+using std::string;
+using std::vector;
+using std::tuple;
+using std::unique_ptr;
+using std::make_unique;
+using std::shared_ptr;
+using std::make_shared;
+using std::static_pointer_cast;
+using std::dynamic_pointer_cast;
+using std::unordered_map;
+using std::holds_alternative;
+
+using loc_t = tuple<string, string, string>;
+
+enum class SymbolKind {
+    Struct,
+    StructElem,
+    StructConstr,
+    IndConstructor,
+    IndType,
+    Decl,
+    Def,
+    TypeDef
+};
+
+class SymbolInfo {
+public:
+    SymbolKind kind;
+    string info;
+    tuple<string, string, string> loc;
+    unsigned long order;
+};
+class Project {
+public:
+    static const string LOC_DATATYPES;
+    static const string LOC_LOWSPEC;
+    static const string LOC_SPEC;
+    static const string LOC_REFPROOF;
+    static const string LOC_GLOBALDEFS;
+    static const string LOC_NODEFS;
+    static const string PROJ_NAME;
+    static const string PROJ_BASE;
+    static const string LAYER_PRIMS;
+    static const string LAYER_CODE;
+    static const string LAYER_LOAD;
+    static const string LAYER_STORE;
+    static const string LAYER_NEW_FRAME;
+    static const string LAYER_ALLOC;
+    static const string LAYER_FREE;
+    static const string LAYER_GET_REG;
+    static const string LAYER_SET_REG;
+    static const string LAYER_GET_FLAG;
+    static const string LAYER_SET_FLAG;
+    static const string LAYER_PTR2INT;
+    static const string LAYER_INT2PTR;
+    static const string LAYER_PTR_EQB;
+    static const string LAYER_PTR_LTB;
+    static const string LAYER_PTR_GTB;
+    static const string LAYER_DATA;
+
+    string name;
+    string base;
+    // IRModule code;
+    unordered_map<string, shared_ptr<Struct>> structs;
+    unordered_map<string, shared_ptr<Inductive>> indtypes;
+    unordered_map<string, shared_ptr<SpecType>> typedefs;
+    unordered_map<string, unique_ptr<Declaration>> decls;
+    unordered_map<string, unique_ptr<Definition>> defs;
+
+    unordered_map<string, SymbolInfo> symbols;
+
+    unordered_map<string, string> includes;
+    vector<string> axioms;
+    vector<unique_ptr<Layer>> layers;
+
+    class cmds {
+    public:
+        std::set<string> Unfold;
+        std::set<string> NoUnfold;
+        std::set<string> NoTrans;
+        std::map<string, string> InitRely;
+    };
+    cmds cmds;
+
+    unordered_map<string, std::set<string>> deps;
+
+    std::set<string> has_shadow;
+
+    // bool is_ind_constr(std::string name) {
+    //     static const std::unordered_set<std::string> ind_constr_symbols = {"None", "Some", "nil", "cons"};
+
+    //     if (symbols.find(name) != symbols.end() && symbols[name].kind == SymbolKind::IndConstructor) {
+    //         return true;
+    //     } else if (ind_constr_symbols.find(name) == ind_constr_symbols.end()) {
+    //         return true;
+    //     } else {
+    //         return false;
+    //     }
+    // }
+
+    Project();
+
+    void add_symbol(string symbol, SymbolKind kind, string info, shared_ptr<loc_t> loc);
+
+    void add_struct(shared_ptr<Struct> s, shared_ptr<loc_t> loc);
+    void add_struct(shared_ptr<Struct> s);
+
+    void add_indtype(shared_ptr<Inductive> ind, shared_ptr<loc_t> loc);
+    void add_indtype(shared_ptr<Inductive> ind);
+
+    void add_typedef(string name, shared_ptr<SpecType> t);
+
+    void add_declaration(unique_ptr<Declaration> decl, shared_ptr<loc_t> loc);
+
+    void add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc);
+
+    void add_layer(unique_ptr<Layer> layer);
+
+    void add_command(unique_ptr<Expr> cmd);
+    void add_command(unique_ptr<Expr> cmd, unique_ptr<Layer> layer);
+
+    //void finalize_project();
+
+};
+
+}; // namespace autov

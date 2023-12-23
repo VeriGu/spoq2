@@ -1,0 +1,881 @@
+#pragma once
+
+#include <string>
+#include <vector>
+#include <map>
+#include <unordered_map>
+#include <iostream>
+#include <sstream>
+#include <stdexcept>
+#include <variant>
+#include <memory>
+
+#include <values.h>
+#include <log.h>
+
+namespace autov {
+using std::string;
+using std::vector;
+using std::unique_ptr;
+using std::make_unique;
+using std::shared_ptr;
+using std::make_shared;
+using std::dynamic_pointer_cast;
+using std::unordered_map;
+
+class SpecNode {
+public:
+    static unsigned long id; // Initialized in nodes.cpp
+    SpecType type;
+    unsigned long nid;
+    int length;
+    mutable string _str; // cached string representation
+
+    SpecNode() : type(UNKNOWN_TYPE), nid(id++), length(1) {}
+    SpecNode(SpecType type) : type(type), nid(id++), length(1) {}
+    SpecNode(SpecType type, int length) : type(type), nid(id++), length(length) {}
+
+    bool operator==(const SpecNode& other) const {
+        if (typeid(other) != typeid(*this)) {
+            return false;
+        }
+        return this == &other;
+    }
+
+    bool operator!=(const SpecNode& other) const {
+        return !(*this == other);
+    }
+
+    operator string() const {
+        if (this->_str == "") {
+            this->_str = this->to_string();
+        }
+        return this->_str;
+    }
+
+    bool has_type() const {
+        return this->type != UNKNOWN_TYPE;
+    }
+
+    void set_type(SpecType type) {
+        if (this->has_type() && this->type != type) {
+            LOG_ERROR << "Overwriting type " << string(this->type) << " with " << string(type);
+            throw std::invalid_argument("Overwriting type" + string(this->type) + " with " + string(type));
+        }
+        this->type = type;
+    }
+
+    SpecType get_type() const {
+        if (!this->has_type()) {
+            return UNKNOWN_TYPE;
+        }
+        return this->type;
+    }
+
+    virtual unique_ptr<SpecNode> deep_copy() const = 0;
+    virtual void deep_copy(unique_ptr<SpecNode> &p) const = 0;
+
+
+    virtual ~SpecNode() {}
+private:
+    virtual const string to_string() const = 0;
+};
+
+
+class Symbol : public SpecNode {
+public:
+    string text;
+
+    Symbol() { throw std::invalid_argument("Symbol must have a name"); }
+    Symbol(string text) : SpecNode(UNKNOWN_TYPE), text(text) {}
+    Symbol(string text, SpecType type) : SpecNode(type), text(text) {}
+
+    bool operator==(const SpecNode& other) const {
+        if (typeid(other) != typeid(Symbol)) {
+            return false;
+        }
+        return this->text == ((Symbol&)other).text;
+    }
+
+    bool operator!=(const SpecNode& other) const {
+        return !(*this == other);
+    }
+
+    operator string() const {
+        return this->text;
+    }
+
+    unique_ptr<SpecNode> deep_copy() const {
+        return make_unique<Symbol>(this->text, this->type);
+    }
+
+    void deep_copy(unique_ptr<SpecNode> &p) const {
+        p = make_unique<Symbol>(this->text, this->type);
+    }
+
+    ~Symbol() {}
+
+private:
+    const string to_string() const {
+        return this->text;
+    }
+};
+
+class Const : public SpecNode {
+public:
+    std::variant<unsigned long, string, bool> value;
+
+    Const() { throw std::invalid_argument("Const must have a value"); }
+    Const(const std::variant<unsigned long, string, bool>& value) : SpecNode(UNKNOWN_TYPE), value(value) {}
+    Const(const std::variant<unsigned long, string, bool>& value, SpecType type)
+        : SpecNode(type), value(value) {}
+
+    bool operator==(const SpecNode& other) const {
+        if (typeid(other) != typeid(this->type)) {
+            return false;
+        }
+        return this->value == ((Const&)other).value;
+    }
+
+    bool operator!=(const SpecNode& other) const {
+        return !(*this == other);
+    }
+
+    operator string() const {
+        return this->to_string();
+    }
+
+    unique_ptr<SpecNode> deep_copy() const {
+        return make_unique<Const>(this->value, this->type);
+    }
+
+    void deep_copy(unique_ptr<SpecNode> &p) const {
+        p = make_unique<Const>(this->value, this->type);
+    }
+
+    ~Const() {}
+private:
+    const string to_string() const {
+        if (this->type == UNKNOWN_TYPE) {
+            throw std::invalid_argument("Const must have a type");
+        } else if (typeid(this->type) == typeid(Int)) {
+            return std::to_string(std::get<unsigned long>(this->value));
+        } else if (typeid(this->type) == typeid(String)) {
+            return "\"" + std::get<string>(this->value) + "\"";
+        } else if (typeid(this->type) == typeid(Bool)) {
+            return std::get<bool>(this->value) ? "true" : "false";
+        } else {
+            throw std::invalid_argument("Const must have a valid type");
+        }
+    }
+};
+
+class IntConst : public Const {
+public:
+    IntConst() { throw std::invalid_argument("IntConst must have a value"); }
+    IntConst(unsigned long value) : Const(value, Int()) {}
+    IntConst(unsigned long value, SpecType type) : Const(value, type) {}
+
+    ~IntConst() {}
+private:
+    const string to_string() const {
+        return std::to_string(std::get<unsigned long>(this->value));
+    }
+};
+
+class StringConst : public Const {
+public:
+    StringConst() { throw std::invalid_argument("StringConst must have a value"); }
+    StringConst(string value) : Const(value, String()) {}
+    StringConst(string value, SpecType type) : Const(value, type) {}
+
+    ~StringConst() {}
+
+private:
+    const string to_string() const {
+        return "\"" + std::get<string>(this->value) + "\"";
+    }
+};
+
+class BoolConst : public Const {
+public:
+    BoolConst() { throw std::invalid_argument("BoolConst must have a value"); }
+    BoolConst(bool value) : Const(value, Bool()) {}
+    BoolConst(bool value, SpecType type) : Const(value, type) {}
+
+    ~BoolConst() {}
+
+private:
+    const string to_string() const {
+        return std::get<bool>(this->value) ? "true" : "false";
+    }
+};
+
+class RecordDef : public SpecNode {
+public:
+    unique_ptr<std::map<unique_ptr<Symbol>, unique_ptr<SpecNode>>> fields;
+
+    RecordDef() { throw std::invalid_argument("RecordDef must have fields"); }
+    RecordDef(unique_ptr<std::map<unique_ptr<Symbol>, unique_ptr<SpecNode>>> fields) : SpecNode(UNKNOWN_TYPE), fields(std::move(fields)){
+        this->length = calc_length();
+    }
+    RecordDef(unique_ptr<std::map<unique_ptr<Symbol>, unique_ptr<SpecNode>>> fields, SpecType type) : SpecNode(type), fields(std::move(fields)) {
+        this->length = calc_length();
+    }
+
+    bool operator==(const SpecNode& other) const {
+        if (typeid(other) != typeid(RecordDef)) {
+            return false;
+        }
+        return this->fields == ((RecordDef&)other).fields;
+    }
+
+    bool operator!=(const SpecNode& other) const {
+        return !(*this == other);
+    }
+
+    unique_ptr<SpecNode> deep_copy() const {
+        throw std::invalid_argument("RecordDef cannot be deep copied");
+    }
+
+    void deep_copy(unique_ptr<SpecNode> &p) const {
+        throw std::invalid_argument("RecordDef cannot be deep copied");
+    }
+
+    ~RecordDef() {}
+
+private:
+    const string to_string() const {
+        std::ostringstream oss;
+        bool first = true;
+
+        oss << "{|\n";
+        for (auto it = fields->begin(); it != fields->end(); it++) {
+            if (!first) {
+                oss << ";\n";
+            }
+            oss << "    " << string(*it->first) << " =: " << string(*(it->second));
+            first = false;
+        }
+        oss << "|}\n";
+
+        return oss.str();
+    }
+    int calc_length() const {
+        int length = 0;
+
+        for (auto it = fields->begin(); it != fields->end(); it++) {
+            if (it == fields->begin()) {
+                length += it->second->length;
+            }
+        }
+
+        return length;
+    }
+};
+
+class Expr : public SpecNode {
+public:
+    std::variant<unique_ptr<SpecNode>, string> op;
+    unique_ptr<vector<unique_ptr<SpecNode>>> elems;
+
+    Expr() { throw std::invalid_argument("Expr must have an op and elems"); }
+    Expr(std::variant<unique_ptr<SpecNode>, string> op, unique_ptr<vector<unique_ptr<SpecNode>>> elems) :
+        SpecNode(UNKNOWN_TYPE), op(std::move(op)), elems(std::move(elems)) {
+            this->length = calc_length();
+        }
+    Expr(std::variant<unique_ptr<SpecNode>, string> op, unique_ptr<vector<unique_ptr<SpecNode>>> elems, SpecType type) :
+        SpecNode(type), op(std::move(op)), elems(std::move(elems)) {
+            this->length = calc_length();
+        }
+
+    bool operator==(const SpecNode& other) const {
+        if (typeid(other) != typeid(Expr)) {
+            return false;
+        }
+
+        return this->op == ((Expr&)other).op && this->elems == ((Expr&)other).elems;
+    }
+
+    bool operator!=(const SpecNode& other) const {
+        return !(*this == other);
+    }
+
+    unique_ptr<SpecNode> deep_copy() const {
+        return deep_copy_down();
+    }
+
+    void deep_copy(unique_ptr<SpecNode> &p) const {
+        // deep copy elems
+        unique_ptr<vector<unique_ptr<SpecNode>>> new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+
+        for (auto it = elems->begin(); it != elems->end(); it++) {
+            new_elems->push_back((*it)->deep_copy());
+        }
+
+        // check if op is a string
+        if (std::holds_alternative<string>(this->op)) {
+            p = make_unique<Expr>(std::get<string>(this->op), std::move(new_elems), this->type);
+        } else {
+            p = make_unique<Expr>(std::get<unique_ptr<SpecNode>>(this->op)->deep_copy(),
+                                          std::move(new_elems), this->type);
+        }
+    }
+
+    unique_ptr<Expr> deep_copy_down() const {
+        // deep copy elems
+        unique_ptr<vector<unique_ptr<SpecNode>>> new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+
+        for (auto it = elems->begin(); it != elems->end(); it++) {
+            new_elems->push_back((*it)->deep_copy());
+        }
+
+        // check if op is a string
+        if (std::holds_alternative<string>(this->op)) {
+            return make_unique<Expr>(std::get<string>(this->op), std::move(new_elems), this->type);
+        } else {
+            return make_unique<Expr>(std::get<unique_ptr<SpecNode>>(this->op)->deep_copy(),
+                                          std::move(new_elems), this->type);
+        }
+    }
+
+    void deep_copy_down(unique_ptr<Expr> &p) const {
+        // deep copy elems
+        unique_ptr<vector<unique_ptr<SpecNode>>> new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+
+        for (auto it = elems->begin(); it != elems->end(); it++) {
+            new_elems->push_back((*it)->deep_copy());
+        }
+
+        // check if op is a string
+        if (std::holds_alternative<string>(this->op)) {
+            p = make_unique<Expr>(std::get<string>(this->op), std::move(new_elems), this->type);
+        } else {
+            p = make_unique<Expr>(std::get<unique_ptr<SpecNode>>(this->op)->deep_copy(),
+                                          std::move(new_elems), this->type);
+        }
+    }
+
+    ~Expr() {}
+
+private:
+    const string to_string() const {
+        std::ostringstream oss;
+        return oss.str();
+    }
+
+    int calc_length() const{
+        int length = 0;
+
+        for (auto it = elems->begin(); it != elems->end(); it++) {
+            if (it == elems->begin()) {
+                length += (*it)->length;
+            }
+        }
+
+        return length;
+    }
+};
+
+class PatternMatch : public SpecNode {
+public:
+    unique_ptr<SpecNode> pattern;
+    unique_ptr<SpecNode> body;
+
+    PatternMatch() { throw std::invalid_argument("PatternMatch must have a pattern and body"); }
+    PatternMatch(unique_ptr<SpecNode>pattern, unique_ptr<SpecNode>body) :
+        SpecNode(body->get_type()), pattern(std::move(pattern)), body(std::move(body)) {
+            this->length = calc_length();
+        }
+
+    bool operator==(const SpecNode& other) const {
+        if (typeid(other) != typeid(PatternMatch)) {
+            return false;
+        }
+
+        return this->pattern == ((PatternMatch&)other).pattern && this->body == ((PatternMatch&)other).body;
+    }
+
+    bool operator!=(const SpecNode& other) const {
+        return !(*this == other);
+    }
+
+    unique_ptr<SpecNode> deep_copy() const {
+        return deep_copy_down();
+    }
+
+    void deep_copy(unique_ptr<SpecNode> &p) const {
+        p = deep_copy_down();
+    }
+
+    unique_ptr<PatternMatch> deep_copy_down() const {
+        // deep copy pattern and body
+        unique_ptr<SpecNode> new_pattern = this->pattern->deep_copy();
+        unique_ptr<SpecNode> new_body = this->body->deep_copy();
+
+        return make_unique<PatternMatch>(std::move(new_pattern), std::move(new_body));
+    }
+
+    void deep_copy_down(unique_ptr<PatternMatch> &p) const {
+        // deep copy pattern and body
+        unique_ptr<SpecNode> new_pattern = this->pattern->deep_copy();
+        unique_ptr<SpecNode> new_body = this->body->deep_copy();
+
+        p = make_unique<PatternMatch>(std::move(new_pattern), std::move(new_body));
+    }
+
+    ~PatternMatch() {}
+
+private:
+    const string to_string() const;
+
+    int calc_length() const{
+        return body->length + pattern->length;
+    }
+};
+
+class Match : public SpecNode {
+public:
+    unique_ptr<SpecNode> src;
+    unique_ptr<vector<unique_ptr<PatternMatch>>> match_list;
+
+    Match() { throw std::invalid_argument("Match must have a src and match_list"); }
+    Match(unique_ptr<SpecNode> src, unique_ptr<vector<unique_ptr<PatternMatch>>> match_list) :
+        SpecNode((*match_list)[0]->body->get_type()), src(std::move(src)), match_list(std::move(match_list)) {
+        this->length = calc_length();
+    }
+
+    bool operator==(const SpecNode& other) const {
+        if (typeid(other) != typeid(Match)) {
+            return false;
+        }
+
+        return this->src == ((Match&)other).src && this->match_list == ((Match&)other).match_list;
+    }
+
+    bool operator!=(const SpecNode& other) const {
+        return !(*this == other);
+    }
+
+    unique_ptr<SpecNode> deep_copy() const {
+        // deep copy src and match_list
+        unique_ptr<SpecNode> new_src = this->src->deep_copy();
+        unique_ptr<vector<unique_ptr<PatternMatch>>> new_match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
+
+        for (auto it = match_list->begin(); it != match_list->end(); it++) {
+            new_match_list->push_back((*it)->deep_copy_down());
+        }
+
+        return make_unique<Match>(std::move(new_src), std::move(new_match_list));
+    }
+
+    void deep_copy(unique_ptr<SpecNode> &p) const {
+        // deep copy src and match_list
+        unique_ptr<SpecNode> new_src = this->src->deep_copy();
+        unique_ptr<vector<unique_ptr<PatternMatch>>> new_match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
+
+        for (auto it = match_list->begin(); it != match_list->end(); it++) {
+            new_match_list->push_back((*it)->deep_copy_down());
+        }
+
+        p = make_unique<Match>(std::move(new_src), std::move(new_match_list));
+    }
+
+    static unique_ptr<Match> when(unique_ptr<SpecNode> pattern, unique_ptr<SpecNode> value, unique_ptr<SpecNode> body) {
+        auto vec = make_unique<vector<unique_ptr<SpecNode>>>();
+        vec->push_back(std::move(pattern));
+
+        unique_ptr<Expr> some = make_unique<Expr>(string("Some"),std::move(vec));
+        unique_ptr<PatternMatch> some_arm = make_unique<PatternMatch>(std::move(some), std::move(body));
+        unique_ptr<PatternMatch> none_arm = make_unique<PatternMatch>(make_unique<Symbol>("None"), make_unique<Symbol>("None"));
+        unique_ptr<vector<unique_ptr<PatternMatch>>> match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
+
+        match_list->push_back(std::move(some_arm));
+        match_list->push_back(std::move(none_arm));
+
+        return make_unique<Match>(std::move(value), std::move(match_list));
+    }
+
+    static Match* raw_when(unique_ptr<SpecNode> pattern, unique_ptr<SpecNode> value, unique_ptr<SpecNode> body) {
+        auto vec = make_unique<vector<unique_ptr<SpecNode>>>();
+        vec->push_back(std::move(pattern));
+
+        unique_ptr<Expr> some = make_unique<Expr>(string("Some"),std::move(vec));
+        unique_ptr<PatternMatch> some_arm = make_unique<PatternMatch>(std::move(some), std::move(body));
+        unique_ptr<PatternMatch> none_arm = make_unique<PatternMatch>(make_unique<Symbol>("None"), make_unique<Symbol>("None"));
+        unique_ptr<vector<unique_ptr<PatternMatch>>> match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
+
+        match_list->push_back(std::move(some_arm));
+        match_list->push_back(std::move(none_arm));
+
+        return new Match(std::move(value), std::move(match_list));
+    }
+
+private:
+    const string to_string() const {
+        std::ostringstream oss;
+        return oss.str();
+    }
+
+    int calc_length() const{
+        int length = src->length;
+
+        for (auto it = match_list->begin(); it != match_list->end(); it++) {
+            if (it == match_list->begin()) {
+                length += (*it)->length;
+            }
+        }
+
+        return length;
+    }
+};
+
+class Rely : public SpecNode {
+public:
+    unique_ptr<SpecNode> prop;
+    unique_ptr<SpecNode> body;
+
+    Rely() { throw std::invalid_argument("Rely must have a prop and body"); }
+    Rely(unique_ptr<SpecNode>prop, unique_ptr<SpecNode>body) :
+        SpecNode(body->get_type()), prop(std::move(prop)), body(std::move(body)) {
+        this->length = calc_length();
+    }
+
+    bool operator==(const SpecNode& other) const {
+        if (typeid(other) != typeid(Rely)) {
+            return false;
+        }
+
+        return this->prop == ((Rely&)other).prop && this->body == ((Rely&)other).body;
+    }
+
+    bool operator!=(const SpecNode& other) const {
+        return !(*this == other);
+    }
+
+    unique_ptr<SpecNode> deep_copy() const {
+        // deep copy prop and body
+        unique_ptr<SpecNode> new_prop = this->prop->deep_copy();
+        unique_ptr<SpecNode> new_body = this->body->deep_copy();
+
+        return make_unique<Rely>(std::move(new_prop), std::move(new_body));
+    }
+
+    void deep_copy(unique_ptr<SpecNode> &p) const {
+        // deep copy prop and body
+        unique_ptr<SpecNode> new_prop = this->prop->deep_copy();
+        unique_ptr<SpecNode> new_body = this->body->deep_copy();
+
+        p = make_unique<Rely>(std::move(new_prop), std::move(new_body));
+    }
+
+private:
+    const string to_string() const;
+
+    int calc_length() const{
+        return body->length + prop->length;
+    }
+};
+
+class Anno : public SpecNode {
+public:
+    unique_ptr<SpecNode> prop;
+    unique_ptr<SpecNode> body;
+
+    Anno() { throw std::invalid_argument("Anno must have a prop and body"); }
+    Anno(unique_ptr<SpecNode>prop, unique_ptr<SpecNode>body) :
+        SpecNode(body->get_type()), prop(std::move(prop)), body(std::move(body)) {
+        this->length = calc_length();
+    }
+
+    bool operator==(const SpecNode& other) const {
+        if (typeid(other) != typeid(Anno)) {
+            return false;
+        }
+
+        return this->prop == ((Anno&)other).prop && this->body == ((Anno&)other).body;
+    }
+
+    bool operator!=(const SpecNode& other) const {
+        return !(*this == other);
+    }
+
+    unique_ptr<SpecNode> deep_copy() const {
+        // deep copy prop and body
+        unique_ptr<SpecNode> new_prop = this->prop->deep_copy();
+        unique_ptr<SpecNode> new_body = this->body->deep_copy();
+
+        return make_unique<Anno>(std::move(new_prop), std::move(new_body));
+    }
+
+    void deep_copy(unique_ptr<SpecNode> &p) const {
+        // deep copy prop and body
+        unique_ptr<SpecNode> new_prop = this->prop->deep_copy();
+        unique_ptr<SpecNode> new_body = this->body->deep_copy();
+
+        p = make_unique<Anno>(std::move(new_prop), std::move(new_body));
+    }
+private:
+    const string to_string() const;
+
+    int calc_length() const{
+        return body->length + prop->length;
+    }
+};
+
+class If : public SpecNode {
+public:
+    unique_ptr<SpecNode> cond;
+    unique_ptr<SpecNode> then_body;
+    unique_ptr<SpecNode> else_body;
+
+    If() { throw std::invalid_argument("If must have a cond, then_body, and else_body"); }
+    If(unique_ptr<SpecNode>cond, unique_ptr<SpecNode>then_body, unique_ptr<SpecNode>else_body) :
+        SpecNode(then_body->get_type()), cond(std::move(cond)), then_body(std::move(then_body)), else_body(std::move(else_body)) {
+        this->length = calc_length();
+    }
+
+    bool operator==(const SpecNode& other) const {
+        if (typeid(other) != typeid(If)) {
+            return false;
+        }
+
+        return this->cond == ((If&)other).cond && this->then_body == ((If&)other).then_body && this->else_body == ((If&)other).else_body;
+    }
+
+    bool operator!=(const SpecNode& other) const {
+        return !(*this == other);
+    }
+
+    unique_ptr<SpecNode> deep_copy() const {
+        // deep copy cond, then_body, and else_body
+        unique_ptr<SpecNode> new_cond; // = unique_ptr<Expr>(this->cond->deep_copy().release());
+        unique_ptr<SpecNode> new_then_body; // = unique_ptr<Expr>(this->then_body->deep_copy().release());
+        unique_ptr<SpecNode> new_else_body; // = unique_ptr<Expr>(this->else_body->deep_copy().release());
+
+        this->cond->deep_copy(new_cond);
+        this->then_body->deep_copy(new_then_body);
+        this->else_body->deep_copy(new_else_body);
+
+        return make_unique<If>(std::move(new_cond), std::move(new_then_body), std::move(new_else_body));
+    }
+
+    void deep_copy(unique_ptr<SpecNode> &p) const {
+        unique_ptr<SpecNode> new_cond;
+        unique_ptr<SpecNode> new_then_body;
+        unique_ptr<SpecNode> new_else_body;
+
+        this->cond->deep_copy(new_cond);
+        this->then_body->deep_copy(new_then_body);
+        this->else_body->deep_copy(new_else_body);
+
+        p = make_unique<If>(std::move(new_cond), std::move(new_then_body), std::move(new_else_body));
+    }
+
+private:
+    const string to_string() const;
+
+    int calc_length() const{
+        return then_body->length + else_body->length + cond->length;
+    }
+};
+
+class Forall : public SpecNode {
+public:
+    unique_ptr<vector<shared_ptr<Arg>>> vars;
+    unique_ptr<SpecNode> body;
+
+    Forall() { throw std::invalid_argument("Forall must have vars and body"); }
+    Forall(unique_ptr<vector<shared_ptr<Arg>>> vars, unique_ptr<SpecNode>body) :
+        SpecNode(Prop()), vars(std::move(vars)), body(std::move(body)) {
+        this->length = calc_length();
+    }
+
+    bool operator==(const SpecNode& other) const {
+        if (typeid(other) != typeid(Forall)) {
+            return false;
+        }
+
+        return this->vars == ((Forall&)other).vars && this->body == ((Forall&)other).body;
+    }
+
+    bool operator!=(const SpecNode& other) const {
+        return !(*this == other);
+    }
+
+    unique_ptr<SpecNode> deep_copy() const {
+        throw std::invalid_argument("Forall cannot be deep copied");
+        // unique_ptr<SpecNode> new_body = this->body->deep_copy();
+        // unique_ptr<vector<shared_ptr<Arg>>> new_vars = make_unique<vector<shared_ptr<Arg>>>();
+
+        // for (auto it = vars->begin(); it != vars->end(); it++) {
+        //     new_vars->push_back(make_shared<Arg>((*it)->name, (*it)->type));
+        // }
+
+        // return make_unique<Forall>(std::move(new_vars), std::move(new_body));
+    }
+    void deep_copy(unique_ptr<SpecNode> &p) const {
+        throw std::invalid_argument("Forall cannot be deep copied");
+        // unique_ptr<SpecNode> new_body = this->body->deep_copy();
+        // unique_ptr<vector<shared_ptr<Arg>>> new_vars = make_unique<vector<shared_ptr<Arg>>>();
+
+        // for (auto it = vars->begin(); it != vars->end(); it++) {
+        //     new_vars->push_back(make_shared<Arg>((*it)->name, (*it)->type));
+        // }
+
+        // p = make_unique<Forall>(std::move(new_vars), std::move(new_body));
+    }
+
+private:
+    const string to_string() const;
+
+    int calc_length() const{
+        return body->length;
+    }
+};
+
+class Exists : public SpecNode {
+public:
+    unique_ptr<vector<shared_ptr<Arg>>> vars;
+    unique_ptr<SpecNode> body;
+
+    Exists() { throw std::invalid_argument("Exists must have vars and body"); }
+    Exists(unique_ptr<vector<shared_ptr<Arg>>> vars, unique_ptr<SpecNode>body) :
+        SpecNode(Prop()), vars(std::move(vars)), body(std::move(body)) {
+        this->length = calc_length();
+    }
+
+    bool operator==(const SpecNode& other) const {
+        if (typeid(other) != typeid(Exists)) {
+            return false;
+        }
+
+        return this->vars == ((Exists&)other).vars && this->body == ((Exists&)other).body;
+    }
+
+    bool operator!=(const SpecNode& other) const {
+        return !(*this == other);
+    }
+
+    unique_ptr<SpecNode> deep_copy() const {
+        throw std::invalid_argument("Exists cannot be deep copied");
+        // unique_ptr<SpecNode> new_body = this->body->deep_copy();
+        // unique_ptr<vector<shared_ptr<Arg>>> new_vars = make_unique<vector<shared_ptr<Arg>>>();
+
+        // for (auto it = vars->begin(); it != vars->end(); it++) {
+        //     new_vars->push_back(make_shared<Arg>((*it)->name, (*it)->type));
+        // }
+
+        // return make_unique<Exists>(std::move(new_vars), std::move(new_body));
+    }
+
+    void deep_copy(unique_ptr<SpecNode> &p) const {
+        throw std::invalid_argument("Exists cannot be deep copied");
+        // unique_ptr<SpecNode> new_body = this->body->deep_copy();
+        // unique_ptr<vector<shared_ptr<Arg>>> new_vars = make_unique<vector<shared_ptr<Arg>>>();
+
+        // for (auto it = vars->begin(); it != vars->end(); it++) {
+        //     new_vars->push_back(make_shared<Arg>((*it)->name, (*it)->type));
+        // }
+
+        // p = make_unique<Exists>(std::move(new_vars), std::move(new_body));
+    }
+
+private:
+    const string to_string() const;
+
+    int calc_length() const{
+        return body->length;
+    }
+
+};
+
+class Declaration {
+public:
+    string name;
+    shared_ptr<SpecType> type;
+    int length;
+    mutable string _str;
+
+    Declaration() { throw std::invalid_argument("Declaration must have a name and type"); }
+    Declaration(string name, shared_ptr<SpecType> type) : name(name), type(type), length(1) {}
+
+    bool operator==(const Declaration& other) const {
+        return this->name == other.name && this->type == other.type;
+    }
+
+    bool operator!=(const Declaration& other) const {
+        return !(*this == other);
+    }
+
+    operator string() const {
+        if (this->_str == "") {
+            this->_str = this->to_string();
+        }
+        return this->_str;
+    }
+
+    shared_ptr<SpecType> get_type() const {
+        return this->type;
+    }
+
+private:
+    const string to_string() const {
+        return  "Parameter " + this->name + " : " + string(*this->type) + ".";
+    }
+};
+
+class Definition {
+public:
+    string name;
+    shared_ptr<SpecType> rettype;
+    unique_ptr<vector<shared_ptr<Arg>>> args;
+    unique_ptr<SpecNode> body;
+    int length;
+
+    Definition() { throw std::invalid_argument("Definition must have a name, rettype, args, and body"); }
+    Definition(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args, unique_ptr<SpecNode> body) :
+        name(name), rettype(rettype), args(std::move(args)), body(std::move(body)) {
+            this->length = this->body->length; // This cannot be done in the initializer list because body is moved.
+        }
+
+
+    bool operator==(const Definition& other) const {
+        return this->name == other.name && this->rettype == other.rettype && this->args == other.args && this->body == other.body;
+    }
+
+    bool operator!=(const Definition& other) const {
+        return !(*this == other);
+    }
+
+private:
+    virtual const string to_string() const;
+};
+
+class Fixpoint : public Definition {
+public:
+    Fixpoint() { throw std::invalid_argument("Fixpoint must have a name, rettype, args, and body"); }
+    Fixpoint(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args, unique_ptr<SpecNode> body) :
+        Definition(name, rettype, std::move(args), std::move(body)) {}
+
+private:
+    const string to_string() const;
+};
+
+class Layer {
+public:
+    string name;
+    shared_ptr<SpecType> abs_data;
+    unique_ptr<unordered_map<string, string>> ops;
+    vector<string> prims;
+    string code; // Temp until we ported the IRModule class
+    vector<string> passthrough;
+
+    Layer() { throw std::invalid_argument("Layer must have a name, abs_data, ops, prims, and code"); }
+    Layer(string name) : name(name) {}
+    Layer(string name, unique_ptr<SpecType> abs_data, unique_ptr<unordered_map<string, string>> ops,
+          vector<string> prims, string code, vector<string> passthrough) :
+        name(name), abs_data(std::move(abs_data)), ops(std::move(ops)), prims(prims), code(code), passthrough(passthrough) {}
+};
+
+}// namespace autov

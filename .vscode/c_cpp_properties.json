@@ -1,0 +1,25 @@
+{
+    "configurations": [
+        {
+            "name": "Spoq",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/src/AutoV/Spec/Parser/antlr4/runtime/Cpp/runtime/src/",
+                "${workspaceFolder}/include"
+            ],
+            "defines": [],
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-clang-x64",
+            "mergeConfigurations": false,
+            "browse": {
+                "path": [
+                    "${workspaceFolder}/**",
+                    "${workspaceFolder}"
+                ],
+                "limitSymbolsToIncludedHeaders": true
+            }
+        }
+    ],
+    "version": 4
+}
