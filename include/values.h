@@ -19,8 +19,12 @@ using std::unordered_map;
 class SpecType {
 public:
     string name;
+    bool record;
+
     SpecType() = default;
-    SpecType(string name) : name(name) {}
+    SpecType(string name) : name(name), record(false) {}
+    SpecType(string name, bool record) : name(name), record(record) {}
+
 
     bool operator==(const SpecType& other) const {
         return name == other.name;
@@ -32,7 +36,7 @@ public:
 
     virtual ~SpecType() = default;
 
-    operator string() const {
+    virtual operator string() const {
         return name;
     }
 };
@@ -99,7 +103,7 @@ public:
     }
 
     operator string() const {
-        return name + " : " + string(*type);
+        return "(" + name + ": " + string(*type) + ")";
     }
 };
 

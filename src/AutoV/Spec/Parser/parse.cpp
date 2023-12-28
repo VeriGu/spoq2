@@ -5,6 +5,7 @@
 #include <parser.h>
 #include <log.h>
 #include <regex>
+#include <cassert>
 
 namespace autov::parser {
 
@@ -42,6 +43,7 @@ antlrcpp::Any ProgramVisitor::visitSection_end(SpecParser::Section_endContext* c
     if (current_layer == nullptr) {
         throw std::runtime_error("No layer" + ctx->name()->getText() + "to close");
     } else {
+        LOG_INFO << "Parsed Layer: " << current_layer->name;
         proj.add_layer(std::unique_ptr<autov::Layer>(current_layer));
         current_layer = nullptr;
     }
@@ -184,7 +186,6 @@ antlrcpp::Any ProgramVisitor::visitDef(SpecParser::DefContext* ctx) {
     auto expr = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr(ctx->expr())));
     unique_ptr<vector<shared_ptr<Arg>>> var_anno = make_unique<vector<shared_ptr<Arg>>>();
     auto rettype = any_cast<shared_ptr<SpecType>>(visitType(ctx->type()));
-    bool is_layer_interface;
 
     LOG_DEBUG << "Visiting def: " << name;
 
@@ -192,187 +193,127 @@ antlrcpp::Any ProgramVisitor::visitDef(SpecParser::DefContext* ctx) {
         var_anno->push_back((any_cast<shared_ptr<Arg>>(visitVar_anno(arg))));
     }
 
-    is_layer_interface = var_anno->size() == 0 && typeid(rettype.get()) == typeid(String *);
+    if (name == Project::PROJ_NAME) {
+        proj.name = name;
+    } else if (name == Project::PROJ_BASE) {
+        StringConst *base = dynamic_cast<StringConst *>(expr.get());
+        string path;
 
-    if (is_layer_interface) {
-        if (name == Project::PROJ_NAME) {
-            proj.name = name;
-        } else if (name == Project::PROJ_BASE) {
-            StringConst *base = dynamic_cast<StringConst *>(expr.get());
-            string path;
-
-            if (!base) {
-                throw std::runtime_error("Base path must be a string literal");
-            }
-
-            path = std::get<string>(base->value);
-            if (path[0] != '/') {
-                path = this->path.substr(0, this->path.rfind('/') + 1) + path;
-            }
-            proj.base = path;
-        } else if (name == Project::LAYER_PRIMS) {
-            Expr *prims_list = dynamic_cast<Expr *>(expr.get());
-
-            if (!prims_list) {
-                throw std::runtime_error("Prims must be a list");
-            }
-
-            while (prims_list && holds_alternative<string>(prims_list->op) && std::get<string>(prims_list->op) == "::") {
-                StringConst *prim = dynamic_cast<StringConst *>(prims_list->elems->at(0).get());
-
-                if (!prim) {
-                    throw std::runtime_error("Prims must be a list of strings");
-                }
-
-                current_layer->prims.push_back(std::get<string>(prim->value));
-
-                prims_list = dynamic_cast<Expr *>(prims_list->elems->at(1).get());
-            }
-        } else if (name == Project::LAYER_CODE) {
-            //StringConst *base = dynamic_cast<StringConst *>(expr.get());
-            string path = string_from_StringConst(expr, "Code path must be a string literal");
-
-            // if (!base) {
-            //     throw std::runtime_error("Base path must be a string literal");
-            // }
-
-            // path = std::get<string>(base->value);
-            if (path[0] != '/') {
-                path = this->path.substr(0, this->path.rfind('/') + 1) + path;
-            }
-            current_layer->code = path;
-        } else if (name == Project::LAYER_LOAD) {
-            //StringConst *load = dynamic_cast<StringConst *>(expr.get());
-            string load = string_from_StringConst(expr, "Load must be a string literal");
-
-            // if (!load) {
-            //     throw std::runtime_error("Load must be a string literal");
-            // }
-
-            current_layer->ops->emplace("load", load);
-        } else if (name == Project::LAYER_STORE) {
-            // StringConst *store = dynamic_cast<StringConst *>(expr.get());
-
-            // if (!store) {
-            //     throw std::runtime_error("Store must be a string literal");
-            // }
-            string store = string_from_StringConst(expr, "Store must be a string literal");
-
-            current_layer->ops->emplace("store", store);
-        } else if (name == Project::LAYER_NEW_FRAME) {
-            // StringConst *new_frame = dynamic_cast<StringConst *>(expr.get());
-
-            // if (!new_frame) {
-            //     throw std::runtime_error("New frame must be a string literal");
-            // }
-            string new_frame = string_from_StringConst(expr, "New frame must be a string literal");
-
-            current_layer->ops->emplace("new_frame", new_frame);
-        } else if (name == Project::LAYER_ALLOC) {
-            // StringConst *alloc = dynamic_cast<StringConst *>(expr.get());
-
-            // if (!alloc) {
-            //     throw std::runtime_error("Alloc must be a string literal");
-            // }
-            string alloc = string_from_StringConst(expr, "Alloc must be a string literal");
-
-            current_layer->ops->emplace("alloc", alloc);
-        } else if (name == Project::LAYER_FREE) {
-            // StringConst *free = dynamic_cast<StringConst *>(expr.get());
-
-            // if (!free) {
-            //     throw std::runtime_error("Free must be a string literal");
-            // }
-            string free = string_from_StringConst(expr, "Free must be a string literal");
-
-            current_layer->ops->emplace("free", free);
-        } else if (name == Project::LAYER_GET_REG) {
-            // StringConst *get_reg = dynamic_cast<StringConst *>(expr.get());
-
-            // if (!get_reg) {
-            //     throw std::runtime_error("Get reg must be a string literal");
-            // }
-            string get_reg = string_from_StringConst(expr, "Get reg must be a string literal");
-
-            current_layer->ops->emplace("get_reg", get_reg);
-        } else if (name == Project::LAYER_SET_REG) {
-            // StringConst *set_reg = dynamic_cast<StringConst *>(expr.get());
-
-            // if (!set_reg) {
-            //     throw std::runtime_error("Set reg must be a string literal");
-            // }
-            string set_reg = string_from_StringConst(expr, "Set reg must be a string literal");
-
-            current_layer->ops->emplace("set_reg", set_reg);
-        } else if (name == Project::LAYER_GET_FLAG) {
-            // StringConst *get_flag = dynamic_cast<StringConst *>(expr.get());
-
-            // if (!get_flag) {
-            //     throw std::runtime_error("Get flag must be a string literal");
-            // }
-            string get_flag = string_from_StringConst(expr, "Get flag must be a string literal");
-
-            current_layer->ops->emplace("get_flag",get_flag);
-        } else if (name == Project::LAYER_SET_FLAG) {
-            // StringConst *set_flag = dynamic_cast<StringConst *>(expr.get());
-
-            // if (!set_flag) {
-            //     throw std::runtime_error("Set flag must be a string literal");
-            // }
-            string set_flag = string_from_StringConst(expr, "Set flag must be a string literal");
-
-            current_layer->ops->emplace("set_flag", set_flag);
-        } else if (name == Project::LAYER_PTR2INT) {
-            // StringConst *ptr2int = dynamic_cast<StringConst *>(expr.get());
-
-            // if (!ptr2int) {
-            //     throw std::runtime_error("Ptr2int must be a string literal");
-            // }
-            string ptr2int = string_from_StringConst(expr, "Ptr2int must be a string literal");
-
-            current_layer->ops->emplace("ptr2int", ptr2int);
-        } else if (name == Project::LAYER_INT2PTR) {
-            // StringConst *int2ptr = dynamic_cast<StringConst *>(expr.get());
-
-            // if (!int2ptr) {
-            //     throw std::runtime_error("Int2ptr must be a string literal");
-            // }
-            string int2ptr = string_from_StringConst(expr, "Int2ptr must be a string literal");
-
-            current_layer->ops->emplace("int2ptr", int2ptr);
-        } else if (name == Project::LAYER_PTR_EQB) {
-            // StringConst *ptr_eqb = dynamic_cast<StringConst *>(expr.get());
-
-            // if (!ptr_eqb) {
-            //     throw std::runtime_error("Ptr_eqb must be a string literal");
-            // }
-            string ptr_eqb = string_from_StringConst(expr, "Ptr_eqb must be a string literal");
-
-            current_layer->ops->emplace("ptr_eqb", ptr_eqb);
-        } else if (name == Project::LAYER_PTR_LTB) {
-            // StringConst *ptr_ltb = dynamic_cast<StringConst *>(expr.get());
-
-            // if (!ptr_ltb) {
-            //     throw std::runtime_error("Ptr_ltb must be a string literal");
-            // }
-            string ptr_ltb = string_from_StringConst(expr, "Ptr_ltb must be a string literal");
-
-            current_layer->ops->emplace("ptr_ltb", ptr_ltb);
-        } else if (name == Project::LAYER_PTR_GTB) {
-            // StringConst *ptr_gtb = dynamic_cast<StringConst *>(expr.get());
-
-            // if (!ptr_gtb) {
-            //     throw std::runtime_error("Ptr_gtb must be a string literal");
-            // }
-            string ptr_gtb = string_from_StringConst(expr, "Ptr_gtb must be a string literal");
-
-            current_layer->ops->emplace("ptr_gtb", ptr_gtb);
-        } else {
-            throw std::runtime_error("Unknown layer interface " + name);
+        if (!base) {
+            throw std::runtime_error("Base path must be a string literal");
         }
+
+        path = std::get<string>(base->value);
+        if (path[0] != '/') {
+            path = this->path.substr(0, this->path.rfind('/') + 1) + path;
+        }
+        proj.base = path;
+    } else if (name == Project::LAYER_PRIMS) {
+        Expr *prims_list = dynamic_cast<Expr *>(expr.get());
+
+        if (!prims_list) {
+            throw std::runtime_error("Prims must be a list");
+        }
+
+        while (prims_list && holds_alternative<Expr::binops>(prims_list->op) &&
+               std::get<Expr::binops>(prims_list->op) == Expr::APPEND) {
+            StringConst *prim = dynamic_cast<StringConst *>(prims_list->elems->at(0).get());
+
+            LOG_DEBUG << "Parsed prim: " << std::get<string>(prim->value);
+            if (!prim) {
+                throw std::runtime_error("Prims must be a list of strings");
+            }
+
+            current_layer->prims.push_back(std::get<string>(prim->value));
+
+            prims_list = dynamic_cast<Expr *>(prims_list->elems->at(1).get());
+        }
+    } else if (name == Project::LAYER_CODE) {
+        string path = string_from_StringConst(expr, "Code path must be a string literal");
+
+        if (path[0] != '/') {
+            path = this->path.substr(0, this->path.rfind('/') + 1) + path;
+        }
+
+        LOG_DEBUG << "Parsed code: " << path;
+        current_layer->code = path;
+    } else if (name == Project::LAYER_LOAD) {
+        string load = string_from_StringConst(expr, "Load must be a string literal");
+
+        LOG_DEBUG << "Parsed load: " << load;
+
+        current_layer->ops.emplace("load", load);
+    } else if (name == Project::LAYER_STORE) {
+        string store = string_from_StringConst(expr, "Store must be a string literal");
+
+        LOG_DEBUG << "Parsed store: " << store;
+        current_layer->ops.emplace("store", store);
+    } else if (name == Project::LAYER_NEW_FRAME) {
+        string new_frame = string_from_StringConst(expr, "New frame must be a string literal");
+
+        LOG_DEBUG << "Parsed new_frame: " << new_frame;
+        current_layer->ops.emplace("new_frame", new_frame);
+    } else if (name == Project::LAYER_ALLOC) {
+        string alloc = string_from_StringConst(expr, "Alloc must be a string literal");
+
+        LOG_DEBUG << "Parsed alloc: " << alloc;
+        current_layer->ops.emplace("alloc", alloc);
+    } else if (name == Project::LAYER_FREE) {
+        string free = string_from_StringConst(expr, "Free must be a string literal");
+
+        LOG_DEBUG << "Parsed free: " << free;
+        current_layer->ops.emplace("free", free);
+    } else if (name == Project::LAYER_GET_REG) {
+        string get_reg = string_from_StringConst(expr, "Get reg must be a string literal");
+
+        LOG_DEBUG << "Parsed get_reg: " << get_reg;
+        current_layer->ops.emplace("get_reg", get_reg);
+    } else if (name == Project::LAYER_SET_REG) {
+        string set_reg = string_from_StringConst(expr, "Set reg must be a string literal");
+
+        LOG_DEBUG << "Parsed set_reg: " << set_reg;
+        current_layer->ops.emplace("set_reg", set_reg);
+    } else if (name == Project::LAYER_GET_FLAG) {
+        string get_flag = string_from_StringConst(expr, "Get flag must be a string literal");
+
+        LOG_DEBUG << "Parsed get_flag: " << get_flag;
+        current_layer->ops.emplace("get_flag",get_flag);
+    } else if (name == Project::LAYER_SET_FLAG) {
+        string set_flag = string_from_StringConst(expr, "Set flag must be a string literal");
+
+        LOG_DEBUG << "Parsed set_flag: " << set_flag;
+        current_layer->ops.emplace("set_flag", set_flag);
+    } else if (name == Project::LAYER_PTR2INT) {
+        string ptr2int = string_from_StringConst(expr, "Ptr2int must be a string literal");
+
+        LOG_DEBUG << "Parsed ptr2int: " << ptr2int;
+        current_layer->ops.emplace("ptr2int", ptr2int);
+    } else if (name == Project::LAYER_INT2PTR) {
+        string int2ptr = string_from_StringConst(expr, "Int2ptr must be a string literal");
+
+        LOG_DEBUG << "Parsed int2ptr: " << int2ptr;
+        current_layer->ops.emplace("int2ptr", int2ptr);
+    } else if (name == Project::LAYER_PTR_EQB) {
+        string ptr_eqb = string_from_StringConst(expr, "Ptr_eqb must be a string literal");
+
+        LOG_DEBUG << "Parsed ptr_eqb: " << ptr_eqb;
+        current_layer->ops.emplace("ptr_eqb", ptr_eqb);
+    } else if (name == Project::LAYER_PTR_LTB) {
+        string ptr_ltb = string_from_StringConst(expr, "Ptr_ltb must be a string literal");
+
+        LOG_DEBUG << "Parsed ptr_ltb: " << ptr_ltb;
+        current_layer->ops.emplace("ptr_ltb", ptr_ltb);
+    } else if (name == Project::LAYER_PTR_GTB) {
+        string ptr_gtb = string_from_StringConst(expr, "Ptr_gtb must be a string literal");
+
+        LOG_DEBUG << "Parsed ptr_gtb: " << ptr_gtb;
+        current_layer->ops.emplace("ptr_gtb", ptr_gtb);
     } else {
         shared_ptr<loc_t> loc;
         unique_ptr<Definition> def = make_unique<Definition>(name, rettype, std::move(var_anno), std::move(expr));
+
+        if (dynamic_cast<RecordDef *>(expr.get()))
+            rettype->record = true;
 
         if (current_layer) {
             if (name.size() > 8 && name.substr(name.size() - 8) == "spec_mid") {
@@ -540,6 +481,78 @@ antlrcpp::Any ProgramVisitor::visitRecord_fields_def(SpecParser::Record_fields_d
     return field;
 }
 
+Expr::binops parse_binop(const antlr4::Token *binop) {
+    switch (binop->getType()) {
+        case SpecLexer::MULT:
+            return Expr::binops::MULT;
+        case SpecLexer::DIV:
+            return Expr::binops::DIV;
+        case SpecLexer::MOD:
+            return Expr::binops::MOD;
+        case SpecLexer::ADD:
+            return Expr::binops::ADD;
+        case SpecLexer::MINUS:
+            return Expr::binops::MINUS;
+        case SpecLexer::BITAND:
+            return Expr::binops::BITAND;
+        case SpecLexer::BITOR:
+            return Expr::binops::BITOR;
+        case SpecLexer::BEQ:
+            return Expr::binops::BEQ;
+        case SpecLexer::BNE:
+            return Expr::binops::BNE;
+        case SpecLexer::BGT:
+            return Expr::binops::BGT;
+        case SpecLexer::BGE:
+            return Expr::binops::BGE;
+        case SpecLexer::BLT:
+            return Expr::binops::BLT;
+        case SpecLexer::BLE:
+            return Expr::binops::BLE;
+        case SpecLexer::BAND:
+            return Expr::binops::BAND;
+        case SpecLexer::BOR:
+            return Expr::binops::BOR;
+        case SpecLexer::LSHIFT:
+            return Expr::binops::LSHIFT;
+        case SpecLexer::RSHIFT:
+            return Expr::binops::RSHIFT;
+        case SpecLexer::SEQ:
+            return Expr::binops::SEQ;
+        case SpecLexer::SNE:
+            return Expr::binops::SNE;
+        case SpecLexer::APPEND:
+            return Expr::binops::APPEND;
+        case SpecLexer::CONCAT:
+            return Expr::binops::CONCAT;
+        case SpecLexer::EQUAL:
+            return Expr::binops::EQUAL;
+        case SpecLexer::NOT_EQUAL:
+            return Expr::binops::NOT_EQUAL;
+        case SpecLexer::LT:
+            return Expr::binops::LT;
+        case SpecLexer::LTE:
+            return Expr::binops::LTE;
+        case SpecLexer::GT:
+            return Expr::binops::GT;
+        case SpecLexer::GTE:
+            return Expr::binops::GTE;
+        case SpecLexer::IFONLYIF:
+            return Expr::binops::IFONLYIF;
+        case SpecLexer::OR:
+            return Expr::binops::OR;
+        case SpecLexer::AND:
+            return Expr::binops::AND;
+        case SpecLexer::IMPLIES:
+            return Expr::binops::IMPLIES;
+        default:
+            throw std::runtime_error("Unknown binop");
+    }
+
+    // Should never reach here
+    assert(false);
+}
+
 // Returns a SpecNode*
 antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx) {
     if (ctx->binop) {
@@ -550,7 +563,7 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx) {
         elems->push_back(move(op0));
         elems->push_back(move(op1));
 
-        return (SpecNode *)(new Expr(string(ctx->binop->getText()), std::move(elems)));
+        return (SpecNode *)(new Expr(parse_binop(ctx->binop), std::move(elems)));
     } else if (ctx->record_set) {
         auto op0 = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(0))));
         auto op1 = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(1))));
@@ -564,7 +577,7 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx) {
 
         elems->push_back(move(op1));
 
-        return (SpecNode *)(new Expr(string("Record.set"), std::move(elems)));
+        return (SpecNode *)(new Expr(Expr::ops::RecordSet, std::move(elems)));
     } else if (ctx->record_set2) {
         auto op0 = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(0))));
         auto name = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitName(ctx->name(0))));
@@ -575,7 +588,7 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx) {
         elems->push_back(move(name));
         elems->push_back(move(op1));
 
-        return (SpecNode *)(new Expr(string("Record.set"), std::move(elems)));
+        return (SpecNode *)(new Expr(Expr::ops::RecordSet, std::move(elems)));
     } else if (ctx->map_get) {
         auto op0 = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(0))));
         auto op1 = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(1))));
@@ -584,7 +597,7 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx) {
         elems->push_back(move(op0));
         elems->push_back(move(op1));
 
-        return (SpecNode *)(new Expr(string("ZMap.get"), std::move(elems)));
+        return (SpecNode *)(new Expr(Expr::ops::GET, std::move(elems)));
     } else if (ctx->map_set) {
         auto op0 = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(0))));
         auto op1 = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(1))));
@@ -595,7 +608,7 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx) {
         elems->push_back(move(op1));
         elems->push_back(move(op2));
 
-        return (SpecNode *)(new Expr(string("ZMap.set"), std::move(elems)));
+        return (SpecNode *)(new Expr(Expr::ops::SET, std::move(elems)));
     } else if (ctx->list_nth) {
         auto op0 = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(0))));
         auto op1 = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(1))));
@@ -604,7 +617,7 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx) {
         elems->push_back(move(op0));
         elems->push_back(move(op1));
 
-        return (SpecNode *)(new Expr(string("List.nth"), std::move(elems)));
+        return (SpecNode *)(new Expr(Expr::ops::NTH, std::move(elems)));
     } else if (ctx->forall_expr()) {
         auto vars = unique_ptr<vector<shared_ptr<Arg>>>(any_cast<vector<shared_ptr<Arg>> *>(visitForall_expr(ctx->forall_expr())));
         auto op0 = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(0))));
@@ -625,8 +638,13 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx) {
             elems->push_back(unique_ptr<SpecNode>(any_cast<SpecNode *>(visitTerm(*it))));
         }
 
-        if (typeid(op.get()) == typeid(Symbol *)) {
-            return (SpecNode *)(new Expr(string(((Symbol *)op.get())->text), std::move(elems)));
+        if (dynamic_cast<Symbol *>(op.get()) != nullptr) {
+            if (((Symbol *)op.get())->text == "None")
+                return (SpecNode *)(new Expr(Expr::None, std::move(elems)));
+            else if (((Symbol *)op.get())->text == "Some")
+                return (SpecNode *)(new Expr(Expr::Some, std::move(elems)));
+            else
+                return (SpecNode *)(new Expr(string(((Symbol *)op.get())->text), std::move(elems)));
         } else {
             return (SpecNode *)(new Expr(move(op), std::move(elems)));
         }
@@ -635,15 +653,35 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx) {
     return visitTerm(ctx->term(0));
 }
 
+static Expr::ops parse_uniop(const antlr4::Token *uniop) {
+    switch (uniop->getType()) {
+        case SpecLexer::NOT:
+            return Expr::ops::NOT;
+        case SpecLexer::BNOT:
+            return Expr::ops::BNOT;
+        case SpecLexer::MINUS:
+            return Expr::ops::NEG;
+        default:
+            throw std::runtime_error("Unknown uniop");
+    }
+
+    // Should never reach here
+    assert(false);
+}
+
 // Returns a SpecNode*
 antlrcpp::Any ProgramVisitor::visitTerm(SpecParser::TermContext* ctx) {
     if (ctx->uniop) {
         auto term = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitTerm(ctx->term())));
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+        auto op = parse_uniop(ctx->uniop);
 
         elems->push_back(move(term));
 
-        return (SpecNode *)(new Expr(string(ctx->uniop->getText()), std::move(elems)));
+        if (op == Expr::ops::NEG)
+            return (SpecNode *)(new Expr(Expr::binops::MINUS, std::move(elems)));
+
+        return (SpecNode *)(new Expr(parse_uniop(ctx->uniop), std::move(elems)));
     } else if (ctx->record_get) {
         auto term = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitTerm(ctx->term())));
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
@@ -651,7 +689,7 @@ antlrcpp::Any ProgramVisitor::visitTerm(SpecParser::TermContext* ctx) {
         elems->push_back(move(term));
         elems->push_back(unique_ptr<SpecNode>(any_cast<SpecNode *>(visitName(ctx->name()))));
 
-        return (SpecNode *)(new Expr(string("Record.get"), std::move(elems)));
+        return (SpecNode *)(new Expr(Expr::RecordGet, std::move(elems)));
     } else if (ctx->tuple()) {
         return visitTuple(ctx->tuple());
     } else if (ctx->value()) {
@@ -702,6 +740,14 @@ antlrcpp::Any ProgramVisitor::visitMatch_branch(SpecParser::Match_branchContext*
     auto pattern = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr(ctx->expr(0))));
     auto body = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr(ctx->expr(1))));
 
+    if (dynamic_cast<Symbol *>(pattern.get())) {
+        auto s = dynamic_cast<Symbol *>(pattern.get());
+
+        if (s->text == "None") {
+            pattern = unique_ptr<SpecNode>(new Expr(Expr::None, make_unique<vector<unique_ptr<SpecNode>>>()));
+        }
+    }
+
     return (PatternMatch *)(new PatternMatch(move(pattern), std::move(body)));
 }
 
@@ -722,7 +768,7 @@ antlrcpp::Any ProgramVisitor::visitWhen_stmt(SpecParser::When_stmtContext* ctx) 
         return (SpecNode *)(Match::raw_when(move((*names)[0]), std::move(value), std::move(body)));
     }
 
-    tuple_node = make_unique<Expr>(string("Tuple"), std::move(names));
+    tuple_node = make_unique<Expr>(Expr::Tuple, std::move(names));
     return (SpecNode *)(Match::raw_when(move(tuple_node), std::move(value), std::move(body)));
 
 }
@@ -785,7 +831,7 @@ antlrcpp::Any ProgramVisitor::visitTuple(SpecParser::TupleContext* ctx) {
         elems->push_back(unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr(expr))));
     }
 
-    return (SpecNode *)(new Expr(string("Tuple"), std::move(elems)));
+    return (SpecNode *)(new Expr(Expr::ops::Tuple, std::move(elems)));
 }
 
 // Returns a SpecNode*
@@ -793,7 +839,9 @@ antlrcpp::Any ProgramVisitor::visitValue(SpecParser::ValueContext* ctx) {
     if (ctx->string()) {
         string str = ctx->string()->getText();
 
-        str = str.substr(1, path.size() - 2);
+        str = str.substr(1, str.size() - 2);
+
+        LOG_DEBUG << "Parsed string: " << str;
         return (SpecNode *)(new StringConst(str));
     } else if (ctx->number()) {
         unsigned long value = std::stoul(ctx->number()->getText());

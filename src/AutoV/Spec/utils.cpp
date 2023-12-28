@@ -36,7 +36,11 @@ string add_indent(const string s, int indent) {
     string result = "";
 
     for (int i = 0; i < ss.size(); i++) {
-        result += string(indent, ' ') + ss[i] + "\n";
+        result += string(indent, ' ') + ss[i];
+
+        if (i != ss.size() - 1) {
+            result += "\n";
+        }
     }
 
     return result;
@@ -94,12 +98,65 @@ string join_elems_space(const vector<shared_ptr<Arg>> &elems) {
     return oss.str();
 }
 
-string join_elems_space(const vector<std::unique_ptr<SpecNode>> &elems) {
+
+string join_elems_space(const vector<unique_ptr<SpecNode>> &elems, int elem_indent) {
+    std::ostringstream oss;
+    bool first = true;
+    for (auto it = elems.begin(); it != elems.end(); it++) {
+        if (it != elems.begin()) {
+            oss << "\n";
+        }
+        oss << add_indent(string(**it), elem_indent);
+    }
+
+    return oss.str();
+}
+
+string join_elems_space(const vector<unique_ptr<SpecNode>> &elems) {
     std::ostringstream oss;
     bool first = true;
     for (auto it = elems.begin(); it != elems.end(); it++) {
         if (it != elems.begin()) {
             oss << " ";
+        }
+        oss << string(**it);
+    }
+
+    return oss.str();
+}
+
+string join_elems_comma(const vector<unique_ptr<SpecNode>> &elems, int elem_indent) {
+    std::ostringstream oss;
+    bool first = true;
+    for (auto it = elems.begin(); it != elems.end(); it++) {
+        if (it != elems.begin()) {
+            oss << ",\n";
+        }
+        oss << add_indent(string(**it), elem_indent);
+    }
+
+    return oss.str();
+}
+
+string join_elems_comma1(const vector<unique_ptr<SpecNode>> &elems, int elem_indent) {
+    std::ostringstream oss;
+    bool first = true;
+    for (auto it = elems.begin(); it != elems.end(); it++) {
+        if (it != elems.begin()) {
+            oss << "  ,\n";
+        }
+        oss << add_indent(string(**it), elem_indent);
+    }
+
+    return oss.str();
+}
+
+string join_elems_comma(const vector<unique_ptr<SpecNode>> &elems) {
+    std::ostringstream oss;
+    bool first = true;
+    for (auto it = elems.begin(); it != elems.end(); it++) {
+        if (it != elems.begin()) {
+            oss << ", ";
         }
         oss << string(**it);
     }

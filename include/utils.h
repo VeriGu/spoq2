@@ -29,9 +29,12 @@ string join_elems_semi_colon(const vector<shared_ptr<Arg>> &elems);
 
 //string join_elems_space(const vector<Arg> &elems);
 string join_elems_space(const vector<shared_ptr<Arg>> &elems);
+string join_elems_space(const vector<unique_ptr<SpecNode>> &elems, int elem_indent);
 
-
-//string join_elems_space(const vector<std::unique_ptr<SpecNode>> &elems);
+string join_elems_space(const vector<unique_ptr<SpecNode>> &elems);
+string join_elems_comma(const vector<unique_ptr<SpecNode>> &elems);
+string join_elems_comma(const vector<unique_ptr<SpecNode>> &elems, int elem_indent);
+string join_elems_comma1(const vector<unique_ptr<SpecNode>> &elems, int elem_indent);
 
 //string join_constrs_pipe(const vector<IndConstr> &elems);
 string join_constrs_pipe(const vector<shared_ptr<IndConstr>> &elems);

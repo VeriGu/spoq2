@@ -12,6 +12,7 @@
 
 #include <values.h>
 #include <log.h>
+#include <cassert>
 
 namespace autov {
 using std::string;
@@ -22,6 +23,7 @@ using std::shared_ptr;
 using std::make_shared;
 using std::dynamic_pointer_cast;
 using std::unordered_map;
+using std::holds_alternative;
 
 class SpecNode {
 public:
@@ -50,6 +52,7 @@ public:
         if (this->_str == "") {
             this->_str = this->to_string();
         }
+
         return this->_str;
     }
 
@@ -276,16 +279,35 @@ private:
 
 class Expr : public SpecNode {
 public:
-    std::variant<unique_ptr<SpecNode>, string> op;
+    enum ops {
+        NEG, // dummy
+        SET, GET, NTH, // non-binop
+        NOT, BNOT, // uni-op
+        RecordSet, RecordGet, // Record
+        Tuple,
+        Some, None
+    };
+
+    enum binops {
+        MULT, DIV, MOD,
+        ADD, MINUS, BITAND, BITOR,
+        BEQ, BNE, BGT, BGE, BLT, BLE, BAND, BOR, LSHIFT, RSHIFT, SEQ, SNE,
+        APPEND, CONCAT,
+        EQUAL, NOT_EQUAL, LT, LTE, GT, GTE, IFONLYIF, OR, AND, IMPLIES,
+    };
+
+    std::variant<unique_ptr<SpecNode>, ops, binops, string> op;
     unique_ptr<vector<unique_ptr<SpecNode>>> elems;
 
     Expr() { throw std::invalid_argument("Expr must have an op and elems"); }
-    Expr(std::variant<unique_ptr<SpecNode>, string> op, unique_ptr<vector<unique_ptr<SpecNode>>> elems) :
+    Expr(std::variant<unique_ptr<SpecNode>, ops, binops, string> op, unique_ptr<vector<unique_ptr<SpecNode>>> elems) :
         SpecNode(UNKNOWN_TYPE), op(std::move(op)), elems(std::move(elems)) {
+            assert(!(std::holds_alternative<ops>(op) && std::get<ops>(op) == NEG));
             this->length = calc_length();
         }
-    Expr(std::variant<unique_ptr<SpecNode>, string> op, unique_ptr<vector<unique_ptr<SpecNode>>> elems, SpecType type) :
+    Expr(std::variant<unique_ptr<SpecNode>, ops, binops, string> op, unique_ptr<vector<unique_ptr<SpecNode>>> elems, SpecType type) :
         SpecNode(type), op(std::move(op)), elems(std::move(elems)) {
+            assert(holds_alternative<ops>(op) && std::get<ops>(op) != NEG);
             this->length = calc_length();
         }
 
@@ -359,10 +381,8 @@ public:
     ~Expr() {}
 
 private:
-    const string to_string() const {
-        std::ostringstream oss;
-        return oss.str();
-    }
+    const string to_string() const;
+    static const unordered_map<binops, string> binops_to_str_map;
 
     int calc_length() const{
         int length = 0;
@@ -481,28 +501,88 @@ public:
         p = make_unique<Match>(std::move(new_src), std::move(new_match_list));
     }
 
-    static unique_ptr<Match> when(unique_ptr<SpecNode> pattern, unique_ptr<SpecNode> value, unique_ptr<SpecNode> body) {
-        auto vec = make_unique<vector<unique_ptr<SpecNode>>>();
-        vec->push_back(std::move(pattern));
+    bool is_let() const {
+        if (match_list->size() == 1) {
+            if (dynamic_cast<Symbol *>((*match_list)[0]->pattern.get()) != nullptr)
+                return true;
+            else if (dynamic_cast<Expr *>((*match_list)[0]->pattern.get()) != nullptr) {
+                auto e = dynamic_cast<Expr *>((*match_list)[0]->pattern.get());
+                auto patterns = dynamic_cast<Expr *>((*match_list)[0]->pattern.get());
 
-        unique_ptr<Expr> some = make_unique<Expr>(string("Some"),std::move(vec));
-        unique_ptr<PatternMatch> some_arm = make_unique<PatternMatch>(std::move(some), std::move(body));
-        unique_ptr<PatternMatch> none_arm = make_unique<PatternMatch>(make_unique<Symbol>("None"), make_unique<Symbol>("None"));
-        unique_ptr<vector<unique_ptr<PatternMatch>>> match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
+                if (holds_alternative<Expr::ops>(e->op) && std::get<Expr::ops>(e->op) != Expr::Tuple) {
+                    return false;
+                }
 
-        match_list->push_back(std::move(some_arm));
-        match_list->push_back(std::move(none_arm));
+                for (auto it = patterns->elems->begin(); it != patterns->elems->end(); it++) {
+                    if (dynamic_cast<Symbol *>((*it).get()) == nullptr) {
+                        return false;
+                    }
+                }
 
-        return make_unique<Match>(std::move(value), std::move(match_list));
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool is_when() const {
+        if (match_list->size() == 2) {
+            auto pm = (*match_list)[0].get();
+            auto none = (*match_list)[1].get();
+            Expr *pattern = dynamic_cast<Expr *>(pm->pattern.get());
+            Expr *none_pattern;
+            Symbol *none_body;
+            SpecNode *elem;
+            Expr *elem_expr;
+
+            if (pattern == nullptr)
+                return false;
+            if (holds_alternative<Expr::ops>(pattern->op) && std::get<Expr::ops>(pattern->op) != Expr::Some)
+                return false;
+
+            none_pattern = dynamic_cast<Expr *>(none->pattern.get());
+            none_body = dynamic_cast<Symbol *>(none->body.get());
+            if (none_pattern == nullptr || none_body == nullptr) {
+                return false;
+            }
+            if (!holds_alternative<Expr::ops>(none_pattern->op))
+                return false;
+
+            if ((std::get<Expr::ops>(none_pattern->op) != Expr::None)
+                 || none_body->text != "None")
+                return false;
+
+            elem = pattern->elems->at(0).get();
+            if (dynamic_cast<Symbol *>(elem))
+                return true;
+
+            elem_expr = dynamic_cast<Expr *>(elem);
+            if (elem_expr != nullptr && holds_alternative<Expr::ops>(elem_expr->op) &&
+                std::get<Expr::ops>(elem_expr->op) == Expr::Tuple) {
+                if (elem_expr->elems->size() >= 3)
+                    return false;
+
+                for (auto it = elem_expr->elems->begin(); it != elem_expr->elems->end(); it++) {
+                    if (dynamic_cast<Symbol *>((*it).get()) == nullptr) {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+        }
+
+        return false;
     }
 
     static Match* raw_when(unique_ptr<SpecNode> pattern, unique_ptr<SpecNode> value, unique_ptr<SpecNode> body) {
         auto vec = make_unique<vector<unique_ptr<SpecNode>>>();
         vec->push_back(std::move(pattern));
 
-        unique_ptr<Expr> some = make_unique<Expr>(string("Some"),std::move(vec));
+        unique_ptr<Expr> some = make_unique<Expr>(Expr::Some, std::move(vec));
         unique_ptr<PatternMatch> some_arm = make_unique<PatternMatch>(std::move(some), std::move(body));
-        unique_ptr<PatternMatch> none_arm = make_unique<PatternMatch>(make_unique<Symbol>("None"), make_unique<Symbol>("None"));
+        unique_ptr<PatternMatch> none_arm = make_unique<PatternMatch>(make_unique<Expr>(Expr::None,  make_unique<vector<unique_ptr<SpecNode>>>()), make_unique<Symbol>("None"));
         unique_ptr<vector<unique_ptr<PatternMatch>>> match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
 
         match_list->push_back(std::move(some_arm));
@@ -511,11 +591,12 @@ public:
         return new Match(std::move(value), std::move(match_list));
     }
 
-private:
-    const string to_string() const {
-        std::ostringstream oss;
-        return oss.str();
+    static unique_ptr<Match> when(unique_ptr<SpecNode> pattern, unique_ptr<SpecNode> value, unique_ptr<SpecNode> body) {
+        return unique_ptr<Match>(raw_when(std::move(pattern), std::move(value), std::move(body)));
     }
+
+private:
+    const string to_string() const;
 
     int calc_length() const{
         int length = src->length;
@@ -832,6 +913,8 @@ public:
     unique_ptr<vector<shared_ptr<Arg>>> args;
     unique_ptr<SpecNode> body;
     int length;
+    mutable string _str;
+
 
     Definition() { throw std::invalid_argument("Definition must have a name, rettype, args, and body"); }
     Definition(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args, unique_ptr<SpecNode> body) :
@@ -846,6 +929,13 @@ public:
 
     bool operator!=(const Definition& other) const {
         return !(*this == other);
+    }
+
+    operator string() const {
+        if (this->_str == "") {
+            this->_str = this->to_string();
+        }
+        return this->_str;
     }
 
 private:
@@ -866,14 +956,14 @@ class Layer {
 public:
     string name;
     shared_ptr<SpecType> abs_data;
-    unique_ptr<unordered_map<string, string>> ops;
+    unordered_map<string, string> ops;
     vector<string> prims;
     string code; // Temp until we ported the IRModule class
     vector<string> passthrough;
 
     Layer() { throw std::invalid_argument("Layer must have a name, abs_data, ops, prims, and code"); }
     Layer(string name) : name(name) {}
-    Layer(string name, unique_ptr<SpecType> abs_data, unique_ptr<unordered_map<string, string>> ops,
+    Layer(string name, unique_ptr<SpecType> abs_data, unordered_map<string, string> ops,
           vector<string> prims, string code, vector<string> passthrough) :
         name(name), abs_data(std::move(abs_data)), ops(std::move(ops)), prims(prims), code(code), passthrough(passthrough) {}
 };
