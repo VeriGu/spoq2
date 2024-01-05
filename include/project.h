@@ -129,6 +129,12 @@ public:
     void add_command(unique_ptr<Expr> cmd);
     void add_command(unique_ptr<Expr> cmd, unique_ptr<Layer> layer);
 
+    bool is_ind_constr(string name);
+    bool is_struct_constr(string name);
+    shared_ptr<SpecType> get_indtype_by_constr(string name);
+
+    bool is_known_symbol(string name);
+
     //void finalize_project();
 
 };

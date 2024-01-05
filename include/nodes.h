@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <variant>
 #include <memory>
+#include <optional>
 
 #include <values.h>
 #include <log.h>
@@ -24,18 +25,23 @@ using std::make_shared;
 using std::dynamic_pointer_cast;
 using std::unordered_map;
 using std::holds_alternative;
+using std::optional;
+
+class Project;
 
 class SpecNode {
 public:
     static unsigned long id; // Initialized in nodes.cpp
-    SpecType type;
+
+    shared_ptr<SpecType> type;
     unsigned long nid;
     int length;
     mutable string _str; // cached string representation
+    shared_ptr<SpecType> tmp;
 
-    SpecNode() : type(UNKNOWN_TYPE), nid(id++), length(1) {}
-    SpecNode(SpecType type) : type(type), nid(id++), length(1) {}
-    SpecNode(SpecType type, int length) : type(type), nid(id++), length(length) {}
+    SpecNode() : type(SpecType::UNKNOWN_TYPE), nid(id++), length(1) {}
+    SpecNode(shared_ptr<SpecType> type) : type(type), nid(id++), length(1) {}
+    SpecNode(shared_ptr<SpecType> type, int length) : type(type), nid(id++), length(length) {}
 
     bool operator==(const SpecNode& other) const {
         if (typeid(other) != typeid(*this)) {
@@ -57,27 +63,26 @@ public:
     }
 
     bool has_type() const {
-        return this->type != UNKNOWN_TYPE;
+        return this->type != SpecType::UNKNOWN_TYPE;
     }
 
-    void set_type(SpecType type) {
+    void set_type(shared_ptr<SpecType> type) {
         if (this->has_type() && this->type != type) {
-            LOG_ERROR << "Overwriting type " << string(this->type) << " with " << string(type);
-            throw std::invalid_argument("Overwriting type" + string(this->type) + " with " + string(type));
+            LOG_ERROR << "Overwriting type " << string(*this->type) << " with " << string(*type);
+            throw std::invalid_argument("Overwriting type" + string(*this->type) + " with " + string(*type));
         }
         this->type = type;
     }
 
-    SpecType get_type() const {
+    shared_ptr<SpecType> get_type() const {
         if (!this->has_type()) {
-            return UNKNOWN_TYPE;
+            return SpecType::UNKNOWN_TYPE;
         }
         return this->type;
     }
 
     virtual unique_ptr<SpecNode> deep_copy() const = 0;
     virtual void deep_copy(unique_ptr<SpecNode> &p) const = 0;
-
 
     virtual ~SpecNode() {}
 private:
@@ -90,8 +95,8 @@ public:
     string text;
 
     Symbol() { throw std::invalid_argument("Symbol must have a name"); }
-    Symbol(string text) : SpecNode(UNKNOWN_TYPE), text(text) {}
-    Symbol(string text, SpecType type) : SpecNode(type), text(text) {}
+    Symbol(string text) : SpecNode(SpecType::UNKNOWN_TYPE), text(text) {}
+    Symbol(string text, shared_ptr<SpecType> type) : SpecNode(type), text(text) {}
 
     bool operator==(const SpecNode& other) const {
         if (typeid(other) != typeid(Symbol)) {
@@ -116,6 +121,9 @@ public:
         p = make_unique<Symbol>(this->text, this->type);
     }
 
+    void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
+                    optional<shared_ptr<SpecType>> &result_type);
+
     ~Symbol() {}
 
 private:
@@ -129,8 +137,8 @@ public:
     std::variant<unsigned long, string, bool> value;
 
     Const() { throw std::invalid_argument("Const must have a value"); }
-    Const(const std::variant<unsigned long, string, bool>& value) : SpecNode(UNKNOWN_TYPE), value(value) {}
-    Const(const std::variant<unsigned long, string, bool>& value, SpecType type)
+    Const(const std::variant<unsigned long, string, bool>& value) : SpecNode(SpecType::UNKNOWN_TYPE), value(value) {}
+    Const(const std::variant<unsigned long, string, bool>& value, shared_ptr<SpecType> type)
         : SpecNode(type), value(value) {}
 
     bool operator==(const SpecNode& other) const {
@@ -159,7 +167,7 @@ public:
     ~Const() {}
 private:
     const string to_string() const {
-        if (this->type == UNKNOWN_TYPE) {
+        if (this->type == SpecType::UNKNOWN_TYPE) {
             throw std::invalid_argument("Const must have a type");
         } else if (typeid(this->type) == typeid(Int)) {
             return std::to_string(std::get<unsigned long>(this->value));
@@ -176,8 +184,8 @@ private:
 class IntConst : public Const {
 public:
     IntConst() { throw std::invalid_argument("IntConst must have a value"); }
-    IntConst(unsigned long value) : Const(value, Int()) {}
-    IntConst(unsigned long value, SpecType type) : Const(value, type) {}
+    IntConst(unsigned long value) : Const(value, Int::INT) {}
+    //IntConst(unsigned long value, SpecType type) : Const(value, type) {}
 
     ~IntConst() {}
 private:
@@ -189,8 +197,8 @@ private:
 class StringConst : public Const {
 public:
     StringConst() { throw std::invalid_argument("StringConst must have a value"); }
-    StringConst(string value) : Const(value, String()) {}
-    StringConst(string value, SpecType type) : Const(value, type) {}
+    StringConst(string value) : Const(value, String::STRING) {}
+    //StringConst(string value, SpecType type) : Const(value, type) {}
 
     ~StringConst() {}
 
@@ -203,8 +211,8 @@ private:
 class BoolConst : public Const {
 public:
     BoolConst() { throw std::invalid_argument("BoolConst must have a value"); }
-    BoolConst(bool value) : Const(value, Bool()) {}
-    BoolConst(bool value, SpecType type) : Const(value, type) {}
+    BoolConst(bool value) : Const(value, Bool::BOOL) {}
+    //BoolConst(bool value, SpecType type) : Const(value, type) {}
 
     ~BoolConst() {}
 
@@ -219,10 +227,12 @@ public:
     unique_ptr<std::map<unique_ptr<Symbol>, unique_ptr<SpecNode>>> fields;
 
     RecordDef() { throw std::invalid_argument("RecordDef must have fields"); }
-    RecordDef(unique_ptr<std::map<unique_ptr<Symbol>, unique_ptr<SpecNode>>> fields) : SpecNode(UNKNOWN_TYPE), fields(std::move(fields)){
+    RecordDef(unique_ptr<std::map<unique_ptr<Symbol>, unique_ptr<SpecNode>>> fields) :
+        SpecNode(SpecType::UNKNOWN_TYPE), fields(std::move(fields)){
         this->length = calc_length();
     }
-    RecordDef(unique_ptr<std::map<unique_ptr<Symbol>, unique_ptr<SpecNode>>> fields, SpecType type) : SpecNode(type), fields(std::move(fields)) {
+    RecordDef(unique_ptr<std::map<unique_ptr<Symbol>, unique_ptr<SpecNode>>> fields, shared_ptr<SpecType> type) :
+        SpecNode(type), fields(std::move(fields)) {
         this->length = calc_length();
     }
 
@@ -294,18 +304,23 @@ public:
         BEQ, BNE, BGT, BGE, BLT, BLE, BAND, BOR, LSHIFT, RSHIFT, SEQ, SNE,
         APPEND, CONCAT,
         EQUAL, NOT_EQUAL, LT, LTE, GT, GTE, IFONLYIF, OR, AND, IMPLIES,
+        // Zlnot, Zlxor, Ztestbit,
+        // xorb
     };
 
     std::variant<unique_ptr<SpecNode>, ops, binops, string> op;
     unique_ptr<vector<unique_ptr<SpecNode>>> elems;
 
     Expr() { throw std::invalid_argument("Expr must have an op and elems"); }
-    Expr(std::variant<unique_ptr<SpecNode>, ops, binops, string> op, unique_ptr<vector<unique_ptr<SpecNode>>> elems) :
-        SpecNode(UNKNOWN_TYPE), op(std::move(op)), elems(std::move(elems)) {
+    Expr(std::variant<unique_ptr<SpecNode>, ops, binops, string> op,
+         unique_ptr<vector<unique_ptr<SpecNode>>> elems) :
+        SpecNode(SpecType::UNKNOWN_TYPE), op(std::move(op)), elems(std::move(elems)) {
             assert(!(std::holds_alternative<ops>(op) && std::get<ops>(op) == NEG));
             this->length = calc_length();
         }
-    Expr(std::variant<unique_ptr<SpecNode>, ops, binops, string> op, unique_ptr<vector<unique_ptr<SpecNode>>> elems, SpecType type) :
+    Expr(std::variant<unique_ptr<SpecNode>, ops, binops, string> op,
+         unique_ptr<vector<unique_ptr<SpecNode>>> elems,
+         shared_ptr<SpecType> type) :
         SpecNode(type), op(std::move(op)), elems(std::move(elems)) {
             assert(holds_alternative<ops>(op) && std::get<ops>(op) != NEG);
             this->length = calc_length();
@@ -377,6 +392,9 @@ public:
                                           std::move(new_elems), this->type);
         }
     }
+
+    void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
+                    optional<shared_ptr<SpecType>> &result_type);
 
     ~Expr() {}
 
@@ -576,6 +594,9 @@ public:
         return false;
     }
 
+    void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
+                    optional<shared_ptr<SpecType>> &result_type);
+
     static Match* raw_when(unique_ptr<SpecNode> pattern, unique_ptr<SpecNode> value, unique_ptr<SpecNode> body) {
         auto vec = make_unique<vector<unique_ptr<SpecNode>>>();
         vec->push_back(std::move(pattern));
@@ -611,14 +632,23 @@ private:
     }
 };
 
-class Rely : public SpecNode {
+class RelyAnno: public SpecNode {
 public:
     unique_ptr<SpecNode> prop;
     unique_ptr<SpecNode> body;
 
+    RelyAnno() { throw std::invalid_argument("RelyAnno must have a prop and body"); }
+    RelyAnno(unique_ptr<SpecNode>prop, unique_ptr<SpecNode>body) :
+        SpecNode(body->get_type()), prop(std::move(prop)), body(std::move(body)) {}
+
+    virtual ~RelyAnno() = default;
+};
+
+class Rely : public RelyAnno {
+public:
+
     Rely() { throw std::invalid_argument("Rely must have a prop and body"); }
-    Rely(unique_ptr<SpecNode>prop, unique_ptr<SpecNode>body) :
-        SpecNode(body->get_type()), prop(std::move(prop)), body(std::move(body)) {
+    Rely(unique_ptr<SpecNode>prop, unique_ptr<SpecNode>body) : RelyAnno(std::move(prop), std::move(body)) {
         this->length = calc_length();
     }
 
@@ -650,6 +680,9 @@ public:
         p = make_unique<Rely>(std::move(new_prop), std::move(new_body));
     }
 
+    void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
+                optional<shared_ptr<SpecType>> &result_type);
+
 private:
     const string to_string() const;
 
@@ -658,14 +691,10 @@ private:
     }
 };
 
-class Anno : public SpecNode {
+class Anno : public RelyAnno {
 public:
-    unique_ptr<SpecNode> prop;
-    unique_ptr<SpecNode> body;
-
     Anno() { throw std::invalid_argument("Anno must have a prop and body"); }
-    Anno(unique_ptr<SpecNode>prop, unique_ptr<SpecNode>body) :
-        SpecNode(body->get_type()), prop(std::move(prop)), body(std::move(body)) {
+    Anno(unique_ptr<SpecNode>prop, unique_ptr<SpecNode>body) : RelyAnno(std::move(prop), std::move(body)) {
         this->length = calc_length();
     }
 
@@ -696,6 +725,9 @@ public:
 
         p = make_unique<Anno>(std::move(new_prop), std::move(new_body));
     }
+
+    void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
+                    optional<shared_ptr<SpecType>> &result_type);
 private:
     const string to_string() const;
 
@@ -753,6 +785,9 @@ public:
         p = make_unique<If>(std::move(new_cond), std::move(new_then_body), std::move(new_else_body));
     }
 
+    void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
+                optional<shared_ptr<SpecType>> &result_type);
+
 private:
     const string to_string() const;
 
@@ -761,14 +796,24 @@ private:
     }
 };
 
-class Forall : public SpecNode {
+class ForallExists : public SpecNode {
 public:
     unique_ptr<vector<shared_ptr<Arg>>> vars;
     unique_ptr<SpecNode> body;
 
+    ForallExists() { throw std::invalid_argument("ForallExists must have vars and body"); }
+    ForallExists(unique_ptr<vector<shared_ptr<Arg>>> vars, unique_ptr<SpecNode>body) :
+        SpecNode(Prop::PROP), vars(std::move(vars)), body(std::move(body)) {
+    }
+
+    virtual ~ForallExists() = default;
+};
+
+class Forall : public ForallExists {
+public:
     Forall() { throw std::invalid_argument("Forall must have vars and body"); }
     Forall(unique_ptr<vector<shared_ptr<Arg>>> vars, unique_ptr<SpecNode>body) :
-        SpecNode(Prop()), vars(std::move(vars)), body(std::move(body)) {
+        ForallExists(std::move(vars), std::move(body)) {
         this->length = calc_length();
     }
 
@@ -807,6 +852,9 @@ public:
         // p = make_unique<Forall>(std::move(new_vars), std::move(new_body));
     }
 
+    void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
+                optional<shared_ptr<SpecType>> &result_type);
+
 private:
     const string to_string() const;
 
@@ -815,14 +863,11 @@ private:
     }
 };
 
-class Exists : public SpecNode {
+class Exists : public ForallExists {
 public:
-    unique_ptr<vector<shared_ptr<Arg>>> vars;
-    unique_ptr<SpecNode> body;
-
     Exists() { throw std::invalid_argument("Exists must have vars and body"); }
     Exists(unique_ptr<vector<shared_ptr<Arg>>> vars, unique_ptr<SpecNode>body) :
-        SpecNode(Prop()), vars(std::move(vars)), body(std::move(body)) {
+        ForallExists(std::move(vars), std::move(body)) {
         this->length = calc_length();
     }
 
@@ -861,6 +906,9 @@ public:
 
         // p = make_unique<Exists>(std::move(new_vars), std::move(new_body));
     }
+
+    void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
+                optional<shared_ptr<SpecType>> &result_type);
 
 private:
     const string to_string() const;
@@ -937,6 +985,21 @@ public:
         }
         return this->_str;
     }
+
+    shared_ptr<SpecType> get_type() const {
+        if (args->size()) {
+            auto args = make_shared<vector<shared_ptr<SpecType>>>();
+
+            for (auto it = this->args->begin(); it != this->args->end(); it++) {
+                args->push_back((*it)->type);
+            }
+
+            return make_shared<Function>(this->rettype, args);
+        }
+        return this->rettype;
+    }
+
+    void infer_type(Project &proj);
 
 private:
     virtual const string to_string() const;

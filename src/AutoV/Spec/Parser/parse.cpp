@@ -115,15 +115,15 @@ antlrcpp::Any ProgramVisitor::visitType(SpecParser::TypeContext* ctx) {
     if (ctx->par) {
         return visit(ctx->type(0));
     } else if (ctx->Z_type) {
-        return static_pointer_cast<SpecType>(make_shared<Int>());
+        return static_pointer_cast<SpecType>(Int::INT);
     } else if (ctx->bool_type) {
-        return static_pointer_cast<SpecType>(make_shared<Bool>());
+        return static_pointer_cast<SpecType>(Bool::BOOL);
     } else if (ctx->str_type) {
-        return static_pointer_cast<SpecType>(make_shared<String>());
+        return static_pointer_cast<SpecType>(String::STRING);
     } else if (ctx->type_type) {
-        return static_pointer_cast<SpecType>(make_shared<Type>());
+        return static_pointer_cast<SpecType>(Type::TYPE);
     } else if (ctx->prop_type) {
-        return static_pointer_cast<SpecType>(make_shared<Prop>());
+        return static_pointer_cast<SpecType>(Prop::PROP);
     } else if (ctx->list_type) {
         return static_pointer_cast<SpecType>(make_shared<List>(any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)))));
     } else if (ctx->option_type) {
@@ -138,6 +138,11 @@ antlrcpp::Any ProgramVisitor::visitType(SpecParser::TypeContext* ctx) {
 
         if (curried_type && dynamic_cast<Function*>(curried_type.get()) != nullptr) {
             shared_ptr<Function> curried_type_func = dynamic_pointer_cast<Function>(curried_type);
+
+            // push back all the arguments of curried_type_func
+            for (auto arg : *curried_type_func->args) {
+                args->push_back(arg);
+            }
 
             return static_pointer_cast<SpecType>(make_shared<Function>(curried_type_func->rettype, args));
         } else {
@@ -421,6 +426,11 @@ antlrcpp::Any ProgramVisitor::visitRecord_fields(SpecParser::Record_fieldsContex
     auto name_it = name.begin();
 
     for (; type_it != type.end() && name_it != name.end(); type_it++, name_it++) {
+        // if ((*name_it)->getText() == "repl") {
+        //     LOG_DEBUG << "Visiting record field: " << (*name_it)->getText();
+        //     LOG_DEBUG << "type: " << (*type_it)->getText();
+        //     LOG_DEBUG << "Parsed type: " << string(*any_cast<shared_ptr<SpecType>>(visitType(*type_it)));
+        // }
         args->push_back(make_shared<Arg>((*name_it)->getText(), any_cast<shared_ptr<SpecType>>(visitType(*type_it))));
     }
 
@@ -639,6 +649,16 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx) {
         }
 
         if (dynamic_cast<Symbol *>(op.get()) != nullptr) {
+            // static const unordered_map<string, Expr::binops> str_to_binops_map = {
+            //     {"Z.lnot", Expr::Zlnot},
+            //     {"Z.lxor", Expr::Zlxor},
+            //     {"Z.testbit", Expr::Ztestbit},
+            //     {"xorb", Expr::xorb}
+            // };
+
+            // if (str_to_binops_map.find(((Symbol *)op.get())->text) != str_to_binops_map.end()) {
+            //     return (SpecNode *)(new Expr(str_to_binops_map.at(((Symbol *)op.get())->text), std::move(elems)));
+            // } else
             if (((Symbol *)op.get())->text == "None")
                 return (SpecNode *)(new Expr(Expr::None, std::move(elems)));
             else if (((Symbol *)op.get())->text == "Some")
@@ -841,7 +861,7 @@ antlrcpp::Any ProgramVisitor::visitValue(SpecParser::ValueContext* ctx) {
 
         str = str.substr(1, str.size() - 2);
 
-        LOG_DEBUG << "Parsed string: " << str;
+        //LOG_DEBUG << "Parsed string: " << str;
         return (SpecNode *)(new StringConst(str));
     } else if (ctx->number()) {
         unsigned long value = std::stoul(ctx->number()->getText());

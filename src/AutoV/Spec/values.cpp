@@ -15,7 +15,17 @@ using std::shared_ptr;
 using std::make_shared;
 using std::unordered_map;
 
-Struct Ptr = Struct(
+// Struct Ptr = Struct(
+//     "Ptr",
+//     make_shared<vector<shared_ptr<Arg>>>(
+//         std::initializer_list<shared_ptr<Arg>>{
+//             make_shared<Arg>("pbase", make_shared<Int>()),
+//             make_shared<Arg>("poffset", make_shared<Int>())
+//         }
+//     )
+// );
+
+shared_ptr<Struct> Struct::Ptr = make_shared<Struct>(
     "Ptr",
     make_shared<vector<shared_ptr<Arg>>>(
         std::initializer_list<shared_ptr<Arg>>{
@@ -25,7 +35,19 @@ Struct Ptr = Struct(
     )
 );
 
-Inductive Nat = Inductive(
+// Inductive Nat = Inductive(
+//     "nat",
+//     make_shared<vector<shared_ptr<IndConstr>>>(
+//         std::initializer_list<shared_ptr<IndConstr>>{
+//             make_shared<IndConstr>("O", make_shared<vector<shared_ptr<Arg>>>()),
+//             make_shared<IndConstr>("S", make_shared<vector<shared_ptr<Arg>>>(1,
+//                 make_shared<Arg>("pred", make_shared<SpecType>(SpecType("nat")))
+//             ))
+//         }
+//     )
+// );
+
+shared_ptr<Inductive> Inductive::Nat = make_shared<Inductive>(
     "nat",
     make_shared<vector<shared_ptr<IndConstr>>>(
         std::initializer_list<shared_ptr<IndConstr>>{
@@ -37,7 +59,14 @@ Inductive Nat = Inductive(
     )
 );
 
-SpecType UNKNOWN_TYPE("UNKNOWN_TYPE");
+//SpecType UNKNOWN_TYPE = SpecType("UNKNOWN_TYPE");
+shared_ptr<SpecType> SpecType::UNKNOWN_TYPE = make_shared<SpecType>("UNKNOWN_TYPE");
+
+shared_ptr<Int> Int::INT = make_shared<Int>();
+shared_ptr<String> String::STRING = make_shared<String>();
+shared_ptr<Bool> Bool::BOOL = make_shared<Bool>();
+shared_ptr<Prop> Prop::PROP = make_shared<Prop>();
+shared_ptr<Type> Type::TYPE = make_shared<Type>();
 
 // ----------------------------------------------------------------------------
 // Struct
@@ -85,8 +114,12 @@ Function::operator string() const {
 
     for (const auto arg : *args) {
         res += string(*arg) + " -> ";
+        if (arg != args->back()) {
+            res += "(";
+        }
     }
-    return res + std::string(*rettype);
+
+    return res + std::string(*rettype) + string(")", args->size() - 1);
 }
 
 // ----------------------------------------------------------------------------

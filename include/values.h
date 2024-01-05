@@ -18,6 +18,8 @@ using std::unordered_map;
 
 class SpecType {
 public:
+    static shared_ptr<SpecType> UNKNOWN_TYPE;
+
     string name;
     bool record;
 
@@ -41,20 +43,23 @@ public:
     }
 };
 
-extern SpecType UNKNOWN_TYPE;
-
 class Int : public SpecType {
 public:
+    static shared_ptr<Int> INT;
+
     Int() : SpecType("Z") {}
 };
 
 class String : public SpecType {
 public:
+    static shared_ptr<String> STRING;
     String() : SpecType("string") {}
 };
 
 class Bool : public SpecType {
 public:
+    static shared_ptr<Bool> BOOL;
+
     Bool() : SpecType("bool") {}
 };
 
@@ -72,11 +77,15 @@ public:
 
 class Prop : public SpecType {
 public:
+    static shared_ptr<Prop> PROP;
+
     Prop() : SpecType("Prop") {}
 };
 
 class Type : public SpecType {
 public:
+    static shared_ptr<Type> TYPE;
+
     Type() : SpecType("Type") {}
 };
 
@@ -109,19 +118,19 @@ public:
 
 class Struct : public SpecType {
 public:
+    static shared_ptr<Struct> Ptr;
+
     shared_ptr<vector<shared_ptr<Arg>>> elems;
-    std::map<string, shared_ptr<Arg>> elems_map;
+    std::map<string, shared_ptr<SpecType>> elems_map;
     Struct() = default;
     Struct(string name, shared_ptr<vector<shared_ptr<Arg>>> elems) : SpecType(name), elems(elems) {
         for (const auto elem : *elems) { // Fix: Use emplace instead of assignment to insert elements into elems_map
-            elems_map.emplace(elem->name, elem);
+            elems_map.emplace(elem->name, elem->type);
         }
     }
 
     string define() const;
 };
-
-extern Struct Ptr;
 
 class IndConstr {
 public:
@@ -135,13 +144,15 @@ public:
 
 class Inductive : public SpecType {
 public:
+    static shared_ptr<Inductive> Nat;
+
     shared_ptr<vector<shared_ptr<IndConstr>>> constrs;
-    std::map<string, shared_ptr<IndConstr>> constr;
+    std::map<string, shared_ptr<vector<shared_ptr<Arg>>>> constr;
     std::map<string, shared_ptr<SpecType>> arg_type;
     Inductive() = default;
     Inductive(string name, shared_ptr<vector<shared_ptr<IndConstr>>> constrs) : SpecType(name), constrs(constrs) {
         for (const auto c : *constrs) {
-            constr.emplace(c->name, c); // Fix: Use emplace instead of assignment to insert elements into constr
+            constr.emplace(c->name, c->args); // Fix: Use emplace instead of assignment to insert elements into constr
             for (const auto arg : *c->args) {
                 arg_type.emplace(arg->name, arg->type); // Fix: Use emplace instead of assignment to insert elements into arg_type
             }

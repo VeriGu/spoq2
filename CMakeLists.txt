@@ -44,6 +44,7 @@ set(SOURCES
     src/AutoV/Spec/values.cpp
     src/AutoV/Spec/utils.cpp
     src/AutoV/Spec/project.cpp
+    src/AutoV/Spec/type_inference.cpp
     src/AutoV/Spec/Parser/SpecLexer.cpp
     src/AutoV/Spec/Parser/SpecParser.cpp
     src/AutoV/Spec/Parser/parse.cpp
