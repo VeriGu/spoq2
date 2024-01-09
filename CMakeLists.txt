@@ -40,6 +40,8 @@ include_directories(src/AutoV/Spec/Parser/antlr4/runtime/Cpp/runtime/src/)
 set(SOURCES
     src/AutoV/main.cpp
     src/AutoV/log.cpp
+    src/AutoV/IRLoader/coq.cpp
+    src/AutoV/IRLoader/irvalues.cpp
     src/AutoV/Spec/nodes.cpp
     src/AutoV/Spec/values.cpp
     src/AutoV/Spec/utils.cpp
