@@ -876,15 +876,15 @@ const string Definition::to_string() const {
 }
 
 void Definition::infer_type(Project &proj) {
-    unordered_map<string, shared_ptr<SpecType>> known;
+    shared_ptr<unordered_map<string, shared_ptr<SpecType>>> known(new unordered_map<string, shared_ptr<SpecType>>());
     std::set<string> vars;
     bool well_typed;
 
     for (auto it = args->begin(); it != args->end(); it++) {
-        known[(*it)->name] = (*it)->type;
+        (*known)[(*it)->name] = (*it)->type;
     }
 
-    type_inference::infer_type(proj, body.get(), &known, rettype);
+    type_inference::infer_type(proj, body.get(), known, rettype);
 
     for (auto it = args->begin(); it != args->end(); it++) {
         vars.insert((*it)->name);

@@ -15,7 +15,7 @@ using std::shared_ptr;
 using std::make_shared;
 using std::unordered_map;
 
-static void infer_pattern(Project &proj, SpecNode *pattern, unordered_map<string, shared_ptr<SpecType>> *known_types) {
+static void infer_pattern(Project &proj, SpecNode *pattern, shared_ptr<unordered_map<string, shared_ptr<SpecType>>> known_types) {
     if (dynamic_cast<Symbol *>(pattern)) {
         auto sym = dynamic_cast<Symbol *>(pattern);
 
@@ -41,9 +41,9 @@ static void infer_pattern(Project &proj, SpecNode *pattern, unordered_map<string
     }
 }
 
-void infer_type(Project &proj, SpecNode *spec, unordered_map<string, shared_ptr<SpecType>> *known_types,
+void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, shared_ptr<SpecType>>> known_types,
                 shared_ptr<SpecType>final_type = nullptr) {
-    vector<tuple<int, SpecNode *, int, unordered_map<string, shared_ptr<SpecType>>*>>stack;
+    vector<tuple<int, SpecNode *, int, shared_ptr<unordered_map<string, shared_ptr<SpecType>>>>> stack;
 
     if (final_type) {
         spec->type = final_type;
@@ -638,7 +638,7 @@ void infer_type(Project &proj, SpecNode *spec, unordered_map<string, shared_ptr<
                     stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                     stack.push_back(std::make_tuple(__LINE__, pm->pattern.get(), 0, known_types));
                 } else if (n_step == 1) {
-                    unordered_map<string, shared_ptr<SpecType>> *known = new unordered_map<string, shared_ptr<SpecType>>(*known_types);
+                    shared_ptr<unordered_map<string, shared_ptr<SpecType>>> known(new unordered_map<string, shared_ptr<SpecType>>(*known_types));
 
                     infer_pattern(proj, pm->pattern.get(), known);
                     if (spec->type != nullptr)
@@ -704,7 +704,7 @@ void infer_type(Project &proj, SpecNode *spec, unordered_map<string, shared_ptr<
             auto fe = dynamic_cast<ForallExists *>(spec);
 
             if (n == 0) {
-                unordered_map<string, shared_ptr<SpecType>> *known = new unordered_map<string, shared_ptr<SpecType>>(*known_types);
+                shared_ptr<unordered_map<string, shared_ptr<SpecType>>> known(new unordered_map<string, shared_ptr<SpecType>>(*known_types));
 
                 for (const auto &var: *fe->vars) {
                     (*known)[var->name] = var->type;

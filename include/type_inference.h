@@ -17,7 +17,7 @@ using std::make_shared;
 using std::unordered_map;
 
 // `known_types` needs to be pushed to a vector and thus it must be a pointer instead of a pointer.
-void infer_type(Project &proj, SpecNode *spec, unordered_map<string, shared_ptr<SpecType>> *known_types,
+void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, shared_ptr<SpecType>>> known_types,
                 shared_ptr<SpecType>final_type = nullptr);
 bool check_well_typed(Project &proj, SpecNode *spec, std::set<string> &vars);
 }
