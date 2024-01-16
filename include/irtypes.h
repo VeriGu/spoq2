@@ -65,6 +65,7 @@ public:
 };
 
 class Ordering: public IRType {
+    public:
     enum _Ordering {
         NotAtomic = 0,
         Unordered,
