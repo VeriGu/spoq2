@@ -19,247 +19,247 @@ class IRInst{
 };
 
 class IAlloc:IRInst {
-	public:
-		string fname;
-		shared_ptr<IRType> typ;
-		string assign;
-		int align;
+public:
+	string fname;
+	shared_ptr<IRType> typ;
+	string assign;
+	int align;
 
-		IAlloc() = delete;
+	IAlloc() = delete;
 
-		IAlloc(string fname, shared_ptr<IRType> typ, string assign, int align) : 
+	IAlloc(string fname, shared_ptr<IRType> typ, string assign, int align) : 
 		fname(fname), typ(typ), assign(assign), align(align) {
 			
-		};
+	};
 
-		string to_coq(void) const override {
-			return "(IAlloca " + fname + " " + (*typ).to_coq() + " " + to_string(align) + ")";
-		}
+	string to_coq(void) const override {
+		return "(IAlloca " + fname + " " + (*typ).to_coq() + " " + to_string(align) + ")";
+	}
 
-		IRType get_type() {
-			return *typ;
-		}
+	IRType get_type() {
+		return *typ;
+	}
 };
 
 
 class IAtomicRMW : IRInst {
-	public:
-		shared_ptr<IRType> typ;
-		string assign;
-		Op op;
-		IRValue ptr;
-		IRValue val;
-		Ordering order;
-		int align;
+public:
+	shared_ptr<IRType> typ;
+	string assign;
+	Op op;
+	IRValue ptr;
+	IRValue val;
+	Ordering order;
+	int align;
 
-		IAtomicRMW() = delete;
+	IAtomicRMW() = delete;
 
-		IAtomicRMW(shared_ptr<IRType> typ, string assign, Op op, IRValue ptr, IRValue val) :
-		 typ(typ), op(op), val(val), order(order), align(align) {
-			this->assign = to_coq_name(assign);
-		 };
+	IAtomicRMW(shared_ptr<IRType> typ, string assign, Op op, IRValue ptr, IRValue val) :
+	typ(typ), op(op), val(val), order(order), align(align) {
+		this->assign = to_coq_name(assign);
+	};
 		
 
-        string to_coq(void) const override {
-			return "(IAtomicRMW " + (*typ).to_coq() + " " + assign + " " + op.to_coq() + " "
-			 + ptr.to_coq() + " " + val.to_coq() + " " + order.to_coq() + " " + to_string(align) + ")";
-		}
+    string to_coq(void) const override {
+		return "(IAtomicRMW " + (*typ).to_coq() + " " + assign + " " + op.to_coq() + " "
+		+ ptr.to_coq() + " " + val.to_coq() + " " + order.to_coq() + " " + to_string(align) + ")";
+	}
 };
 
 
 class IBinOp : IRInst {
-	public:
-		shared_ptr<IRType> typ;
-		string assign;
-		Op op;
-		IRValue a;
-		IRValue b;
-		IBinOp() = delete;
-		IBinOp(shared_ptr<IRType> typ, string assign, Op op, IRValue a, IRValue b) :
-		typ(typ), op(op), a(a), b(b) {
-			this->assign = to_coq_name(assign);
-		};
+public:
+	shared_ptr<IRType> typ;
+	string assign;
+	Op op;
+	IRValue a;
+	IRValue b;
+	IBinOp() = delete;
+	IBinOp(shared_ptr<IRType> typ, string assign, Op op, IRValue a, IRValue b) :
+	typ(typ), op(op), a(a), b(b) {
+		this->assign = to_coq_name(assign);
+	};
 
-		string to_coq(void) const override {
-			return "(IBinOp " + (*typ).to_coq() + " " + assign + " " + 
-			op.to_coq() + " " + a.to_coq() + " " + b.to_coq() + ")";
-		}
+	string to_coq(void) const override {
+		return "(IBinOp " + (*typ).to_coq() + " " + assign + " " + 
+		op.to_coq() + " " + a.to_coq() + " " + b.to_coq() + ")";
+	}
 };
 
 
 class IBranch : IRInst {
-	public:
-		long lineno;
-		IRInst succ;
+public:
+	long lineno;
+	IRInst succ;
 
-		IBranch() = delete;
-		IBranch(IRInst succ, long lineno = 0) :
-			succ(succ), lineno(lineno) {};
+	IBranch() = delete;
+	IBranch(IRInst succ, long lineno = 0) :
+	succ(succ), lineno(lineno) {};
 		
 
-		string to_coq(void) const override {
-			return "(IBranch " + succ.to_coq() + ")";
-		}
+	string to_coq(void) const override {
+		return "(IBranch " + succ.to_coq() + ")";
+	}
 };
 
 
 class ICall : public IRInst {
-	public:
-		long lineno;
-		shared_ptr<IRType> typ;
-		string assign;
-		IRValue func;
-		shared_ptr<vector<shared_ptr<IRValue>>> args;
+public:
+	long lineno;
+	shared_ptr<IRType> typ;
+	string assign;
+	IRValue func;
+	shared_ptr<vector<shared_ptr<IRValue>>> args;
 
-		ICall() = delete;
-		ICall(shared_ptr<IRType> typ, string assign, IRValue func, shared_ptr<vector<shared_ptr<IRValue>>> args) :
-		  typ(typ), assign(assign), func(func), args(args) {};
+	ICall() = delete;
+	ICall(shared_ptr<IRType> typ, string assign, IRValue func, shared_ptr<vector<shared_ptr<IRValue>>> args) :
+	typ(typ), assign(assign), func(func), args(args) {};
 
-		string to_coq() const override {
-			if(typeid(*typ) == typeid(TVoid)) {
-				return "(ICall " + (*typ).to_coq() + " None " + func.to_coq() + to_coq_value_list(args.get()) + ")";
-			} else {
-				return "(ICall " + (*typ).to_coq() + " (Some " + assign + ") " + func.to_coq() + to_coq_value_list(args.get()) + ")";
-			}
+	string to_coq() const override {
+		if(typeid(*typ) == typeid(TVoid)) {
+			return "(ICall " + (*typ).to_coq() + " None " + func.to_coq() + to_coq_value_list(args.get()) + ")";
+		} else {
+			return "(ICall " + (*typ).to_coq() + " (Some " + assign + ") " + func.to_coq() + to_coq_value_list(args.get()) + ")";
 		}
+	}
 };
 
 
 class ICmpXchg : IRInst {
-	public:
-		unique_ptr<IRType> typ;
-		string assign;
-		IRValue ptr;
-		IRValue cmp;
-		IRValue val;
-		Ordering succ_order;
-		Ordering fail_order;
-		int align;
+public:
+	unique_ptr<IRType> typ;
+	string assign;
+	IRValue ptr;
+	IRValue cmp;
+	IRValue val;
+	Ordering succ_order;
+	Ordering fail_order;
+	int align;
 
-		ICmpXchg() = delete;
-		ICmpXchg(unique_ptr<IRType> typ, string assign, IRValue ptr, IRValue cmp, IRValue val, Ordering succ_order, Ordering fail_order, int align) :
-		typ(std::move(typ)), ptr(ptr), cmp(cmp), succ_order(succ_order), fail_order(fail_order) {
-			this->assign = to_coq_name(assign);
-		};
+	ICmpXchg() = delete;
+	ICmpXchg(unique_ptr<IRType> typ, string assign, IRValue ptr, IRValue cmp, IRValue val, Ordering succ_order, Ordering fail_order, int align) :
+	typ(std::move(typ)), ptr(ptr), cmp(cmp), succ_order(succ_order), fail_order(fail_order) {
+		this->assign = to_coq_name(assign);
+	};
 
-		string to_coq() const override {
-			return "(ICmpXchg " + (*typ).to_coq() + " " + assign + " " +
-			ptr.to_coq() + " " + cmp.to_coq() + " " + val.to_coq() + " " +
-			succ_order.to_coq() + " " + fail_order.to_coq() + " " + to_string(align) + ")";
-		}
+	string to_coq() const override {
+		return "(ICmpXchg " + (*typ).to_coq() + " " + assign + " " +
+		ptr.to_coq() + " " + cmp.to_coq() + " " + val.to_coq() + " " +
+		succ_order.to_coq() + " " + fail_order.to_coq() + " " + to_string(align) + ")";
+	}
 };
 
 
 class ICondBranch: IRInst {
-	public:
-		int lineno;
-		IRValue cond;
-	    IRValue true_succ;
-		IRValue false_succ;
+public:
+	int lineno;
+	shared_ptr<IRValue> cond;
+	shared_ptr<IRValue> true_succ;
+	shared_ptr<IRValue> false_succ;
 
-		ICondBranch() = delete;
-		ICondBranch(IRValue cond, IRValue true_succ, IRValue false_succ) 
-		: cond(cond), true_succ(true_succ), false_succ(false_succ)
-		{ };
+	ICondBranch() = delete;
+	ICondBranch(shared_ptr<IRValue> cond, shared_ptr<IRValue> true_succ, shared_ptr<IRValue> false_succ) 
+	: cond(cond), true_succ(true_succ), false_succ(false_succ)
+	{ };
 
-		string to_coq() const override {
-			return "(ICondBranch " + cond.to_coq() + " " + true_succ.to_coq() + " " + false_succ.to_coq() + ")";
-		}
+	string to_coq() const override {
+		return "(ICondBranch " + (*cond).to_coq() + " " + (*true_succ).to_coq() + " " + false_succ.to_coq() + ")";
+	}
 };
 
 
 class IExtractElem : IRInst {
-	public:
-		shared_ptr<IRType> typ;
-		string assign;
-		IRValue val;
-		IRValue index;
+public:
+	shared_ptr<IRType> typ;
+	string assign;
+	shared_ptr<IRValue> val;
+	shared_ptr<IRValue> index;
 
-		IExtractElem() = delete;
-		IExtractElem(shared_ptr<IRType> typ, string assign, IRValue val, IRValue index) : 
-		typ(typ), val(val), index(index)
-		{
-			this->assign = to_coq_name(assign);
-		};
+	IExtractElem() = delete;
+	IExtractElem(shared_ptr<IRType> typ, string assign, shared_ptr<IRValue> val, shared_ptr<IRValue> index) : 
+	typ(typ), val(val), index(index)
+	{
+		this->assign = to_coq_name(assign);
+	};
 
-		string to_coq() const override {
-			return "(IExtractElem " + (*typ).to_coq() + " " + assign + " " + val.to_coq() + " " + index.to_coq() + ")";
-		}
+	string to_coq() const override {
+		return "(IExtractElem " + (*typ).to_coq() + " " + assign + " " + (*val).to_coq() + " " + (*index).to_coq() + ")";
+	}
 };
 
 
 class IExtractValue : IRInst {
-	public:
-		shared_ptr<IRType> typ;
-		string assign;
-		IRValue val;
-		vector<shared_ptr<string>> *index;
+public:
+	shared_ptr<IRType> typ;
+	string assign;
+	IRValue val;
+	vector<shared_ptr<string>> *index;
 
-		IExtractValue() = delete;
-		IExtractValue(shared_ptr<IRType> typ, string assign, IRValue val, vector<shared_ptr<string>> *index) : 
-		typ(typ), val(val), index(index)
-		{
-			this->assign = to_coq_name(assign);
-		};
+	IExtractValue() = delete;
+	IExtractValue(shared_ptr<IRType> typ, string assign, IRValue val, vector<shared_ptr<string>> *index) : 
+	typ(typ), val(val), index(index)
+	{
+		this->assign = to_coq_name(assign);
+	};
 
-		string to_coq() const override {
-			return "(IExtractElem " + (*typ).to_coq() + " " + assign + " " + val.to_coq() + " " + to_list(index) + ")";
-		}
+	string to_coq() const override {
+		return "(IExtractElem " + (*typ).to_coq() + " " + assign + " " + val.to_coq() + " " + to_list(index) + ")";
+	}
 };
 
 
 class IFence : IRInst {
-	public:
-		IFence() = delete;
-		IFence(Ordering order) : order(order) {
-		};
+public:
+	IFence() = delete;
+	IFence(Ordering order) : order(order) {
+	};
 
-		Ordering order;
-		string to_coq() const override {
-			return "(IFence " + order.to_coq() + ")";
-		}
+	Ordering order;
+	string to_coq() const override {
+		return "(IFence " + order.to_coq() + ")";
+	}
 };
 
 
 class IFreeze : IRInst {
-	public:
-		shared_ptr<IRType> typ;
-		string assign;
-		IRValue val;
+public:
+	shared_ptr<IRType> typ;
+	string assign;
+	IRValue val;
 
-		IFreeze() = delete;
-		IFreeze(unique_ptr<IRType> typ, string assign, IRValue val) : 
-		 typ(std::move(typ)), assign(to_coq_name(assign)), val(val)
-		{
-		};
+	IFreeze() = delete;
+	IFreeze(unique_ptr<IRType> typ, string assign, IRValue val) : 
+	typ(std::move(typ)), assign(to_coq_name(assign)), val(val)
+	{
+	};
 
-		string to_coq() const override {
-			return "(IFreeze " + (*typ).to_coq() + " " + assign + " " + val.to_coq() +  ")";
-		}
+	string to_coq() const override {
+		return "(IFreeze " + (*typ).to_coq() + " " + assign + " " + val.to_coq() +  ")";
+	}
 };
 
 
 class IGetElemPtr : IRInst {
-	public:
-		shared_ptr<IRType> typ;
-		string assign;
-		shared_ptr<IRValue> val;
-		shared_ptr<IRValue> index;
+public:
+	shared_ptr<IRType> typ;
+	string assign;
+	shared_ptr<IRValue> val;
+	shared_ptr<IRValue> index;
 
-		IGetElemPtr() = delete;
-		IGetElemPtr(shared_ptr<IRType> typ, string assign, shared_ptr<IRValue> val, shared_ptr<IRValue> index) 
-		: typ(typ), assign(to_coq_name(assign)), val(val), index(index)
-		{}
+	IGetElemPtr() = delete;
+	IGetElemPtr(shared_ptr<IRType> typ, string assign, shared_ptr<IRValue> val, shared_ptr<IRValue> index) 
+	: typ(typ), assign(to_coq_name(assign)), val(val), index(index)
+	{}
 
-		string to_coq() const override {
-			return "(IGetElemPtr " + (*typ).to_coq() + " " + assign + " " + (*(*val).type).to_coq() + " " +
-			(*val).to_coq() + " " + (*index).to_coq() + ")";
-		}
+	string to_coq() const override {
+		return "(IGetElemPtr " + (*typ).to_coq() + " " + assign + " " + (*(*val).type).to_coq() + " " +
+		(*val).to_coq() + " " + (*index).to_coq() + ")";
+	}
 };
 
 
 class IInsertElem : IRInst {
-	public:
+public:
 	shared_ptr<IRType> typ;
 	string assign;
 	shared_ptr<IRValue> target;
@@ -274,7 +274,7 @@ class IInsertElem : IRInst {
 };
 
 class IInsertValue : IRInst {
-	public:
+public:
 	shared_ptr<IRType> typ;
 	string assign;
 	shared_ptr<IRValue> target;
@@ -289,7 +289,7 @@ class IInsertValue : IRInst {
 
 
 class ILoad : IRInst {
-	public:
+public:
 	shared_ptr<IRType> typ;
 	string assign;
 	shared_ptr<IRValue> ptr;
@@ -303,7 +303,7 @@ class ILoad : IRInst {
 
 
 class IPHI : IRInst {
-	public:
+public:
 	shared_ptr<IRType> typ;
 	string assign;
 	shared_ptr<vector<IRValue>> values;
@@ -312,7 +312,7 @@ class IPHI : IRInst {
 
 
 class IUnaryOp : IRInst {
-	public:
+public:
 	shared_ptr<IRType> typ;
 	string assign;
 	Op op;
@@ -320,14 +320,14 @@ class IUnaryOp : IRInst {
 };
 
 class IReturn : IRInst {
-	public:
+public:
 	shared_ptr<IRType> typ;
 	shared_ptr<IRValue> val;
 };
 
 
 class ISelect : IRInst {
-	public:
+public:
 	shared_ptr<IRType> typ;
 	string assign;
 	shared_ptr<IRValue> cond;
@@ -336,14 +336,14 @@ class ISelect : IRInst {
 };
 
 class IShuffleVec : IRInst {
-	public:
+public:
 	shared_ptr<IRType> typ;
 	string assign;
 	shared_ptr<vector<IRValue>> operands;
 };
 
 class IStore : IRInst {
-	public:
+public:
 	shared_ptr<IRValue> ptr;
 	shared_ptr<IRValue> val;
 	int align;
@@ -351,7 +351,7 @@ class IStore : IRInst {
 
 
 class ISwitch : IRInst {
-	public:
+public:
 	shared_ptr<IRValue> cond;
 	shared_ptr<IRValue> def;
 	unique_ptr<vector<IRValue>> val_list;
@@ -360,14 +360,14 @@ class ISwitch : IRInst {
 
 
 class IUnreachable : IRInst {
-	public:
-		string to_coq() const override {
-			return "IUnreachable";
-		}
+public:
+	string to_coq() const override {
+		return "IUnreachable";
+	}
 };
 
 class IAssign : IRInst {
-	public:
+public:
 	shared_ptr<IRType> typ;
 	string assign;
 	shared_ptr<IRValue> val;
@@ -385,7 +385,7 @@ class IAssign : IRInst {
 
 
 class IIf : IRInst {
-	public:
+public:
 	shared_ptr<IRValue> cond;
 	shared_ptr<vector<shared_ptr<IRInst>>> true_body;
 	shared_ptr<vector<shared_ptr<IRInst>>> false_body;
@@ -405,7 +405,7 @@ class IIf : IRInst {
 };
 
 class ILoop : IRInst {
-	public:
+public:
 	int lineno;
 	shared_ptr<vector<shared_ptr<IRInst>>> body;
 
@@ -416,14 +416,14 @@ class ILoop : IRInst {
 };
 
 class IContinue : IRInst {
-	public:
+public:
 	string to_coq() const override {
-		return "IContinue";
+	return "IContinue";
 	}
 };
 
 class IBreak : IRInst {
-	public:
+public:
 
 	string to_coq() const override {
 		return "IBreak";
