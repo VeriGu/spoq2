@@ -21,14 +21,14 @@ class IRInst{
 class IAlloc:IRInst {
 	public:
 		string fname;
-		unique_ptr<IRType> typ;
+		shared_ptr<IRType> typ;
 		string assign;
 		int align;
 
 		IAlloc() = delete;
 
-		IAlloc(string fname, unique_ptr<IRType> &typ, string assign, int align) : 
-		fname(fname), typ(std::move(typ)), assign(assign), align(align) {
+		IAlloc(string fname, shared_ptr<IRType> typ, string assign, int align) : 
+		fname(fname), typ(typ), assign(assign), align(align) {
 			
 		};
 
@@ -44,7 +44,7 @@ class IAlloc:IRInst {
 
 class IAtomicRMW : IRInst {
 	public:
-		unique_ptr<IRType> typ;
+		shared_ptr<IRType> typ;
 		string assign;
 		Op op;
 		IRValue ptr;
@@ -54,8 +54,8 @@ class IAtomicRMW : IRInst {
 
 		IAtomicRMW() = delete;
 
-		IAtomicRMW(unique_ptr<IRType> typ, string assign, Op op, IRValue ptr, IRValue val) :
-		 typ(std::move(typ)), op(op), val(val), order(order), align(align) {
+		IAtomicRMW(shared_ptr<IRType> typ, string assign, Op op, IRValue ptr, IRValue val) :
+		 typ(typ), op(op), val(val), order(order), align(align) {
 			this->assign = to_coq_name(assign);
 		 };
 		
@@ -69,14 +69,14 @@ class IAtomicRMW : IRInst {
 
 class IBinOp : IRInst {
 	public:
-		unique_ptr<IRType> typ;
+		shared_ptr<IRType> typ;
 		string assign;
 		Op op;
 		IRValue a;
 		IRValue b;
 		IBinOp() = delete;
-		IBinOp(unique_ptr<IRType> typ, string assign, Op op, IRValue a, IRValue b) :
-		typ(std::move(typ)), op(op), a(a), b(b) {
+		IBinOp(shared_ptr<IRType> typ, string assign, Op op, IRValue a, IRValue b) :
+		typ(typ), op(op), a(a), b(b) {
 			this->assign = to_coq_name(assign);
 		};
 
@@ -106,14 +106,14 @@ class IBranch : IRInst {
 class ICall : public IRInst {
 	public:
 		long lineno;
-		unique_ptr<IRType> typ;
+		shared_ptr<IRType> typ;
 		string assign;
 		IRValue func;
 		shared_ptr<vector<shared_ptr<IRValue>>> args;
 
 		ICall() = delete;
-		ICall(unique_ptr<IRType> typ, string assign, IRValue func, shared_ptr<vector<shared_ptr<IRValue>>> args) :
-		  typ(std::move(typ)), assign(assign), func(func), args(args) {};
+		ICall(shared_ptr<IRType> typ, string assign, IRValue func, shared_ptr<vector<shared_ptr<IRValue>>> args) :
+		  typ(typ), assign(assign), func(func), args(args) {};
 
 		string to_coq() const override {
 			if(typeid(*typ) == typeid(TVoid)) {
@@ -170,14 +170,14 @@ class ICondBranch: IRInst {
 
 class IExtractElem : IRInst {
 	public:
-		unique_ptr<IRType> typ;
+		shared_ptr<IRType> typ;
 		string assign;
 		IRValue val;
 		IRValue index;
 
 		IExtractElem() = delete;
-		IExtractElem(unique_ptr<IRType> typ, string assign, IRValue val, IRValue index) : 
-		typ(std::move(typ)), val(val), index(index)
+		IExtractElem(shared_ptr<IRType> typ, string assign, IRValue val, IRValue index) : 
+		typ(typ), val(val), index(index)
 		{
 			this->assign = to_coq_name(assign);
 		};
@@ -190,14 +190,14 @@ class IExtractElem : IRInst {
 
 class IExtractValue : IRInst {
 	public:
-		unique_ptr<IRType> typ;
+		shared_ptr<IRType> typ;
 		string assign;
 		IRValue val;
 		vector<shared_ptr<string>> *index;
 
 		IExtractValue() = delete;
-		IExtractValue(unique_ptr<IRType> typ, string assign, IRValue val, vector<shared_ptr<string>> *index) : 
-		typ(std::move(typ)), val(val), index(index)
+		IExtractValue(shared_ptr<IRType> typ, string assign, IRValue val, vector<shared_ptr<string>> *index) : 
+		typ(typ), val(val), index(index)
 		{
 			this->assign = to_coq_name(assign);
 		};
@@ -223,7 +223,7 @@ class IFence : IRInst {
 
 class IFreeze : IRInst {
 	public:
-		unique_ptr<IRType> typ;
+		shared_ptr<IRType> typ;
 		string assign;
 		IRValue val;
 
@@ -260,51 +260,51 @@ class IGetElemPtr : IRInst {
 
 class IInsertElem : IRInst {
 	public:
-	unique_ptr<IRType> typ;
+	shared_ptr<IRType> typ;
 	string assign;
 	shared_ptr<IRValue> target;
 	shared_ptr<IRValue> val;
 	shared_ptr<IRValue> idx;
 
     IInsertElem() = delete;
-	IInsertElem(unique_ptr<IRType> typ, string assign, shared_ptr<IRValue> target, shared_ptr<IRValue> val, shared_ptr<IRValue> index) :
-	typ(std::move(typ)), assign(to_coq_name(assign)), target(target), val(val), idx(idx)
+	IInsertElem(shared_ptr<IRType> typ, string assign, shared_ptr<IRValue> target, shared_ptr<IRValue> val, shared_ptr<IRValue> index) :
+	typ(typ), assign(to_coq_name(assign)), target(target), val(val), idx(idx)
 	{};
 
 };
 
 class IInsertValue : IRInst {
 	public:
-	unique_ptr<IRType> typ;
+	shared_ptr<IRType> typ;
 	string assign;
 	shared_ptr<IRValue> target;
 	shared_ptr<IRValue> val;
 	shared_ptr<vector<string>> idx;
 
 	IInsertValue() = delete;
-	IInsertValue(unique_ptr<IRType> typ, string assign, shared_ptr<IRValue> target, shared_ptr<IRValue> val, shared_ptr<vector<string>> index) :
-	typ(std::move(typ)), assign(to_coq_name(assign)), target(target), val(val), idx(idx)
+	IInsertValue(shared_ptr<IRType> typ, string assign, shared_ptr<IRValue> target, shared_ptr<IRValue> val, shared_ptr<vector<string>> index) :
+	typ(typ), assign(to_coq_name(assign)), target(target), val(val), idx(idx)
 	{};
 };
 
 
 class ILoad : IRInst {
 	public:
-	unique_ptr<IRType> typ;
+	shared_ptr<IRType> typ;
 	string assign;
 	shared_ptr<IRValue> ptr;
 	int align;
 
 	ILoad() = delete;
-	ILoad(unique_ptr<IRType> typ, string assign, shared_ptr<IRValue> ptr, int align) :
-	typ(std::move(typ)), assign(to_coq_name(assign)), ptr(ptr), align(align) {
+	ILoad(shared_ptr<IRType> typ, string assign, shared_ptr<IRValue> ptr, int align) :
+	typ(typ), assign(to_coq_name(assign)), ptr(ptr), align(align) {
 	}
 };
 
 
 class IPHI : IRInst {
 	public:
-	unique_ptr<IRType> typ;
+	shared_ptr<IRType> typ;
 	string assign;
 	shared_ptr<vector<IRValue>> values;
 	shared_ptr<vector<IRInst>> blocks;
@@ -313,7 +313,7 @@ class IPHI : IRInst {
 
 class IUnaryOp : IRInst {
 	public:
-	unique_ptr<IRType> typ;
+	shared_ptr<IRType> typ;
 	string assign;
 	Op op;
 	shared_ptr<IRValue> a;
@@ -321,41 +321,41 @@ class IUnaryOp : IRInst {
 
 class IReturn : IRInst {
 	public:
-	unique_ptr<IRType> typ;
-	unique_ptr<IRValue> val;
+	shared_ptr<IRType> typ;
+	shared_ptr<IRValue> val;
 };
 
 
 class ISelect : IRInst {
 	public:
-	unique_ptr<IRType> typ;
+	shared_ptr<IRType> typ;
 	string assign;
-	unique_ptr<IRValue> cond;
-	unique_ptr<IRValue> t_val;
-	unique_ptr<IRValue> f_val;
+	shared_ptr<IRValue> cond;
+	shared_ptr<IRValue> t_val;
+	shared_ptr<IRValue> f_val;
 };
 
 class IShuffleVec : IRInst {
 	public:
-	unique_ptr<IRType> typ;
+	shared_ptr<IRType> typ;
 	string assign;
-	unique_ptr<vector<IRValue>> operands;
+	shared_ptr<vector<IRValue>> operands;
 };
 
 class IStore : IRInst {
 	public:
-	unique_ptr<IRValue> ptr;
-	unique_ptr<IRValue> val;
+	shared_ptr<IRValue> ptr;
+	shared_ptr<IRValue> val;
 	int align;
 };
 
 
 class ISwitch : IRInst {
 	public:
-	IRValue cond;
-	IRValue def;
-	shared_ptr<vector<IRValue>> val_list;
-	shared_ptr<vector<IRValue>> succ_list;
+	shared_ptr<IRValue> cond;
+	shared_ptr<IRValue> def;
+	unique_ptr<vector<IRValue>> val_list;
+	unique_ptr<vector<IRValue>> succ_list;
 };
 
 
