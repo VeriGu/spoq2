@@ -6,6 +6,7 @@
 #include <irtypes.h>
 #include <irvalues.h>
 #include <instructions.h>
+#include <set>
 
 namespace autov::IRLoader {
 using std::string;
@@ -46,8 +47,21 @@ static string to_coq_value_list(const vector<unique_ptr<IRValue>> *lst) {
 }
 
 string to_list(vector<int> *lst);
-string to_coq_code_block(vector<unique_ptr<IRInst>> *lst);
-#if 0
-string add_indent(string text, int indent);
-#endif
+string to_list(const std::set<string> &lst);
+
+template<typename T>
+string to_coq_code_block(vector<unique_ptr<T>> *lst) {
+    string ret = "(";
+
+    if (lst->size() == 0) {
+        return "nil";
+    }
+
+    for (int i = 0; i < lst->size(); i++) {
+        ret += lst->at(i)->to_coq() + " :: ";
+    }
+
+    return ret + "nil)";
+}
+
 };

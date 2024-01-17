@@ -5,6 +5,7 @@
 #include <irtypes.h>
 #include <irvalues.h>
 #include <instructions.h>
+#include <llvm.h>
 
 
 namespace autov::IRLoader {

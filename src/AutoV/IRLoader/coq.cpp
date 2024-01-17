@@ -47,15 +47,15 @@ string to_list(vector<int> *lst) {
     return ret + "nil)";
 }
 
-string to_coq_code_block(vector<unique_ptr<IRInst>> *lst) {
+string to_list(const std::set<string> &lst) {
     string ret = "(";
 
-    if (lst->size() == 0) {
+    if (lst.size() == 0) {
         return "nil";
     }
 
-    for (int i = 0; i < lst->size(); i++) {
-        ret += lst->at(i)->to_coq() + " :: ";
+    for (const auto &elem: lst) {
+        ret += "\"" + elem + "\"" + " :: ";
     }
 
     return ret + "nil)";
