@@ -111,6 +111,7 @@ class Ordering: public IRType {
 
 class TBool : public IRType {
 public:
+    static shared_ptr<TBool> TBOOL;
     IntType type;
 
     TBool() {
@@ -158,6 +159,7 @@ public:
 
 class TLabel : public IRType {
 public:
+    static shared_ptr<TLabel> TLABEL;
     string to_coq(void) const override {
         return "TLabel";
     }
