@@ -19,9 +19,6 @@ string TStruct::to_coq(void) const {
     return "(TStruct " + std::to_string(size) + " " + to_coq_typ_list(elems.get()) + ")";
 }
 
-VLocal::VLocal(shared_ptr<IRType> type, string name) :
-    IRValue(type), name(to_coq_name(name)) {}
-
 string VExpr::to_coq(void) const {
         string operands_str = to_coq_value_list(this->operands.get());
 

@@ -156,13 +156,22 @@ public:
     }
 };
 
-class VGlobal : public IRValue {
+class _VSymbol : public IRValue {
+public:
+    string name;
+
+    _VSymbol() = delete;
+
+    _VSymbol(shared_ptr<IRType> type) : IRValue(type) {}
+};
+
+class VGlobal : public _VSymbol {
 public:
     string name;
 
     VGlobal() = delete;
 
-    VGlobal(shared_ptr<IRType> type, string name) : IRValue(type) {
+    VGlobal(shared_ptr<IRType> type, string name) : _VSymbol(type) {
         std::replace(name.begin(), name.end(), '.', '_');
         this->name = name;
     }
@@ -172,7 +181,7 @@ public:
     }
 };
 
-class VLocal : public IRValue {
+class VLocal : public _VSymbol {
 public:
     string name;
 

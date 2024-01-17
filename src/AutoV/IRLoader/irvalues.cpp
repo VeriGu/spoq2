@@ -1,4 +1,5 @@
 #include <irvalues.h>
+#include <coq.h>
 
 namespace autov::IRLoader {
 using std::string;
@@ -55,4 +56,10 @@ const unordered_map<Op::_Op, std::string> Op::opToString = {
     {_Op::OXchg, "OXchg"},
     {_Op::OSelect, "OSelect"},
 };
+
+
+VLocal::VLocal(shared_ptr<IRType> type, string name) :
+    _VSymbol(type) {
+        name = to_coq_name(name);
+    }
 } // namespace autov::IRLoader
