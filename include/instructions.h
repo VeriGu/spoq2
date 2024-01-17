@@ -47,7 +47,7 @@ public:
 };
 
 
-class IAtomicRMW : IRInst {
+class IAtomicRMW : public IRInst {
 public:
     shared_ptr<IRType> typ;
     string assign;
@@ -68,7 +68,7 @@ public:
     }
 };
 
-class IBinOp : IRInst {
+class IBinOp : public IRInst {
 public:
     shared_ptr<IRType> typ;
     string assign;
@@ -85,7 +85,7 @@ public:
     }
 };
 
-class IBranch : IRInst {
+class IBranch : public IRInst {
 public:
     long lineno;
     unique_ptr<IRInst> succ;
@@ -114,7 +114,7 @@ public:
     string to_coq() const override;
 };
 
-class ICmpXchg : IRInst {
+class ICmpXchg : public IRInst {
 public:
     shared_ptr<IRType> typ;
     string assign;
@@ -136,7 +136,7 @@ public:
     }
 };
 
-class ICondBranch: IRInst {
+class ICondBranch: public IRInst {
 public:
     int lineno;
     unique_ptr<IRValue> cond;
@@ -152,7 +152,7 @@ public:
     }
 };
 
-class IExtractElem : IRInst {
+class IExtractElem : public IRInst {
 public:
     shared_ptr<IRType> typ;
     string assign;
@@ -167,7 +167,7 @@ public:
     }
 };
 
-class IExtractValue : IRInst {
+class IExtractValue : public IRInst {
 public:
     shared_ptr<IRType> typ;
     string assign;
@@ -181,7 +181,7 @@ public:
 };
 
 
-class IFence : IRInst {
+class IFence : public IRInst {
 public:
     IFence() = delete;
     IFence(Ordering order) : order(order) {
@@ -193,7 +193,7 @@ public:
     }
 };
 
-class IFreeze : IRInst {
+class IFreeze : public IRInst {
 public:
     shared_ptr<IRType> typ;
     string assign;
@@ -208,7 +208,7 @@ public:
 };
 
 
-class IGetElemPtr : IRInst {
+class IGetElemPtr : public IRInst {
 public:
     shared_ptr<IRType> typ;
     string assign;
@@ -224,7 +224,7 @@ public:
     }
 };
 
-class IInsertElem : IRInst {
+class IInsertElem : public IRInst {
 public:
     shared_ptr<IRType> typ;
     string assign;
@@ -241,7 +241,7 @@ public:
 };
 
 
-class IInsertValue : IRInst {
+class IInsertValue : public IRInst {
 public:
     shared_ptr<IRType> typ;
     string assign;
@@ -256,7 +256,7 @@ public:
 };
 
 
-class ILoad : IRInst {
+class ILoad : public IRInst {
 public:
     shared_ptr<IRType> typ;
     string assign;
@@ -272,7 +272,7 @@ public:
 };
 
 #if 0
-class IPHI : IRInst {
+class IPHI : public IRInst {
 public:
     shared_ptr<IRType> typ;
     string assign;
@@ -281,7 +281,7 @@ public:
 };
 #endif
 
-class IUnaryOp : IRInst {
+class IUnaryOp : public IRInst {
 public:
     shared_ptr<IRType> typ;
     string assign;
@@ -296,7 +296,7 @@ public:
     }
 };
 
-class IReturn : IRInst {
+class IReturn : public IRInst {
 public:
     shared_ptr<IRType> typ;
     unique_ptr<IRValue> val;
@@ -312,7 +312,7 @@ public:
     }
 };
 
-class ISelect : IRInst {
+class ISelect : public IRInst {
 public:
     shared_ptr<IRType> typ;
     string assign;
@@ -329,7 +329,7 @@ public:
 };
 
 
-class IShuffleVec : IRInst {
+class IShuffleVec : public IRInst {
 public:
     shared_ptr<IRType> typ;
     string assign;
@@ -342,7 +342,7 @@ public:
 };
 
 
-class IStore : IRInst {
+class IStore : public IRInst {
 public:
     unique_ptr<IRValue> ptr;
     unique_ptr<IRValue> val;
@@ -359,7 +359,7 @@ public:
 
 
 #if 0
-class ISwitch : IRInst {
+class ISwitch : public IRInst {
 public:
     unique_ptr<IRValue> cond;
     unique_ptr<IRValue> def;
@@ -372,7 +372,7 @@ public:
 };
 #endif
 
-class IUnreachable : IRInst {
+class IUnreachable : public IRInst {
 public:
     string to_coq() const override {
         return "IUnreachable";
@@ -380,7 +380,7 @@ public:
 };
 
 
-class IAssign : IRInst {
+class IAssign : public IRInst {
 public:
     shared_ptr<IRType> typ;
     string assign;
@@ -394,7 +394,7 @@ public:
     }
 };
 
-class IIf : IRInst {
+class IIf : public IRInst {
 public:
     unique_ptr<IRValue> cond;
     unique_ptr<vector<unique_ptr<IRInst>>> true_body;
@@ -407,7 +407,7 @@ public:
     string to_coq() const override;
 };
 
-class ILoop : IRInst {
+class ILoop : public IRInst {
 public:
     int lineno;
     unique_ptr<vector<unique_ptr<IRInst>>> body;
@@ -420,14 +420,14 @@ public:
 };
 
 
-class IContinue : IRInst {
+class IContinue : public IRInst {
 public:
     string to_coq() const override {
     return "IContinue";
     }
 };
 
-class IBreak : IRInst {
+class IBreak : public IRInst {
 public:
     string to_coq() const override {
         return "IBreak";
