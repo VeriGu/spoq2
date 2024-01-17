@@ -42,6 +42,8 @@ set(SOURCES
     src/AutoV/log.cpp
     src/AutoV/IRLoader/coq.cpp
     src/AutoV/IRLoader/irvalues.cpp
+    src/AutoV/IRLoader/instructions.cpp
+    src/AutoV/IRLoader/irtypes.cpp
     src/AutoV/Spec/nodes.cpp
     src/AutoV/Spec/values.cpp
     src/AutoV/Spec/utils.cpp

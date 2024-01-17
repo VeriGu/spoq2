@@ -2,6 +2,7 @@
 #include <irtypes.h>
 #include <utils.h>
 #include <irvalues.h>
+#include <instructions.h>
 #include <algorithm>
 #include <string>
 
@@ -15,53 +16,49 @@ using std::make_shared;
 using std::tuple;
 using std::replace;
 
-template <typename T>
-static string join_type_by_semi_colon(const vector<shared_ptr<T>> *elems) {
-    string ret = "";
-    bool last = false;
+string to_coq_name(const string name) {
+    string result;
+    result.reserve(name.size());
 
-    if (!elems || elems->size() == 0) {
-        return " ";
+    for (char c : name) {
+        if (c == '%') {
+            result += "v_";
+        } else if (c == '@' || c == '.' || c == '-' || c == ':') {
+            result += '_';
+        } else {
+            result += c;
+        }
     }
 
-    for (const auto &elem: *elems) {
-        ret += elem->to_coq() + (last ? "" : "; ");
+    return result;
+}
+
+string to_list(vector<int> *lst) {
+    string ret = "(";
+
+    if (lst->size() == 0) {
+        return "nil";
     }
 
-    return ret;
-}
-
-string to_coq_value_list(const vector<shared_ptr<IRValue>> *lst) {
-    string ret = join_type_by_semi_colon(lst);
-    return "[" + ret + "]";
-}
-
-string to_coq_typ_list(const vector<shared_ptr<IRType>> *lst) {
-    string ret = join_type_by_semi_colon(lst);
-    return "[[" + ret + "]]";
-}
-
-string to_coq_typ_list(const vector<shared_ptr<TStructElem>> *lst) {
-    string ret = join_type_by_semi_colon(lst);
-    return "[[" + ret + "]]";
-}
-
-string to_coq_name(string name) {
-
-    replace(name.begin(), name.end(), "@", "_");
-
-    size_t pos;
-    while((pos = name.find("%")) != string::npos) {
-        name.replace(pos, 1, "v_");
+    for (int i = 0; i < lst->size(); i++) {
+        ret += std::to_string(lst->at(i)) + " :: ";
     }
 
-    replace(name.begin(), name.end(), ".", "_");
+    return ret + "nil)";
+}
 
-    replace(name.begin(), name.end(), '-', '_');
+string to_coq_code_block(vector<unique_ptr<IRInst>> *lst) {
+    string ret = "(";
 
-    replace(name.begin(), name.end(), ':', '_');
-    
-    return name;
+    if (lst->size() == 0) {
+        return "nil";
+    }
+
+    for (int i = 0; i < lst->size(); i++) {
+        ret += lst->at(i)->to_coq() + " :: ";
+    }
+
+    return ret + "nil)";
 }
 
 } // namespace autov::IRLoader

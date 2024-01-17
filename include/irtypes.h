@@ -5,7 +5,6 @@
 #include <typeinfo>
 #include <stdexcept>
 #include <memory>
-#include <coq.h>
 #include <map>
 
 namespace autov::IRLoader {
@@ -180,14 +179,7 @@ public:
     TFunction(unique_ptr<vector<shared_ptr<IRType>>> arglist, shared_ptr<IRType> ret) :
         arglist(std::move(arglist)), rettype(ret) {};
 
-    string to_coq(void) const override {
-        string ret = "(TFunction ";
-
-        ret += rettype->to_coq() + " ";
-        ret += to_coq_typ_list(arglist.get());
-
-        return ret + ")";
-    }
+    string to_coq(void) const override;
 
     coq_sz_t szof(void) const override {
         return 0;
@@ -263,9 +255,7 @@ public:
     TStruct(unique_ptr<vector<shared_ptr<TStructElem>>> elems, coq_sz_t size) :
         elems(std::move(elems)), size(size) {};
 
-    string to_coq(void) const override {
-        return "(TStruct " + std::to_string(size) + " " + to_coq_typ_list(elems.get()) + ")";
-    }
+    string to_coq(void) const override;
 
     coq_sz_t szof(void) const override {
         return size;

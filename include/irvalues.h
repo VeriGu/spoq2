@@ -8,10 +8,12 @@
 #include <map>
 #include <algorithm>
 
-#include <coq.h>
 #include <irtypes.h>
 
 namespace autov::IRLoader {
+using std::string;
+
+// Op is small enough to be passed by value instead of constructing a unique_ptr
 class Op {
 public:
     enum _Op {
