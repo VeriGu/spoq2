@@ -66,5 +66,8 @@
         "typeindex": "cpp",
         "any": "cpp"
     },
-    "cmake.configureOnOpen": true
+    "cmake.configureOnOpen": true,
+    "cmake.configureSettings": {
+        "CMAKE_BUILD_TYPE": "Debug",
+    }
 }
