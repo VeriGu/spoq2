@@ -69,5 +69,6 @@
     "cmake.configureOnOpen": true,
     "cmake.configureSettings": {
         "CMAKE_BUILD_TYPE": "Debug",
-    }
+    },
+    "cmake.generator": "Unix Makefiles"
 }
