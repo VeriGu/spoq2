@@ -66,5 +66,6 @@
         "typeindex": "cpp",
         "any": "cpp"
     },
-    "cmake.configureOnOpen": true
+    "cmake.configureOnOpen": true,
+    "cmake.generator": "Unix Makefiles"
 }
