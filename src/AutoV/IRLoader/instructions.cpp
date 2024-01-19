@@ -17,7 +17,7 @@ ICall::ICall(shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> func,
 
 
 string ICall::to_coq() const {
-    if(typeid(typ) == typeid(TVoid *)) {
+    if(dynamic_cast<TVoid *>(typ.get())) {
         return "(ICall " + typ->to_coq() + " None " + func->to_coq() + to_coq_value_list(args.get()) + ")";
     } else {
         return "(ICall " + typ->to_coq() + " (Some " + assign + ") " + func->to_coq() + to_coq_value_list(args.get()) + ")";

@@ -107,15 +107,15 @@ private:
             return;
 
         for (const auto &i : *insts) {
-            if (typeid(i.get()) == typeid(IAlloc *)) {
-                alloca_vars.insert(dynamic_cast<IAlloc *>(i.get())->assign);
-            } else if (typeid(i.get()) == typeid(IIf *)) {
-                auto if_inst = dynamic_cast<IIf *>(i.get());
+            if (dynamic_cast<IAlloc*>(i.get())) {
+                alloca_vars.insert(dynamic_cast<IAlloc*>(i.get())->assign);
+            } else if (dynamic_cast<IIf*>(i.get())) {
+                auto if_inst = dynamic_cast<IIf*>(i.get());
 
                 collect_alloca_vars(if_inst->true_body.get());
                 collect_alloca_vars(if_inst->false_body.get());
-            } else if (typeid(i.get()) == typeid(ILoop *)) {
-                auto loop_inst = dynamic_cast<ILoop *>(i.get());
+            } else if (dynamic_cast<ILoop*>(i.get())) {
+                auto loop_inst = dynamic_cast<ILoop*>(i.get());
 
                 collect_alloca_vars(loop_inst->body.get());
             }
@@ -149,28 +149,28 @@ private:
 
         after_filter = std::make_unique<vector<unique_ptr<IRInst>>>();
         for (auto &i : *body) {
-            if (typeid(i.get()) == typeid(ICall *)) {
-                auto call_inst = dynamic_cast<ICall *>(i.get());
+            if (dynamic_cast<ICall*>(i.get())) {
+                auto call_inst = dynamic_cast<ICall*>(i.get());
 
                 if (call_inst &&
-                    (typeid(call_inst->func.get()) != typeid(VGlobal *) ||
+                    (!dynamic_cast<VGlobal*>(call_inst->func.get()) ||
                     !std::any_of(debug_prims.begin(), debug_prims.end(),
                                 [&](const auto& f) {
-                        auto func_name = dynamic_cast<_VSymbol *>(call_inst->func.get())->name;
-                        return f(func_name);
-                    }))) {
+                    auto func_name = dynamic_cast<_VSymbol*>(call_inst->func.get())->name;
+                    return f(func_name);
+                }))) {
                     after_filter->push_back(std::move(i));
                 }
-            } else if (typeid(i.get()) == typeid(IIf *)) {
-                auto orig_if = dynamic_cast<IIf *>(i.get());
+            } else if (dynamic_cast<IIf*>(i.get())) {
+                auto orig_if = dynamic_cast<IIf*>(i.get());
                 auto filtered_then = filter_icall(std::move(orig_if->true_body));
                 auto filtered_else = filter_icall(std::move(orig_if->false_body));
                 auto filtered_if = make_unique<IIf>(std::move(orig_if->cond), std::move(filtered_then), std::move(filtered_else));
 
                 after_filter->push_back(std::move(filtered_if));
                 i.reset();
-            } else if (typeid(i.get()) == typeid(ILoop *)) {
-                auto orig_loop = dynamic_cast<ILoop *>(i.get());
+            } else if (dynamic_cast<ILoop*>(i.get())) {
+                auto orig_loop = dynamic_cast<ILoop*>(i.get());
                 auto filtered_body = filter_icall(std::move(orig_loop->body));
 
                 after_filter->push_back(std::make_unique<ILoop>(std::move(filtered_body), orig_loop->lineno));
