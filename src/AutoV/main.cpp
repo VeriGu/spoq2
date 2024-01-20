@@ -10,7 +10,7 @@
 
 using std::string;
 
-const string base_file_dir = "/home/xuheng/vbbx/VeriFrame/RMMProof/";
+const string base_file_dir = "testcase/";
 
 int main(void)
 {
@@ -25,7 +25,7 @@ int main(void)
 
     std::unique_ptr<autov::Project> proj = std::make_unique<autov::Project>();
 
-    autov::parser::parse(proj.get(), "/home/xuheng/vbbx/VeriFrame/RMMProof/proof_stack.v");
+    autov::parser::parse(proj.get(), "testcase/proof_stack.v");
 
     // auto def = proj->defs["spinlock_release_spec"].get();
     // std::cout << std::string(*def) << "\n";
@@ -52,7 +52,8 @@ int main(void)
             std::ifstream base_file_stream(base_file);
             if (!base_file_stream) {
                 LOG_ERROR << "Cannot open file " << base_file;
-                assert(false);
+                // assert(false);
+                continue;
             }
 
             while (std::getline(base_file_stream, line)) {

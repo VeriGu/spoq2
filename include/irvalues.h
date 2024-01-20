@@ -133,11 +133,11 @@ public:
     VUndef(shared_ptr<IRType> type) : IRValue(type) {}
 
     string to_coq(void) const override {
-        if (typeid(type.get()) == typeid(TInt *)) {
+        if (std::dynamic_pointer_cast<TInt>(type)) {
             return "(VInt 0)";
-        } else if (typeid(type.get()) == typeid(TPtr *)) {
+        } else if (std::dynamic_pointer_cast<TPtr>(type)) {
             return VNull(type).to_coq();
-        } else if (typeid(type.get()) == typeid(TBool *)) {
+        } else if (std::dynamic_pointer_cast<TBool>(type)) {
             return "(VBool false)";
         } else {
             return "VUndef";
