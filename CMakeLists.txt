@@ -53,6 +53,8 @@ set(SOURCES
     src/AutoV/Spec/Parser/SpecLexer.cpp
     src/AutoV/Spec/Parser/SpecParser.cpp
     src/AutoV/Spec/Parser/parse.cpp
+    src/AutoV/Spec/ir2spec.cpp
+    src/AutoV/Spec/shortcuts.cpp
     # Add other source files here
 )
 
