@@ -18,7 +18,7 @@ using autov::Bool;
 using autov::Function;
 
 
-static shared_ptr<SpecType> ir_type_to_spec(shared_ptr<IRType> typ);
+shared_ptr<SpecType> ir_type_to_spec(IRType* typ);
 
 
 }
