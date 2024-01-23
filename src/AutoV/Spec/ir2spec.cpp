@@ -229,9 +229,9 @@ void get_input_output(IRInst *it, std::unordered_set<string> &inputs, std::unord
 	} else if (auto f = dynamic_cast<IRLoader::ILoop*>(it)) {
 		get_input_output(f->body.get(), inputs, outputs);
 	} else if (auto f = dynamic_cast<IRLoader::IGetElemPtr*>(it)) {
-		get_input_output(f->val.get(), inputs, outputs);
-		get_input_output(f->index.get(), inputs, outputs);
-		outputs.insert(f->assign);
+		// get_input_output(f->val.get(), inputs, outputs);
+		// get_input_output(f->index.get(), inputs, outputs);
+		// outputs.insert(f->assign);
 	} else if (auto f = dynamic_cast<IRLoader::IExtractValue*>(it)) {
 		get_input_output(f->val.get(), inputs, outputs);
 		outputs.insert(f->assign);

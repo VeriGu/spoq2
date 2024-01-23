@@ -23,9 +23,10 @@ using autov::IRLoader::TVoid;
 
 class IRInst{
 public:
-	unique_ptr<vector<std::unordered_set<shared_ptr<string>>>> input;
-	unique_ptr<vector<std::unordered_set<shared_ptr<string>>>> output;
+	shared_ptr<vector<std::unordered_set<shared_ptr<string>>>> input;
+	shared_ptr<vector<std::unordered_set<shared_ptr<string>>>> output;
     long lineno = 0;
+	
     virtual string to_coq(void) const { return "UNKNOWN_INSTRUCTION"; }
     virtual IRInst *clone() const { return new IRInst(*this); }
     virtual shared_ptr<IRType> get_type() const { throw std::runtime_error("IRInst: get_type() not implemented"); }
