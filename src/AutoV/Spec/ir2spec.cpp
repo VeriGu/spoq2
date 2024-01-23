@@ -7,6 +7,7 @@
 #include <variant>
 #include <unordered_set>
 #include <log.h>
+#include <boost/range/algorithm/set_algorithm.hpp>
 
 namespace autov {
 using autov::IRLoader::IRType;
@@ -34,6 +35,8 @@ using autov::IRLoader::IReturn;
 using autov::IRLoader::IRInst;
 using autov::IRLoader::IAssign;
 using autov::IRLoader::IBreak;
+
+typedef std::variant<unique_ptr<IRValue>, unique_ptr<IRInst>, unique_ptr<CFunction>> Inst;
 
 
 shared_ptr<SpecType> ir_type_to_spec(IRType* typ) {
@@ -180,138 +183,132 @@ void get_input_output(CFunction* cf, std::unordered_set<string> &inputs, std::un
 		}
 }
 
+void get_input_output(IRInst *it, std::unordered_set<string> &inputs, std::unordered_set<string> &outputs);
+
+
 void get_input_output(vector<unique_ptr<IRInst>>* vec, std::unordered_set<string> &inputs, std::unordered_set<string> &outputs) {
-	int i;
-	for(auto it = vec->begin(); it != vec->end(); ++it, ++i) {
-		if (auto f = dynamic_cast<IAssign*>(it->get())) {
+	for(auto it = vec->begin(); it != vec->end(); ++it) {
+		get_input_output(it->get(), inputs, outputs);
+	}
+}
+
+void get_input_output(IRInst *it, std::unordered_set<string> &inputs, std::unordered_set<string> &outputs) {
+	if (auto f = dynamic_cast<IAssign*>(it)) {
 			get_input_output(f->val.get(), inputs, outputs);
 			outputs.insert(f->assign);
-		} else if (auto f = dynamic_cast<IReturn*>(it->get())) {
+	} else if (auto f = dynamic_cast<IReturn*>(it)) {
 			if(f->val != nullptr) {
 				get_input_output(f->val.get(), inputs, outputs);
 				outputs.insert("__retval__");
 			}
- 		} else if (auto f = dynamic_cast<IBreak*>(it->get())) {
-			outputs.insert("__break__");
-		} else if (auto f = dynamic_cast<IRLoader::IContinue*>(it->get())) {
-			outputs.insert("__continue__");
-		} else if (auto f = dynamic_cast<IRLoader::IUnaryOp*>(it->get())) {
-			get_input_output(f->a.get(), inputs, outputs);
-			outputs.insert(f->assign);
-		} else if (auto f = dynamic_cast<IRLoader::IBinOp*>(it->get())) {
-			get_input_output(f->a.get(), inputs, outputs);
-			get_input_output(f->b.get(), inputs, outputs);
-			outputs.insert(f->assign);
-		} else if (auto f = dynamic_cast<IRLoader::ISelect*>(it->get())) {
-			get_input_output(f->cond.get(), inputs, outputs);
-			get_input_output(f->true_val.get(), inputs, outputs);
-			get_input_output(f->false_val.get(), inputs, outputs);
-			outputs.insert(f->assign);
-		} else if (auto f = dynamic_cast<IRLoader::ICall*>(it->get())) {
-			for(auto it = f->args->begin(); it != f->args->end(); it++) {
-				get_input_output(it->get(), inputs, outputs);
-			}
-			outputs.insert(f->assign);
-		} else if (auto f = dynamic_cast<IRLoader::IIf*>(it->get())) {
-			get_input_output(f->cond.get(), inputs, outputs);
-			get_input_output(f->true_body.get(), inputs, outputs);
-			get_input_output(f->false_body.get(), inputs, outputs);
-		} else if (auto f = dynamic_cast<IRLoader::ILoop*>(it->get())) {
-			get_input_output(f->body.get(), inputs, outputs);
-		} else if (auto f = dynamic_cast<IRLoader::IGetElemPtr*>(it->get())) {
-			get_input_output(f->val.get(), inputs, outputs);
-			get_input_output(f->index.get(), inputs, outputs);
-			outputs.insert(f->assign);
-		} else if (auto f = dynamic_cast<IRLoader::IExtractValue*>(it->get())) {
-			get_input_output(f->val.get(), inputs, outputs);
-			outputs.insert(f->assign);
-		} else if (auto f = dynamic_cast<IRLoader::ILoad*>(it->get())) {
-			get_input_output(f->ptr.get(), inputs, outputs);
-			outputs.insert(f->assign);
-		} else if (auto f = dynamic_cast<IRLoader::IStore*>(it->get())) {
-			get_input_output(f->ptr.get(), inputs, outputs);
-			get_input_output(f->val.get(), inputs, outputs);
-		} else if (auto f = dynamic_cast<IRLoader::IAlloc*>(it->get())) {
-			outputs.insert(f->assign);
-		} else if (auto f = dynamic_cast<IRLoader::IInsertValue*>(it->get())) {
-			outputs.insert(f->assign);
-		} else {
-			LOG_DEBUG << "get_input_output not supported for this instruction";
-			LOG_DEBUG << "current instruction:\n" + (*(*(it))).to_coq();
-			assert(false);
+ 	} else if (auto f = dynamic_cast<IBreak*>(it)) {
+		outputs.insert("__break__");
+	} else if (auto f = dynamic_cast<IRLoader::IContinue*>(it)) {
+		outputs.insert("__continue__");
+	} else if (auto f = dynamic_cast<IRLoader::IUnaryOp*>(it)) {
+		get_input_output(f->a.get(), inputs, outputs);
+		outputs.insert(f->assign);
+	} else if (auto f = dynamic_cast<IRLoader::IBinOp*>(it)) {
+		get_input_output(f->a.get(), inputs, outputs);
+		get_input_output(f->b.get(), inputs, outputs);
+		outputs.insert(f->assign);
+	} else if (auto f = dynamic_cast<IRLoader::ISelect*>(it)) {
+		get_input_output(f->cond.get(), inputs, outputs);
+		get_input_output(f->true_val.get(), inputs, outputs);
+		get_input_output(f->false_val.get(), inputs, outputs);
+		outputs.insert(f->assign);
+	} else if (auto f = dynamic_cast<IRLoader::ICall*>(it)) {
+		for(auto it = f->args->begin(); it != f->args->end(); it++) {
+			get_input_output(it->get(), inputs, outputs);
 		}
+		outputs.insert(f->assign);
+	} else if (auto f = dynamic_cast<IRLoader::IIf*>(it)) {
+		get_input_output(f->cond.get(), inputs, outputs);
+		get_input_output(f->true_body.get(), inputs, outputs);
+		get_input_output(f->false_body.get(), inputs, outputs);
+	} else if (auto f = dynamic_cast<IRLoader::ILoop*>(it)) {
+		get_input_output(f->body.get(), inputs, outputs);
+	} else if (auto f = dynamic_cast<IRLoader::IGetElemPtr*>(it)) {
+		get_input_output(f->val.get(), inputs, outputs);
+		get_input_output(f->index.get(), inputs, outputs);
+		outputs.insert(f->assign);
+	} else if (auto f = dynamic_cast<IRLoader::IExtractValue*>(it)) {
+		get_input_output(f->val.get(), inputs, outputs);
+		outputs.insert(f->assign);
+	} else if (auto f = dynamic_cast<IRLoader::ILoad*>(it)) {
+		get_input_output(f->ptr.get(), inputs, outputs);
+		outputs.insert(f->assign);
+	} else if (auto f = dynamic_cast<IRLoader::IStore*>(it)) {
+		get_input_output(f->ptr.get(), inputs, outputs);
+		get_input_output(f->val.get(), inputs, outputs);
+	} else if (auto f = dynamic_cast<IRLoader::IAlloc*>(it)) {
+		outputs.insert(f->assign);
+	} else if (auto f = dynamic_cast<IRLoader::IInsertValue*>(it)) {
+		outputs.insert(f->assign);
+	} else {
+		LOG_DEBUG << "get_input_output not supported for this instruction";
+		LOG_DEBUG << "current instruction:\n" + it->to_coq();
+		assert(false);
 	}
 }
-
 
 
 void get_input_output(vector<unique_ptr<IRInst>>* vec, shared_ptr<std::unordered_set<string>> *inputs_arr, shared_ptr<std::unordered_set<string>> *outputs_arr) {
 	int i;
 	for(auto it = vec->begin(); it != vec->end(); ++it, ++i) {
-		if (auto f = dynamic_cast<IAssign*>(it->get())) {
-			get_input_output(f->val.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-			outputs_arr[i]->insert(f->assign);
-		} else if (auto f = dynamic_cast<IReturn*>(it->get())) {
-			if(f->val != nullptr) {
-				get_input_output(f->val.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-				outputs_arr[i]->insert("__retval__");
-			}
- 		} else if (auto f = dynamic_cast<IBreak*>(it->get())) {
-			outputs_arr[i]->insert("__break__");
-
-		} else if (auto f = dynamic_cast<IRLoader::IContinue*>(it->get())) {
-			outputs_arr[i]->insert("__continue__");
-		} else if (auto f = dynamic_cast<IRLoader::IUnaryOp*>(it->get())) {
-			get_input_output(f->a.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-			outputs_arr[i]->insert(f->assign);
-		} else if (auto f = dynamic_cast<IRLoader::IBinOp*>(it->get())) {
-			get_input_output(f->a.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-			get_input_output(f->b.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-			outputs_arr[i]->insert(f->assign);
-		} else if (auto f = dynamic_cast<IRLoader::ISelect*>(it->get())) {
-			get_input_output(f->cond.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-			get_input_output(f->true_val.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-			get_input_output(f->false_val.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-			outputs_arr[i]->insert(f->assign);
-		} else if (auto f = dynamic_cast<IRLoader::ICall*>(it->get())) {
-			for(auto it = f->args->begin(); it != f->args->end(); it++) {
-				get_input_output(it->get(), *(inputs_arr[i]), *(outputs_arr[i]));
-			}
-
-			outputs_arr[i]->insert(f->assign);
-		} else if (auto f = dynamic_cast<IRLoader::IIf*>(it->get())) {
-			get_input_output(f->cond.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-			get_input_output(f->true_body.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-			get_input_output(f->false_body.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-		} else if (auto f = dynamic_cast<IRLoader::ILoop*>(it->get())) {
-			get_input_output(f->body.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-		} else if (auto f = dynamic_cast<IRLoader::IGetElemPtr*>(it->get())) {
-			get_input_output(f->val.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-			get_input_output(f->index.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-			outputs_arr[i]->insert(f->assign);
-		} else if (auto f = dynamic_cast<IRLoader::IExtractValue*>(it->get())) {
-			get_input_output(f->val.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-			outputs_arr[i]->insert(f->assign);
-		} else if (auto f = dynamic_cast<IRLoader::ILoad*>(it->get())) {
-			get_input_output(f->ptr.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-			outputs_arr[i]->insert(f->assign);
-		} else if (auto f = dynamic_cast<IRLoader::IStore*>(it->get())) {
-			get_input_output(f->ptr.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-			get_input_output(f->val.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-		} else if (auto f = dynamic_cast<IRLoader::IAlloc*>(it->get())) {
-			outputs_arr[i]->insert(f->assign);
-		} else if (auto f = dynamic_cast<IRLoader::IInsertValue*>(it->get())) {
-			outputs_arr[i]->insert(f->assign);
-		} else {
-			LOG_DEBUG << "get_input_output not supported for this instruction";
-			LOG_DEBUG << "current instruction:\n" + (*(*(it))).to_coq();
-			assert(false);
-		}
+		get_input_output(it->get(), *(inputs_arr[i]), *(outputs_arr[i]));
 	}
 
 	//get a prefix sum of sets so that we can extract any inputs/outputs from insts[0..i]
 	for(auto i = 1; i < sizeof(inputs_arr); ++i) {
 		inputs_arr[i]->insert(inputs_arr[i-1]->cbegin(), inputs_arr[i-1]->cend());
+	}
+}
+
+
+void get_input_output(vector<Inst> *vec, shared_ptr<std::unordered_set<string>> *inputs_arr, shared_ptr<std::unordered_set<string>> *outputs_arr) {
+	int i;
+	for(auto it = vec->begin(); it != vec->end(); ++it, ++i) {
+		if(std::holds_alternative<unique_ptr<CFunction>>(*it)) {
+			auto &f = std::get<unique_ptr<CFunction>>(*it);
+			get_input_output(f.get(), *(inputs_arr[i]), *(outputs_arr[i]));
+		} else if (std::holds_alternative<unique_ptr<IRValue>>(*it)) {
+			auto &f = std::get<unique_ptr<IRValue>>(*it);
+			get_input_output(f.get(), *(inputs_arr[i]), *(outputs_arr[i]));
+		} else if(std::holds_alternative<unique_ptr<IRInst>>(*it)) {
+			auto &f = std::get<unique_ptr<IRInst>>(*it);
+			get_input_output(f.get(), *(inputs_arr[i]), *(outputs_arr[i]));
+		}
+	}
+}
+
+
+void analyze_input_output(vector<Inst> *insts, vector<Inst> *before, vector<Inst> *after, bool in_loop) {
+	auto input_arr = new unique_ptr<std::unordered_set<string>>[insts->size()];
+	auto output_arr = new unique_ptr<std::unordered_set<string>>[insts->size()];
+
+	int i = 0;
+	for(auto it = insts->begin(); it != insts->end(); ++it, ++i) {
+		if(std::holds_alternative<unique_ptr<CFunction>>(*it)) {
+			continue;
+		}
+
+		auto input = *(input_arr[i]);   //input from insts[0..i]
+		auto output = *(output_arr[i]); //output from insts[0..i]
+
+		std::unordered_set<string> input_i;
+		std::unordered_set<string> output_i;
+
+		if(i >= 1) {
+			boost::set_difference(input, *(input_arr[i-1]), std::inserter(input_i, input_i.begin()));
+			boost::set_difference(output, *(output_arr[i-1]), std::inserter(output_i, output_i.begin()));
+		} else {
+			input_i = input;
+			output_i = output;
+		}
+
+		//TODO: 
+
 	}
 }
 }

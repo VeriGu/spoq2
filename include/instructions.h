@@ -4,6 +4,7 @@
 #include <irtypes.h>
 #include <irvalues.h>
 #include <utils.h>
+#include <unordered_set>
 
 namespace autov::IRLoader {
 using std::string;
@@ -21,6 +22,8 @@ using autov::IRLoader::TVoid;
 
 class IRInst{
 public:
+	unique_ptr<vector<std::unordered_set<shared_ptr<string>>>> input;
+	unique_ptr<vector<std::unordered_set<shared_ptr<string>>>> output;
     virtual string to_coq(void) const { return "UNKNOWN_INSTRUCTION"; }
 };
 
