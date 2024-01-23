@@ -18,47 +18,6 @@ using std::shared_ptr;
 using std::make_shared;
 using std::unordered_map;
 
-vector<string> split(const string &s, char delimiter) {
-    vector<string> tokens;
-    string token;
-    std::istringstream tokenStream(s);
-
-    while (std::getline(tokenStream, token, delimiter)) {
-        tokens.push_back(token);
-    }
-
-    return tokens;
-}
-
-
-string add_indent(const string s, int indent) {
-    vector<string> ss = split(s, '\n');
-    string result = "";
-
-    for (int i = 0; i < ss.size(); i++) {
-        result += string(indent, ' ') + ss[i];
-
-        if (i != ss.size() - 1) {
-            result += "\n";
-        }
-    }
-
-    return result;
-}
-
-// string join_elems_semi_colon(const vector<Arg> &elems) {
-//     std::ostringstream oss;
-
-//     for (auto it = elems.begin(); it != elems.end(); it++) {
-//         if (it != elems.begin()) {
-//             oss << ";\n";
-//         }
-//         oss << string(*it);
-//     }
-
-//     return oss.str();
-// }
-
 string join_elems_semi_colon(const vector<shared_ptr<Arg>> &elems) {
     std::ostringstream oss;
 
@@ -71,19 +30,6 @@ string join_elems_semi_colon(const vector<shared_ptr<Arg>> &elems) {
 
     return oss.str();
 }
-
-// string join_elems_space(const vector<Arg> &elems) {
-//     std::ostringstream oss;
-//     bool first = true;
-//     for (auto it = elems.begin(); it != elems.end(); it++) {
-//         if (it != elems.begin()) {
-//             oss << " ";
-//         }
-//         oss << string(*it);
-//     }
-
-//     return oss.str();
-// }
 
 string join_elems_space(const vector<shared_ptr<Arg>> &elems) {
     std::ostringstream oss;

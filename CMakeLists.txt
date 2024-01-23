@@ -36,15 +36,39 @@ include_directories(src/AutoV/Spec/Parser/antlr4/runtime/Cpp/runtime/src/)
 
 # include_directories(${ANTLR4_INCLUDE_DIRS})
 
-# List all source files explicitly
-set(SOURCES
-    src/AutoV/main.cpp
-    src/AutoV/log.cpp
+# IRLoader source files
+set(IRLOADER_SOURCES
     src/AutoV/IRLoader/coq.cpp
     src/AutoV/IRLoader/irvalues.cpp
     src/AutoV/IRLoader/instructions.cpp
     src/AutoV/IRLoader/irtypes.cpp
     src/AutoV/IRLoader/irloader.cpp
+    src/AutoV/IRLoader/control_flow.cpp
+    src/AutoV/log.cpp
+)
+
+# Build IRLoader as a shared library
+add_library(irloader SHARED ${IRLOADER_SOURCES})
+if(Boost_FOUND)
+    target_link_libraries(irloader ${Boost_LIBRARIES})
+endif()
+
+# List source files for the json2coq executable
+set(JSON2COQ_SOURCES
+    src/AutoV/IRLoader/json2coq.cpp
+)
+
+# Specify the json2coq executable target and its source files
+add_executable(json2coq ${JSON2COQ_SOURCES})
+if(Boost_FOUND)
+    target_link_libraries(json2coq ${Boost_LIBRARIES})
+endif()
+target_link_libraries(json2coq irloader)
+
+# List all source files explicitly
+set(SOURCES
+    src/AutoV/main.cpp
+    src/AutoV/log.cpp
     src/AutoV/Spec/nodes.cpp
     src/AutoV/Spec/values.cpp
     src/AutoV/Spec/utils.cpp
@@ -60,6 +84,8 @@ set(SOURCES
 
 # Specify the executable target and its source files
 add_executable(spoq ${SOURCES})
+# Link the shared library to the main executable
+target_link_libraries(spoq irloader)
 
 # Link the Boost libraries to the executable
 if(Boost_FOUND)

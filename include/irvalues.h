@@ -69,6 +69,7 @@ public:
 
     _Op op;
 
+    Op() = default;
     Op(_Op op): op(op) {}
 
     bool operator==(const Op& other) const {
@@ -112,6 +113,14 @@ public:
 
     IRValue(shared_ptr<IRType> type) : type(type) {}
 
+    IRValue(const IRValue& other) {
+        type = other.type;
+    }
+
+    virtual IRValue *clone(void) const {
+        return new IRValue(*this);
+    }
+
     virtual string to_coq(void) const { return "UNSUPPORTED_VALUE"; };
 };
 
@@ -120,6 +129,10 @@ public:
     VNull() = delete;
 
     VNull(shared_ptr<IRType> type) : IRValue(type) {}
+
+    VNull *clone(void) const override {
+        return new VNull(*this);
+    }
 
     string to_coq(void) const override {
         return "VNull";
@@ -131,6 +144,10 @@ public:
     VUndef() = delete;
 
     VUndef(shared_ptr<IRType> type) : IRValue(type) {}
+
+    VUndef *clone(void) const override {
+        return new VUndef(*this);
+    }
 
     string to_coq(void) const override {
         if (std::dynamic_pointer_cast<TInt>(type)) {
@@ -151,6 +168,10 @@ public:
 
     VAggZero(shared_ptr<IRType> type) : IRValue(type) {}
 
+    VAggZero *clone(void) const override {
+        return new VAggZero(*this);
+    }
+
     string to_coq(void) const override {
         return "VAggZero";
     }
@@ -163,17 +184,23 @@ public:
     _VSymbol() = delete;
 
     _VSymbol(shared_ptr<IRType> type) : IRValue(type) {}
+
+    virtual _VSymbol *clone(void) const override {
+        return new _VSymbol(*this);
+    }
 };
 
 class VGlobal : public _VSymbol {
 public:
-    string name;
-
     VGlobal() = delete;
 
     VGlobal(shared_ptr<IRType> type, string name) : _VSymbol(type) {
         std::replace(name.begin(), name.end(), '.', '_');
         this->name = name;
+    }
+
+    VGlobal *clone(void) const override {
+        return new VGlobal(*this);
     }
 
     string to_coq(void) const override {
@@ -183,10 +210,12 @@ public:
 
 class VLocal : public _VSymbol {
 public:
-    string name;
-
     VLocal() = delete;
     VLocal(shared_ptr<IRType> type, string name);
+
+    VLocal *clone(void) const override {
+        return new VLocal(*this);
+    }
 
     string to_coq(void) const override {
         return "(VLocal \"" + name + "\")";
@@ -209,6 +238,10 @@ public:
         this->val = val;
     }
 
+    VInt *clone(void) const override {
+        return new VInt(*this);
+    }
+
     string to_coq(void) const override {
         return "(VInt " + std::to_string(val) + ")";
     }
@@ -222,6 +255,10 @@ public:
 
     VBool(bool val) : IRValue(TBool::TBOOL), val(val) {}
 
+    VBool *clone(void) const override {
+        return new VBool(*this);
+    }
+
     string to_coq(void) const override {
         return "(VBool " + std::to_string(val) + ")";
     }
@@ -234,6 +271,19 @@ public:
     VPtr() = delete;
 
     VPtr(shared_ptr<IRType> type, unique_ptr<IRValue> val) : IRValue(type), val(std::move(val)) {}
+
+    VPtr(const VPtr& other) {
+        type = other.type;
+
+        if (other.val != nullptr)
+            val = unique_ptr<IRValue>(other.val->clone());
+        else
+            val = nullptr;
+    }
+
+    VPtr *clone(void) const override {
+        return new VPtr(*this);
+    }
 
     string to_coq(void) const override {
         return "(VPtr " + val->to_coq() + ")";
@@ -249,16 +299,53 @@ public:
     VExpr(shared_ptr<IRType> type, Op op, unique_ptr<vector<unique_ptr<IRValue>>> operands) :
         IRValue(type), op(op), operands(std::move(operands)) {}
 
+    // Copy constructor
+    VExpr(const VExpr& other) : op(other.op) {
+        type = other.type;
+        //op = Op(other.op);
+
+        if (other.operands) {
+            operands = std::make_unique<vector<unique_ptr<IRValue>>>();
+            for (const auto& operand : *other.operands) {
+                operands->push_back(std::unique_ptr<IRValue>(operand->clone()));
+            }
+        } else {
+            operands = nullptr;
+        }
+    }
+
+    VExpr *clone(void) const override {
+        return new VExpr(*this);
+    }
+
     string to_coq(void) const override;
 };
 
 class VStruct : public IRValue {
 public:
-    unique_ptr<vector<unique_ptr<IRValue>>> contens;
+    unique_ptr<vector<unique_ptr<IRValue>>> contents;
 
     VStruct() = delete;
-    VStruct(shared_ptr<IRType> type, unique_ptr<vector<unique_ptr<IRValue>>> contens) :
-        IRValue(type), contens(std::move(contens)) {}
+    VStruct(shared_ptr<IRType> type, unique_ptr<vector<unique_ptr<IRValue>>> contents) :
+        IRValue(type), contents(std::move(contents)) {}
+
+    // Copy constructor
+    VStruct(const VStruct& other) {
+        type = other.type;
+
+        if (other.contents) {
+            contents = std::make_unique<vector<unique_ptr<IRValue>>>();
+            for (const auto& content : *other.contents) {
+                contents->push_back(std::unique_ptr<IRValue>(content->clone()));
+            }
+        } else {
+            contents = nullptr;
+        }
+    }
+
+    VStruct *clone(void) const override {
+        return new VStruct(*this);
+    }
 
     string to_coq(void) const override;
 };
@@ -269,6 +356,10 @@ public:
 
     VLabel() = delete;
     VLabel(string name) : IRValue(TLabel::TLABEL), name(name) {}
+
+    VLabel *clone(void) const override {
+        return new VLabel(*this);
+    }
 
     string to_coq(void) const override {
         return "(VLabel \"" + name + "\")";
@@ -284,6 +375,10 @@ public:
     VInlineAsm() = delete;
     VInlineAsm(shared_ptr<IRType> type, string asm_string, bool side_effects, string constraints) :
         IRValue(type), asm_string(asm_string), side_effects(side_effects), constraints(constraints) {}
+
+    VInlineAsm *clone(void) const override {
+        return new VInlineAsm(*this);
+    }
 
     string to_coq(void) const override {
         return "(VLocal \"VInlineAsm\")";

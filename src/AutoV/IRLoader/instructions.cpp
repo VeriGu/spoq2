@@ -13,14 +13,16 @@ IBinOp::IBinOp(shared_ptr<IRType> typ, string assign, Op op, unique_ptr<IRValue>
 
 ICall::ICall(shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> func,
              unique_ptr<vector<unique_ptr<IRValue>>> args, long lineno = 0) :
-    typ(typ), assign(to_coq_name(assign)), func(std::move(func)), args(std::move(args)), lineno(lineno) {};
+    typ(typ), assign(to_coq_name(assign)), func(std::move(func)), args(std::move(args)){
+        this->lineno = lineno;
+    };
 
 
 string ICall::to_coq() const {
     if(dynamic_cast<TVoid *>(typ.get())) {
-        return "(ICall " + typ->to_coq() + " None " + func->to_coq() + to_coq_value_list(args.get()) + ")";
+        return "(ICall " + typ->to_coq() + " None " + func->to_coq() + " "+ to_coq_value_list(args.get()) + ")";
     } else {
-        return "(ICall " + typ->to_coq() + " (Some " + assign + ") " + func->to_coq() + to_coq_value_list(args.get()) + ")";
+        return "(ICall " + typ->to_coq() + " (Some \"" + assign + "\") " + func->to_coq() + " "+ to_coq_value_list(args.get()) + ")";
     }
 }
 
@@ -39,11 +41,16 @@ string IExtractValue::to_coq() const {
         return "(IExtractElem " + (*typ).to_coq() + " " + assign + " " + val->to_coq() + " " + to_list(index.get()) + ")";
     }
 
-IFreeze::IFreeze(unique_ptr<IRType> typ, string assign, unique_ptr<IRValue> val) :
-    typ(std::move(typ)), assign(to_coq_name(assign)), val(std::move(val)) {};
+IFreeze::IFreeze(shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> val) :
+    typ(typ), assign(to_coq_name(assign)), val(std::move(val)) {};
 
-IGetElemPtr::IGetElemPtr(shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> val, unique_ptr<IRValue> index) :
+IGetElemPtr::IGetElemPtr(shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> val, unique_ptr<vector<unique_ptr<IRValue>>> index) :
     typ(typ), assign(to_coq_name(assign)), val(std::move(val)), index(std::move(index)) {};
+
+string IGetElemPtr::to_coq() const {
+        return "(IGetElemPtr " + typ->to_coq() + " " + assign + " " + val->type->to_coq() + " " +
+                val->to_coq() + " " + to_coq_value_list(index.get()) + ")";
+    }
 
 IInsertElem::IInsertElem(shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> target, unique_ptr<IRValue> val, unique_ptr<IRValue> idx) :
     typ(typ), assign(to_coq_name(assign)), target(std::move(target)), val(std::move(val)), idx(std::move(idx)) {};

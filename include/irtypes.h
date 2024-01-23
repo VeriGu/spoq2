@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <memory>
 #include <map>
+#include <unordered_map>
 
 namespace autov::IRLoader {
 using std::string;
@@ -15,10 +16,14 @@ using std::unique_ptr;
 using std::make_unique;
 using std::shared_ptr;
 using std::make_shared;
+using std::unordered_map;
+
 using coq_sz_t = unsigned long;
 
 class IRType {
 public:
+    IRType () = default;
+
     virtual string to_coq(void) const { return "UNKNOWN_TYPE"; }
     virtual coq_sz_t szof(void) const { return 0; }
     virtual tuple<coq_sz_t, coq_sz_t> szof_verbose(void) const { return {0, 0}; }
@@ -27,6 +32,7 @@ public:
             return false;
         return this->to_coq() == other.to_coq();
     }
+    virtual string get_name() const { return ""; }
 };
 
 class IntType: public IRType {
@@ -41,18 +47,21 @@ public:
 
     _IntType type;
 
+    IntType() = default;
+    IntType(_IntType type) : type(type) {};
+
     string to_coq(void) const override {
         switch (type) {
         case TI8:
-            return "Int8";
+            return "TI8";
         case TI16:
-            return "Int16";
+            return "TI16";
         case TI32:
-            return "Int32";
+            return "TI32";
         case TI64:
-            return "Int64";
+            return "TI64";
         case TI128:
-            return "Int128";
+            return "TI128";
         default:
             throw std::runtime_error("Unknown IntType");
         }
@@ -76,6 +85,9 @@ class Ordering: public IRType {
     };
 
     _Ordering ordering;
+
+    Ordering() = delete;
+    Ordering(_Ordering ordering) : ordering(ordering) {};
 
     string to_coq(void) const override {
         string ret = "Od";
@@ -129,16 +141,21 @@ public:
 
 class TInt : public IRType {
 public:
+    static shared_ptr<TInt> TI8;
+    static shared_ptr<TInt> TI16;
+    static shared_ptr<TInt> TI32;
+    static shared_ptr<TInt> TI64;
+    static shared_ptr<TInt> TI128;
+
     IntType type;
 
-    TInt() {
-        throw std::runtime_error("TInt must have a IntType.");
-    }
+    TInt() = delete;
 
     TInt(IntType type) : type(type) {};
+    TInt(IntType:: _IntType type) : type(type) {};
 
     string to_coq(void) const override {
-        return "TInt";
+        return "(TInt " + type.to_coq() + ")";
     }
 
     coq_sz_t szof(void) const override {
@@ -148,6 +165,8 @@ public:
 
 class TVoid : public IRType {
 public:
+    static shared_ptr<TVoid> TVOID;
+
     string to_coq(void) const override {
         return "TVoid";
     }
@@ -160,6 +179,7 @@ public:
 class TLabel : public IRType {
 public:
     static shared_ptr<TLabel> TLABEL;
+
     string to_coq(void) const override {
         return "TLabel";
     }
@@ -210,13 +230,13 @@ public:
 class TNamedStruct: public IRType {
 public:
     string name;
-    shared_ptr<std::map<string, shared_ptr<IRType>>> structs;
+    unordered_map<string, shared_ptr<IRType>> *structs;
 
     TNamedStruct() {
         throw std::runtime_error("TNamedStruct must have a name and the constructor.");
     }
 
-    TNamedStruct(string name, shared_ptr<std::map<string, shared_ptr<IRType>>> structs) :
+    TNamedStruct(string name, unordered_map<string, shared_ptr<IRType>> *structs) :
         name(name), structs(structs) {};
 
     string to_coq(void) const override {
@@ -224,7 +244,15 @@ public:
     }
 
     coq_sz_t szof(void) const override {
+#ifdef DEBUG
+        return 0;
+#else
         return structs->at(name)->szof();
+#endif
+    }
+
+    string get_name() const override {
+        return name;
     }
 };
 
@@ -237,8 +265,11 @@ public:
     TStructElem() {
         throw std::runtime_error("TStructElem must have a name, a type and an offset.");
     }
+
+    TStructElem(shared_ptr<IRType> type) : name(""), type(type), offset(0) {}
+
     TStructElem(string name, shared_ptr<IRType> type, coq_sz_t offset) :
-        name(name), type(type), offset(offset) {};
+        name(name), type(type), offset(offset) {}
 
     string to_coq(void) const {
         return "(TElem \"" + name + "\" " + type->to_coq() + " " + std::to_string(offset) + ")";
@@ -289,13 +320,13 @@ public:
     }
 };
 
-class TFixVector : public TArray {
+class TFixedVector : public TArray {
 public:
-    TFixVector() {
+    TFixedVector() {
         throw std::runtime_error("TFixVector must have an element type and a size.");
     }
 
-    TFixVector(shared_ptr<IRType> elem_type, coq_sz_t size) :
+    TFixedVector(shared_ptr<IRType> elem_type, coq_sz_t size) :
         TArray(elem_type, size) {};
 
     string to_coq(void) const override {

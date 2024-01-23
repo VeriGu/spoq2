@@ -2,11 +2,20 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(gdb) Launch",
+            "name": "(lldb) Launch Spoq",
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
             "args": [], // Any command-line arguments
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "(lldb) Launch json2coq",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/json2coq", // Path to your CMake target executable
+            "args": ["${workspaceFolder}/testcase/rmm.json"], // Any command-line arguments
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "CMake: build debug"
         },

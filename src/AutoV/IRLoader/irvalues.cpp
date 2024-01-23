@@ -60,6 +60,6 @@ const unordered_map<Op::_Op, std::string> Op::opToString = {
 
 VLocal::VLocal(shared_ptr<IRType> type, string name) :
     _VSymbol(type) {
-        name = to_coq_name(name);
+        this->name = to_coq_name(name);
     }
 } // namespace autov::IRLoader

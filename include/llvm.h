@@ -9,8 +9,12 @@
 #include <coq.h>
 #include <instructions.h>
 #include <irvalues.h>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
 
 namespace autov::IRLoader {
+using boost::property_tree::ptree;
+
 class FuncArg {
 public:
     string name;
@@ -52,23 +56,28 @@ public:
     }
 };
 
-class IRFunction {
+class Function {
+public:
+    virtual ~Function() = default;
+};
+
+using ir_blocks_t = std::pair<std::map<string, unique_ptr<vector<unique_ptr<IRInst>>>>, vector<string>>;
+class IRFunction : public Function {
 public:
     string fname;
     shared_ptr<IRType> rettype;
     unique_ptr<vector<unique_ptr<FuncArg>>> args;
     bool is_decl;
     string entry;
-    using ir_blocks_t = unordered_map<string, unique_ptr<vector<unique_ptr<IRInst>>>>;
     unique_ptr<ir_blocks_t> blocks;
 
-    IRFunction() = delete;
+    IRFunction() = default;
     IRFunction(string fname, shared_ptr<IRType> rettype, unique_ptr<vector<unique_ptr<FuncArg>>> args, bool is_decl,
                string entry = "", unique_ptr<ir_blocks_t> blocks = nullptr) :
         fname(fname), rettype(rettype), args(std::move(args)), is_decl(is_decl), entry(entry), blocks(std::move(blocks)) {}
 };
 
-class CFunction {
+class CFunction : public Function {
 public:
     string fname;
     shared_ptr<IRType> rettype;
@@ -202,11 +211,19 @@ public:
 
 class IRModule {
 public:
-    shared_ptr<unordered_map<string, shared_ptr<TStruct>>> structs;
+    unordered_map<string, shared_ptr<IRType>> *structs;
     shared_ptr<unordered_map<string, shared_ptr<GlobalVar>>> globalvars;
     shared_ptr<unordered_map<string, shared_ptr<CFunction>>> functions; // Is IRFunction also going here?
     shared_ptr<unordered_map<string, shared_ptr<AsmProcedure>>> asm_procs;
-    // TODO: debug info
+    shared_ptr<ptree> debug_info;
+
+    IRModule() = delete;
+    IRModule(unordered_map<string, shared_ptr<IRType>> *structs,
+             shared_ptr<unordered_map<string, shared_ptr<GlobalVar>>> globalvars,
+             shared_ptr<unordered_map<string, shared_ptr<CFunction>>> functions,
+             shared_ptr<unordered_map<string, shared_ptr<AsmProcedure>>> asm_procs,
+             shared_ptr<ptree> debug_info) :
+        structs(structs), globalvars(globalvars), functions(functions), asm_procs(asm_procs), debug_info(debug_info) {}
 };
 
 }; // namespace autov::IRLoader

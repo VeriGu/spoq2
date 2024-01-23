@@ -58,7 +58,7 @@ string to_coq_code_block(vector<unique_ptr<T>> *lst) {
     }
 
     for (int i = 0; i < lst->size(); i++) {
-        ret += lst->at(i)->to_coq() + " :: ";
+        ret += lst->at(i)->to_coq() + "\n:: ";
     }
 
     return ret + "nil)";

@@ -19,10 +19,32 @@ using std::shared_ptr;
 using std::make_shared;
 using std::unordered_map;
 
-vector<string> split(const string &s, char delimiter);
+static vector<string> split(const string &s, char delimiter) {
+    vector<string> tokens;
+    string token;
+    std::istringstream tokenStream(s);
 
+    while (std::getline(tokenStream, token, delimiter)) {
+        tokens.push_back(token);
+    }
 
-string add_indent(const string s, int indent);
+    return tokens;
+}
+
+static string add_indent(const string s, int indent) {
+    vector<string> ss = split(s, '\n');
+    string result = "";
+
+    for (int i = 0; i < ss.size(); i++) {
+        result += string(indent, ' ') + ss[i];
+
+        if (i != ss.size() - 1) {
+            result += "\n";
+        }
+    }
+
+    return result;
+}
 
 //string join_elems_semi_colon(const vector<Arg> &elems);
 string join_elems_semi_colon(const vector<shared_ptr<Arg>> &elems);
