@@ -219,9 +219,9 @@ void get_input_output(vector<unique_ptr<IRInst>>* vec, std::unordered_set<string
 		} else if (auto f = dynamic_cast<IRLoader::ILoop*>(it->get())) {
 			get_input_output(f->body.get(), inputs, outputs);
 		} else if (auto f = dynamic_cast<IRLoader::IGetElemPtr*>(it->get())) {
-			get_input_output(f->val.get(), inputs, outputs);
-			get_input_output(f->index.get(), inputs, outputs);
-			outputs.insert(f->assign);
+			// get_input_output(f->val.get(), inputs, outputs);
+			// get_input_output(f->index.get(), inputs, outputs);
+			// outputs.insert(f->assign);
 		} else if (auto f = dynamic_cast<IRLoader::IExtractValue*>(it->get())) {
 			get_input_output(f->val.get(), inputs, outputs);
 			outputs.insert(f->assign);
@@ -286,9 +286,9 @@ void get_input_output(vector<unique_ptr<IRInst>>* vec, shared_ptr<std::unordered
 		} else if (auto f = dynamic_cast<IRLoader::ILoop*>(it->get())) {
 			get_input_output(f->body.get(), *(inputs_arr[i]), *(outputs_arr[i]));
 		} else if (auto f = dynamic_cast<IRLoader::IGetElemPtr*>(it->get())) {
-			get_input_output(f->val.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-			get_input_output(f->index.get(), *(inputs_arr[i]), *(outputs_arr[i]));
-			outputs_arr[i]->insert(f->assign);
+			// get_input_output(f->val.get(), *(inputs_arr[i]), *(outputs_arr[i]));
+			// get_input_output(f->index.get(), *(inputs_arr[i]), *(outputs_arr[i]));
+			// outputs_arr[i]->insert(f->assign);
 		} else if (auto f = dynamic_cast<IRLoader::IExtractValue*>(it->get())) {
 			get_input_output(f->val.get(), *(inputs_arr[i]), *(outputs_arr[i]));
 			outputs_arr[i]->insert(f->assign);
