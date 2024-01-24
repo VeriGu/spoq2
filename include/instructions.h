@@ -23,8 +23,8 @@ using autov::IRLoader::TVoid;
 
 class IRInst{
 public:
-	shared_ptr<vector<std::unordered_set<shared_ptr<string>>>> input;
-	shared_ptr<vector<std::unordered_set<shared_ptr<string>>>> output;
+	shared_ptr<std::unordered_set<string>> input;
+	shared_ptr<std::unordered_set<string>> output;
     long lineno = 0;
 	
     virtual string to_coq(void) const { return "UNKNOWN_INSTRUCTION"; }
@@ -761,6 +761,7 @@ public:
     unique_ptr<IRValue> cond;
     unique_ptr<vector<unique_ptr<IRInst>>> true_body;
     unique_ptr<vector<unique_ptr<IRInst>>> false_body;
+	unique_ptr<std::unordered_set<string>> need_init;
 
     IIf () = delete;
     IIf (unique_ptr<IRValue> cond, unique_ptr<vector<unique_ptr<IRInst>>> true_body, unique_ptr<vector<unique_ptr<IRInst>>> false_body) :
@@ -807,6 +808,9 @@ public:
 class ILoop : public IRInst {
 public:
     unique_ptr<vector<unique_ptr<IRInst>>> body;
+
+	//analyzed dynamically
+	unique_ptr<std::unordered_set<string>> loop_args;
 
     ILoop () = delete;
     ILoop (unique_ptr<vector<unique_ptr<IRInst>>> body, long lineno = 0) :
