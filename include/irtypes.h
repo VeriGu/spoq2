@@ -7,6 +7,7 @@
 #include <memory>
 #include <map>
 #include <unordered_map>
+#include <algorithm>
 
 namespace autov::IRLoader {
 using std::string;
@@ -244,11 +245,10 @@ public:
     }
 
     coq_sz_t szof(void) const override {
-#ifdef DEBUG
-        return 0;
-#else
+        string name = this->name;
+
+        std::replace(name.begin(), name.end(), '.', '!');
         return structs->at(name)->szof();
-#endif
     }
 
     string get_name() const override {

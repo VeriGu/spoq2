@@ -48,7 +48,7 @@ IGetElemPtr::IGetElemPtr(shared_ptr<IRType> typ, string assign, unique_ptr<IRVal
     typ(typ), assign(to_coq_name(assign)), val(std::move(val)), index(std::move(index)) {};
 
 string IGetElemPtr::to_coq() const {
-        return "(IGetElemPtr " + typ->to_coq() + " " + assign + " " + val->type->to_coq() + " " +
+        return "(IGetElemPtr " + typ->to_coq() + " \"" + assign + "\" " + val->type->to_coq() + " " +
                 val->to_coq() + " " + to_coq_value_list(index.get()) + ")";
     }
 

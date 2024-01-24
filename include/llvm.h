@@ -24,7 +24,7 @@ public:
     FuncArg(string name, shared_ptr<IRType> type) : name(to_coq_name(name)), type(type) {}
 
     string to_coq() const {
-        return "(" + name + ", " + type->to_coq() + ")";
+        return "(\"" + name + "\", " + type->to_coq() + ")";
     }
 };
 
@@ -106,8 +106,8 @@ public:
                "   rettype := " + rettype->to_coq() + ";\n" \
                "   fargs :=\n" +\
                     add_indent(to_coq_code_block(args.get()), 4) + ";\n" \
-               "   alloca_vars := " + to_list(alloca_vars) + ";\n" \
-               "   body := " + body_str + "|}";
+               "   falloca_vars := " + to_list(alloca_vars) + ";\n" \
+               "   fbody := " + body_str + " |}";
     }
 
 private:

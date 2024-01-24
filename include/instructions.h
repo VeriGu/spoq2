@@ -575,7 +575,7 @@ public:
         if (val != nullptr)
             return "(IReturn " + typ->to_coq() + " (Some " + val->to_coq() + "))";
         else
-            return "(IReturn " + typ->to_coq() + "  None)";
+            return "(IReturn " + typ->to_coq() + " None)";
     }
 
     shared_ptr<IRType> get_type() const override {
@@ -659,7 +659,7 @@ public:
     }
 
     string to_coq() const override {
-        return "(IStore " + ptr->to_coq() + " " + val->to_coq() + " " + to_string(align) + ")";
+        return "(IStore " + val->type->to_coq() + " " + ptr->to_coq() + " " + val->to_coq() + " " + to_string(align) + ")";
     }
 };
 
