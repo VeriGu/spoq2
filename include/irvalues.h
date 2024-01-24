@@ -260,7 +260,8 @@ public:
     }
 
     string to_coq(void) const override {
-        return "(VBool " + std::to_string(val) + ")";
+        string str = val ? "true" : "false";
+        return "(VBool " + str + ")";
     }
 };
 

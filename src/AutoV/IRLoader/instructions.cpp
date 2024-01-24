@@ -3,6 +3,10 @@
 
 namespace autov::IRLoader {
 
+
+IAlloc::IAlloc(string fname, shared_ptr<IRType> typ, string assign, int align) :
+        fname(fname), typ(typ), assign(to_coq_name(assign)), align(align) {};
+
 IAtomicRMW::IAtomicRMW(shared_ptr<IRType> typ, string assign, Op op, unique_ptr<IRValue> ptr,
                        unique_ptr<IRValue> val, Ordering order, int align) :
     assign(to_coq_name(assign)), typ(typ), op(op), ptr(std::move(ptr)), val(std::move(val)),
