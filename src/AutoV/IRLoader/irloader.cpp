@@ -584,9 +584,9 @@ static shared_ptr<CFunction> parse_function(const ptree &func) {
         auto loc = count_ir_loc(func);
         auto body = control_flow_conversion(irfunc->blocks.get());
 
-        cfunc = make_shared<CFunction>(fname, rettype, std::move(args), is_decl, std::move(body));
+        cfunc = make_shared<CFunction>(fname, rettype, std::move(irfunc->args), is_decl, std::move(body));
     } else {
-        cfunc = make_shared<CFunction>(fname, rettype, std::move(args), is_decl, nullptr);
+        cfunc = make_shared<CFunction>(fname, rettype, std::move(irfunc->args), is_decl, nullptr);
     }
 
     return cfunc;
@@ -855,8 +855,6 @@ unique_ptr<IRModule> parse_module(ptree &module, bool postprocess) {
         unique_ptr<IRValue> vvalue;
 
         if (auto val = var.get_child_optional("value")) {
-            std::cout << vname << std::endl;
-            //write_json(std::cout, val.get());
             vvalue = parse_value(val.get());
         } else {
             vvalue = nullptr;
