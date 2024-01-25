@@ -41,9 +41,7 @@ public:
 
     IAlloc() = delete;
 
-    IAlloc(string fname, shared_ptr<IRType> typ, string assign, int align) :
-        fname(fname), typ(typ), assign(assign), align(align) {};
-
+    IAlloc(string fname, shared_ptr<IRType> typ, string assign, int align);
     IAlloc(const IAlloc &other) : fname(other.fname), typ(other.typ), assign(other.assign), align(other.align) {}
 
     IAlloc *clone() const override {
@@ -51,7 +49,7 @@ public:
     }
 
     string to_coq(void) const override {
-        return "(IAlloca " + fname + " " + typ->to_coq() + " " + to_string(align) + ")";
+        return "(IAlloca \"" + fname + "\" " + typ->to_coq() + " \"" + assign + "\" " + to_string(align) + ")";
     }
 
     shared_ptr<IRType> get_type() const override {
@@ -113,7 +111,7 @@ public:
     }
 
     string to_coq(void) const override {
-        return "(IBinOp " + typ->to_coq() + " " + assign + " " +
+        return "(IBinOp " + typ->to_coq() + " \"" + assign + "\" " +
                 op.to_coq() + " " + a->to_coq() + " " + b->to_coq() + ")";
     }
 
@@ -469,7 +467,7 @@ public:
     }
 
     string to_coq() const override {
-        return "(ILoad " + typ->to_coq() + " " + assign + " " + ptr->to_coq() + " " + to_string(align) + ")";
+        return "(ILoad " + typ->to_coq() + " \"" + assign + "\" " + ptr->to_coq() + " " + to_string(align) + ")";
     }
 
     shared_ptr<IRType> get_type() const override {
@@ -543,7 +541,7 @@ public:
     }
 
     string to_coq() const override {
-        return "(IUnaryOp " + typ->to_coq() + " " + assign + " " + op.to_coq(typ.get()) + " " + a->to_coq() + ")";
+        return "(IUnaryOp " + typ->to_coq() + " \"" + assign + "\" " + op.to_coq(typ.get()) + " " + a->to_coq() + ")";
     }
 
     shared_ptr<IRType> get_type() const override {
@@ -575,7 +573,7 @@ public:
         if (val != nullptr)
             return "(IReturn " + typ->to_coq() + " (Some " + val->to_coq() + "))";
         else
-            return "(IReturn " + typ->to_coq() + "  None)";
+            return "(IReturn " + typ->to_coq() + " None)";
     }
 
     shared_ptr<IRType> get_type() const override {
@@ -603,7 +601,7 @@ public:
     }
 
     string to_coq() const override {
-        return "(ISelect " + typ->to_coq() + " " + assign + " " + cond->to_coq() + " " + true_val->to_coq() + " " + false_val->to_coq() + ")";
+        return "(ISelect " + typ->to_coq() + " \"" + assign + "\" " + cond->to_coq() + " " + true_val->to_coq() + " " + false_val->to_coq() + ")";
     }
 
     shared_ptr<IRType> get_type() const override {
@@ -659,7 +657,7 @@ public:
     }
 
     string to_coq() const override {
-        return "(IStore " + ptr->to_coq() + " " + val->to_coq() + " " + to_string(align) + ")";
+        return "(IStore " + val->type->to_coq() + " " + ptr->to_coq() + " " + val->to_coq() + " " + to_string(align) + ")";
     }
 };
 

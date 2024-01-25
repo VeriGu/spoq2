@@ -26,8 +26,9 @@ static string join_type_by_semi_colon(const vector<PtrType<T>> *elems) {
         return " ";
     }
 
-    for (const auto &elem: *elems) {
-        ret += elem->to_coq() + (last ? "" : "; ");
+    for (typename vector<PtrType<T>>::const_iterator it = elems->begin(); it != elems->end(); it++) {
+        last = (std::next(it) == elems->end());
+        ret += (*it)->to_coq() + (last ? "" : "; ");
     }
 
     return ret;
@@ -58,7 +59,7 @@ string to_coq_code_block(vector<unique_ptr<T>> *lst) {
     }
 
     for (int i = 0; i < lst->size(); i++) {
-        ret += lst->at(i)->to_coq() + "\n:: ";
+        ret += lst->at(i)->to_coq() + "\n :: ";
     }
 
     return ret + "nil)";

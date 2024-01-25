@@ -229,11 +229,11 @@ public:
     VInt() = delete;
 
     VInt(shared_ptr<IRType> type, unsigned long val) : IRValue(type) {
-        unsigned long max = 1 << (type->szof() * 8);
+        // unsigned long max = 1 << (type->szof() * 8);
 
-        if (val > max - std::min(256UL, max / 32UL)) {
-            val = val - max;
-        }
+        // if (val > max - std::min(256UL, max / 32UL)) {
+        //     val = val - max;
+        // }
 
         this->val = val;
     }
@@ -243,7 +243,7 @@ public:
     }
 
     string to_coq(void) const override {
-        return "(VInt " + std::to_string(val) + ")";
+        return "(VInt (" + std::to_string((signed long)val) + "))";
     }
 };
 
@@ -260,7 +260,8 @@ public:
     }
 
     string to_coq(void) const override {
-        return "(VBool " + std::to_string(val) + ")";
+        string str = val ? "true" : "false";
+        return "(VBool " + str + ")";
     }
 };
 
@@ -381,7 +382,7 @@ public:
     }
 
     string to_coq(void) const override {
-        return "(VLocal \"VInlineAsm\")";
+        return "(VLocal \"INLINE_ASM\")";
     }
 };
 
