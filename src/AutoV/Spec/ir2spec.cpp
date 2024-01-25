@@ -35,8 +35,12 @@ namespace autov
 	using autov::IRLoader::TPtr;
 	using autov::IRLoader::TStruct;
 	using autov::IRLoader::TVoid;
+	using IRLoader::Op;
 
 	typedef std::variant<IRValue, IRInst, CFunction> Inst;
+
+	SpecNode *ir_expr_to_spec(Layer* l, IRLoader::Op op, vector<unique_ptr<IRValue>> *_args, vector<unique_ptr<SpecNode>> *relies);
+
 
 	shared_ptr<SpecType> ir_type_to_spec(IRType *typ)
 	{
@@ -111,7 +115,7 @@ namespace autov
 		}
 	}
 
-	SpecNode *ir_value_to_spec(Layer L, std::any v, vector<unique_ptr<SpecNode>> *relies)
+	SpecNode *ir_value_to_spec(Layer* L, std::any v, vector<unique_ptr<SpecNode>> *relies)
 	{
 		if (typeid(v) == typeid(int))
 		{
@@ -156,8 +160,8 @@ namespace autov
 		}
 		else if (typeid(v) == typeid(IRLoader::VExpr))
 		{
-			// TODO
-			return nullptr;
+			IRLoader::VExpr v = (std::any_cast<autov::IRLoader::VExpr>(v));
+			return ir_expr_to_spec(L, v.op, v.operands.get(), relies);
 		}
 		else if (typeid(v) == typeid(IRLoader::VNull))
 		{
@@ -197,13 +201,133 @@ namespace autov
 		}
 	}
 
-	SpecNode *ir_expr_to_spec(Layer l, IRLoader::Op op, vector<unique_ptr<IRValue>> *_args, vector<unique_ptr<SpecNode>> *relies)
+	SpecNode *ir_expr_to_spec(Layer* l, IRLoader::Op op, vector<unique_ptr<IRValue>> *_args, vector<unique_ptr<SpecNode>> *relies)
 	{
-		//TODO:
+		auto args = unique_ptr<vector<unique_ptr<SpecNode>>>(new vector<unique_ptr<SpecNode>>());
+		for(auto & arg : *_args) {
+			args->push_back(unique_ptr<SpecNode>(ir_value_to_spec(l, *arg, relies)));
+		}
+
+		switch(op.op) {
+			case Op::OBitCast:
+				return args->at(0).get();
+			case Op::OSExt:
+				return args->at(0).get();
+			case Op::OTrunc:
+				return args->at(0).get();
+			case Op::OZExt:
+				if(dynamic_cast<TBool*>(_args->at(0)->type.get())) {
+					return new Expr("bool_to_int", std::move(args));
+				} else {
+					return args->at(0).get();
+				}
+			case Op::OPtrToInt:
+				return new Expr(l->ops["ptr2int"], std::move(args));
+			case Op::OIntToPtr:
+				return new Expr(l->ops["int2ptr"], std::move(args));
+			case Op::OGetElementPtr:
+				//TODO
+				return nullptr;
+			case Op::Cslt:
+				return new Expr("<?", std::move(args));
+		  case Op::Csle:
+				return new Expr("<=?", std::move(args));
+			case Op::Cult:
+				if(dynamic_cast<TInt*>(_args->at(0)->type.get())) {
+				  return new Expr("<?", std::move(args));
+				} else if (dynamic_cast<TPtr*>(_args->at(0)->type.get())){
+					return new Expr(l->ops["ptr_ltb"], std::move(args));
+				}
+			case Op::Cule:
+				return new Expr("<=?", std::move(args));
+			case Op::Ceq:
+				if(dynamic_cast<TInt*>(_args->at(0)->type.get())) {
+					
+				  return new Expr("=?", std::move(args));
+				} else if (dynamic_cast<TPtr*>(_args->at(0)->type.get())){
+					return new Expr(l->ops["ptr_eqb"], std::move(args));
+				}
+				assert(false);
+			case Op::Cne:
+			  if(dynamic_cast<TInt*>(_args->at(0)->type.get())) {
+					
+				  return new Expr("<>?", std::move(args));
+				} else if (dynamic_cast<TPtr*>(_args->at(0)->type.get())){
+					
+					return new Expr("!", std::move(args));
+				}
+				assert(false);
+			case Op::Csgt:
+				if(dynamic_cast<TInt*>(_args->at(0)->type.get())) {
+					
+				  return new Expr(">?", std::move(args));
+				} else if (dynamic_cast<TPtr*>(_args->at(0)->type.get())){
+				
+					return new Expr(l->ops["ptr_gtb"], std::move(args));
+				}	
+			case Op::Csge:
+				if(dynamic_cast<TInt*>(_args->at(0)->type.get())) {
+				  return new Expr(">=?", std::move(args));
+				} else {
+					assert(false);
+				}
+			case Op::Cugt:
+				if(dynamic_cast<TInt*>(_args->at(0)->type.get())) {
+				  return new Expr(">?", std::move(args));
+				} else if (dynamic_cast<TPtr*>(_args->at(0)->type.get())){
+					return new Expr(l->ops["ptr_gtb"], std::move(args));
+				}
+			case Op::Cuge:
+				
+				return new Expr(">?", std::move(args));
+			case Op::OAdd:
+				
+				return new Expr("+", std::move(args));
+			case Op::OAnd:
+				if(dynamic_cast<TInt*>(_args->at(0)->type.get())) {
+					
+				  return new Expr("&", std::move(args));
+				} else if (dynamic_cast<TBool*>(_args->at(0)->type.get())){
+					
+					return new Expr("&&", std::move(args));
+				}
+			case Op::OAshr:
+				return new Expr(">>", std::move(args));
+			case Op::OLshr:
+				return new Expr("<<", std::move(args));
+			case Op::OMul:
+				return new Expr("*", std::move(args));
+			case Op::OOr:
+				if(dynamic_cast<TInt*>(_args->at(0)->type.get())) {
+				  return new Expr("|\'", std::move(args));
+				} else if (dynamic_cast<TBool*>(_args->at(0)->type.get())){
+					return new Expr("||", std::move(args));
+				}
+			case Op::OSdiv:
+				return new Expr("/", std::move(args));
+			case Op::OSrem:
+				return new Expr("mod", std::move(args));
+			case Op::OShl:
+				return new Expr("<<", std::move(args));
+			case Op::OSub:
+				return new Expr("-", std::move(args));
+			case Op::OUdiv:
+				return new Expr("/", std::move(args));
+			case Op::OUrem:
+				return new Expr("mod", std::move(args));
+			case Op::OXor:
+				if(dynamic_cast<TInt*>(_args->at(0)->type.get())) {
+				  return new Expr("Z.lxor", std::move(args));
+				} else if (dynamic_cast<TBool*>(_args->at(0)->type.get())){
+					return new Expr("xorb", std::move(args));
+				}
+			default:
+				assert(false);
+		}
 		return nullptr;
 	}
 
-	SpecNode *ir_op_to_spec(Layer l, IRLoader::IRInst *inst, SpecNode *remain_spec)
+	SpecNode *ir_op_to_spec(Layer *l, IRLoader::IRInst *inst, SpecNode *remain_spec)
 	{
 		auto relies = new vector<unique_ptr<SpecNode>>();
 		auto args = new vector<unique_ptr<IRValue>>();
@@ -211,7 +335,7 @@ namespace autov
 		SpecNode *stmt;
 		if (auto f = dynamic_cast<IRLoader::IUnaryOp *>(inst))
 		{
-			args->push_back(unique_ptr<IRValue>(f->a->clone()));
+		  args->push_back(unique_ptr<IRValue>(f->a->clone()));
 			expr = ir_expr_to_spec(l, f->op, args, relies);
 			stmt = autov::_Let(f->assign, expr, remain_spec);
 		}
@@ -633,6 +757,7 @@ namespace autov
 			}
 		}
 	}
+  
 
 	void analyze_input_output(vector<shared_ptr<Inst>> *insts, vector<shared_ptr<Inst>> *before, vector<shared_ptr<Inst>> *after, bool in_loop)
 	{
