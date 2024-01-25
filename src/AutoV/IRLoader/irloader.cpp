@@ -188,7 +188,7 @@ static unique_ptr<IRValue> parse_value(const ptree &val) {
             else if (value == "ConstantAggregateZero")
                 return make_unique<VAggZero>(typ);
             else if (dynamic_cast<TInt *>(typ.get()) != nullptr)
-                return make_unique<VInt>(typ, std::stoul(value));
+                return make_unique<VInt>(typ, std::stoull(value));
             else if (dynamic_cast<TBool *>(typ.get()) != nullptr)
                 return make_unique<VBool>(value != "0");
             else

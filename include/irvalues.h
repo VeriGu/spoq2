@@ -224,18 +224,41 @@ public:
 
 class VInt : public IRValue {
 public:
-    unsigned long val;
+    unsigned long long val;
+    int val_signed;
 
     VInt() = delete;
 
-    VInt(shared_ptr<IRType> type, unsigned long val) : IRValue(type) {
-        // unsigned long max = 1 << (type->szof() * 8);
+    VInt(shared_ptr<IRType> type, unsigned long long val) : IRValue(type) {
+        unsigned long long max;
 
-        // if (val > max - std::min(256UL, max / 32UL)) {
-        //     val = val - max;
-        // }
-
+        this->val_signed = 0;
         this->val = val;
+
+        /* ULL overflow when type->szof == 8, handle separately */
+        if (type->szof() < 8) {
+            max = 1ULL << (type->szof() * 8);
+    
+            if (this->val > max - std::min(256ULL, max / 32ULL)) {
+
+                /* val is about to turn negative */
+                if (this->val < max)
+                    this->val_signed = 1;
+
+                this->val -= max;
+            }
+        } else {
+            /* ~0ULL = (1 << 64) - 1 */
+
+            if (this->val > (~0ULL) - 256 + 1) {
+
+                /* val is about to turn negative */
+                this->val_signed = 1;
+
+                this->val -= (~0ULL);
+                this->val -= 1;
+            }
+        }
     }
 
     VInt *clone(void) const override {
@@ -243,7 +266,9 @@ public:
     }
 
     string to_coq(void) const override {
-        return "(VInt (" + std::to_string((signed long)val) + "))";
+        std::string val_str = this->val_signed ? std::to_string((long long)this->val) : std::to_string(this->val);
+    
+        return "(VInt (" + val_str + "))";
     }
 };
 
