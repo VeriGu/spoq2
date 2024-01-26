@@ -29,8 +29,9 @@ string VExpr::to_coq(void) const {
         string operands_str = to_coq_value_list(this->operands.get());
 
         if (op == Op::OGetElementPtr)
+            return "(VExpr " + type->to_coq() + " " + op.to_coq(operands->at(0)->type.get()) + " " + operands_str + ")";
+        else
             return "(VExpr " + type->to_coq() + " " + op.to_coq(type.get()) + " " + operands_str + ")";
-        return "(VExpr " + type->to_coq() + " " + op.to_coq(type.get()) + " " + operands_str + ")";
 }
 
 string VStruct::to_coq(void) const {

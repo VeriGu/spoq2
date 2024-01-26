@@ -42,7 +42,7 @@ IExtractValue::IExtractValue(shared_ptr<IRType> typ, string assign, unique_ptr<I
     typ(typ), assign(to_coq_name(assign)), val(std::move(val)), index(std::move(index)) {};
 
 string IExtractValue::to_coq() const {
-        return "(IExtractElem " + (*typ).to_coq() + " " + assign + " " + val->to_coq() + " " + to_list(index.get()) + ")";
+        return "(IExtractValue " + (*typ).to_coq() + " \"" + assign + "\" " + val->to_coq() + " " + to_list(index.get()) + ")";
     }
 
 IFreeze::IFreeze(shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> val) :
@@ -63,7 +63,7 @@ IInsertValue::IInsertValue(shared_ptr<IRType> typ, string assign, unique_ptr<IRV
     typ(typ), assign(to_coq_name(assign)), target(std::move(target)), val(std::move(val)), idx(std::move(idx)) {};
 
 string IInsertValue::to_coq() const {
-        return "(IInsertElem " + typ->to_coq() + " " + assign + " " + target->to_coq() + " " + val->to_coq() + " " + to_list(idx.get()) + ")";
+        return "(IInsertValue " + typ->to_coq() + " \"" + assign + "\" " + target->to_coq() + " " + val->to_coq() + " " + to_list(idx.get()) + ")";
 }
 
 ILoad::ILoad(shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> ptr, int align) :
