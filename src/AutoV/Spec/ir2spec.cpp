@@ -8,6 +8,7 @@
 #include <unordered_set>
 #include <log.h>
 #include <boost/range/algorithm/set_algorithm.hpp>
+#include <project.h>
 
 namespace autov
 {
@@ -36,10 +37,16 @@ namespace autov
 	using autov::IRLoader::TStruct;
 	using autov::IRLoader::TVoid;
 	using IRLoader::Op;
-
-	typedef std::variant<IRValue, IRInst, CFunction> Inst;
+  
+	typedef std::variant<IRValue, IRInst, autov::IRLoader::Function> Inst;
 
 	SpecNode *ir_expr_to_spec(Layer* l, IRLoader::Op op, vector<unique_ptr<IRValue>> *_args, vector<unique_ptr<SpecNode>> *relies);
+
+	template <template<typename...> class PtrType>
+	void analyze_input_output(vector<PtrType<Inst>> *insts, vector<shared_ptr<Inst>> *before, vector<shared_ptr<Inst>> *after, bool in_loop);
+
+	template <typename T, template<typename...> class PtrType>
+	void analyze_types(vector<PtrType<T>> *insts, unordered_map<string, shared_ptr<SpecNode>> *types);
 
 
 	shared_ptr<SpecType> ir_type_to_spec(IRType *typ)
@@ -353,6 +360,70 @@ namespace autov
 		return stmt;
 	}
 
+	SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<unique_ptr<IRInst>> *body,
+	 vector<unique_ptr<SpecNode>> *defs, vector<string> *args, bool in_loop, bool final_return, string suffix) {
+		//TODO:
+		return nullptr;
+	}
+
+	SpecNode* ir_to_spec(Project *proj, string fname, Layer *layer, string suffix = "") {
+		auto abs_data = layer->abs_data;
+		//TODO: need to implement finalize_project
+		auto module = proj->code;
+		auto func = (*module->functions)[fname];
+		auto spec_name = func->fname + "_spec" + suffix;
+
+		auto args = new vector<unique_ptr<Arg>>();
+		for (auto &arg : *(func->args)) {
+			args->push_back(unique_ptr<Arg>(new Arg(arg->name, ir_type_to_spec(arg->type.get()))));
+		}
+
+		args->push_back(unique_ptr<Arg>(new Arg("st", abs_data)));
+
+		SpecType* rettype;
+		auto *retval = new vector<string>();
+		auto *def = new vector<unique_ptr<SpecNode>>();
+		if(dynamic_cast<TVoid*>(func->rettype.get())) {
+			rettype = new Option(abs_data);
+		} else {
+			shared_ptr<SpecType> ret = ir_type_to_spec(func->rettype.get());
+			vector<shared_ptr<SpecType>> *vec = new vector<shared_ptr<SpecType>>();
+			vec->push_back(ret);
+			vec->push_back(abs_data);
+			rettype = new Option(shared_ptr<SpecType>(new Tuple(std::move(unique_ptr<vector<shared_ptr<SpecType>>>(vec)))));
+			retval->push_back("__retval__");
+		}
+
+		vector<shared_ptr<Inst>> *insts = new vector<shared_ptr<Inst>>();
+		Inst *inst = new Inst();
+		inst->emplace<autov::IRLoader::Function>(*func);
+		insts->push_back(shared_ptr<Inst>(inst));
+
+		for(auto &b : *(func->body)) {
+			Inst *i = new Inst();
+			i->emplace<IRInst>(*b);
+			insts->push_back(shared_ptr<Inst>(i));
+		}
+
+		vector<shared_ptr<Inst>> before;
+		vector<shared_ptr<Inst>> after;
+
+		analyze_input_output(insts, &before, &after, false);
+
+	
+	  vector<unique_ptr<SpecNode>>* defs = new vector<unique_ptr<SpecNode>>();
+		ir_insts_to_spec(proj, layer, func->fname, func->body.get(), defs, retval, false, true, suffix);
+
+		if(proj->cmds.InitRely.find(fname) != proj->cmds.InitRely.end()) {
+			for(auto it = proj->cmds.InitRely[fname]->begin(); it != proj->cmds.InitRely[fname]->end(); it++) {
+				//TODO::
+			}
+		}
+
+
+		return nullptr;
+	}
+
 	// get the size of a IR Type, otherwise return -1
 	long load_store_typ(IRType *typ)
 	{
@@ -551,10 +622,11 @@ namespace autov
 
 	void get_input_output(Inst *vec, std::unordered_set<string> &inputs, std::unordered_set<string> &outputs)
 	{
-		if (std::holds_alternative<CFunction>(*vec))
+		if (std::holds_alternative<IRLoader::Function>(*vec))
 		{
-			auto &f = std::get<CFunction>(*vec);
-			get_input_output(&f, inputs, outputs);
+			auto &f = std::get<IRLoader::Function>(*vec);
+			auto cf = dynamic_cast<CFunction*>(&f);
+			get_input_output(cf, inputs, outputs);
 		}
 		else if (std::holds_alternative<IRValue>(*vec))
 		{
@@ -759,7 +831,8 @@ namespace autov
 	}
   
 
-	void analyze_input_output(vector<shared_ptr<Inst>> *insts, vector<shared_ptr<Inst>> *before, vector<shared_ptr<Inst>> *after, bool in_loop)
+	template <template<typename...> class PtrType>
+	void analyze_input_output(vector<PtrType<Inst>> *insts, vector<shared_ptr<Inst>> *before, vector<shared_ptr<Inst>> *after, bool in_loop)
 	{
 		auto input_arr = new shared_ptr<std::unordered_set<string>>[insts->size()];
 		auto output_arr = new shared_ptr<std::unordered_set<string>>[insts->size()];
@@ -769,7 +842,7 @@ namespace autov
 		int i = 0;
 		for (auto it = insts->begin(); it != insts->end(); ++it, ++i)
 		{
-			if (std::holds_alternative<CFunction>(*(*it)))
+			if (std::holds_alternative<IRLoader::Function>(*(*it)))
 			{
 				continue;
 			}
@@ -923,5 +996,24 @@ namespace autov
 				}
 			}
 		}
+	}
+
+
+	template <typename T, template<typename...> class PtrType>
+	void analyze_types(vector<PtrType<T>> *insts, unordered_map<string, shared_ptr<SpecType>> *types) {
+		for(auto inst : *insts) {
+			analyze_types(inst.get(), types);	
+		}
+	}
+
+
+	template <typename T>
+	void analyze_types(T *inst, unordered_map<string, shared_ptr<SpecType>> *types) {
+			if(auto f = dynamic_cast<IAssign*>(inst)) {
+				analyze_types(f->val.get(), types);
+				(*types)[f->assign] = ir_type_to_spec(f->typ.get());
+			} else if(auto f = dynamic_cast<IReturn*>(inst)) {
+				//TODO
+			}
 	}
 }

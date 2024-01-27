@@ -5,6 +5,7 @@
 #include <utils.h>
 #include <log.h>
 #include <unordered_set>
+#include <llvm.h>
 
 
 namespace autov {
@@ -19,6 +20,7 @@ using std::static_pointer_cast;
 using std::dynamic_pointer_cast;
 using std::unordered_map;
 using std::holds_alternative;
+using IRLoader::IRModule;
 
 using loc_t = tuple<string, string, string>;
 
@@ -70,7 +72,7 @@ public:
 
     string name;
     string base;
-    // IRModule code;
+    IRModule* code;
     unordered_map<string, shared_ptr<Struct>> structs;
     unordered_map<string, shared_ptr<Inductive>> indtypes;
     unordered_map<string, shared_ptr<SpecType>> typedefs;
@@ -88,7 +90,7 @@ public:
         std::set<string> Unfold;
         std::set<string> NoUnfold;
         std::set<string> NoTrans;
-        std::map<string, string> InitRely;
+        std::map<string, unique_ptr<std::unordered_set<shared_ptr<SpecNode>>>> InitRely;
     };
     cmds cmds;
 
