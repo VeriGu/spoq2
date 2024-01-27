@@ -6,6 +6,9 @@
 #include <unordered_map>
 #include <iterator>
 
+#include <fstream>
+#include <iostream>
+
 namespace autov::IRLoader
 {
 using boost::property_tree::ptree;
@@ -188,7 +191,7 @@ static unique_ptr<IRValue> parse_value(const ptree &val) {
             else if (value == "ConstantAggregateZero")
                 return make_unique<VAggZero>(typ);
             else if (dynamic_cast<TInt *>(typ.get()) != nullptr)
-                return make_unique<VInt>(typ, std::stoul(value));
+                return make_unique<VInt>(typ, std::stoull(value));
             else if (dynamic_cast<TBool *>(typ.get()) != nullptr)
                 return make_unique<VBool>(value != "0");
             else
@@ -585,6 +588,20 @@ static shared_ptr<CFunction> parse_function(const ptree &func) {
         auto body = control_flow_conversion(irfunc->blocks.get());
 
         cfunc = make_shared<CFunction>(fname, rettype, std::move(irfunc->args), is_decl, std::move(body));
+
+        /*
+         * Uncomment the following to output Coq AST to file.
+         * Note the file will be appended to, so you may want to delete it first.
+         */
+
+        // std::ofstream file("coqast-cpp.txt", std::ios_base::app); // Open the file in append mode
+        // if (file.is_open()) {
+        //     file << cfunc->to_coq() << std::endl;
+        //     file.close();
+        // } else {
+        //     std::cerr << "Unable to open file";
+        // }
+
     } else {
         cfunc = make_shared<CFunction>(fname, rettype, std::move(irfunc->args), is_decl, nullptr);
     }
