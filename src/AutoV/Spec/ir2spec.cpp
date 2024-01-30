@@ -48,6 +48,7 @@ namespace autov
 	template <typename T, template<typename...> class PtrType>
 	void analyze_types(vector<PtrType<T>> *insts, unordered_map<string, shared_ptr<SpecNode>> *types);
 
+  long load_store_typ(IRType *typ);
 
 	shared_ptr<SpecType> ir_type_to_spec(IRType *typ)
 	{
@@ -361,27 +362,330 @@ namespace autov
 	}
 
 	SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<unique_ptr<IRInst>> *body,
-	 vector<unique_ptr<SpecNode>> *defs, vector<string> *args, bool in_loop, bool final_return, string suffix) {
-		//TODO:
+	 vector<unique_ptr<autov::Definition>> *defs, std::unordered_set<string> *args, bool in_loop, bool final_return, string suffix, int start) {
+		auto abs_data = Layer->abs_data;
+		auto module = proj->code;
+		auto func = (*module->functions)[fname];
+		auto &types = func->types;
+		auto relies = new vector<unique_ptr<SpecNode>>();
+		SpecNode* returns;
+
+		vector<unique_ptr<SpecNode>> *name_args = new vector<unique_ptr<SpecNode>>();
+		if(args->size() > 0) {
+			for(auto a : *args) {
+				name_args->push_back(unique_ptr<SpecNode>(autov::_name(a, types.get())));
+			}
+			name_args->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+
+			returns = autov::_Some(autov::_Tuple(name_args));
+		} else {
+			name_args->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+			returns = autov::_Some(autov::_Tuple(name_args));
+		}
+
+		if(func->alloca_vars.size() > 0 && final_return) {
+			vector<unique_ptr<SpecNode>>* children = new vector<unique_ptr<SpecNode>>();
+			children->push_back(unique_ptr<SpecNode>(new StringConst(fname)));
+			children->push_back(unique_ptr<SpecNode>(autov::_init_st(abs_data)));
+			children->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+			
+			returns = autov::_When(autov::_st(abs_data), new Expr(Layer->ops["free"], 
+			unique_ptr<vector<unique_ptr<SpecNode>>>(children)), returns);
+		}
+
+		if(body->size() == 0) {
+				return returns;
+		}
+
+		auto &inst = body->at(start);
+	  auto remain_spec = ir_insts_to_spec(proj, Layer, fname, body, defs, args, in_loop, final_return, suffix, start + 1);
+
+
+		if(auto f = dynamic_cast<IAssign*>(inst.get())){
+			auto stmt = autov::_Let(f->assign, ir_value_to_spec(Layer, *(f->val), relies), remain_spec);
+			for(auto &p : *relies) {
+				stmt = new autov::Rely(std::move(p), unique_ptr<SpecNode>(stmt));
+			}
+			return stmt;
+		} else if(auto f = dynamic_cast<IReturn*>(inst.get())) {
+			if(f->val) {
+				auto stmt = autov::_Let("__return__", new BoolConst(true), 
+					autov::_Let("__retval__", ir_value_to_spec(Layer, *(f->val), relies), remain_spec));
+				for(auto & p : *relies) {
+					stmt = new autov::Rely(std::move(p), unique_ptr<SpecNode>(stmt));
+				}
+				return stmt;
+			} else {
+				return autov::_Let("__return__", new BoolConst(true), remain_spec);
+			}
+		} else if(auto f = dynamic_cast<IBreak*>(inst.get())) {
+			return autov::_Let("__break__", new BoolConst(true), remain_spec);
+		} else if(auto f = dynamic_cast<IRLoader::IContinue*>(inst.get())) {
+			return autov::_Let("__continue__", new BoolConst(true), remain_spec);
+		} else if(auto f = dynamic_cast<IRLoader::IUnaryOp*>(inst.get())) {
+			return ir_op_to_spec(Layer, f, remain_spec);
+		} else if(auto f = dynamic_cast<IRLoader::IBinOp*>(inst.get())) {
+			return ir_op_to_spec(Layer, f, remain_spec);
+		} else if(auto f = dynamic_cast<IRLoader::ISelect*>(inst.get())) {
+			auto cond = ir_value_to_spec(Layer, *(f->cond), relies);
+			auto stmt = autov::_Let(f->assign, 
+			new autov::If(unique_ptr<SpecNode>(cond), 
+			unique_ptr<SpecNode>(ir_value_to_spec(Layer, *f->true_val, relies)),
+			unique_ptr<SpecNode>(ir_value_to_spec(Layer, *f->false_val, relies))), remain_spec);
+
+			for(auto &p : *relies) {
+				stmt = new autov::Rely(std::move(p), unique_ptr<SpecNode>(stmt));
+			}
+		} else if(auto f = dynamic_cast<IRLoader::ICall*>(inst.get())) {
+			if(auto v = dynamic_cast<IRLoader::VGlobal*>(f->func.get())) {
+				auto func = v->name;
+
+				auto args = new vector<unique_ptr<SpecNode>>();
+				for(auto & a : *f->args) {
+					args->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, *a, relies)));
+				}
+
+				args->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+
+				SpecNode* ret;
+				if (dynamic_cast<IRLoader::TVoid*>(f->typ.get())) {
+					ret = autov::_st(abs_data);
+				} else {
+					auto children = new vector<unique_ptr<SpecNode>>();
+				  children->push_back(unique_ptr<SpecNode>(autov::_name(f->assign, types.get())));
+					children->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+					ret = autov::_Tuple(children);
+				}
+				auto stmt = autov::_When(ret, new Expr(func + "_spec", 
+				unique_ptr<vector<unique_ptr<SpecNode>>>(args)), remain_spec);
+				for(auto &p : *relies) {
+					stmt = new Rely(std::move(p) , unique_ptr<SpecNode>(stmt));
+				}
+				
+				return stmt;
+			} else if(dynamic_cast<IRLoader::VInlineAsm*>(f->func.get()) == nullptr) {
+				auto wrapped_name = fname + "_funptr_wrap" + std::to_string(f->lineno);
+				SpecType* wrapper_ret;
+				if(proj->defs.find(wrapped_name) == proj->defs.end()) {
+					if(dynamic_cast<IRLoader::TVoid*>(f->typ.get())) {
+						wrapper_ret = new autov::Option(Layer->abs_data);
+					} else {
+						auto child = new vector<shared_ptr<SpecType>>();
+						child->push_back(shared_ptr<SpecType>(ir_type_to_spec(f->typ.get())));
+						child->push_back(Layer->abs_data);
+				    wrapper_ret = new autov::Option(
+							shared_ptr<SpecType>(
+						    new autov::Tuple(shared_ptr<vector<shared_ptr<SpecType>>>(child))));
+					}
+					auto wrapper_body = new autov::Symbol("None");
+					auto wrapper_args = new vector<shared_ptr<Arg>>();
+					wrapper_args->push_back(shared_ptr<Arg>(new Arg("func_ptr", autov::Struct::Ptr)));
+					int i;
+					for(auto & a : *f->args) {
+						wrapper_args->push_back(shared_ptr<Arg>(new Arg("arg" + std::to_string(i), ir_type_to_spec(a->type.get()))));
+						i++;
+					}
+					wrapper_args->push_back(shared_ptr<Arg>(new Arg("st", (*types)["st"])));
+					defs->push_back(unique_ptr<Definition>(new Definition(wrapped_name, 
+						shared_ptr<SpecType>(wrapper_ret),
+						unique_ptr<vector<shared_ptr<Arg>>>(wrapper_args),
+						unique_ptr<SpecNode>(wrapper_body))));
+				}
+				auto args = new vector<unique_ptr<SpecNode>>();
+				for(auto & a : *f->args) {
+					args->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, *a, relies)));
+				}
+
+				args->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+
+				SpecNode* ret;
+				if (dynamic_cast<IRLoader::TVoid*>(f->typ.get())) {
+					ret = autov::_st(abs_data);
+				} else {
+					auto children = new vector<unique_ptr<SpecNode>>();
+				  children->push_back(unique_ptr<SpecNode>(autov::_name(f->assign, types.get())));
+					children->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+					ret = autov::_Tuple(children);
+				}
+				auto stmt = autov::_When(ret, new Expr(wrapped_name, 
+				unique_ptr<vector<unique_ptr<SpecNode>>>(args)), remain_spec);
+				for(auto &p : *relies) {
+					stmt = new Rely(std::move(p) , unique_ptr<SpecNode>(stmt));
+				}
+				return stmt;
+			}
+		} else if(auto f = dynamic_cast<IRLoader::IGetElemPtr*>(inst.get())) {
+			
+			unique_ptr<vector<unique_ptr<IRValue>>> vec = unique_ptr<vector<unique_ptr<IRValue>>>(new vector<unique_ptr<IRValue>>());
+			vec->push_back(make_unique<IRValue>(*f->val));
+			for(auto &a : *f->index) {
+				vec->push_back(make_unique<IRValue>(*a));
+			}
+			auto stmt = autov::_Let(f->assign, ir_expr_to_spec(Layer, autov::Op::OGetElementPtr, vec.get(), relies), remain_spec);
+			for(auto &p : *relies) {
+					stmt = new Rely(std::move(p) , unique_ptr<SpecNode>(stmt));
+			}
+			return stmt;
+		} else if(auto f = dynamic_cast<IRLoader::ILoad*>(inst.get())) {
+			if(dynamic_cast<TInt*>(f->typ.get())) {
+				auto children = new vector<unique_ptr<SpecNode>>();
+				children->push_back(unique_ptr<SpecNode>(autov::_name(f->assign, types.get())));
+				children->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+
+				auto subexprs = new vector<unique_ptr<SpecNode>>();
+				subexprs->push_back(unique_ptr<SpecNode>(new IntConst(load_store_typ(f->typ.get()))));
+				subexprs->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, *f->ptr, relies)));
+				subexprs->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+
+				auto stmt = autov::_When(autov::_Tuple(children), 
+				new Expr(Layer->ops["load"], unique_ptr<vector<unique_ptr<SpecNode>>>(subexprs)), remain_spec);
+				for(auto &p : *relies) {
+					stmt = new Rely(std::move(p) , unique_ptr<SpecNode>(stmt));
+				}
+				return stmt;
+			} else if(dynamic_cast<TPtr*>(f->typ.get())) {
+				(*types)[f->assign + "_tmp"] = Int::INT;
+				auto children = new vector<unique_ptr<SpecNode>>();
+				children->push_back(unique_ptr<SpecNode>(autov::_name(f->assign, types.get())));
+				children->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+				auto subexprs = new vector<unique_ptr<SpecNode>>();
+				subexprs->push_back(unique_ptr<SpecNode>(new IntConst(load_store_typ(f->typ.get()))));
+				subexprs->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, *f->ptr, relies)));
+				subexprs->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+
+				auto subexprs2 = new vector<unique_ptr<SpecNode>>();
+				subexprs2->push_back(unique_ptr<SpecNode>(autov::_name(f->assign + "_tmp", types.get())));
+	
+				auto stmt = autov::_When(autov::_Tuple(children), 
+				new Expr(Layer->ops["load"], unique_ptr<vector<unique_ptr<SpecNode>>>(subexprs)), 
+				autov::_Let(f->assign, new Expr(Layer->ops["int2ptr"], unique_ptr<vector<unique_ptr<SpecNode>>>(subexprs2)), remain_spec));
+
+				for(auto &p : *relies) {
+					stmt = new Rely(std::move(p) , unique_ptr<SpecNode>(stmt));
+				}
+				return stmt;
+			} else if(dynamic_cast<TBool*>(f->typ.get())) {
+				(*types)[f->assign + "_tmp"] = Int::INT;
+				auto children = new vector<unique_ptr<SpecNode>>();
+				children->push_back(unique_ptr<SpecNode>(autov::_name(f->assign, types.get())));
+				children->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+				auto subexprs = new vector<unique_ptr<SpecNode>>();
+				subexprs->push_back(unique_ptr<SpecNode>(new IntConst(load_store_typ(f->typ.get()))));
+				subexprs->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, *f->ptr, relies)));
+				subexprs->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+
+				auto subexprs2 = new vector<unique_ptr<SpecNode>>();
+				subexprs2->push_back(unique_ptr<SpecNode>(autov::_name(f->assign + "_tmp", types.get())));
+				subexprs2->push_back(unique_ptr<SpecNode>(new IntConst(0)));
+	
+				auto stmt = autov::_When(autov::_Tuple(children), 
+				new Expr(Layer->ops["load"], unique_ptr<vector<unique_ptr<SpecNode>>>(subexprs)), 
+				autov::_Let(f->assign, new Expr(Layer->ops["<>?"], unique_ptr<vector<unique_ptr<SpecNode>>>(subexprs2)), remain_spec));
+
+				for(auto &p : *relies) {
+					stmt = new Rely(std::move(p) , unique_ptr<SpecNode>(stmt));
+				}
+				return stmt;
+			} else {
+				LOG_DEBUG << "ILoad can only be assigned to int, ptr, or bool";
+				assert(false);
+			}
+		} else if(auto f = dynamic_cast<IRLoader::IStore*>(inst.get())) {
+			//TODO
+		} else if(auto f = dynamic_cast<IRLoader::IAlloc*>(inst.get())) {
+			if(auto typ = dynamic_cast<IRLoader::TPtr*>(f->typ.get())) {
+				auto children = new vector<unique_ptr<SpecNode>>();
+				children->push_back(unique_ptr<SpecNode>(autov::_name(f->assign, types.get())));
+				children->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+
+				auto subexprs = new vector<unique_ptr<SpecNode>>();
+				subexprs->push_back(unique_ptr<SpecNode>(new StringConst(fname)));
+				subexprs->push_back(unique_ptr<SpecNode>(new IntConst(load_store_typ(typ->subtype.get()))));
+				subexprs->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, f->align, relies)));
+				subexprs->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+				auto stmt = autov::_When(autov::_Tuple(children),
+				 new Expr(Layer->ops["alloc"], unique_ptr<vector<unique_ptr<SpecNode>>>(subexprs)), remain_spec);
+				for(auto &p : *relies) {
+					stmt = new Rely(std::move(p) , unique_ptr<SpecNode>(stmt));
+				}
+				return stmt;
+			} else {
+				LOG_DEBUG << "Not a pointer for alloc instruction\n";
+				assert(false);
+			}
+		} else if(auto f = dynamic_cast<IRLoader::IIf*>(inst.get())) {
+			auto cond = ir_value_to_spec(Layer, f->cond.get(), relies);
+			auto then_body = ir_insts_to_spec(proj, Layer, fname, f->true_body.get(), defs, f->output.get(), in_loop, false, suffix, 0);
+			auto else_body = ir_insts_to_spec(proj, Layer, fname, f->false_body.get(), defs, f->output.get(), in_loop, false, suffix, 0);
+
+			SpecNode* val = new autov::If(unique_ptr<SpecNode>(cond), unique_ptr<SpecNode>(then_body), unique_ptr<SpecNode>(else_body));
+			for(auto o : *f->need_init) {
+				val = autov::_Let(o, default_val((*types)[o]), val);
+			}
+			SpecNode* remain;
+			if(in_loop) {
+				if(f->output->find("__continue__") != f->output->end()) {
+					remain = new autov::If(unique_ptr<SpecNode>(_name("__continue__", types.get())), 
+					unique_ptr<SpecNode>(returns), unique_ptr<SpecNode>(remain_spec));
+				}
+
+				if(f->output->find("__break__") != f->output->end()) {
+					remain = new autov::If(unique_ptr<SpecNode>(_name("__break__", types.get())), 
+					unique_ptr<SpecNode>(returns), unique_ptr<SpecNode>(remain_spec));
+				}
+			}
+
+			if(f->output->find("__return__") != f->output->end()) {
+					remain = new autov::If(unique_ptr<SpecNode>(_name("__return__", types.get())), 
+					unique_ptr<SpecNode>(returns), unique_ptr<SpecNode>(remain_spec));
+			}
+
+			SpecNode* out;
+			if(f->output->size() > 0) {
+				auto vec = new vector<unique_ptr<SpecNode>>();
+				for(auto o : *f->output) {
+					vec->push_back(unique_ptr<SpecNode>(new Symbol(o)));
+				}
+				vec->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+				out = autov::_Tuple(vec);
+			} else {
+				out = autov::_st(abs_data);
+			}
+
+			auto stmt = autov::_When(out, val, remain_spec);
+			for(auto &p : *relies) {
+					stmt = new Rely(std::move(p) , unique_ptr<SpecNode>(stmt));
+			}
+			return stmt;
+		}  else if(auto f = dynamic_cast<IRLoader::ILoop*>(inst.get())) {
+
+		}  else if(auto f = dynamic_cast<IRLoader::IInsertValue*>(inst.get())) {
+
+		} else {
+			LOG_DEBUG << "Instruction not supported converting to SpecNode\n";
+			LOG_DEBUG << inst->to_coq();
+			assert(false);
+		}
+
 		return nullptr;
 	}
 
-	SpecNode* ir_to_spec(Project *proj, string fname, Layer *layer, string suffix = "") {
+	vector<unique_ptr<autov::Definition>>* ir_to_spec(Project *proj, string fname, Layer *layer, string suffix = "") {
 		auto abs_data = layer->abs_data;
 		//TODO: need to implement finalize_project
 		auto module = proj->code;
 		auto func = (*module->functions)[fname];
 		auto spec_name = func->fname + "_spec" + suffix;
 
-		auto args = new vector<unique_ptr<Arg>>();
+		auto args = new vector<shared_ptr<Arg>>();
 		for (auto &arg : *(func->args)) {
-			args->push_back(unique_ptr<Arg>(new Arg(arg->name, ir_type_to_spec(arg->type.get()))));
+			args->push_back(shared_ptr<Arg>(new Arg(arg->name, ir_type_to_spec(arg->type.get()))));
 		}
 
-		args->push_back(unique_ptr<Arg>(new Arg("st", abs_data)));
+		args->push_back(shared_ptr<Arg>(new Arg("st", abs_data)));
 
 		SpecType* rettype;
-		auto *retval = new vector<string>();
+		auto *retval = new std::unordered_set<string>();
 		auto *def = new vector<unique_ptr<SpecNode>>();
 		if(dynamic_cast<TVoid*>(func->rettype.get())) {
 			rettype = new Option(abs_data);
@@ -391,7 +695,7 @@ namespace autov
 			vec->push_back(ret);
 			vec->push_back(abs_data);
 			rettype = new Option(shared_ptr<SpecType>(new Tuple(std::move(unique_ptr<vector<shared_ptr<SpecType>>>(vec)))));
-			retval->push_back("__retval__");
+			retval->insert("__retval__");
 		}
 
 		vector<shared_ptr<Inst>> *insts = new vector<shared_ptr<Inst>>();
@@ -411,17 +715,29 @@ namespace autov
 		analyze_input_output(insts, &before, &after, false);
 
 	
-	  vector<unique_ptr<SpecNode>>* defs = new vector<unique_ptr<SpecNode>>();
-		ir_insts_to_spec(proj, layer, func->fname, func->body.get(), defs, retval, false, true, suffix);
+	  vector<unique_ptr<autov::Definition>>* defs = new vector<unique_ptr<autov::Definition>>();
+		SpecNode* body = ir_insts_to_spec(proj, layer, func->fname, func->body.get(), defs, retval, false, true, suffix, 0);
 
 		if(proj->cmds.InitRely.find(fname) != proj->cmds.InitRely.end()) {
-			for(auto it = proj->cmds.InitRely[fname]->begin(); it != proj->cmds.InitRely[fname]->end(); it++) {
-				//TODO::
+			for(auto & f : *(proj->cmds.InitRely[fname])) {
+				body = new autov::Rely(std::move(f->deep_copy()), std::move(unique_ptr<SpecNode>(body)));
 			}
 		}
 
+		if(func->alloca_vars.size() > 0) {
+			body = autov::_Let("init_st", autov::_st(abs_data), body);
+			vector<unique_ptr<SpecNode>> *nodes = new vector<unique_ptr<SpecNode>>();
+			nodes->push_back(unique_ptr<SpecNode>(new StringConst(fname)));
+			nodes->push_back(unique_ptr<SpecNode>(_st(abs_data)));
 
-		return nullptr;
+			SpecNode* expr = new Expr(layer->ops["new_frame"], unique_ptr<vector<unique_ptr<SpecNode>>>(nodes));
+			body = autov::_When(autov::_st(abs_data), expr, body);
+		}
+
+		defs->push_back(std::move(unique_ptr<autov::Definition>(new autov::Definition(spec_name, shared_ptr<SpecType>(rettype), std::move(unique_ptr<vector<shared_ptr<Arg>>>(args)), 
+		std::move(unique_ptr<SpecNode>(body))))));
+
+		return defs;
 	}
 
 	// get the size of a IR Type, otherwise return -1

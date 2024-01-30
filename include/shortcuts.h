@@ -9,7 +9,7 @@ namespace autov {
 	SpecNode* _Some(SpecNode* val);
 	SpecNode* _Tuple(vector<unique_ptr<SpecNode>> *vec);
 	SpecNode* _List(vector<unique_ptr<SpecNode>> *vec);
-	SpecNode* _st(SpecType* abs_data);
-	SpecNode* _init_st(SpecType* abs_data);
+	SpecNode* _st(shared_ptr<SpecType> abs_data);
+	SpecNode* _init_st(shared_ptr<SpecType> abs_data);
 	SpecNode* _name(string name, unordered_map<string, shared_ptr<SpecType>> *types);
 }

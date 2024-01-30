@@ -12,6 +12,7 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 
+
 namespace autov::IRLoader {
 using boost::property_tree::ptree;
 
@@ -84,6 +85,7 @@ public:
     unique_ptr<vector<unique_ptr<FuncArg>>> args;
     bool is_decl;
     unique_ptr<vector<unique_ptr<IRInst>>> body;
+    unique_ptr<std::unordered_map<string, shared_ptr<SpecType>>> types;
     std::set<string> alloca_vars;
 
     CFunction() = delete;

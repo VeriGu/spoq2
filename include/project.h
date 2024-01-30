@@ -90,7 +90,7 @@ public:
         std::set<string> Unfold;
         std::set<string> NoUnfold;
         std::set<string> NoTrans;
-        std::map<string, unique_ptr<std::unordered_set<shared_ptr<SpecNode>>>> InitRely;
+        std::map<string, unique_ptr<std::unordered_set<unique_ptr<SpecNode>>>> InitRely;
     };
     cmds cmds;
 
