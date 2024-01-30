@@ -10,7 +10,14 @@ using namespace std::string_literals;
 
 namespace autov::IRLoader {
 
-void extract_inline_asm(shared_ptr<IRModule> mod) {
+std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
+
+    struct InlineAsm {
+        string fname;
+        shared_ptr<AsmProcedure> func;
+    };
+
+    unordered_map<string, InlineAsm> inline_asms;
     int iasm_count = 0;
 
     auto synthesize_coq_def = [](const string& fname, shared_ptr<IRType> rettype, vector<shared_ptr<FuncArg>> &args) {
@@ -71,10 +78,28 @@ void extract_inline_asm(shared_ptr<IRModule> mod) {
         return failed;
     };
 
+    int failed_count = 0;
+    vector<string> funcs;
+    for (const auto& func : *(mod->functions)) {
+        funcs.push_back(func.first);
+    }
+    std::sort(funcs.begin(), funcs.end());
+    for (const auto& f : funcs) {
+        shared_ptr<CFunction> func = mod->functions->at(f);
+        int failed = find_inline_asm(*func->body);
+        if (failed > 0) {
+            std::cout << "[ERROR] Failed to process " << failed << " inline asm in function " << f << std::endl;
+            failed_count += failed;
+        }
+    }
+
+    return std::pair<int, int>(inline_asms.size(), failed_count);
 }
 
 shared_ptr<IRModule> post_process(shared_ptr<IRModule> mod) {
-
+    std::pair<int, int> result = extract_inline_asm(mod);
+    std::cout << result.first << " inline assembly found, " << result.second << " failed to process." << std::endl;
+    return mod;
 }
 
 } // namespace autov::IRLoader
