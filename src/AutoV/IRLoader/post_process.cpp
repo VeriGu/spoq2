@@ -131,6 +131,7 @@ std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
                         mod->asm_procs->insert({fname, make_shared<AsmProcedure>(fname, asm_inst.iasm, objd, coq)});
                         asm_key = objd;
                         inline_asms[asm_key] = {fname, mod->asm_procs->at(fname)};
+                        std::cout << asm_key << " // " << fname << " // " << inline_asms[asm_key].func->body << std::endl;
                         call_inst->func = make_unique<VGlobal>(call_inst->typ, inline_asms[asm_key].fname);
                         string coq_def = synthesize_coq_def(inline_asms[asm_key].fname, rettype, args);
                         std::cout << coq_def;
@@ -139,6 +140,7 @@ std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
                             mod->asm_procs->insert({fname, make_shared<AsmProcedure>(fname, asm_inst.iasm, objd, "")});
                             asm_key = objd;
                             inline_asms[asm_key] = {fname, mod->asm_procs->at(fname)};
+                            std::cout << asm_key << " // " << fname << " // " << inline_asms[asm_key].func->body << std::endl;
                             call_inst->func = make_unique<VGlobal>(call_inst->typ, inline_asms[asm_key].fname);
                             string coq_def = synthesize_coq_def(inline_asms[asm_key].fname, rettype, args);
                             std::cout << coq_def;
