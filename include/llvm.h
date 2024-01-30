@@ -223,9 +223,8 @@ public:
     IRModule(unordered_map<string, shared_ptr<IRType>> *structs,
              shared_ptr<unordered_map<string, shared_ptr<GlobalVar>>> globalvars,
              shared_ptr<unordered_map<string, shared_ptr<CFunction>>> functions,
-             shared_ptr<unordered_map<string, shared_ptr<AsmProcedure>>> asm_procs,
              shared_ptr<ptree> debug_info) :
-        structs(structs), globalvars(globalvars), functions(functions), asm_procs(asm_procs), debug_info(debug_info) {}
+        structs(structs), globalvars(globalvars), functions(functions),  debug_info(debug_info) {}
 };
 
 }; // namespace autov::IRLoader
