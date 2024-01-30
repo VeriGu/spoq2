@@ -61,7 +61,43 @@ std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
                     string constraints = asm_func->constraints;
                     shared_ptr<IRType> rettype = call_inst->typ;
 
-                    vector<shared_ptr<FuncArg>> args;
+                    vector<unique_ptr<FuncArg>> args;
+                    shared_ptr<TPtr> func_type = dynamic_pointer_cast<TPtr>(call_inst->func->type);
+                    if (func_type == nullptr) {
+                        throw std::runtime_error("Unsupported type: " + call_inst->func->type->to_coq());
+                    }
+                    shared_ptr<TFunction> func_subtype = dynamic_pointer_cast<TFunction>(func_type->subtype);
+                    if (func_subtype == nullptr) {
+                        throw std::runtime_error("Unsupported subtype: " + func_type->subtype->to_coq());
+                    }
+                    const auto &arglist = func_subtype->arglist;
+                    for (int i = 0; i < arglist->size(); i++) {
+                        args.push_back(make_unique<FuncArg>("_" + std::to_string(i), arglist->at(i)));
+                    }
+
+                    try {
+                        auto asm_inst = parse_inline_asm(fname, asm_text, rettype, args, constraints);
+                    } catch (const std::exception& e) {
+                        failed += 1;
+                        std::cout << e.what() << std::endl;
+
+                        // vector<string> ts;
+                        // boost::split(ts, asm_text, boost::is_any_of("\n"));
+                        // if (ts.size() <= 2 && ts[0] == "smc\t#0") {
+                        //     string smc_fname = "iasm_smc" + std::to_string(func_subtype->arglist->size());
+                        //     call_inst->func = make_shared<VGlobal>(call_inst->typ, smc_fname);
+                        //     string coq_def = synthesize_coq_def(smc_fname, rettype, args);
+                        //     std::cout << coq_def;
+                        // } else {
+                        //     call_inst->func = make_shared<VGlobal>(call_inst->typ, fname);
+                        //     string coq_def = synthesize_coq_def(fname, rettype, args);
+                        //     std::cout << coq_def;
+                        // }
+
+                        iasm_count += 1;
+                        continue;
+                    
+                    }
                 }
             } else if (dynamic_cast<IIf*>(i.get())) {
                 auto if_inst = dynamic_cast<IIf*>(i.get());
