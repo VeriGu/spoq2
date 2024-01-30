@@ -19,7 +19,7 @@ std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
     unordered_map<string, InlineAsm> inline_asms;
     int iasm_count = 0;
 
-    auto synthesize_coq_def = [](const string& fname, shared_ptr<IRType> rettype, vector<shared_ptr<FuncArg>> &args) {
+    auto synthesize_coq_def = [](const string& fname, shared_ptr<IRType> rettype, vector<unique_ptr<FuncArg>> &args) {
         return ""s;
 
         // if isinstance(rettype, TVoid):
@@ -74,29 +74,83 @@ std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
                         args.push_back(make_unique<FuncArg>("_" + std::to_string(i), arglist->at(i)));
                     }
 
+                    IASM asm_inst;
                     try {
-                        auto asm_inst = parse_inline_asm(fname, asm_text, rettype, args, constraints);
+                        asm_inst = parse_inline_asm(fname, asm_text, rettype, args, constraints);
                     } catch (const std::exception& e) {
                         failed += 1;
                         std::cout << e.what() << std::endl;
 
-                        // vector<string> ts;
-                        // boost::split(ts, asm_text, boost::is_any_of("\n"));
-                        // if (ts.size() <= 2 && ts[0] == "smc\t#0") {
-                        //     string smc_fname = "iasm_smc" + std::to_string(func_subtype->arglist->size());
-                        //     call_inst->func = make_shared<VGlobal>(call_inst->typ, smc_fname);
-                        //     string coq_def = synthesize_coq_def(smc_fname, rettype, args);
-                        //     std::cout << coq_def;
-                        // } else {
-                        //     call_inst->func = make_shared<VGlobal>(call_inst->typ, fname);
-                        //     string coq_def = synthesize_coq_def(fname, rettype, args);
-                        //     std::cout << coq_def;
-                        // }
+                        vector<string> ts;
+                        ts = split(asm_text, '\n');
+                        if (ts.size() <= 2 && ts[0] == "smc\t#0") {
+                            string smc_fname = "iasm_smc" + std::to_string(arglist->size());
+                            call_inst->func = make_unique<VGlobal>(call_inst->typ, smc_fname);
+                            string coq_def = synthesize_coq_def(smc_fname, rettype, args);
+                            std::cout << coq_def;
+                        } else {
+                            call_inst->func = make_unique<VGlobal>(call_inst->typ, fname);
+                            string coq_def = synthesize_coq_def(fname, rettype, args);
+                            std::cout << coq_def;
+                        }
 
                         iasm_count += 1;
                         continue;
                     }
-                    iasm_count += 1;
+
+                    string objd, asm_key;
+                    if (!asm_inst.objdump.empty()) {
+                        objd = asm_inst.objdump.substr(asm_inst.objdump.find('\n') + 1);
+                        asm_key = objd;
+                        if (inline_asms.find(asm_key) != inline_asms.end()) {
+                            call_inst->func = make_unique<VGlobal>(call_inst->typ, inline_asms[asm_key].fname);
+                            string coq_def = synthesize_coq_def(inline_asms[asm_key].fname, rettype, args);
+                            std::cout << coq_def;
+                            continue;
+                        }
+                    }
+                    if (!asm_inst.coq.empty()) {
+                        vector<string> lines = split(objd, '\n');
+                        if (lines.size() == 2 && strip(lines[1]) == "ret") {
+                            // single line function
+                            vector<string> inst = split(strip(lines[0]), '\t');
+                            if (inst[0] == "mrs" && inst[1].find("x0, ") == 0) {
+                                string reg = inst[1].substr(4);
+                                fname = "iasm_get_" + reg;
+                            } else if (inst[0] == "msr" && inst[1].find(", x0") == inst[1].size() - 4) {
+                                string reg = inst[1].substr(0, inst[1].size() - 4);
+                                fname = "iasm_set_" + reg;
+                            } else {
+                                fname = "iasm_" + std::to_string(iasm_count) + "_" + inst[0];
+                                iasm_count += 1;
+                            }
+                        } else {
+                            iasm_count += 1;
+                        }
+                        string coq = replace(asm_inst.coq, old_name, fname);
+                        mod->asm_procs->at(fname) = make_shared<AsmProcedure>(fname, asm_inst.iasm, objd, coq);
+                        asm_key = objd;
+                        inline_asms[asm_key] = {fname, mod->asm_procs->at(fname)};
+                        call_inst->func = make_unique<VGlobal>(call_inst->typ, inline_asms[asm_key].fname);
+                        string coq_def = synthesize_coq_def(inline_asms[asm_key].fname, rettype, args);
+                        std::cout << coq_def;
+                    } else {
+                        if (!asm_inst.objdump.empty()) {
+                            mod->asm_procs->at(fname) = make_shared<AsmProcedure>(fname, asm_inst.iasm, objd, "");
+                            asm_key = objd;
+                            inline_asms[asm_key] = {fname, mod->asm_procs->at(fname)};
+                            call_inst->func = make_unique<VGlobal>(call_inst->typ, inline_asms[asm_key].fname);
+                            string coq_def = synthesize_coq_def(inline_asms[asm_key].fname, rettype, args);
+                            std::cout << coq_def;
+                            iasm_count += 1;
+                        } else {
+                            mod->asm_procs->at(fname) = make_shared<AsmProcedure>(fname, asm_inst.iasm, "", "");
+                            call_inst->func = make_unique<VGlobal>(call_inst->typ, fname);
+                            string coq_def = synthesize_coq_def(fname, rettype, args);
+                            std::cout << coq_def;
+                            iasm_count += 1;
+                        }
+                    }
                 }
             } else if (dynamic_cast<IIf*>(i.get())) {
                 auto if_inst = dynamic_cast<IIf*>(i.get());

@@ -14,5 +14,5 @@ using std::unordered_map;
 using std::shared_ptr;
 using std::unique_ptr;
 
-shared_ptr<IRModule> parse_module(ptree &module, bool postprocess = true);
+unique_ptr<IRModule> parse_module(ptree &module, bool postprocess = true);
 }; // namespace autov::IRLoader
