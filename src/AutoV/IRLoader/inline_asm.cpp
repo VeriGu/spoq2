@@ -244,7 +244,7 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
 
     cons_text = ": " + out_cons_text + " : " + in_cons_text;
 
-    std::ofstream f("iasm_test/" + fname + ".c");
+    std::ofstream f(fname + ".c");
     f << "#include <stdbool.h>\n";
     f << "typedef unsigned long long u64;\n";
     f << "typedef unsigned u32;\n";
@@ -276,7 +276,7 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
 
     f.close();
 
-#if 0
+
     std::ifstream c_file(fname + ".c");
     ret.c = string((std::istreambuf_iterator<char>(c_file)),
                     std::istreambuf_iterator<char>());
@@ -315,7 +315,7 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
             std::ifstream coq_file(fname + ".v");
             string coq((std::istreambuf_iterator<char>(coq_file)),
                     std::istreambuf_iterator<char>());
-            coq = coq.empty() ? nullptr : coq;
+            coq = coq.empty() ? "" : coq;
             ret.coq = coq;
         } else {
             failed = true;
@@ -333,7 +333,6 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
 
     if (failed)
         throw std::runtime_error("Failed to compile iasm");
-#endif
 
     return std::move(ret);
 }
