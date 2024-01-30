@@ -737,7 +737,7 @@ static bool parse_struct(string name, ptree &module, ptree &sinfo, ptree &debug_
         int i = 0;
 
         for (auto it = stype.begin(); it != stype.end(); it++, i++) {
-            auto elem = make_shared<TStructElem>(name + "." + std::to_string(i), parse_type(it->second), i);
+            auto elem = make_shared<TStructElem>(name + "." + std::to_string(i), parse_type(it->second), i, true);
 
             elems->push_back(elem);
 
@@ -781,14 +781,14 @@ static bool parse_struct(string name, ptree &module, ptree &sinfo, ptree &debug_
             // This loops seems never to be executed in the python implementation
             while (info_ofs != type_ofs) {
                 throw std::runtime_error("Struct " + name + " has padding at offset " + std::to_string(info_ofs));
-                elems->push_back(make_shared<TStructElem>("padding" + std::to_string(npaddings), parse_type(pad_type_elem), type_ofs));
+                elems->push_back(make_shared<TStructElem>("padding" + std::to_string(npaddings), parse_type(pad_type_elem), type_ofs, true));
                 npaddings += 1;
                 if (i + npaddings >= stype.size())
                     throw std::runtime_error("Too many elements in struct " + name + ", i + npaddings: " + std::to_string(i + npaddings) + ", stype.size(): " + std::to_string(stype.size()));
                 type_ofs = (*std::next(stype.begin(), i + npaddings)).second.get<coq_sz_t>("offset");
             }
 
-            auto new_elem =  make_shared<TStructElem>(it->second.get<string>("name"), parse_type(pad_type_elem), type_ofs);
+            auto new_elem =  make_shared<TStructElem>(it->second.get<string>("name"), parse_type(pad_type_elem), type_ofs, true);
             elems->push_back(new_elem);
 
             auto typ = new_elem->type;
@@ -850,7 +850,7 @@ unique_ptr<IRModule> parse_module(ptree &module, bool postprocess) {
         auto st_json = st.second;
         auto elems = make_unique<vector<shared_ptr<TStructElem>>>();
         for (auto &elem: st_json.get_child("elems")) {
-            elems->push_back(make_shared<TStructElem>("", parse_type(elem.second), 0));
+            elems->push_back(make_shared<TStructElem>("", parse_type(elem.second), 0, true));
         }
 
         coq_sz_t sz;
