@@ -11,7 +11,6 @@ using namespace std::string_literals;
 namespace autov::IRLoader {
 
 std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
-
     struct InlineAsm {
         string fname;
         shared_ptr<AsmProcedure> func;
@@ -96,8 +95,8 @@ std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
 
                         iasm_count += 1;
                         continue;
-                    
                     }
+                    iasm_count += 1;
                 }
             } else if (dynamic_cast<IIf*>(i.get())) {
                 auto if_inst = dynamic_cast<IIf*>(i.get());
@@ -122,6 +121,11 @@ std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
     std::sort(funcs.begin(), funcs.end());
     for (const auto& f : funcs) {
         shared_ptr<CFunction> func = mod->functions->at(f);
+
+        if (func->body == nullptr) {
+            continue;
+        }
+
         int failed = find_inline_asm(*func->body);
         if (failed > 0) {
             std::cout << "[ERROR] Failed to process " << failed << " inline asm in function " << f << std::endl;

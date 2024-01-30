@@ -34,8 +34,8 @@ const string asmgen = path(autov) / "AsmGen" / "asmgen.native";
 using type_str_t = variant<string, unique_ptr<vector<string>>>;
 
 static type_str_t irtype_to_str(IRType *typ, bool input) {
-    if (auto inttype = dynamic_cast<IntType *>(typ)) {
-        switch (inttype->type) {
+    if (auto inttype = dynamic_cast<TInt *>(typ)) {
+        switch (inttype->type.type) {
         case IntType::TI8:
             return "u8";
         case IntType::TI16:
@@ -48,7 +48,7 @@ static type_str_t irtype_to_str(IRType *typ, bool input) {
             throw std::runtime_error("Unsupported integer type: " + inttype->to_coq());
         }
     } else if (auto ptrtype = dynamic_cast<TPtr *>(typ)) {
-        if (dynamic_cast<IntType *>(ptrtype->subtype.get())) {
+        if (dynamic_cast<TInt *>(ptrtype->subtype.get())) {
             return std::get<string>(irtype_to_str(ptrtype->subtype.get(), input)) + "*";
         } else {
             throw std::runtime_error("Unsupported pointer type: " + ptrtype->to_coq());
@@ -82,6 +82,20 @@ static string construct_ret_struct(vector<string> &rettype) {
 
     ret += "};\n";
     return ret;
+}
+
+static string escape(const std::string& s) {
+    std::string res;
+    for (char c : s) {
+        switch (c) {
+            case '\\': res += "\\\\"; break;
+            case '\n': res += "\\n"; break;
+            case '\t': res += "\\t"; break;
+            // ... add more escape sequences here
+            default: res += c; break;
+        }
+    }
+    return res;
 }
 
 IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
@@ -146,6 +160,12 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
         }
     }
 
+    asm_text = escape(asm_text);
+    size_t pos = 0;
+    while((pos = asm_text.find("\"", pos)) != std::string::npos) {
+        asm_text.replace(pos, 1, "\\\"");
+        pos += 2; // Move past the inserted characters
+    }
     asm_text = "\"" + asm_text + "\"";
 
     IASM ret = IASM(fname, asm_text, "", "", "");
@@ -157,13 +177,11 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
 
     vector<string> cons;
 
-    if (constraints.find(",") != string::npos) {
-        std::stringstream ss(constraints);
-        string token;
+    std::stringstream ss(constraints);
+    string token;
 
-        while (std::getline(ss, token, ',')) {
-            cons.push_back(token);
-        }
+    while (std::getline(ss, token, ',')) {
+        cons.push_back(token);
     }
 
     vector<string> out_cons, in_cons, out_reg_cons;
@@ -226,7 +244,7 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
 
     cons_text = ": " + out_cons_text + " : " + in_cons_text;
 
-    std::ofstream f(fname + ".c");
+    std::ofstream f("iasm_test/" + fname + ".c");
     f << "#include <stdbool.h>\n";
     f << "typedef unsigned long long u64;\n";
     f << "typedef unsigned u32;\n";
@@ -258,6 +276,7 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
 
     f.close();
 
+#if 0
     std::ifstream c_file(fname + ".c");
     ret.c = string((std::istreambuf_iterator<char>(c_file)),
                     std::istreambuf_iterator<char>());
@@ -314,6 +333,7 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
 
     if (failed)
         throw std::runtime_error("Failed to compile iasm");
+#endif
 
     return std::move(ret);
 }
