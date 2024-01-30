@@ -44,6 +44,8 @@ set(IRLOADER_SOURCES
     src/AutoV/IRLoader/irtypes.cpp
     src/AutoV/IRLoader/irloader.cpp
     src/AutoV/IRLoader/control_flow.cpp
+    src/AutoV/IRLoader/inline_asm.cpp
+    src/AutoV/IRLoader/post_process.cpp
     src/AutoV/log.cpp
 )
 

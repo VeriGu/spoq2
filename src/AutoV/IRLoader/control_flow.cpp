@@ -355,10 +355,10 @@ static rule_ret_t rule_merge_branches_local(string &n, nodes_t &nodes, edges_t &
         RULE_RETURN_FALSE(n);
 
     for (int i = 0; i < edges[n]->size(); i++) {
-        auto &e = edges[n]->at(i);
+        auto e = edges[n]->at(i);
 
         for (int j = 0; j < edges[n]->size(); j++) {
-            auto &ee = edges[n]->at(j);
+            auto ee = edges[n]->at(j);
 
             if (e == ee) {
                 continue;
@@ -382,11 +382,11 @@ static rule_ret_t rule_merge_branches_local(string &n, nodes_t &nodes, edges_t &
                 auto true_body = make_unique<vector<unique_ptr<IRInst>>>();
                 auto false_body = make_unique<vector<unique_ptr<IRInst>>>();
 
-                for (auto &i: ee->insts) {
+                for (auto &i: e->insts) {
                     true_body->push_back(unique_ptr<IRInst>(i->clone()));
                 }
 
-                for (auto &i: e->insts) {
+                for (auto &i: ee->insts) {
                     false_body->push_back(unique_ptr<IRInst>(i->clone()));
                 }
 

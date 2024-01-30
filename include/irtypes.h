@@ -261,6 +261,7 @@ public:
     string name;
     shared_ptr<IRType> type;
     coq_sz_t offset;
+    bool is_decl = false;
 
     TStructElem() {
         throw std::runtime_error("TStructElem must have a name, a type and an offset.");
@@ -271,8 +272,15 @@ public:
     TStructElem(string name, shared_ptr<IRType> type, coq_sz_t offset) :
         name(name), type(type), offset(offset) {}
 
+    TStructElem(string name, shared_ptr<IRType> type, coq_sz_t offset, bool is_decl) :
+        name(name), type(type), offset(offset), is_decl(is_decl) {}
+
     string to_coq(void) const {
-        return "(TElem \"" + name + "\" " + type->to_coq() + " " + std::to_string(offset) + ")";
+
+        if (is_decl)
+            return "(TElem \"" + name + "\" " + type->to_coq() + " " + std::to_string(offset) + ")";
+
+        return type->to_coq();
     }
 };
 
