@@ -128,7 +128,7 @@ std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
                             iasm_count += 1;
                         }
                         string coq = replace(asm_inst.coq, old_name, fname);
-                        mod->asm_procs->at(fname) = make_shared<AsmProcedure>(fname, asm_inst.iasm, objd, coq);
+                        mod->asm_procs->insert({fname, make_shared<AsmProcedure>(fname, asm_inst.iasm, objd, coq)});
                         asm_key = objd;
                         inline_asms[asm_key] = {fname, mod->asm_procs->at(fname)};
                         call_inst->func = make_unique<VGlobal>(call_inst->typ, inline_asms[asm_key].fname);
@@ -136,7 +136,7 @@ std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
                         std::cout << coq_def;
                     } else {
                         if (!asm_inst.objdump.empty()) {
-                            mod->asm_procs->at(fname) = make_shared<AsmProcedure>(fname, asm_inst.iasm, objd, "");
+                            mod->asm_procs->insert({fname, make_shared<AsmProcedure>(fname, asm_inst.iasm, objd, "")});
                             asm_key = objd;
                             inline_asms[asm_key] = {fname, mod->asm_procs->at(fname)};
                             call_inst->func = make_unique<VGlobal>(call_inst->typ, inline_asms[asm_key].fname);
@@ -144,7 +144,7 @@ std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
                             std::cout << coq_def;
                             iasm_count += 1;
                         } else {
-                            mod->asm_procs->at(fname) = make_shared<AsmProcedure>(fname, asm_inst.iasm, "", "");
+                            mod->asm_procs->insert({fname, make_shared<AsmProcedure>(fname, asm_inst.iasm, "", "")});
                             call_inst->func = make_unique<VGlobal>(call_inst->typ, fname);
                             string coq_def = synthesize_coq_def(fname, rettype, args);
                             std::cout << coq_def;

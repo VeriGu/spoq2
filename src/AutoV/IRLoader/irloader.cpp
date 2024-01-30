@@ -1,5 +1,6 @@
 #include <irloader.h>
 #include <control_flow.h>
+#include <post_process.h>
 #include <set>
 #include <cassert>
 #include <variant>
