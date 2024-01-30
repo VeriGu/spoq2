@@ -818,7 +818,7 @@ static bool parse_struct(string name, ptree &module, ptree &sinfo, ptree &debug_
 }
 
 // postprocess default value is true
-unique_ptr<IRModule> parse_module(ptree &module, bool postprocess) {
+shared_ptr<IRModule> parse_module(ptree &module, bool postprocess) {
     auto debug_info = parse_debug_info(module);
     auto globvars = make_shared<unordered_map<string, shared_ptr<GlobalVar>>>();
     auto funcs = make_shared<unordered_map<string, shared_ptr<CFunction>>>();
@@ -891,6 +891,10 @@ unique_ptr<IRModule> parse_module(ptree &module, bool postprocess) {
 
             funcs->emplace(fname, f);
         }
+    }
+
+    if (postprocess) {
+        return post_process(make_shared<IRModule>(&structs_info, globvars, funcs, std::move(debug_info)));
     }
 
     return nullptr;
