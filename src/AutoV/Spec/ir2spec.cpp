@@ -664,9 +664,169 @@ namespace autov
       
       auto fptrs = vector<string>();
       for(auto & f : *func_ptrs) {
-
+        if(auto symbol = dynamic_cast<autov::Symbol*>(f.get())) {
+          fptrs.push_back(symbol->text);
+          (*types)[symbol->text] = autov::Struct::Ptr;
+        }
       }
-    
+
+      f->loop_args->insert(fptrs.begin(), fptrs.end());
+      f->input->insert(fptrs.begin(), fptrs.end());
+      auto loop_hash = std::to_string(f->lineno);
+      auto loop_spec_name = fname + "_loop" + loop_hash + suffix;
+
+      //find a loop_spec_name not in conflict
+      std::unordered_set<string> def_names;
+      for(auto &def : *defs) {
+        def_names.insert(def->name);
+      }
+
+      int c;
+      while (def_names.find(loop_spec_name) != def_names.end()) {
+        loop_hash = std::to_string(f->lineno) + "_" + std::to_string(c);
+        loop_spec_name = fname + "_loop" = loop_hash + suffix;
+        c++;
+      } 
+
+      auto loop_args = unique_ptr<vector<unique_ptr<SpecNode>>>(new vector<unique_ptr<SpecNode>>());
+      auto loop_init = unique_ptr<vector<unique_ptr<SpecNode>>>(new vector<unique_ptr<SpecNode>>());
+
+      loop_args->push_back(unique_ptr<SpecNode>(new autov::Symbol("_N_", autov::Inductive::Nat)));
+
+      auto elems = new vector<unique_ptr<SpecNode>>();
+      for(auto a : *f->input) {
+        elems->push_back(unique_ptr<SpecNode>(autov::_name(a, types.get())));
+      }
+      auto children = new Expr(fname + "_loop" + loop_hash + "_rank", 
+      unique_ptr<vector<unique_ptr<SpecNode>>>(elems));
+
+      auto out_elems = new vector<unique_ptr<SpecNode>>();
+      out_elems->push_back(unique_ptr<SpecNode>(children));
+
+      loop_init->push_back(unique_ptr<SpecNode>(new autov::Expr("z_to_nat",
+      unique_ptr<vector<unique_ptr<SpecNode>>>(out_elems))));
+
+      for(auto a : *f->loop_args) {
+        loop_args->push_back(unique_ptr<SpecNode>(autov::_name(a, types.get())));
+        
+        if(a == "__return__" || a == "__break__") {
+          loop_init->push_back(unique_ptr<SpecNode>(new BoolConst(false)));
+        } else if(f->input->find(a) != f->input->end()) {
+          loop_init->push_back(unique_ptr<SpecNode>(autov::_name(a, types.get())));
+        } else {
+          loop_init->push_back(unique_ptr<SpecNode>(default_val((*types)[a])));
+        }
+      }
+
+      loop_args->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+      loop_init->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+
+      if(proj->defs.find(loop_spec_name) == proj->defs.end()) {
+        if(f->body->size() == 1 && (*f->body)[0]->output->size() == 1 && *(*(*f->body)[0]->output).begin() == "__continue__") {
+          return new Symbol("None");
+        } else {
+          auto iteration_body = ir_insts_to_spec(proj, Layer, fname, f->body.get(), defs, f->loop_args.get(), true, false, suffix, 0);
+          string low = "_low";
+          auto substring = loop_spec_name.substr(loop_spec_name.size() - low.size());
+          if((proj->cmds).InitRely.find(substring) != (proj->cmds).InitRely.end()){
+            for(auto &prop : *proj->cmds.InitRely[substring]) {
+              iteration_body = new autov::Rely(unique_ptr<SpecNode>(prop->deep_copy()), unique_ptr<SpecNode>(iteration_body));
+            }
+          }
+
+          //need deep copy
+          auto loop_args_sub = new vector<unique_ptr<SpecNode>>();
+          for(auto & a: *loop_args) {
+            loop_args_sub->push_back(std::move(a->deep_copy()));
+          }
+
+          if(f->loop_args->find("__return__") != f->loop_args->end()) {
+            iteration_body = new autov::If(unique_ptr<SpecNode>(_name("__return__", types.get())), 
+            unique_ptr<SpecNode>(autov::_Some(autov::_Tuple(loop_args_sub))), unique_ptr<SpecNode>(iteration_body));
+          }
+
+          if(f->loop_args->find("__break__") != f->loop_args->end()) {
+            iteration_body = new autov::If(unique_ptr<SpecNode>(_name("__break__", types.get())), 
+            unique_ptr<SpecNode>(autov::_Some(autov::_Tuple(loop_args_sub))), unique_ptr<SpecNode>(iteration_body));
+          }
+
+          auto loop_body = autov::_When(autov::_Tuple(loop_args_sub),
+          new Expr(fname + "_loop" + loop_hash + suffix, std::move(loop_args)), iteration_body);
+
+          auto tupletypes = new vector<shared_ptr<SpecType>>();
+          for(auto a: *f->loop_args) {
+            tupletypes->push_back((*types)[a]);
+          }
+          tupletypes->push_back((*types)["st"]);
+          auto option = new Option(shared_ptr<SpecType>(new Tuple(shared_ptr<vector<shared_ptr<SpecType>>>(tupletypes))));
+
+          auto args = new vector<shared_ptr<Arg>>();
+          args->push_back(shared_ptr<Arg>(new Arg("_N_", autov::Inductive::Nat)));
+          for(auto a :*f->loop_args) {
+            args->push_back(shared_ptr<Arg>(new Arg(a, (*types)[a])));
+          }
+          args->push_back(shared_ptr<Arg>(new Arg("st", (*types)["st"])));
+
+          auto patterns = new vector<unique_ptr<PatternMatch>>();
+          auto scase = new vector<unique_ptr<SpecNode>>();
+          scase->push_back(unique_ptr<SpecNode>(new Symbol("_N_")));
+
+          patterns->push_back(
+            unique_ptr<PatternMatch>(
+            new PatternMatch(unique_ptr<SpecNode>(autov::_name("O", types.get())), unique_ptr<SpecNode>(autov::_Some(autov::_Tuple(loop_args_sub)))))); 
+          patterns->push_back(
+            unique_ptr<PatternMatch>(
+            new PatternMatch(unique_ptr<SpecNode>(new Expr("S", unique_ptr<vector<unique_ptr<SpecNode>>>(scase))), unique_ptr<SpecNode>(loop_body)))
+            );
+
+          auto match = new Match(unique_ptr<SpecNode>(autov::_name("_N_", types.get())), unique_ptr<vector<unique_ptr<PatternMatch>>>(patterns));
+          auto fixpoint = new Fixpoint(fname + "_loop" + loop_hash + suffix,
+          shared_ptr<SpecType>(option), unique_ptr<vector<shared_ptr<Arg>>>(args), 
+          unique_ptr<SpecNode>(match));
+
+          defs->push_back(unique_ptr<Definition>(fixpoint));
+        }
+      }
+
+      if(proj->defs.find(fname + "_loop" + loop_hash + "_rank") == proj->defs.end()) {
+        auto args = new vector<shared_ptr<Arg>>();
+        for(auto a :*f->input) {
+            args->push_back(shared_ptr<Arg>(new Arg(a, (*types)[a])));
+        }
+        defs->push_back(unique_ptr<Definition>(
+          new Definition(fname + "_loop" + loop_hash + "_rank", autov::Int::INT, 
+           unique_ptr<vector<shared_ptr<Arg>>>(args), unique_ptr<SpecNode>(new IntConst(0)))));
+      }
+
+      SpecNode* remain = remain_spec;
+      if(f->input->find("__break__") != f->input->end()) {
+        remain = new autov::If(unique_ptr<SpecNode>(_name("__break__", types.get())), 
+        unique_ptr<SpecNode>(remain), unique_ptr<SpecNode>(new Symbol("None")));
+      }
+      if(f->input->find("__return__") != f->input->end()) {
+        remain = new autov::If(unique_ptr<SpecNode>(_name("__return__", types.get())), 
+        unique_ptr<SpecNode>(returns), unique_ptr<SpecNode>(remain_spec));
+      }
+
+      auto prop_elems = new vector<unique_ptr<SpecNode>>();
+      auto args = new vector<unique_ptr<SpecNode>>();
+      for(auto a :*f->input) {
+          args->push_back(unique_ptr<SpecNode>(autov::_name(a, types.get())));
+      }
+
+      prop_elems->push_back(unique_ptr<SpecNode>(new Expr(fname + "_loop" + loop_hash + "_rank", unique_ptr<vector<unique_ptr<SpecNode>>>(args))));
+      prop_elems->push_back(unique_ptr<SpecNode>(new IntConst(0)));
+
+      auto prop = new Expr(">=", unique_ptr<vector<unique_ptr<SpecNode>>>(prop_elems));
+      auto loop_args_sub = new vector<unique_ptr<SpecNode>>();
+      for(auto & a: *loop_args) {
+        loop_args_sub->push_back(std::move(a->deep_copy()));
+      }
+
+      auto spec = autov::_When(autov::_Tuple(loop_args_sub),
+      new Expr(fname + "_loop" + loop_hash + suffix, std::move(loop_init)), remain_spec);
+
+      return new Rely(unique_ptr<SpecNode>(prop), unique_ptr<SpecNode>(spec));
     }  else if(auto f = dynamic_cast<IRLoader::IInsertValue*>(inst.get())) {
       //TODO
     } else {
