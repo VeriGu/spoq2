@@ -593,7 +593,41 @@ namespace autov
         assert(false);
       }
     } else if(auto f = dynamic_cast<IRLoader::IStore*>(inst.get())) {
-      //TODO
+      if(dynamic_cast<TInt*>(f->val->type.get())) {
+        auto children = new vector<unique_ptr<SpecNode>>();
+        children->push_back(unique_ptr<SpecNode>(new IntConst(load_store_typ(f->val->type.get()))));
+        children->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, f->ptr.get(), relies)));
+        children->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, f->val.get(), relies)));
+        children->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+
+        auto stmt = autov::_When(autov::_st(abs_data), 
+        new Expr(Layer->ops["store"], unique_ptr<vector<unique_ptr<SpecNode>>>(children)), remain_spec); 
+       
+        for(auto &p : *relies) {
+          stmt = new Rely(std::move(p) , unique_ptr<SpecNode>(stmt));
+        }
+        return stmt;
+      } else if(dynamic_cast<TPtr*>(f->val->type.get())) {
+        auto children = new vector<unique_ptr<SpecNode>>();
+        children->push_back(unique_ptr<SpecNode>(new IntConst(load_store_typ(f->val->type.get()))));
+        children->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, f->ptr.get(), relies)));
+
+        auto children2 = new vector<unique_ptr<SpecNode>>();
+        children2->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, f->val.get(), relies)));
+        children->push_back(unique_ptr<SpecNode>(new Expr(Layer->ops["ptr2int"], unique_ptr<vector<unique_ptr<SpecNode>>>(children2))));
+        children->push_back(unique_ptr<SpecNode>(autov::_st(abs_data)));
+
+        auto stmt = autov::_When(autov::_st(abs_data), 
+        new Expr(Layer->ops["store"], unique_ptr<vector<unique_ptr<SpecNode>>>(children)), remain_spec); 
+       
+        for(auto &p : *relies) {
+          stmt = new Rely(std::move(p) , unique_ptr<SpecNode>(stmt));
+        }
+        return stmt;
+      } else {
+        LOG_DEBUG << "IStore not int or ptr";
+        assert(false);
+      }
     } else if(auto f = dynamic_cast<IRLoader::IAlloc*>(inst.get())) {
       if(auto typ = dynamic_cast<IRLoader::TPtr*>(f->typ.get())) {
         auto children = new vector<unique_ptr<SpecNode>>();
@@ -828,7 +862,7 @@ namespace autov
 
       return new Rely(unique_ptr<SpecNode>(prop), unique_ptr<SpecNode>(spec));
     }  else if(auto f = dynamic_cast<IRLoader::IInsertValue*>(inst.get())) {
-      //TODO
+      //PASS
     } else {
       LOG_DEBUG << "Instruction not supported converting to SpecNode\n";
       LOG_DEBUG << inst->to_coq();
