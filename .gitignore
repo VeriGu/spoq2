@@ -2,3 +2,5 @@
 build/
 dist/
 src/AutoV/Spec/Parser/.antlr/
+AsmGen/_build/
+AsmGen/asmgen.native
