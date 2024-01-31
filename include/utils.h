@@ -46,6 +46,29 @@ static string add_indent(const string s, int indent) {
     return result;
 }
 
+static string strip(const string& str) {
+    string s = str;
+
+    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }));
+
+    s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }).base(), s.end());
+
+    return s;
+}
+
+static string replace(string str, const string& from, const string& to) {
+    size_t start_pos = 0;
+    while((start_pos = str.find(from, start_pos)) != string::npos) {
+        str.replace(start_pos, from.length(), to);
+        start_pos += to.length(); // Handles case where 'to' is a substring of 'from'
+    }
+    return str;
+}
+
 //string join_elems_semi_colon(const vector<Arg> &elems);
 string join_elems_semi_colon(const vector<shared_ptr<Arg>> &elems);
 

@@ -224,7 +224,10 @@ public:
              shared_ptr<unordered_map<string, shared_ptr<GlobalVar>>> globalvars,
              shared_ptr<unordered_map<string, shared_ptr<CFunction>>> functions,
              shared_ptr<ptree> debug_info) :
-        structs(structs), globalvars(globalvars), functions(functions),  debug_info(debug_info) {}
+        structs(structs), globalvars(globalvars), functions(functions), debug_info(debug_info) {
+            unordered_map<string, shared_ptr<AsmProcedure>> asmp;
+            asm_procs = std::make_shared<unordered_map<string, shared_ptr<AsmProcedure>>>(asmp);
+        }
 };
 
 }; // namespace autov::IRLoader

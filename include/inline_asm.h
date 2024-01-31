@@ -17,6 +17,8 @@ public:
 
     IASM(string fname, string iasm, string c, string objdump, string coq) :
         fname(fname), iasm(iasm), c(c), objdump(objdump), coq(coq) {}
+
+    IASM() = default;
 };
 
 IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
