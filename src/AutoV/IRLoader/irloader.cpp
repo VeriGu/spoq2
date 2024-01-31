@@ -687,10 +687,10 @@ static bool is_new_struct(const ptree &md, const ptree &structs) {
             structs.find(md.get<string>("tag") + "!" + md.get<string>("name")) == structs.not_found();
 }
 
-static unique_ptr<ptree> parse_debug_info(const ptree &module) {
+static shared_ptr<ptree> parse_debug_info(const ptree &module) {
     ptree structs;
     ptree metadata;
-    auto debug_info = make_unique<ptree>();
+    auto debug_info = make_shared<ptree>();
     bool parse_new_struct = false;
 
     for (const auto &md : module.get_child("mdtype")) {
@@ -898,7 +898,7 @@ shared_ptr<IRModule> parse_module(ptree &module, bool postprocess) {
         return post_process(make_shared<IRModule>(&structs_info, globvars, funcs, std::move(debug_info)));
     }
 
-    return nullptr;
+    return make_shared<IRModule>(&structs_info, globvars, funcs, std::move(debug_info));
 }
 
 } // namespace autov::IRLoader

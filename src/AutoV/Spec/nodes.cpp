@@ -3,6 +3,8 @@
 #include <values.h>
 #include <utils.h>
 #include <type_inference.h>
+#include <irloader.h>
+#include <boost/property_tree/ptree.hpp>
 
 namespace autov {
 using std::string;
@@ -13,6 +15,7 @@ using std::shared_ptr;
 using std::make_shared;
 using std::unordered_map;
 using std::holds_alternative;
+using boost::property_tree::ptree;
 
 unsigned long SpecNode::id = 1;
 
@@ -910,6 +913,44 @@ const string Fixpoint::to_string() const {
 
     return "Fixpoint " + this->name + " " + args_str + " : " + string(*this->rettype) + " :=\n" + add_indent(body_str, 2) + ".";
 
+}
+
+static void process_tree(const boost::property_tree::ptree& input, boost::property_tree::ptree& output) {
+    for (auto& kv : input) {
+        std::string key = kv.first;
+        // Replace dot in key with underscore (or any other character)
+        std::replace(key.begin(), key.end(), '.', '!');
+        // If it's a subtree, process recursively
+        if (!kv.second.empty()) {
+            //boost::property_tree::ptree subtree;
+            //process_tree(kv.second, subtree);
+            output.add_child(key, kv.second);
+        } else {
+            // Copy the value
+            output.put(key, kv.second.data());
+        }
+    }
+}
+
+shared_ptr<IRLoader::IRModule> Layer::load_module(void) {
+    if (this->code != "") {
+        ptree pt;
+
+        try {
+            boost::property_tree::ptree modified_subtree;
+            read_json(this->code, pt);
+            boost::property_tree::ptree subtree = pt.get_child("struct_types");
+            process_tree(subtree, modified_subtree);
+            pt.put_child("struct_types", modified_subtree);
+            //write_json(std::cout, pt.get_child("struct_types"));
+        } catch (const boost::property_tree::json_parser::json_parser_error& e) {
+            throw std::runtime_error("Error parsing JSON: " + string(e.what()));
+        }
+
+        return IRLoader::parse_module(pt);
+    }
+
+    return nullptr;
 }
 
 }; // namespace autov

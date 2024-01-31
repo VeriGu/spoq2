@@ -1,5 +1,6 @@
 #include <project.h>
 #include <iostream>
+#include <post_process.h>
 
 namespace autov {
 
@@ -206,6 +207,66 @@ Project::Project()
     add_indtype(Inductive::Nat);
     add_definition(make_ptr_offset(), make_shared<loc_t>(Project::LOC_GLOBALDEFS, "", ""));
     add_definition(make_bool_to_int(), make_shared<loc_t>(Project::LOC_GLOBALDEFS, "", ""));
+}
+
+static std::set<string> get_prim_dependencies(const vector<unique_ptr<IRLoader::IRInst>> &insts) {
+    std::set<string> deps;
+
+    for (const auto &inst: insts) {
+        if (auto i = dynamic_cast<IRLoader::IIf*>(inst.get())) {
+            deps.merge(get_prim_dependencies(*i->true_body));
+            deps.merge(get_prim_dependencies(*i->false_body));
+        } else if (auto i = dynamic_cast<IRLoader::ILoop*>(inst.get())) {
+            deps.merge(get_prim_dependencies(*i->body));
+        } else if (auto i = dynamic_cast<IRLoader::ICall*>(inst.get())) {
+            if (auto v = dynamic_cast<IRLoader::VGlobal*>(i->func.get()))
+                deps.insert(v->name);
+        }
+    }
+
+    return deps;
+}
+
+void Project::finalize_project()
+{
+    std::set<string> loaded, deps;
+    shared_ptr<IRModule> module;
+
+    // XXX: currently we only support one LAYER_CODE for all layers
+    for (auto &L: this->layers) {
+        if (L->code == "" || loaded.find(L->code) != loaded.end())
+            continue;
+
+        module = L->load_module();
+        loaded.insert(L->code);
+    }
+
+    this->code = IRLoader::post_process(module);
+
+    for (auto it = this->layers.rbegin(); it != this->layers.rend() - 1; it++) {
+        auto &L = *it;
+
+        for (auto &p: L->prims) {
+            if (deps.find(p) != deps.end())
+                deps.erase(p);
+        }
+        L->passthrough = vector<string>(deps.begin(), deps.end());
+
+        for (auto &p: L->prims) {
+            if (this->code->functions->find(p) == this->code->functions->end())
+                continue;
+
+            if (this->code->functions->at(p)->body == nullptr)
+                continue;
+
+            for (auto &d: get_prim_dependencies(*this->code->functions->at(p)->body))
+                deps.insert(d);
+        }
+    }
+
+    deps.insert(this->layers[0]->prims.begin(), this->layers[0]->prims.end());
+    this->layers[0]->prims.assign(deps.begin(), deps.end());
+
 }
 
 }; // namespace autov

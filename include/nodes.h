@@ -1015,6 +1015,10 @@ private:
     const string to_string() const;
 };
 
+namespace IRLoader{
+    class IRModule;
+}
+
 class Layer {
 public:
     string name;
@@ -1029,6 +1033,8 @@ public:
     Layer(string name, unique_ptr<SpecType> abs_data, unordered_map<string, string> ops,
           vector<string> prims, string code, vector<string> passthrough) :
         name(name), abs_data(std::move(abs_data)), ops(std::move(ops)), prims(prims), code(code), passthrough(passthrough) {}
+
+    shared_ptr<IRLoader::IRModule> load_module();
 };
 
 }// namespace autov

@@ -27,10 +27,9 @@ int main(void)
 
     autov::parser::parse(proj.get(), "testcase/proof_stack.v");
 
-    // auto def = proj->defs["spinlock_release_spec"].get();
-    // std::cout << std::string(*def) << "\n";
+    proj->finalize_project();
 
-#ifdef DEBUG
+#if 0
     for (const auto &layer: proj->layers) {
         string layer_name = layer->name;
 
