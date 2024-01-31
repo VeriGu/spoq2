@@ -8,6 +8,7 @@
 #include <regex>
 #include <fstream>
 #include <cassert>
+#include <numeric>
 
 namespace autov::IRLoader
 {
@@ -292,7 +293,7 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
         string line;
 
         while (std::getline(f, line))
-            lines.push_back(line);
+            lines.push_back(line + "\n");
 
         if (lines.size() > 6) {
             string objd = lines[6];
@@ -300,10 +301,18 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
             for (auto it = lines.begin() + 7; it != lines.end(); ++it) {
                 vector<string> tk;
                 std::istringstream iss(*it);
+                bool _first = true;
 
-                for(string s; iss >> s; )
+                for(std::string s; std::getline(iss, s, '\t'); )
                     tk.push_back(s);
-                objd += "\t" + tk[2];
+                for (auto t = tk.begin() + 2; t != tk.end(); ++t) {
+                    if (!_first)
+                        objd += "\t";
+                    else
+                        _first = false;
+                    objd += *t;
+                }
+
                 if (it->find("ret") != string::npos)
                     break;
             }
@@ -315,6 +324,12 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
             std::ifstream coq_file(fname + ".v");
             string coq((std::istreambuf_iterator<char>(coq_file)),
                     std::istreambuf_iterator<char>());
+            std::istringstream iss(coq);
+            iss >> std::ws;
+            std::getline(iss, coq, '\0');
+            coq.erase(std::find_if(coq.rbegin(), coq.rend(), [](unsigned char ch) {
+                return !std::isspace(ch);
+            }).base(), coq.end());
             coq = coq.empty() ? "" : coq;
             ret.coq = coq;
         } else {
