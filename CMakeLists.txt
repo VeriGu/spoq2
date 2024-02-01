@@ -7,10 +7,6 @@ project(spoq)
 
 # Set the compiler flags for the Debug build type
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_definitions(-DDEBUG)
-endif()
-
 # Set the compiler flags for the Debug build type
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
@@ -28,9 +24,15 @@ if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
 endif()
 
+set(MAIN_CMAKE_BUILDTYPE ${CMAKE_BUILD_TYPE})
+set(CMAKE_BUILD_TYPE "Release")
 # Add ANTLR4 runtime
 add_subdirectory(src/AutoV/Spec/Parser/antlr4/runtime/Cpp/)
 
+set(CMAKE_BUILD_TYPE ${MAIN_CMAKE_BUILDTYPE})
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_definitions(-DDEBUG)
+endif()
 # Include ANTLR4 runtime headers
 include_directories(src/AutoV/Spec/Parser/antlr4/runtime/Cpp/runtime/src/)
 
@@ -67,6 +69,19 @@ if(Boost_FOUND)
 endif()
 target_link_libraries(json2coq irloader)
 
+# Parser source files
+set(PARSER_SOURCES
+    src/AutoV/Spec/Parser/SpecLexer.cpp
+    src/AutoV/Spec/Parser/SpecParser.cpp
+    src/AutoV/Spec/Parser/parse.cpp
+)
+# Build IRLoader as a shared library
+add_library(parser SHARED ${PARSER_SOURCES})
+if(Boost_FOUND)
+    target_link_libraries(parser ${Boost_LIBRARIES})
+endif()
+target_compile_options(parser PRIVATE -O3 -UDEBUG)
+
 # List all source files explicitly
 set(SOURCES
     src/AutoV/main.cpp
@@ -76,9 +91,9 @@ set(SOURCES
     src/AutoV/Spec/utils.cpp
     src/AutoV/Spec/project.cpp
     src/AutoV/Spec/type_inference.cpp
-    src/AutoV/Spec/Parser/SpecLexer.cpp
-    src/AutoV/Spec/Parser/SpecParser.cpp
-    src/AutoV/Spec/Parser/parse.cpp
+    # src/AutoV/Spec/Parser/SpecLexer.cpp
+    # src/AutoV/Spec/Parser/SpecParser.cpp
+    # src/AutoV/Spec/Parser/parse.cpp
     src/AutoV/Spec/ir2spec.cpp
     src/AutoV/Spec/shortcuts.cpp
     # Add other source files here
@@ -87,7 +102,7 @@ set(SOURCES
 # Specify the executable target and its source files
 add_executable(spoq ${SOURCES})
 # Link the shared library to the main executable
-target_link_libraries(spoq irloader)
+target_link_libraries(spoq irloader parser)
 
 # Link the Boost libraries to the executable
 if(Boost_FOUND)

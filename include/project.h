@@ -72,7 +72,7 @@ public:
 
     string name;
     string base;
-    IRModule* code;
+    shared_ptr<IRModule> code;
     unordered_map<string, shared_ptr<Struct>> structs;
     unordered_map<string, shared_ptr<Inductive>> indtypes;
     unordered_map<string, shared_ptr<SpecType>> typedefs;
@@ -137,7 +137,7 @@ public:
 
     bool is_known_symbol(string name);
 
-    //void finalize_project();
+    void finalize_project();
 
 };
 
