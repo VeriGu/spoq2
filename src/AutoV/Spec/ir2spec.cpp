@@ -211,6 +211,113 @@ namespace autov
     }
   }
 
+  unique_ptr<SpecNode> reduce(vector<unique_ptr<SpecNode>> *offs, int start) {
+    if(offs->size() - start == 1) return std::move(offs->at(start));
+
+    auto elems = new vector<unique_ptr<SpecNode>>();
+    elems->push_back(std::move(offs->at(start)));
+    elems->push_back(reduce(offs, start+1));
+    return unique_ptr<SpecNode>(new Expr("+", unique_ptr<vector<unique_ptr<SpecNode>>>(elems)));
+  }
+
+
+  SpecNode* sizeof_type(shared_ptr<IRType> typ) {
+    //TODO:
+    return nullptr;
+  }
+
+  SpecNode* get_elem_ptr(Layer *l, IRValue *val, vector<unique_ptr<SpecNode>> *idx, vector<unique_ptr<SpecNode>> *relies) {
+    auto tv = val->type;
+    auto offs = unique_ptr<vector<unique_ptr<SpecNode>>>(new vector<unique_ptr<SpecNode>>());
+
+    for(auto &i : *idx) {
+      if(auto f = dynamic_cast<IRLoader::TPtr*>(tv.get())) {
+        auto elems = new vector<unique_ptr<SpecNode>>();
+        elems->push_back(unique_ptr<SpecNode>(sizeof_type(f->subtype)));
+        elems->push_back(i->deep_copy());
+
+        offs->push_back(unique_ptr<SpecNode>(new Expr("*", unique_ptr<vector<unique_ptr<SpecNode>>>(elems))));
+
+        tv = f->subtype;
+      } else if(auto f = dynamic_cast<IRLoader::TArray*>(tv.get())) {
+        auto elems = new vector<unique_ptr<SpecNode>>();
+        elems->push_back(unique_ptr<SpecNode>(sizeof_type(f->subtype)));
+        elems->push_back(i->deep_copy());
+
+        auto elems2 = new vector<unique_ptr<SpecNode>>();
+        elems2->push_back(unique_ptr<SpecNode>(new IntConst(0)));
+        elems2->push_back(i->deep_copy());
+
+        auto elems3 = new vector<unique_ptr<SpecNode>>();
+        elems3->push_back(i->deep_copy());
+        elems3->push_back(unique_ptr<SpecNode>(new IntConst(f->length)));
+
+        auto elems4 = new vector<unique_ptr<SpecNode>>();
+        elems4->push_back(unique_ptr<SpecNode>(new Expr("<=", unique_ptr<vector<unique_ptr<SpecNode>>>(elems2))));
+        elems4->push_back(unique_ptr<SpecNode>(new Expr("<", unique_ptr<vector<unique_ptr<SpecNode>>>(elems3))));
+
+
+        offs->push_back(unique_ptr<SpecNode>(new Expr("*", unique_ptr<vector<unique_ptr<SpecNode>>>(elems))));
+        relies->push_back(unique_ptr<SpecNode>(new Expr("/\\", unique_ptr<vector<unique_ptr<SpecNode>>>(elems4))));
+        
+        tv = f->subtype;
+      } else if(auto f = dynamic_cast<IRLoader::TFixedVector*>(tv.get())) {
+        auto elems = new vector<unique_ptr<SpecNode>>();
+        elems->push_back(unique_ptr<SpecNode>(sizeof_type(f->subtype)));
+        elems->push_back(i->deep_copy());
+
+        auto elems2 = new vector<unique_ptr<SpecNode>>();
+        elems2->push_back(unique_ptr<SpecNode>(new IntConst(0)));
+        elems2->push_back(i->deep_copy());
+
+        auto elems3 = new vector<unique_ptr<SpecNode>>();
+        elems3->push_back(i->deep_copy());
+        elems3->push_back(unique_ptr<SpecNode>(new IntConst(f->length)));
+
+        auto elems4 = new vector<unique_ptr<SpecNode>>();
+        elems4->push_back(unique_ptr<SpecNode>(new Expr("<=", unique_ptr<vector<unique_ptr<SpecNode>>>(elems2))));
+        elems4->push_back(unique_ptr<SpecNode>(new Expr("<", unique_ptr<vector<unique_ptr<SpecNode>>>(elems3))));
+
+
+        offs->push_back(unique_ptr<SpecNode>(new Expr("*", unique_ptr<vector<unique_ptr<SpecNode>>>(elems))));
+        relies->push_back(unique_ptr<SpecNode>(new Expr("/\\", unique_ptr<vector<unique_ptr<SpecNode>>>(elems4))));
+        
+        tv = f->subtype;
+      } else if(auto f = dynamic_cast<IRLoader::TStruct*>(tv.get())) {
+        if(auto index = dynamic_cast<IntConst*>(i.get())) {
+          unsigned long in = std::get<unsigned long>(index->value);
+          offs->push_back(unique_ptr<SpecNode>(new IntConst(f->elems->at(in)->offset)));
+          tv = f->elems->at(in)->type;
+        } else {
+          assert(false);
+        }
+      } else if(auto f = dynamic_cast<IRLoader::TNamedStruct*>(tv.get())) {
+        tv = (*f->structs)[f->name];
+        if(auto sub = dynamic_cast<IRLoader::TStruct*>(tv.get())) {
+          if(auto index = dynamic_cast<IntConst*>(i.get())) {
+            unsigned long in = std::get<unsigned long>(index->value);
+            offs->push_back(unique_ptr<SpecNode>(new IntConst(sub->elems->at(in)->offset)));
+            tv = sub->elems->at(in)->type;
+          } else {
+            LOG_DEBUG << "not a IntConst for the index";
+            assert(false);
+          }
+        } else {
+          LOG_DEBUG << "not a struct to be indexed of";
+          assert(false);
+        }
+      }
+    }
+
+    offs->push_back(unique_ptr<SpecNode>(new IntConst(0)));
+    
+    auto elems = new vector<unique_ptr<SpecNode>>();
+    elems->push_back(unique_ptr<SpecNode>(ir_value_to_spec(l, val, relies)));
+    elems->push_back(reduce(offs.get(), 0));
+    
+    return new Expr("ptr_offset", unique_ptr<vector<unique_ptr<SpecNode>>>(elems));
+  }
+
   SpecNode *ir_expr_to_spec(Layer* l, IRLoader::Op op, vector<unique_ptr<IRValue>> *_args, vector<unique_ptr<SpecNode>> *relies)
   {
     auto args = unique_ptr<vector<unique_ptr<SpecNode>>>(new vector<unique_ptr<SpecNode>>());
@@ -236,8 +343,7 @@ namespace autov
       case Op::OIntToPtr:
         return new Expr(l->ops["int2ptr"], std::move(args));
       case Op::OGetElementPtr:
-        //TODO
-        return nullptr;
+        return get_elem_ptr(l, _args->at(0).get(), args.get(), relies);
       case Op::Cslt:
         return new Expr("<?", std::move(args));
       case Op::Csle:
