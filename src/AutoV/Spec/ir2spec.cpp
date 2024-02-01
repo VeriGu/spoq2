@@ -222,8 +222,16 @@ namespace autov
 
 
   SpecNode* sizeof_type(shared_ptr<IRType> typ) {
-    //TODO:
-    return nullptr;
+    auto sz = typ->szof_verbose();
+    if(std::get<0>(sz) == 0&& std::get<0>(sz) == 0) {
+      return new IntConst(0);
+    }
+
+    auto elems = unique_ptr<vector<unique_ptr<SpecNode>>>(new vector<unique_ptr<SpecNode>>());
+    elems->push_back(std::move(unique_ptr<SpecNode>(new IntConst(std::get<0>(sz)))));
+    elems->push_back(std::move(unique_ptr<SpecNode>(new IntConst(std::get<1>(sz)))));
+
+    return new Expr("*", std::move(elems));
   }
 
   SpecNode* get_elem_ptr(Layer *l, IRValue *val, vector<unique_ptr<SpecNode>> *idx, vector<unique_ptr<SpecNode>> *relies) {
