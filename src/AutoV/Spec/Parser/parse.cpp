@@ -491,7 +491,7 @@ antlrcpp::Any ProgramVisitor::visitRecord_fields_def(SpecParser::Record_fields_d
     return field;
 }
 
-Expr::binops parse_binop(const antlr4::Token *binop) {
+Expr::binops ProgramVisitor::parse_binop(const antlr4::Token *binop) {
     switch (binop->getType()) {
         case SpecLexer::MULT:
             return Expr::binops::MULT;
