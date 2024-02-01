@@ -161,6 +161,6 @@ public:
 
 };
 
-void parse_light(Project *proj, const std::string& text);
+std::any parse_light(Project *proj, const std::string& text);
 
 } // namespace autov::parser

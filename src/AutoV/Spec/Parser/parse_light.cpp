@@ -192,7 +192,7 @@ antlrcpp::Any LightProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx)
 }
 
 
-void parse_light(Project *proj, const string& text) {
+std::any parse_light(Project *proj, const string& text) {
     std::istringstream stream(text);
     antlr4::ANTLRInputStream input(stream);
     SpecLexer lexer(&input);
@@ -200,6 +200,7 @@ void parse_light(Project *proj, const string& text) {
     SpecParser parser(&tokens);
     antlr4::tree::ParseTree* tree = parser.program();
     LightProgramVisitor visitor(*proj);
+    return visitor.visit(tree);
 }
 
 } // namespace autov::parser
