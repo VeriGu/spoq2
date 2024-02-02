@@ -20,6 +20,34 @@ antlrcpp::Any LightProgramVisitor::visitProgram(SpecParser::ProgramContext* ctx)
     return std::any();
 }
 
+antlrcpp::Any LightProgramVisitor::visitStatement(SpecParser::StatementContext* ctx) {
+    if (ctx->include() != nullptr) {
+        return visitInclude(ctx->include());
+    } else if (ctx->command() != nullptr) {
+        return visitCommand(ctx->command());
+    } else if (ctx->def() != nullptr) {
+        return visitDef(ctx->def());
+    } else if (ctx->decl() != nullptr) {
+        return visitDecl(ctx->decl());
+    } else if (ctx->fixpoint() != nullptr) {
+        return visitFixpoint(ctx->fixpoint());
+    } else if (ctx->inductive_decl() != nullptr) {
+        return visitInductive_decl(ctx->inductive_decl());
+    } else if (ctx->record_decl() != nullptr) {
+        return visitRecord_decl(ctx->record_decl());
+    } else if (ctx->typedef_()) {
+        return visitTypedef(ctx->typedef_());
+    } else if (ctx->section_begin()){
+        return visitSection_begin(ctx->section_begin());
+    } else if (ctx->section_end()) {
+        return visitSection_end(ctx->section_end());
+    } else {
+        throw std::runtime_error("Unknown statement");
+    }
+
+    return std::any();
+}
+
 antlrcpp::Any LightProgramVisitor::visitDef(SpecParser::DefContext* ctx) {
     string name = ctx->name()->getText();
     auto expr = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr(ctx->expr())));
@@ -189,6 +217,78 @@ antlrcpp::Any LightProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx)
     }
 
     return visitTerm(ctx->term(0));
+}
+
+// Always return a shared_ptr<SpecType>
+antlrcpp::Any LightProgramVisitor::visitType(SpecParser::TypeContext* ctx) {
+    if (ctx->par) {
+        return visit(ctx->type(0));
+    } else if (ctx->Z_type) {
+        return static_pointer_cast<SpecType>(Int::INT);
+    } else if (ctx->bool_type) {
+        return static_pointer_cast<SpecType>(Bool::BOOL);
+    } else if (ctx->str_type) {
+        return static_pointer_cast<SpecType>(String::STRING);
+    } else if (ctx->type_type) {
+        return static_pointer_cast<SpecType>(Type::TYPE);
+    } else if (ctx->prop_type) {
+        return static_pointer_cast<SpecType>(Prop::PROP);
+    } else if (ctx->list_type) {
+        return static_pointer_cast<SpecType>(make_shared<List>(any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)))));
+    } else if (ctx->option_type) {
+        auto type = any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)));
+        return static_pointer_cast<SpecType>(make_shared<Option>(type));
+    } else if (ctx->domain) {
+        auto domain = any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)));
+        auto curried_type = any_cast<shared_ptr<SpecType>>(visitType(ctx->type(1)));
+        auto args = make_shared<std::vector<shared_ptr<SpecType>>>();
+
+        args->push_back(shared_ptr<SpecType>(domain));
+
+        if (curried_type && dynamic_cast<Function*>(curried_type.get()) != nullptr) {
+            shared_ptr<Function> curried_type_func = dynamic_pointer_cast<Function>(curried_type);
+
+            // push back all the arguments of curried_type_func
+            for (auto arg : *curried_type_func->args) {
+                args->push_back(arg);
+            }
+
+            return static_pointer_cast<SpecType>(make_shared<Function>(curried_type_func->rettype, args));
+        } else {
+            return static_pointer_cast<SpecType>(make_shared<Function>(std::shared_ptr<SpecType>(curried_type), args));
+        }
+    } else if (ctx->tup) {
+        auto types = make_shared<vector<shared_ptr<SpecType>>>();
+
+        for (auto type : ctx->type()) {
+            types->push_back(any_cast<shared_ptr<SpecType>>(visitType(type)));
+        }
+
+        return static_pointer_cast<SpecType>(make_shared<Tuple>(types));
+    } else if (ctx->map_type) {
+        return static_pointer_cast<SpecType>(make_shared<ZMap>(any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)))));
+    } else if (ctx->name()) {
+        std::string name = ctx->name()->getText();
+        LOG_DEBUG << "Visiting type: " << name;
+
+        // temp: don't use proj until finalize_project is ready
+        return make_shared<SpecType>(name);
+
+        autov::SymbolInfo &info = proj.symbols.at(name);
+
+        if (info.kind == autov::SymbolKind::Struct) {
+            return static_pointer_cast<SpecType>(proj.structs.at(name));
+        } else if (info.kind == autov::SymbolKind::IndType) {
+            return static_pointer_cast<SpecType>(proj.indtypes.at(name));
+        } else if (info.kind == autov::SymbolKind::TypeDef) {
+            return static_pointer_cast<SpecType>(proj.typedefs.at(name));
+        } else {
+            throw std::runtime_error("Unknown type " + name);
+        }
+    } else {
+        throw std::runtime_error("Unknown type");
+    }
+    return std::any();
 }
 
 

@@ -111,7 +111,6 @@ public:
 
     // These are used by LightProgramVisitor but implemented in ProgramVisitor:
 
-    // antlrcpp::Any visitStatement(SpecParser::StatementContext* ctx) override;
     // antlrcpp::Any visitInduct_arm(SpecParser::Induct_armContext* ctx) override;
     // antlrcpp::Any visitRecord_fields(SpecParser::Record_fieldsContext* ctx) override;
     // antlrcpp::Any visitTerm(SpecParser::TermContext* ctx) override;
@@ -131,12 +130,13 @@ public:
     // antlrcpp::Any visitBool(SpecParser::BoolContext* ctx) override;
     // antlrcpp::Any visitName(SpecParser::NameContext* ctx) override;
     // antlrcpp::Any visitVar_anno(SpecParser::Var_annoContext* ctx) override;
-    // antlrcpp::Any visitType(SpecParser::TypeContext* ctx) override;
+    antlrcpp::Any visitType(SpecParser::TypeContext* ctx) override;
 
 
     // These are redefined in LightProgramVisitor:
 
     antlrcpp::Any visitProgram(SpecParser::ProgramContext* ctx) override;
+    antlrcpp::Any visitStatement(SpecParser::StatementContext* ctx) override;
     antlrcpp::Any visitDef(SpecParser::DefContext* ctx) override;
     antlrcpp::Any visitDecl(SpecParser::DeclContext* ctx) override;
     antlrcpp::Any visitFixpoint(SpecParser::FixpointContext* ctx) override;
