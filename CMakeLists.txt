@@ -97,6 +97,8 @@ set(SOURCES
     src/AutoV/Spec/ir2spec.cpp
     src/AutoV/Spec/shortcuts.cpp
     # Add other source files here
+
+    src/AutoV/GenCoq/gen_code.cpp
 )
 
 # Specify the executable target and its source files
