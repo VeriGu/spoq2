@@ -105,7 +105,14 @@ antlrcpp::Any ProgramVisitor::visitTypedef(SpecParser::TypedefContext* ctx) {
 }
 
 antlrcpp::Any ProgramVisitor::visitCommand(SpecParser::CommandContext* ctx) {
-    // TODO: Implement this
+    auto s = any_cast<SpecNode *>(visitExpr(ctx->expr()));
+    auto expr = dynamic_cast<Expr *>(s);
+
+    if (expr == nullptr) {
+        return std::any();
+    }
+
+    proj.add_command(unique_ptr<Expr>(expr));
     return std::any();
 }
 

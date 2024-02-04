@@ -42,6 +42,7 @@ public:
     tuple<string, string, string> loc;
     unsigned long order;
 };
+
 class Project {
 public:
     static const string LOC_DATATYPES;
@@ -78,11 +79,11 @@ public:
     unordered_map<string, shared_ptr<SpecType>> typedefs;
     unordered_map<string, unique_ptr<Declaration>> decls;
     unordered_map<string, unique_ptr<Definition>> defs;
+    vector<unique_ptr<Expr>> axioms;
 
     unordered_map<string, SymbolInfo> symbols;
 
     unordered_map<string, string> includes;
-    vector<string> axioms;
     vector<unique_ptr<Layer>> layers;
 
     class cmds {
@@ -90,7 +91,7 @@ public:
         std::set<string> Unfold;
         std::set<string> NoUnfold;
         std::set<string> NoTrans;
-        std::map<string, unique_ptr<std::unordered_set<unique_ptr<SpecNode>>>> InitRely;
+        std::map<string, vector<unique_ptr<SpecNode>>> InitRely;
     };
     cmds cmds;
 

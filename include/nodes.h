@@ -134,11 +134,11 @@ private:
 
 class Const : public SpecNode {
 public:
-    std::variant<unsigned long, string, bool> value;
+    std::variant<long long, string, bool> value;
 
     Const() { throw std::invalid_argument("Const must have a value"); }
-    Const(const std::variant<unsigned long, string, bool>& value) : SpecNode(SpecType::UNKNOWN_TYPE), value(value) {}
-    Const(const std::variant<unsigned long, string, bool>& value, shared_ptr<SpecType> type)
+    Const(const std::variant<long long, string, bool>& value) : SpecNode(SpecType::UNKNOWN_TYPE), value(value) {}
+    Const(const std::variant<long long, string, bool>& value, shared_ptr<SpecType> type)
         : SpecNode(type), value(value) {}
 
     bool operator==(const SpecNode& other) const {
@@ -169,14 +169,14 @@ private:
     const string to_string() const {
         if (this->type == SpecType::UNKNOWN_TYPE) {
             throw std::invalid_argument("Const must have a type");
-        } else if (typeid(this->type) == typeid(Int)) {
-            return std::to_string(std::get<unsigned long>(this->value));
-        } else if (typeid(this->type) == typeid(String)) {
+        } else if (dynamic_cast<Int *>(this->type.get()) != nullptr) {
+            return std::to_string(std::get<long long>(this->value));
+        } else if (dynamic_cast<String *>(this->type.get()) != nullptr) {
             return "\"" + std::get<string>(this->value) + "\"";
-        } else if (typeid(this->type) == typeid(Bool)) {
+        } else if (dynamic_cast<Bool *>(this->type.get()) != nullptr) {
             return std::get<bool>(this->value) ? "true" : "false";
         } else {
-            throw std::invalid_argument("Const must have a valid type");
+            throw std::invalid_argument("Const must have invalid type: " + string(*this->type));
         }
     }
 };
@@ -184,13 +184,17 @@ private:
 class IntConst : public Const {
 public:
     IntConst() { throw std::invalid_argument("IntConst must have a value"); }
-    IntConst(unsigned long value) : Const(value, Int::INT) {}
+    IntConst(long long value) : Const(value, Int::INT) {}
     //IntConst(unsigned long value, SpecType type) : Const(value, type) {}
 
     ~IntConst() {}
 private:
     const string to_string() const {
-        return std::to_string(std::get<unsigned long>(this->value));
+        long long v = std::get<long long>(this->value);
+        if (v > -100 && v < 0) {
+            return "(" + std::to_string(v) + ")";
+        } else
+            return std::to_string((unsigned long long)v);
     }
 };
 
@@ -315,14 +319,12 @@ public:
     Expr(std::variant<unique_ptr<SpecNode>, ops, binops, string> op,
          unique_ptr<vector<unique_ptr<SpecNode>>> elems) :
         SpecNode(SpecType::UNKNOWN_TYPE), op(std::move(op)), elems(std::move(elems)) {
-            assert(!(std::holds_alternative<ops>(op) && std::get<ops>(op) == NEG));
             this->length = calc_length();
         }
     Expr(std::variant<unique_ptr<SpecNode>, ops, binops, string> op,
          unique_ptr<vector<unique_ptr<SpecNode>>> elems,
          shared_ptr<SpecType> type) :
         SpecNode(type), op(std::move(op)), elems(std::move(elems)) {
-            assert(holds_alternative<ops>(op) && std::get<ops>(op) != NEG);
             this->length = calc_length();
         }
 
@@ -353,6 +355,10 @@ public:
         // check if op is a string
         if (std::holds_alternative<string>(this->op)) {
             p = make_unique<Expr>(std::get<string>(this->op), std::move(new_elems), this->type);
+        } else if (std::holds_alternative<ops>(this->op)) {
+            p = make_unique<Expr>(std::get<ops>(this->op), std::move(new_elems), this->type);
+        } else if (std::holds_alternative<binops>(this->op)) {
+            p = make_unique<Expr>(std::get<binops>(this->op), std::move(new_elems), this->type);
         } else {
             p = make_unique<Expr>(std::get<unique_ptr<SpecNode>>(this->op)->deep_copy(),
                                           std::move(new_elems), this->type);
@@ -370,6 +376,10 @@ public:
         // check if op is a string
         if (std::holds_alternative<string>(this->op)) {
             return make_unique<Expr>(std::get<string>(this->op), std::move(new_elems), this->type);
+        } else if (std::holds_alternative<ops>(this->op)) {
+            return make_unique<Expr>(std::get<ops>(this->op), std::move(new_elems), this->type);
+        } else if (std::holds_alternative<binops>(this->op)) {
+            return make_unique<Expr>(std::get<binops>(this->op), std::move(new_elems), this->type);
         } else {
             return make_unique<Expr>(std::get<unique_ptr<SpecNode>>(this->op)->deep_copy(),
                                           std::move(new_elems), this->type);
@@ -387,6 +397,10 @@ public:
         // check if op is a string
         if (std::holds_alternative<string>(this->op)) {
             p = make_unique<Expr>(std::get<string>(this->op), std::move(new_elems), this->type);
+        } else if (std::holds_alternative<ops>(this->op)) {
+            p = make_unique<Expr>(std::get<ops>(this->op), std::move(new_elems), this->type);
+        } else if (std::holds_alternative<binops>(this->op)) {
+            p = make_unique<Expr>(std::get<binops>(this->op), std::move(new_elems), this->type);
         } else {
             p = make_unique<Expr>(std::get<unique_ptr<SpecNode>>(this->op)->deep_copy(),
                                           std::move(new_elems), this->type);
@@ -413,6 +427,7 @@ private:
 
         return length;
     }
+
 };
 
 class PatternMatch : public SpecNode {

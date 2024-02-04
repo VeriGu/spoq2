@@ -27,7 +27,7 @@ public:
 
     virtual string to_coq(void) const { return "UNKNOWN_TYPE"; }
     virtual coq_sz_t szof(void) const { return 0; }
-    virtual tuple<coq_sz_t, coq_sz_t> szof_verbose(void) const { return {0, 0}; }
+    virtual tuple<coq_sz_t, coq_sz_t> szof_verbose(void) const { return {this->szof(), (coq_sz_t)-1}; }
     virtual bool operator==(const IRType &other) const {
         if (typeid(*this) != typeid(other))
             return false;

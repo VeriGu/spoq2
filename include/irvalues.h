@@ -238,7 +238,7 @@ public:
         /* ULL overflow when type->szof == 8, handle separately */
         if (type->szof() < 8) {
             max = 1ULL << (type->szof() * 8);
-    
+
             if (this->val > max - std::min(256ULL, max / 32ULL)) {
 
                 /* val is about to turn negative */

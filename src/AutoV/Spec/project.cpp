@@ -1,6 +1,7 @@
 #include <project.h>
 #include <iostream>
 #include <post_process.h>
+#include <ir2spec.h>
 
 namespace autov {
 
@@ -95,7 +96,40 @@ void Project::add_layer(std::unique_ptr<Layer> layer) {
 }
 
 void Project::add_command(unique_ptr<Expr> cmd) {
-    // Implementation goes here
+    if (std::holds_alternative<string>(cmd->op)) {
+        string op_str = std::get<string>(cmd->op);
+
+        if (op_str == "Unfold") {
+            assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            this->cmds.Unfold.insert(s->text);
+        } else if (op_str == "NoUnfold") {
+            assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            this->cmds.NoUnfold.insert(s->text);
+        } else if (op_str == "NoTrans") {
+            assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            this->cmds.NoTrans.insert(s->text);
+        } else if (op_str == "InitRely") {
+            assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) &&
+                   dynamic_cast<Expr *>(cmd->elems->at(1).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            auto expr = dynamic_cast<Expr *>(cmd->elems->at(1).get());
+
+            cmd->elems->at(1).release();
+            this->cmds.InitRely[s->text].push_back(unique_ptr<Expr>(expr));
+        } else if (op_str == "Axiom") {
+            auto expr = dynamic_cast<Expr *>(cmd->elems->at(0).get());
+            assert(cmd->elems->size() == 1);
+            cmd->elems->at(0).release();
+            this->axioms.push_back(unique_ptr<Expr>(expr));
+        } else {
+            LOG_WARNING << "Unknown command " << op_str;
+        }
+    } else {
+        LOG_WARNING << "Unknown command" << string(*cmd);
+    }
 }
 
 void Project::add_command(unique_ptr<Expr> cmd, unique_ptr<Layer> layer) {
@@ -227,6 +261,18 @@ static std::set<string> get_prim_dependencies(const vector<unique_ptr<IRLoader::
     return deps;
 }
 
+static std::tuple<string, vector<unique_ptr<Definition>> *, vector<unique_ptr<Definition>> *>
+infer_spec_task(Project *proj, int layer_id, string fname) {
+    auto &L = proj->layers[layer_id];
+    vector<unique_ptr<Definition>> *low_specs;
+
+    if (proj->code->functions->find(fname) != proj->code->functions->end()) {
+        low_specs = ir_to_spec(proj, fname, L.get(), "_low");
+    }
+
+    return std::make_tuple(fname, low_specs, nullptr);
+}
+
 void Project::finalize_project()
 {
     std::set<string> loaded, deps;
@@ -266,6 +312,47 @@ void Project::finalize_project()
 
     deps.insert(this->layers[0]->prims.begin(), this->layers[0]->prims.end());
     this->layers[0]->prims.assign(deps.begin(), deps.end());
+
+    for (int i = 1; i < this->layers.size(); i++) {
+        auto &L = this->layers[i];
+
+        for (auto &p: L->prims) {
+            if (this->code->functions->at(p)->body == nullptr)
+                continue;
+
+            // if (p != "rtt_walk_lock_unlock")
+            //     continue;
+
+            auto [fname, low_specs, high_specs] = infer_spec_task(this, i, p);
+
+            std::string filename = "./low_test/" + fname + "Low.v";
+
+            std::remove(filename.c_str());
+
+            for (auto &low_spec: *low_specs) {
+                std::ofstream file(filename, std::ios::app);
+
+                if (!file) {
+                    throw std::runtime_error("Failed to open file " + filename);
+                }
+
+                file << string(*low_spec) << std::endl;
+
+                if (!file) {
+                    throw std::runtime_error("Failed to write to file " + filename);
+                }
+
+                file.close();
+
+                std::cout << "Inferred: " << filename << std::endl;
+            }
+            // if (low_specs != nullptr) {
+            //     for (auto &def: *low_specs) {
+            //         this->add_definition(std::move(def), make_shared<loc_t>(Project::LOC_LOWSPEC, "", ""));
+            //     }
+            // }
+        }
+    }
 
 }
 

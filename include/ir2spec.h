@@ -1,6 +1,7 @@
 #pragma once
 #include <irtypes.h>
 #include <values.h>
+#include <nodes.h>
 
 namespace autov {
 
@@ -19,6 +20,7 @@ using autov::Function;
 
 
 shared_ptr<SpecType> ir_type_to_spec(IRType* typ);
+vector<unique_ptr<Definition>>* ir_to_spec(Project *proj, string fname, Layer *layer, string suffix = "");
 
 
 }
