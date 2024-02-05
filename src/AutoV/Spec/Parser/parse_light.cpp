@@ -220,6 +220,7 @@ antlrcpp::Any LightProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx)
 }
 
 // Always return a shared_ptr<SpecType>
+// This is the same as ProgramVisitor::visitType. Implemented separately for debugging.
 antlrcpp::Any LightProgramVisitor::visitType(SpecParser::TypeContext* ctx) {
     if (ctx->par) {
         return visit(ctx->type(0));
@@ -272,7 +273,7 @@ antlrcpp::Any LightProgramVisitor::visitType(SpecParser::TypeContext* ctx) {
         LOG_DEBUG << "Visiting type: " << name;
 
         // temp: don't use proj until finalize_project is ready
-        return make_shared<SpecType>(name);
+        // return make_shared<SpecType>(name);
 
         autov::SymbolInfo &info = proj.symbols.at(name);
 
