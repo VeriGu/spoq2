@@ -99,6 +99,13 @@ set(SOURCES
     # Add other source files here
 
     src/AutoV/GenCoq/gen_code.cpp
+    src/AutoV/GenCoq/gen_data.cpp
+    src/AutoV/GenCoq/gen_high_proof.cpp
+    src/AutoV/GenCoq/gen_high_spec.cpp
+    src/AutoV/GenCoq/gen_low_proof.cpp
+    src/AutoV/GenCoq/gen_low_spec.cpp
+    src/AutoV/GenCoq/gen_layer.cpp
+    src/AutoV/GenCoq/gen_project.cpp
 )
 
 # Specify the executable target and its source files
