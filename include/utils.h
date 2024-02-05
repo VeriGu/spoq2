@@ -69,6 +69,40 @@ static string replace(string str, const string& from, const string& to) {
     return str;
 }
 
+template <template<typename...> class T>
+std::string join(T<std::string> initList, const std::string& separator = "\\", bool reverse = false)
+{
+    std::string s;
+
+    if(!reverse) {
+      for(const auto& i : initList)
+      {
+          if(s.empty())
+          {
+              s = i;
+          }
+          else
+          {
+              s += separator + i;
+          }
+      }
+    } else {
+      for(auto i = initList.rbegin(); i != initList.rend(); ++i) 
+      {
+          if(s.empty())
+          {
+              s = *i;
+          }
+          else
+          {
+              s += separator + *i;
+          }
+      }
+    }
+
+    return s;
+}
+
 //string join_elems_semi_colon(const vector<Arg> &elems);
 string join_elems_semi_colon(const vector<shared_ptr<Arg>> &elems);
 
