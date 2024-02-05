@@ -74,6 +74,7 @@ set(PARSER_SOURCES
     src/AutoV/Spec/Parser/SpecLexer.cpp
     src/AutoV/Spec/Parser/SpecParser.cpp
     src/AutoV/Spec/Parser/parse.cpp
+    src/AutoV/Spec/Parser/parse_light.cpp
 )
 # Build IRLoader as a shared library
 add_library(parser SHARED ${PARSER_SOURCES})
