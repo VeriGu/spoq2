@@ -97,6 +97,7 @@ set(SOURCES
     # src/AutoV/Spec/Parser/parse.cpp
     src/AutoV/Spec/ir2spec.cpp
     src/AutoV/Spec/shortcuts.cpp
+    src/AutoV/Spec/projection/rules.cpp
     # Add other source files here
 
     src/AutoV/GenCoq/gen_code.cpp

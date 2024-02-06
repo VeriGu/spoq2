@@ -29,7 +29,7 @@ shared_ptr<Struct> Struct::Ptr = make_shared<Struct>(
     "Ptr",
     make_shared<vector<shared_ptr<Arg>>>(
         std::initializer_list<shared_ptr<Arg>>{
-            make_shared<Arg>("pbase", make_shared<Int>()),
+            make_shared<Arg>("pbase", make_shared<String>()),
             make_shared<Arg>("poffset", make_shared<Int>())
         }
     )

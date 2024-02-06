@@ -631,6 +631,20 @@ public:
         return unique_ptr<Match>(raw_when(std::move(pattern), std::move(value), std::move(body)));
     }
 
+    static Match* raw_let(string name, unique_ptr<SpecNode> value, unique_ptr<SpecNode> body,
+                          shared_ptr<SpecType>typ = SpecType::UNKNOWN_TYPE) {
+        unique_ptr<PatternMatch> pm = make_unique<PatternMatch>(make_unique<Symbol>(name, typ), std::move(body));
+        unique_ptr<vector<unique_ptr<PatternMatch>>> match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
+
+        match_list->push_back(std::move(pm));
+
+        return new Match(std::move(value), std::move(match_list));
+    }
+
+    static unique_ptr<Match> let(string name, unique_ptr<SpecNode> value, unique_ptr<SpecNode> body) {
+        return unique_ptr<Match>(raw_let(name, std::move(value), std::move(body)));
+    }
+
 private:
     const string to_string() const;
 

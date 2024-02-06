@@ -2,6 +2,7 @@
 #include <iostream>
 #include <post_process.h>
 #include <ir2spec.h>
+#include <regex>
 
 namespace autov {
 
@@ -261,13 +262,39 @@ static std::set<string> get_prim_dependencies(const vector<unique_ptr<IRLoader::
     return deps;
 }
 
-static std::tuple<string, vector<unique_ptr<Definition>> *, vector<unique_ptr<Definition>> *>
+SpecNode *rule_unfold_specs(Project *proj, SpecNode *spec);
+
+static std::tuple<string, vector<Definition *> *, vector<unique_ptr<Definition>> *>
 infer_spec_task(Project *proj, int layer_id, string fname) {
     auto &L = proj->layers[layer_id];
-    vector<unique_ptr<Definition>> *low_specs;
+    vector<Definition *> *low_specs;
+    string low_name = fname + "_spec_low";
 
     if (proj->code->functions->find(fname) != proj->code->functions->end()) {
-        low_specs = ir_to_spec(proj, fname, L.get(), "_low");
+        if (proj->defs.find(low_name) == proj->defs.end()) {
+            low_specs = ir_to_spec(proj, fname, L.get(), "_low");
+            auto unfold_str = string(*rule_unfold_specs(proj, low_specs->at(0)->body.get()));
+
+            std::cout << "unfold:\n" << unfold_str << std::endl;
+        } else {
+            auto func = proj->code->functions->at(fname);
+            std::regex pattern(fname + "_loop\\d+_low");
+
+            func->types = make_unique<unordered_map<string, shared_ptr<SpecType>>>();
+            func->types->emplace("st", L->abs_data);
+            analyze_types(func->body.get(), func->types.get());
+
+            low_specs = new vector<Definition *>();
+
+            for (auto& pair : proj->defs) {
+                const std::string& spec_name = pair.first;
+                if (spec_name == fname + "_spec_low" || std::regex_match(spec_name, pattern)) {
+                    low_specs->push_back(std::move(pair.second.get()));
+                }
+            }
+        }
+    } else {
+        throw std::runtime_error("Function " + fname + " not found");
     }
 
     return std::make_tuple(fname, low_specs, nullptr);
@@ -324,7 +351,7 @@ void Project::finalize_project()
             //     continue;
 
             auto [fname, low_specs, high_specs] = infer_spec_task(this, i, p);
-
+#if 0
             std::string filename = "./low_test/" + fname + "Low.v";
 
             std::remove(filename.c_str());
@@ -346,6 +373,7 @@ void Project::finalize_project()
 
                 std::cout << "Inferred: " << filename << std::endl;
             }
+#endif
             // if (low_specs != nullptr) {
             //     for (auto &def: *low_specs) {
             //         this->add_definition(std::move(def), make_shared<loc_t>(Project::LOC_LOWSPEC, "", ""));
