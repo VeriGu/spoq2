@@ -262,6 +262,7 @@ static std::set<string> get_prim_dependencies(const vector<unique_ptr<IRLoader::
     return deps;
 }
 
+SpecNode *rule_unfold_specs(Project *proj, SpecNode *spec);
 
 static std::tuple<string, vector<Definition *> *, vector<unique_ptr<Definition>> *>
 infer_spec_task(Project *proj, int layer_id, string fname) {
@@ -272,6 +273,9 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
     if (proj->code->functions->find(fname) != proj->code->functions->end()) {
         if (proj->defs.find(low_name) == proj->defs.end()) {
             low_specs = ir_to_spec(proj, fname, L.get(), "_low");
+            auto unfold_str = string(*rule_unfold_specs(proj, low_specs->at(0)->body.get()));
+
+            std::cout << "unfold:\n" << unfold_str << std::endl;
         } else {
             auto func = proj->code->functions->at(fname);
             std::regex pattern(fname + "_loop\\d+_low");
