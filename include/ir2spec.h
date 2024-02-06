@@ -20,7 +20,8 @@ using autov::Function;
 
 
 shared_ptr<SpecType> ir_type_to_spec(IRType* typ);
-vector<unique_ptr<Definition>>* ir_to_spec(Project *proj, string fname, Layer *layer, string suffix = "");
-
+vector<Definition *>* ir_to_spec(Project *proj, string fname, Layer *layer, string suffix = "");
+template <typename T, template<typename...> class PtrType>
+void analyze_types(vector<PtrType<T>> *insts, unordered_map<string, shared_ptr<SpecType>> *types);
 
 }

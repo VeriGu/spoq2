@@ -56,10 +56,6 @@ static void get_input_output(CFunction *inst, std::set<string> &input, std::set<
 static void get_input_output(IRInst *inst, std::set<string> &input, std::set<string> &output);
 static void get_input_output(IRValue *inst, std::set<string> &input, std::set<string> &output);
 
-
-template <typename T, template<typename...> class PtrType>
-void analyze_types(vector<PtrType<T>> *insts, unordered_map<string, shared_ptr<SpecType>> *types);
-
 long load_store_typ(IRType *typ);
 
 unique_ptr<vector<unique_ptr<SpecNode>>> check_fun_ptr(Layer *l, vector<unique_ptr<IRInst>> *insts);
@@ -437,7 +433,7 @@ SpecNode *ir_op_to_spec(Layer *l, IRLoader::IRInst *inst, SpecNode *remain_spec)
 }
 
 SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<unique_ptr<IRInst>> *body,
-                           vector<unique_ptr<autov::Definition>> *defs, vector<string> *args, bool in_loop,
+                           vector<Definition *> *defs, vector<string> *args, bool in_loop,
                            bool final_return, string suffix, int start) {
     auto abs_data = Layer->abs_data;
     auto module = proj->code;
@@ -563,10 +559,10 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
                     i++;
                 }
                 wrapper_args->push_back(shared_ptr<Arg>(new Arg("st", (*types)["st"])));
-                defs->push_back(make_unique<Definition>(wrapped_name,
-                                                        shared_ptr<SpecType>(wrapper_ret),
-                                                        unique_ptr<vector<shared_ptr<Arg>>>(wrapper_args),
-                                                        unique_ptr<SpecNode>(wrapper_body)));
+                defs->push_back(new Definition(wrapped_name,
+                                               shared_ptr<SpecType>(wrapper_ret),
+                                               unique_ptr<vector<shared_ptr<Arg>>>(wrapper_args),
+                                               unique_ptr<SpecNode>(wrapper_body)));
             }
             auto args = new vector<unique_ptr<SpecNode>>();
             args->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, f->func.get(), relies)));
@@ -827,7 +823,6 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
             } else if(std::find(f->input->begin(), f->input->end(), a) != f->input->end()) {
                 loop_init->push_back(unique_ptr<SpecNode>(_name(a, types.get())));
             } else {
-                std::cout << "Loop arg: " << a << std::endl;
                 loop_init->push_back(unique_ptr<SpecNode>(default_val((*types)[a])));
             }
         }
@@ -904,7 +899,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
                 shared_ptr<SpecType>(option), unique_ptr<vector<shared_ptr<Arg>>>(args),
                 unique_ptr<SpecNode>(match));
 
-                defs->push_back(unique_ptr<Definition>(fixpoint));
+                defs->push_back(fixpoint);
             }
         }
 
@@ -914,11 +909,10 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
             for(auto a :*f->input)
                 args->push_back(shared_ptr<Arg>(new Arg(a, (*types)[a])));
 
-            defs->push_back(unique_ptr<Definition>(
-                new Definition(fname + "_loop" + loop_hash + "_rank",
-                               Int::INT,
-                               unique_ptr<vector<shared_ptr<Arg>>>(args),
-                               make_unique<IntConst>(0))));
+            defs->push_back(new Definition(fname + "_loop" + loop_hash + "_rank",
+                            Int::INT,
+                            unique_ptr<vector<shared_ptr<Arg>>>(args),
+                            make_unique<IntConst>(0)));
         }
 
         if (std::find(f->output->begin(), f->output->end(), "__break__") != f->output->end()) {
@@ -976,7 +970,7 @@ unique_ptr<vector<unique_ptr<SpecNode>>> check_fun_ptr(Layer *l, vector<unique_p
 }
 
   // suffix defaults to ""
-vector<unique_ptr<Definition>>* ir_to_spec(Project *proj, string fname, Layer *layer, string suffix) {
+vector<Definition *>* ir_to_spec(Project *proj, string fname, Layer *layer, string suffix) {
     auto abs_data = layer->abs_data;
     auto module = proj->code;
     auto func = (*module->functions)[fname];
@@ -990,7 +984,7 @@ vector<unique_ptr<Definition>>* ir_to_spec(Project *proj, string fname, Layer *l
 
     SpecType* rettype;
     auto *retval = new vector<string>();
-    auto *def = new vector<unique_ptr<SpecNode>>();
+    //auto *def = new vector<unique_ptr<SpecNode>>();
 
     if(dynamic_cast<TVoid *>(func->rettype.get()))
         rettype = new Option(abs_data);
@@ -1011,7 +1005,7 @@ vector<unique_ptr<Definition>>* ir_to_spec(Project *proj, string fname, Layer *l
     analyze_types(func->body.get(), types);
     func->types = unique_ptr<std::unordered_map<string, shared_ptr<SpecType>>>(types);
 
-    vector<unique_ptr<Definition>>* defs = new vector<unique_ptr<Definition>>();
+    vector<Definition *>* defs = new vector<Definition *>();
     SpecNode* body = ir_insts_to_spec(proj, layer, func->fname, func->body.get(), defs, retval, false, true, suffix, 0);
 
     if(proj->cmds.InitRely.find(fname) != proj->cmds.InitRely.end()) {
@@ -1029,10 +1023,10 @@ vector<unique_ptr<Definition>>* ir_to_spec(Project *proj, string fname, Layer *l
         body = _When(_st(abs_data), expr, body);
     }
 
-    defs->push_back(make_unique<Definition>(spec_name,
-                                            shared_ptr<SpecType>(rettype),
-                                            unique_ptr<vector<shared_ptr<Arg>>>(args),
-                                            unique_ptr<SpecNode>(body)));
+    defs->push_back(new Definition(spec_name,
+                                   shared_ptr<SpecType>(rettype),
+                                   unique_ptr<vector<shared_ptr<Arg>>>(args),
+                                   unique_ptr<SpecNode>(body)));
 
     return defs;
 }
