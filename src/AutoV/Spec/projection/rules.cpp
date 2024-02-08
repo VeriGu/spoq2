@@ -325,4 +325,125 @@ SpecNode *rule_unfold_specs(Project *proj, SpecNode *spec) {
 
     return rec_apply(spec, f);
 }
+
+SpecNode *rule_move_if_out_match(Project *proj, SpecNode *spec) {
+
+    std::function<SpecNode*(SpecNode*)> f = [](SpecNode *node) -> SpecNode* {
+        if (auto m = instance_of(node, Match))
+            if (auto src = instance_of(m->src.get(), If)) {
+                unique_ptr<Match> m1(static_cast<Match*>(m->deep_copy().release()));
+
+                return new If(std::move(src->cond),
+                                make_unique<Match>(std::move(src->then_body), std::move(m->match_list)),
+                                make_unique<Match>(std::move(src->else_body), std::move(m1->match_list)));
+            }
+
+        return node;
+    };
+
+    return rec_apply(spec, f, false);
 }
+
+SpecNode *rule_move_if_out_expr(Project *proj, SpecNode *spec) {
+
+    std::function<SpecNode*(SpecNode*)> f = [](SpecNode *node) -> SpecNode* {
+
+        if (auto e = instance_of(node, Expr)) {
+            for (size_t i = 0; i < e->elems->size(); i++) {
+                if (auto elem = instance_of(e->elems->at(i).get(), If)) {
+                    unique_ptr<Expr> e1 = e->deep_copy_down();
+                    unique_ptr<Expr> e2 = e->deep_copy_down();
+                    unique_ptr<vector<unique_ptr<SpecNode>>> elems1, elems2;
+
+                    for (size_t j = 0; j < e->elems->size(); j++) {
+                        if (j == i) {
+                            elems1->push_back(unique_ptr<SpecNode>(std::move(elem->then_body)));
+                            elems2->push_back(unique_ptr<SpecNode>(std::move(elem->else_body)));
+                        } else {
+                            elems1->push_back(unique_ptr<SpecNode>(std::move(e1->elems->at(j))));
+                            elems2->push_back(unique_ptr<SpecNode>(std::move(e2->elems->at(j))));
+                        }
+                    }
+
+                    return new If(std::move(elem->cond),
+                                  make_unique<Expr>(std::move(e1->op), std::move(elems1), e->type),
+                                  make_unique<Expr>(std::move(e2->op), std::move(elems2), e->type));
+                }
+            }
+        }
+
+        return node;
+    };
+
+    return rec_apply(spec, f, false);
+}
+
+SpecNode *rule_move_match_out_expr(Project *proj, SpecNode *spec) {
+
+    std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
+        if (auto e = instance_of(node, Expr)) {
+            for (size_t i = 0; i < e->elems->size(); i++) {
+                if (auto elem = instance_of(e->elems->at(i).get(), Match)) {
+                    bool movable = true;
+                    for (auto &pm : *elem->match_list) {
+                        std::set<string> vars;
+                        get_vars_from_pattern(proj, pm->pattern.get(), vars);
+                        for (size_t j = 0; j < e->elems->size(); j++) {
+                            if (j == i)
+                                continue;
+                            if (contains_vars(proj, e->elems->at(j).get(), vars)) {
+                                movable = false;
+                                break;
+                            }
+                        }
+                        if (!movable)
+                            break;
+                    }
+                    if (movable) {
+                        auto matches = make_unique<vector<unique_ptr<PatternMatch>>>();
+
+                        for (auto &pm : *elem->match_list) {
+                            auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                            for (size_t j = 0; j < e->elems->size(); j++) {
+                                if (j == i)
+                                    elems->push_back(std::move(pm->body));
+                                else
+                                    elems->push_back(e->elems->at(j)->deep_copy());
+                            }
+                            auto expr = make_unique<Expr>(std::move(e->op), std::move(elems), e->type);
+                            matches->push_back(make_unique<PatternMatch>(std::move(pm->pattern),
+                                                                         std::move(expr)));
+                        }
+                        return new Match(std::move(elem->src), std::move(matches));
+                    }
+                }
+            }
+        }
+        return node;   
+    };
+
+    return rec_apply(spec, f, false);
+}
+
+SpecNode *rule_move_rely_out_when(Project *proj, SpecNode *spec) {
+
+    std::function<SpecNode*(SpecNode*)> f = [](SpecNode *node) -> SpecNode* {
+        if (auto m = instance_of(node, Match)) {
+            if (auto r = instance_of(m->src.get(), Rely)) {
+                if (auto o = instance_of(m->type.get(), Option)) {
+                    for (auto &pm : *m->match_list) {
+                        if (static_cast<string>(*pm->pattern) == "None" && static_cast<string>(*pm->body) == "None")
+                            return new Rely(std::move(r->prop),
+                                            make_unique<Match>(std::move(r->body), std::move(m->match_list)));
+                    }
+                    return node;
+                }
+            }
+        }
+        return node;
+    };
+
+    return rec_apply(spec, f, false);
+}
+
+} // namespace autov
