@@ -440,7 +440,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
     auto func = (*module->functions)[fname];
     auto &types = func->types;
     auto relies = new vector<unique_ptr<SpecNode>>();
-    SpecNode* returns;
+    unique_ptr<SpecNode> returns;
 
     if(args->size() > 0) {
         vector<unique_ptr<SpecNode>> *name_args = new vector<unique_ptr<SpecNode>>();
@@ -450,9 +450,9 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         }
         name_args->push_back(unique_ptr<SpecNode>(_st(abs_data)));
 
-        returns = autov::_Some(_Tuple(name_args));
+        returns = unique_ptr<SpecNode>(_Some(_Tuple(name_args)));
     } else {
-        returns = _Some(_st(abs_data));
+        returns = unique_ptr<SpecNode>(_Some(_st(abs_data)));
     }
 
     if(func->alloca_vars.size() > 0 && final_return) {
@@ -462,13 +462,12 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         children->push_back(unique_ptr<SpecNode>(_init_st(abs_data)));
         children->push_back(unique_ptr<SpecNode>(_st(abs_data)));
 
-        returns = _When(_st(abs_data),
-                               new Expr(Layer->ops["free"], std::move(children)),
-                               returns);
+        returns = unique_ptr<SpecNode>(_When(_st(abs_data),
+                                       new Expr(Layer->ops["free"], std::move(children)), returns.release()));
     }
 
     if(body->size() <= start)
-        return returns;
+        return returns.release();
 
     auto &inst = body->at(start);
     auto remain_spec = ir_insts_to_spec(proj, Layer, fname, body, defs, args, in_loop, final_return, suffix, start + 1);
@@ -736,18 +735,18 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         if (in_loop) {
             if (std::find(f->output->begin(), f->output->end(), "__continue__") != f->output->end()) {
                 remain_spec = new If(unique_ptr<SpecNode>(_name("__continue__", types.get())),
-                                unique_ptr<SpecNode>(returns), unique_ptr<SpecNode>(remain_spec));
+                                unique_ptr<SpecNode>(returns->deep_copy()), unique_ptr<SpecNode>(remain_spec));
             }
 
             if (std::find(f->output->begin(), f->output->end(), "__break__") != f->output->end()) {
                 remain_spec = new If(unique_ptr<SpecNode>(_name("__break__", types.get())),
-                                unique_ptr<SpecNode>(returns), unique_ptr<SpecNode>(remain_spec));
+                                unique_ptr<SpecNode>(returns->deep_copy()), unique_ptr<SpecNode>(remain_spec));
             }
         }
 
         if (std::find(f->output->begin(), f->output->end(), "__return__") != f->output->end()) {
             remain_spec = new If(unique_ptr<SpecNode>(_name("__return__", types.get())),
-                            unique_ptr<SpecNode>(returns), unique_ptr<SpecNode>(remain_spec));
+                            unique_ptr<SpecNode>(returns->deep_copy()), unique_ptr<SpecNode>(remain_spec));
         }
 
         SpecNode* out;
@@ -843,19 +842,23 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
                     }
                 }
 
-                //need deep copy
-                auto loop_args_sub = new vector<unique_ptr<SpecNode>>();
-                for (auto it = loop_args->begin() + 1; it != loop_args->end(); it++) {
-                    loop_args_sub->push_back(std::move((*it)->deep_copy()));
-                }
-
                 if (std::find(f->loop_args->begin(), f->loop_args->end(), "__return__") != f->loop_args->end()) {
+                    auto loop_args_sub = new vector<unique_ptr<SpecNode>>();
+
+                    for (auto it = loop_args->begin() + 1; it != loop_args->end(); it++) {
+                        loop_args_sub->push_back((*it)->deep_copy());
+                    }
                     iteration_body = new If(unique_ptr<SpecNode>(_name("__return__", types.get())),
                                             unique_ptr<SpecNode>(_Some(_Tuple(loop_args_sub))),
                                             unique_ptr<SpecNode>(iteration_body));
                 }
 
                 if (std::find(f->loop_args->begin(), f->loop_args->end(), "__break__") != f->loop_args->end()) {
+                    auto loop_args_sub = new vector<unique_ptr<SpecNode>>();
+
+                    for (auto it = loop_args->begin() + 1; it != loop_args->end(); it++) {
+                        loop_args_sub->push_back(std::move((*it)->deep_copy()));
+                    }
                     iteration_body = new If(unique_ptr<SpecNode>(_name("__break__", types.get())),
                                             unique_ptr<SpecNode>(_Some(_Tuple(loop_args_sub))),
                                             unique_ptr<SpecNode>(iteration_body));
@@ -864,7 +867,15 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
                 auto loop_body_args = make_unique<vector<unique_ptr<SpecNode>>>();
                 for (auto &a: *loop_args)
                     loop_body_args->push_back(std::move(a->deep_copy()));
-                auto loop_body = _When(_Tuple(loop_args_sub),
+
+                auto loop_args_sub_body = new vector<unique_ptr<SpecNode>>();
+                auto loop_args_sub_O = new vector<unique_ptr<SpecNode>>();
+
+                for (auto it = loop_args->begin() + 1; it != loop_args->end(); it++) {
+                    loop_args_sub_body->push_back((*it)->deep_copy());
+                    loop_args_sub_O->push_back((*it)->deep_copy());
+                }
+                auto loop_body = _When(_Tuple(loop_args_sub_body),
                                        new Expr(fname + "_loop" + loop_hash + suffix, std::move(loop_body_args)),
                                        iteration_body);
 
@@ -886,18 +897,14 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
                 auto scase = new vector<unique_ptr<SpecNode>>();
                 scase->push_back(unique_ptr<SpecNode>(new Symbol("_N_")));
 
-                patterns->push_back(
-                    unique_ptr<PatternMatch>(
-                    new PatternMatch(unique_ptr<SpecNode>(_name("O", types.get())), unique_ptr<SpecNode>(_Some(_Tuple(loop_args_sub)))))); 
-                patterns->push_back(
-                    unique_ptr<PatternMatch>(
-                    new PatternMatch(unique_ptr<SpecNode>(new Expr("S", unique_ptr<vector<unique_ptr<SpecNode>>>(scase))), unique_ptr<SpecNode>(loop_body)))
-                    );
+                patterns->push_back(make_unique<PatternMatch>(unique_ptr<SpecNode>(_name("O", types.get())),
+                                                              unique_ptr<SpecNode>(_Some(_Tuple(loop_args_sub_O)))));
+                patterns->push_back(make_unique<PatternMatch>(make_unique<Expr>("S", unique_ptr<vector<unique_ptr<SpecNode>>>(scase)), unique_ptr<SpecNode>(loop_body)));
 
                 auto match = new Match(unique_ptr<SpecNode>(_name("_N_", types.get())), unique_ptr<vector<unique_ptr<PatternMatch>>>(patterns));
                 auto fixpoint = new Fixpoint(fname + "_loop" + loop_hash + suffix,
-                shared_ptr<SpecType>(option), unique_ptr<vector<shared_ptr<Arg>>>(args),
-                unique_ptr<SpecNode>(match));
+                                             shared_ptr<SpecType>(option), unique_ptr<vector<shared_ptr<Arg>>>(args),
+                                             unique_ptr<SpecNode>(match));
 
                 defs->push_back(fixpoint);
             }
@@ -922,7 +929,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
 
         if (std::find(f->output->begin(), f->output->end(), "__return__") != f->output->end()) {
             remain_spec = new If(unique_ptr<SpecNode>(_name("__return__", types.get())),
-                                 unique_ptr<SpecNode>(returns), unique_ptr<SpecNode>(remain_spec));
+                                 unique_ptr<SpecNode>(returns->deep_copy()), unique_ptr<SpecNode>(remain_spec));
         }
 
         auto prop_elems = new vector<unique_ptr<SpecNode>>();
@@ -937,10 +944,10 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         auto prop = new Expr(Expr::binops::GTE, unique_ptr<vector<unique_ptr<SpecNode>>>(prop_elems));
         auto loop_args_sub = new vector<unique_ptr<SpecNode>>();
         for (auto it = loop_args->begin() + 1; it != loop_args->end(); it++)
-            loop_args_sub->push_back(std::move((*it)->deep_copy()));
+            loop_args_sub->push_back((*it)->deep_copy());
 
         auto spec = _When(_Tuple(loop_args_sub),
-        new Expr(fname + "_loop" + loop_hash + suffix, std::move(loop_init)), remain_spec);
+                          new Expr(fname + "_loop" + loop_hash + suffix, std::move(loop_init)), remain_spec);
 
         return new Rely(unique_ptr<SpecNode>(prop), unique_ptr<SpecNode>(spec));
     }  else if(auto f = dynamic_cast<IRLoader::IInsertValue*>(inst.get())) {
