@@ -106,11 +106,13 @@ SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f, bool 
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
         for (auto &elem : *e->elems)
-            elems->push_back(unique_ptr<SpecNode>(rec_apply(elem.get(), f, apply_anno)));
+            elems->push_back(unique_ptr<SpecNode>(rec_apply(elem.release(), f, apply_anno)));
+
+        e->elems.release();
         return std::visit([&](auto&& arg) -> SpecNode* {
             using T = std::decay_t<decltype(arg)>;
             if constexpr (std::is_same_v<T, std::unique_ptr<SpecNode>>) {
-                auto op = arg.get();
+                auto op = arg.release();
                 auto new_op = std::unique_ptr<SpecNode>(rec_apply(op, f, apply_anno));
                 return f(new Expr(std::move(new_op), std::move(elems), e->type));
             } else {
@@ -118,30 +120,34 @@ SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f, bool 
             }
         }, e->op);
     } else if (auto m = instance_of(spec, Match)) {
-        auto src = rec_apply(m->src.get(), f, apply_anno);
+        auto src = rec_apply(m->src.release(), f, apply_anno);
         auto matches = make_unique<vector<unique_ptr<PatternMatch>>>();
 
-        for (auto &pm : *m->match_list)
+        for (auto &pm : *m->match_list) {
             matches->push_back(make_unique<PatternMatch>(pm->pattern->deep_copy(),
-                                                         unique_ptr<SpecNode>(rec_apply(pm->body.get(), f, apply_anno))));
+                                                         unique_ptr<SpecNode>(rec_apply(pm->body.release(),
+                                                                                        f,
+                                                                                        apply_anno))));
+        }
 
         return f(new Match(unique_ptr<SpecNode>(src), std::move(matches)));
     } else if (auto r = instance_of(spec, Rely)) {
-        return f(new Rely(unique_ptr<SpecNode>(rec_apply(r->prop.get(), f, apply_anno)),
-                          unique_ptr<SpecNode>(rec_apply(r->body.get(), f, apply_anno))));
+        return f(new Rely(unique_ptr<SpecNode>(rec_apply(r->prop.release(), f, apply_anno)),
+                          unique_ptr<SpecNode>(rec_apply(r->body.release(), f, apply_anno))));
     } else if (auto r = instance_of(spec, Anno)) {
-        return f(new Anno(unique_ptr<SpecNode>(rec_apply(r->prop.get(), f, apply_anno)),
-                        unique_ptr<SpecNode>(rec_apply(r->body.get(), f, apply_anno))));
+        return f(new Anno(unique_ptr<SpecNode>(rec_apply(r->prop.release(), f, apply_anno)),
+                        unique_ptr<SpecNode>(rec_apply(r->body.release(), f, apply_anno))));
     } else if (auto i = instance_of(spec, If)) {
-        return f(new If(unique_ptr<SpecNode>(rec_apply(i->cond.get(), f, apply_anno)),
-                      unique_ptr<SpecNode>(rec_apply(i->then_body.get(), f, apply_anno)),
-                      unique_ptr<SpecNode>(rec_apply(i->else_body.get(), f, apply_anno))));
+        std::cout << "i->cond: " << string(*i->cond) << std::endl;
+        return f(new If(unique_ptr<SpecNode>(rec_apply(i->cond.release(), f, apply_anno)),
+                      unique_ptr<SpecNode>(rec_apply(i->then_body.release(), f, apply_anno)),
+                      unique_ptr<SpecNode>(rec_apply(i->else_body.release(), f, apply_anno))));
     } else if (auto fe = instance_of(spec, Forall)) {
         return f(new Forall(make_unique<vector<shared_ptr<Arg>>>(*fe->vars),
-                          unique_ptr<SpecNode>(rec_apply(fe->body.get(), f, apply_anno))));
+                          unique_ptr<SpecNode>(rec_apply(fe->body.release(), f, apply_anno))));
     } else if (auto fe = instance_of(spec, Exists)) {
         return f(new Exists(make_unique<vector<shared_ptr<Arg>>>(*fe->vars),
-                          unique_ptr<SpecNode>(rec_apply(fe->body.get(), f, apply_anno))));
+                          unique_ptr<SpecNode>(rec_apply(fe->body.release(), f, apply_anno))));
     } else
         throw std::runtime_error("Unknown SpecNode type: " + string(*spec->get_type()));
 
@@ -209,7 +215,8 @@ SpecNode *subst_expr(Project *proj, SpecNode *spec, SpecNode *expr, SpecNode *va
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
         for (auto &elem : *e->elems)
-            elems->push_back(unique_ptr<SpecNode>(subst_expr(proj, elem.get(), expr, var)));
+            elems->push_back(unique_ptr<SpecNode>(subst_expr(proj, elem.release(), expr, var)));
+        e->elems.release();
         return std::visit([&](auto&& arg) -> Expr* {
             using T = std::decay_t<decltype(arg)>;
             if constexpr (std::is_same_v<T, std::unique_ptr<SpecNode>>) {
@@ -221,7 +228,7 @@ SpecNode *subst_expr(Project *proj, SpecNode *spec, SpecNode *expr, SpecNode *va
             }
         }, e->op);
     } else if (auto m = instance_of(spec, Match)) {
-        auto src = subst_expr(proj, m->src.get(), expr, var);
+        auto src = subst_expr(proj, m->src.release(), expr, var);
         auto matches = make_unique<vector<unique_ptr<PatternMatch>>>();
 
         for (auto &pm : *m->match_list) {
@@ -231,19 +238,19 @@ SpecNode *subst_expr(Project *proj, SpecNode *spec, SpecNode *expr, SpecNode *va
                 matches->push_back(pm->deep_copy_down());
             else
                 matches->push_back(make_unique<PatternMatch>(pm->pattern->deep_copy(),
-                                                             unique_ptr<SpecNode>(subst_expr(proj, pm->body.get(), expr, var))));
+                                                             unique_ptr<SpecNode>(subst_expr(proj, pm->body.release(), expr, var))));
         }
         return new Match(unique_ptr<SpecNode>(src), std::move(matches));
     } else if (auto r = instance_of(spec, Rely)) {
-        return new Rely(unique_ptr<SpecNode>(subst_expr(proj, r->prop.get(), expr, var)),
-                        unique_ptr<SpecNode>(subst_expr(proj, r->body.get(), expr, var)));
+        return new Rely(unique_ptr<SpecNode>(subst_expr(proj, r->prop.release(), expr, var)),
+                        unique_ptr<SpecNode>(subst_expr(proj, r->body.release(), expr, var)));
     } else if (auto r = instance_of(spec, Anno)) {
-        return new Anno(unique_ptr<SpecNode>(subst_expr(proj, r->prop.get(), expr, var)),
-                        unique_ptr<SpecNode>(subst_expr(proj, r->body.get(), expr, var)));
+        return new Anno(unique_ptr<SpecNode>(subst_expr(proj, r->prop.release(), expr, var)),
+                        unique_ptr<SpecNode>(subst_expr(proj, r->body.release(), expr, var)));
     } else if (auto i = instance_of(spec, If)) {
-        return new If(unique_ptr<SpecNode>(subst_expr(proj, i->cond.get(), expr, var)),
-                      unique_ptr<SpecNode>(subst_expr(proj, i->then_body.get(), expr, var)),
-                      unique_ptr<SpecNode>(subst_expr(proj, i->else_body.get(), expr, var)));
+        return new If(unique_ptr<SpecNode>(subst_expr(proj, i->cond.release(), expr, var)),
+                      unique_ptr<SpecNode>(subst_expr(proj, i->then_body.release(), expr, var)),
+                      unique_ptr<SpecNode>(subst_expr(proj, i->else_body.release(), expr, var)));
     } else if (auto fe = instance_of(spec, Forall)) {
         auto free_vars = std::set<string>();
 
@@ -252,7 +259,7 @@ SpecNode *subst_expr(Project *proj, SpecNode *spec, SpecNode *expr, SpecNode *va
         if (contains_vars(proj, expr, free_vars))
             return spec;
         return new Forall(make_unique<vector<shared_ptr<Arg>>>(*fe->vars),
-                          unique_ptr<SpecNode>(subst_expr(proj, fe->body.get(), expr, var)));
+                          unique_ptr<SpecNode>(subst_expr(proj, fe->body.release(), expr, var)));
     } else if (auto fe = instance_of(spec, Exists)) {
     } else if (auto fe = instance_of(spec, Forall)) {
         auto free_vars = std::set<string>();
@@ -263,7 +270,7 @@ SpecNode *subst_expr(Project *proj, SpecNode *spec, SpecNode *expr, SpecNode *va
         if (contains_vars(proj, expr, free_vars))
             return spec;
         return new Forall(make_unique<vector<shared_ptr<Arg>>>(*fe->vars),
-                          unique_ptr<SpecNode>(subst_expr(proj, fe->body.get(), expr, var)));
+                          unique_ptr<SpecNode>(subst_expr(proj, fe->body.release(), expr, var)));
     }
     return spec;
 }
