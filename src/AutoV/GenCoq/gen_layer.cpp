@@ -236,6 +236,7 @@ void gen_layer(Project* proj, int i, string path) {
   }
   out <<  "    |}.\n\n";
   out << "End " + layer->name + "_Layer.\n";
+  out.close();
 }
 
 unique_ptr<vector<string>> generate_layer(Project *proj) {

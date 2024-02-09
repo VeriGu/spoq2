@@ -453,4 +453,88 @@ SpecNode *rule_move_rely_out_when(Project *proj, SpecNode *spec) {
     return rec_apply(spec, f, false);
 }
 
+//try to match [pattern] with [src], return true if match success, and [assign] will be
+//filled with the matched variables, return [default] if not sure.
+bool try_match(Project *proj, SpecNode *pattern, unique_ptr<SpecNode> &src, std::unordered_map<string, unique_ptr<SpecNode>> &assigns, bool def) {
+    if(auto p = instance_of(pattern, autov::Const)) {
+        if(auto s = instance_of(src.get(), autov::Const)) {
+            return p->value == s->value;
+        }
+    }
+    string patter_constr, src_constr;
+    if(auto p = instance_of(pattern, Symbol)) {
+        patter_constr = p->text;
+    } else if(auto p = instance_of(pattern, Expr)) {
+        if(holds_alternative<string>(p->op)) {
+            patter_constr = std::get<string>(p->op);
+        }
+    }
+
+    if(auto p = instance_of(src.get(), Symbol)) {
+        src_constr = p->text;
+    } else if(auto p = instance_of(src.get(), Expr)) {
+        if(holds_alternative<string>(p->op)) {
+            src_constr = std::get<string>(p->op);
+        }
+    }
+
+    if(patter_constr != "" && src_constr != "" && (proj->is_ind_constr(patter_constr) || proj->is_struct_constr(patter_constr))
+    && (proj->is_ind_constr(src_constr) || proj->is_struct_constr(src_constr))) {
+        if(patter_constr != src_constr)
+            return false;
+        else {
+            if(is_instance(pattern, Symbol) && is_instance(src.get(), Symbol))
+                return true;
+            else {
+                if (auto p = instance_of(pattern, Expr)) {
+                    if(auto s = instance_of(src.get(), Expr)) {
+                        for(int i = 0; i < p->elems->size(); ++i) {
+                            if(!try_match(proj, p->elems->at(i).get(), s->elems->at(i), assigns, def))
+                                return false;
+                        }
+                        return true;
+                    }
+                }
+            }
+        }
+    } 
+
+    if(auto p = instance_of(pattern, Symbol)) {
+        if(!proj->is_known_symbol(p->text)) {
+            assigns[p->text] = std::move(src);
+        }
+    }
+
+    return def;
+}
+
+SpecNode *rule_eliminate_match_simple(Project *proj, SpecNode *spec) {
+    std::function<SpecNode*(SpecNode*)> f = [proj] (SpecNode *node) -> SpecNode* {
+        if(auto m = instance_of(node, Match)) {
+            auto possible = false;
+            for(int i = 0; i < m->match_list->size(); ++i) {
+                std::unordered_map<string, unique_ptr<SpecNode>> assigns;
+                if(try_match(proj, m->match_list->at(i)->pattern.get(), m->src, assigns, true)) {
+                    possible = true;
+                    assigns.clear();
+                    if(try_match(proj, m->match_list->at(i)->pattern.get(), m->src, assigns, true)) {
+                        unique_ptr<SpecNode> new_body = std::move(m->match_list->at(i)->body);
+                        for(auto & [k,v] : assigns) {
+                            new_body = Match::let(k, std::move(v), std::move(new_body));
+                        }
+                    }
+                }
+                if(possible)
+                    break;
+            }
+            return node;
+        } else {
+            return node;
+        }
+    };
+
+    return rec_apply(spec, f, false);
+}
+
+
 } // namespace autov
