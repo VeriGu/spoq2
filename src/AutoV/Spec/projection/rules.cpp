@@ -455,9 +455,9 @@ SpecNode *rule_move_rely_out_when(Project *proj, SpecNode *spec) {
 
 //try to match [pattern] with [src], return true if match success, and [assign] will be
 //filled with the matched variables, return [default] if not sure.
-bool try_match(Project *proj, SpecNode *pattern, unique_ptr<SpecNode> &src, std::unordered_map<string, unique_ptr<SpecNode>> &assigns, bool def) {
+bool try_match(Project *proj, SpecNode *pattern, SpecNode *src, std::unordered_map<string, unique_ptr<SpecNode>> &assigns, bool def) {
     if(auto p = instance_of(pattern, autov::Const)) {
-        if(auto s = instance_of(src.get(), autov::Const)) {
+        if(auto s = instance_of(src, autov::Const)) {
             return p->value == s->value;
         }
     }
@@ -470,9 +470,9 @@ bool try_match(Project *proj, SpecNode *pattern, unique_ptr<SpecNode> &src, std:
         }
     }
 
-    if(auto p = instance_of(src.get(), Symbol)) {
+    if(auto p = instance_of(src, Symbol)) {
         src_constr = p->text;
-    } else if(auto p = instance_of(src.get(), Expr)) {
+    } else if(auto p = instance_of(src, Expr)) {
         if(holds_alternative<string>(p->op)) {
             src_constr = std::get<string>(p->op);
         }
@@ -483,13 +483,13 @@ bool try_match(Project *proj, SpecNode *pattern, unique_ptr<SpecNode> &src, std:
         if(patter_constr != src_constr)
             return false;
         else {
-            if(is_instance(pattern, Symbol) && is_instance(src.get(), Symbol))
+            if(is_instance(pattern, Symbol) && is_instance(src, Symbol))
                 return true;
             else {
                 if (auto p = instance_of(pattern, Expr)) {
-                    if(auto s = instance_of(src.get(), Expr)) {
+                    if(auto s = instance_of(src, Expr)) {
                         for(int i = 0; i < p->elems->size(); ++i) {
-                            if(!try_match(proj, p->elems->at(i).get(), s->elems->at(i), assigns, def))
+                            if(!try_match(proj, p->elems->at(i).get(), s->elems->at(i).get(), assigns, def))
                                 return false;
                         }
                         return true;
@@ -501,7 +501,7 @@ bool try_match(Project *proj, SpecNode *pattern, unique_ptr<SpecNode> &src, std:
 
     if(auto p = instance_of(pattern, Symbol)) {
         if(!proj->is_known_symbol(p->text)) {
-            assigns[p->text] = std::move(src);
+            assigns[p->text] = src->deep_copy();
         }
     }
 
@@ -509,19 +509,20 @@ bool try_match(Project *proj, SpecNode *pattern, unique_ptr<SpecNode> &src, std:
 }
 
 SpecNode *rule_eliminate_match_simple(Project *proj, SpecNode *spec) {
-    std::function<SpecNode*(SpecNode*)> f = [proj] (SpecNode *node) -> SpecNode* {
+    std::function<SpecNode*(SpecNode*)> f = [&] (SpecNode *node) -> SpecNode* {
         if(auto m = instance_of(node, Match)) {
             auto possible = false;
             for(int i = 0; i < m->match_list->size(); ++i) {
                 std::unordered_map<string, unique_ptr<SpecNode>> assigns;
-                if(try_match(proj, m->match_list->at(i)->pattern.get(), m->src, assigns, true)) {
+                if(try_match(proj, m->match_list->at(i)->pattern.get(), m->src.get(), assigns, true)) {
                     possible = true;
                     assigns.clear();
-                    if(try_match(proj, m->match_list->at(i)->pattern.get(), m->src, assigns, true)) {
+                    if(try_match(proj, m->match_list->at(i)->pattern.get(), m->src.get(), assigns, false)) {
                         unique_ptr<SpecNode> new_body = std::move(m->match_list->at(i)->body);
                         for(auto & [k,v] : assigns) {
-                            new_body = Match::let(k, std::move(v), std::move(new_body));
+                            new_body = Match::let(k, std::move(v), std::move(new_body), v->get_type());
                         }
+                        return new_body.release();
                     }
                 }
                 if(possible)
@@ -531,6 +532,29 @@ SpecNode *rule_eliminate_match_simple(Project *proj, SpecNode *spec) {
         } else {
             return node;
         }
+    };
+
+    return rec_apply(spec, f, false);
+}
+
+SpecNode *rule_subst_match_src_with_content(Project *proj, SpecNode *spec) {
+    std::function<SpecNode*(SpecNode*)> f = [&] (SpecNode *node) -> SpecNode* {
+        if(auto s = instance_of(node, Match)) {
+            unique_ptr<vector<unique_ptr<PatternMatch>>> matches = make_unique<vector<unique_ptr<PatternMatch>>>();
+            for (auto & pm : *s->match_list) {
+                std::set<string> vars;
+                get_vars_from_pattern(proj, pm->pattern.get(), vars);
+                if(!contains_vars(proj, s->src.get(), vars)) {
+                    //pattern will be deep copyed in subst_expr
+                    auto body = subst_expr(proj, pm->body.release(), s->src.get(), pm->pattern.get());
+                    matches->push_back(make_unique<PatternMatch>(std::move(pm->pattern), unique_ptr<SpecNode>(body)));
+                } else {
+                    matches->push_back(std::move(pm));
+                }
+            }
+            return new Match(std::move(s->src), std::move(matches));
+        }
+        return node;
     };
 
     return rec_apply(spec, f, false);

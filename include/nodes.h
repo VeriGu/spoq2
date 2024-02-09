@@ -641,8 +641,8 @@ public:
         return new Match(std::move(value), std::move(match_list));
     }
 
-    static unique_ptr<Match> let(string name, unique_ptr<SpecNode> value, unique_ptr<SpecNode> body) {
-        return unique_ptr<Match>(raw_let(name, std::move(value), std::move(body)));
+    static unique_ptr<Match> let(string name, unique_ptr<SpecNode> value, unique_ptr<SpecNode> body, shared_ptr<SpecType>typ = SpecType::UNKNOWN_TYPE) {
+        return unique_ptr<Match>(raw_let(name, std::move(value), std::move(body), typ));
     }
 
 private:
