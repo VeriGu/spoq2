@@ -618,4 +618,107 @@ SpecNode *rule_subst_match_src_with_content(Project *proj, SpecNode *spec) {
 }
 
 
+SpecNode* rule_simple_builtin_functions(Project* proj, SpecNode *spec){
+    std::function<SpecNode*(SpecNode*)> f = [] (SpecNode *node) -> SpecNode* {
+        if(auto s = instance_of(node, Expr)) {
+            if(holds_alternative<string>(s->op) && std::get<string>(s->op) == "ptr_to_int") {
+                if(auto e = instance_of(s->elems->at(0).get(), Expr)) {
+                    if(holds_alternative<string>(e->op) && std::get<string>(e->op) == "int_to_ptr") {
+                        return e->elems->at(0).release();
+                    }
+                }
+            }
+        }
+
+        if(auto s = instance_of(node, Expr)) {
+            if(holds_alternative<string>(s->op) && std::get<string>(s->op) == "int_to_ptr") {
+                if(auto e = instance_of(s->elems->at(0).get(), Expr)) {
+                    if(holds_alternative<string>(e->op) && std::get<string>(e->op) == "ptr_to_int") {
+                        return e->elems->at(0).release();
+                    }
+                }
+            }
+        }
+
+        return node;
+    };
+
+    return rec_apply(spec, f, false);
+}
+
+
+SpecNode* rule_eliminate_when(Project *proj, SpecNode *spec) {
+     std::function<SpecNode*(SpecNode*)> f = [] (SpecNode *node) -> SpecNode* {
+        SpecNode* src;
+        SpecNode* when_body;
+        if(auto m = instance_of(node, Match)) {
+            if(m->is_when()) {
+                src = m->src.get();
+                auto pattern = dynamic_cast<Expr*>(m->match_list->at(0)->pattern.get());
+                when_body = m->match_list->at(0)->body.get();
+                std::function<SpecNode*(SpecNode*)> subst_when = [&] (SpecNode *node) -> SpecNode* {
+                    if(auto m = instance_of(node, Symbol)) {
+                        if(m->text == "None") {
+                            return new Symbol("None", when_body->get_type());
+                        } else {
+                            return nullptr;
+                        }
+                    } else if(auto m = instance_of(node, Expr)) {
+                        if(holds_alternative<Expr::ops>(m->op) && std::get<Expr::ops>(m->op) == Expr::ops::Some) {
+                            auto vec = make_unique<vector<unique_ptr<PatternMatch>>>();
+                            vec->push_back(make_unique<PatternMatch>(std::move(pattern->elems->at(0)), when_body->deep_copy()));
+                            return new Match(std::move(m->elems->at(0)), std::move(vec));
+                        }
+                        return nullptr;
+                    } else if(auto m = instance_of(node, Match)) {
+                        auto vec = make_unique<vector<unique_ptr<PatternMatch>>>();
+                        for(auto & pm : *m->match_list) {
+                            auto subst_body = subst_when(pm->body.get());
+                            if(subst_body == nullptr) {
+                                return nullptr;
+                            }
+                            vec->push_back(unique_ptr<PatternMatch>(new PatternMatch(std::move(pm->pattern), unique_ptr<SpecNode>(subst_body))));
+                        }
+                        return new Match(std::move(m->src), std::move(vec));
+                    } else if(auto m = instance_of(node, Rely)) {
+                        auto body = subst_when(m->body.get());
+                        if(body == nullptr)
+                            return nullptr;
+                        return new Rely(std::move(m->prop), unique_ptr<SpecNode>(body));
+                    } else if(auto m = instance_of(node, Anno)) {
+                        auto body = subst_when(m->body.get());
+                        if(body == nullptr)
+                            return nullptr;
+                        return new Anno(std::move(m->prop), unique_ptr<SpecNode>(body));
+                    } else if(auto m = instance_of(node, If)) {
+                        auto then_body = subst_when(m->then_body.get());
+                        auto else_body = subst_when(m->else_body.get());
+                        if(then_body == nullptr || else_body == nullptr)
+                            return nullptr;
+                        return new If(std::move(m->cond), std::move(m->then_body), std::move(m->else_body));
+                    } else if(auto m = instance_of(node, Forall)) {
+                        return node;
+                    } else if(auto m = instance_of(node, Exists)) {
+                        return node;
+                    } else if(auto m = instance_of(node, Const)) {
+                        return nullptr;
+                    } else {
+                        throw std::runtime_error("Unknown node type:" + string(*node->type));
+                    }
+                };
+                auto new_body = subst_when(src);
+                if(new_body == nullptr)
+                    return node;
+                return new_body;
+            } else {
+                return node;
+            }
+        } else {
+            return node;
+        }
+     };
+
+     return rec_apply(spec, f, false);
+}
+
 } // namespace autov
