@@ -9,6 +9,8 @@
 #include <log.h>
 #include <values.h>
 
+#define is_instance(v, T) (dynamic_cast<T *>(v) != nullptr)
+#define instance_of(v, T) (dynamic_cast<T *>(v))
 
 namespace autov {
 using std::string;

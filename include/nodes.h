@@ -293,6 +293,8 @@ private:
 
 class Expr : public SpecNode {
 public:
+    bool is_lens = false;
+
     enum ops {
         NEG, // dummy
         SET, GET, NTH, // non-binop

@@ -5,9 +5,6 @@
 #include <project.h>
 #include <cassert>
 
-#define is_instance(v, T) (dynamic_cast<T *>(v) != nullptr)
-#define instance_of(v, T) (dynamic_cast<T *>(v))
-
 namespace autov {
 /*
 recursively subst [name] with [value] in [spec] until [name] is assigned by a value using Match in [spec]
@@ -138,7 +135,6 @@ SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f, bool 
         return f(new Anno(unique_ptr<SpecNode>(rec_apply(r->prop.release(), f, apply_anno)),
                         unique_ptr<SpecNode>(rec_apply(r->body.release(), f, apply_anno))));
     } else if (auto i = instance_of(spec, If)) {
-        std::cout << "i->cond: " << string(*i->cond) << std::endl;
         return f(new If(unique_ptr<SpecNode>(rec_apply(i->cond.release(), f, apply_anno)),
                       unique_ptr<SpecNode>(rec_apply(i->then_body.release(), f, apply_anno)),
                       unique_ptr<SpecNode>(rec_apply(i->else_body.release(), f, apply_anno))));
@@ -288,9 +284,9 @@ SpecNode *rule_unfold_specs(Project *proj, SpecNode *spec) {
 
                 auto define = proj->defs[*op].get();
 
-                std::cout << "======================================" << std::endl;
-                std::cout << "Unfold definition: " << string(*define) << std::endl;
-                std::cout << "======================================" << std::endl;
+                // std::cout << "======================================" << std::endl;
+                // std::cout << "Unfold definition: " << string(*define) << std::endl;
+                // std::cout << "======================================" << std::endl;
 
                 auto body = define->body->deep_copy();
                 assert(e->elems->size() == define->args->size());
@@ -332,6 +328,98 @@ SpecNode *rule_unfold_specs(Project *proj, SpecNode *spec) {
 
     return rec_apply(spec, f);
 }
+
+class FieldPath {
+public:
+    string name;
+    shared_ptr<SpecType> type;
+
+    FieldPath(string name, shared_ptr<SpecType> type) : name(name), type(type) {}
+};
+
+static void search_field_path(Project *proj, string name, string parent, vector<FieldPath> &path) {
+    shared_ptr<Struct> parent_t = proj->structs.at(parent);
+
+    for (auto &f: *parent_t->elems) {
+        if (f->name == name) {
+            path.push_back(FieldPath(f->name, f->type));
+            return;
+        }
+
+        auto type = f->type;
+
+        if (auto z = instance_of(type.get(), ZMap)) {
+            type = z->elem_type;
+        } else if (auto z = instance_of(type.get(), List)) {
+            type = z->elem_type;
+        }
+
+        if (!is_instance(type.get(), Struct)) {
+            continue;
+        }
+
+        //std::cout << "Going to search " << type->name << " for " << name << std::endl;
+        if (proj->structs.find(type->name) != proj->structs.end()) {
+            search_field_path(proj, name, type->name, path);
+            if (path.size() != 0) {
+                return path.push_back(FieldPath(f->name, f->type));;
+            }
+        }
+    }
+
+    return;
+}
+
+static const std::set<string> interest_list = {"e_lock", "e_refcount", "log"};
+static vector<vector<FieldPath>> collect_interest_path(Project *proj) {
+    vector<vector<FieldPath>> interest_path;
+
+    for (auto &i: interest_list) {
+        vector<FieldPath> path;
+
+        search_field_path(proj, i, proj->layers[0]->abs_data->name, path);
+        if (path.size() != 0) {
+            interest_path.push_back(path);
+        }
+    }
+
+    return interest_path;
+}
+
+static vector<vector<FieldPath>> interest_path;
+
+SpecNode *rule_eliminiate_indifferent(Project *proj, SpecNode *spec) {
+    std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
+        if (auto e = instance_of(node, Expr)) {
+            if (!std::holds_alternative<Expr::ops>(e->op) || std::get<Expr::ops>(e->op) != Expr::RecordSet)
+                return node;
+
+            for (auto &elem: *e->elems) {
+                if (auto s = instance_of(elem.get(), Symbol)) {
+                    if (std::find(interest_list.begin(), interest_list.end(), s->text) == interest_list.end()) {
+                        auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+
+                        new_elems->push_back(std::move(e->elems->at(0)));
+
+                        auto new_e = new Expr("lens", std::move(new_elems), e->type);
+                        new_e->is_lens = true;
+                        delete e;
+                        return new_e;
+                    }
+                }
+            }
+         }
+
+        return node;
+    };
+
+    if (interest_path.size() == 0) {
+        interest_path = collect_interest_path(proj);
+    }
+
+    return rec_apply(spec, f);
+}
+
 
 SpecNode *rule_move_if_out_match(Project *proj, SpecNode *spec) {
 
