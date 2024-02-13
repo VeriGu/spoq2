@@ -1200,7 +1200,6 @@ SpecNode* rule_simplify_expr(Project *proj, SpecNode *spec) {
             }
         }
 
-
         if(auto m = instance_of(node, Expr)) {
             if(holds_alternative<Expr::binops>(m->op)) {
                 auto ops = std::get<Expr::binops>(m->op);
@@ -1222,7 +1221,6 @@ SpecNode* rule_simplify_expr(Project *proj, SpecNode *spec) {
                 }
                 if((ops == op::ADD || ops == op::MINUS) && m->elems->size() == 2 && (!is_instance(m->elems->at(0).get(), IntConst) || !is_instance(m->elems->at(1).get(), IntConst))) {
                     auto factor = 1;
-
                     for(auto i : PRIM_NUMS) {
                         while(1){
                             auto a = try_divide_const_factor(expr.get(), i);
@@ -1244,7 +1242,6 @@ SpecNode* rule_simplify_expr(Project *proj, SpecNode *spec) {
 
                     //here expr is not changed;
                 }
-
                 bool all_intconst = true;
                 for (auto & e : *m->elems) {
                     if(!is_instance(e.get(), IntConst)) {
