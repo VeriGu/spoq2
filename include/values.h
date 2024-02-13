@@ -111,6 +111,10 @@ public:
         return name == other.name && type == other.type;
     }
 
+    bool operator!=(const Arg& other) const {
+        return name != other.name || type != other.type;
+    }
+
     operator string() const {
         return "(" + name + ": " + string(*type) + ")";
     }

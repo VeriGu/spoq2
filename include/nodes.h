@@ -43,14 +43,14 @@ public:
     SpecNode(shared_ptr<SpecType> type) : type(type), nid(id++), length(1) {}
     SpecNode(shared_ptr<SpecType> type, int length) : type(type), nid(id++), length(length) {}
 
-    bool operator==(const SpecNode& other) const {
+    virtual bool operator==(const SpecNode& other) const {
         if (typeid(other) != typeid(*this)) {
             return false;
         }
         return this == &other;
     }
 
-    bool operator!=(const SpecNode& other) const {
+    virtual bool operator!=(const SpecNode& other) const {
         return !(*this == other);
     }
 
@@ -335,7 +335,14 @@ public:
             return false;
         }
 
-        return this->op == ((Expr&)other).op && this->elems == ((Expr&)other).elems;
+        if (auto e = std::get_if<unique_ptr<SpecNode>>(&this->op)) {
+            if (auto e2 = std::get_if<unique_ptr<SpecNode> >(&((Expr&)other).op)) {
+                return **e == **e2 && elems_eq((Expr&)other);
+            }
+            return false;
+        }
+
+        return this->op == ((Expr&)other).op && elems_eq((Expr&)other);
     }
 
     bool operator!=(const SpecNode& other) const {
@@ -430,6 +437,20 @@ private:
         return length;
     }
 
+    bool elems_eq(const Expr &other) const {
+        if (this->elems->size() != other.elems->size()) {
+            return false;
+        }
+
+        for (int i = 0; i < this->elems->size(); i++) {
+            if (*(*this->elems)[i] != *(*other.elems)[i]) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
 };
 
 class PatternMatch : public SpecNode {
@@ -448,7 +469,8 @@ public:
             return false;
         }
 
-        return this->pattern == ((PatternMatch&)other).pattern && this->body == ((PatternMatch&)other).body;
+        return *this->pattern == *((PatternMatch&)other).pattern &&
+               *this->body == *((PatternMatch&)other).body;
     }
 
     bool operator!=(const SpecNode& other) const {
@@ -505,7 +527,21 @@ public:
             return false;
         }
 
-        return this->src == ((Match&)other).src && this->match_list == ((Match&)other).match_list;
+        if (*this->src != *((Match&)other).src) {
+            return false;
+        }
+
+        if (this->match_list->size() != ((Match&)other).match_list->size()) {
+            return false;
+        }
+
+        for (int i = 0; i < this->match_list->size(); i++) {
+            if (*(*this->match_list)[i] != *(*((Match&)other).match_list)[i]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     bool operator!=(const SpecNode& other) const {
@@ -688,7 +724,8 @@ public:
             return false;
         }
 
-        return this->prop == ((Rely&)other).prop && this->body == ((Rely&)other).body;
+        return *this->prop == *((Rely&)other).prop &&
+               *this->body == *((Rely&)other).body;
     }
 
     bool operator!=(const SpecNode& other) const {
@@ -734,7 +771,8 @@ public:
             return false;
         }
 
-        return this->prop == ((Anno&)other).prop && this->body == ((Anno&)other).body;
+        return *this->prop == *((Anno&)other).prop &&
+               *this->body == *((Anno&)other).body;
     }
 
     bool operator!=(const SpecNode& other) const {
@@ -784,7 +822,9 @@ public:
             return false;
         }
 
-        return this->cond == ((If&)other).cond && this->then_body == ((If&)other).then_body && this->else_body == ((If&)other).else_body;
+        return *this->cond == *((If&)other).cond &&
+               *this->then_body == *((If&)other).then_body &&
+               *this->else_body == *((If&)other).else_body;
     }
 
     bool operator!=(const SpecNode& other) const {
@@ -853,7 +893,17 @@ public:
             return false;
         }
 
-        return this->vars == ((Forall&)other).vars && this->body == ((Forall&)other).body;
+        if (this->vars->size() != ((Forall&)other).vars->size()) {
+            return false;
+        }
+
+        for (int i = 0; i < this->vars->size(); i++) {
+            if (*(*this->vars)[i] != *(*((Forall&)other).vars)[i]) {
+                return false;
+            }
+        }
+
+        return *this->body == *((Forall&)other).body;
     }
 
     bool operator!=(const SpecNode& other) const {
@@ -907,7 +957,17 @@ public:
             return false;
         }
 
-        return this->vars == ((Exists&)other).vars && this->body == ((Exists&)other).body;
+        if (this->vars->size() != ((Exists&)other).vars->size()) {
+            return false;
+        }
+
+        for (int i = 0; i < this->vars->size(); i++) {
+            if (*(*this->vars)[i] != *(*((Exists&)other).vars)[i]) {
+                return false;
+            }
+        }
+
+        return *this->body == *((Exists&)other).body;
     }
 
     bool operator!=(const SpecNode& other) const {
@@ -961,7 +1021,7 @@ public:
     Declaration(string name, shared_ptr<SpecType> type) : name(name), type(type), length(1) {}
 
     bool operator==(const Declaration& other) const {
-        return this->name == other.name && this->type == other.type;
+        return this->name == other.name && *this->type == *other.type;
     }
 
     bool operator!=(const Declaration& other) const {
@@ -1000,10 +1060,27 @@ public:
         name(name), rettype(rettype), args(std::move(args)), body(std::move(body)) {
             this->length = this->body->length; // This cannot be done in the initializer list because body is moved.
         }
+    Definition(Definition &other) :
+        name(other.name), rettype(other.rettype), args(make_unique<vector<shared_ptr<Arg>>>(*other.args)),
+        body(other.body->deep_copy()), length(other.length) {}
 
 
     bool operator==(const Definition& other) const {
-        return this->name == other.name && this->rettype == other.rettype && this->args == other.args && this->body == other.body;
+        if (this->args->size() != other.args->size()) {
+            return false;
+        }
+
+        if (this->name != other.name || *this->rettype != *other.rettype || *this->body != *other.body) {
+            return false;
+        }
+
+        for (int i = 0; i < this->args->size(); i++) {
+            if (*(*this->args)[i] != *(*other.args)[i]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     bool operator!=(const Definition& other) const {
