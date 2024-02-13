@@ -1125,4 +1125,213 @@ rule_ret_t replace_spec_name(Project *proj, SpecNode *spec, unordered_map<string
 
     return std::make_pair(rec_apply(spec, f, false), changed);
 }
+
+static vector<int> get_prime() {
+    vector<int> vec;
+    for(int i = 2; i < 1000; ++i) {
+        auto is_prim = true;
+        for(int j = 2; j * j <= i; ++j) {
+            if(i % j == 0) {
+                is_prim = false;
+                break;
+            }
+        }
+        if(is_prim) {
+            vec.push_back(i);
+        }
+    }
+    return vec;
+}
+
+static vector<int> PRIM_NUMS = get_prime();
+
+SpecNode* try_divide_const_factor(SpecNode *expr, int factor) {
+    if(auto m = instance_of(expr, IntConst)) {
+        if(std::get<long long>(m->value) != 0 && std::get<long long>(m->value) % factor == 0) {
+            return new IntConst(std::get<long long>(m->value) / factor);
+        }
+    } else if(auto m = instance_of(expr, Expr)) {
+        if(holds_alternative<Expr::binops>(m->op)) {
+            auto op = std::get<Expr::binops>(m->op);
+            if((op == Expr::binops::ADD || op == Expr::binops::MINUS) && m->elems->size() == 2) {
+                auto a = unique_ptr<SpecNode>(try_divide_const_factor(m->elems->at(0).get(), factor));
+                auto b = unique_ptr<SpecNode>(try_divide_const_factor(m->elems->at(1).get(), factor));
+                if(a == nullptr || b == nullptr) {
+                    return nullptr;
+                }
+                auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                elems->push_back(std::move(a));
+                elems->push_back(std::move(b));
+                return new Expr(op, std::move(elems), m->get_type());
+            } else if(op == Expr::binops::MULT) {
+                auto a = unique_ptr<SpecNode>(try_divide_const_factor(m->elems->at(0).get(), factor));
+                if(a != nullptr) {
+                    auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                    elems->push_back(std::move(a));
+                    elems->push_back(std::move(m->elems->at(1)));
+                    return new Expr(op, std::move(elems), m->get_type());
+                } 
+                auto b = unique_ptr<SpecNode>(try_divide_const_factor(m->elems->at(1).get(), factor));
+                if(b != nullptr) {
+                    auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                    elems->push_back(std::move(m->elems->at(0)));
+                    elems->push_back(std::move(b));
+                    return new Expr(op, std::move(elems), m->get_type());
+                }
+                return nullptr;
+            }
+        }
+    }
+
+    return nullptr;
+}
+
+SpecNode* rule_simplify_expr(Project *proj, SpecNode *spec) {
+    std::function<SpecNode*(SpecNode*)> f = [] (SpecNode *node) -> SpecNode* {
+        unique_ptr<SpecNode> expr = unique_ptr<SpecNode>(node);
+        bool expr_is_changed = false;
+        if(auto m = instance_of(node, If)) {
+            if(auto c = instance_of(m->cond.get(), BoolConst)) {
+                if(std::get<bool>(c->value)) {
+                    return m->then_body.release();
+                } else {
+                    return m->else_body.release();
+                }
+            }
+        }
+
+
+        if(auto m = instance_of(node, Expr)) {
+            if(holds_alternative<Expr::binops>(m->op)) {
+                auto ops = std::get<Expr::binops>(m->op);
+                using op = Expr::binops;
+                std::set<op> vec = {op::EQUAL, op::NOT_EQUAL, op::LTE, op::GTE, op::GT, op::LT, op::BEQ, 
+                op:: BNE, op::BLT, op::BGT, op::BGE, op::BLE};
+                if(vec.find(ops) != vec.end() && m->elems->at(0)->get_type() == Int::INT
+                && m->elems->at(1)->get_type() == Int::INT && !is_instance(m->elems->at(1).get(), Const)) {
+                    auto elems = new vector<unique_ptr<SpecNode>>();
+                    elems->push_back(std::move(m->elems->at(0)));
+                    elems->push_back(std::move(m->elems->at(1)));
+                    auto left = new Expr(op::MINUS, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Int::INT);
+                    auto right = new IntConst(0);
+
+                    auto elems2 = new vector<unique_ptr<SpecNode>>();
+                    elems2->push_back(unique_ptr<SpecNode>(left));
+                    elems2->push_back(unique_ptr<SpecNode>(right));
+                    return new Expr(ops, unique_ptr<vector<unique_ptr<SpecNode>>>(elems2), node->get_type());
+                }
+                if((ops == op::ADD || ops == op::MINUS) && m->elems->size() == 2 && (!is_instance(m->elems->at(0).get(), IntConst) || !is_instance(m->elems->at(1).get(), IntConst))) {
+                    auto factor = 1;
+
+                    for(auto i : PRIM_NUMS) {
+                        while(1){
+                            auto a = try_divide_const_factor(expr.get(), i);
+                            if(a == nullptr){
+                                break;
+                            }
+                            factor *= i;
+
+                            expr = unique_ptr<SpecNode>(a);
+                        }
+                    }
+                    if(factor > 1) {
+                        auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                        elems->push_back(make_unique<IntConst>(factor));
+                        elems->push_back(std::move(expr));
+                        //here node is already deleted since expr is pointing to another place.
+                        return new Expr(Expr::binops::MULT, std::move(elems), expr->get_type());
+                    }
+
+                    //here expr is not changed;
+                }
+
+                bool all_intconst = true;
+                for (auto & e : *m->elems) {
+                    if(!is_instance(e.get(), IntConst)) {
+                        all_intconst = false;
+                        break;
+                    }
+                }
+                if(all_intconst) {
+                    auto elem0 = instance_of(m->elems->at(0).get(), IntConst);
+                    auto elem1 = instance_of(m->elems->at(1).get(), IntConst);
+                    if(ops == op::ADD) {
+                        expr_is_changed = true;
+                        expr.reset(new IntConst(std::get<long long>(elem0->value) + std::get<long long>(elem1->value)));
+                    } else if (ops == op::MINUS && m->elems->size() == 1) {
+                        expr_is_changed = true;
+                        expr.reset(new IntConst(-std::get<long long>(elem0->value)));
+                    } else if (ops == op::MINUS && m->elems->size() == 2) {
+                        expr_is_changed = true;
+                        expr.reset(new IntConst(std::get<long long>(elem0->value) - std::get<long long>(elem1->value)));
+                    } else if (ops == op::MULT) {
+                        expr_is_changed = true;
+                        expr.reset(new IntConst(std::get<long long>(elem0->value) * std::get<long long>(elem1->value)));
+                    } else if(ops == op::DIV) { 
+                        expr_is_changed = true;
+                        expr.reset(new IntConst(std::get<long long>(elem0->value) / std::get<long long>(elem1->value)));
+                    } else if(ops == op::MOD) {
+                        expr_is_changed = true;
+                        expr.reset(new IntConst(std::get<long long>(elem0->value) + std::get<long long>(elem1->value)));
+                    } else if(ops == op::BITAND) {
+                        expr_is_changed = true;
+                        expr.reset(new IntConst(std::get<long long>(elem0->value) & std::get<long long>(elem1->value)));
+                    } else if(ops == op::BITOR) {
+                        expr_is_changed = true;
+                        expr.reset(new IntConst(std::get<long long>(elem0->value) | std::get<long long>(elem1->value)));
+                    } else if(ops == op::LSHIFT) {
+                        expr_is_changed = true;
+                        expr.reset(new IntConst(std::get<long long>(elem0->value) << std::get<long long>(elem1->value)));
+                    } else if(ops == op::RSHIFT) {
+                        expr_is_changed = true;
+                        expr.reset(new IntConst(std::get<long long>(elem0->value) >> std::get<long long>(elem1->value)));
+                    } else if(ops == op::BEQ) {
+                        expr_is_changed = true;
+                        expr.reset(new BoolConst(std::get<long long>(elem0->value) == std::get<long long>(elem1->value)));
+                    } else if(ops == op::BNE) {
+                        expr_is_changed = true;
+                        expr.reset(new BoolConst(std::get<long long>(elem0->value) != std::get<long long>(elem1->value)));
+                    } else if(ops == op::BGT) {
+                        expr_is_changed = true;
+                        expr.reset(new BoolConst(std::get<long long>(elem0->value) > std::get<long long>(elem1->value)));
+                    } else if(ops == op::BLT) {
+                        expr_is_changed = true;
+                        expr.reset(new BoolConst(std::get<long long>(elem0->value) < std::get<long long>(elem1->value)));
+                    } else if(ops == op::BGE) {
+                        expr_is_changed = true;
+                        expr.reset(new BoolConst(std::get<long long>(elem0->value) >= std::get<long long>(elem1->value)));
+                    } else if(ops == op::BLE) {
+                        expr_is_changed = true;
+                        expr.reset(new BoolConst(std::get<long long>(elem0->value) <= std::get<long long>(elem1->value)));
+                    }
+                }
+            } else if(holds_alternative<Expr::ops>(m->op)) {
+                auto ops = std::get<Expr::ops>(m->op);
+                using op = Expr::ops;
+                using bop = Expr::binops;
+                if(ops == op::NOT || ops == op::BNOT) {
+                    if(auto elem0 = instance_of(m->elems->at(0).get(), Expr)) {
+                        std::set<bop> vec = {bop::EQUAL, bop::NOT_EQUAL, bop::LTE, bop::GTE, bop::GT, bop::LT, bop::BEQ, 
+                        bop:: BNE, bop::BLT, bop::BGT, bop::BGE, bop::BLE};
+                        if(holds_alternative<bop>(elem0->op)) {
+                            auto elem0op = std::get<bop>(elem0->op);
+                            if(vec.find(elem0op) != vec.end()) {
+                                std::map<bop,bop> rev = {{bop::BEQ, bop::BNE}, {bop::EQUAL, bop::NOT_EQUAL},
+                                {bop::LT, bop::GTE}, {bop::GTE, bop::LT}, {bop::GT, bop::LTE}, 
+                                {bop::LTE, bop::GT}, {bop::BGT, bop::BLE}, {bop::BLE, bop::BGT},
+                                {bop::BLT, bop::BGE}, {bop::BGE, bop::BLT}};
+                                return new Expr(rev[elem0op], std::move(elem0->elems), node->get_type());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        //haven't care about the annotation
+        return expr.release();
+    };
+
+    return rec_apply(spec, f, false);
+}
 } // namespace autov
