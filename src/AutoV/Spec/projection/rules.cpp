@@ -458,7 +458,7 @@ SpecNode *rule_move_when_out_when(Project *proj, SpecNode *spec) {
     std::function<SpecNode*(SpecNode*)> f = [](SpecNode *node) -> SpecNode* {
         if (auto m = instance_of(node, Match)) {
             if (auto src = instance_of(m->src.get(), Match)) {
-                if (src->is_when() && instance_of(m->type.get(), Option)) {
+                if (src->is_when() && is_instance(m->type.get(), Option)) {
                     for (auto &pm : *m->match_list) {
                         if (static_cast<string>(*pm->pattern) == "None" && static_cast<string>(*pm->body) == "None") {
                             auto pattern = dynamic_cast<Expr*>(src->match_list->at(0)->pattern.get());
@@ -481,7 +481,7 @@ SpecNode *rule_eliminate_if(Project *proj, SpecNode *spec) {
     std::function<SpecNode*(SpecNode*)> f = [](SpecNode *node) -> SpecNode* {
         if (auto i = instance_of(node, If)) {
             if (*i->then_body == *i->else_body)
-                return i->then_body.get();
+                return i->then_body.release();
         }
         return node;
     };
