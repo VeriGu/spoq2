@@ -735,6 +735,10 @@ rule_ret_t rule_move_rely_out_when(Project *proj, SpecNode *spec) {
                             changed = true;
                             return new_rely;
                         }
+
+                        if (static_cast<string>(*pm->pattern) == "None" && static_cast<string>(*pm->body) == "None")
+                            return new Rely(std::move(r->prop),
+                                            make_unique<Match>(std::move(r->body), std::move(m->match_list)));
                     }
                     return node;
                 }
@@ -745,7 +749,6 @@ rule_ret_t rule_move_rely_out_when(Project *proj, SpecNode *spec) {
 
     return std::make_pair(rec_apply(spec, f, false), changed);
 }
-
 
 /*
 match (
