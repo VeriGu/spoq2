@@ -25,7 +25,7 @@ int main(void)
 
     std::unique_ptr<autov::Project> proj = std::make_unique<autov::Project>();
 
-    autov::parser::parse(proj.get(), "testcase/proof_stack.v");
+    autov::parser::parse(proj.get(), "testcase/proof_proj.v");
 
     proj->finalize_project();
 
