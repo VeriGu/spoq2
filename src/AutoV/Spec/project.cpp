@@ -3,6 +3,8 @@
 #include <post_process.h>
 #include <ir2spec.h>
 #include <regex>
+#include <rules.h>
+#include <projection.h>
 
 namespace autov {
 
@@ -244,6 +246,42 @@ Project::Project()
     add_definition(make_bool_to_int(), make_shared<loc_t>(Project::LOC_GLOBALDEFS, "", ""));
 }
 
+std::set<string> Project::calc_dependencies(SpecNode *expr) {
+    std::set<string> deps;
+
+    if (auto i = instance_of(expr, If)) {
+        deps.merge(calc_dependencies(i->cond.get()));
+        deps.merge(calc_dependencies(i->then_body.get()));
+        deps.merge(calc_dependencies(i->else_body.get()));
+    } else if (auto m = instance_of(expr, Match)) {
+        deps.merge(calc_dependencies(m->src.get()));
+
+        for (auto &match: *m->match_list)
+            deps.merge(calc_dependencies(match->body.get()));
+    } else if (auto ra = instance_of(expr, RelyAnno)) {
+        deps.merge(calc_dependencies(ra->prop.get()));
+        deps.merge(calc_dependencies(ra->body.get()));
+    } else if (auto wa = instance_of(expr, ForallExists)) {
+        deps.merge(calc_dependencies(wa->body.get()));
+    } else if (auto e = instance_of(expr, Expr)) {
+        for (auto &elem: *e->elems)
+            deps.merge(calc_dependencies(elem.get()));
+        if (auto op = std::get_if<unique_ptr<SpecNode>>(&e->op))
+            deps.merge(calc_dependencies(op->get()));
+    } else if (auto s = instance_of(expr, Symbol)) {
+        auto text = s->text;
+
+        if (this->symbols.find(text) != this->symbols.end()) {
+            auto &info = this->symbols.at(text);
+
+            if (info.kind == SymbolKind::Def || info.kind == SymbolKind::Decl)
+                deps.insert(text);
+        }
+    }
+
+    return deps;
+}
+
 static std::set<string> get_prim_dependencies(const vector<unique_ptr<IRLoader::IRInst>> &insts) {
     std::set<string> deps;
 
@@ -262,20 +300,32 @@ static std::set<string> get_prim_dependencies(const vector<unique_ptr<IRLoader::
     return deps;
 }
 
-SpecNode *rule_unfold_specs(Project *proj, SpecNode *spec);
-
 static std::tuple<string, vector<Definition *> *, vector<unique_ptr<Definition>> *>
 infer_spec_task(Project *proj, int layer_id, string fname) {
     auto &L = proj->layers[layer_id];
     vector<Definition *> *low_specs;
     string low_name = fname + "_spec_low";
+    std::unordered_map<string, string> name_map;
+    bool have_loop;
 
     if (proj->code->functions->find(fname) != proj->code->functions->end()) {
         if (proj->defs.find(low_name) == proj->defs.end()) {
-            low_specs = ir_to_spec(proj, fname, L.get(), "_low");
-            auto unfold_str = string(*rule_unfold_specs(proj, low_specs->at(0)->body.get()));
+            string suffix = "_low";
+            low_specs = ir_to_spec(proj, fname, L.get(), suffix);
 
-            std::cout << "unfold:\n" << unfold_str << std::endl;
+            for (auto &def: *low_specs) {
+                LOG_INFO << "Add definition " << def->name;
+                proj->deps[fname] = proj->calc_dependencies(def->body.get());
+                proj->add_definition(unique_ptr<Definition>(def), make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
+
+                if (def->name.rfind(suffix) == def->name.size() - suffix.size()) {
+                    std::string high_name = def->name.substr(0, def->name.size() - suffix.size());
+                    name_map[def->name] = high_name;
+                }
+
+                if (is_instance(def, Fixpoint))
+                    have_loop = true;
+            }
         } else {
             auto func = proj->code->functions->at(fname);
             std::regex pattern(fname + "_loop\\d+_low");
@@ -289,12 +339,39 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
             for (auto& pair : proj->defs) {
                 const std::string& spec_name = pair.first;
                 if (spec_name == fname + "_spec_low" || std::regex_match(spec_name, pattern)) {
-                    low_specs->push_back(std::move(pair.second.get()));
+                    low_specs->push_back(pair.second.get());
                 }
             }
         }
     } else {
         throw std::runtime_error("Function " + fname + " not found");
+    }
+
+    for (auto &def: *low_specs) {
+        // If the high spec is provided, skip
+        if (proj->defs.find(name_map[def->name]) != proj->defs.end())
+            continue;
+
+        auto high_name = name_map[def->name];
+        unique_ptr<SpecNode> high_body = def->body->deep_copy();
+
+        if (have_loop) {
+            auto [new_high, __changed] = replace_spec_name(proj, high_body.release(), name_map);
+
+            high_body.reset(new_high);
+        }
+
+        auto high_args = make_unique<vector<shared_ptr<Arg>>>();
+        for (auto &arg: *def->args)
+            high_args->push_back(arg);
+
+        auto high_def = new Definition(high_name, proj->defs[def->name]->rettype, std::move(high_args), std::move(high_body));
+
+        spec_transformer(proj, high_def);
+        std::cout << "Transformed: " << string(*high_def) << std::endl;
+        proj->deps[high_name] = proj->calc_dependencies(high_def->body.get());
+        proj->add_definition(unique_ptr<Definition>(high_def), make_shared<loc_t>(L->name, fname, Project::LOC_SPEC));
+
     }
 
     return std::make_tuple(fname, low_specs, nullptr);
@@ -315,6 +392,10 @@ void Project::finalize_project()
     }
 
     this->code = IRLoader::post_process(module);
+
+    // auto new_store_RData = new Definition(*this->defs["store_RData"]);
+    // spec_transformer(this, new_store_RData);
+    // std::cout << "new_store_RData:\n" << string(*new_store_RData) << std::endl;
 
     for (auto it = this->layers.rbegin(); it != this->layers.rend() - 1; it++) {
         auto &L = *it;
@@ -347,9 +428,6 @@ void Project::finalize_project()
             if (this->code->functions->at(p)->body == nullptr)
                 continue;
 
-            // if (p != "rtt_walk_lock_unlock")
-            //     continue;
-
             auto [fname, low_specs, high_specs] = infer_spec_task(this, i, p);
 #if 0
             std::string filename = "./low_test/" + fname + "Low.v";
@@ -374,11 +452,6 @@ void Project::finalize_project()
                 std::cout << "Inferred: " << filename << std::endl;
             }
 #endif
-            // if (low_specs != nullptr) {
-            //     for (auto &def: *low_specs) {
-            //         this->add_definition(std::move(def), make_shared<loc_t>(Project::LOC_LOWSPEC, "", ""));
-            //     }
-            // }
         }
     }
 

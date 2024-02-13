@@ -329,8 +329,9 @@ antlrcpp::Any ProgramVisitor::visitDef(SpecParser::DefContext* ctx) {
 
         if (current_layer) {
             if (name.size() > 8 && name.substr(name.size() - 8) == "spec_mid") {
-                // get name[:-len("_spec_mid")]
-                loc = make_shared<loc_t>(loc_t(current_layer->name, name.substr(0, name.size() - 8), Project::LOC_REFPROOF));
+                loc = make_shared<loc_t>(loc_t(current_layer->name, name.substr(0, name.size() - 9), Project::LOC_REFPROOF));
+            } if (name.size() > 8 && name.substr(name.size() - 8) == "spec_low") {
+                loc = make_shared<loc_t>(loc_t(current_layer->name, name.substr(0, name.size() - 9), Project::LOC_LOWSPEC));
             } else {
                 loc = make_shared<loc_t>(loc_t(current_layer->name, Project::LOC_SPEC, ""));
             }

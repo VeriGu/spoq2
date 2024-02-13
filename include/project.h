@@ -138,6 +138,8 @@ public:
 
     bool is_known_symbol(string name);
 
+    std::set<string> calc_dependencies(SpecNode *expr);
+
     void finalize_project();
 
 };
