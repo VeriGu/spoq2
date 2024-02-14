@@ -58,7 +58,7 @@ unique_ptr<vector<string>> generate_data(Project *p) {
 
   sort(outputs.begin(), outputs.end(), 
      [p] (string x, string y) 
-     {return p->symbols[x].order - p->symbols[y].order; });
+     {return p->symbols[x].order < p->symbols[y].order; });
 
   for(auto s : outputs) {
     if(p->structs.find(s) != p->structs.end()) {

@@ -130,7 +130,7 @@ unique_ptr<vector<string>> generate_high_spec(Project *proj) {
         fs::create_directory((dir / boost::filesystem::path(L->name)).string());
     }
 
-    auto cache_out = cache_dir / boost::filesystem::path(L->name) / boost::filesystem::path("Spec.v");
+    auto cache_out = cache_dir / (L->name + "Spec.v");
     gen_specs(proj, loc_t(L->name, "Spec", ""), (dir / boost::filesystem::path(L->name) / boost::filesystem::path("Spec.v")).string(), cache_out.string());
     files->push_back((boost::filesystem::path(L->name) / "Spec.v").string());
   }

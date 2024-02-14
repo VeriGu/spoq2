@@ -16,7 +16,7 @@ namespace autov {
       }
     }
 
-    sort(syms.begin(),syms.end(), [proj](string s1, string s2) {return proj->symbols[s1].order - proj->symbols[s2].order; });
+    sort(syms.begin(),syms.end(), [proj](string s1, string s2) {return proj->symbols[s1].order < proj->symbols[s2].order; });
     std::set<string> deps = {"CommonDeps", "Code", "DataTypes", "GlobalDefs"};
     for(auto s : syms) {
       if(proj->deps.find(s) != proj->deps.end())
@@ -89,10 +89,12 @@ namespace autov {
   unique_ptr<vector<string>> generate_low_spec(Project *proj) {
     auto files = unique_ptr<vector<string>>(new vector<string>());
 
-    int i;
+    int i = 0;
     for(auto const& L : proj->layers) {
-      if (i == 0)
+      if (i == 0) {
+        i++;
         continue;
+      }
       boost::filesystem::path dir(proj->base);
       boost::filesystem::path layer_name(L->name);
       if(!fs::exists((dir / L->name).string()))

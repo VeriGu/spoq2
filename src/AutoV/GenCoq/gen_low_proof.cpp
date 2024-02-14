@@ -259,9 +259,12 @@ namespace autov {
 
   unique_ptr<vector<string>> generate_low_proof(Project *p) {
     auto files = unique_ptr<vector<string>>(new vector<string>());
-    int i;
+    int i = 0;
     for(auto const& L: p->layers) {
-      if(i == 0) continue;
+      if(i == 0) {
+        i++;
+        continue;
+      }
 
       boost::filesystem::path layer_name(L->name);
       boost::filesystem::path dir(p->base);
@@ -282,6 +285,7 @@ namespace autov {
           files->push_back((layer_name / prim / "CodeProof.v").string());
         }
       }
+      i++;
     }
 
     return files;

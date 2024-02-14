@@ -7,6 +7,7 @@
 #include <project.h>
 #include <fstream>
 #include <cstdlib>
+#include <gen_project.h>
 
 using std::string;
 
@@ -28,6 +29,8 @@ int main(void)
     autov::parser::parse(proj.get(), "testcase/proof_proj.v");
 
     proj->finalize_project();
+
+    autov::generate_proj(proj.get());
 
 #if 0
     for (const auto &layer: proj->layers) {

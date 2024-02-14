@@ -4,7 +4,7 @@
 #include <set>
 #include <cassert>
 #include <variant>
-#include <unordered_map>
+#include <map>
 #include <iterator>
 
 #include <fstream>
@@ -15,9 +15,9 @@ namespace autov::IRLoader
 using boost::property_tree::ptree;
 using std::string;
 using std::variant;
-using std::unordered_map;
+using std::map;
 
-unordered_map<string, shared_ptr<IRType>> structs_info;
+map<string, shared_ptr<IRType>> structs_info;
 
 static unsigned long size_of_unnamed_struct(const vector<shared_ptr<IRType>> &st) {
     unsigned long ofs = 0;
@@ -48,7 +48,7 @@ static unsigned long size_of_unnamed_struct(const vector<shared_ptr<IRType>> &st
 }
 
 static shared_ptr<IRType> parse_type(const ptree &typ) {
-    static const unordered_map<string, shared_ptr<IRType>> irtype_map = {
+    static const map<string, shared_ptr<IRType>> irtype_map = {
         {"i1", TBool::TBOOL},
         {"i8", TInt::TI8},
         {"i16", TInt::TI16},
@@ -111,7 +111,7 @@ static shared_ptr<IRType> parse_type(const ptree &typ) {
 }
 
 static Op parse_op(const string &op) {
-    static const unordered_map<string, Op::_Op> op_map = {
+    static const map<string, Op::_Op> op_map = {
         {"slt", Op::Cslt},
         {"sle", Op::Csle},
         {"ult", Op::Cult},
@@ -161,7 +161,7 @@ static Op parse_op(const string &op) {
 }
 
 static Ordering parse_ordering(const string &order) {
-    static const unordered_map<string, Ordering::_Ordering> order_map = {
+    static const map<string, Ordering::_Ordering> order_map = {
         {"NotAtomic", Ordering::NotAtomic},
         {"Unordered", Ordering::Unordered},
         {"Monotonic", Ordering::Monotonic},
@@ -821,8 +821,8 @@ static bool parse_struct(string name, ptree &module, ptree &sinfo, ptree &debug_
 // postprocess default value is true
 shared_ptr<IRModule> parse_module(ptree &module, bool postprocess) {
     auto debug_info = parse_debug_info(module);
-    auto globvars = make_shared<unordered_map<string, shared_ptr<GlobalVar>>>();
-    auto funcs = make_shared<unordered_map<string, shared_ptr<CFunction>>>();
+    auto globvars = make_shared<map<string, shared_ptr<GlobalVar>>>();
+    auto funcs = make_shared<map<string, shared_ptr<CFunction>>>();
 
     while (true) {
         bool parse_new_struct = false;

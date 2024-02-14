@@ -9,6 +9,7 @@ void generate_proj(Project *p) {
   string proj_name = p->name;
   string proj_dir = p->base;
 
+  LOG_DEBUG << "create project directory";
   if(!fs::exists(proj_dir)) {
     fs::create_directory(proj_dir);
   }
@@ -27,7 +28,7 @@ void generate_proj(Project *p) {
   files.insert(files.begin(), code->begin(), code->end());
   files.insert(files.begin(), low_spec->begin(), low_spec->end());
   files.insert(files.begin(), low_proof->begin(), low_proof->end());
-  files.insert(files.begin(), high_spec->begin(), high_proof->end());
+  files.insert(files.begin(), high_spec->begin(), high_spec->end());
   files.insert(files.begin(), high_proof->begin(), high_proof->end());
   files.insert(files.begin(), layer->begin(), layer->end());
 

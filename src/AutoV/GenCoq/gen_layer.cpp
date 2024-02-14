@@ -243,7 +243,7 @@ unique_ptr<vector<string>> generate_layer(Project *proj) {
   auto files = unique_ptr<vector<string>>(new vector<string>());
   boost::filesystem::path dir(proj->base);
 
-  int i;
+  int i = 0;
   for(auto const& layer : proj->layers) {
     auto name = layer->name;
     if(!fs::exists((dir / name).string())) {
@@ -258,6 +258,7 @@ unique_ptr<vector<string>> generate_layer(Project *proj) {
       gen_layer_refine_rel(proj, i, (dir / name /"RefineRel.v").string());
       files->push_back(name + "/RefineRel.v");
     }
+    
     i++;
   }
   return files;

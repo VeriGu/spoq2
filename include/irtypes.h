@@ -231,13 +231,13 @@ public:
 class TNamedStruct: public IRType {
 public:
     string name;
-    unordered_map<string, shared_ptr<IRType>> *structs;
+    std::map<string, shared_ptr<IRType>> *structs;
 
     TNamedStruct() {
         throw std::runtime_error("TNamedStruct must have a name and the constructor.");
     }
 
-    TNamedStruct(string name, unordered_map<string, shared_ptr<IRType>> *structs) :
+    TNamedStruct(string name, std::map<string, shared_ptr<IRType>> *structs) :
         name(name), structs(structs) {};
 
     string to_coq(void) const override {

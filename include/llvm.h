@@ -212,20 +212,20 @@ public:
 
 class IRModule {
 public:
-    unordered_map<string, shared_ptr<IRType>> *structs;
-    shared_ptr<unordered_map<string, shared_ptr<GlobalVar>>> globalvars;
-    shared_ptr<unordered_map<string, shared_ptr<CFunction>>> functions; // Is IRFunction also going here?
-    shared_ptr<unordered_map<string, shared_ptr<AsmProcedure>>> asm_procs;
+    std::map<string, shared_ptr<IRType>> *structs;
+    shared_ptr<std::map<string, shared_ptr<GlobalVar>>> globalvars;
+    shared_ptr<std::map<string, shared_ptr<CFunction>>> functions; // Is IRFunction also going here?
+    shared_ptr<std::map<string, shared_ptr<AsmProcedure>>> asm_procs;
     shared_ptr<ptree> debug_info;
 
     IRModule() = delete;
-    IRModule(unordered_map<string, shared_ptr<IRType>> *structs,
-             shared_ptr<unordered_map<string, shared_ptr<GlobalVar>>> globalvars,
-             shared_ptr<unordered_map<string, shared_ptr<CFunction>>> functions,
+    IRModule(std::map<string, shared_ptr<IRType>> *structs,
+             shared_ptr<std::map<string, shared_ptr<GlobalVar>>> globalvars,
+             shared_ptr<std::map<string, shared_ptr<CFunction>>> functions,
              shared_ptr<ptree> debug_info) :
         structs(structs), globalvars(globalvars), functions(functions), debug_info(debug_info) {
-            unordered_map<string, shared_ptr<AsmProcedure>> asmp;
-            asm_procs = std::make_shared<unordered_map<string, shared_ptr<AsmProcedure>>>(asmp);
+            std::map<string, shared_ptr<AsmProcedure>> asmp;
+            asm_procs = std::make_shared<std::map<string, shared_ptr<AsmProcedure>>>(asmp);
         }
 };
 
