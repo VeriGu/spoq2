@@ -16,7 +16,7 @@ void print_module(IRModule *ir, string out_path) {
   fout << "Require Import String.\n";
   fout << "Require Import ZArith.\n";
   fout << "Require Import List.\n";
-  fout << "Require Import " << lib_name << "SMap.\n";
+  fout << "Require Import " << lib_name << ".SMap.\n";
   fout << "Require Import " << layer_sem_name << "IR.\n";
   fout << "Require Import " << layer_sem_name << "IRSem.\n";
   fout << "Require Import " << layer_sem_name << "Asm.AsmInsn.\n";
@@ -29,7 +29,7 @@ void print_module(IRModule *ir, string out_path) {
   vector<string> structs_coq;
 
   for(auto const& [key, typ] : *ir->structs) {
-    fout << "Definition s_" << IRLoader::to_coq_name(key) << ":=\n" +
+    fout << "Definition s_" << IRLoader::to_coq_name(key) << " :=\n" +
       autov::add_indent(typ->to_coq(), 4) + ".\n";
     
     fout << "\n";
@@ -51,7 +51,7 @@ void print_module(IRModule *ir, string out_path) {
      globvars_coq.push_back("(\"" + key + "\")" + ", v_" + IRLoader::to_coq_name(key) + ")");
   }
 
-  fout << "Definition structures :  list (string * global_var) :=\n";
+  fout << "Definition globvars : list (string * global_var) :=\n";
   fout << autov::add_indent(IRLoader::to_code_block(&globvars_coq), 4) + ".\n\n";
 
 
