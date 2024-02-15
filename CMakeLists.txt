@@ -15,6 +15,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 # Add the 'include' directory to the include paths
 include_directories(include)
+include_directories(include/z3)
 
 # Find the Boost library
 find_package(Boost REQUIRED COMPONENTS log)
@@ -114,11 +115,11 @@ set(SOURCES
 # Specify the executable target and its source files
 add_executable(spoq ${SOURCES})
 # Link the shared library to the main executable
-target_link_libraries(spoq irloader parser)
+target_link_libraries(spoq irloader parser z3)
 
 # Link the Boost libraries to the executable
 if(Boost_FOUND)
-    target_link_libraries(spoq ${Boost_LIBRARIES} antlr4_shared)
+    target_link_libraries(spoq ${Boost_LIBRARIES} antlr4_shared z3)
 endif()
 
 # Set the output directory for the executable

@@ -5,6 +5,7 @@
 #include <utils.h>
 #include <values.h>
 #include <sstream>
+#include <z3++.h>
 
 namespace autov {
 using std::string;
@@ -14,6 +15,10 @@ using std::make_unique;
 using std::shared_ptr;
 using std::make_shared;
 using std::unordered_map;
+
+
+z3::context z3ctx;
+unordered_map<string, z3::sort> created_z3_types;
 
 // Struct Ptr = Struct(
 //     "Ptr",

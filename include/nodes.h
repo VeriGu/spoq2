@@ -28,6 +28,7 @@ using std::holds_alternative;
 using std::optional;
 
 class Project;
+class SpecValue;
 
 class SpecNode {
 public:
@@ -38,6 +39,7 @@ public:
     int length;
     mutable string _str; // cached string representation
     shared_ptr<SpecType> tmp;
+    shared_ptr<SpecValue> cached_eval;
 
     SpecNode() : type(SpecType::UNKNOWN_TYPE), nid(id++), length(1) {}
     SpecNode(shared_ptr<SpecType> type) : type(type), nid(id++), length(1) {}
@@ -79,6 +81,10 @@ public:
             return SpecType::UNKNOWN_TYPE;
         }
         return this->type;
+    }
+    
+    void set_z3_eval(shared_ptr<SpecValue> value) {
+        this->cached_eval = value;
     }
 
     virtual unique_ptr<SpecNode> deep_copy() const = 0;

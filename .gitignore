@@ -1,4 +1,6 @@
 # ignore building directories
+.idea/
+.vscode/settings.json
 build/
 dist/
 src/AutoV/Spec/Parser/.antlr/
