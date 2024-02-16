@@ -162,7 +162,7 @@ SpecValue resolve_pattern(SpecNode* pat, SpecValue* src, unordered_map<string, S
 
 
 
-SpecValue z3_eval(Project* proj, shared_ptr<SpecNode> val, shared_ptr<EvalState> state) {
+shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
     // state = copy_state(state)
 
     // if (val->z3_eval) return val->z3_eval;

@@ -2,6 +2,14 @@ set(CMAKE_C_COMPILER "clang")
 set(CMAKE_CXX_COMPILER "clang++")
 #set(CMAKE_BUILD_TYPE Release)
 
+if (DEFINED ENV{VCPKG_ROOT})
+    message("import vcpkg packages")
+    message("$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
+    set(VCPKG_TARGET_TRIPLET x64-osx)
+    set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
+    include("$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
+endif()
+
 cmake_minimum_required(VERSION 3.10)
 project(spoq)
 
@@ -12,6 +20,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 # Set the C++ standard
 set(CMAKE_CXX_STANDARD 17)
+
 
 # Add the 'include' directory to the include paths
 include_directories(include)

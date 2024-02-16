@@ -67,7 +67,8 @@
         "any": "cpp",
         "unordered_set": "cpp",
         "chrono": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "stack": "cpp"
     },
     "cmake.configureOnOpen": true,
     "cmake.configureSettings": {
