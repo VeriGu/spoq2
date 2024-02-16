@@ -94,7 +94,7 @@ IndConstr::operator std::string() const {
 // Inductive
 // ----------------------------------------------------------------------------
 std::string Inductive::define() const {
-    std::string res = "Inductive " + name + ": Type :=\n |";
+    std::string res = "Inductive " + name + ": Type :=\n | ";
 
     res += join_constrs_pipe(*constrs) + ".\n";
     return res;
@@ -119,7 +119,7 @@ Function::operator string() const {
         }
     }
 
-    return res + std::string(*rettype) + string(")", args->size() - 1);
+    return res + std::string(*rettype) + string(args->size() - 1, ')');
 }
 
 // ----------------------------------------------------------------------------

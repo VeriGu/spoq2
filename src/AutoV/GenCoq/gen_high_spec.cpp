@@ -32,14 +32,17 @@ void gen_specs(Project *proj, loc_t loc, string out_path, string cache_out = "")
     for(auto d : proj->deps[s]) {
       if(proj->symbols[d].loc == loc) continue;
       if(proj->symbols[d].loc == loc_t("","","")) continue;
-      deps.insert(std::get<0>(proj->symbols[d].loc));
+      string l;
+      l += std::get<0>(proj->symbols[d].loc);
       if(std::get<1>(proj->symbols[d].loc) != "") {
-        deps.insert("." + std::get<1>(proj->symbols[d].loc));
+        l += ("." + std::get<1>(proj->symbols[d].loc));
       }
 
       if(std::get<2>(proj->symbols[d].loc) != "") {  
-        deps.insert("." + std::get<2>(proj->symbols[d].loc));
+        l += "." + std::get<2>(proj->symbols[d].loc);
       }
+      
+      deps.insert(l);
     }
   }
 
