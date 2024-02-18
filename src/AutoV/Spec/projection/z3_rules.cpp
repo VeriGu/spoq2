@@ -286,7 +286,7 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
             auto t = dynamic_pointer_cast<Option>(src->get_type());
             auto v = t->elem_type->declare("v", spec->nid);
             if (auto tuple_type = dynamic_pointer_cast<Tuple>(t->elem_type)) {
-                auto tuple_elems = instance_of(expr->elems->at(0).get(), Expr)->elems; // Seems like a bug here
+                auto tuple_elems = instance_of(expr->elems->at(0).get(), Expr)->elems.get(); // Seems like a bug here
                 if (tuple_elems->size() == 2) {
                     // assume the tuple is (symbol, symbol)?
                     auto sym0 = instance_of(tuple_elems->at(0).get(), Symbol);
@@ -297,7 +297,8 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
                     state->vars->emplace(sym1->text, elem1);
                 }
             }
-            resolve_pattern(proj, spec, expr->elems->at(0).get(), dynamic_pointer_cast<IndValue>(src)->get("value"), state);
+            auto value = dynamic_pointer_cast<IndValue>(src)->get("value");
+            resolve_pattern(proj, spec, expr->elems->at(0).get(), value, state);
         }
         else if (std::holds_alternative<string>(expr->op) && std::get<string>(expr->op) == "Tuple") {
             for (int i = 0; i < expr->elems->size(); i++) {
@@ -688,64 +689,6 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
 
 }
 
-
-
-/*
-def resolve_pattern(pat: SpecNode, src: SpecValue):
-    nonlocal state, new_state
-    if isinstance(pat, Symbol):
-        if proj.is_ind_constr(pat.text):
-            t = src.get_type()
-            new_state["conds"].append(src.get_z3_value() == t.construct(pat.text, []).get_z3_value())
-        else:
-            new_state["vars"][pat.text] = src
-    elif isinstance(pat, Const):
-        new_state["conds"].append(src.get_z3_value() == StringValue(pat.value).get_z3_value())
-    elif isinstance(pat, Expr):
-        if pat.op == "Some":
-            t = src.get_type()
-            assert(isinstance(t, Option))
-            v = t.elem_type.declare("v", spec.nid)
-            #new_state["conds"].append(z3.Exists([v.get_z3_value()], src.get_z3_value() == t.construct("Some", [v]).get_z3_value()))
-            if isinstance(t.elem_type, Tuple) and len(pat.elems[0].elems) == 2:
-                elem0 = pat.elems[0].elems[0].type.declare(pat.elems[0].elems[0].text, pat.elems[0].elems[0].id)
-                elem1 = pat.elems[0].elems[1].type.declare(pat.elems[0].elems[1].text, pat.elems[0].elems[1].id)
-                v = t.elem_type.construct([elem0, elem1])
-                new_state["vars"][pat.elems[0].elems[0].text] = elem0
-                new_state["vars"][pat.elems[0].elems[1].text] = elem1
-            if isinstance(spec.src, Expr):
-                pass
-                #new_state["conds"].append(src.get_z3_value() == t.construct("Some", [v]).get_z3_value())
-            resolve_pattern(pat.elems[0], src.get("value"))
-            if isinstance(t.elem_type, Tuple) and isinstance(t.elem_type, Tuple) and len(pat.elems[0].elems) == 2:
-                new_elem0 = new_state["vars"][pat.elems[0].elems[0].text]
-                new_elem1 = new_state["vars"][pat.elems[0].elems[1].text]
-                pass
-                #new_state["conds"].append(new_elem0.get_z3_value() == elem0.get_z3_value())
-                #new_state["conds"].append(new_elem1.get_z3_value() == elem1.get_z3_value())
-        elif pat.op == "Tuple":
-            for i in range(len(pat.elems)):
-                resolve_pattern(pat.elems[i], src.get(i))
-        elif pat.op == "::":
-            t = src.get_type()
-            assert(isinstance(t, List))
-            hh = t.element_type.declare("h", spec.nid)
-            tt = t.declare("t", spec.nid)
-            #new_state["conds"].append(z3.Exists([hh.get_z3_value(), tt.get_z3_value()], src.get_z3_value() == t.construct("Cons", [hh, tt])))
-            resolve_pattern(pat.elems[0], src.get("head"))
-            resolve_pattern(pat.elems[1], src.get("tail"))
-        elif isinstance(pat.op, str) and pat.op in proj.symbols and proj.symbols[pat.op]["kind"] == "ind_constr":
-            t = src.get_type()
-            assert(isinstance(t, Inductive))
-            vars = [arg.type.declare(f"v{i}", spec.nid) for i, arg in enumerate(t.constr[pat.op])]
-            #new_state["conds"].append(z3.Exists([v.get_z3_value() for v in vars], src.get_z3_value() == t.construct(pat.op, vars).get_z3_value()))
-            for i, arg in enumerate(t.constr[pat.op]):
-                resolve_pattern(pat.elems[i], src.get(arg.name))
-        else:
-            raise Exception("Unknown pattern: " + str(pat))
-    else:
-        raise Exception("Unknown pattern: " + str(pat))
-*/
 
 rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState> state)
 {

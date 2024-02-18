@@ -209,7 +209,7 @@ public:
 
     string define() const;
 
-   SpecValue construct(string constr, vector<SpecValue> args) {
+   shared_ptr<SpecValue> construct(string constr, vector<shared_ptr<SpecValue>> args) {
         if (auto opt = dynamic_cast<Option*>(this)) {
             constr = constr + "_" + opt->elem_type->name;
         }
@@ -255,7 +255,7 @@ public:
 
     operator string() const;
 
-    SpecValue construct(vector<SpecValue> args) {
+    shared_ptr<SpecValue> construct(vector<shared_ptr<SpecValue>> args) {
         auto elems = vector<z3::expr>();
         for (int i = 0; i < args.size(); i++) {
             elems.push_back(args[i].get_z3_value());
@@ -340,6 +340,8 @@ public:
     operator string() const {
         return "Value(" + string(*typ) + ", " + value.to_string() + ")";
     }
+
+    virtual ~SpecValue() = default;
 };
 
 extern z3::func_decl land_func;
@@ -355,13 +357,13 @@ public:
     BoolValue(bool value) : SpecValue(Bool::BOOL, value) {}
     BoolValue(z3::expr value) : SpecValue(Bool::BOOL, value) {}
 
-    BoolValue eq(BoolValue other) { return BoolValue((value == other.value).simplify()); }
-    BoolValue ne(BoolValue other) { return BoolValue((value != other.value).simplify()); }
-    BoolValue andb(BoolValue other) { return BoolValue((value && other.value).simplify()); }
-    BoolValue orb(BoolValue other) { return BoolValue((value || other.value).simplify()); }
-    BoolValue negb() { return BoolValue(!value); }
-    BoolValue implies(BoolValue other) { return BoolValue(z3::implies(value, other.value).simplify()); }
-    BoolValue xorb(BoolValue other) { return BoolValue((value ^ other.value).simplify()); }
+    shared_ptr<BoolValue> eq(shared_ptr<BoolValue> other) { return BoolValue((value == other.value).simplify()); }
+    shared_ptr<BoolValue> ne(shared_ptr<BoolValue> other) { return BoolValue((value != other.value).simplify()); }
+    shared_ptr<BoolValue> andb(shared_ptr<BoolValue> other) { return BoolValue((value && other.value).simplify()); }
+    shared_ptr<BoolValue> orb(shared_ptr<BoolValue> other) { return BoolValue((value || other.value).simplify()); }
+    shared_ptr<BoolValue> negb() { return BoolValue(!value); }
+    shared_ptr<BoolValue> implies(shared_ptr<BoolValue> other) { return BoolValue(z3::implies(value, other.value).simplify()); }
+    shared_ptr<BoolValue> xorb(shared_ptr<BoolValue> other) { return BoolValue((value ^ other.value).simplify()); }
 };
 
 
@@ -370,28 +372,28 @@ public:
     IntValue(int value) : SpecValue(Int::INT, value) {}
     IntValue(z3::expr value) : SpecValue(Int::INT, value) {}
 
-    IntValue neg() { return IntValue((-value).simplify()); }
-    IntValue add(IntValue other) { return IntValue((value + other.value).simplify()); }
-    IntValue sub(IntValue other) { return IntValue((value - other.value).simplify()); }
-    IntValue mul(IntValue other) { return IntValue((value * other.value).simplify()); }
-    IntValue div(IntValue other) { return IntValue((value / other.value).simplify()); }
-    IntValue mod(IntValue other) { return IntValue((value % other.value).simplify()); }
-    IntValue shiftl(IntValue other) { return IntValue((z3::shl(value, other.value)).simplify()); }
-    IntValue shiftr(IntValue other) { return IntValue((z3::lshr(value, other.value)).simplify()); }
-    IntValue xorb(IntValue other) { return IntValue((value ^ other.value).simplify()); }
-    IntValue land(IntValue other) { return IntValue(land_func(value, other.value)); }
-    IntValue lor(IntValue other) { return IntValue(lor_func(value, other.value)); }
-    IntValue lxor(IntValue other) { return IntValue(lxor_func(value, other.value)); }
-    IntValue lnot() { return IntValue(lnot_func(value)); }
-    IntValue setbit(IntValue other) { return IntValue(setbit_func(value, other.value)); }
-    IntValue clearbit(IntValue other) { return IntValue(clearbit_func(value, other.value)); }
-    IntValue testbit(IntValue other) { return IntValue(testbit_func(value, other.value)); }
-    BoolValue eq(IntValue other) { return BoolValue((value == other.value).simplify()); }
-    BoolValue ne(IntValue other) { return BoolValue((value != other.value).simplify()); }
-    BoolValue lt(IntValue other) { return BoolValue((value < other.value).simplify()); }
-    BoolValue le(IntValue other) { return BoolValue((value <= other.value).simplify()); }
-    BoolValue gt(IntValue other) { return BoolValue((value > other.value).simplify()); }
-    BoolValue ge(IntValue other) { return BoolValue((value >= other.value).simplify()); }
+    shared_ptr<IntValue> neg() { return make_shared<IntValue>((-value).simplify()); }
+    shared_ptr<IntValue> add(shared_ptr<IntValue> other) { return make_shared<IntValue>((value + other->value).simplify()); }
+    shared_ptr<IntValue> sub(shared_ptr<IntValue> other) { return make_shared<IntValue>((value - other->value).simplify()); }
+    shared_ptr<IntValue> mul(shared_ptr<IntValue> other) { return make_shared<IntValue>((value * other->value).simplify()); }
+    shared_ptr<IntValue> div(shared_ptr<IntValue> other) { return make_shared<IntValue>((value / other->value).simplify()); }
+    shared_ptr<IntValue> mod(shared_ptr<IntValue> other) { return make_shared<IntValue>((value % other->value).simplify()); }
+    shared_ptr<IntValue> shiftl(shared_ptr<IntValue> other) { return make_shared<IntValue>((z3::shl(value, other->value)).simplify()); }
+    shared_ptr<IntValue> shiftr(shared_ptr<IntValue> other) { return make_shared<IntValue>((z3::lshr(value, other->value)).simplify()); }
+    shared_ptr<IntValue> xorb(shared_ptr<IntValue> other) { return make_shared<IntValue>((value ^ other->value).simplify()); }
+    shared_ptr<IntValue> land(shared_ptr<IntValue> other) { return make_shared<IntValue>(land_func(value, other->value)); }
+    shared_ptr<IntValue> lor(shared_ptr<IntValue> other) { return make_shared<IntValue>(lor_func(value, other->value)); }
+    shared_ptr<IntValue> lxor(shared_ptr<IntValue> other) { return make_shared<IntValue>(lxor_func(value, other->value)); }
+    shared_ptr<IntValue> lnot() { return make_shared<IntValue>(lnot_func(value)); }
+    shared_ptr<IntValue> setbit(shared_ptr<IntValue> other) { return make_shared<IntValue>(setbit_func(value, other->value)); }
+    shared_ptr<IntValue> clearbit(shared_ptr<IntValue> other) { return make_shared<IntValue>(clearbit_func(value, other->value)); }
+    shared_ptr<IntValue> testbit(shared_ptr<IntValue> other) { return make_shared<IntValue>(testbit_func(value, other->value)); }
+    shared_ptr<BoolValue> eq(shared_ptr<IntValue> other) { make_shared<BoolValue>((value == other->value).simplify()); }
+    shared_ptr<BoolValue> ne(shared_ptr<IntValue> other) { make_shared<BoolValue>((value != other->value).simplify()); }
+    shared_ptr<BoolValue> lt(shared_ptr<IntValue> other) { make_shared<BoolValue>((value < other->value).simplify()); }
+    shared_ptr<BoolValue> le(shared_ptr<IntValue> other) { make_shared<BoolValue>((value <= other->value).simplify()); }
+    shared_ptr<BoolValue> gt(shared_ptr<IntValue> other) { make_shared<BoolValue>((value > other->value).simplify()); }
+    shared_ptr<BoolValue> ge(shared_ptr<IntValue> other) { make_shared<BoolValue>((value >= other->value).simplify()); }
 };
 
 class StringValue : public SpecValue {
@@ -399,24 +401,24 @@ public:
     StringValue(string value) : SpecValue(String::STRING, value) {}
     StringValue(z3::expr value) : SpecValue(String::STRING, value) {}
 
-    BoolValue eq(StringValue other) { return BoolValue((value == other.value).simplify()); }
-    BoolValue ne(StringValue other) { return BoolValue((value != other.value).simplify()); }
+    shared_ptr<BoolValue> eq(shared_ptr<StringValue> other) { return make_shared<BoolValue>((value == other->value).simplify()); }
+    shared_ptr<BoolValue> ne(shared_ptr<StringValue> other) { return make_shared<BoolValue>((value != other->value).simplify()); }
 };
 
 class ZMapValue : public SpecValue {
 public:
     ZMapValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) {}
 
-    SpecValue get(IntValue key) {
-        return dynamic_cast<ZMap *>(typ.get())->elem_type->from_z3_value(value[key.value].simplify());
+    shared_ptr<SpecValue> get(shared_ptr<IntValue> key) {
+        return dynamic_cast<ZMap *>(typ.get())->elem_type->from_z3_value(value[key->value].simplify());
     }
 
-    ZMapValue set(IntValue key, SpecValue value) {
-        return ZMapValue(typ, z3::store(this->value, key.value, value.value).simplify());
+    shared_ptr<ZMapValue> set(IntValue key, SpecValue value) {
+        return make_shared<ZMapValue>(typ, z3::store(this->value, key.value, value.value).simplify());
     }
 
-    BoolValue eq(ZMapValue other) {
-        return BoolValue((value == other.value).simplify());
+    shared_ptr<BoolValue> eq(shared_ptr<ZMapValue> other) {
+        return make_shared<BoolValue>((value == other->value).simplify());
     }
 };
 
@@ -437,13 +439,13 @@ class StructValue : public SpecValue {
 public:
     StructValue(shared_ptr<Struct> typ, z3::expr value) : SpecValue(typ, value) {}
 
-    SpecValue get(string key);
-    SpecValue get(int key);
-    StructValue set(string key, SpecValue value);
-    StructValue set(int key, SpecValue value);
+    shared_ptr<SpecValue> get(string key);
+    shared_ptr<SpecValue> get(int key);
+    shared_ptr<StructValue> set(string key, shared_ptr<SpecValue> value);
+    shared_ptr<StructValue> set(int key, shared_ptr<SpecValue> value);
 
-    BoolValue eq(StructValue other) {
-        return BoolValue((value == other.value).simplify());
+    shared_ptr<BoolValue> eq(shared_ptr<StructValue> other) {
+        return make_shared<BoolValue>((value == other->value).simplify());
     }
 };
 
@@ -451,12 +453,12 @@ class IndValue : public SpecValue {
 public:
     IndValue(shared_ptr<Inductive> typ, z3::expr value) : SpecValue(typ, value) {}
 
-    SpecValue get(string key);
-    IndValue set(string key, SpecValue value);
-    IndValue concat(IndValue other);
+    shared_ptr<SpecValue> get(string key);
+    shared_ptr<IndValue> set(string key, shared_ptr<SpecValue> value);
+    shared_ptr<IndValue> concat(shared_ptr<IndValue> other);
 
-    BoolValue eq(IndValue other) {
-        return BoolValue((value == other.value).simplify());
+    shared_ptr<BoolValue> eq(shared_ptr<IndValue> other) {
+        return make_shared<BoolValue>((value == other->value).simplify());
     }
 };
 
