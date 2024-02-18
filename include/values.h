@@ -34,8 +34,8 @@ public:
     SpecType(string name, bool record) : name(name), record(record) {}
 
     virtual z3::sort get_z3_type();
-    virtual SpecValue from_z3_value(z3::expr value);
-    virtual SpecValue declare(string name, int nid);
+    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
+    virtual shared_ptr<SpecValue> declare(string name, int nid);
 
     bool operator==(const SpecType& other) const {
         return name == other.name;
@@ -59,8 +59,8 @@ public:
     Int() : SpecType("Z") {}
 
     virtual z3::sort get_z3_type();
-    virtual SpecValue from_z3_value(z3::expr value);
-    virtual SpecValue declare(string name, int nid);
+    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
+    virtual shared_ptr<SpecValue> declare(string name, int nid);
 };
 
 class String : public SpecType {
@@ -69,8 +69,8 @@ public:
     String() : SpecType("string") {}
 
     virtual z3::sort get_z3_type();
-    virtual SpecValue from_z3_value(z3::expr value);
-    virtual SpecValue declare(string name, int nid);
+    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
+    virtual shared_ptr<SpecValue> declare(string name, int nid);
 };
 
 class Bool : public SpecType {
@@ -80,8 +80,8 @@ public:
     Bool() : SpecType("bool") {}
 
     virtual z3::sort get_z3_type();
-    virtual SpecValue from_z3_value(z3::expr value);
-    virtual SpecValue declare(string name, int nid);
+    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
+    virtual shared_ptr<SpecValue> declare(string name, int nid);
 };
 
 class Array : public SpecType {
@@ -92,8 +92,8 @@ public:
     //Array(const Array& other) : SpecType(other.name), elem_type(std::make_unique<SpecType>(*other.elem_type)) {}
 
     virtual z3::sort get_z3_type();
-    virtual SpecValue from_z3_value(z3::expr value);
-    virtual SpecValue declare(string name, int nid);
+    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
+    virtual shared_ptr<SpecValue> declare(string name, int nid);
 
     operator string() const {
         return "list_" + string(*elem_type);
@@ -107,8 +107,8 @@ public:
     Prop() : SpecType("Prop") {}
 
     virtual z3::sort get_z3_type();
-    virtual SpecValue from_z3_value(z3::expr value);
-    virtual SpecValue declare(string name, int nid);
+    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
+    virtual shared_ptr<SpecValue> declare(string name, int nid);
 };
 
 class Type : public SpecType {
@@ -118,8 +118,8 @@ public:
     Type() : SpecType("Type") {}
 
     virtual z3::sort get_z3_type();
-    virtual SpecValue from_z3_value(z3::expr value);
-    virtual SpecValue declare(string name, int nid);
+    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
+    virtual shared_ptr<SpecValue> declare(string name, int nid);
 };
 
 class ZMap : public SpecType {
@@ -133,8 +133,8 @@ public:
     }
 
     virtual z3::sort get_z3_type();
-    virtual SpecValue from_z3_value(z3::expr value);
-    virtual SpecValue declare(string name, int nid);
+    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
+    virtual shared_ptr<SpecValue> declare(string name, int nid);
 };
 
 class Arg {
@@ -173,8 +173,8 @@ public:
     string define() const;
 
     virtual z3::sort get_z3_type();
-    virtual SpecValue from_z3_value(z3::expr value);
-    virtual SpecValue declare(string name, int nid);
+    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
+    virtual shared_ptr<SpecValue> declare(string name, int nid);
 };
 
 class IndConstr {
@@ -186,6 +186,9 @@ public:
 
     operator string() const;
 };
+
+class Option;
+class List;
 
 class Inductive : public SpecType {
 public:
@@ -206,9 +209,28 @@ public:
 
     string define() const;
 
+   SpecValue construct(string constr, vector<SpecValue> args) {
+        if (auto opt = dynamic_cast<Option*>(this)) {
+            constr = constr + "_" + opt->elem_type->name;
+        }
+        else if (auto lst = dynamic_cast<List*>(this)) {
+            constr = constr + "_" + lst->elem_type->name;
+        }
+        auto z3_args = vector<z3::expr>();
+        for (int i = 0; i < args.size(); i++) {
+            z3_args.push_back(args[i].get_z3_value());
+        }
+        if (z3_args.size() == 0) {
+            // TODO
+        }
+        else {
+            // TODO
+        }
+    }
+
     virtual z3::sort get_z3_type();
-    virtual SpecValue from_z3_value(z3::expr value);
-    virtual SpecValue declare(string name, int nid);
+    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
+    virtual shared_ptr<SpecValue> declare(string name, int nid);
 };
 
 extern Inductive Nat;
@@ -222,8 +244,8 @@ public:
     operator string() const;
 
     virtual z3::sort get_z3_type();
-    virtual SpecValue from_z3_value(z3::expr value);
-    virtual SpecValue declare(string name, int nid);
+    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
+    virtual shared_ptr<SpecValue> declare(string name, int nid);
 };
 
 class Tuple : public Struct {
@@ -232,6 +254,14 @@ public:
     Tuple(shared_ptr<vector<shared_ptr<SpecType>>> types);
 
     operator string() const;
+
+    SpecValue construct(vector<SpecValue> args) {
+        auto elems = vector<z3::expr>();
+        for (int i = 0; i < args.size(); i++) {
+            elems.push_back(args[i].get_z3_value());
+        }
+        // TODO
+    }
 };
 
 class List : public Inductive {
@@ -408,7 +438,9 @@ public:
     StructValue(shared_ptr<Struct> typ, z3::expr value) : SpecValue(typ, value) {}
 
     SpecValue get(string key);
+    SpecValue get(int key);
     StructValue set(string key, SpecValue value);
+    StructValue set(int key, SpecValue value);
 
     BoolValue eq(StructValue other) {
         return BoolValue((value == other.value).simplify());

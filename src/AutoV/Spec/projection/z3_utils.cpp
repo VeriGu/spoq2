@@ -81,41 +81,6 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond=z3ctx.bool_val(true
     }
 }
 
-/*
-def resolve_pattern(pat: SpecNode, src: SpecValue, vars: dict[str, SpecValue], assigns: dict[str, SpecValue]) -> SpecValue:
-    typ = src.get_type()
-    if isinstance(pat, Symbol):
-        if proj.is_ind_constr(pat.text):
-            return typ.construct(pat.text, [])
-        else:
-            assert(not proj.is_known_symbol(pat.text))
-            vars[pat.text] = typ.declare(pat.text, val.nid)
-            assigns[pat.text] = src
-            return vars[pat.text]
-    elif isinstance(pat, Const):
-        return pat.get_value()
-    elif isinstance(pat, Expr):
-        if pat.op == "Some":
-            v = resolve_pattern(pat.elems[0], src.get("value"), vars, assigns)
-            return typ.construct("Some", [v])
-        elif pat.op == "Tuple":
-            elems = [resolve_pattern(pat.elems[i], src.get(i), vars, assigns) for i in range(len(pat.elems))]
-            return typ.construct(elems)
-        elif pat.op == "::":
-            head = resolve_pattern(pat.elems[0], src.get("head"), vars, assigns)
-            tail = resolve_pattern(pat.elems[1], src.get("tail"), vars, assigns)
-            return typ.construct("cons", [head, tail])
-        elif proj.get_indtype_by_constr(pat.op) is not None:
-            args = []
-            for i, arg in enumerate(typ.constr[pat.op]):
-                args.append(resolve_pattern(pat.elems[i], src.get(arg.name), vars, assigns))
-            return typ.construct(pat.op, args)
-        else:
-            raise Exception("Unknown pattern: " + str(pat))
-    else:
-        raise Exception("Unknown pattern: " + str(pat))
-*/
-
 SpecValue resolve_pattern(SpecNode* pat, SpecValue* src, unordered_map<string, SpecValue> *vars, unordered_map<string, SpecValue> *assigns)
 {
     auto typ = src->get_type();
@@ -157,9 +122,6 @@ SpecValue resolve_pattern(SpecNode* pat, SpecValue* src, unordered_map<string, S
         throw Exception("Unknown pattern: " + str(pat));
     }
 }
-
-
-
 
 
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
