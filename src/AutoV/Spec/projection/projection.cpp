@@ -58,6 +58,7 @@ void spec_transformer(Project *proj, Definition *def) {
         }
 
         def->body.reset(new_spec);
+        def->_str = "";
         if (!changed)
             break;
     }
