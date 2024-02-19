@@ -23,7 +23,7 @@ string to_coq_name(const string name) {
     for (char c : name) {
         if (c == '%') {
             result += "v_";
-        } else if (c == '@' || c == '.' || c == '-' || c == ':') {
+        } else if (c == '@' || c == '.' || c == '-' || c == ':' || c == '!') {
             result += '_';
         } else {
             result += c;

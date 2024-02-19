@@ -68,7 +68,7 @@ unique_ptr<vector<string>> generate_data(Project *p) {
       fout << p->indtypes[s]->define();
       fout << "\n\n";
     } else if (p->typedefs.find(s) != p->typedefs.end()) {
-      fout << "Definition {s}: Type :=" << string(*p->typedefs[s]) << ".";
+      fout << "Definition "+s+": Type :=" << string(*p->typedefs[s]) << ".";
       fout << "\n\n";
     }
   }

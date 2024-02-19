@@ -370,7 +370,7 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         spec_transformer(proj, high_def);
         std::cout << "Transformed: " << string(*high_def) << std::endl;
         proj->deps[high_name] = proj->calc_dependencies(high_def->body.get());
-        proj->add_definition(unique_ptr<Definition>(high_def), make_shared<loc_t>(L->name, fname, Project::LOC_SPEC));
+        proj->add_definition(unique_ptr<Definition>(high_def), make_shared<loc_t>(L->name, Project::LOC_SPEC, ""));
 
     }
 
