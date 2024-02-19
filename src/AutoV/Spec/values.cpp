@@ -73,10 +73,19 @@ shared_ptr<Type> Type::TYPE = make_shared<Type>();
 // ----------------------------------------------------------------------------
 std::string Struct::define() const {
     std::string res = "Record " + name + " :=\n";
-    std::string args = "";
+    std::string args;
+    for(auto arg: *elems) {
+        args += arg->name;
+        args += ": ";
+        args += string(*arg->type);
+
+        if(arg != *elems->end()) {
+            args += ";\n";
+        }
+    }
 
     res += "  mk" + name + " {\n";
-    res += add_indent(join_elems_semi_colon(*elems), 4) + "\n";
+    res += add_indent(args, 4) + "\n";
     res += "}.\n";
     return res;
 }

@@ -105,6 +105,27 @@ std::string join(T<std::string> initList, const std::string& separator = "\\", b
     return s;
 }
 
+
+template <typename Iterator>
+std::string join(Iterator begin, Iterator end, const std::string& separator = "\\")
+{
+    std::string s;
+
+    for(auto i = begin; i != end; ++i)
+    {
+        if(s.empty())
+        {
+              s = *i;
+        }
+        else
+        {
+              s += separator + *i;
+        }
+    }
+
+    return s;
+}
+
 //string join_elems_semi_colon(const vector<Arg> &elems);
 string join_elems_semi_colon(const vector<shared_ptr<Arg>> &elems);
 

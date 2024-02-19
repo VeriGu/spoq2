@@ -33,7 +33,7 @@ void print_module(IRModule *ir, string out_path) {
       autov::add_indent(typ->to_coq(), 4) + ".\n";
     
     fout << "\n";
-    structs_coq.push_back("(\"" + key + "\")" + ", s_" + IRLoader::to_coq_name(key) + ")");  
+    structs_coq.push_back("(\"" + key + "\"" + ", s_" + IRLoader::to_coq_name(key) + ")");  
   }
 
   fout << "Definition structures :  list (string * typ) :=\n";
@@ -48,7 +48,7 @@ void print_module(IRModule *ir, string out_path) {
       autov::add_indent(glo->to_coq(), 4) + ".\n";
 
      fout << "\n";
-     globvars_coq.push_back("(\"" + key + "\")" + ", v_" + IRLoader::to_coq_name(key) + ")");
+     globvars_coq.push_back("(\"" + key + "\"" + ", v_" + IRLoader::to_coq_name(key) + ")");
   }
 
   fout << "Definition globvars : list (string * global_var) :=\n";
@@ -65,7 +65,7 @@ void print_module(IRModule *ir, string out_path) {
       autov::add_indent(fcoq, 4) + ".\n";
 
      fout << "\n";
-     functions_coq.push_back("(\"" + key + "\")" + ", f_" + IRLoader::to_coq_name(key) + ")");
+     functions_coq.push_back("(\"" + key + "\"" + ", f_" + IRLoader::to_coq_name(key) + ")");
 
      std::stringstream ss(fcoq);
      string to;

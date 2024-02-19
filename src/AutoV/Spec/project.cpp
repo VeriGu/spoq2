@@ -37,7 +37,7 @@ const string Project::LAYER_DATA = "LAYER_DATA";
 
 void Project::add_symbol(string name, SymbolKind kind, string info, shared_ptr<loc_t> loc)
 {
-    symbols[name] = SymbolInfo{kind, info, *loc, name.length()};
+    symbols[name] = SymbolInfo{kind, info, *loc, symbols.size()};
 }
 
 void Project::add_struct(shared_ptr<Struct> s, shared_ptr<loc_t> loc)

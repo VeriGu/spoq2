@@ -21,6 +21,11 @@ void gen_specs(Project *proj, loc_t loc, string out_path, string cache_out = "")
       }
   }
 
+  sort(syms.begin(), syms.end(), 
+   [&] (string s1, string s2) {
+    return proj->symbols[s1].order < proj->symbols[s2].order;
+   });
+
   //Require Import
   std::set<string> deps = {"CommonDeps", "DataTypes"};
   if(std::get<0>(loc) != "GlobalDefs") {
@@ -121,6 +126,7 @@ unique_ptr<vector<string>> generate_high_spec(Project *proj) {
   auto files = unique_ptr<vector<string>>(new vector<string>());
   boost::filesystem::path dir(proj->base);
   boost::filesystem::path file("GlobalDefs.v");
+  files->push_back("GlobalDefs.v");
 
   gen_specs(proj, loc_t("GlobalDefs","",""), (dir/file).string());
   auto cache_dir = dir / ".CachedSpec";
