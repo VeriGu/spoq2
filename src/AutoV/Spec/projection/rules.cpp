@@ -16,7 +16,7 @@ subst(let x := x + 1 in x, "x", 1) => let x := 1 + 1 in x
 [spec] is freed is subsitution is successful
 [value] is freed by the caller
 */
-static SpecNode* subst(SpecNode *spec, string name, SpecNode *value) {
+static SpecNode* subst(SpecNode *spec, string name, SpecNode *value, bool &succ) {
     if (auto s = instance_of(spec, Symbol)) {
         if (s->text != name)
             return spec;
@@ -25,17 +25,18 @@ static SpecNode* subst(SpecNode *spec, string name, SpecNode *value) {
         if (is_instance(new_value.get(), Symbol))
             new_value->set_type(s->type);
         delete s;
+        succ = true;
         return new_value.release();
     } else if (auto e = instance_of(spec, Expr)) {
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
         for (auto &elem : *e->elems)
-            elems->push_back(unique_ptr<SpecNode>(subst(elem.release(), name, value)));
+            elems->push_back(unique_ptr<SpecNode>(subst(elem.release(), name, value, succ)));
         return std::visit([&](auto&& arg) -> Expr* {
             using T = std::decay_t<decltype(arg)>;
             if constexpr (std::is_same_v<T, std::unique_ptr<SpecNode>>) {
                 auto op = arg.release();
-                auto new_op = std::unique_ptr<SpecNode>(subst(op, name, value));
+                auto new_op = std::unique_ptr<SpecNode>(subst(op, name, value, succ));
                 auto new_expr = new Expr(std::move(new_op), std::move(elems), e->type);
                 delete e;
                 return new_expr;
@@ -59,12 +60,12 @@ static SpecNode* subst(SpecNode *spec, string name, SpecNode *value) {
             return false;
         };
 
-        auto src = subst(m->src.release(), name, value);
+        auto src = subst(m->src.release(), name, value, succ);
         auto matches = make_unique<vector<unique_ptr<PatternMatch>>>();
 
         for (auto &pm : *m->match_list) {
             if (!exists_in_pattern(pm->pattern.get())) {
-                auto new_body = subst(pm->body.release(), name, value);
+                auto new_body = subst(pm->body.release(), name, value, succ);
                 matches->push_back(make_unique<PatternMatch>(pm->pattern->deep_copy(), unique_ptr<SpecNode>(new_body)));
             } else {
                 matches->push_back(pm->deep_copy_down());
@@ -74,33 +75,33 @@ static SpecNode* subst(SpecNode *spec, string name, SpecNode *value) {
         delete m;
         return new_match;
     } else if (auto r = instance_of(spec, Rely)) {
-        auto new_rely = new Rely(unique_ptr<SpecNode>(subst(r->prop.release(), name, value)),
-                                 unique_ptr<SpecNode>(subst(r->body.release(), name, value)));
+        auto new_rely = new Rely(unique_ptr<SpecNode>(subst(r->prop.release(), name, value, succ)),
+                                 unique_ptr<SpecNode>(subst(r->body.release(), name, value, succ)));
         delete r;
         return new_rely;
     } else if (auto r = instance_of(spec, Anno)) {
-        auto new_anno = new Anno(unique_ptr<SpecNode>(subst(r->prop.release(), name, value)),
-                                 unique_ptr<SpecNode>(subst(r->body.release(), name, value)));
+        auto new_anno = new Anno(unique_ptr<SpecNode>(subst(r->prop.release(), name, value, succ)),
+                                 unique_ptr<SpecNode>(subst(r->body.release(), name, value, succ)));
         delete r;
         return new_anno;
     } else if (auto i = instance_of(spec, If)) {
-        auto new_if = new If(unique_ptr<SpecNode>(subst(i->cond.release(), name, value)),
-                             unique_ptr<SpecNode>(subst(i->then_body.release(), name, value)),
-                             unique_ptr<SpecNode>(subst(i->else_body.release(), name, value)));
+        auto new_if = new If(unique_ptr<SpecNode>(subst(i->cond.release(), name, value, succ)),
+                             unique_ptr<SpecNode>(subst(i->then_body.release(), name, value, succ)),
+                             unique_ptr<SpecNode>(subst(i->else_body.release(), name, value, succ)));
         delete i;
         return new_if;
     } else if (auto fe = instance_of(spec, Forall)) {
         auto vars = new vector<shared_ptr<Arg>>(*fe->vars.get());
 
         auto new_forall = new Forall(unique_ptr<vector<shared_ptr<Arg>>>(vars),
-                                     unique_ptr<SpecNode>(subst(fe->body.release(), name, value)));
+                                     unique_ptr<SpecNode>(subst(fe->body.release(), name, value, succ)));
         delete fe;
         return new_forall;
     } else if (auto fe = instance_of(spec, Exists)) {
         auto vars = new vector<shared_ptr<Arg>>(*fe->vars.get());
 
         auto new_exists = new Exists(unique_ptr<vector<shared_ptr<Arg>>>(vars),
-                                     unique_ptr<SpecNode>(subst(fe->body.release(), name, value)));
+                                     unique_ptr<SpecNode>(subst(fe->body.release(), name, value, succ)));
         delete fe;
         return new_exists;
     } else if (is_instance(spec, Const)) {
@@ -183,8 +184,9 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
                     prev.insert(new_sym);
                     if (sym != new_sym) {
                         auto new_symbol = new Symbol(new_sym, SpecType::UNKNOWN_TYPE);
-                        pattern = subst(pattern, sym, new_symbol);
-                        body = subst(body, sym, new_symbol);
+                        bool succ;
+                        pattern = subst(pattern, sym, new_symbol, succ);
+                        body = subst(body, sym, new_symbol, succ);
                         delete new_symbol;
                     }
                 }
@@ -223,7 +225,8 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
 
             if (v->name != new_name) {
                 auto new_symbol = new Symbol(new_name, SpecType::UNKNOWN_TYPE);
-                body = subst(body, v->name, new_symbol);
+                bool succ;
+                body = subst(body, v->name, new_symbol, succ);
                 delete new_symbol;
             }
             prev.insert(new_name);
@@ -789,12 +792,30 @@ rule_ret_t rule_move_when_out_when(Project *proj, SpecNode *spec) {
 }
 
 /*
+if true then [then_body] else [else_body] ===> [then_body]
+if false then [then_body] else [else_body] ===> [else_body]
 if ... then [body] else [body] ===> [body]
+if A then [then_body] else (if B then [then_body] else [else_body]) ===> if (A || B) then [then_body] else [else_body]
 */
 rule_ret_t rule_eliminate_if(Project *proj, SpecNode *spec) {
     bool changed = false;
     std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
         if (auto i = instance_of(node, If)) {
+            if (auto cond = instance_of(i->cond.get(), Const)) {
+                if (auto val = std::get_if<bool>(&cond->value)) {
+                    SpecNode *new_node;
+
+                    if (*val)
+                        new_node = i->then_body.release();
+                    else
+                        new_node = i->else_body.release();
+
+                    delete i;
+                    changed = true;
+                    return new_node;
+                }
+            }
+
             if (*i->then_body == *i->else_body) {
                 auto new_node = i->then_body.release();
 
@@ -838,8 +859,9 @@ rule_ret_t rule_eliminate_let(Project *proj, SpecNode *spec) {
                     if (!proj->is_known_symbol(name)) {
                         SpecNode *value = m->src.get();
                         SpecNode *body = m->match_list->at(0)->body.release();
+                        bool succ = false;
 
-                        auto new_e = subst(body, name, value);
+                        auto new_e = subst(body, name, value, succ);
                         delete m;
                         changed = true;
 
@@ -854,34 +876,44 @@ rule_ret_t rule_eliminate_let(Project *proj, SpecNode *spec) {
     return std::make_pair(rec_apply(spec, f, false), changed);
 }
 
+static string get_constr(SpecNode *node) {
+    if (auto p = instance_of(node, Symbol)) {
+        return p->text;
+    } else if (auto p = instance_of(node, Expr)) {
+        if (holds_alternative<string>(p->op)) {
+            return std::get<string>(p->op);
+        } else if (auto op = std::get_if<Expr::ops>(&p->op)) {
+            if (*op == Expr::Some)
+                return "Some";
+            else if (*op == Expr::None)
+                return "None";
+            else if (*op == Expr::Tuple)
+                return "Tuple";
+        }
+    }
+
+    return "";
+}
+
 //try to match [pattern] with [src], return true if match success, and [assign] will be
 //filled with the matched variables, return [default] if not sure.
-bool try_match(Project *proj, SpecNode *pattern, SpecNode *src, std::unordered_map<string, unique_ptr<SpecNode>> &assigns, bool def) {
-    if (auto p = instance_of(pattern, autov::Const)) {
-        if(auto s = instance_of(src, autov::Const)) {
+static bool try_match(Project *proj, SpecNode *pattern, SpecNode *src,
+                      std::unordered_map<string, unique_ptr<SpecNode>> &assigns, bool def) {
+    //std::cout << "try_match " << string(*src) << " with " << string(*pattern) << std::endl;
+    if (auto p = instance_of(pattern, Const)) {
+        if(auto s = instance_of(src, Const)) {
             return p->value == s->value;
         }
     }
 
     string patter_constr, src_constr;
-    if (auto p = instance_of(pattern, Symbol)) {
-        patter_constr = p->text;
-    } else if (auto p = instance_of(pattern, Expr)) {
-        if (holds_alternative<string>(p->op)) {
-            patter_constr = std::get<string>(p->op);
-        }
-    }
 
-    if (auto p = instance_of(src, Symbol)) {
-        src_constr = p->text;
-    } else if (auto p = instance_of(src, Expr)) {
-        if (holds_alternative<string>(p->op)) {
-            src_constr = std::get<string>(p->op);
-        }
-    }
+    patter_constr = get_constr(pattern);
+    src_constr = get_constr(src);
 
-    if (patter_constr != "" && src_constr != "" && (proj->is_ind_constr(patter_constr) || proj->is_struct_constr(patter_constr))
-        && (proj->is_ind_constr(src_constr) || proj->is_struct_constr(src_constr))) {
+    if (patter_constr != "" && src_constr != "" &&
+        (proj->is_ind_constr(patter_constr) || proj->is_struct_constr(patter_constr)) &&
+        (proj->is_ind_constr(src_constr) || proj->is_struct_constr(src_constr))) {
         if (patter_constr != src_constr)
             return false;
         else {
@@ -891,6 +923,8 @@ bool try_match(Project *proj, SpecNode *pattern, SpecNode *src, std::unordered_m
                 if (auto p = instance_of(pattern, Expr)) {
                     if (auto s = instance_of(src, Expr)) {
                         for (int i = 0; i < p->elems->size(); ++i) {
+                            // std::cout << "    try_match elem" << string(*p->elems->at(i)) <<
+                            //     " with " << string(*s->elems->at(i)) << std::endl;
                             if (!try_match(proj, p->elems->at(i).get(), s->elems->at(i).get(), assigns, def))
                                 return false;
                         }
@@ -904,6 +938,7 @@ bool try_match(Project *proj, SpecNode *pattern, SpecNode *src, std::unordered_m
     if (auto p = instance_of(pattern, Symbol)) {
         if(!proj->is_known_symbol(p->text)) {
             assigns[p->text] = src->deep_copy();
+            return true;
         }
     }
 
@@ -924,7 +959,8 @@ rule_ret_t rule_eliminate_match_simple(Project *proj, SpecNode *spec) {
                     if (try_match(proj, m->match_list->at(i)->pattern.get(), m->src.get(), assigns, false)) {
                         unique_ptr<SpecNode> new_body = std::move(m->match_list->at(i)->body);
                         for (auto & [k,v] : assigns) {
-                            new_body = Match::let(k, std::move(v), std::move(new_body), v->get_type());
+                            auto t = v->get_type();
+                            new_body = Match::let(k, std::move(v), std::move(new_body), t);
                         }
                         delete m;
                         changed = true;
