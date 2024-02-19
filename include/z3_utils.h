@@ -1,6 +1,6 @@
 #pragma once
 
-#include <z3++.h>
+#include <z3/z3++.h>
 #include <nodes.h>
 #include <values.h>
 

@@ -6,7 +6,8 @@
 #include <unordered_map>
 #include <sstream>
 #include <memory>
-#include "z3++.h"
+#include <utils.h>
+#include <z3/z3++.h>
 
 namespace autov {
 using std::string;

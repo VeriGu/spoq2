@@ -86,6 +86,77 @@ std::string Struct::define() const {
     return res;
 }
 
+
+//StructValue
+std::shared_ptr<SpecValue> StructValue::get(string key) {
+    string field = key;
+        
+    if(auto s = dynamic_cast<Struct*>(typ.get())) {
+        int i = 0;
+        bool found = false;
+        for(auto arg : *s->elems) {
+            if(arg->name == field) {
+                found = true;
+                break;
+            }
+            i++;
+        }
+            
+        if(!found) {
+            LOG_ERROR << "Not a struct type";
+            assert(false);
+        }
+            
+        auto elem_typ = s->elems_map[field];
+        z3::sort z3type = s->get_z3_type();
+        assert(z3type.is_datatype());
+        z3::func_decl_vector css = z3type.constructors();
+        z3::func_decl cs = css[0];  //one constructor: mk{fname}
+        z3::func_decl accessor = cs.accessors()[i]; //get the ith accessor
+
+        return elem_typ->from_z3_value(accessor(get_z3_value()));
+    }
+
+    LOG_ERROR << "Not a struct type";
+}
+
+shared_ptr<SpecValue> StructValue::get(int key) {
+    assert(is_instance(typ.get(), Tuple));
+
+    string field = "elem_" + key;
+    return StructValue::get(field);
+}
+
+shared_ptr<StructValue> StructValue::set(string key, shared_ptr<SpecValue> value) {
+        string field = key;
+        if(auto s = dynamic_cast<Struct*>(typ.get())) {
+            auto elem_typ = s->elems_map[field];
+            z3::sort z3type = s->get_z3_type();
+            assert(z3type.is_datatype());
+            z3::func_decl_vector css = z3type.constructors();
+            z3::func_decl cs = css[0];  //one constructor: mk{fname}
+
+            z3::expr_vector elems(z3ctx);
+            int i;
+            for(auto arg : *s->elems) {
+                if(arg->name == field) {
+                    elems.push_back(value->get_z3_value());
+                } else {
+                    elems.push_back(z3type.constructors()[0].accessors()[i](get_z3_value()));
+                }
+                i++;
+            }
+
+            return dynamic_pointer_cast<StructValue>(s->from_z3_value(cs(elems)));
+        }
+}
+
+shared_ptr<StructValue> StructValue::set(int key, shared_ptr<SpecValue> value) {
+    assert(is_instance(typ.get(), Tuple));
+    string field = "elem_" + field;
+    return StructValue::set(field, value);
+}
+
 // ----------------------------------------------------------------------------
 // IndConstr
 // ----------------------------------------------------------------------------
