@@ -32,17 +32,17 @@ z3::solver Z3Solver = z3::solver(z3ctx);
 
 unordered_map<string, bool> Z3Cache;
 
-unsigned hash_unsigned_vector(const vector<unsigned> &v) {
-    unsigned hash = 0;
-    for (auto &i : v) {
+size_t hash_unsigned_vector(const vector<unsigned> &v) {
+    size_t hash = 0;
+    for (const auto &i : v) {
         boost::hash_combine(hash, i);
     }
     return hash;
 }
 
-unsigned hash_z3_state(std::shared_ptr<EvalState> state, z3::expr cond, int timeout) {
+size_t hash_z3_state(std::shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     std::vector<unsigned> hashes;
-    for (auto &c : state->conds) {
+    for (auto &c : *state->conds) {
         hashes.push_back(c);
     }
     sort(hashes.begin(), hashes.end());

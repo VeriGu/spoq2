@@ -218,7 +218,7 @@ public:
         }
         auto z3_args = vector<z3::expr>();
         for (int i = 0; i < args.size(); i++) {
-            z3_args.push_back(args[i].get_z3_value());
+            z3_args.push_back(args[i]->get_z3_value());
         }
         if (z3_args.size() == 0) {
             // TODO
@@ -258,7 +258,7 @@ public:
     shared_ptr<SpecValue> construct(vector<shared_ptr<SpecValue>> args) {
         auto elems = vector<z3::expr>();
         for (int i = 0; i < args.size(); i++) {
-            elems.push_back(args[i].get_z3_value());
+            elems.push_back(args[i]->get_z3_value());
         }
         // TODO
     }
@@ -357,13 +357,27 @@ public:
     BoolValue(bool value) : SpecValue(Bool::BOOL, value) {}
     BoolValue(z3::expr value) : SpecValue(Bool::BOOL, value) {}
 
-    shared_ptr<BoolValue> eq(shared_ptr<BoolValue> other) { return BoolValue((value == other.value).simplify()); }
-    shared_ptr<BoolValue> ne(shared_ptr<BoolValue> other) { return BoolValue((value != other.value).simplify()); }
-    shared_ptr<BoolValue> andb(shared_ptr<BoolValue> other) { return BoolValue((value && other.value).simplify()); }
-    shared_ptr<BoolValue> orb(shared_ptr<BoolValue> other) { return BoolValue((value || other.value).simplify()); }
-    shared_ptr<BoolValue> negb() { return BoolValue(!value); }
-    shared_ptr<BoolValue> implies(shared_ptr<BoolValue> other) { return BoolValue(z3::implies(value, other.value).simplify()); }
-    shared_ptr<BoolValue> xorb(shared_ptr<BoolValue> other) { return BoolValue((value ^ other.value).simplify()); }
+    shared_ptr<BoolValue> eq(shared_ptr<BoolValue> other) {
+        return make_shared<BoolValue>((value == other->value).simplify());
+    }
+    shared_ptr<BoolValue> ne(shared_ptr<BoolValue> other) {
+        return make_shared<BoolValue>((value != other->value).simplify());
+    }
+    shared_ptr<BoolValue> andb(shared_ptr<BoolValue> other) {
+        return make_shared<BoolValue>((value && other->value).simplify());
+    }
+    shared_ptr<BoolValue> orb(shared_ptr<BoolValue> other) {
+        return make_shared<BoolValue>((value || other->value).simplify());
+    }
+    shared_ptr<BoolValue> negb() {
+        return make_shared<BoolValue>(!value);
+    }
+    shared_ptr<BoolValue> implies(shared_ptr<BoolValue> other) {
+        return make_shared<BoolValue>(z3::implies(value, other->value).simplify());
+    }
+    shared_ptr<BoolValue> xorb(shared_ptr<BoolValue> other) {
+        return make_shared<BoolValue>((value ^ other->value).simplify());
+    }
 };
 
 
