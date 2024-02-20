@@ -586,7 +586,7 @@ static shared_ptr<CFunction> parse_function(const ptree &func) {
 
     if (!is_decl) {
         auto loc = count_ir_loc(func);
-        auto body = control_flow_conversion(irfunc->blocks.get());
+        auto body = control_flow_conversion(irfunc->blocks.get(), false);
 
         cfunc = make_shared<CFunction>(fname, rettype, std::move(irfunc->args), is_decl, std::move(body));
 

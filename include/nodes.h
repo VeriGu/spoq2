@@ -142,7 +142,7 @@ public:
         : SpecNode(type), value(value) {}
 
     bool operator==(const SpecNode& other) const {
-        if (typeid(other) != typeid(this->type)) {
+        if (typeid(other) != typeid(*this)) {
             return false;
         }
         return this->value == ((Const&)other).value;
@@ -164,7 +164,7 @@ public:
         p = make_unique<Const>(this->value, this->type);
     }
 
-    ~Const() {}
+    virtual ~Const() {}
 private:
     const string to_string() const {
         if (this->type == SpecType::UNKNOWN_TYPE) {

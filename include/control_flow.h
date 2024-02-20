@@ -7,5 +7,5 @@
 
 namespace autov::IRLoader
 {
-unique_ptr<vector<unique_ptr<IRInst>>> control_flow_conversion(ir_blocks_t *blocks);
+unique_ptr<vector<unique_ptr<IRInst>>> control_flow_conversion(ir_blocks_t *blocks, bool debug);
 } // namespace autov::IRLoader
