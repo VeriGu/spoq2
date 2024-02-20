@@ -11,6 +11,7 @@
 #include <nodes.h>
 #include <values.h>
 #include <z3_utils.h>
+#include <utils.h>
 
 
 namespace autov
@@ -30,7 +31,7 @@ using std::sort;
 
 z3::solver Z3Solver = z3::solver(z3ctx);
 
-unordered_map<string, bool> Z3Cache;
+unordered_map<size_t, Z3Result> Z3Cache;
 
 size_t hash_unsigned_vector(const vector<unsigned> &v) {
     size_t hash = 0;
@@ -55,10 +56,10 @@ int complexity(shared_ptr<SpecNode> spec) {
     return spec->length;
 }
 
-SpecValue& cache(shared_ptr<SpecNode> spec, SpecValue &value) {
-    spec->set_z3_eval(value);
-    return value;
-}
+// SpecValue& cache(shared_ptr<SpecNode> spec, SpecValue &value) {
+//     spec->set_z3_eval(value);
+//     return value;
+// }
 
 Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond=z3ctx.bool_val(true), int timeout=100) {
     auto hash = hash_z3_state(state, cond, 1000);
@@ -84,7 +85,7 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond=z3ctx.bool_val(true
 SpecValue resolve_pattern(SpecNode* pat, SpecValue* src, unordered_map<string, SpecValue> *vars, unordered_map<string, SpecValue> *assigns)
 {
     auto typ = src->get_type();
-    if (auto sym = dynamic_pointer_cast<Symbol>(pat)) {
+    if (auto sym = instance_of(pat, Symbol)) {
         if (proj->is_ind_constr(sym->text)) {
             return typ->construct(sym->text, {});
         } else {
@@ -93,9 +94,9 @@ SpecValue resolve_pattern(SpecNode* pat, SpecValue* src, unordered_map<string, S
             (*assigns)[sym->text] = src;
             return (*vars)[sym->text];
         }
-    } else if (auto c = dynamic_pointer_cast<Const>(pat)) {
+    } else if (auto c = instance_of(pat, Const)) {
         return c->get_value();
-    } else if (auto expr = dynamic_pointer_cast<Expr>(pat)) {
+    } else if (auto expr = instance_of(pat, Expr)) {
         if (expr->op == "Some") {
             auto v = resolve_pattern(expr->elems[0], src->get("value"), vars, assigns);
             return typ->construct("Some", {v});
@@ -129,9 +130,14 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
 
     // if (val->z3_eval) return val->z3_eval;
 
+    auto _cache = [&](shared_ptr<SpecValue> return_val) {
+        val->set_z3_eval(return_val);
+        return return_val;
+    };
+
     if (auto sym = dynamic_pointer_cast<Symbol>(val)) {
-        if (sym->text != "None" && sym->text != "nil" && state->vars.find(sym->text) != state->vars.end()) {
-            return cache(val, state->vars[sym->text]);
+        if (sym->text != "None" && sym->text != "nil" && state->vars->find(sym->text) != state->vars->end()) {
+            return _cache(state->vars[sym->text]);
         } else if (proj->defs.find(sym->text) != proj->defs.end()) {
             auto df = proj->defs[sym->text];
             assert(df->args.size() == 0);
@@ -219,7 +225,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             return cache(val, elems[0].set(elems[1], elems[2]));
         // Record.get
         // Record.set
-
+        }
         else if (expr->op == '::') return cache(val, elems[0].cons(elems[1]));
         else if (expr->op == '++') return cache(val, elems[0].concat(elems[1]));
         else if (expr->op == 'Some') return cache(val, val->get_type()->construct("Some", {elems[0]}));

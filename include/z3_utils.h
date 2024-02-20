@@ -24,25 +24,25 @@ using std::vector;
 
 class EvalState {
 public:
-    shared_ptr<unordered_map<string, SpecValue>> vars;
+    shared_ptr<unordered_map<string, shared_ptr<SpecValue>>> vars;
     shared_ptr<vector<z3::expr>> conds;
 
     EvalState() {
-        vars = make_shared<unordered_map<string, SpecValue>>();
+        vars = make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
         conds = make_shared<vector<z3::expr>>();
     }
 
-    EvalState(shared_ptr<unordered_map<string, SpecValue>> vars) {
+    EvalState(shared_ptr<unordered_map<string, shared_ptr<SpecValue>>> vars) {
         this->vars = vars;
         conds = make_shared<vector<z3::expr>>();
     }
 
     EvalState(shared_ptr<vector<z3::expr>> conds) {
-        vars = make_shared<unordered_map<string, SpecValue>>();
+        vars = make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
         this->conds = conds;
     }
 
-    EvalState(shared_ptr<unordered_map<string, SpecValue>> vars, shared_ptr<vector<z3::expr>> conds) {
+    EvalState(shared_ptr<unordered_map<string, shared_ptr<SpecValue>>> vars, shared_ptr<vector<z3::expr>> conds) {
         this->vars = vars;
         this->conds = conds;
     }
