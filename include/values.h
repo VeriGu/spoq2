@@ -198,6 +198,9 @@ public:
     shared_ptr<vector<shared_ptr<IndConstr>>> constrs;
     std::map<string, shared_ptr<vector<shared_ptr<Arg>>>> constr;
     std::map<string, shared_ptr<SpecType>> arg_type;
+    shared_ptr<std::map<string, z3::func_decl>> z3_constructors;
+    //shared_ptr<std::map<string, z3::func_decl>> z3_accessors;
+
     Inductive() = default;
     Inductive(string name, shared_ptr<vector<shared_ptr<IndConstr>>> constrs) : SpecType(name), constrs(constrs) {
         for (const auto c : *constrs) {
@@ -290,6 +293,10 @@ public:
 
     operator string() const {
         return "list " + string(*elem_type);
+    }
+
+    z3::func_decl concat_func() {
+        return z3::function((name + "_concat").c_str(), get_z3_type(), get_z3_type(), get_z3_type());
     }
 };
 
@@ -466,10 +473,12 @@ public:
 
 class IndValue : public SpecValue {
 public:
-    IndValue(shared_ptr<Inductive> typ, z3::expr value) : SpecValue(typ, value) {}
+    z3::func_decl constructor;
 
+    IndValue(shared_ptr<Inductive> typ, z3::expr value, z3::func_decl constr) : SpecValue(typ, value), constructor(constr) {};
+    
     shared_ptr<SpecValue> get(string key);
-    shared_ptr<IndValue> set(string key, shared_ptr<SpecValue> value);
+    // shared_ptr<IndValue> set(string key, shared_ptr<SpecValue> value);
     shared_ptr<IndValue> concat(shared_ptr<IndValue> other);
 
     shared_ptr<BoolValue> eq(shared_ptr<IndValue> other) {

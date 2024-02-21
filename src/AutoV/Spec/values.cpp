@@ -157,6 +157,49 @@ shared_ptr<StructValue> StructValue::set(int key, shared_ptr<SpecValue> value) {
     return StructValue::set(field, value);
 }
 
+//IndValue
+
+shared_ptr<SpecValue> IndValue::get(string key) {
+    auto accessor = key;
+    if(auto type = instance_of(typ.get(), Option)) {
+        accessor = key + "_" + type->elem_type->name;
+    }
+    if(auto type = instance_of(typ.get(), List)) {
+        accessor = key + "_" + type->elem_type->name;
+    }
+    assert(is_instance(typ.get(), Inductive));
+
+    if(auto type = instance_of(typ.get(), Inductive)) {
+        auto val = get_z3_value();
+        int i = 0;
+        bool found = false;
+        for(auto [arg, type]: type->arg_type) {
+            if(arg == accessor) {
+                found = true;
+                break;
+            }
+            i++;
+        }
+        auto acc = constructor.accessors()[i];
+        return type->arg_type[accessor]->from_z3_value(acc(val));
+    }
+}
+
+// shared_ptr<IndValue> IndValue::set(string key, shared_ptr<SpecValue> value) {
+//     //this sames not used by before
+//     return nullptr;
+// }
+
+shared_ptr<IndValue> IndValue::concat(shared_ptr<IndValue> other) {
+    assert(is_instance(typ.get(), List));
+    assert(is_instance(other.get(), List));
+    
+    if(auto type = instance_of(typ.get(), List)) {
+    z3::func_decl f = type->concat_func();
+    return dynamic_pointer_cast<IndValue>(type->from_z3_value(f(get_z3_value(), other->get_z3_value())));
+    }
+}
+
 // ----------------------------------------------------------------------------
 // IndConstr
 // ----------------------------------------------------------------------------
