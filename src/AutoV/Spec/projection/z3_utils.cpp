@@ -56,11 +56,6 @@ int complexity(shared_ptr<SpecNode> spec) {
     return spec->length;
 }
 
-// SpecValue& cache(shared_ptr<SpecNode> spec, SpecValue &value) {
-//     spec->set_z3_eval(value);
-//     return value;
-// }
-
 Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond=z3ctx.bool_val(true), int timeout=100) {
     auto hash = hash_z3_state(state, cond, 1000);
     if (Z3Cache.find(hash) != Z3Cache.end()) {
@@ -82,150 +77,166 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond=z3ctx.bool_val(true
     }
 }
 
-SpecValue resolve_pattern(SpecNode* pat, SpecValue* src, unordered_map<string, SpecValue> *vars, unordered_map<string, SpecValue> *assigns)
+shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pat, shared_ptr<SpecValue> src, 
+                                      unordered_map<string, shared_ptr<SpecValue>> &vars, 
+                                      unordered_map<string, shared_ptr<SpecValue>> &assigns)
 {
     auto typ = src->get_type();
     if (auto sym = instance_of(pat, Symbol)) {
         if (proj->is_ind_constr(sym->text)) {
-            return typ->construct(sym->text, {});
-        } else {
-            assert(proj->is_known_symbol(sym->text));
-            (*vars)[sym->text] = typ->declare(sym->text, val.nid);
-            (*assigns)[sym->text] = src;
-            return (*vars)[sym->text];
+            return dynamic_pointer_cast<Inductive>(typ)->construct(sym->text, {});
         }
-    } else if (auto c = instance_of(pat, Const)) {
-        return c->get_value();
-    } else if (auto expr = instance_of(pat, Expr)) {
-        if (expr->op == "Some") {
-            auto v = resolve_pattern(expr->elems[0], src->get("value"), vars, assigns);
-            return typ->construct("Some", {v});
-        } else if (expr->op == "Tuple") {
-            vector<SpecValue> elems;
-            for (auto i = 0; i < expr->elems.size(); i++) {
-                elems.push_back(resolve_pattern(expr->elems[i], src->get(i), vars, assigns));
-            }
-            return typ->construct(elems);
-        } else if (expr->op == "::") {
-            auto head = resolve_pattern(expr->elems[0], src->get("head"), vars, assigns);
-            auto tail = resolve_pattern(expr->elems[1], src->get("tail"), vars, assigns);
-            return typ->construct("cons", {head, tail});
-        } else if (auto indtype = proj->get_indtype_by_constr(expr->op)) {
-            vector<SpecValue> args;
-            for (auto i = 0; i < indtype->constr[expr->op].size(); i++) {
-                args.push_back(resolve_pattern(expr->elems[i], src->get(indtype->constr[expr->op][i].name), vars, assigns));
-            }
-            return typ->construct(expr->op, args);
-        } else {
-            throw Exception("Unknown pattern: " + str(pat));
+        else {
+            vars[sym->text] = typ->declare(sym->text, val->nid);
+            assigns[sym->text] = src;
+            return vars[sym->text];
         }
-    } else {
-        throw Exception("Unknown pattern: " + str(pat));
+    } else if (auto intc = instance_of(pat, IntConst)) {
+        return make_shared<IntValue>(intc->value);
+    } else if (auto boolc = instance_of(pat, BoolConst)) {
+        return make_shared<BoolValue>(boolc->value);
+    } else if (auto strc = instance_of(pat, StringConst)) {
+        return make_shared<StringValue>(strc->value);
+    }
+    else if (auto expr = instance_of(pat, Expr))
+    {
+        if (op_eq(expr->op, "Some"))
+        {
+            auto v = resolve_pattern(proj, val, expr->elems->at(0).get(), dynamic_pointer_cast<IndValue>(src)->get("value"), vars, assigns);
+            return dynamic_pointer_cast<Inductive>(typ)->construct("Some", {v});
+        }
+        else if (op_eq(expr->op, "Tuple"))
+        {
+            vector<shared_ptr<SpecValue>> elems;
+            for (int i = 0; i < expr->elems->size(); i++)
+            {
+                elems.push_back(resolve_pattern(proj, val, expr->elems->at(i).get(), dynamic_pointer_cast<StructValue>(src)->get(i), vars, assigns));
+            }
+            return dynamic_pointer_cast<Struct>(typ)->construct(elems);
+        }
+        else if (op_eq(expr->op, "::"))
+        {
+            auto head = resolve_pattern(proj, val, expr->elems->at(0).get(), dynamic_pointer_cast<IndValue>(src)->get("head"), vars, assigns);
+            auto tail = resolve_pattern(proj, val, expr->elems->at(1).get(), dynamic_pointer_cast<IndValue>(src)->get("tail"), vars, assigns);
+            return dynamic_pointer_cast<Inductive>(typ)->construct("cons", {head, tail});
+        }
+        else
+        {
+            throw std::runtime_error("Unknown pattern: " + pat->operator std::string());
+        }
+    }
+    else
+    {
+        throw std::runtime_error("Unknown pattern: " + pat->operator std::string());
     }
 }
 
+inline bool op_eq(std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string>& val, const string& str) {
+    return std::holds_alternative<string>(val) && std::get<string>(val) == str;
+}
 
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
-    // state = copy_state(state)
 
-    // if (val->z3_eval) return val->z3_eval;
+    if (val->cached_eval) return val->cached_eval;
 
     auto _cache = [&](shared_ptr<SpecValue> return_val) {
         val->set_z3_eval(return_val);
         return return_val;
     };
 
-    if (auto sym = dynamic_pointer_cast<Symbol>(val)) {
+    if (auto sym = instance_of(val, Symbol)) {
         if (sym->text != "None" && sym->text != "nil" && state->vars->find(sym->text) != state->vars->end()) {
-            return _cache(state->vars[sym->text]);
+            return _cache(state->vars->at(sym->text));
         } else if (proj->defs.find(sym->text) != proj->defs.end()) {
-            auto df = proj->defs[sym->text];
-            assert(df->args.size() == 0);
-            if (auto c = dynamic_pointer_cast<Const>(df->body)) {
-                return cache(val, z3_eval(proj, c, state));
+            auto df = proj->defs[sym->text].get();
+            assert(df->args->size() == 0);
+            if (auto c = instance_of(df->body.get(), Const)) {
+                return _cache(z3_eval(proj, c, state));
             } else {
-                return cache(val, df->absf->call({}));
+                return _cache(df->absf->call({}));
             }
         } else if (proj->decls.find(sym->text) != proj->decls.end()) {
-            auto decl = proj->decls[sym->text];
+            auto decl = proj->decls[sym->text].get();
             assert(!dynamic_pointer_cast<Function>(decl->type));
-            return cache(val, decl->absf);
+            return _cache(decl->absf->call({}));
         } else if (proj->is_ind_constr(sym->text)) {
-            return cache(val, val->get_type()->construct(sym->text, {}));
-        } else if (proj->symbols.find(sym->text) != proj->symbols.end()) {
-            auto info = proj->symbols[sym->text];
-            if (info.kind == SymbolKind::StructElem) {
-                return cache(val, val);
-            }
+            return _cache(dynamic_pointer_cast<Inductive>(sym->get_type())->construct(sym->text, {}));
+        } else if (proj->symbols.find(sym->text) != proj->symbols.end() && proj->symbols[sym->text].kind == SymbolKind::StructElem) {
+            return _cache(make_shared<StringValue>(sym->text));
         } else {
-            throw Exception("Unknown symbol: " + sym->text);
+            throw std::runtime_error("Unknown symbol: " + sym->text);
         }
-    } else if (auto intc = dynamic_pointer_cast<IntConst>(val)) {
-        return cache(val, IntValue(intc->value));
-    } else if (auto boolc = dynamic_pointer_cast<BoolConst>(val)) {
-        return cache(val, BoolValue(boolc->value));
-    } else if (auto strc = dynamic_pointer_cast<StringConst>(val)) {
-        return cache(val, StringValue(strc->value));
-    } else if (auto expr = dynamic_pointer_cast<Expr>(val)) {
-        vector<SpecValue> elems;
-        for (auto &e : expr->elems) {
-            elems.push_back(z3_eval(proj, e, state));
+    } else if (auto intc = instance_of(val, IntConst)) {
+        return _cache(make_shared<IntValue>(intc->value));
+    } else if (auto boolc = instance_of(val, BoolConst)) {
+        return _cache(make_shared<BoolValue>(boolc->value));
+    } else if (auto strc = instance_of(val, StringConst)) {
+        return _cache(make_shared<StringValue>(strc->value));
+    } else if (auto expr = instance_of(val, Expr)) {
+        vector<shared_ptr<SpecValue>> elems;
+        for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {
+            elems.push_back(z3_eval(proj, e->get(), state));
         }
-        if (expr->op == '+') return cache(val, elems[0].add(elems[1]));
-        else if (expr->op == '-') {
+        if (op_eq(expr->op, "+")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->add(dynamic_pointer_cast<IntValue>(elems[1])));
+        else if (op_eq(expr->op, "-")) {
             if (elems.size() == 1)
-                return cache(val, elems[0].neg());
+                return _cache(dynamic_pointer_cast<IntValue>(elems[0])->neg());
             else
-                return cache(val, elems[0].sub(elems[1]));
+                return _cache(dynamic_pointer_cast<IntValue>(elems[0])->sub(dynamic_pointer_cast<IntValue>(elems[1])));
         }
-                else if (expr->op == '*') return cache(val, elems[0].mul(elems[1]));
-        else if (expr->op == '/') return cache(val, elems[0].div(elems[1]));
-        else if (expr->op == 'mod') return cache(val, elems[0].mod(elems[1]));
-        else if (expr->op == '<<') return cache(val, elems[0].shiftl(elems[1]));
-        else if (expr->op == '>>') return cache(val, elems[0].shiftr(elems[1]));
-        else if (expr->op == '&') return cache(val, elems[0].land(elems[1]));
-        else if (expr->op == "|'") return cache(val, elems[0].lor(elems[1]));
-        else if (expr->op == 'Z.lxor') return cache(val, elems[0].lxor(elems[1]));
-        else if (expr->op == 'Z.lnot') return cache(val, elems[0].lnot(elems[1]));
-        else if (expr->op == 'Z.testbit') return cache(val, elems[0].testbit(elems[1]));
-        else if (expr->op == 'Z.setbit') return cache(val, elems[0].setbit(elems[1]));
-        else if (expr->op == 'Z.clearbit') return cache(val, elems[0].clearbit(elems[1]));
-        else if (expr->op == 'xorb') return cache(val, elems[0].xorb(elems[1]));
-        else if (expr->op in ['=', '=?', '=s']) return cache(val, elems[0].eq(elems[1]));
-        else if (expr->op in ['<>', '<>?', '<>s']) return cache(val, elems[0].ne(elems[1]));
-        else if (expr->op in ['>', '>?']) return cache(val, elems[0].gt(elems[1]));
-        else if (expr->op in ['>=', '>=?']) return cache(val, elems[0].ge(elems[1]));
-        else if (expr->op in ['<', '<?']) return cache(val, elems[0].lt(elems[1]));
-        else if (expr->op in ['<=', '<=?']) return cache(val, elems[0].le(elems[1]));
-        else if (expr->op in ['~', '!']) return cache(val, elems[0].negb());
-        else if (expr->op in ['&&', '/\\']) return cache(val, elems[0].andb(elems[1]));
-        else if (expr->op in ['||', '\\/']) return cache(val, elems[0].orb(elems[1]));
-        else if (expr->op == '->') return cache(val, elems[0].implies(elems[1]));
-        else if (expr->op == 'ZMap.get') {
-            if (auto e = dynamic_pointer_cast<Expr>(expr->elems[0])) {
-                if (e->op == 'ZMap.set') {
-                    auto z3_res = z3_check(state, z3_eval(proj, e->elems[1], state).eq(elems[1]).get_z3_value());
-                    if (z3_res == True) {
-                        return cache(val, z3_eval(state, e->elems[2], state));
-                    } else if (z3_res == False) {
-                        return cache(val, z3_eval(proj, e->elems[0], state).get(elems[1]));
+        if (op_eq(expr->op, "*")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->mul(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "/")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->div(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "mod")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->mod(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "<<")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->shiftl(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, ">>")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->shiftr(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "&")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->land(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "|")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->lor(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "Z.lxor")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->lxor(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "Z.lnot")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->lnot());
+        if (op_eq(expr->op, "Z.testbit")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->testbit(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "Z.setbit")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->setbit(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "Z.clearbit")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->clearbit(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "Z.xorb")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->xorb(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "=")) return _cache(Prop::PROP->from_z3_value(elems[0]->get_z3_value() == elems[1]->get_z3_value()));
+        if (op_eq(expr->op, "=?")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->eq(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "=s")) return _cache(dynamic_pointer_cast<StringValue>(elems[0])->eq(dynamic_pointer_cast<StringValue>(elems[1])));
+        if (op_eq(expr->op, "<>")) return _cache(Prop::PROP->from_z3_value(elems[0]->get_z3_value() != elems[1]->get_z3_value()));
+        if (op_eq(expr->op, "<>?")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->ne(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "<>s")) return _cache(dynamic_pointer_cast<StringValue>(elems[0])->ne(dynamic_pointer_cast<StringValue>(elems[1])));
+        if (op_eq(expr->op, ">") || op_eq(expr->op, ">?")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->gt(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, ">=") || op_eq(expr->op, ">=?")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->ge(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "<") || op_eq(expr->op, "<?")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->lt(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "<=") || op_eq(expr->op, "<=?")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->le(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "~") || op_eq(expr->op, "!")) return _cache(dynamic_pointer_cast<BoolValue>(elems[0])->negb());
+        if (op_eq(expr->op, "&&") || op_eq(expr->op, "/\\")) return _cache(dynamic_pointer_cast<BoolValue>(elems[0])->andb(dynamic_pointer_cast<BoolValue>(elems[1])));
+        if (op_eq(expr->op, "||") || op_eq(expr->op, "\\/")) return _cache(dynamic_pointer_cast<BoolValue>(elems[0])->orb(dynamic_pointer_cast<BoolValue>(elems[1])));
+        if (op_eq(expr->op, "->")) return _cache(dynamic_pointer_cast<BoolValue>(elems[0])->implies(dynamic_pointer_cast<BoolValue>(elems[1])));
+        else if (op_eq(expr->op,  "ZMap.get")) {
+            if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
+                if (op_eq(e->op, "ZMap.set")) {
+                    auto z3_res = z3_check(state, z3_eval(proj, e->elems->at(1).get(), state)->get_z3_value() == elems[1]->get_z3_value());
+                    if (z3_res == Z3Result::True) {
+                        return _cache(z3_eval(proj, e->elems->at(2).get(), state));
+                    } else if (z3_res == Z3Result::False) {
+                        return _cache(dynamic_pointer_cast<ZMapValue>(z3_eval(proj, e->elems->at(0).get(), state))->get(dynamic_pointer_cast<IntValue>(elems[1])));
                     }
                 }
             }
-            return cache(val, elems[0].get(elems[1]));
-        } else if (expr->op == 'ZMap.set') {
-            if (auto e = dynamic_pointer_cast<Expr>(expr->elems[0])) {
-                if (e->op == 'ZMap.set') {
-                    auto z3_res = z3_check(state, z3_eval(proj, e->elems[1], state).eq(elems[1]).get_z3_value());
-                    if (z3_res == True) {
-                        elems[0] = z3_eval(proj, e->elems[0], state);
+            return _cache(dynamic_pointer_cast<ZMapValue>(elems[0])->get(dynamic_pointer_cast<IntValue>(elems[1])));
+        } else if (op_eq(expr->op, "ZMap.set")) {
+            if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
+                if (op_eq(e->op, "ZMap.set")) {
+                    auto z3_res = z3_check(state, z3_eval(proj, e->elems->at(1).get(), state)->get_z3_value() == elems[1]->get_z3_value());
+                    if (z3_res == Z3Result::True) {
+                        elems[0] = z3_eval(proj, e->elems->at(0).get(), state);
                     }
                 }
             }
-            return cache(val, elems[0].set(elems[1], elems[2]));
+            return _cache(dynamic_pointer_cast<ZMapValue>(elems[0])->set(dynamic_pointer_cast<IntValue>(elems[1]), elems[2]));
         // Record.get
         // Record.set
         }
+        /*
         else if (expr->op == '::') return cache(val, elems[0].cons(elems[1]));
         else if (expr->op == '++') return cache(val, elems[0].concat(elems[1]));
         else if (expr->op == 'Some') return cache(val, val->get_type()->construct("Some", {elems[0]}));
@@ -235,117 +246,128 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         else if (expr->op == 'int_to_ptr') return cache(val, int_to_ptr().call(elems));
         else if (expr->op == 'z_to_nat') return cache(val, z_to_nat().call(elems));
         else if (expr->op == 'zmap_init' || expr->op == 'ZMap.init') return cache(val, val->get_type()->from_z3_value(z3.K(z3.IntSort(), elems[0].get_z3_value())));
-        else if (auto sym = dynamic_pointer_cast<Symbol>(expr->op)) {
-            auto info = proj->symbols[sym->text];
-            if (info.kind == SymbolKind::StructConstr) {
-                return cache(val, val->get_type()->construct(elems));
-            } else if (info.kind == SymbolKind::IndConstr) {
-                return cache(val, val->get_type()->construct(sym->text, elems));
-            } else if (info.kind == SymbolKind::Def) {
-                auto df = proj->defs[sym->text];
-                return cache(val, df->absf->call(elems));
-            } else if (info.kind == SymbolKind::Decl) {
-                auto df = proj->decls[sym->text];
-                return cache(val, df->absf->call(elems));
+        */
+        else if (std::holds_alternative<unique_ptr<SpecNode>>(expr->op)) {
+            if (auto sym = instance_of(std::get<unique_ptr<SpecNode>>(expr->op).get(), Symbol)) {
+                auto info = proj->symbols[sym->text];
+                if (info.kind == SymbolKind::StructConstr) {
+                    return _cache(dynamic_pointer_cast<Struct>(val->get_type())->construct(elems));
+                } else if (info.kind == SymbolKind::IndConstructor) {
+                    return _cache(dynamic_pointer_cast<Inductive>(val->get_type())->construct(sym->text, elems));
+                } else if (info.kind == SymbolKind::Def) {
+                    auto df = proj->defs[sym->text].get();
+                    return _cache(df->absf->call(elems));
+                } else if (info.kind == SymbolKind::Decl) {
+                    auto df = proj->decls[sym->text].get();
+                    return _cache(df->absf->call(elems));
+                } else {
+                    throw std::runtime_error("Unsupported");
+                }
             } else {
-                throw Exception("Unsupported");
+                auto op = z3_eval(proj, std::get<unique_ptr<SpecNode>>(expr->op).get(), state);
+                if (auto func = dynamic_pointer_cast<FuncValue>(op)) {
+                    return _cache(func->call(elems));
+                }
             }
-        } else {
-            auto op = z3_eval(proj, expr->op, state);
-            assert(op->kind == ValueKind::Function);
-            return cache(val, op->call(elems));
         }
-        }
-        else if (auto match = dynamic_pointer_cast<Match>(val)) {
-            SpecValue match_val = nullptr;
-            for (auto pm = val->match_list.rbegin(); pm != val->match_list.rend(); pm++) {
-                unordered_map<string, SpecValue> vars;
-                unordered_map<string, SpecValue> assigns;
-                auto pat = resolve_pattern(pm->pattern, src, &vars, &assigns);
-                z3::expr cond;
-                if (vars.size() == 0) {
-                    cond = pat.get_z3_value() == src.get_z3_value();
-                } else {
-                    vector<z3::expr> vars_expr;
-                    for (auto &v : vars) {
-                        vars_expr.push_back(v.get_z3_value());
-                    }
-                    cond = z3::Exists(vars_expr, pat.get_z3_value() == src.get_z3_value());
-                }
-                auto z3_res = z3_check(state, cond);
-                if (z3_res == False) continue;
-                auto new_state = copy_state(state);
-                for (auto &v : assigns) {
-                    new_state->vars[v.first] = v.second;
-                }
-                if (match_val == nullptr) {
-                    match_val = z3_eval(proj, pm->body, new_state);
-                } else {
-                    auto then_val = z3_eval(proj, pm->body, new_state);
-                    match_val = match_val->get_type()->from_z3_value(z3.If(cond, then_val.get_z3_value(), match_val.get_z3_value()));
-                }
+    } else if (auto match = instance_of(val, Match)) {
+        auto src = z3_eval(proj, match->src.get(), state);
+        shared_ptr<SpecValue> match_val = nullptr;
+        for (auto pm = match->match_list->rbegin(); pm != match->match_list->rend(); pm++) {
+            unordered_map<string, shared_ptr<SpecValue>> vars;
+            unordered_map<string, shared_ptr<SpecValue>> assigns;
+            auto pat = resolve_pattern(proj, val, (*pm)->pattern.get(), src, vars, assigns);
+            auto cond = pat->get_z3_value() == src->get_z3_value();
+            for (auto v = vars.begin(); v != vars.end(); v++) {
+                cond = z3::exists(v->second->get_z3_value(), cond);
+            }
+            auto z3_res = z3_check(state, cond);
+            if (z3_res == Z3Result::False) continue;
+            auto new_state = state->copy();
+            for (auto v = assigns.begin(); v != assigns.end(); v++) {
+                new_state->vars->emplace(v->first, v->second);
             }
             if (match_val == nullptr) {
-                assert(dynamic_pointer_cast<Option>(val->get_type()));
-                return _cache(val->get_type()->construct("None", {}));
+                match_val = z3_eval(proj, (*pm)->body.get(), new_state);
             } else {
-                return _cache(match_val);
+                auto then_val = z3_eval(proj, (*pm)->body.get(), new_state);
+                match_val = match_val->get_type()->from_z3_value(z3::ite(cond, then_val->get_z3_value(), match_val->get_z3_value()));
             }
-        } else if (auto rely = dynamic_pointer_cast<Rely>(val)) {
-            auto cond = z3_eval(proj, rely->prop, state);
-            auto res = z3_check(state, cond.get_z3_value());
-            if (res == None) {
-                auto body = z3_eval(proj, rely->body, state);
-                auto none = rely->get_type()->construct("None", {});
-                auto z3_val = z3.If(cond.get_z3_value(), body.get_z3_value(), none.get_z3_value());
-                return _cache(rely->get_type()->from_z3_value(z3.simplify(z3_val)));
-            } else if (res == True) {
-                                return _cache(z3_eval(proj, rely->body, state));
-            } else {
-                return _cache(rely->get_type()->construct("None", {}));
-            }
-        } else if (auto anno = dynamic_pointer_cast<Anno>(val)) {
-            return _cache(z3_eval(proj, anno->body, state));
-        } else if (auto iff = dynamic_pointer_cast<If>(val)) {
-            auto c = z3_eval(proj, iff->cond, state);
-            auto res = z3_check(state, c.get_z3_value());
-            if (res == None) {
-                auto true_state = copy_state(state);
-                true_state->conds.push_back(c.get_z3_value());
-                auto true = z3_eval(proj, iff->then_body, true_state);
-                auto false_state = copy_state(state);
-                false_state->conds.push_back(z3.Not(c.get_z3_value()));
-                auto false = z3_eval(proj, iff->else_body, false_state);
-                auto z3_val = z3.If(c.get_z3_value(), true.get_z3_value(), false.get_z3_value());
-                return _cache(iff->get_type()->from_z3_value(z3.simplify(z3_val)));
-            } else if (res == True) {
-                state->conds.push_back(c.get_z3_value());
-                return _cache(z3_eval(proj, iff->then_body, state));
-            } else {
-                state->conds.push_back(z3.Not(c.get_z3_value()));
-                return _cache(z3_eval(proj, iff->else_body, state));
-            }
-        } else if (auto forall = dynamic_pointer_cast<Forall>(val)) {
-            vector<z3::expr> vars;
-            for (auto &v : forall->vars) {
-                auto var = v.type->declare(v.name, val->nid);
-                v.z3_val = var;
-                state->vars[v.name] = var;
-                vars.push_back(var.value);
-            }
-            auto body = z3_eval(proj, forall->body, state);
-            return _cache(BoolValue(z3.ForAll(vars, body.value)));
-        } else if (auto exsts = dynamic_pointer_cast<Exists>(val)) {
-            vector<z3::expr> vars;
-            for (auto &v : exsts->vars) {
-                auto var = v.type->declare(v.name, val->nid);
-                                                state->vars[v.name] = var;
-                vars.push_back(var.value);
-            }
-                        auto body = z3_eval(proj, exsts->body, state);
-            return _cache(BoolValue(z3.Exists(vars, body.value)));
+        }
+        if (match_val == nullptr) {
+            auto opt = dynamic_pointer_cast<Option>(val->get_type());
+            return _cache(opt->construct("None", {}));
         } else {
-            throw Exception("Unknown node type: " + str(type(val)));
+            return _cache(match_val);
+        }
+    } else if (auto rely = instance_of(val, Rely)) {
+        auto cond = z3_eval(proj, rely->prop.get(), state);
+        auto res = z3_check(state, cond->get_z3_value());
+        if (res == Z3Result::Unknown) {
+            auto body = z3_eval(proj, rely->body.get(), state);
+            auto none = dynamic_pointer_cast<Option>(val->get_type())->construct("None", {});
+            auto z3_val = z3::ite(cond->get_z3_value(), body->get_z3_value(), none->get_z3_value());
+            return _cache(rely->get_type()->from_z3_value(z3_val.simplify()));
+        } else if (res == Z3Result::True) {
+            return _cache(z3_eval(proj, rely->body.get(), state));
+        } else {
+            return _cache(dynamic_pointer_cast<Option>(val->get_type())->construct("None", {}));
         }
     }
+    else if (auto iff = instance_of(val, If))
+    {
+        auto c = z3_eval(proj, iff->cond.get(), state);
+        auto res = z3_check(state, c->get_z3_value());
+        if (res == Z3Result::Unknown)
+        {
+            auto true_state = state->copy();
+            true_state->conds->push_back(c->get_z3_value());
+            auto True = z3_eval(proj, iff->then_body.get(), true_state);
+            auto false_state = state->copy();
+            false_state->conds->push_back(!c->get_z3_value());
+            auto False = z3_eval(proj, iff->else_body.get(), false_state);
+            auto z3_val = z3::ite(c->get_z3_value(), True->get_z3_value(), False->get_z3_value());
+            return _cache(iff->get_type()->from_z3_value(z3_val.simplify()));
+        }
+        else if (res == Z3Result::True)
+        {
+            state->conds->push_back(c->get_z3_value());
+            return _cache(z3_eval(proj, iff->then_body.get(), state));
+        }
+        else
+        {
+            state->conds->push_back(!c->get_z3_value());
+            return _cache(z3_eval(proj, iff->else_body.get(), state));
+        }
+    }
+    else if (auto forall = instance_of(val, Forall))
+    {
+        z3::expr_vector vars(z3ctx);
+        for (auto v = forall->vars->begin(); v != forall->vars->end(); v++)
+        {
+            auto var = (*v)->type->declare((*v)->name, val->nid);
+            state->vars->emplace((*v)->name, var);
+            vars.push_back(var->get_z3_value());
+        }
+        auto body = z3_eval(proj, forall->body.get(), state);
+        return _cache(make_shared<BoolValue>(z3::forall(vars, body->value)));
+    }
+    else if (auto exsts = instance_of(val, Exists))
+    {
+        z3::expr_vector vars(z3ctx);
+        for (auto v = exsts->vars->begin(); v != exsts->vars->end(); v++)
+        {
+            auto var = (*v)->type->declare((*v)->name, val->nid);
+            state->vars->emplace((*v)->name, var);
+            vars.push_back(var->get_z3_value());
+        }
+        auto body = z3_eval(proj, exsts->body.get(), state);
+        return _cache(make_shared<BoolValue>(z3::exists(vars, body->value)));
+    }
+    else
+    {
+        throw std::runtime_error("Unknown node type: " + val->operator std::string());
+    }
 }
+
+} // namespace autov
