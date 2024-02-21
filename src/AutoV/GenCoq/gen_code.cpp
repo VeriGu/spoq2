@@ -69,7 +69,7 @@ void print_module(IRModule *ir, string out_path) {
 
      std::stringstream ss(fcoq);
      string to;
-     int nums;
+     int nums = 0;
      while(std::getline(ss, to, '\n')) {
       nums++;
      }
