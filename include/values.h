@@ -259,9 +259,9 @@ public:
     Inductive() = default;
     Inductive(string name, shared_ptr<vector<shared_ptr<IndConstr>>> constrs) : SpecType(name), constrs(constrs) {
         for (const auto c : *constrs) {
-            constr.emplace(c->name, c->args); // Fix: Use emplace instead of assignment to insert elements into constr
+            constr.emplace(c->name, c->args);
             for (const auto arg : *c->args) {
-                arg_type.emplace(arg->name, arg->type); // Fix: Use emplace instead of assignment to insert elements into arg_type
+                arg_type.emplace(arg->name, arg->type);
             }
         }
     }
@@ -537,8 +537,8 @@ class IndValue : public SpecValue {
 public:
     z3::func_decl constructor;
 
-    IndValue(shared_ptr<Inductive> typ, z3::expr value, z3::func_decl constr) : SpecValue(typ, value), constructor(constr) {};
-    
+    IndValue(shared_ptr<Inductive> typ, z3::expr value) : SpecValue(typ, value), constructor(value.decl()) {};
+
     shared_ptr<SpecValue> get(string key);
     // shared_ptr<IndValue> set(string key, shared_ptr<SpecValue> value);
     shared_ptr<IndValue> concat(shared_ptr<IndValue> other);

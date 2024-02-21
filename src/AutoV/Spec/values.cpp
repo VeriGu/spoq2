@@ -287,7 +287,9 @@ shared_ptr<StructValue> StructValue::set(int key, shared_ptr<SpecValue> value) {
     return StructValue::set(field, value);
 }
 
-//IndValue
+// ----------------------------------------------------------------------------
+// IndValue
+// ----------------------------------------------------------------------------
 
 shared_ptr<SpecValue> IndValue::get(string key) {
     auto accessor = key;
@@ -323,10 +325,10 @@ shared_ptr<SpecValue> IndValue::get(string key) {
 shared_ptr<IndValue> IndValue::concat(shared_ptr<IndValue> other) {
     assert(is_instance(typ.get(), List));
     assert(is_instance(other.get(), List));
-    
+
     if(auto type = instance_of(typ.get(), List)) {
-    z3::func_decl f = type->concat_func();
-    return dynamic_pointer_cast<IndValue>(type->from_z3_value(f(get_z3_value(), other->get_z3_value())));
+        z3::func_decl f = type->concat_func();
+        return dynamic_pointer_cast<IndValue>(type->from_z3_value(f(get_z3_value(), other->get_z3_value())));
     }
 }
 
@@ -349,6 +351,16 @@ std::string Inductive::define() const {
     return res;
 }
 
+shared_ptr<SpecValue> Inductive::from_z3_value(z3::expr value) {
+    return make_shared<IndValue>(shared_from_this(), value);
+}
+
+shared_ptr<SpecValue> Inductive::declare(string name, int nid) {
+    auto sname = name + "." + std::to_string(nid);
+
+    return make_shared<IndValue>(shared_from_this(), z3ctx.constant(sname.c_str(), get_z3_type()));
+}
+
 shared_ptr<SpecValue> Inductive::construct(string constr, vector<shared_ptr<SpecValue>> args) {
     if (auto opt = dynamic_cast<Option*>(this)) {
         constr = constr + "_" + opt->elem_type->name;
@@ -356,15 +368,25 @@ shared_ptr<SpecValue> Inductive::construct(string constr, vector<shared_ptr<Spec
         constr = constr + "_" + lst->elem_type->name;
     }
 
-    auto z3_args = vector<z3::expr>();
+    z3::expr_vector z3_args(z3ctx);
     for (int i = 0; i < args.size(); i++) {
         z3_args.push_back(args[i]->get_z3_value());
     }
-    if (z3_args.size() == 0) {
-        // TODO
-    } else {
-        // TODO
+
+    auto css = this->get_z3_type().constructors();
+
+    for (int i = 0; i < css.size(); i++) {
+        auto cs = css[i];
+        if (cs.name().str() == constr) {
+            if (z3_args.size() == 0) {
+                return from_z3_value(cs());
+            } else {
+                return from_z3_value(cs(z3_args));
+            }
+        }
     }
+
+    throw std::runtime_error("Constructor not found");
 }
 
 // ----------------------------------------------------------------------------
