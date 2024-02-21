@@ -40,6 +40,7 @@ unordered_map<unsigned, unsigned> length_z3_map;
 
 rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState> state);
 
+// It is probably bad to merge relys if all conditions are conjuncted
 rule_ret_t merge_rely(Project* proj, SpecNode* spec, shared_ptr<EvalState> state) {
     bool changed = false;
     if (auto expr = instance_of(spec, Expr)) {
