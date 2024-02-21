@@ -172,7 +172,7 @@ public:
     }
 
     string define() const;
-
+    shared_ptr<SpecValue> construct(vector<shared_ptr<SpecValue>> args);
     virtual z3::sort get_z3_type();
     virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
     virtual shared_ptr<SpecValue> declare(string name, int nid);
@@ -435,8 +435,8 @@ public:
         return dynamic_cast<ZMap *>(typ.get())->elem_type->from_z3_value(value[key->value].simplify());
     }
 
-    shared_ptr<ZMapValue> set(IntValue key, SpecValue value) {
-        return make_shared<ZMapValue>(typ, z3::store(this->value, key.value, value.value).simplify());
+    shared_ptr<ZMapValue> set(shared_ptr<IntValue> key, shared_ptr<SpecValue> value) {
+        return make_shared<ZMapValue>(typ, z3::store(this->value, key->value, value->value).simplify());
     }
 
     shared_ptr<BoolValue> eq(shared_ptr<ZMapValue> other) {
@@ -454,6 +454,14 @@ public:
             arg_types.push_back(arg->get_z3_type());
         }
         z3_func = z3ctx.function(z3ctx.str_symbol(this->value + "_call"), arg_types.size(), arg_types.data(), typ->rettype->get_z3_type());
+    }
+
+    shared_ptr<SpecValue> call(vector<shared_ptr<SpecValue>> args) {
+        vector<z3::expr> z3_args;
+        for (const auto arg : args) {
+            z3_args.push_back(arg->get_z3_value());
+        }
+        return dynamic_pointer_cast<Function>(typ)->rettype->from_z3_value(z3_func(z3_args.size(), z3_args.data()));
     }
 };
 

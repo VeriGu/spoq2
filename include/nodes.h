@@ -1022,6 +1022,7 @@ public:
     shared_ptr<SpecType> type;
     int length;
     mutable string _str;
+    shared_ptr<FuncValue> absf;
 
     Declaration() { throw std::invalid_argument("Declaration must have a name and type"); }
     Declaration(string name, shared_ptr<SpecType> type) : name(name), type(type), length(1) {}
@@ -1059,7 +1060,7 @@ public:
     unique_ptr<SpecNode> body;
     int length;
     mutable string _str;
-
+    shared_ptr<FuncValue> absf;
 
     Definition() { throw std::invalid_argument("Definition must have a name, rettype, args, and body"); }
     Definition(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args, unique_ptr<SpecNode> body) :
