@@ -18,7 +18,8 @@ using std::unordered_map;
 
 
 z3::context z3ctx;
-unordered_map<string, z3::sort> created_z3_types;
+unordered_map<string, z3::sort> Inductive::created_z3_types;
+unordered_map<string, z3::sort> Struct::created_z3_types;
 
 shared_ptr<Struct> Struct::Ptr = make_shared<Struct>(
     "Ptr",
@@ -54,9 +55,9 @@ shared_ptr<Type> Type::TYPE = make_shared<Type>();
 // ----------------------------------------------------------------------------
 z3::sort SpecType::get_z3_type() {
     if (Inductive::created_z3_types.find(name) != Inductive::created_z3_types.end()) {
-        return Inductive::created_z3_types[name];
+        return Inductive::created_z3_types.at(name);
     } else if (Struct::created_z3_types.find(name) != Struct::created_z3_types.end()) {
-        return Struct::created_z3_types[name];
+        return Struct::created_z3_types.at(name);
     }
 
     return z3ctx.uninterpreted_sort(name.c_str());
@@ -80,13 +81,13 @@ z3::sort Int::get_z3_type() {
 }
 
 shared_ptr<SpecValue> Int::from_z3_value(z3::expr value) {
-    return make_shared<IntValue>(shared_from_this(), value);
+    return make_shared<IntValue>(value);
 }
 
 shared_ptr<SpecValue> Int::declare(string name, int nid) {
     auto sname = name + "." + std::to_string(nid);
 
-    return make_shared<IntValue>(shared_from_this(), z3ctx.constant(sname.c_str(), get_z3_type()));
+    return make_shared<IntValue>(z3ctx.constant(sname.c_str(), get_z3_type()));
 }
 
 // ----------------------------------------------------------------------------
@@ -97,13 +98,13 @@ z3::sort String::get_z3_type() {
 }
 
 shared_ptr<SpecValue> String::from_z3_value(z3::expr value) {
-    return make_shared<StringValue>(shared_from_this(), value);
+    return make_shared<StringValue>(value);
 }
 
 shared_ptr<SpecValue> String::declare(string name, int nid) {
     auto sname = name + "." + std::to_string(nid);
 
-    return make_shared<StringValue>(shared_from_this(), z3ctx.constant(sname.c_str(), get_z3_type()));
+    return make_shared<StringValue>(z3ctx.constant(sname.c_str(), get_z3_type()));
 }
 
 // ----------------------------------------------------------------------------
@@ -114,13 +115,13 @@ z3::sort Bool::get_z3_type() {
 }
 
 shared_ptr<SpecValue> Bool::from_z3_value(z3::expr value) {
-    return make_shared<BoolValue>(shared_from_this(), value);
+    return make_shared<BoolValue>(value);
 }
 
 shared_ptr<SpecValue> Bool::declare(string name, int nid) {
     auto sname = name + "." + std::to_string(nid);
 
-    return make_shared<BoolValue>(shared_from_this(), z3ctx.constant(sname.c_str(), get_z3_type()));
+    return make_shared<BoolValue>(z3ctx.constant(sname.c_str(), get_z3_type()));
 }
 
 // ----------------------------------------------------------------------------
@@ -131,13 +132,13 @@ z3::sort Prop::get_z3_type() {
 }
 
 shared_ptr<SpecValue> Prop::from_z3_value(z3::expr value) {
-    return make_shared<BoolValue>(shared_from_this(), value);
+    return make_shared<BoolValue>(value);
 }
 
 shared_ptr<SpecValue> Prop::declare(string name, int nid) {
     auto sname = name + "." + std::to_string(nid);
 
-    return make_shared<BoolValue>(shared_from_this(), z3ctx.constant(sname.c_str(), get_z3_type()));
+    return make_shared<BoolValue>(z3ctx.constant(sname.c_str(), get_z3_type()));
 }
 
 // ----------------------------------------------------------------------------
@@ -172,7 +173,7 @@ std::string Struct::define() const {
 
 z3::sort Struct::get_z3_type() {
     if (Struct::created_z3_types.find(name) != Struct::created_z3_types.end()) {
-        return Struct::created_z3_types[name];
+        return Struct::created_z3_types.at(name);
     }
 
     z3::constructors cs(z3ctx);
@@ -189,7 +190,7 @@ z3::sort Struct::get_z3_type() {
                             accs.size(), accs.data(), sorts.data());
 
     auto z3type = z3ctx.datatype(z3ctx.str_symbol(this->name.c_str()), cs);
-    Struct::created_z3_types[name] = z3type;
+    Struct::created_z3_types.emplace(name, z3type);
     return z3type;
 }
 
@@ -221,7 +222,7 @@ shared_ptr<SpecValue> Struct::construct(vector<shared_ptr<SpecValue>> &elems) {
 std::shared_ptr<SpecValue> StructValue::get(string key) {
     string field = key;
 
-    if(auto s = dynamic_cast<Struct*>(typ.get())) {
+    if (auto s = dynamic_cast<Struct*>(typ.get())) {
         int i = 0;
         bool found = false;
         for(auto arg : *s->elems) {
@@ -232,10 +233,8 @@ std::shared_ptr<SpecValue> StructValue::get(string key) {
             i++;
         }
 
-        if(!found) {
-            LOG_ERROR << "Not a struct type";
-            assert(false);
-        }
+        if(!found)
+            throw std::runtime_error("Field not found");
 
         auto elem_typ = s->elems_map[field];
         z3::sort z3type = s->get_z3_type();
@@ -247,7 +246,7 @@ std::shared_ptr<SpecValue> StructValue::get(string key) {
         return elem_typ->from_z3_value(accessor(get_z3_value()));
     }
 
-    LOG_ERROR << "Not a struct type";
+    throw std::runtime_error("Not a struct type");
 }
 
 shared_ptr<SpecValue> StructValue::get(int key) {
@@ -279,6 +278,8 @@ shared_ptr<StructValue> StructValue::set(string key, shared_ptr<SpecValue> value
 
         return dynamic_pointer_cast<StructValue>(s->from_z3_value(cs(elems)));
     }
+
+    throw std::runtime_error("Not a struct type");
 }
 
 shared_ptr<StructValue> StructValue::set(int key, shared_ptr<SpecValue> value) {
@@ -315,6 +316,8 @@ shared_ptr<SpecValue> IndValue::get(string key) {
         auto acc = constructor.accessors()[i];
         return type->arg_type[accessor]->from_z3_value(acc(val));
     }
+
+    throw std::runtime_error("Not an inductive type");
 }
 
 // shared_ptr<IndValue> IndValue::set(string key, shared_ptr<SpecValue> value) {
@@ -330,6 +333,8 @@ shared_ptr<IndValue> IndValue::concat(shared_ptr<IndValue> other) {
         z3::func_decl f = type->concat_func();
         return dynamic_pointer_cast<IndValue>(type->from_z3_value(f(get_z3_value(), other->get_z3_value())));
     }
+
+    throw std::runtime_error("Not a list type");
 }
 
 // ----------------------------------------------------------------------------
@@ -470,13 +475,14 @@ Tuple::operator string() const {
     return res + ")";
 }
 
-shared_ptr<SpecValue> Tuple::construct(vector<shared_ptr<SpecValue>> args) {
-    auto elems = vector<z3::expr>();
-    for (int i = 0; i < args.size(); i++) {
-        elems.push_back(args[i]->get_z3_value());
-    }
-    // TODO
-}
+// XXX: Python doesn't have this. Do we need it here?
+// shared_ptr<SpecValue> Tuple::construct(vector<shared_ptr<SpecValue>> args) {
+//     auto elems = vector<z3::expr>();
+//     for (int i = 0; i < args.size(); i++) {
+//         elems.push_back(args[i]->get_z3_value());
+//     }
+//     // TODO
+// }
 
 // ----------------------------------------------------------------------------
 // List

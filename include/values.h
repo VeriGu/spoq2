@@ -20,7 +20,6 @@ using std::enable_shared_from_this;
 using std::static_pointer_cast;
 
 extern z3::context z3ctx;
-extern unordered_map<string, z3::sort> created_z3_types;
 
 class SpecValue;
 
@@ -293,7 +292,7 @@ public:
         return static_pointer_cast<Function>(shared_from_this());
     }
 
-    virtual z3::sort get_z3_type();
+    //virtual z3::sort get_z3_type();
     virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
     virtual shared_ptr<SpecValue> declare(string name, int nid);
 };
@@ -500,14 +499,15 @@ class FuncValue : public SpecValue {
 public:
     z3::func_decl z3_func;
 
-    FuncValue(shared_ptr<Function> typ, z3::expr value) : SpecValue(typ, value), z3_func(z3ctx.function("unknown", 0, nullptr, z3ctx.bool_sort())) {
+    FuncValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value), z3_func(z3ctx.function("unknown", 0, nullptr, z3ctx.bool_sort())) {
         vector<z3::sort> arg_types;
-        for (const auto arg : *typ->args) {
+        auto ftyp = static_pointer_cast<Function>(typ);
+        for (const auto arg : *ftyp->args) {
             arg_types.push_back(arg->get_z3_type());
         }
         auto __func_call_str =  this->value.to_string() + "_call";
         auto func_call_str = __func_call_str.c_str();
-        z3_func = z3ctx.function(z3ctx.str_symbol(func_call_str), arg_types.size(), arg_types.data(), typ->rettype->get_z3_type());
+        z3_func = z3ctx.function(z3ctx.str_symbol(func_call_str), arg_types.size(), arg_types.data(), ftyp->rettype->get_z3_type());
     }
 
     shared_ptr<SpecValue> call(vector<shared_ptr<SpecValue>> args) {
@@ -515,13 +515,13 @@ public:
         for (const auto arg : args) {
             z3_args.push_back(arg->get_z3_value());
         }
-        return dynamic_pointer_cast<Function>(typ)->rettype->from_z3_value(z3_func(z3_args.size(), z3_args.data()));
+        return static_pointer_cast<Function>(typ)->rettype->from_z3_value(z3_func(z3_args.size(), z3_args.data()));
     }
 };
 
 class StructValue : public SpecValue {
 public:
-    StructValue(shared_ptr<Struct> typ, z3::expr value) : SpecValue(typ, value) {}
+    StructValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) {}
 
     shared_ptr<SpecValue> get(string key);
     shared_ptr<SpecValue> get(int key);
@@ -537,7 +537,7 @@ class IndValue : public SpecValue {
 public:
     z3::func_decl constructor;
 
-    IndValue(shared_ptr<Inductive> typ, z3::expr value) : SpecValue(typ, value), constructor(value.decl()) {};
+    IndValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value), constructor(value.decl()) {};
 
     shared_ptr<SpecValue> get(string key);
     // shared_ptr<IndValue> set(string key, shared_ptr<SpecValue> value);
