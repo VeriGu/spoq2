@@ -351,6 +351,32 @@ std::string Inductive::define() const {
     return res;
 }
 
+z3::sort Inductive::get_z3_type() {
+    if (Inductive::created_z3_types.find(name) != Inductive::created_z3_types.end()) {
+        return Inductive::created_z3_types.at(name);
+    }
+
+    z3::constructors cs(z3ctx);
+    vector<z3::sort> sorts;
+    vector<z3::symbol> accs;
+
+    for (auto constr : *constrs) {
+        sorts.clear();
+        accs.clear();
+        for (auto arg : *constr->args) {
+            sorts.push_back(arg->type->get_z3_type());
+            accs.push_back(z3ctx.str_symbol(arg->name.c_str()));
+        }
+        cs.add(z3ctx.str_symbol(constr->name.c_str()), z3ctx.str_symbol(this->name.c_str()),
+                                accs.size(), accs.data(), sorts.data());
+    }
+
+    auto z3type = z3ctx.datatype(z3ctx.str_symbol(name.c_str()), cs);
+    Inductive::created_z3_types.emplace(name, z3type);
+
+    return z3type;
+}
+
 shared_ptr<SpecValue> Inductive::from_z3_value(z3::expr value) {
     return make_shared<IndValue>(shared_from_this(), value);
 }
@@ -409,6 +435,16 @@ Function::operator string() const {
     }
 
     return res + std::string(*rettype) + string(args->size() - 1, ')');
+}
+
+shared_ptr<SpecValue> Function::from_z3_value(z3::expr value) {
+    return make_shared<FuncValue>(shared_from_this(), value);
+}
+
+shared_ptr<SpecValue> Function::declare(string name, int nid) {
+    auto sname = name + "." + std::to_string(nid);
+
+    return make_shared<SpecValue>(shared_from_this(), z3ctx.constant(sname.c_str(), get_z3_type()));
 }
 
 // ----------------------------------------------------------------------------
