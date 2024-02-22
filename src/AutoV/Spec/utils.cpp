@@ -130,7 +130,7 @@ string join_constrs_pipe(const vector<shared_ptr<IndConstr>> &elems) {
 
     for (auto it = elems.begin(); it != elems.end(); it++) {
         if (it != elems.begin()) {
-            oss << "\n|";
+            oss << "\n | ";
         }
         oss << string(**it);
     }

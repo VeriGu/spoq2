@@ -265,7 +265,7 @@ namespace autov {
       fs::create_directory(cache_dir);
     }
 
-    int i;
+    int i = 0;
     for(auto const& L : p->layers) {
       if(i == 0) continue;
 

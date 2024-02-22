@@ -7,15 +7,15 @@ namespace autov {
 using autov::join;
 
 void rec_update(std::ofstream &fout, Project *p, shared_ptr<autov::Struct> init, vector<string> &fields, shared_ptr<autov::SpecType> cur) {
-  if(fields.size() > 2) {
+  if(fields.size() >= 2) {
     string update = "Definition update_" + init->name + "_" + join(fields,"_") +  "(_a: " + init->name + ") _b :=\n";
-    vector<string> reverse_fields;
-    for(auto it = fields.rbegin(); it != fields.rend(); ++it) {
-      reverse_fields.push_back(".(" + *it + ")");
+    vector<string> acc_fields;
+    for(auto it = fields.begin(); it != fields.end()-1; ++it) {
+      acc_fields.push_back(".(" + *it + ")");
     }
-    string elem = "_a" + join(reverse_fields, "");
+    string elem = "_a" + join(acc_fields, "");
 
-    update += "  update_" + init->name + "_ + " + join(fields, "_", true) + " _a ((" + elem + ").[" + fields.at(fields.size()-1) + "] :< _b).\n";
+    update += "  update_" + init->name + "_" + join(fields.begin(), fields.end()-1, "_") + " _a ((" + elem + ").[" + fields.at(fields.size()-1) + "] :< _b).\n";
 
     vector<string> temp;
     for(auto f : fields) {
@@ -58,7 +58,7 @@ unique_ptr<vector<string>> generate_data(Project *p) {
 
   sort(outputs.begin(), outputs.end(), 
      [p] (string x, string y) 
-     {return p->symbols[x].order < p->symbols[y].order; });
+     { return p->symbols[x].order < p->symbols[y].order; });
 
   for(auto s : outputs) {
     if(p->structs.find(s) != p->structs.end()) {

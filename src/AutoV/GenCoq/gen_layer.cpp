@@ -15,11 +15,11 @@ void gen_layer_refine_rel(Project *proj,int i, string path) {
 
   vector<string> deps = {"CommonDeps", "DataTypes"};
   for(auto d : deps) {
-    out << "Require Import " + d + "\n";
+    out << "Require Import " + d + "\n.";
   }
 
   out << "\n";
-  out << "Definition refrel (hst: "+string(*layer->abs_data)+") (lst: "+string(*base_layer->abs_data) +"): Prop := hst = lst.\n";
+  out << "Definition refrel (hst: "+string(*layer->abs_data)+") (lst: "+string(*base_layer->abs_data) +") : Prop := hst = lst.\n";
   out.close();
 }
 
@@ -66,6 +66,10 @@ void gen_layer(Project* proj, int i, string path) {
     out << "Require Import " + d + ".\n";
   }
   out << "\n";
+
+  out << "Local Open Scope string_scope.\n";
+  out << "Local Open Scope Z_scope.\n";
+  out << std::endl;
 
   string dinit;
   if(layer->ops.find("init") != layer->ops.end()) {
@@ -120,7 +124,7 @@ void gen_layer(Project* proj, int i, string path) {
   if (layer->ops.find("free") != layer->ops.end()) {
         ffree  = layer->ops["free"];
   } else {
-        out << "  Definition "+layer->name+"_free (fname: string) (st: "+string(*layer->abs_data)+") : option "+string(*layer->abs_data) + " := None.\n";
+        out << "  Definition "+layer->name+"_free (fname: string) (init_st: " +string(*layer->abs_data)+") (st: "+string(*layer->abs_data)+") : option "+string(*layer->abs_data) + " := None.\n";
         out << "\n";
         ffree = layer->name + "_free";
   }
@@ -144,7 +148,7 @@ void gen_layer(Project* proj, int i, string path) {
   if (layer->ops.find("get_flag") != layer->ops.end()) {
         fgetflag  = layer->ops["get_flag"];
   } else {
-        out << "  Definition "+layer->name+"_get_flag (f: flag) (st: "+string(*layer->abs_data)+") : bool := None.\n";
+        out << "  Definition "+layer->name+"_get_flag (f: flag) (st: "+string(*layer->abs_data)+") : bool := false.\n";
         out << "\n";
         fgetflag = layer->name + "_get_flag";
   }

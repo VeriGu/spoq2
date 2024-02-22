@@ -471,7 +471,7 @@ static rule_ret_t rule_destruct_scc(int scc, nodes_t &nodes, edges_t &edges, bac
         auto n_scc = node.second->scc;
 
         if (n_scc == scc) {
-            bool ret;
+            bool ret = true;
             auto collect_cb = [&](IRInst *inst) {
                 auto cont_break_inst = dynamic_cast<IContBreak *>(inst);
 
@@ -949,7 +949,7 @@ static rule_ret_t rule_construct_loop(string &n, nodes_t &nodes, edges_t &edges,
     RULE_RETURN_TRUE(n);
 }
 
-unique_ptr<vector<unique_ptr<IRInst>>> control_flow_conversion(ir_blocks_t *ir_blocks) {
+unique_ptr<vector<unique_ptr<IRInst>>> control_flow_conversion(ir_blocks_t *ir_blocks, bool debug) {
     nodes_t nodes;
     edges_t edges;
     backwards_t backwards;
@@ -1060,43 +1060,55 @@ unique_ptr<vector<unique_ptr<IRInst>>> control_flow_conversion(ir_blocks_t *ir_b
         vector<string> seq;
         bool succ = false;
         std::function<void(string)> dbg_nodes_edges = [&](string rule) {
+
+            if (!debug)
+                return;
 #ifdef DEBUG
-        //std::cout << "========== " + rule + " Nodes begin ==========" << std::endl;
-        // for (auto &node: nodes) {
-        //     auto n = node.first;
-        //     auto &insts = node.second->insts;
+            /*
+            * Uncomment the following to output Coq AST to file.
+            * Note the file will be appended to, so you may want to delete it first.
+            */
 
-        //     //std::cout << "node: " << n << std::endl;
-        //     for (auto &inst: insts) {
-        //         std::cout << inst->to_coq() << std::endl;
-        //     }
-        // }
-        // std::cout << "========== " + rule + " Nodes end ==========" << std::endl;
+            std::ofstream file("trans.txt", std::ios_base::app); // Open the file in append mode
 
-        // std::cout << "========== " + rule + " Edges begin ==========" << std::endl;
-        // for (auto &edge: edges) {
-        //     auto n = edge.first;
-        //     auto es = edge.second;
+            file << "========== " + rule + " Nodes begin ==========" << std::endl;
+            for (auto &node: nodes) {
+                auto n = node.first;
+                auto &insts = node.second->insts;
 
-        //     for (auto &e: *es) {
-        //         //std::cout << "edge: " << n << " -> " << e->next << std::endl;
-        //         for (auto &inst: e->insts) {
-        //             std::cout << inst->to_coq() << std::endl;
-        //         }
-        //     }
-        // }
-        // std::cout << "========== " + rule + " Edges end ==========" << std::endl;
-        // std::cout << "============" + rule + " backwards begin ==========" << std::endl;
+                //file << "node: " << n << std::endl;
+                for (auto &inst: insts) {
+                    file << inst->to_coq() << std::endl;
+                }
+            }
+            file << "========== " + rule + " Nodes end ==========" << std::endl;
 
-        // std::cout << "nodes: " << nodes.size() << std::endl;
-        // std::cout << "edges:" << std::endl;
-        // for (auto &be: edges) {
-        //     std::cout << be.first << ": " << be.second->size() << std::endl;
-        // }
-        // std::cout << "backwards:" << std::endl;
-        // for (auto &be: backwards) {
-        //     std::cout << be.first << ": " << be.second->size() << std::endl;
-        // }
+            file << "========== " + rule + " Edges begin ==========" << std::endl;
+            for (auto &edge: edges) {
+                auto n = edge.first;
+                auto es = edge.second;
+
+                for (auto &e: *es) {
+                    //file << "edge: " << n << " -> " << e->next << std::endl;
+                    for (auto &inst: e->insts) {
+                        file << inst->to_coq() << std::endl;
+                    }
+                }
+            }
+            file << "========== " + rule + " Edges end ==========" << std::endl;
+            file << "============" + rule + " backwards begin ==========" << std::endl;
+
+            file << "nodes: " << nodes.size() << std::endl;
+            file << "edges:" << std::endl;
+            for (auto &be: edges) {
+                file << be.first << ": " << be.second->size() << std::endl;
+            }
+            file << "backwards:" << std::endl;
+            for (auto &be: backwards) {
+                file << be.first << ": " << be.second->size() << std::endl;
+            }
+
+            file.close();
 #endif
         };
         vector<std::function<rule_ret_t(string &)>> rules = {
