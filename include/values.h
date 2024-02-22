@@ -548,4 +548,8 @@ public:
     }
 };
 
+shared_ptr<SpecValue> int_to_ptr();
+shared_ptr<SpecValue> ptr_to_int();
+shared_ptr<SpecValue> z_to_nat();
+
 } // namespace autov
