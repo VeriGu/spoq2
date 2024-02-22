@@ -1063,7 +1063,7 @@ unique_ptr<vector<unique_ptr<IRInst>>> control_flow_conversion(ir_blocks_t *ir_b
 
             if (!debug)
                 return;
-#ifdef DEBUG
+#if 0
             /*
             * Uncomment the following to output Coq AST to file.
             * Note the file will be appended to, so you may want to delete it first.
