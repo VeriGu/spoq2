@@ -244,6 +244,8 @@ static unique_ptr<IRValue> parse_value(const ptree &val) {
     } else if (src == "inline_asm") {
        auto iasm_val = val.get_child("value");
 
+         write_json(std::cout, iasm_val);
+
          return make_unique<VInlineAsm>(typ, iasm_val.get<string>("asm"), iasm_val.get<string>("side_effect") == "true",
                                           iasm_val.get<string>("constraints"));
     } else {

@@ -105,6 +105,10 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
         throw std::runtime_error("pushsection is not supported");
     }
 
+    if (asm_text == "") {
+        std::cout << "asm_text is empty" << std::endl;
+    }
+
     auto parsed_rettype = irtype_to_str(rettype.get(), false);
     auto args = make_unique<vector<type_str_t>>();
     string arg_str = "", ret_st = "";

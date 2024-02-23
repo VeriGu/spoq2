@@ -130,6 +130,8 @@ set(SOURCES
     src/AutoV/Spec/shortcuts.cpp
     src/AutoV/Spec/projection/rules.cpp
     src/AutoV/Spec/projection/projection.cpp
+    src/AutoV/Spec/projection/z3_rules.cpp
+    src/AutoV/Spec/projection/z3_utils.cpp
     # Add other source files here
 
     src/AutoV/GenCoq/gen_code.cpp

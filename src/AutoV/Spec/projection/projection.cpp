@@ -1,4 +1,5 @@
 #include <rules.h>
+#include <z3_rules.h>
 #include <projection.h>
 
 namespace autov {
@@ -52,6 +53,10 @@ void spec_transformer(Project *proj, Definition *def) {
                     std::cout << "new_spec: " << string(*new_spec) << "\n";
 #endif
             }
+
+            auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec1, make_shared<EvalState>());
+            this_changed |= __changed;
+            changed |= __changed;
 
             if (!this_changed)
                 break;

@@ -1,8 +1,9 @@
 #pragma once
 
-#include <z3/z3++.h>
+#include <z3++.h>
 #include <nodes.h>
 #include <values.h>
+#include <rules.h>
 
 
 namespace autov {
@@ -48,7 +49,7 @@ public:
     }
 
     shared_ptr<EvalState> copy() {
-        auto vars = make_shared<unordered_map<string, SpecValue>>(*this->vars);
+        auto vars = make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*this->vars);
         auto conds = make_shared<vector<z3::expr>>(*this->conds);
         return make_shared<EvalState>(vars, conds);
     }
@@ -63,5 +64,6 @@ enum class Z3Result {
 
 Z3Result z3_check(std::shared_ptr<EvalState> state, z3::expr cond=z3ctx.bool_val(true), int timeout=100);
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state);
+rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState> state);
 
 } // namespace autov

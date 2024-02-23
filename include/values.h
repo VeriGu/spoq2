@@ -307,8 +307,6 @@ public:
     shared_ptr<Tuple> getptr() {
         return static_pointer_cast<Tuple>(shared_from_this());
     }
-
-    shared_ptr<SpecValue> construct(vector<shared_ptr<SpecValue>> args);
 };
 
 class List : public Inductive {
@@ -388,7 +386,7 @@ public:
     shared_ptr<SpecType> typ;
     z3::expr value;
 
-    SpecValue(shared_ptr<SpecType> typ, int value) : typ(typ), value(z3ctx.int_val(value)) {}
+    SpecValue(shared_ptr<SpecType> typ, long long value) : typ(typ), value(z3ctx.int_val((long)value)) {}
     SpecValue(shared_ptr<SpecType> typ, bool value) : typ(typ), value(z3ctx.bool_val(value)) {}
     SpecValue(shared_ptr<SpecType> typ, string value) : typ(typ), value(z3ctx.string_val(value.c_str())) {}
     SpecValue(shared_ptr<SpecType> typ, z3::expr value) : typ(typ), value(value) {}
@@ -442,7 +440,7 @@ public:
 
 class IntValue : public SpecValue {
 public:
-    IntValue(int value) : SpecValue(Int::INT, value) {}
+    IntValue(long long value) : SpecValue(Int::INT, value) {}
     IntValue(z3::expr value) : SpecValue(Int::INT, value) {}
 
     shared_ptr<IntValue> neg() { return make_shared<IntValue>((-value).simplify()); }

@@ -1,17 +1,13 @@
 #include <nodes.h>
 #include <any>
-#include <shortcuts.h>
 #include <variant>
 #include <unordered_set>
-#include <log.h>
-#include <boost/range/algorithm/set_algorithm.hpp>
 #include <project.h>
 #include <algorithm>
 #include <boost/functional/hash.hpp>
-#include <nodes.h>
 #include <values.h>
 #include <rules.h>
-#include <z3_utils.h>
+#include <z3_rules.h>
 #include <vector>
 
 
@@ -37,8 +33,6 @@ using std::shared_ptr;
 using std::vector;
 
 unordered_map<unsigned, unsigned> length_z3_map;
-
-rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState> state);
 
 // It is probably bad to merge relys if all conditions are conjuncted
 rule_ret_t merge_rely(Project* proj, SpecNode* spec, shared_ptr<EvalState> state) {
@@ -351,7 +345,7 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
         }
         auto body_ret = rule_simple_by_z3(proj, (*pm)->body.release(), new_state);
         changed |= body_ret.second;
-        if (body_ret.first) match_list->push_back(make_unique<PatternMatch>(unique_ptr<SpecNode>((*pm)->pattern.release()), make_unique<SpecNode>(body_ret.first)));
+        if (body_ret.first) match_list->push_back(make_unique<PatternMatch>(unique_ptr<SpecNode>((*pm)->pattern.release()), unique_ptr<SpecNode>(body_ret.first)));
     }
 
     if (auto src_opt = dynamic_pointer_cast<Option>(src_ret.first->get_type()))
@@ -412,8 +406,8 @@ void collect_exprs(SpecNode* expr, unordered_map<unsigned, std::pair<z3::expr, S
     }
     if (expr->cached_eval) {
         unsigned h = expr->cached_eval->get_z3_value().hash();
-        if (subexprs.find(h) == subexprs.end() || expr->length < subexprs[h].second->length) {
-            subexprs[h] = std::make_pair(expr->cached_eval->get_z3_value(), expr);
+        if (subexprs.find(h) == subexprs.end() || expr->length < subexprs.find(h)->second.second->length) {
+            subexprs.emplace(h, std::make_pair(expr->cached_eval->get_z3_value(), expr));
         }
     }
 }
@@ -502,7 +496,11 @@ SpecNode* reconstruct_expr(z3::expr z3_val,
         }
         auto z3_val_length = length_z3_map[z3_val_hash];
 
-        auto sorted_subexprs = std::vector<std::pair<z3::expr, SpecNode*>>(subexprs.begin(), subexprs.end());
+        std::vector<std::pair<z3::expr, SpecNode*>> sorted_subexprs;
+        for (auto s = subexprs.begin(); s != subexprs.end(); ++s) {
+            sorted_subexprs.push_back(s->second);
+        }
+        (subexprs.begin(), subexprs.end());
         std::sort(sorted_subexprs.begin(), sorted_subexprs.end(), [](auto a, auto b) {
             return a.second->length < b.second->length;
         });
@@ -621,7 +619,7 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
         }
         elems->push_back(unique_ptr<SpecNode>(ret.first));
     }
-    auto spec = new Expr(std::move(spec->op), std::move(elems), spec->get_type());
+    spec = new Expr(std::move(spec->op), std::move(elems), spec->get_type());
     auto exp_val = z3_eval(proj, spec, state);
 
     unordered_map<unsigned, std::pair<z3::expr, SpecNode*>> subexprs;

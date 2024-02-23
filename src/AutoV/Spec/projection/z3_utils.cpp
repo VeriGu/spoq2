@@ -10,7 +10,7 @@
 #include <boost/functional/hash.hpp>
 #include <nodes.h>
 #include <values.h>
-#include <z3_utils.h>
+#include <z3_rules.h>
 #include <utils.h>
 
 
@@ -56,7 +56,7 @@ int complexity(shared_ptr<SpecNode> spec) {
     return spec->length;
 }
 
-Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond=z3ctx.bool_val(true), int timeout=100) {
+Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     auto hash = hash_z3_state(state, cond, 1000);
     if (Z3Cache.find(hash) != Z3Cache.end()) {
         return Z3Cache[hash];
@@ -77,8 +77,13 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond=z3ctx.bool_val(true
     }
 }
 
-shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pat, shared_ptr<SpecValue> src, 
-                                      unordered_map<string, shared_ptr<SpecValue>> &vars, 
+inline bool op_eq(std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string>& val,
+                  std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string> op) {
+    return val == op;
+}
+
+shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pat, shared_ptr<SpecValue> src,
+                                      unordered_map<string, shared_ptr<SpecValue>> &vars,
                                       unordered_map<string, shared_ptr<SpecValue>> &assigns)
 {
     auto typ = src->get_type();
@@ -92,11 +97,11 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
             return vars[sym->text];
         }
     } else if (auto intc = instance_of(pat, IntConst)) {
-        return make_shared<IntValue>(intc->value);
+        return make_shared<IntValue>(std::get<long long>(intc->value));
     } else if (auto boolc = instance_of(pat, BoolConst)) {
-        return make_shared<BoolValue>(boolc->value);
+        return make_shared<BoolValue>(std::get<bool>(boolc->value));
     } else if (auto strc = instance_of(pat, StringConst)) {
-        return make_shared<StringValue>(strc->value);
+        return make_shared<StringValue>(std::get<string>(strc->value));
     }
     else if (auto expr = instance_of(pat, Expr))
     {
@@ -131,10 +136,6 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
     }
 }
 
-inline bool op_eq(std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string>& val, std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string> op) {
-    return val == op;
-}
-
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
 
     if (val->cached_eval) return val->cached_eval;
@@ -167,11 +168,11 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             throw std::runtime_error("Unknown symbol: " + sym->text);
         }
     } else if (auto intc = instance_of(val, IntConst)) {
-        return _cache(make_shared<IntValue>(intc->value));
+        return _cache(make_shared<IntValue>(std::get<long long>(intc->value)));
     } else if (auto boolc = instance_of(val, BoolConst)) {
-        return _cache(make_shared<BoolValue>(boolc->value));
+        return _cache(make_shared<BoolValue>(std::get<bool>(boolc->value)));
     } else if (auto strc = instance_of(val, StringConst)) {
-        return _cache(make_shared<StringValue>(strc->value));
+        return _cache(make_shared<StringValue>(std::get<string>(strc->value)));
     } else if (auto expr = instance_of(val, Expr)) {
         vector<shared_ptr<SpecValue>> elems;
         for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {
