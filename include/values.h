@@ -106,7 +106,7 @@ class Array : public SpecType {
 public:
     shared_ptr<SpecType> elem_type;
     Array() = default;
-    Array(shared_ptr<SpecType> elem_type) : SpecType("list_" + string(*elem_type)), elem_type(elem_type) {}
+    Array(shared_ptr<SpecType> elem_type) : SpecType("list_" + elem_type->name), elem_type(elem_type) {}
     //Array(const Array& other) : SpecType(other.name), elem_type(std::make_unique<SpecType>(*other.elem_type)) {}
 
     shared_ptr<Array> getptr() {
@@ -163,7 +163,7 @@ class ZMap : public SpecType {
 public:
     shared_ptr<SpecType> elem_type;
     ZMap() = default;
-    ZMap(shared_ptr<SpecType> elem_type) : SpecType("ZMap_" + string(*elem_type)), elem_type(elem_type) {}
+    ZMap(shared_ptr<SpecType> elem_type) : SpecType("ZMap_" + elem_type->name), elem_type(elem_type) {}
 
     shared_ptr<ZMap> getptr() {
         return static_pointer_cast<ZMap>(shared_from_this());
@@ -315,19 +315,19 @@ public:
     shared_ptr<SpecType> elem_type;
     List(shared_ptr<SpecType> elem_type) :
         Inductive(
-            "List_" + string(*elem_type),
+            "List_" + elem_type->name,
             make_shared<vector<shared_ptr<IndConstr>>>(
                 std::initializer_list<shared_ptr<IndConstr>>{
                     make_shared<IndConstr>(
-                        "cons_"  + string(elem_type->name),
+                        "cons_" + elem_type->name,
                         make_shared<vector<shared_ptr<Arg>>>(
                             std::initializer_list<shared_ptr<Arg>>{
-                                make_shared<Arg>("head_" + string(elem_type->name), elem_type),
-                                make_shared<Arg>("tail_" + string(elem_type->name), make_shared<SpecType>(elem_type->name))
+                                make_shared<Arg>("head_" + elem_type->name, elem_type),
+                                make_shared<Arg>("tail_" + elem_type->name, make_shared<SpecType>(elem_type->name))
                             }
                         )
                     ),
-                    make_shared<IndConstr>("nil_" + string(elem_type->name), make_shared<vector<shared_ptr<Arg>>>(vector<shared_ptr<Arg>>()))
+                    make_shared<IndConstr>("nil_" + elem_type->name, make_shared<vector<shared_ptr<Arg>>>(vector<shared_ptr<Arg>>()))
                 }
             )
         ),
@@ -351,18 +351,18 @@ public:
     shared_ptr<SpecType> elem_type;
     Option(shared_ptr<SpecType> elem_type) :
         Inductive(
-            "Option_" + string(*elem_type),
+            "Option_" + elem_type->name,
             make_shared<vector<shared_ptr<IndConstr>>>(
                 std::initializer_list<shared_ptr<IndConstr>>{
                     make_shared<IndConstr>(
-                        "Some_"  + string(elem_type->name),
+                        "Some_"  + elem_type->name,
                         make_shared<vector<shared_ptr<Arg>>>(
                             std::initializer_list<shared_ptr<Arg>>{
-                                make_shared<Arg>("value_" + string(elem_type->name), elem_type)
+                                make_shared<Arg>("value_" + elem_type->name, elem_type)
                             }
                         )
                     ),
-                    make_shared<IndConstr>("None_" + string(elem_type->name), make_shared<vector<shared_ptr<Arg>>>(vector<shared_ptr<Arg>>()))
+                    make_shared<IndConstr>("None_" + elem_type->name, make_shared<vector<shared_ptr<Arg>>>(vector<shared_ptr<Arg>>()))
                 }
             )
         ),
@@ -536,7 +536,7 @@ class IndValue : public SpecValue {
 public:
     z3::func_decl constructor;
 
-    IndValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value), constructor(value.decl()) {};
+    IndValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value), constructor(value.get_sort().constructors()[0]) {};
 
     shared_ptr<SpecValue> get(string key);
     // shared_ptr<IndValue> set(string key, shared_ptr<SpecValue> value);

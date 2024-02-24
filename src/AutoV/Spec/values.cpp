@@ -444,7 +444,7 @@ shared_ptr<SpecValue> Inductive::construct(string constr, vector<shared_ptr<Spec
 // Function
 // ----------------------------------------------------------------------------
 Function::Function(shared_ptr<SpecType> rettype, shared_ptr<vector<shared_ptr<SpecType>>> args) {
-    this->name = "Func_" + join_underline(*args) + "_" + std::string(*rettype);
+    this->name = "Func_" + join_underline(*args) + "_" + rettype->name;
     this->rettype = rettype;
     this->args = args;
 }
