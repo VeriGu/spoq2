@@ -77,11 +77,6 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     }
 }
 
-inline bool op_eq(std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string>& val,
-                  std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string> op) {
-    return val == op;
-}
-
 shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pat, shared_ptr<SpecValue> src,
                                       unordered_map<string, shared_ptr<SpecValue>> &vars,
                                       unordered_map<string, shared_ptr<SpecValue>> &assigns)

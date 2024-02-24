@@ -66,4 +66,8 @@ Z3Result z3_check(std::shared_ptr<EvalState> state, z3::expr cond=z3ctx.bool_val
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state);
 rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState> state);
 
+static inline bool op_eq(std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string>& val,
+                  std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string> op) {
+    return val == op;
+}
 } // namespace autov
