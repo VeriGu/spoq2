@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <string>
 #include <vector>
 #include <map>
@@ -449,8 +450,8 @@ public:
     shared_ptr<IntValue> mul(shared_ptr<IntValue> other) { return make_shared<IntValue>((value * other->value).simplify()); }
     shared_ptr<IntValue> div(shared_ptr<IntValue> other) { return make_shared<IntValue>((value / other->value).simplify()); }
     shared_ptr<IntValue> mod(shared_ptr<IntValue> other) { return make_shared<IntValue>((value % other->value).simplify()); }
-    shared_ptr<IntValue> shiftl(shared_ptr<IntValue> other) { return make_shared<IntValue>((z3::shl(value, other->value)).simplify()); }
-    shared_ptr<IntValue> shiftr(shared_ptr<IntValue> other) { return make_shared<IntValue>((z3::lshr(value, other->value)).simplify()); }
+    shared_ptr<IntValue> shiftl(shared_ptr<IntValue> other) { return make_shared<IntValue>(( value * z3::pw(2, other->value)).simplify()); }
+    shared_ptr<IntValue> shiftr(shared_ptr<IntValue> other) { return make_shared<IntValue>(( value / z3::pw(2, other->value)).simplify()); }
     shared_ptr<IntValue> xorb(shared_ptr<IntValue> other) { return make_shared<IntValue>((value ^ other->value).simplify()); }
     shared_ptr<IntValue> land(shared_ptr<IntValue> other) { return make_shared<IntValue>(land_func(value, other->value)); }
     shared_ptr<IntValue> lor(shared_ptr<IntValue> other) { return make_shared<IntValue>(lor_func(value, other->value)); }

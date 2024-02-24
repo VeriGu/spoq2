@@ -96,12 +96,14 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
             assigns[sym->text] = src;
             return vars[sym->text];
         }
-    } else if (auto intc = instance_of(pat, IntConst)) {
-        return make_shared<IntValue>(std::get<long long>(intc->value));
-    } else if (auto boolc = instance_of(pat, BoolConst)) {
-        return make_shared<BoolValue>(std::get<bool>(boolc->value));
-    } else if (auto strc = instance_of(pat, StringConst)) {
-        return make_shared<StringValue>(std::get<string>(strc->value));
+    } else if (auto con = instance_of(pat, Const)) {
+        if (auto intc = std::get_if<long long>(&con->value)) {
+            return make_shared<IntValue>(*intc);
+        } else if (auto boolc = std::get_if<bool>(&con->value)) {
+            return make_shared<BoolValue>(*boolc);
+        } else if (auto strc = std::get_if<string>(&con->value)) {
+            return make_shared<StringValue>(*strc);
+        }
     }
     else if (auto expr = instance_of(pat, Expr))
     {
@@ -138,6 +140,8 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
 
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
 
+    std::cout << "z3_eval: " << val->operator std::string() << std::endl;
+
     if (val->cached_eval) return val->cached_eval;
 
     auto _cache = [&](shared_ptr<SpecValue> return_val) {
@@ -162,29 +166,28 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             return _cache(decl->absf->call({}));
         } else if (proj->is_ind_constr(sym->text)) {
             return _cache(dynamic_pointer_cast<Inductive>(sym->get_type())->construct(sym->text, {}));
-        } else if (proj->symbols.find(sym->text) != proj->symbols.end() && proj->symbols[sym->text].kind == SymbolKind::StructElem) {
+        } else if (proj->symbols.find(sym->text) != proj->symbols.end() &&
+                   proj->symbols[sym->text].kind == SymbolKind::StructElem) {
             return _cache(make_shared<StringValue>(sym->text));
         } else {
             throw std::runtime_error("Unknown symbol: " + sym->text);
         }
-    } else if (auto intc = instance_of(val, IntConst)) {
-        return _cache(make_shared<IntValue>(std::get<long long>(intc->value)));
-    } else if (auto boolc = instance_of(val, BoolConst)) {
-        return _cache(make_shared<BoolValue>(std::get<bool>(boolc->value)));
-    } else if (auto strc = instance_of(val, StringConst)) {
-        return _cache(make_shared<StringValue>(std::get<string>(strc->value)));
+    } else if (auto con = instance_of(val, Const)) {
+        if (auto intc = std::get_if<long long>(&con->value)) {
+            return make_shared<IntValue>(*intc);
+        } else if (auto boolc = std::get_if<bool>(&con->value)) {
+            return make_shared<BoolValue>(*boolc);
+        } else if (auto strc = std::get_if<string>(&con->value)) {
+            return make_shared<StringValue>(*strc);
+        }
     } else if (auto expr = instance_of(val, Expr)) {
         vector<shared_ptr<SpecValue>> elems;
         for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {
             elems.push_back(z3_eval(proj, e->get(), state));
         }
-        if (op_eq(expr->op, "+")) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->add(dynamic_pointer_cast<IntValue>(elems[1])));
-        else if (op_eq(expr->op, "-")) {
-            if (elems.size() == 1)
-                return _cache(dynamic_pointer_cast<IntValue>(elems[0])->neg());
-            else
-                return _cache(dynamic_pointer_cast<IntValue>(elems[0])->sub(dynamic_pointer_cast<IntValue>(elems[1])));
-        }
+        if (op_eq(expr->op, Expr::binops::ADD)) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->add(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::MINUS)) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->sub(dynamic_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, Expr::ops::NEG)) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->neg());
         if (op_eq(expr->op, Expr::binops::MULT)) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->mul(dynamic_pointer_cast<IntValue>(elems[1])));
         if (op_eq(expr->op, Expr::binops::DIV)) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->div(dynamic_pointer_cast<IntValue>(elems[1])));
         if (op_eq(expr->op, Expr::binops::MOD)) return _cache(dynamic_pointer_cast<IntValue>(elems[0])->mod(dynamic_pointer_cast<IntValue>(elems[1])));
@@ -241,8 +244,8 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         else if (op_eq(expr->op, Expr::binops::APPEND)) return _cache(dynamic_pointer_cast<List>(val->get_type())->construct("cons", {elems[0]}));
         else if (op_eq(expr->op, Expr::binops::CONCAT)) return _cache(dynamic_pointer_cast<IndValue>(elems[0])->concat(dynamic_pointer_cast<IndValue>(elems[1])));
         else if (op_eq(expr->op, Expr::ops::Some)) return _cache(dynamic_pointer_cast<Option>(val->get_type())->construct("Some", {elems[0]}));
+        else if (op_eq(expr->op,Expr::ops::Tuple)) return _cache(dynamic_pointer_cast<Tuple>(val->get_type())->construct(elems));
         else if (op_eq(expr->op, "prop")) return _cache(elems[0]);
-        else if (op_eq(expr->op,"Tuple")) return _cache(dynamic_pointer_cast<Tuple>(val->get_type())->construct(elems));
         else if (op_eq(expr->op,"ptr_to_int")) return _cache(dynamic_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems));
         else if (op_eq(expr->op,"int_to_ptr")) return _cache(dynamic_pointer_cast<FuncValue>(autov::int_to_ptr())->call(elems));
         else if (op_eq(expr->op, "z_to_nat")) return _cache(dynamic_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems));
@@ -367,8 +370,10 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
     }
     else
     {
+        std::cout << val->operator std::string() << std::endl;
         throw std::runtime_error("Unknown node type: " + val->operator std::string());
     }
 }
 
 } // namespace autov
+

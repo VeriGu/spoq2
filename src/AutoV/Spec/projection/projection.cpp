@@ -54,7 +54,15 @@ void spec_transformer(Project *proj, Definition *def) {
 #endif
             }
 
-            auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec1, make_shared<EvalState>());
+            std::cout << new_spec1->operator string() << std::endl;
+
+            auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+            auto conds = std::make_shared<vector<z3::expr>>();
+            for (auto arg : *def->args) {
+                (*vars)[arg->name] = arg->type->declare(arg->name, 0);
+                std::cout << "arg: " << arg->name << " " << arg->type->operator string() << std::endl;
+            }
+            auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec1, make_shared<EvalState>(vars, conds));
             this_changed |= __changed;
             changed |= __changed;
 

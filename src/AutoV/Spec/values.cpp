@@ -190,6 +190,7 @@ std::string Struct::define() const {
 }
 
 z3::sort Struct::get_z3_type() {
+    std::cout << "Struct::get_z3_type " << name << std::endl;
     if (Struct::created_z3_types.find(name) != Struct::created_z3_types.end()) {
         return Struct::created_z3_types.at(name);
     }
@@ -375,6 +376,7 @@ std::string Inductive::define() const {
 }
 
 z3::sort Inductive::get_z3_type() {
+    std::cout << "Inductive::get_z3_type " << name << std::endl;
     if (Inductive::created_z3_types.find(name) != Inductive::created_z3_types.end()) {
         return Inductive::created_z3_types.at(name);
     }
