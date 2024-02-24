@@ -48,7 +48,7 @@ void spec_transformer(Project *proj, Definition *def) {
 
                 new_spec = new_spec1;
 
-#if 0
+#if 1
                 if (__changed)
                     std::cout << "new_spec: " << string(*new_spec) << "\n";
 #endif
@@ -65,6 +65,11 @@ void spec_transformer(Project *proj, Definition *def) {
             auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec1, make_shared<EvalState>(vars, conds));
             this_changed |= __changed;
             changed |= __changed;
+
+            new_spec = __spec;
+
+            if (__changed)
+                std::cout << "(After Z3) new_spec: " << string(*new_spec) << "\n";
 
             if (!this_changed)
                 break;

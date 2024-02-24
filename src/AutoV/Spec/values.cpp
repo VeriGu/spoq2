@@ -476,10 +476,12 @@ shared_ptr<SpecValue> Function::declare(string name, int nid) {
 // Tuple
 // ----------------------------------------------------------------------------
 Tuple::Tuple(shared_ptr<vector<shared_ptr<SpecType>>> types) :
-    Struct("Tuple_" + join_underline(*types), make_shared<std::vector<shared_ptr<Arg>>>()),
+    Struct("Tuple_" + join_underline(*types),
+           make_shared<std::vector<shared_ptr<Arg>>>()),
     types(types) {
     for (int i = 0; i < types->size(); i++) {
         elems->push_back(make_shared<Arg>("elem_" + std::to_string(i), (*types)[i]));
+        elems_map.emplace("elem_" + std::to_string(i), (*types)[i]);
     }
 }
 

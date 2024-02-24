@@ -482,8 +482,9 @@ unsigned length_z3_val(z3::expr z3_val) {
 SpecNode* reconstruct_expr(z3::expr z3_val, 
                            unordered_map<unsigned, std::pair<z3::expr, SpecNode*>>& subexprs, 
                            shared_ptr<EvalState> state) {
-    if (z3_val.is_const() && z3_val.is_int()) {
-        return new IntConst(z3_val.get_numeral_int());
+    if (z3_val.is_const() && z3_val.is_int() && z3_val.is_numeral()) {
+        std::cout << "reconstructing int const: z3_val: " << z3_val << std::endl;
+        return new IntConst(z3_val.get_numeral_int64());
     }
     else if (z3_val.is_const() && z3_val.is_bool()) {
         return new BoolConst(z3_val.is_true());
