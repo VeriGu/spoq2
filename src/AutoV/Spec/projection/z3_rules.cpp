@@ -277,7 +277,7 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
     }
     else if (auto expr = instance_of(pat, Expr))
     {
-        if (std::holds_alternative<string>(expr->op) && std::get<string>(expr->op) == "Some") {
+        if (op_eq(expr->op, Expr::Some)) {
             auto t = dynamic_pointer_cast<Option>(src->get_type());
             auto v = t->elem_type->declare("v", spec->nid);
             if (auto tuple_type = dynamic_pointer_cast<Tuple>(t->elem_type)) {
