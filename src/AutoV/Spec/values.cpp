@@ -469,7 +469,7 @@ shared_ptr<SpecValue> Function::from_z3_value(z3::expr value) {
 shared_ptr<SpecValue> Function::declare(string name, int nid) {
     auto sname = name + "." + std::to_string(nid);
 
-    return make_shared<SpecValue>(shared_from_this(), z3ctx.constant(sname.c_str(), get_z3_type()));
+    return make_shared<FuncValue>(shared_from_this(), z3ctx.constant(sname.c_str(), get_z3_type()));
 }
 
 // ----------------------------------------------------------------------------
