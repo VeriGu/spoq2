@@ -510,8 +510,6 @@ Tuple::operator string() const {
 // List
 // ----------------------------------------------------------------------------
 
-
-
 shared_ptr<SpecValue> int_to_ptr() {
     auto args = make_shared<vector<shared_ptr<SpecType>>>();
     args->push_back(Int::INT);
@@ -520,8 +518,8 @@ shared_ptr<SpecValue> int_to_ptr() {
 
 shared_ptr<SpecValue> ptr_to_int() {
     auto args = make_shared<vector<shared_ptr<SpecType>>>();
-    args->push_back(Int::INT);
-    return make_shared<Function>(Struct::Ptr, args)->declare("ptr_to_int", 0);
+    args->push_back(Struct::Ptr);
+    return make_shared<Function>(Int::INT, args)->declare("ptr_to_int", 0);
 }
 
 shared_ptr<SpecValue> z_to_nat() {
