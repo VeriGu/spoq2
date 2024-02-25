@@ -265,18 +265,13 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
         else {
             state->vars->emplace(sym->text, src);
         }
-    }
-    else if (auto con = instance_of(pat, IntConst)) {
+    } else if (auto con = instance_of(pat, IntConst)) {
         state->conds->push_back(src->get_z3_value() == z3ctx.int_val((long)std::get<long long>(con->value)));
-    }
-    else if (auto con = instance_of(pat, BoolConst)) {
+    } else if (auto con = instance_of(pat, BoolConst)) {
         state->conds->push_back(src->get_z3_value() == z3ctx.bool_val(std::get<bool>(con->value)));
-    }
-    else if (auto con = instance_of(pat, StringConst)) {
+    } else if (auto con = instance_of(pat, StringConst)) {
         state->conds->push_back(src->get_z3_value() == z3ctx.string_val(std::get<string>(con->value)));
-    }
-    else if (auto expr = instance_of(pat, Expr))
-    {
+    } else if (auto expr = instance_of(pat, Expr)) {
         if (op_eq(expr->op, Expr::Some)) {
             auto t = dynamic_pointer_cast<Option>(src->get_type());
             auto v = t->elem_type->declare("v", spec->nid);
@@ -294,20 +289,25 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
             }
             auto value = dynamic_pointer_cast<IndValue>(src)->get("value");
             resolve_pattern(proj, spec, expr->elems->at(0).get(), value, state);
-        }
-        else if (std::holds_alternative<string>(expr->op) && std::get<string>(expr->op) == "Tuple") {
+        } else if (op_eq(expr->op, Expr::Tuple)) {
             for (int i = 0; i < expr->elems->size(); i++) {
                 resolve_pattern(proj, spec, expr->elems->at(i).get(), dynamic_pointer_cast<StructValue>(src)->get(i), state);
             }
-        }
-        else if (std::holds_alternative<string>(expr->op) && std::get<string>(expr->op) == "::") {
+        } else if (op_eq(expr->op, Expr::CONCAT)) {
             auto t = dynamic_pointer_cast<List>(src->get_type());
             auto hh = t->elem_type->declare("h", spec->nid);
             auto tt = t->declare("t", spec->nid);
             resolve_pattern(proj, spec, expr->elems->at(0).get(), dynamic_pointer_cast<IndValue>(src)->get("head"), state);
             resolve_pattern(proj, spec, expr->elems->at(1).get(), dynamic_pointer_cast<IndValue>(src)->get("tail"), state);
-        }
-        else if (std::holds_alternative<string>(expr->op)) {
+        } else if (op_eq(expr->op, Expr::None)) {
+            auto t = dynamic_pointer_cast<Inductive>(src->get_type());
+            std::vector<shared_ptr<SpecValue>> vars;
+            // TODO: ????
+            // for (int i = 0; i < t->constr["None"]->size(); i++) {
+            //     auto arg = t->constr["None"]->at(i);
+            //     resolve_pattern(proj, spec, expr->elems->at(i).get(), dynamic_pointer_cast<IndValue>(src)->get(arg->name), state);
+            // }
+        } else if (std::holds_alternative<string>(expr->op)) {
             auto op = std::get<string>(expr->op);
             auto sym = proj->symbols.find(op);
             if (sym != proj->symbols.end() && sym->second.kind == SymbolKind::IndConstructor) {
@@ -317,12 +317,12 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
                     auto arg = t->constr[op]->at(i);
                     resolve_pattern(proj, spec, expr->elems->at(i).get(), dynamic_pointer_cast<IndValue>(src)->get(arg->name), state);
                 }
-            }
-            else throw std::runtime_error("Unknown pattern: " + string(*pat));
-        }
-        else throw std::runtime_error("Unknown pattern: " + string(*pat));
-    }
-    else throw std::runtime_error("Unknown pattern: " + string(*pat));
+            } else
+                throw std::runtime_error("Unknown pattern: " + string(*pat));
+        } else
+            throw std::runtime_error("Unknown pattern: " + string(*pat));
+    } else
+        throw std::runtime_error("Unknown pattern: " + string(*pat));
 }
 
 rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> state) {
