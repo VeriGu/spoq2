@@ -265,8 +265,31 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             return _cache(static_pointer_cast<ZMapValue>(elems[0])->set(static_pointer_cast<IntValue>(elems[1]), elems[2]));
         // Record.get
         // Record.set
-        }
-        else if (op_eq(expr->op, Expr::binops::APPEND))
+        } else if (op_eq(expr->op, Expr::RecordGet)) {
+            // expr.elem[0]: record
+            // expr.elem[1...n-2]: (sub)fields
+            for (int i = 1; i < expr->elems->size(); i++) {
+                elems[i] = static_pointer_cast<StructValue>(elems[i-1])->get(static_cast<Symbol *>(expr->elems->at(i).get())->text);
+            }
+            return _cache(elems.back());
+        } else if (op_eq(expr->op, Expr::RecordSet)) {
+            // expr.elem[0]: record
+            // expr.elem[1...n-2]: (sub)fields
+            // expr.elem[n-1]: value
+
+            // First read-off all the old fields, except the one to be updated
+            for (int i = 1; i < expr->elems->size() - 2; i++) {
+                elems[i] = static_pointer_cast<StructValue>(elems[i-1])->get(static_cast<Symbol *>(expr->elems->at(i).get())->text);
+            }
+            // Update the field
+            elems[expr->elems->size() - 2] = elems.back();
+            // Then update the record
+            for (int i = expr->elems->size() - 2; i >= 0; i--) {
+                elems[i - 1] = static_pointer_cast<StructValue>(elems[i - 1])->set(static_cast<Symbol *>(expr->elems->at(i).get())->text, elems[i]);
+            }
+
+            return _cache(elems[0]);
+        } else if (op_eq(expr->op, Expr::binops::APPEND))
             return _cache(static_pointer_cast<List>(val->get_type())->construct("cons", {elems[0]}));
         else if (op_eq(expr->op, Expr::binops::CONCAT))
             return _cache(static_pointer_cast<IndValue>(elems[0])->concat(static_pointer_cast<IndValue>(elems[1])));
