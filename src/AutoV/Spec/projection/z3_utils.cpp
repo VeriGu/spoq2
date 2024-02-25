@@ -30,6 +30,7 @@ using std::set;
 using std::sort;
 
 z3::solver Z3Solver = z3::solver(z3ctx);
+z3::params Z3Params = z3::params(z3ctx);
 
 unordered_map<size_t, Z3Result> Z3Cache;
 
@@ -61,6 +62,9 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     if (Z3Cache.find(hash) != Z3Cache.end()) {
         return Z3Cache[hash];
     }
+    Z3Params.set("timeout", (unsigned int)timeout);
+    Z3Solver.set(Z3Params);
+
     Z3Solver.push();
     Z3Solver.add(cond);
     auto res = Z3Solver.check();
