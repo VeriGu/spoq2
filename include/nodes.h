@@ -1022,11 +1022,11 @@ public:
     shared_ptr<SpecType> type;
     int length;
     mutable string _str;
-    shared_ptr<FuncValue> absf;
+    shared_ptr<SpecValue> absf;
 
     Declaration() { throw std::invalid_argument("Declaration must have a name and type"); }
     Declaration(string name, shared_ptr<SpecType> type) :
-        name(name), type(type), length(1), absf(static_pointer_cast<FuncValue>(type->declare(name, 0))) {}
+        name(name), type(type), length(1), absf(type->declare(name, 0)) {}
 
     bool operator==(const Declaration& other) const {
         return this->name == other.name && *this->type == *other.type;

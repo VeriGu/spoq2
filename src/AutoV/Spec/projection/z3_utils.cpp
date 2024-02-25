@@ -156,7 +156,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         } else if (proj->decls.find(sym->text) != proj->decls.end()) {
             auto decl = proj->decls[sym->text].get();
             assert(!dynamic_pointer_cast<Function>(decl->type));
-            return _cache(decl->absf->call({}));
+            return _cache(decl->absf);
         } else if (proj->is_ind_constr(sym->text)) {
             return _cache(static_pointer_cast<Inductive>(sym->get_type())->construct(sym->text, {}));
         } else if (proj->symbols.find(sym->text) != proj->symbols.end() &&
@@ -296,7 +296,8 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                 return _cache(df->absf->call(elems));
             } else if (info.kind == SymbolKind::Decl) {
                 auto df = proj->decls[sym].get();
-                return _cache(df->absf->call(elems));
+                auto absf = static_pointer_cast<FuncValue>(df->absf);
+                return _cache(absf->call(elems));
             } else {
                 throw std::runtime_error("Unknown symbol: " + sym);
             }
