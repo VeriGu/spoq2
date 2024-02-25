@@ -89,8 +89,7 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
     if (auto sym = instance_of(pat, Symbol)) {
         if (proj->is_ind_constr(sym->text)) {
             return static_pointer_cast<Inductive>(typ)->construct(sym->text, {});
-        }
-        else {
+        } else {
             vars[sym->text] = typ->declare(sym->text, val->nid);
             assigns[sym->text] = src;
             return vars[sym->text];
@@ -103,33 +102,27 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
         } else if (auto strc = std::get_if<string>(&con->value)) {
             return make_shared<StringValue>(*strc);
         }
-    }
-    else if (auto expr = instance_of(pat, Expr))
-    {
-        if (op_eq(expr->op, "Some"))
-        {
+    } else if (auto expr = instance_of(pat, Expr)) {
+        if (op_eq(expr->op, Expr::Some)) {
             auto v = resolve_pattern(proj, val, expr->elems->at(0).get(), static_pointer_cast<IndValue>(src)->get("value"), vars, assigns);
             return static_pointer_cast<Inductive>(typ)->construct("Some", {v});
-        }
-        else if (op_eq(expr->op, "Tuple"))
-        {
+        } else if (op_eq(expr->op, Expr::Tuple)) {
             vector<shared_ptr<SpecValue>> elems;
             for (int i = 0; i < expr->elems->size(); i++)
             {
                 elems.push_back(resolve_pattern(proj, val, expr->elems->at(i).get(), static_pointer_cast<StructValue>(src)->get(i), vars, assigns));
             }
             return static_pointer_cast<Struct>(typ)->construct(elems);
-        }
-        else if (op_eq(expr->op, "::"))
-        {
+        } else if (op_eq(expr->op, Expr::CONCAT)) {
             auto head = resolve_pattern(proj, val, expr->elems->at(0).get(), static_pointer_cast<IndValue>(src)->get("head"), vars, assigns);
             auto tail = resolve_pattern(proj, val, expr->elems->at(1).get(), static_pointer_cast<IndValue>(src)->get("tail"), vars, assigns);
             return static_pointer_cast<Inductive>(typ)->construct("cons", {head, tail});
-        }
-        else
-        {
+        } else if (op_eq(expr->op, Expr::None)) {
+            auto t = dynamic_pointer_cast<Inductive>(src->get_type());
+
+            return t->construct("None", {});
+        } else
             throw std::runtime_error("Unknown pattern: " + pat->operator std::string());
-        }
     }
 
     throw std::runtime_error("Unknown pattern: " + pat->operator std::string());

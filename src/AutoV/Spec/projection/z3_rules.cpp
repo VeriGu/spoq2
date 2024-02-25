@@ -301,12 +301,9 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
             resolve_pattern(proj, spec, expr->elems->at(1).get(), dynamic_pointer_cast<IndValue>(src)->get("tail"), state);
         } else if (op_eq(expr->op, Expr::None)) {
             auto t = dynamic_pointer_cast<Inductive>(src->get_type());
-            std::vector<shared_ptr<SpecValue>> vars;
-            // TODO: ????
-            // for (int i = 0; i < t->constr["None"]->size(); i++) {
-            //     auto arg = t->constr["None"]->at(i);
-            //     resolve_pattern(proj, spec, expr->elems->at(i).get(), dynamic_pointer_cast<IndValue>(src)->get(arg->name), state);
-            // }
+            auto v = t->construct("None", {});
+
+            state->conds->push_back(src->get_z3_value() == v->get_z3_value());
         } else if (std::holds_alternative<string>(expr->op)) {
             auto op = std::get<string>(expr->op);
             auto sym = proj->symbols.find(op);
