@@ -16,7 +16,7 @@ static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group1 = {
     rule_move_when_out_when,
     rule_move_if_out_match,
     rule_move_if_out_expr,
-    rule_unfold_specs,
+    //rule_unfold_specs,
     rule_move_match_out_expr,
 };
 
@@ -61,6 +61,11 @@ void spec_transformer(Project *proj, Definition *def) {
                 break;
         }
 
+        while (true) {
+            auto [__spec, __unfolded] = rule_unfold_specs(proj, new_spec1);
+            new_spec1 = __spec;
+            break;
+        }
         auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
         auto conds = std::make_shared<vector<z3::expr>>();
         for (auto arg : *def->args) {
@@ -73,7 +78,7 @@ void spec_transformer(Project *proj, Definition *def) {
 
         new_spec = __spec;
 
-        //if (__changed)
+        if (__changed)
             std::cout << "(Z3) new_spec: \n=========================\n"
                 << string(*new_spec) << "\n==============================\n";
 
