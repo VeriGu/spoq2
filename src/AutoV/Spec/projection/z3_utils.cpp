@@ -148,12 +148,12 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             if (auto c = instance_of(df->body.get(), Const)) {
                 return _cache(z3_eval(proj, c, state));
             } else {
-                return _cache(df->absf->call({}));
+                return _cache(df->absf()->call({}));
             }
         } else if (proj->decls.find(sym->text) != proj->decls.end()) {
             auto decl = proj->decls[sym->text].get();
             assert(!dynamic_pointer_cast<Function>(decl->type));
-            return _cache(decl->absf);
+            return _cache(decl->absf());
         } else if (proj->is_ind_constr(sym->text)) {
             return _cache(static_pointer_cast<Inductive>(sym->get_type())->construct(sym->text, {}));
         } else if (proj->symbols.find(sym->text) != proj->symbols.end() &&
@@ -281,7 +281,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             // Update the field
             elems[expr->elems->size() - 2] = elems.back();
             // Then update the record
-            for (int i = expr->elems->size() - 2; i >= 0; i--) {
+            for (int i = expr->elems->size() - 2; i > 0; i--) {
                 elems[i - 1] = static_pointer_cast<StructValue>(elems[i - 1])->set(static_cast<Symbol *>(expr->elems->at(i).get())->text, elems[i]);
             }
 
@@ -313,10 +313,10 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                 return _cache(static_pointer_cast<Inductive>(val->get_type())->construct(sym, elems));
             } else if (info.kind == SymbolKind::Def) {
                 auto df = proj->defs[sym].get();
-                return _cache(df->absf->call(elems));
+                return _cache(df->absf()->call(elems));
             } else if (info.kind == SymbolKind::Decl) {
                 auto df = proj->decls[sym].get();
-                auto absf = static_pointer_cast<FuncValue>(df->absf);
+                auto absf = static_pointer_cast<FuncValue>(df->absf());
                 return _cache(absf->call(elems));
             } else {
                 throw std::runtime_error("Unknown symbol: " + sym);

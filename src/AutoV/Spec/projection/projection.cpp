@@ -16,7 +16,7 @@ static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group1 = {
     rule_move_when_out_when,
     rule_move_if_out_match,
     rule_move_if_out_expr,
-    //rule_unfold_specs,
+    rule_unfold_specs,
     rule_move_match_out_expr,
 };
 
@@ -32,9 +32,10 @@ void spec_transformer(Project *proj, Definition *def) {
         auto new_spec = def->body.release();
 
         auto changed = false;
+        auto new_spec1 = new_spec;
         while (true) {
             auto this_changed = false;
-            auto new_spec1 = new_spec;
+            new_spec1 = new_spec;
             for (auto rule : rules_group1) {
                 if (rule == rule_eliminate_let) {
                     auto prev_symbols = std::set<string>(known);
@@ -49,31 +50,33 @@ void spec_transformer(Project *proj, Definition *def) {
                 new_spec = new_spec1;
 
 #if 1
-                if (__changed)
-                    std::cout << "new_spec: " << string(*new_spec) << "\n";
+                if (__changed) {
+                    std::cout << "new_spec" << ": \n=========================\n"
+                        << string(*new_spec) << "\n==============================" << std::endl;
+                }
 #endif
             }
-
-            std::cout << new_spec1->operator string() << std::endl;
-
-            auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
-            auto conds = std::make_shared<vector<z3::expr>>();
-            for (auto arg : *def->args) {
-                (*vars)[arg->name] = arg->type->declare(arg->name, 0);
-                std::cout << "arg: " << arg->name << " " << arg->type->operator string() << std::endl;
-            }
-            auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec1, make_shared<EvalState>(vars, conds));
-            this_changed |= __changed;
-            changed |= __changed;
-
-            new_spec = __spec;
-
-            if (__changed)
-                std::cout << "(After Z3) new_spec: " << string(*new_spec) << "\n";
 
             if (!this_changed)
                 break;
         }
+
+        auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+        auto conds = std::make_shared<vector<z3::expr>>();
+        for (auto arg : *def->args) {
+            (*vars)[arg->name] = arg->type->declare(arg->name, 0);
+            std::cout << "arg: " << arg->name << " " << arg->type->operator string() << std::endl;
+        }
+        auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec1, make_shared<EvalState>(vars, conds));
+        //this_changed |= __changed;
+        changed |= __changed;
+
+        new_spec = __spec;
+
+        //if (__changed)
+            std::cout << "(Z3) new_spec: \n=========================\n"
+                << string(*new_spec) << "\n==============================\n";
+
 
         def->body.reset(new_spec);
         def->_str = "";

@@ -1022,11 +1022,10 @@ public:
     shared_ptr<SpecType> type;
     int length;
     mutable string _str;
-    shared_ptr<SpecValue> absf;
 
     Declaration() { throw std::invalid_argument("Declaration must have a name and type"); }
     Declaration(string name, shared_ptr<SpecType> type) :
-        name(name), type(type), length(1), absf(type->declare(name, 0)) {}
+        name(name), type(type), length(1) {}
 
     bool operator==(const Declaration& other) const {
         return this->name == other.name && *this->type == *other.type;
@@ -1047,7 +1046,15 @@ public:
         return this->type;
     }
 
+    shared_ptr<SpecValue> absf() const {
+        if (this->_absf == nullptr) {
+            this->_absf = this->type->declare(this->name, 0);
+        }
+        return this->_absf;
+    }
+
 private:
+    mutable shared_ptr<SpecValue> _absf;
     const string to_string() const {
         return  "Parameter " + this->name + " : " + string(*this->type) + ".";
     }
@@ -1061,23 +1068,12 @@ public:
     unique_ptr<SpecNode> body;
     int length;
     mutable string _str;
-    shared_ptr<FuncValue> absf;
+
 
     Definition() { throw std::invalid_argument("Definition must have a name, rettype, args, and body"); }
     Definition(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args, unique_ptr<SpecNode> body) :
         name(name), rettype(rettype), args(std::move(args)), body(std::move(body)) {
             this->length = this->body->length; // This cannot be done in the initializer list because body is moved.
-
-            auto arg_list = make_shared<vector<shared_ptr<SpecType>>>();
-
-            for (auto it = this->args->begin(); it != this->args->end(); it++) {
-                arg_list->push_back((*it)->type);
-            }
-
-            // func has to be wrapped in a shared_ptr because SpecType inherit from enable_shared_from_this
-            auto func = make_shared<Function>(this->rettype, arg_list);
-
-            this->absf = static_pointer_cast<FuncValue>(func->declare(name, 0));
         }
     Definition(Definition &other) :
         name(other.name), rettype(other.rettype), args(make_unique<vector<shared_ptr<Arg>>>(*other.args)),
@@ -1128,7 +1124,25 @@ public:
 
     void infer_type(Project &proj);
 
+    shared_ptr<FuncValue> absf() const {
+        if (this->_absf == nullptr) {
+            auto arg_list = make_shared<vector<shared_ptr<SpecType>>>();
+
+            for (auto it = this->args->begin(); it != this->args->end(); it++) {
+                arg_list->push_back((*it)->type);
+            }
+
+            // func has to be wrapped in a shared_ptr because SpecType inherit from enable_shared_from_this
+            auto func = make_shared<Function>(this->rettype, arg_list);
+
+            this->_absf = static_pointer_cast<FuncValue>(func->declare(name, 0));
+        }
+
+        return this->_absf;
+    }
+
 private:
+    mutable shared_ptr<FuncValue> _absf;
     virtual const string to_string() const;
 };
 

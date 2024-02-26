@@ -459,8 +459,8 @@ rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec) {
     bool changed = false;
 
     std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
-        // if (unfolded)
-        //     return node;
+        if (unfolded)
+            return node;
         if (auto e = instance_of(node, Expr)) {
             if (auto op = std::get_if<string>(&e->op)) {
                 if (proj->defs.find(*op) == proj->defs.end())

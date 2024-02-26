@@ -384,19 +384,26 @@ z3::sort Inductive::get_z3_type() {
     z3::constructors cs(z3ctx);
     vector<z3::sort> sorts;
     vector<z3::symbol> accs;
+    auto tname = z3ctx.str_symbol(name.c_str());
+    auto tsort = z3ctx.datatype_sort(tname);
 
     for (auto constr : *constrs) {
         sorts.clear();
         accs.clear();
         for (auto arg : *constr->args) {
-            sorts.push_back(arg->type->get_z3_type());
-            accs.push_back(z3ctx.str_symbol(arg->name.c_str()));
+            auto arg_name = arg->name;
+
+            if (arg->type->name == this->name)
+                sorts.push_back(tsort);
+            else
+                sorts.push_back(arg->type->get_z3_type());
+            accs.push_back(z3ctx.str_symbol(arg_name.c_str()));
         }
         cs.add(z3ctx.str_symbol(constr->name.c_str()), z3ctx.str_symbol(this->name.c_str()),
                                 accs.size(), accs.data(), sorts.data());
     }
 
-    auto z3type = z3ctx.datatype(z3ctx.str_symbol(name.c_str()), cs);
+    auto z3type = z3ctx.datatype(tname, cs);
     Inductive::created_z3_types.emplace(name, z3type);
 
     return z3type;
