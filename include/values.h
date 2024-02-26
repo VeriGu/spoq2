@@ -323,7 +323,7 @@ public:
                         make_shared<vector<shared_ptr<Arg>>>(
                             std::initializer_list<shared_ptr<Arg>>{
                                 make_shared<Arg>("head_" + elem_type->name, elem_type),
-                                make_shared<Arg>("tail_" + elem_type->name, make_shared<SpecType>(elem_type->name))
+                                make_shared<Arg>("tail_" + elem_type->name, make_shared<SpecType>("List_" + elem_type->name))
                             }
                         )
                     ),
