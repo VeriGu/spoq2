@@ -335,6 +335,7 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
 
     for (auto pm = spec->match_list->begin(); pm != spec->match_list->end(); pm++) {
         auto new_state = state->copy();
+
         resolve_pattern(proj, spec, (*pm)->pattern.get(), src_val, new_state);
         if (z3_check(new_state) == Z3Result::False) {
             changed = true;
@@ -342,40 +343,44 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
         }
         auto body_ret = rule_simple_by_z3(proj, (*pm)->body.release(), new_state);
         changed |= body_ret.second;
-        if (body_ret.first) match_list->push_back(make_unique<PatternMatch>(unique_ptr<SpecNode>((*pm)->pattern.release()), unique_ptr<SpecNode>(body_ret.first)));
+        if (body_ret.first)
+            match_list->push_back(make_unique<PatternMatch>(unique_ptr<SpecNode>((*pm)->pattern.release()), unique_ptr<SpecNode>(body_ret.first)));
     }
 
-    if (auto src_opt = dynamic_pointer_cast<Option>(src_ret.first->get_type()))
-    {
-        if (auto spec_opt = dynamic_pointer_cast<Option>(spec->get_type()))
-        {
+    if (auto src_opt = dynamic_pointer_cast<Option>(src_ret.first->get_type())) {
+        if (auto spec_opt = dynamic_pointer_cast<Option>(spec->get_type())) {
             bool has_some = false;
             bool has_none = false;
+
             for (auto pm = match_list->begin(); pm != match_list->end(); pm++) {
                 if (auto expr = instance_of((*pm)->pattern.get(), Expr)) {
-                    if (std::holds_alternative<string>(expr->op) && std::get<string>(expr->op) == "Some") has_some = true;
-                }
-                else if (auto sym = instance_of((*pm)->pattern.get(), Symbol)) {
-                    if (sym->text == "None") has_none = true;
-                    else if (sym->text == "_") {
+                    if (op_eq(expr->op, Expr::Some))
+                        has_some = true;
+                    else if (op_eq(expr->op, Expr::None))
+                        has_none = true;
+                } else if (auto sym = instance_of((*pm)->pattern.get(), Symbol)) {
+                    if (sym->text == "None") {
+                        has_none = true;
+                    } else if (sym->text == "_") {
                         has_some = true;
                         has_none = true;
                     }
                 }
             }
-            if (!has_some || !has_none)
-            {
+
+            if (!has_some || !has_none) {
                 changed = true;
                 match_list->push_back(make_unique<PatternMatch>(make_unique<Symbol>("_", src_opt), make_unique<Symbol>("None", spec->get_type())));
             }
         }
     }
+
     if (match_list->size() == 0) {
         delete spec;
         return std::make_pair(nullptr, true);
-    }
-    else {
+    } else {
         bool only_none = true;
+
         for (auto pm = match_list->begin(); pm != match_list->end(); pm++) {
             auto body = (*pm)->body.get();
             while (is_instance(body, Rely) || is_instance(body, Anno)) {
@@ -388,10 +393,13 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
                 break;
             }
         }
+
         auto typ = spec->get_type();
         delete spec;
-        if (only_none) return std::make_pair(new Symbol("None", typ), changed);
-        else return std::make_pair(new Match(unique_ptr<SpecNode>(src_ret.first), std::move(match_list)), changed);
+        if (only_none)
+            return std::make_pair(new Symbol("None", typ), changed);
+        else
+            return std::make_pair(new Match(unique_ptr<SpecNode>(src_ret.first), std::move(match_list)), changed);
     }
 }
 
