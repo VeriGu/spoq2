@@ -689,7 +689,7 @@ static Expr::ops parse_uniop(const antlr4::Token *uniop) {
         case SpecLexer::BNOT:
             return Expr::ops::BNOT;
         case SpecLexer::MINUS:
-            return Expr::ops::NEG;
+            return Expr::ops::__NEG;
         default:
             throw std::runtime_error("Unknown uniop");
     }
@@ -707,7 +707,7 @@ antlrcpp::Any ProgramVisitor::visitTerm(SpecParser::TermContext* ctx) {
 
         elems->push_back(move(term));
 
-        if (op == Expr::ops::NEG)
+        if (op == Expr::ops::__NEG)
             return (SpecNode *)(new Expr(Expr::binops::MINUS, std::move(elems)));
 
         return (SpecNode *)(new Expr(parse_uniop(ctx->uniop), std::move(elems)));

@@ -179,10 +179,12 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
 
         if (op_eq(expr->op, Expr::binops::ADD))
             return _cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1])));
-        if (op_eq(expr->op, Expr::binops::MINUS))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->sub(static_pointer_cast<IntValue>(elems[1])));
-        if (op_eq(expr->op, Expr::ops::NEG))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->neg());
+        if (op_eq(expr->op, Expr::binops::MINUS)) {
+            if (expr->elems->size() == 2)
+                return _cache(static_pointer_cast<IntValue>(elems[0])->sub(static_pointer_cast<IntValue>(elems[1])));
+            else
+                return _cache(static_pointer_cast<IntValue>(elems[0])->neg());
+        }
         if (op_eq(expr->op, Expr::binops::MULT))
             return _cache(static_pointer_cast<IntValue>(elems[0])->mul(static_pointer_cast<IntValue>(elems[1])));
         if (op_eq(expr->op, Expr::binops::DIV))
