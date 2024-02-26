@@ -155,6 +155,9 @@ void spec_transformer(Project *proj, Definition *def) {
             std::cout << "arg: " << arg->name << " " << arg->type->operator string() << std::endl;
         }
 
+        if (debug)
+            std::cout << "debug" << std::endl;
+
         std::cout << "Before Z3 " << def->name << ": \n=========================\n"
             << string(*new_spec) << "\n==============================" << std::endl;
         auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec1, make_shared<EvalState>(vars, conds));

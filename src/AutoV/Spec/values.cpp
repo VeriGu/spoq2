@@ -285,7 +285,7 @@ shared_ptr<StructValue> StructValue::set(string key, shared_ptr<SpecValue> value
         z3::func_decl cs = css[0];  //one constructor: mk{fname}
 
         z3::expr_vector elems(z3ctx);
-        int i;
+        int i = 0;
         for(auto arg : *s->elems) {
             if(arg->name == field) {
                 elems.push_back(value->get_z3_value());

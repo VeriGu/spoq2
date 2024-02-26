@@ -66,10 +66,33 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     Z3Solver.set(Z3Params);
 
     Z3Solver.push();
+
+    for (auto &c : *state->conds) {
+        Z3Solver.add(c);
+    }
+    Z3Solver.push();
     Z3Solver.add(cond);
     auto res = Z3Solver.check();
     Z3Solver.pop();
-    if (res == z3::sat) {
+
+
+    Z3Solver.push();
+    Z3Solver.add(!cond);
+    auto not_res = Z3Solver.check();
+    Z3Solver.pop();
+
+    Z3Solver.pop();
+
+    std::cout << "-----------------Z3-----------------" << std::endl;
+    std::cout << "z3 check cond: " << cond << std::endl;
+    for (auto &c : *state->conds) {
+        std::cout << "z3 check cond: " << c << std::endl;
+    }
+    std::cout << "z3 check res: " << res << std::endl;
+    std::cout << "z3 check not_res: " << not_res << std::endl;
+    std::cout << "-----------------Z3-----------------" << std::endl;
+
+    if (not_res == z3::unsat) {
         Z3Cache[hash] = Z3Result::True;
         return Z3Result::True;
     } else if (res == z3::unsat) {
@@ -428,4 +451,3 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
 }
 
 } // namespace autov
-
