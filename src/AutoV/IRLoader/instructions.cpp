@@ -9,7 +9,7 @@ IAlloc::IAlloc(string fname, shared_ptr<IRType> typ, string assign, int align) :
 
 IAtomicRMW::IAtomicRMW(shared_ptr<IRType> typ, string assign, Op op, unique_ptr<IRValue> ptr,
                        unique_ptr<IRValue> val, Ordering order, int align) :
-    assign(to_coq_name(assign)), typ(typ), op(op), ptr(std::move(ptr)), val(std::move(val)),
+    typ(typ), assign(to_coq_name(assign)) , op(op), ptr(std::move(ptr)), val(std::move(val)),
     order(order), align(align) {};
 
 IBinOp::IBinOp(shared_ptr<IRType> typ, string assign, Op op, unique_ptr<IRValue> a, unique_ptr<IRValue> b) :

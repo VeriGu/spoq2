@@ -212,7 +212,7 @@ static unique_ptr<IRValue> parse_value(const ptree &val) {
                     op = parse_op(op_str);
 
                 for (const auto &opr : value.get_child("operands")) {
-                    operands->push_back(std::move(parse_value(opr.second)));
+                    operands->push_back(parse_value(opr.second));
                 }
 
                 return make_unique<VExpr>(typ, op, std::move(operands));
@@ -222,7 +222,7 @@ static unique_ptr<IRValue> parse_value(const ptree &val) {
                 auto values = make_unique<vector<unique_ptr<IRValue>>>();
 
                 for (const auto &v : value.get_child("values")) {
-                    values->push_back(std::move(parse_value(v.second)));
+                    values->push_back(parse_value(v.second));
                 }
 
                 return make_unique<VStruct>(typ, std::move(values));
@@ -230,7 +230,7 @@ static unique_ptr<IRValue> parse_value(const ptree &val) {
                 auto values = make_unique<vector<unique_ptr<IRValue>>>();
 
                 for (const auto &v : value.get_child("value")) {
-                    values->push_back(std::move(parse_value(v.second)));
+                    values->push_back(parse_value(v.second));
                 }
 
                 return make_unique<VStruct>(typ, std::move(values));
@@ -257,7 +257,7 @@ static unique_ptr<vector<unique_ptr<IRValue>>> parse_val_list(const ptree &lst) 
     auto values = make_unique<vector<unique_ptr<IRValue>>>();
 
     for (const auto &val : lst) {
-        values->push_back(std::move(parse_value(val.second)));
+        values->push_back(parse_value(val.second));
     }
 
     return values;
@@ -314,7 +314,7 @@ static unique_ptr<IRInst> parse_instruction(const ptree &inst, string fname) {
         unique_ptr<IRValue> func;
 
         for (auto it = args_node.begin(); it != std::prev(args_node.end()); it++) {
-            args->push_back(std::move(parse_value(it->second)));
+            args->push_back(parse_value(it->second));
         }
         func = parse_value(args_node.back().second);
 
@@ -390,7 +390,7 @@ static unique_ptr<IRInst> parse_instruction(const ptree &inst, string fname) {
         auto inst_assign = inst.get_child("assign");
 
         return make_unique<IGetElemPtr>(parse_type(inst_assign.get_child("type")), inst_assign.get<string>("value"),
-                                        parse_value(inst.get_child("src")), std::move(parse_val_list(inst.get_child("indices"))));
+                                        parse_value(inst.get_child("src")), parse_val_list(inst.get_child("indices")));
     } else if (inst_type == "ICmpInst") {
         auto op = parse_op(inst.get<string>("predicate"));
         auto inst_op = inst.get_child("operands");
@@ -434,8 +434,8 @@ static unique_ptr<IRInst> parse_instruction(const ptree &inst, string fname) {
         auto inst_assign = inst.get_child("assign");
 
         for (const auto &incoming : inst_incoming_list) {
-            values->push_back(std::move(parse_value(incoming.second.get_child("value"))));
-            blocks->push_back(std::move(parse_value(incoming.second.get_child("block"))));
+            values->push_back(parse_value(incoming.second.get_child("value")));
+            blocks->push_back(parse_value(incoming.second.get_child("block")));
         }
 
         return make_unique<IPHI>(parse_type(inst_assign.get_child("type")), inst_assign.get<string>("value"),
@@ -482,8 +482,8 @@ static unique_ptr<IRInst> parse_instruction(const ptree &inst, string fname) {
         auto blocks = make_unique<vector<unique_ptr<IRValue>>>();
 
         for (const auto &case_val : inst.get_child("cases")) {
-            values->push_back(std::move(parse_value(case_val.second.get_child("value"))));
-            blocks->push_back(std::move(parse_value(case_val.second.get_child("succ"))));
+            values->push_back(parse_value(case_val.second.get_child("value")));
+            blocks->push_back(parse_value(case_val.second.get_child("succ")));
         }
 
         return make_unique<ISwitch>(parse_value(inst.get_child("condition")), parse_value(inst.get_child("default_succ")),
@@ -574,7 +574,7 @@ static shared_ptr<CFunction> parse_function(const ptree &func) {
             auto insts = make_unique<vector<unique_ptr<IRInst>>>();
 
             for (const auto &inst: block.second) {
-                insts->push_back(std::move(parse_instruction(inst.second, fname)));
+                insts->push_back(parse_instruction(inst.second, fname));
             }
 
             blocks->first.emplace(block.first, std::move(insts));
@@ -585,7 +585,6 @@ static shared_ptr<CFunction> parse_function(const ptree &func) {
     }
 
     if (!is_decl) {
-        auto loc = count_ir_loc(func);
         auto body = control_flow_conversion(irfunc->blocks.get(), false);
 
         cfunc = make_shared<CFunction>(fname, rettype, std::move(irfunc->args), is_decl, std::move(body));

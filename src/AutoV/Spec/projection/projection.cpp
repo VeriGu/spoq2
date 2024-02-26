@@ -42,13 +42,16 @@ static unordered_map<rule_ret_t(*)(Project *, SpecNode *), string> rule_names = 
 
 void spec_transformer(Project *proj, Definition *def) {
     LOG_INFO << "Transforming " << def->name;
-    bool debug = def->name == "status_ptr_spec";
+    bool debug = def->name == "rec_is_simd_allowed_spec";
     auto known = std::set<string>();
     auto fname = def->name;
 
     for (auto arg : *def->args) {
         known.insert(arg->name);
     }
+
+    if (debug)
+        std::cout << "debug" << std::endl;
 
     while(true) {
         auto new_spec = def->body.release();

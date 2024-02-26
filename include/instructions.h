@@ -30,6 +30,8 @@ public:
     virtual string to_coq(void) const { return "UNKNOWN_INSTRUCTION"; }
     virtual IRInst *clone() const { return new IRInst(*this); }
     virtual shared_ptr<IRType> get_type() const { throw std::runtime_error("IRInst: get_type() not implemented"); }
+
+    virtual ~IRInst() = default;
 };
 
 class IAlloc : public IRInst {

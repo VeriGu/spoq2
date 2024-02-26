@@ -177,7 +177,7 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
 
     if (asm_text.find("stxr") != string::npos) {
         LOG_WARNING << "stxr is not supported";
-        return std::move(ret);
+        return ret;
     }
 
     vector<string> cons;
@@ -353,7 +353,7 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
     if (failed)
         throw std::runtime_error("Failed to compile iasm");
 
-    return std::move(ret);
+    return ret;
 }
 
 } // namespace autov::IRLoader

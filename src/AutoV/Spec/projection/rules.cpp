@@ -113,7 +113,6 @@ static SpecNode* subst(SpecNode *spec, string name, SpecNode *value, bool &succ)
 
 static string pick_new_name(string sym, std::set<string> &prev) {
     string new_sym = sym;
-    int i = 0;
 
     while (prev.find(new_sym) != prev.end()) {
         auto frags = split(new_sym, '_');

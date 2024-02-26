@@ -324,12 +324,10 @@ shared_ptr<SpecValue> IndValue::get(string key) {
     if(auto type = instance_of(typ.get(), Inductive)) {
         auto val = get_z3_value();
         int i = 0;
-        bool found = false;
+
         for(auto [arg, type]: type->arg_type) {
-            if(arg == accessor) {
-                found = true;
+            if(arg == accessor)
                 break;
-            }
             i++;
         }
         auto acc = constructor.accessors()[i];
@@ -458,7 +456,7 @@ Function::Function(shared_ptr<SpecType> rettype, shared_ptr<vector<shared_ptr<Sp
 Function::operator string() const {
     std::string res = "";
 
-    for (const auto arg : *args) {
+    for (const auto &arg : *args) {
         res += string(*arg) + " -> ";
         if (arg != args->back()) {
             res += "(";

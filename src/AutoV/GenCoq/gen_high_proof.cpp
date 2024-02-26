@@ -59,7 +59,6 @@ namespace autov {
 
     out << std::endl;
 
-    auto const&L = p->layers[i];
     //Open Scope
     out << "Local Open Scope string_scope.\n";
 

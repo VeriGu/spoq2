@@ -57,11 +57,15 @@ public:
     }
 
     operator string() const {
+#ifndef DEBUG
         if (this->_str == "") {
             this->_str = this->to_string();
         }
 
         return this->_str;
+#else
+        return this->to_string();
+#endif
     }
 
     bool has_type() const {
@@ -1061,6 +1065,8 @@ public:
         return this->_absf;
     }
 
+    virtual ~Declaration() = default;
+
 private:
     mutable shared_ptr<SpecValue> _absf;
     const string to_string() const {
@@ -1148,6 +1154,8 @@ public:
 
         return this->_absf;
     }
+
+    virtual ~Definition() = default;
 
 private:
     mutable shared_ptr<FuncValue> _absf;

@@ -15,7 +15,6 @@ const string base_file_dir = "testcase/";
 
 int main(void)
 {
-    int cnt = 0;
     autov::log::init();
     autov::log::set_logging_level();
 
@@ -33,6 +32,7 @@ int main(void)
     autov::generate_proj(proj.get());
 
 #if 0
+    int cnt = 0;
     for (const auto &layer: proj->layers) {
         string layer_name = layer->name;
 

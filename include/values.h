@@ -211,7 +211,7 @@ public:
     std::map<string, shared_ptr<SpecType>> elems_map;
     Struct() = default;
     Struct(string name, shared_ptr<vector<shared_ptr<Arg>>> elems) : SpecType(name), elems(elems) {
-        for (const auto elem : *elems) { // Fix: Use emplace instead of assignment to insert elements into elems_map
+        for (const auto &elem : *elems) { // Fix: Use emplace instead of assignment to insert elements into elems_map
             elems_map.emplace(elem->name, elem->type);
         }
     }
@@ -258,9 +258,9 @@ public:
 
     Inductive() = default;
     Inductive(string name, shared_ptr<vector<shared_ptr<IndConstr>>> constrs) : SpecType(name), constrs(constrs) {
-        for (const auto c : *constrs) {
+        for (const auto &c : *constrs) {
             constr.emplace(c->name, c->args);
-            for (const auto arg : *c->args) {
+            for (const auto &arg : *c->args) {
                 arg_type.emplace(arg->name, arg->type);
             }
         }
@@ -501,7 +501,7 @@ public:
     FuncValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value), z3_func(z3ctx.function("unknown", 0, nullptr, z3ctx.bool_sort())) {
         vector<z3::sort> arg_types;
         auto ftyp = static_pointer_cast<Function>(typ);
-        for (const auto arg : *ftyp->args) {
+        for (const auto &arg : *ftyp->args) {
             arg_types.push_back(arg->get_z3_type());
         }
         auto __func_call_str =  this->value.to_string() + "_call";
@@ -511,7 +511,7 @@ public:
 
     shared_ptr<SpecValue> call(vector<shared_ptr<SpecValue>> args) {
         vector<z3::expr> z3_args;
-        for (const auto arg : args) {
+        for (const auto &arg : args) {
             z3_args.push_back(arg->get_z3_value());
         }
         return static_pointer_cast<Function>(typ)->rettype->from_z3_value(z3_func(z3_args.size(), z3_args.data()));

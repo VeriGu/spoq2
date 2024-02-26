@@ -33,7 +33,7 @@ string join_elems_semi_colon(const vector<shared_ptr<Arg>> &elems) {
 
 string join_elems_space(const vector<shared_ptr<Arg>> &elems) {
     std::ostringstream oss;
-    bool first = true;
+
     for (auto it = elems.begin(); it != elems.end(); it++) {
         if (it != elems.begin()) {
             oss << " ";
@@ -47,7 +47,7 @@ string join_elems_space(const vector<shared_ptr<Arg>> &elems) {
 
 string join_elems_space(const vector<unique_ptr<SpecNode>> &elems, int elem_indent) {
     std::ostringstream oss;
-    bool first = true;
+
     for (auto it = elems.begin(); it != elems.end(); it++) {
         if (it != elems.begin()) {
             oss << "\n";
@@ -60,7 +60,7 @@ string join_elems_space(const vector<unique_ptr<SpecNode>> &elems, int elem_inde
 
 string join_elems_space(const vector<unique_ptr<SpecNode>> &elems) {
     std::ostringstream oss;
-    bool first = true;
+
     for (auto it = elems.begin(); it != elems.end(); it++) {
         if (it != elems.begin()) {
             oss << " ";
@@ -73,7 +73,7 @@ string join_elems_space(const vector<unique_ptr<SpecNode>> &elems) {
 
 string join_elems_comma(const vector<unique_ptr<SpecNode>> &elems, int elem_indent) {
     std::ostringstream oss;
-    bool first = true;
+
     for (auto it = elems.begin(); it != elems.end(); it++) {
         if (it != elems.begin()) {
             oss << ",\n";
@@ -86,7 +86,7 @@ string join_elems_comma(const vector<unique_ptr<SpecNode>> &elems, int elem_inde
 
 string join_elems_comma1(const vector<unique_ptr<SpecNode>> &elems, int elem_indent) {
     std::ostringstream oss;
-    bool first = true;
+
     for (auto it = elems.begin(); it != elems.end(); it++) {
         if (it != elems.begin()) {
             oss << "  ,\n";
@@ -99,7 +99,7 @@ string join_elems_comma1(const vector<unique_ptr<SpecNode>> &elems, int elem_ind
 
 string join_elems_comma(const vector<unique_ptr<SpecNode>> &elems) {
     std::ostringstream oss;
-    bool first = true;
+
     for (auto it = elems.begin(); it != elems.end(); it++) {
         if (it != elems.begin()) {
             oss << ", ";
@@ -112,7 +112,6 @@ string join_elems_comma(const vector<unique_ptr<SpecNode>> &elems) {
 
 string join_constrs_pipe(const vector<IndConstr> &elems) {
     std::ostringstream oss;
-    bool first = true;
 
     for (auto it = elems.begin(); it != elems.end(); it++) {
         if (it != elems.begin()) {
@@ -126,7 +125,6 @@ string join_constrs_pipe(const vector<IndConstr> &elems) {
 
 string join_constrs_pipe(const vector<shared_ptr<IndConstr>> &elems) {
     std::ostringstream oss;
-    bool first = true;
 
     for (auto it = elems.begin(); it != elems.end(); it++) {
         if (it != elems.begin()) {
@@ -154,7 +152,6 @@ string join_constrs_pipe(const vector<shared_ptr<IndConstr>> &elems) {
 
 string join_underline(const vector<shared_ptr<SpecType>> &elems) {
     std::ostringstream oss;
-    bool first = true;
 
     for (auto it = elems.begin(); it != elems.end(); it++) {
         if (it != elems.begin()) {

@@ -182,8 +182,8 @@ SpecNode* sizeof_type(shared_ptr<IRType> typ) {
     }
 
     auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-    elems->push_back(std::move(make_unique<IntConst>(std::get<0>(sz))));
-    elems->push_back(std::move(make_unique<IntConst>(std::get<1>(sz))));
+    elems->push_back(make_unique<IntConst>(std::get<0>(sz)));
+    elems->push_back(make_unique<IntConst>(std::get<1>(sz)));
 
     return new Expr(Expr::binops::MULT, std::move(elems));
 }
@@ -789,7 +789,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
             def_names.insert(def->name);
         }
 
-        int c;
+        int c = 0;
         while (def_names.find(loop_spec_name) != def_names.end()) {
             loop_hash = std::to_string(f->lineno) + "_" + std::to_string(c);
             loop_spec_name = fname + "_loop" = loop_hash + suffix;
@@ -857,7 +857,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
                     auto loop_args_sub = new vector<unique_ptr<SpecNode>>();
 
                     for (auto it = loop_args->begin() + 1; it != loop_args->end(); it++) {
-                        loop_args_sub->push_back(std::move((*it)->deep_copy()));
+                        loop_args_sub->push_back((*it)->deep_copy());
                     }
                     iteration_body = new If(unique_ptr<SpecNode>(_name("__break__", types.get())),
                                             unique_ptr<SpecNode>(_Some(_Tuple(loop_args_sub))),
@@ -866,7 +866,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
 
                 auto loop_body_args = make_unique<vector<unique_ptr<SpecNode>>>();
                 for (auto &a: *loop_args)
-                    loop_body_args->push_back(std::move(a->deep_copy()));
+                    loop_body_args->push_back(a->deep_copy());
 
                 auto loop_args_sub_body = new vector<unique_ptr<SpecNode>>();
                 auto loop_args_sub_O = new vector<unique_ptr<SpecNode>>();
