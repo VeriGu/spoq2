@@ -487,10 +487,11 @@ rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec) {
                                           define->args->at(0)->type);
                 } else {
                     auto tuple_type_list = make_shared<vector<shared_ptr<SpecType>>>();
-                    auto tuple_type = make_shared<Tuple>(tuple_type_list);
+
                     for (auto &e: *e->elems)
                         tuple_type_list->push_back(e->get_type());
 
+                    auto tuple_type = make_shared<Tuple>(tuple_type_list);
                     auto src = make_unique<Expr>(Expr::Tuple, std::move(e->elems), tuple_type);
 
                     auto pattern_list = make_unique<vector<unique_ptr<SpecNode>>>();
