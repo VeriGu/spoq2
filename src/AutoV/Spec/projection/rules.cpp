@@ -304,8 +304,7 @@ static SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f
         return f(new Exists(make_unique<vector<shared_ptr<Arg>>>(*fe->vars),
                           unique_ptr<SpecNode>(rec_apply(fe->body.release(), f, apply_anno))));
     } else
-        throw std::runtime_error("Unknown SpecNode type: " + string(*spec->get_type()));
-
+        throw std::runtime_error("Unknown SpecNode " + string(*spec));
 }
 
 static void get_vars_from_pattern(Project *proj, SpecNode *pattern, std::set<string> &vars) {
@@ -601,9 +600,9 @@ rule_ret_t rule_eliminiate_indifferent(Project *proj, SpecNode *spec) {
         return node;
     };
 
-    if (interest_path.size() == 0) {
-        interest_path = collect_interest_path(proj);
-    }
+    // if (interest_path.size() == 0) {
+    //     interest_path = collect_interest_path(proj);
+    // }
 
     return std::make_pair(rec_apply(spec, f), changed);
 }

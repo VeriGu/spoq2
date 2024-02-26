@@ -260,8 +260,6 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                 }
             }
             return _cache(static_pointer_cast<ZMapValue>(elems[0])->set(static_pointer_cast<IntValue>(elems[1]), elems[2]));
-        // Record.get
-        // Record.set
         } else if (op_eq(expr->op, Expr::RecordGet)) {
             // expr.elem[0]: record
             // expr.elem[1...n-2]: (sub)fields
