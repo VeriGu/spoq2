@@ -573,12 +573,19 @@ static vector<vector<FieldPath>> collect_interest_path(Project *proj) {
 
 static vector<vector<FieldPath>> interest_path;
 
-rule_ret_t rule_eliminiate_indifferent(Project *proj, SpecNode *spec) {
+rule_ret_t rule_eliminiate_indifferent(Project *proj, SpecNode *spec, string fname) {
     bool changed = false;
     std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
         if (auto e = instance_of(node, Expr)) {
             if (!std::holds_alternative<Expr::ops>(e->op) || std::get<Expr::ops>(e->op) != Expr::RecordSet)
                 return node;
+
+            // Only eliminate indifferent if the RecordSet is on the abs_data
+            auto abs_data = proj->layers[0]->abs_data;
+
+            if (e->elems->at(0)->get_type() != abs_data) {
+                return node;
+            }
 
             for (auto &elem: *e->elems) {
                 if (auto s = instance_of(elem.get(), Symbol)) {
@@ -587,10 +594,25 @@ rule_ret_t rule_eliminiate_indifferent(Project *proj, SpecNode *spec) {
 
                         new_elems->push_back(std::move(e->elems->at(0)));
 
-                        auto new_e = new Expr("lens", std::move(new_elems), e->type);
+                        auto lens_name = fname + "_lens";
+                        auto new_e = new Expr(lens_name, std::move(new_elems), e->type);
                         new_e->is_lens = true;
                         delete e;
                         changed = true;
+
+                        if (!proj->is_known_symbol(lens_name)) {
+                            auto arg_types = make_shared<vector<shared_ptr<SpecType>>>();
+
+                            for (auto &t: *new_e->elems) {
+                                arg_types->push_back(t->get_type());
+                            }
+
+                            auto lens_type = make_shared<Function>(new_e->type, arg_types);
+
+                            auto lens = make_unique<Declaration>(lens_name, lens_type);
+
+                            proj->add_declaration(std::move(lens), make_shared<loc_t>(Project::LOC_GLOBALDEFS, "", ""));
+                        }
                         return new_e;
                     }
                 }
@@ -1218,28 +1240,29 @@ SpecNode* try_divide_const_factor(SpecNode *expr, int factor) {
     return nullptr;
 }
 
-SpecNode* rule_simplify_expr(Project *proj, SpecNode *spec) {
-    std::function<SpecNode*(SpecNode*)> f = [] (SpecNode *node) -> SpecNode* {
+rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec) {
+    bool expr_is_changed = false;
+
+    std::function<SpecNode*(SpecNode*)> f = [&] (SpecNode *node) -> SpecNode* {
         unique_ptr<SpecNode> expr = unique_ptr<SpecNode>(node);
-        bool expr_is_changed = false;
-        if(auto m = instance_of(node, If)) {
-            if(auto c = instance_of(m->cond.get(), BoolConst)) {
-                if(std::get<bool>(c->value)) {
+
+        if (auto m = instance_of(node, If)) {
+            if (auto c = instance_of(m->cond.get(), BoolConst)) {
+                if (std::get<bool>(c->value)) {
                     return m->then_body.release();
                 } else {
                     return m->else_body.release();
                 }
             }
-        }
-
-        if(auto m = instance_of(node, Expr)) {
+        } else if (auto m = instance_of(node, Expr)) {
             if(holds_alternative<Expr::binops>(m->op)) {
                 auto ops = std::get<Expr::binops>(m->op);
                 using op = Expr::binops;
-                std::set<op> vec = {op::EQUAL, op::NOT_EQUAL, op::LTE, op::GTE, op::GT, op::LT, op::BEQ, 
-                op:: BNE, op::BLT, op::BGT, op::BGE, op::BLE};
-                if(vec.find(ops) != vec.end() && m->elems->at(0)->get_type() == Int::INT
-                && m->elems->at(1)->get_type() == Int::INT && !is_instance(m->elems->at(1).get(), Const)) {
+                std::set<op> vec = {op::EQUAL, op::NOT_EQUAL, op::LTE, op::GTE, op::GT, op::LT, op::BEQ,
+                                    op:: BNE, op::BLT, op::BGT, op::BGE, op::BLE};
+
+                if (vec.find(ops) != vec.end() && m->elems->at(0)->get_type() == Int::INT &&
+                    m->elems->at(1)->get_type() == Int::INT && !is_instance(m->elems->at(1).get(), Const)) {
                     auto elems = new vector<unique_ptr<SpecNode>>();
                     elems->push_back(std::move(m->elems->at(0)));
                     elems->push_back(std::move(m->elems->at(1)));
@@ -1249,13 +1272,15 @@ SpecNode* rule_simplify_expr(Project *proj, SpecNode *spec) {
                     auto elems2 = new vector<unique_ptr<SpecNode>>();
                     elems2->push_back(unique_ptr<SpecNode>(left));
                     elems2->push_back(unique_ptr<SpecNode>(right));
+
                     return new Expr(ops, unique_ptr<vector<unique_ptr<SpecNode>>>(elems2), node->get_type());
-                }
-                if((ops == op::ADD || ops == op::MINUS) && m->elems->size() == 2 && (!is_instance(m->elems->at(0).get(), IntConst) || !is_instance(m->elems->at(1).get(), IntConst))) {
+                } else if ((ops == op::ADD || ops == op::MINUS) && m->elems->size() == 2 &&
+                           (!is_instance(m->elems->at(0).get(), IntConst) || !is_instance(m->elems->at(1).get(), IntConst))) {
                     auto factor = 1;
-                    for(auto i : PRIM_NUMS) {
-                        while(1){
+                    for (auto i : PRIM_NUMS) {
+                        while (1) {
                             auto a = try_divide_const_factor(expr.get(), i);
+
                             if(a == nullptr){
                                 break;
                             }
@@ -1264,7 +1289,8 @@ SpecNode* rule_simplify_expr(Project *proj, SpecNode *spec) {
                             expr = unique_ptr<SpecNode>(a);
                         }
                     }
-                    if(factor > 1) {
+
+                    if (factor > 1) {
                         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
                         elems->push_back(make_unique<IntConst>(factor));
                         elems->push_back(std::move(expr));
@@ -1274,6 +1300,7 @@ SpecNode* rule_simplify_expr(Project *proj, SpecNode *spec) {
 
                     //here expr is not changed;
                 }
+
                 bool all_intconst = true;
                 for (auto & e : *m->elems) {
                     if(!is_instance(e.get(), IntConst)) {
@@ -1281,9 +1308,11 @@ SpecNode* rule_simplify_expr(Project *proj, SpecNode *spec) {
                         break;
                     }
                 }
+
                 if(all_intconst) {
                     auto elem0 = instance_of(m->elems->at(0).get(), IntConst);
                     auto elem1 = instance_of(m->elems->at(1).get(), IntConst);
+
                     if(ops == op::ADD) {
                         expr_is_changed = true;
                         expr.reset(new IntConst(std::get<long long>(elem0->value) + std::get<long long>(elem1->value)));
@@ -1296,7 +1325,7 @@ SpecNode* rule_simplify_expr(Project *proj, SpecNode *spec) {
                     } else if (ops == op::MULT) {
                         expr_is_changed = true;
                         expr.reset(new IntConst(std::get<long long>(elem0->value) * std::get<long long>(elem1->value)));
-                    } else if(ops == op::DIV) { 
+                    } else if(ops == op::DIV) {
                         expr_is_changed = true;
                         expr.reset(new IntConst(std::get<long long>(elem0->value) / std::get<long long>(elem1->value)));
                     } else if(ops == op::MOD) {
@@ -1333,6 +1362,8 @@ SpecNode* rule_simplify_expr(Project *proj, SpecNode *spec) {
                         expr_is_changed = true;
                         expr.reset(new BoolConst(std::get<long long>(elem0->value) <= std::get<long long>(elem1->value)));
                     }
+
+                    expr->_str = "";
                 }
             } else if(holds_alternative<Expr::ops>(m->op)) {
                 auto ops = std::get<Expr::ops>(m->op);
@@ -1340,15 +1371,15 @@ SpecNode* rule_simplify_expr(Project *proj, SpecNode *spec) {
                 using bop = Expr::binops;
                 if(ops == op::NOT || ops == op::BNOT) {
                     if(auto elem0 = instance_of(m->elems->at(0).get(), Expr)) {
-                        std::set<bop> vec = {bop::EQUAL, bop::NOT_EQUAL, bop::LTE, bop::GTE, bop::GT, bop::LT, bop::BEQ, 
-                        bop:: BNE, bop::BLT, bop::BGT, bop::BGE, bop::BLE};
-                        if(holds_alternative<bop>(elem0->op)) {
+                        std::set<bop> vec = {bop::EQUAL, bop::NOT_EQUAL, bop::LTE, bop::GTE, bop::GT, bop::LT, bop::BEQ,
+                                             bop:: BNE, bop::BLT, bop::BGT, bop::BGE, bop::BLE};
+                        if (holds_alternative<bop>(elem0->op)) {
                             auto elem0op = std::get<bop>(elem0->op);
-                            if(vec.find(elem0op) != vec.end()) {
+                            if (vec.find(elem0op) != vec.end()) {
                                 std::map<bop,bop> rev = {{bop::BEQ, bop::BNE}, {bop::EQUAL, bop::NOT_EQUAL},
-                                {bop::LT, bop::GTE}, {bop::GTE, bop::LT}, {bop::GT, bop::LTE}, 
-                                {bop::LTE, bop::GT}, {bop::BGT, bop::BLE}, {bop::BLE, bop::BGT},
-                                {bop::BLT, bop::BGE}, {bop::BGE, bop::BLT}};
+                                                         {bop::LT, bop::GTE}, {bop::GTE, bop::LT}, {bop::GT, bop::LTE},
+                                                         {bop::LTE, bop::GT}, {bop::BGT, bop::BLE}, {bop::BLE, bop::BGT},
+                                                         {bop::BLT, bop::BGE}, {bop::BGE, bop::BLT}};
                                 return new Expr(rev[elem0op], std::move(elem0->elems), node->get_type());
                             }
                         }
@@ -1361,6 +1392,6 @@ SpecNode* rule_simplify_expr(Project *proj, SpecNode *spec) {
         return expr.release();
     };
 
-    return rec_apply(spec, f, false);
+    return std::make_pair(rec_apply(spec, f, false), expr_is_changed);
 }
 } // namespace autov
