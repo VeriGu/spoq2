@@ -287,7 +287,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
 
             return _cache(elems[0]);
         } else if (op_eq(expr->op, Expr::binops::APPEND))
-            return _cache(static_pointer_cast<List>(val->get_type())->construct("cons", {elems[0]}));
+            return _cache(static_pointer_cast<List>(val->get_type())->construct("cons", {elems[0], elems[1]}));
         else if (op_eq(expr->op, Expr::binops::CONCAT))
             return _cache(static_pointer_cast<IndValue>(elems[0])->concat(static_pointer_cast<IndValue>(elems[1])));
         else if (op_eq(expr->op, Expr::ops::Some))
