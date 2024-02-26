@@ -6,3 +6,11 @@ dist/
 src/AutoV/Spec/Parser/.antlr/
 AsmGen/_build/
 AsmGen/asmgen.native
+*.vo
+*.vok
+*.vos
+*.aux
+*.glob
+*.conf
+*.d
+*.v~
