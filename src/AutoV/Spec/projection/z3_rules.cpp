@@ -249,6 +249,15 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
         else {
             state->vars->emplace(sym->text, src);
         }
+    } else if (auto con = instance_of(pat, Const)) {
+        if (auto v = std::get_if<long long>(&con->value))
+            state->conds->push_back(src->get_z3_value() == z3ctx.int_val((long)*v));
+        else if (auto v = std::get_if<bool>(&con->value))
+            state->conds->push_back(src->get_z3_value() == z3ctx.bool_val(*v));
+        else if (auto v = std::get_if<string>(&con->value))
+            state->conds->push_back(src->get_z3_value() == z3ctx.string_val(*v));
+        else
+            throw std::runtime_error("Unknown const type: " + string(*pat));
     } else if (auto con = instance_of(pat, IntConst)) {
         state->conds->push_back(src->get_z3_value() == z3ctx.int_val((long)std::get<long long>(con->value)));
     } else if (auto con = instance_of(pat, BoolConst)) {
