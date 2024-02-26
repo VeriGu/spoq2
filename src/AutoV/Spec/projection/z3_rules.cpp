@@ -79,11 +79,6 @@ rule_ret_t merge_rely(Project* proj, SpecNode* spec, shared_ptr<EvalState> state
         if_->then_body.reset(merged_then.first);
         if_->else_body.reset(merged_else.first);
     }
-    else if (auto anno = instance_of(spec, Anno)) {
-        auto ret = merge_rely(proj, anno->body.release(), state);
-        changed |= ret.second;
-        anno->body.reset(ret.first);
-    }
     else if (auto rely = instance_of(spec, Rely)) {
         vector<z3::expr> conds;
         auto cond = z3_eval(proj, rely->prop.get(), make_shared<EvalState>(state->vars));
@@ -180,17 +175,6 @@ rule_ret_t simple_rely_by_z3(Project* proj, Rely* spec, shared_ptr<EvalState> st
         delete spec;
         return std::make_pair(nullptr, true);
     }
-}
-
-rule_ret_t simple_anno_by_z3(Project* proj, Anno* spec, shared_ptr<EvalState> state)
-{
-    auto ret = rule_simple_by_z3(proj, spec->body.release(), state);
-    if (ret.first == nullptr) {
-        delete spec;
-        return std::make_pair(nullptr, ret.second);
-    }
-    spec->body.reset(ret.first);
-    return std::make_pair(spec, ret.second);
 }
 
 rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state) {
@@ -383,9 +367,8 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
 
         for (auto pm = match_list->begin(); pm != match_list->end(); pm++) {
             auto body = (*pm)->body.get();
-            while (is_instance(body, Rely) || is_instance(body, Anno)) {
-                if (auto rely = dynamic_cast<Rely*>(body)) body = rely->body.get();
-                else if (auto anno = dynamic_cast<Anno*>(body)) body = anno->body.get();
+            while (auto rely = dynamic_cast<Rely*>(body)) {
+                body = rely->body.get();
             }
             auto sym = instance_of(body, Symbol);
             if (!sym || sym->text != "None") {
@@ -450,9 +433,6 @@ unsigned length_of_exp(SpecNode* e) {
     }
     if (auto r = instance_of(e, Rely)) {
         return length_of_exp(r->prop.get()) + length_of_exp(r->body.get());
-    }
-    if (auto a = instance_of(e, Anno)) {
-        return length_of_exp(a->prop.get()) + length_of_exp(a->body.get());
     }
     if (auto i = instance_of(e, If)) {
         return length_of_exp(i->cond.get()) + length_of_exp(i->then_body.get()) + length_of_exp(i->else_body.get());
@@ -617,8 +597,10 @@ SpecNode* reconstruct_zmap(Project* proj, SpecNode* spec, shared_ptr<EvalState> 
 
 rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> state) {
     auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+    bool changed = false;
     for (auto elem = spec->elems->begin(); elem != spec->elems->end(); elem++) {
         auto ret = rule_simple_by_z3(proj, elem->release(), state);
+        changed |= ret.second;
         if (ret.first == nullptr) {
             delete spec;
             return std::make_pair(nullptr, true);
@@ -672,7 +654,7 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
         if (new_zmap) return std::make_pair(new_zmap, true);
     }
 
-    return std::make_pair(spec, false);
+    return std::make_pair(spec, changed);
 }
 
 rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState> state)
@@ -694,10 +676,6 @@ rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState
     else if (auto rely = instance_of(spec, Rely))
     {
         return simple_rely_by_z3(proj, rely, state);
-    }
-    else if (auto anno = instance_of(spec, Anno))
-    {
-        return simple_anno_by_z3(proj, anno, state);
     }
     else if (auto if_ = instance_of(spec, If))
     {
@@ -736,12 +714,6 @@ bool rule_check_pure_by_z3(Project* proj, SpecNode* spec, shared_ptr<StructValue
     auto st_type_name = in_st->get_type()->name;
 
     if (auto rely = instance_of(spec, Rely)) {
-        auto res = rule_check_pure_by_z3(proj, rely->body.release(), in_st);
-        delete spec;
-        return res;
-    }
-
-    else if (auto rely = instance_of(spec, Anno)) {
         auto res = rule_check_pure_by_z3(proj, rely->body.release(), in_st);
         delete spec;
         return res;

@@ -22,6 +22,7 @@ static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group1 = {
 
 void spec_transformer(Project *proj, Definition *def) {
     LOG_INFO << "Transforming " << def->name;
+    bool debug = def->name == "status_ptr_spec";
     auto known = std::set<string>();
 
     for (auto arg : *def->args) {
@@ -72,13 +73,22 @@ void spec_transformer(Project *proj, Definition *def) {
             (*vars)[arg->name] = arg->type->declare(arg->name, 0);
             std::cout << "arg: " << arg->name << " " << arg->type->operator string() << std::endl;
         }
+
+        std::cout << "(Z3) Before: \n=========================\n"
+            << string(*new_spec1) << "\n==============================\n";
+
+        if (debug) {
+            std::cout <<"debug" << std::endl;
+        }
+
         auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec1, make_shared<EvalState>(vars, conds));
         //this_changed |= __changed;
         changed |= __changed;
 
         new_spec = __spec;
 
-        if (__changed)
+        //if (__changed)
+        std::cout << "(Z3) changed: " << __changed << std::endl;
             std::cout << "(Z3) new_spec: \n=========================\n"
                 << string(*new_spec) << "\n==============================\n";
 
