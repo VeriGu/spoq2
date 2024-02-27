@@ -477,13 +477,10 @@ SpecNode* reconstruct_expr(z3::expr z3_val,
                            unordered_map<unsigned, std::pair<z3::expr, SpecNode*>>& subexprs, 
                            shared_ptr<EvalState> state) {
     if (z3_val.is_const() && z3_val.is_int() && z3_val.is_numeral()) {
-        std::cout << "reconstructing int const: z3_val: " << z3_val << std::endl;
         return new IntConst(z3_val.get_numeral_int64());
-    }
-    else if (z3_val.is_const() && z3_val.is_bool()) {
+    } else if (z3_val.is_const() && z3_val.is_bool()) {
         return new BoolConst(z3_val.is_true());
-    }
-    else {
+    } else {
         auto candidates = vector<SpecNode*>();
         auto z3_val_hash = z3_val.hash();
         if (length_z3_map.find(z3_val_hash) == length_z3_map.end()) {
@@ -504,15 +501,20 @@ SpecNode* reconstruct_expr(z3::expr z3_val,
             auto e_val = e->first;
             auto e_node = e->second;
             auto e_val_hash = e_val.hash();
+
             if (length_z3_map.find(e_val_hash) == length_z3_map.end()) {
                 length_z3_map.emplace(e_val_hash, length_z3_val(e_val));
             }
+
             auto z3_e_val_length = length_z3_map[e_val_hash];
 
-            if (z3_e_val_length > z3_val_length) continue;
-            if (e_val.get_sort().name() == z3_val.get_sort().name() && 
-                    z3_check(state, e_val == z3_val) == Z3Result::True) {
-                candidates.push_back(e_node);
+            if (z3_e_val_length > z3_val_length)
+                continue;
+
+            if (z3::eq(e_val.get_sort(), z3_val.get_sort())) {
+                if (z3_check(state, e_val == z3_val) == Z3Result::True) {
+                    candidates.push_back(e_node);
+                }
             }
         }
 

@@ -83,14 +83,14 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
 
     Z3Solver.pop();
 
-    std::cout << "-----------------Z3-----------------" << std::endl;
-    std::cout << "z3 check cond: " << cond << std::endl;
-    for (auto &c : *state->conds) {
-        std::cout << "z3 check cond: " << c << std::endl;
-    }
-    std::cout << "z3 check res: " << res << std::endl;
-    std::cout << "z3 check not_res: " << not_res << std::endl;
-    std::cout << "-----------------Z3-----------------" << std::endl;
+    // std::cout << "-----------------Z3-----------------" << std::endl;
+    // std::cout << "z3 check cond: " << cond << std::endl;
+    // for (auto &c : *state->conds) {
+    //     std::cout << "z3 check cond: " << c << std::endl;
+    // }
+    // std::cout << "z3 check res: " << res << std::endl;
+    // std::cout << "z3 check not_res: " << not_res << std::endl;
+    // std::cout << "-----------------Z3-----------------" << std::endl;
 
     if (not_res == z3::unsat) {
         Z3Cache[hash] = Z3Result::True;
@@ -153,7 +153,7 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
 
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
 
-    std::cout << "z3_eval: " << string(*val) << std::endl;
+    //std::cout << "z3_eval: " << string(*val) << std::endl;
 
     if (val->cached_eval) return val->cached_eval;
 
@@ -342,6 +342,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                 auto absf = static_pointer_cast<FuncValue>(df->absf());
                 return _cache(absf->call(elems));
             } else {
+                std::cout << "expr: " << string(*expr) << std::endl;
                 throw std::runtime_error("Unknown symbol: " + sym);
             }
         } else if (std::holds_alternative<unique_ptr<SpecNode>>(expr->op)) {
