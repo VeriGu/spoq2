@@ -53,7 +53,7 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
 
     while (stack.size()) {
         auto &top = stack.back();
-        auto ln = std::get<0>(top);
+        //auto ln = std::get<0>(top);
         auto spec = std::get<1>(top);
         auto n = std::get<2>(top);
         auto known_types = std::get<3>(top);

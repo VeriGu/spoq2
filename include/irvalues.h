@@ -107,9 +107,7 @@ class IRValue {
 public:
     shared_ptr<IRType> type;
 
-    IRValue() {
-        type = make_shared<IRType>();
-    }
+    IRValue() : type(make_shared<IRType>()) {}
 
     IRValue(shared_ptr<IRType> type) : type(type) {}
 
@@ -122,6 +120,7 @@ public:
     }
 
     virtual string to_coq(void) const { return "UNSUPPORTED_VALUE"; };
+    virtual ~IRValue() = default;
 };
 
 class VNull : public IRValue {

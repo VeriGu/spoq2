@@ -34,6 +34,7 @@ public:
         return this->to_coq() == other.to_coq();
     }
     virtual string get_name() const { return ""; }
+    virtual ~IRType() = default;
 };
 
 class IntType: public IRType {

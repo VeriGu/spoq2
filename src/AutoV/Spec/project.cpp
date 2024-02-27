@@ -367,8 +367,10 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
 
         auto high_def = new Definition(high_name, proj->defs[def->name]->rettype, std::move(high_args), std::move(high_body));
 
+        // if (high_name == "__granule_refcount_dec_spec")
+        //     std::cout << "Transforming: " << high_name << std::endl;
         spec_transformer(proj, high_def);
-        std::cout << "Transformed: " << string(*high_def) << std::endl;
+        std::cout << "Transformed: " << std::endl << string(*high_def) << std::endl;
         proj->deps[high_name] = proj->calc_dependencies(high_def->body.get());
         proj->add_definition(unique_ptr<Definition>(high_def), make_shared<loc_t>(L->name, Project::LOC_SPEC, ""));
 

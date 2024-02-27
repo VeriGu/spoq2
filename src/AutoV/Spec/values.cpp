@@ -190,7 +190,7 @@ std::string Struct::define() const {
 }
 
 z3::sort Struct::get_z3_type() {
-    std::cout << "Struct::get_z3_type " << name << std::endl;
+    //std::cout << "Struct::get_z3_type " << name << std::endl;
     if (Struct::created_z3_types.find(name) != Struct::created_z3_types.end()) {
         return Struct::created_z3_types.at(name);
     }
@@ -285,7 +285,7 @@ shared_ptr<StructValue> StructValue::set(string key, shared_ptr<SpecValue> value
         z3::func_decl cs = css[0];  //one constructor: mk{fname}
 
         z3::expr_vector elems(z3ctx);
-        int i;
+        int i = 0;
         for(auto arg : *s->elems) {
             if(arg->name == field) {
                 elems.push_back(value->get_z3_value());
@@ -324,12 +324,10 @@ shared_ptr<SpecValue> IndValue::get(string key) {
     if(auto type = instance_of(typ.get(), Inductive)) {
         auto val = get_z3_value();
         int i = 0;
-        bool found = false;
+
         for(auto [arg, type]: type->arg_type) {
-            if(arg == accessor) {
-                found = true;
+            if(arg == accessor)
                 break;
-            }
             i++;
         }
         auto acc = constructor.accessors()[i];
@@ -376,7 +374,6 @@ std::string Inductive::define() const {
 }
 
 z3::sort Inductive::get_z3_type() {
-    std::cout << "Inductive::get_z3_type " << name << std::endl;
     if (Inductive::created_z3_types.find(name) != Inductive::created_z3_types.end()) {
         return Inductive::created_z3_types.at(name);
     }
@@ -459,7 +456,7 @@ Function::Function(shared_ptr<SpecType> rettype, shared_ptr<vector<shared_ptr<Sp
 Function::operator string() const {
     std::string res = "";
 
-    for (const auto arg : *args) {
+    for (const auto &arg : *args) {
         res += string(*arg) + " -> ";
         if (arg != args->back()) {
             res += "(";

@@ -16,8 +16,8 @@ project(spoq)
 # ------------------------------------------------------------------------------
 # Basic setup
 # ------------------------------------------------------------------------------
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -Wall -Wno-unused-function")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wno-unused-function")
 set(CMAKE_CXX_STANDARD 17)
 
 include_directories(include)
@@ -41,9 +41,9 @@ set(CMAKE_BUILD_TYPE "Release")
 # ------------------------------------------------------------------------------
 # ANTRL4 runtime
 # ------------------------------------------------------------------------------
+message("ANTLR4 build type: ${CMAKE_BUILD_TYPE}")
 add_subdirectory(src/AutoV/Spec/Parser/antlr4/runtime/Cpp/)
-
-set(CMAKE_BUILD_TYPE ${MAIN_CMAKE_BUILDTYPE})
+#target_compile_options(antlr4_shared PRIVATE -Wno-unused-parameter -w -Wno-unused-variable)
 
 # Include ANTLR4 runtime headers
 include_directories(src/AutoV/Spec/Parser/antlr4/runtime/Cpp/runtime/src/)
@@ -51,6 +51,7 @@ include_directories(src/AutoV/Spec/Parser/antlr4/runtime/Cpp/runtime/src/)
 # ------------------------------------------------------------------------------
 # Z3
 # ------------------------------------------------------------------------------
+message("Z3 build type: ${CMAKE_BUILD_TYPE}")
 FetchContent_Declare(z3
         GIT_REPOSITORY https://github.com/Z3Prover/z3
         GIT_TAG        z3-4.12.5
@@ -58,13 +59,17 @@ FetchContent_Declare(z3
 FetchContent_MakeAvailable(z3)
 include_directories(${z3_SOURCE_DIR}/src/api)
 include_directories(${z3_SOURCE_DIR}/src/api/c++)
+#target_compile_options(libz3 PRIVATE -O3 -w -Wno-unused-variable)
 
 # ------------------------------------------------------------------------------
 # Restore the build type
 # ------------------------------------------------------------------------------
+set(CMAKE_BUILD_TYPE ${MAIN_CMAKE_BUILDTYPE})
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DDEBUG)
 endif()
+
+message("Spoq CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 
 # ------------------------------------------------------------------------------
 # IRLoader is compiled as a shared library

@@ -36,7 +36,7 @@ namespace autov {
           deps.insert("." + std::get<1>(p->symbols[d].loc));
         }
 
-        if(std::get<2>(p->symbols[d].loc) != "") {  
+        if(std::get<2>(p->symbols[d].loc) != "") {
           deps.insert("." + std::get<2>(p->symbols[d].loc));
         }
       }
@@ -48,7 +48,6 @@ namespace autov {
     }
     out << "\n";
 
-    auto const& L = p->layers.at(i);
     //Open Scope
     out << "Local Open Scope string_scope.\n";
     out << "Local Open Scope Z_scope.\n";
@@ -67,7 +66,7 @@ namespace autov {
       if(std::regex_match(d, pattern)) {
         out << "  Hint Unfold " + d + ":spec.\n";
         continue;
-      } 
+      }
       out << "  Local Opacque " + d + ".\n";
     }
 
@@ -180,18 +179,17 @@ namespace autov {
           deps.insert("." + std::get<1>(p->symbols[d].loc));
         }
 
-        if(std::get<2>(p->symbols[d].loc) != "") {  
+        if(std::get<2>(p->symbols[d].loc) != "") {
           deps.insert("." + std::get<2>(p->symbols[d].loc));
         }
       }
     }
-    
+
     for(auto d : deps) {
       out << "Require Import "+d+".\n";
     }
     out << "\n";
 
-    auto const& L = p->layers.at(i);
     //Open Scope
     out << "Local Open Scope string_scope.\n";
     out << "Local Open Scope Z_scope.\n";

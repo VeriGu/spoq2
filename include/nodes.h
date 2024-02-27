@@ -57,11 +57,15 @@ public:
     }
 
     operator string() const {
+#ifndef DEBUG
         if (this->_str == "") {
             this->_str = this->to_string();
         }
 
         return this->_str;
+#else
+        return this->to_string();
+#endif
     }
 
     bool has_type() const {
@@ -302,7 +306,7 @@ public:
     bool is_lens = false;
 
     enum ops {
-        NEG, // dummy
+        __NEG, // dummy, DO NOT USE outside the parser!!!
         SET, GET, NTH, // non-binop
         NOT, BNOT, // uni-op
         RecordSet, RecordGet, // Record
@@ -320,19 +324,27 @@ public:
         // xorb
     };
 
-    std::variant<unique_ptr<SpecNode>, ops, binops, string> op;
+    using op_t = std::variant<unique_ptr<SpecNode>, ops, binops, string>;
+    using elems_t = unique_ptr<vector<unique_ptr<SpecNode>>>;
+    op_t op;
     unique_ptr<vector<unique_ptr<SpecNode>>> elems;
 
     Expr() { throw std::invalid_argument("Expr must have an op and elems"); }
-    Expr(std::variant<unique_ptr<SpecNode>, ops, binops, string> op,
-         unique_ptr<vector<unique_ptr<SpecNode>>> elems) :
+    Expr(op_t op, elems_t elems) :
         SpecNode(SpecType::UNKNOWN_TYPE), op(std::move(op)), elems(std::move(elems)) {
+#if 0
+            if (std::holds_alternative<ops>(op) && std::get<ops>(op) == __NEG)
+                throw std::invalid_argument("__NEG is only a dummy op, use MINUS instead");
+#endif
             this->length = calc_length();
         }
-    Expr(std::variant<unique_ptr<SpecNode>, ops, binops, string> op,
-         unique_ptr<vector<unique_ptr<SpecNode>>> elems,
-         shared_ptr<SpecType> type) :
+
+    Expr(op_t op, elems_t elems, shared_ptr<SpecType> type) :
         SpecNode(type), op(std::move(op)), elems(std::move(elems)) {
+#if 0
+            if (std::holds_alternative<ops>(op) && std::get<ops>(op) == __NEG && this->elems->size() == 1)
+                throw std::invalid_argument("__NEG is only a dummy op, use MINUS instead");
+#endif
             this->length = calc_length();
         }
 
@@ -1053,6 +1065,8 @@ public:
         return this->_absf;
     }
 
+    virtual ~Declaration() = default;
+
 private:
     mutable shared_ptr<SpecValue> _absf;
     const string to_string() const {
@@ -1140,6 +1154,8 @@ public:
 
         return this->_absf;
     }
+
+    virtual ~Definition() = default;
 
 private:
     mutable shared_ptr<FuncValue> _absf;
