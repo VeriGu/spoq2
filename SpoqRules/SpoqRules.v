@@ -11,7 +11,7 @@ Local Open Scope Z_scope.
 Local Open Scope list_scope.
 
 
-
+(* let a := x + y in a + b => (x + y) + b*)
 Section rule2.
 Definition rule2_pre {T} {T1} (y: T) (X: T -> T1) :=
   let a := y in
@@ -28,8 +28,8 @@ Qed.
 End rule2.
 
 
-    
-
+  
+(* If c then X else X => X *)
 Definition rule3_pre {s: Type} (c : bool) (X:s) : s :=
   if c then X else X.
 
@@ -42,7 +42,7 @@ Proof.
   destruct c; reflexivity. 
 Qed.
 
-
+(* F a b := a + b; F (x+1) (y+1) => let a := x + 1 in let b := y + 1 in a + b*)
 Section rule1.
   Variable T1 : Type.
   Variable T2 : Type.
@@ -62,7 +62,7 @@ Section rule1.
 
 End rule1.
 
-
+(* T4 *)
 Section rule4.
   Variable T : Type.
   Variable T1 : Type.
@@ -87,43 +87,20 @@ End rule4.
 
 
 
-(* seems not feasible to directly prove with a arbitrary inductive type directly in coq*)
-Section move_if_out_match.
-  Inductive T :=
-   | c1
-   | c2.
-  
-  Parameter condition : bool.
-  Parameter c : bool.
-  Parameter out: Type.
+(* stronger version of move_if_out_match *)
+Section if_distributive.
 
-  Definition rule_7_pre (A: T) (B: T) (b1: out) (b2: out) :=
-    match (if c then A else B) with
-    | c1 => b1
-    | c2 => b2
-    end.
-
-  Definition rule_7_post (A: T) (B: T) (b1: out) (b2: out) :=
-    if c then
-      match A with
-      | c1 => b1
-      | c2 => b2
-      end
-    else
-      match B with
-      | c1 => b1
-      | c2 => b2
-      end.
-
-  Lemma rule7_correct :
-    forall (A: T) (B: T) b1 b2 ,
-      rule_7_pre A B b1 b2 = rule_7_post A B b1 b2.
+  Variable T: Type.
+  Variable T1: Type.
+  Lemma if_distributive :
+    forall (c: bool) (A:T) (B: T) (f: T -> T1), 
+      f (if c then A else B) = if c then f A else f B.
   Proof.
-    intros. unfold rule_7_pre. unfold rule_7_post.
-    destruct c; reflexivity.
+    intros.
+    destruct c. reflexivity.
+    reflexivity.
   Qed.
-End move_if_out_match.
-
+End if_distributive.
 
 
 Section rely_body.
@@ -163,8 +140,50 @@ Section if_condition.
   Proof.
     intros. rewrite H. reflexivity.
   Qed.
+  
+  Lemma if_false_body :
+    forall p (X:T) (Y:T),
+      p = false -> (if p then X else Y) = Y.
+  Proof.
+    intros. rewrite H. reflexivity.
+  Qed.
 End if_condition.
 
+
+(* eliminate match is not expressable *)
+
+
+(* Test refinement *)
+Record RData := mkRData {
+                    a : Z;
+                    b : Z
+                  }.
+
+
+Definition low_spec_test (st: RData) :=
+  mkRData (a st) ((a st) + 1).
+
+Parameter oracle : RData -> RData.
+
+Definition high_spec_test (st: RData) :=
+  (oracle st).
+
+Inductive refrel : RData -> RData -> Prop :=
+| hiding : forall hst lst, refrel hst lst -> refrel (oracle hst) {| a := a lst; b := a lst + 1 |}
+| normal : forall lst hst, hst = lst -> refrel hst lst.
+
+Lemma refinement :
+  forall hst hst' lst,
+    refrel hst lst ->
+    high_spec_test hst = hst' ->
+    exists lst',
+    low_spec_test lst = lst' /\ refrel hst' lst'.
+Proof.
+  intros.
+  unfold low_spec_test, high_spec_test in *.
+  exists {| a := a lst; b := a lst + 1 |}.
+  split. reflexivity. rewrite <- H0. apply hiding. apply H.
+Qed.
 
 
 
