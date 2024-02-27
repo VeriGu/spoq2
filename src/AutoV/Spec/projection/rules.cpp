@@ -711,6 +711,7 @@ rule_ret_t rule_move_match_out_expr(Project *proj, SpecNode *spec) {
                         if (!movable)
                             break;
                     }
+
                     if (movable) {
                         auto matches = make_unique<vector<unique_ptr<PatternMatch>>>();
 
@@ -722,12 +723,27 @@ rule_ret_t rule_move_match_out_expr(Project *proj, SpecNode *spec) {
                                 else
                                     elems->push_back(e->elems->at(j)->deep_copy());
                             }
-                            auto expr = unique_ptr<Expr>();
 
-                            if (auto op = std::get_if<unique_ptr<SpecNode>>(&e->op))
-                                expr = make_unique<Expr>(op->get()->deep_copy(), std::move(elems), e->type);
-                            else
-                                expr = make_unique<Expr>(std::move(e->op), std::move(elems), e->type);
+                            // auto new_op = std::visit([](auto&& arg) -> std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string> {
+                            //     using T = std::decay_t<decltype(arg)>;
+                            //     if constexpr (std::is_same_v<T, std::unique_ptr<SpecNode>>) {
+                            //         return std::move(arg->deep_copy());;
+                            //     }
+                            //     return arg;
+                            // }, e->op);
+                            std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string> new_op;
+                            if (auto op = std::get_if<Expr::ops>(&e->op)) {
+                                new_op = *op;
+                            } else if (auto binop = std::get_if<Expr::binops>(&e->op)) {
+                                new_op = *binop;
+                            } else if (auto str = std::get_if<std::string>(&e->op)) {
+                                new_op = *str;
+                            } else if (auto expr = std::get_if<std::unique_ptr<SpecNode>>(&e->op)) {
+                                new_op = (*expr)->deep_copy();
+                            }
+
+                            auto expr = make_unique<Expr>(std::move(new_op), std::move(elems), e->type);
+
                             matches->push_back(make_unique<PatternMatch>(std::move(pm->pattern),
                                                                          std::move(expr)));
                         }
