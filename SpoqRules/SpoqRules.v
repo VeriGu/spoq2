@@ -150,6 +150,97 @@ Section if_condition.
 End if_condition.
 
 
+Section move_rely_out_when.
+  Variable T: Type.
+  Variable T1: Type.
+  Lemma move_rely_out_when_correct :
+    forall (p: Prop) (body: option T) (e: T -> option T1),
+      match (rely p; body) with
+      | Some x => e x
+      | None => None
+      end = (rely p; match body with
+                     | Some x => e x
+                     | None => None
+                     end).
+  Proof.
+    intros.
+    simpl.
+    unfold Assertion.
+    destruct (prop p).
+    reflexivity.
+    reflexivity.
+  Qed.
+End move_rely_out_when.
+
+
+Section move_when_out_when.
+  Variable T: Type.
+  Variable T1: Type.
+  Variable T2: Type.
+  Lemma move_when_out_when_correct :
+    forall (A: option T) (B: T -> option T1) (f: T1 -> option T2),
+      match match A with
+            | Some x => B x
+            | None => None
+            end
+              
+      with
+      | Some x => f x
+      | None => None
+      end =
+              match A with
+              | Some x => match B x with
+                          | Some x => f x
+                          | None => None
+                          end
+              | None => None
+              end.
+  Proof.
+    intros.
+    destruct A.
+    reflexivity.
+    reflexivity.
+  Qed.
+End move_when_out_when.
+
+
+(* Inductive Const := *)
+(* | Int : Z -> Const *)
+(* | Bool : bool -> Const *)
+(* | String : string -> Const. *)
+
+(* Inductive biop := *)
+(* | ADD. *)
+
+
+(* Inductive uop := *)
+(*  | Not. *)
+
+(* Inductive SpecNode := *)
+(* | nil : SpecNode *)
+(* | const : Const -> SpecNode *)
+(* | record : (string -> SpecNode) -> SpecNode *)
+(* | biopexpr : biop -> SpecNode -> SpecNode -> SpecNode *)
+(* | uopexpr : uop -> SpecNode -> SpecNode *)
+(* | func : string -> (string -> SpecNode). *)
+
+
+(* Inductive SpecValue := *)
+(* | constV : Const -> SpecValue *)
+(* | funcV : string -> (string -> SpecNode) -> SpecValue. *)
+  
+(* Inductive dynamic_eval : SpecNode -> SpecValue -> Prop := *)
+(* | CONST_eval : forall C, dynamic_eval (const C) (constV C) *)
+(* | ADD_eval : forall e1 e2 z1 z2, *)
+(*     dynamic_eval e1 (constV (Int z1)) -> *)
+(*     dynamic_eval e2 (constV (Int z2)) -> *)
+(*     dynamic_eval (biopexpr ADD e1 e2) (constV (Int (z1 + z2))). *)
+
+
+  
+
+
+
 (* eliminate match is not expressable *)
 
 (* Test refinement *)
@@ -201,7 +292,7 @@ End if_condition.
 (* Qed. *)
 
 
-(* (* Copied from metacoq tutorial *) *)
+(* Copied from metacoq tutorial *)
 
 (* From MetaCoq.Template Require Export All Checker Reduction. *)
 
@@ -269,13 +360,54 @@ End if_condition.
 (* Parameter f : nat -> nat. *)
 (* Check ($quote (if x then X else X)). *)
 (* Check ($quote (match y with *)
-(*                | a :: b :: [] => hd (a :: b :: [])                  *)
+(*                | a :: b :: [] => hd (a :: b :: []) *)
 (*                | [] => hd y *)
-(*                | c :: xs => hd y             *)
-(*                end)).             *)
+(*                | c :: xs => hd y *)
+(*                end)). *)
 
 
 (* Print map_branch. *)
+
+               
+(* Fixpoint subst_expr (e: term) (from: term) (to: term) := *)
+(*   if from == e then to *)
+(*   else *)
+(*   match e with *)
+(*   | tRel n => tRel n *)
+(*   | tVar id => tVar id *)
+(*   | tEvar ev args => tEvar ev (map (fun arg => subst_expr arg from to) args) *)
+(*   | tSort s => tSort s *)
+(*   | tCast t kind v => tCast (subst_expr t from to) kind (subst_expr v from to) *)
+(*   | tProd na ty body => tProd na (subst_expr ty from to) (subst_expr body from to) *)
+(*   | tLambda na ty body => tLambda na (subst_expr ty from to) (subst_expr body from to) *)
+(*   | tLetIn na def def_ty body => tLetIn na (subst_expr def from to) (subst_expr def_ty from to) (subst_expr body from to) *)
+(*   | tApp f args => tApp (subst_expr f from to) (map (fun arg => subst_expr arg from to) args) *)
+(*   | tConst c u => tConst c u *)
+(*   | tInd ind u => tInd ind u *)
+(*   | tConstruct ind idx u => tConstruct ind idx u *)
+(*   | tCase ind p discr brs => *)
+(*      let p' := map_predicate id (fun arg => subst_expr arg from to) (fun arg => subst_expr arg from to) p in *)
+(*      let brs' := map_branches (fun arg => subst_expr arg from to) brs in *)
+(*       tCase ind p' (subst_expr discr from to) brs' *)
+(*   | tProj proj t => tProj proj (subst_expr t from to) *)
+(*   | tFix mfix idx => tFix (map (map_def (fun arg => subst_expr arg from to) (fun arg => subst_expr arg from to)) mfix) idx *)
+(*   | tCoFix mfix idx => tCoFix (map (map_def (fun arg => subst_expr arg from to) (fun arg => subst_expr arg from to)) mfix) idx *)
+(*   | tInt i => tInt i *)
+(*   | tFloat f => tFloat f *)
+(*   end. *)
+
+
+(* Print subst. *)
+
+(* Check $unquote (subst_expr ($quote (5 + 3)) ($quote 5) ($quote 6)). *)
+
+
+(* Theorem subst_lemma : *)
+(*   forall (x: Z) (y: Z), *)
+(*     $unquote (subst_expr ($quote (x + 3)) ($quote x) ($quote y)) = $unquote (subst_expr ($quote (4 + 3)) ($quote 4) ($quote y)). *)
+(* Proof. *)
+(*   intros. reflexivity. *)
+(* Qed. *)
 
 (* Fixpoint match_subst (t : term) := *)
 (*   match t with *)
