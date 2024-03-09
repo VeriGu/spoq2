@@ -12,6 +12,7 @@
 #include <values.h>
 #include <z3_rules.h>
 #include <utils.h>
+#include <chrono>
 
 
 namespace autov
@@ -57,12 +58,18 @@ int complexity(shared_ptr<SpecNode> spec) {
     return spec->length;
 }
 
+unsigned long z3_unknowns = 0;
+std::chrono::duration<double> z3_accumulative_time = std::chrono::duration<double>::zero();
+
+// Defautl value of timeout is 100
 Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
+    auto start = std::chrono::high_resolution_clock::now();
     auto hash = hash_z3_state(state, cond, 1000);
     if (Z3Cache.find(hash) != Z3Cache.end()) {
         return Z3Cache[hash];
     }
     Z3Params.set("timeout", (unsigned int)timeout);
+    Z3Params.set("unsat_core", true);
     Z3Solver.set(Z3Params);
 
     Z3Solver.push();
@@ -77,16 +84,28 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
 
 
     Z3Solver.push();
-    Z3Solver.add(!cond);
-    auto not_res = Z3Solver.check();
+    //Z3Solver.add(!cond);
+    z3::expr_vector not_cond_vec(z3ctx);
+    not_cond_vec.push_back(!cond);
+    auto not_res = Z3Solver.check(not_cond_vec);
+#if 0
+    if (not_res == z3::unsat) {
+        auto core = Z3Solver.unsat_core();
+        std::cout << "Unsat core: " << core.size() << std::endl;
+        for (int i = 0; i < core.size(); i++)
+            std::cout << core[i] << std::endl;
+    }
+#endif
     Z3Solver.pop();
 
     Z3Solver.pop();
+    auto end = std::chrono::high_resolution_clock::now();
+    z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
     // std::cout << "-----------------Z3-----------------" << std::endl;
     // std::cout << "z3 check cond: " << cond << std::endl;
     // for (auto &c : *state->conds) {
-    //     std::cout << "z3 check cond: " << c << std::endl;
+    //     std::cout << "z3 check state conds: " << c << std::endl;
     // }
     // std::cout << "z3 check res: " << res << std::endl;
     // std::cout << "z3 check not_res: " << not_res << std::endl;
@@ -100,6 +119,7 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
         return Z3Result::False;
     } else {
         Z3Cache[hash] = Z3Result::Unknown;
+        z3_unknowns++;
         return Z3Result::Unknown;
     }
 }
@@ -200,6 +220,8 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             elems.push_back(z3_eval(proj, e->get(), state));
         }
 
+        if (op_eq(expr->op, Expr::None))
+            return _cache(static_pointer_cast<Inductive>(val->get_type())->construct("None", {}));
         if (op_eq(expr->op, Expr::binops::ADD))
             return _cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1])));
         if (op_eq(expr->op, Expr::binops::MINUS)) {
@@ -364,7 +386,9 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                 cond = z3::exists(v->second->get_z3_value(), cond);
             }
             auto z3_res = z3_check(state, cond);
-            if (z3_res == Z3Result::False) continue;
+            if (z3_res == Z3Result::False) {
+                continue;
+            }
             auto new_state = state->copy();
             for (auto v = assigns.begin(); v != assigns.end(); v++) {
                 new_state->vars->emplace(v->first, v->second);
@@ -388,6 +412,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         if (res == Z3Result::Unknown) {
             auto body = z3_eval(proj, rely->body.get(), state);
             auto none = static_pointer_cast<Option>(val->get_type())->construct("None", {});
+
             auto z3_val = z3::ite(cond->get_z3_value(), body->get_z3_value(), none->get_z3_value());
             return _cache(rely->get_type()->from_z3_value(z3_val.simplify()));
         } else if (res == Z3Result::True) {

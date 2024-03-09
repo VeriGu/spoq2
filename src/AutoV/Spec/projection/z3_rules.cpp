@@ -140,6 +140,7 @@ rule_ret_t remove_rely_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState
 }
 
 rule_ret_t simple_rely_by_z3(Project* proj, Rely* spec, shared_ptr<EvalState> state) {
+    //std::cout << "simple_rely_by_z3: " << string(*spec) << std::endl;
     bool changed = false;
     auto ret = rule_simple_by_z3(proj, spec->prop.release(), state);
     changed |= ret.second;
@@ -163,14 +164,12 @@ rule_ret_t simple_rely_by_z3(Project* proj, Rely* spec, shared_ptr<EvalState> st
             return std::make_pair(nullptr, changed);
         }
         return std::make_pair(new Rely(unique_ptr<SpecNode>(cond), unique_ptr<SpecNode>(body)), changed);
-    }
-    else if (res == Z3Result::True) {
+    } else if (res == Z3Result::True) {
         auto ret = rule_simple_by_z3(proj, spec->body.release(), state);
         delete cond;
         delete spec;
         return ret;
-    }
-    else {
+    } else {
         delete cond;
         delete spec;
         return std::make_pair(nullptr, true);
@@ -316,6 +315,9 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
 }
 
 rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> state) {
+    auto orig = string(*spec);
+    //std::cout << "simple_match_by_z3: " << string(*spec) << std::endl;
+
     auto src_ret = rule_simple_by_z3(proj, spec->src.release(), state);
     if (src_ret.first == nullptr) {
         delete spec;
@@ -336,8 +338,10 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
         }
         auto body_ret = rule_simple_by_z3(proj, (*pm)->body.release(), new_state);
         changed |= body_ret.second;
-        if (body_ret.first)
+        if (body_ret.first) {
+            //std::cout << "simple_match_by_z3: " << string(*body_ret.first) << std::endl;
             match_list->push_back(make_unique<PatternMatch>(unique_ptr<SpecNode>((*pm)->pattern.release()), unique_ptr<SpecNode>(body_ret.first)));
+        }
     }
 
     if (auto src_opt = dynamic_pointer_cast<Option>(src_ret.first->get_type())) {
@@ -370,6 +374,10 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
 
     if (match_list->size() == 0) {
         delete spec;
+        // std::cout << "======================" << std::endl;
+        // std::cout << "simple_match_by_z3 orig: " << orig << std::endl;
+        // std::cout << "simple_match_by_z3 now: " << "nullptr" << std::endl;
+        // std::cout << "======================" << std::endl;
         return std::make_pair(nullptr, true);
     } else {
         bool only_none = true;
@@ -388,10 +396,24 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
 
         auto typ = spec->get_type();
         delete spec;
-        if (only_none)
+        if (only_none) {
+            // std::cout << "======================" << std::endl;
+            // std::cout << "simple_match_by_z3 orig: " << orig << std::endl;
+            // std::cout << "simple_match_by_z3 now: " << "None" << std::endl;
+            // std::cout  << "simple_match_by_z3 match_list: " << std::endl;
+            // for (auto pm = match_list->begin(); pm != match_list->end(); pm++) {
+            //     std::cout << string(*(*pm)->pattern) << " -> " << string(*(*pm)->body) << std::endl;
+            // }
+            // std::cout << "======================" << std::endl;
             return std::make_pair(new Symbol("None", typ), changed);
-        else
-            return std::make_pair(new Match(unique_ptr<SpecNode>(src_ret.first), std::move(match_list)), changed);
+        } else {
+            auto ret = new Match(unique_ptr<SpecNode>(src_ret.first), std::move(match_list));
+            // std::cout << "======================" << std::endl;
+            // std::cout << "simple_match_by_z3 orig: " << orig << std::endl;
+            // std::cout << "simple_match_by_z3 now: " << string(*ret) << std::endl;
+            // std::cout << "======================" << std::endl;
+            return std::make_pair(ret, changed);
+        }
     }
 }
 
@@ -473,8 +495,8 @@ unsigned length_z3_val(z3::expr z3_val) {
     else throw std::runtime_error("Unknown z3_val type");
 }
 
-SpecNode* reconstruct_expr(z3::expr z3_val, 
-                           unordered_map<unsigned, std::pair<z3::expr, SpecNode*>>& subexprs, 
+SpecNode* reconstruct_expr(z3::expr z3_val,
+                           unordered_map<unsigned, std::pair<z3::expr, SpecNode*>>& subexprs,
                            shared_ptr<EvalState> state) {
     if (z3_val.is_const() && z3_val.is_int() && z3_val.is_numeral()) {
         return new IntConst(z3_val.get_numeral_int64());
@@ -522,8 +544,10 @@ SpecNode* reconstruct_expr(z3::expr z3_val,
             auto elems = vector<SpecNode*>();
             for (int i = 0; i < z3_val.num_args(); i++) {
                 auto e = reconstruct_expr(z3_val.arg(i), subexprs, state);
-                if (e) elems.push_back(e);
-                else return nullptr;
+                if (e)
+                    elems.push_back(e);
+                else
+                    return nullptr;
             }
 
             auto op = z3_val.decl().name().str();
@@ -540,25 +564,23 @@ SpecNode* reconstruct_expr(z3::expr z3_val,
                     expr = new Expr(op, std::move(new_elems), Int::INT);
                 }
                 candidates.push_back(expr);
-            }
-            else if (op == "Not") {
+            } else if (op == "Not") {
                 auto rev = unordered_map<string, string>{
                     {"=?", "<>?"}, {"<>?", "=?"}, {">=?", "<?"}, {"<=?", ">?"}, {">?", "<=?"}, {"<?", ">=?"}, 
                     {"=", "<>"}, {"<>", "="}, {">", "<="}, {"<", ">="}, {">=", "<"}, {"<=", ">"}
                 };
+
                 if (std::holds_alternative<string>(e->op) && rev.find(std::get<string>(e->op)) != rev.end()) {
                     auto new_args = make_unique<vector<unique_ptr<SpecNode>>>();
                     new_args->push_back(unique_ptr<SpecNode>(e->elems->at(0).release()));
                     new_args->push_back(unique_ptr<SpecNode>(e->elems->at(1).release()));
                     candidates.push_back(new Expr(rev[std::get<string>(e->op)], std::move(new_args), Bool::BOOL));
-                }
-                else {
+                } else {
                     auto new_args = make_unique<vector<unique_ptr<SpecNode>>>();
                     new_args->push_back(unique_ptr<SpecNode>(elems[0]));
                     candidates.push_back(new Expr("!", std::move(new_args), Bool::BOOL));
                 }
-            }
-            else if (op == "<" || op == ">" || op == "<=" || op == ">=") {
+            } else if (op == "<" || op == ">" || op == "<=" || op == ">=") {
                 auto new_args = make_unique<vector<unique_ptr<SpecNode>>>();
                 new_args->push_back(unique_ptr<SpecNode>(e->elems->at(0).release()));
                 new_args->push_back(unique_ptr<SpecNode>(e->elems->at(1).release()));
@@ -570,8 +592,10 @@ SpecNode* reconstruct_expr(z3::expr z3_val,
             return a->length < b->length;
         });
 
-        if (candidates.size() > 0) return candidates[0];
-        else return nullptr;
+        if (candidates.size() > 0)
+            return candidates[0];
+        else
+            return nullptr;
     }
 }
 
@@ -589,26 +613,43 @@ SpecNode* reconstruct_zmap(Project* proj, SpecNode* spec, shared_ptr<EvalState> 
             if (std::holds_alternative<string>(expr->op) && std::get<string>(expr->op) == "ZMap.set") {
                 // ZMap.set2
                 return new Expr("ZMap.set", std::move(expr->elems), expr->get_type());
-            }
-            else if (std::holds_alternative<string>(expr->op) && std::get<string>(expr->op) == "ZMap.get") {
+            } else if (std::holds_alternative<string>(expr->op) && std::get<string>(expr->op) == "ZMap.get") {
                 // ZMap.gss
-                if (auto elem2 = instance_of(expr->elems->at(2).get(), Expr)) return elem2;
-                else return nullptr;
+                if (auto elem2 = instance_of(expr->elems->at(2).get(), Expr))
+                    return elem2;
+                else
+                    return nullptr;
             }
         }
-    }
-    else if (z3_res == Z3Result::False) {
+    } else if (z3_res == Z3Result::False) {
         if (std::holds_alternative<string>(expr->op) && std::get<string>(expr->op) == "ZMap.get") {
-            if (auto elem2 = instance_of(expr->elems->at(2).get(), Expr)) return elem2;
-            else return nullptr;
+            if (auto elem2 = instance_of(expr->elems->at(2).get(), Expr))
+                return elem2;
+            else
+                return nullptr;
         }
     }
     return nullptr;
 }
 
+static bool is_struct_constr(Project *proj, SpecNode *spec) {
+    if (auto expr = instance_of(spec, Expr)) {
+        if (auto op = std::get_if<string>(&expr->op)) {
+            return proj->is_struct_constr(*op);
+        }
+    }
+    return false;
+}
+
 rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> state) {
     auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
     bool changed = false;
+
+    if (auto op = std::get_if<Expr::ops>(&spec->op)) {
+        if (*op == Expr::None)
+            return std::make_pair(spec, false);
+    }
+
     for (auto elem = spec->elems->begin(); elem != spec->elems->end(); elem++) {
         auto ret = rule_simple_by_z3(proj, elem->release(), state);
         changed |= ret.second;
@@ -626,12 +667,14 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
 
     if ((spec->get_type() == Int::INT || spec->get_type() == Bool::BOOL) && length_of_exp(spec) <= 20) {
         auto expr = reconstruct_expr(exp_val->get_z3_value(), subexprs, state);
-        if (expr && length_of_exp(expr) < length_of_exp(spec)) return std::make_pair(expr, true);
+
+        if (expr && length_of_exp(expr) < length_of_exp(spec))
+            return std::make_pair(expr, true);
     }
 
     auto elem0 = instance_of(spec->elems->at(0).get(), Expr);
 
-    if (std::holds_alternative<string>(spec->op) && std::get<string>(spec->op) == "/" && 
+    if (std::holds_alternative<string>(spec->op) && std::get<string>(spec->op) == "/" &&
         std::holds_alternative<string>(elem0->op) && std::get<string>(elem0->op) == "+") {
         auto ea = elem0->elems->at(0).release();
         auto eb = elem0->elems->at(1).release();
@@ -639,10 +682,11 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
         auto a = z3_eval(proj, ea, state);
         auto b = z3_eval(proj, eb, state);
         auto d = z3_eval(proj, ed, state);
-        if (z3_check(state, a->get_z3_value() >= 0) == Z3Result::True && 
-            z3_check(state, b->get_z3_value() >= 0) == Z3Result::True && 
+
+        if (z3_check(state, a->get_z3_value() >= 0) == Z3Result::True &&
+            z3_check(state, b->get_z3_value() >= 0) == Z3Result::True &&
             z3_check(state, d->get_z3_value() > 0) == Z3Result::True &&
-            (z3_check(state, a->get_z3_value() % d->get_z3_value() == 0) == Z3Result::True || 
+            (z3_check(state, a->get_z3_value() % d->get_z3_value() == 0) == Z3Result::True ||
              z3_check(state, b->get_z3_value() % d->get_z3_value() == 0) == Z3Result::True)) {
             auto elems1 = make_unique<vector<unique_ptr<SpecNode>>>();
             elems1->push_back(unique_ptr<SpecNode>(ea));
@@ -660,9 +704,27 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
         }
     }
 
-    if (std::holds_alternative<string>(spec->op) && (std::get<string>(spec->op) == "ZMap.set" || std::get<string>(spec->op) == "ZMap.get")) {
-        auto new_zmap = reconstruct_zmap(proj, spec, state);
-        if (new_zmap) return std::make_pair(new_zmap, true);
+    if (auto op = std::get_if<string>(&spec->op)) {
+        if ((*op == "ZMap.set" || *op == "ZMap.get")) {
+            auto new_zmap = reconstruct_zmap(proj, spec, state);
+
+            if (new_zmap)
+                return std::make_pair(new_zmap, true);
+        }
+    } else if (auto op = std::get_if<Expr::ops>(&spec->op)) {
+        if (*op == Expr::RecordGet && is_struct_constr(proj, spec->elems->at(0).get())) {
+            auto record_type = static_cast<Struct *>(spec->elems->at(0)->get_type().get());
+            auto field_name = static_cast<Symbol *>(spec->elems->at(1).get())->text;
+
+            for (int i = 0; i < record_type->elems->size(); i++) {
+                if (record_type->elems->at(i)->name == field_name) {
+                    auto record_def = static_cast<Expr *>(spec->elems->at(0).get());
+                    auto new_expr = record_def->elems->at(i)->deep_copy();
+
+                    return std::make_pair(new_expr.release(), true);
+                }
+            }
+        }
     }
 
     return std::make_pair(spec, changed);

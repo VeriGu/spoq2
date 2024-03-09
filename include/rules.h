@@ -11,9 +11,11 @@
 
 namespace autov {
 using rule_ret_t = std::pair<SpecNode *, bool>;
-SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &prev_symbols);
+SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &prev_symbols, bool &changed);
+
 rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec);
 rule_ret_t rule_eliminiate_indifferent(Project *proj, SpecNode *spec, string fname);
+rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec);
 rule_ret_t rule_move_if_out_match(Project *proj, SpecNode *spec);
 rule_ret_t rule_move_if_out_expr(Project *proj, SpecNode *spec);
 rule_ret_t rule_move_match_out_expr(Project *proj, SpecNode *spec);

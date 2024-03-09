@@ -86,7 +86,7 @@ public:
         }
         return this->type;
     }
-    
+
     void set_z3_eval(shared_ptr<SpecValue> value) {
         this->cached_eval = value;
     }
@@ -149,7 +149,12 @@ public:
     Const() { throw std::invalid_argument("Const must have a value"); }
     Const(const std::variant<long long, string, bool>& value) : SpecNode(SpecType::UNKNOWN_TYPE), value(value) {}
     Const(const std::variant<long long, string, bool>& value, shared_ptr<SpecType> type)
-        : SpecNode(type), value(value) {}
+        : SpecNode(type), value(value) {
+            // if (auto i = std::get_if<long long>(&this->value)) {
+            //     if ((unsigned long long)*i == -32768)
+            //         throw std::invalid_argument("Const value cannot be -32768");
+            // }
+        }
 
     bool operator==(const SpecNode& other) const {
         if (typeid(other) != typeid(*this)) {
@@ -162,7 +167,7 @@ public:
         return !(*this == other);
     }
 
-    operator string() const {
+    virtual operator string() const {
         return this->to_string();
     }
 
@@ -176,11 +181,15 @@ public:
 
     virtual ~Const() {}
 private:
-    const string to_string() const {
+    virtual const string to_string() const {
         if (this->type == SpecType::UNKNOWN_TYPE) {
             throw std::invalid_argument("Const must have a type");
         } else if (dynamic_cast<Int *>(this->type.get()) != nullptr) {
-            return std::to_string(std::get<long long>(this->value));
+            long long v = std::get<long long>(this->value);
+            if (v > -100 && v < 0) {
+                return "(" + std::to_string(v) + ")";
+            } else
+                return std::to_string((unsigned long long)v);
         } else if (dynamic_cast<String *>(this->type.get()) != nullptr) {
             return "\"" + std::get<string>(this->value) + "\"";
         } else if (dynamic_cast<Bool *>(this->type.get()) != nullptr) {
@@ -329,22 +338,21 @@ public:
     op_t op;
     unique_ptr<vector<unique_ptr<SpecNode>>> elems;
 
+    bool ends_with_lens(const std::string& str) {
+        if (str.length() >= 4) {
+            return str.rfind("lens") == str.length() - 4;
+        }
+        return false;
+    }
+
     Expr() { throw std::invalid_argument("Expr must have an op and elems"); }
     Expr(op_t op, elems_t elems) :
         SpecNode(SpecType::UNKNOWN_TYPE), op(std::move(op)), elems(std::move(elems)) {
-#if 0
-            if (std::holds_alternative<ops>(op) && std::get<ops>(op) == __NEG)
-                throw std::invalid_argument("__NEG is only a dummy op, use MINUS instead");
-#endif
             this->length = calc_length();
         }
 
     Expr(op_t op, elems_t elems, shared_ptr<SpecType> type) :
         SpecNode(type), op(std::move(op)), elems(std::move(elems)) {
-#if 0
-            if (std::holds_alternative<ops>(op) && std::get<ops>(op) == __NEG && this->elems->size() == 1)
-                throw std::invalid_argument("__NEG is only a dummy op, use MINUS instead");
-#endif
             this->length = calc_length();
         }
 
@@ -372,24 +380,7 @@ public:
     }
 
     void deep_copy(unique_ptr<SpecNode> &p) const {
-        // deep copy elems
-        unique_ptr<vector<unique_ptr<SpecNode>>> new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-        for (auto it = elems->begin(); it != elems->end(); it++) {
-            new_elems->push_back((*it)->deep_copy());
-        }
-
-        // check if op is a string
-        if (std::holds_alternative<string>(this->op)) {
-            p = make_unique<Expr>(std::get<string>(this->op), std::move(new_elems), this->type);
-        } else if (std::holds_alternative<ops>(this->op)) {
-            p = make_unique<Expr>(std::get<ops>(this->op), std::move(new_elems), this->type);
-        } else if (std::holds_alternative<binops>(this->op)) {
-            p = make_unique<Expr>(std::get<binops>(this->op), std::move(new_elems), this->type);
-        } else {
-            p = make_unique<Expr>(std::get<unique_ptr<SpecNode>>(this->op)->deep_copy(),
-                                          std::move(new_elems), this->type);
-        }
+        p = deep_copy_down();
     }
 
     unique_ptr<Expr> deep_copy_down() const {
@@ -400,38 +391,24 @@ public:
             new_elems->push_back((*it)->deep_copy());
         }
 
-        // check if op is a string
+        auto ret = unique_ptr<Expr>();
         if (std::holds_alternative<string>(this->op)) {
-            return make_unique<Expr>(std::get<string>(this->op), std::move(new_elems), this->type);
+            ret = make_unique<Expr>(std::get<string>(this->op), std::move(new_elems), this->type);
         } else if (std::holds_alternative<ops>(this->op)) {
-            return make_unique<Expr>(std::get<ops>(this->op), std::move(new_elems), this->type);
+            ret = make_unique<Expr>(std::get<ops>(this->op), std::move(new_elems), this->type);
         } else if (std::holds_alternative<binops>(this->op)) {
-            return make_unique<Expr>(std::get<binops>(this->op), std::move(new_elems), this->type);
+            ret = make_unique<Expr>(std::get<binops>(this->op), std::move(new_elems), this->type);
         } else {
-            return make_unique<Expr>(std::get<unique_ptr<SpecNode>>(this->op)->deep_copy(),
+            ret = make_unique<Expr>(std::get<unique_ptr<SpecNode>>(this->op)->deep_copy(),
                                           std::move(new_elems), this->type);
         }
+
+        ret->is_lens = this->is_lens;
+        return ret;
     }
 
     void deep_copy_down(unique_ptr<Expr> &p) const {
-        // deep copy elems
-        unique_ptr<vector<unique_ptr<SpecNode>>> new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-        for (auto it = elems->begin(); it != elems->end(); it++) {
-            new_elems->push_back((*it)->deep_copy());
-        }
-
-        // check if op is a string
-        if (std::holds_alternative<string>(this->op)) {
-            p = make_unique<Expr>(std::get<string>(this->op), std::move(new_elems), this->type);
-        } else if (std::holds_alternative<ops>(this->op)) {
-            p = make_unique<Expr>(std::get<ops>(this->op), std::move(new_elems), this->type);
-        } else if (std::holds_alternative<binops>(this->op)) {
-            p = make_unique<Expr>(std::get<binops>(this->op), std::move(new_elems), this->type);
-        } else {
-            p = make_unique<Expr>(std::get<unique_ptr<SpecNode>>(this->op)->deep_copy(),
-                                          std::move(new_elems), this->type);
-        }
+        p = deep_copy_down();
     }
 
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
@@ -833,6 +810,8 @@ public:
     If(unique_ptr<SpecNode>cond, unique_ptr<SpecNode>then_body, unique_ptr<SpecNode>else_body) :
         SpecNode(then_body->get_type()), cond(std::move(cond)), then_body(std::move(then_body)), else_body(std::move(else_body)) {
         this->length = calc_length();
+        if (this->cond == nullptr)
+            throw std::invalid_argument("If condition cannot be null");
     }
 
     bool operator==(const SpecNode& other) const {

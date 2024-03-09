@@ -344,7 +344,7 @@ shared_ptr<SpecValue> IndValue::get(string key) {
 
 shared_ptr<IndValue> IndValue::concat(shared_ptr<IndValue> other) {
     assert(is_instance(typ.get(), List));
-    assert(is_instance(other.get(), List));
+    assert(is_instance(other->typ.get(), List));
 
     if(auto type = instance_of(typ.get(), List)) {
         z3::func_decl f = type->concat_func();
