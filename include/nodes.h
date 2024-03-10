@@ -349,12 +349,12 @@ public:
     Expr(op_t op, elems_t elems) :
         SpecNode(SpecType::UNKNOWN_TYPE), op(std::move(op)), elems(std::move(elems)) {
             this->length = calc_length();
-        }
+    }
 
     Expr(op_t op, elems_t elems, shared_ptr<SpecType> type) :
         SpecNode(type), op(std::move(op)), elems(std::move(elems)) {
             this->length = calc_length();
-        }
+    }
 
     bool operator==(const SpecNode& other) const {
         if (typeid(other) != typeid(Expr)) {

@@ -108,7 +108,7 @@ rule_ret_t merge_rely(Project* proj, SpecNode* spec, shared_ptr<EvalState> state
                     auto new_conds = new vector<unique_ptr<SpecNode>>();
                     new_conds->push_back(unique_ptr<SpecNode>(rely1->prop.release()));
                     new_conds->push_back(unique_ptr<SpecNode>(rely2->prop.release()));
-                    rely1->prop.reset(new Expr("/\\", unique_ptr<vector<unique_ptr<SpecNode>>>(new_conds), Prop::PROP));
+                    rely1->prop.reset(new Expr(Expr::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(new_conds), Prop::PROP));
                     rely1->body.reset(rely2->body.release());
                     delete rely2;
                 }
@@ -316,7 +316,6 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
 
 rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> state) {
     auto orig = string(*spec);
-    //std::cout << "simple_match_by_z3: " << string(*spec) << std::endl;
 
     auto src_ret = rule_simple_by_z3(proj, spec->src.release(), state);
     if (src_ret.first == nullptr) {
@@ -339,7 +338,6 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
         auto body_ret = rule_simple_by_z3(proj, (*pm)->body.release(), new_state);
         changed |= body_ret.second;
         if (body_ret.first) {
-            //std::cout << "simple_match_by_z3: " << string(*body_ret.first) << std::endl;
             match_list->push_back(make_unique<PatternMatch>(unique_ptr<SpecNode>((*pm)->pattern.release()), unique_ptr<SpecNode>(body_ret.first)));
         }
     }
@@ -374,10 +372,6 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
 
     if (match_list->size() == 0) {
         delete spec;
-        // std::cout << "======================" << std::endl;
-        // std::cout << "simple_match_by_z3 orig: " << orig << std::endl;
-        // std::cout << "simple_match_by_z3 now: " << "nullptr" << std::endl;
-        // std::cout << "======================" << std::endl;
         return std::make_pair(nullptr, true);
     } else {
         bool only_none = true;
@@ -397,21 +391,9 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
         auto typ = spec->get_type();
         delete spec;
         if (only_none) {
-            // std::cout << "======================" << std::endl;
-            // std::cout << "simple_match_by_z3 orig: " << orig << std::endl;
-            // std::cout << "simple_match_by_z3 now: " << "None" << std::endl;
-            // std::cout  << "simple_match_by_z3 match_list: " << std::endl;
-            // for (auto pm = match_list->begin(); pm != match_list->end(); pm++) {
-            //     std::cout << string(*(*pm)->pattern) << " -> " << string(*(*pm)->body) << std::endl;
-            // }
-            // std::cout << "======================" << std::endl;
             return std::make_pair(new Symbol("None", typ), changed);
         } else {
             auto ret = new Match(unique_ptr<SpecNode>(src_ret.first), std::move(match_list));
-            // std::cout << "======================" << std::endl;
-            // std::cout << "simple_match_by_z3 orig: " << orig << std::endl;
-            // std::cout << "simple_match_by_z3 now: " << string(*ret) << std::endl;
-            // std::cout << "======================" << std::endl;
             return std::make_pair(ret, changed);
         }
     }
@@ -553,38 +535,56 @@ SpecNode* reconstruct_expr(z3::expr z3_val,
             auto op = z3_val.decl().name().str();
             auto e = instance_of(elems[0], Expr);
             if (op == "+" || op == "-" || op == "*" || op == "/" || op == "mod") {
+                static const auto z3_op_to_expr_binop = unordered_map<string, Expr::binops>{
+                    {"+", Expr::ADD},
+                    {"-", Expr::MINUS},
+                    {"*", Expr::MULT},
+                    {"/", Expr::DIV},
+                    {"mod", Expr::MOD},
+                };
                 auto expr_elems = make_unique<vector<unique_ptr<SpecNode>>>();
                 expr_elems->push_back(unique_ptr<SpecNode>(elems[0]));
                 expr_elems->push_back(unique_ptr<SpecNode>(elems[1]));
-                auto expr = new Expr(op, std::move(expr_elems), Int::INT);
+                auto expr = new Expr(z3_op_to_expr_binop.at(op), std::move(expr_elems), Int::INT);
                 for (int i = 2; i < elems.size(); i++) {
                     auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
                     new_elems->push_back(unique_ptr<SpecNode>(expr));
                     new_elems->push_back(unique_ptr<SpecNode>(elems[i]));
-                    expr = new Expr(op, std::move(new_elems), Int::INT);
+                    expr = new Expr(z3_op_to_expr_binop.at(op), std::move(new_elems), Int::INT);
                 }
                 candidates.push_back(expr);
             } else if (op == "Not") {
-                auto rev = unordered_map<string, string>{
-                    {"=?", "<>?"}, {"<>?", "=?"}, {">=?", "<?"}, {"<=?", ">?"}, {">?", "<=?"}, {"<?", ">=?"}, 
-                    {"=", "<>"}, {"<>", "="}, {">", "<="}, {"<", ">="}, {">=", "<"}, {"<=", ">"}
+#define rev_map(op0, op1) {op0, op1}, {op1, op0}
+                static const auto rev = unordered_map<Expr::binops, Expr::binops>{
+                    rev_map(Expr::BEQ, Expr::BNE),
+                    rev_map(Expr::BGE, Expr::BLT),
+                    rev_map(Expr::BLE, Expr::BGT),
+                    rev_map(Expr::EQUAL, Expr::NOT_EQUAL),
+                    rev_map(Expr::GT, Expr::LTE),
+                    rev_map(Expr::LT, Expr::GTE),
                 };
 
-                if (std::holds_alternative<string>(e->op) && rev.find(std::get<string>(e->op)) != rev.end()) {
+                if (std::holds_alternative<string>(e->op) && rev.find(std::get<Expr::binops>(e->op)) != rev.end()) {
                     auto new_args = make_unique<vector<unique_ptr<SpecNode>>>();
                     new_args->push_back(unique_ptr<SpecNode>(e->elems->at(0).release()));
                     new_args->push_back(unique_ptr<SpecNode>(e->elems->at(1).release()));
-                    candidates.push_back(new Expr(rev[std::get<string>(e->op)], std::move(new_args), Bool::BOOL));
+                    candidates.push_back(new Expr(rev.at(std::get<Expr::binops>(e->op)), std::move(new_args), Bool::BOOL));
                 } else {
                     auto new_args = make_unique<vector<unique_ptr<SpecNode>>>();
                     new_args->push_back(unique_ptr<SpecNode>(elems[0]));
-                    candidates.push_back(new Expr("!", std::move(new_args), Bool::BOOL));
+                    candidates.push_back(new Expr(Expr::BNOT, std::move(new_args), Bool::BOOL));
                 }
             } else if (op == "<" || op == ">" || op == "<=" || op == ">=") {
+                static const auto z3_op_to_expr_bool_op = unordered_map<string, Expr::binops>{
+                    {"<", Expr::BLT},
+                    {">", Expr::BGT},
+                    {"<=", Expr::BLE},
+                    {">=", Expr::BGE},
+                };
                 auto new_args = make_unique<vector<unique_ptr<SpecNode>>>();
                 new_args->push_back(unique_ptr<SpecNode>(e->elems->at(0).release()));
                 new_args->push_back(unique_ptr<SpecNode>(e->elems->at(1).release()));
-                candidates.push_back(new Expr(op + "?", std::move(new_args), Bool::BOOL));
+                candidates.push_back(new Expr(z3_op_to_expr_bool_op.at(op), std::move(new_args), Bool::BOOL));
             }
         }
 
@@ -592,9 +592,13 @@ SpecNode* reconstruct_expr(z3::expr z3_val,
             return a->length < b->length;
         });
 
-        if (candidates.size() > 0)
+        if (candidates.size() > 0) {
+#if 0
+            for (int i = 1; i < candidates.size(); i++)
+                delete candidates[i];
+#endif
             return candidates[0];
-        else
+        } else
             return nullptr;
     }
 }
@@ -662,15 +666,6 @@ SpecNode* reconstruct_zmap(Project* proj, SpecNode* spec, shared_ptr<EvalState> 
     return nullptr;
 }
 
-static bool is_struct_constr(Project *proj, SpecNode *spec) {
-    if (auto expr = instance_of(spec, Expr)) {
-        if (auto op = std::get_if<string>(&expr->op)) {
-            return proj->is_struct_constr(*op);
-        }
-    }
-    return false;
-}
-
 rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> state) {
     auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
     bool changed = false;
@@ -704,14 +699,14 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
 
     auto elem0 = instance_of(spec->elems->at(0).get(), Expr);
 
-    if (std::holds_alternative<string>(spec->op) && std::get<string>(spec->op) == "/" &&
-        std::holds_alternative<string>(elem0->op) && std::get<string>(elem0->op) == "+") {
-        auto ea = elem0->elems->at(0).release();
-        auto eb = elem0->elems->at(1).release();
-        auto ed = spec->elems->at(1).release();
-        auto a = z3_eval(proj, ea, state);
-        auto b = z3_eval(proj, eb, state);
-        auto d = z3_eval(proj, ed, state);
+    if (std::holds_alternative<Expr::binops>(spec->op) && std::get<Expr::binops>(spec->op) == Expr::DIV &&
+        std::holds_alternative<Expr::binops>(elem0->op) && std::get<Expr::binops>(elem0->op) == Expr::ADD) {
+        auto ea = elem0->elems->at(0)->deep_copy();
+        auto eb = elem0->elems->at(1)->deep_copy();
+        auto ed = spec->elems->at(1)->deep_copy();
+        auto a = z3_eval(proj, ea.get(), state);
+        auto b = z3_eval(proj, eb.get(), state);
+        auto d = z3_eval(proj, ed.get(), state);
 
         if (z3_check(state, a->get_z3_value() >= 0) == Z3Result::True &&
             z3_check(state, b->get_z3_value() >= 0) == Z3Result::True &&
@@ -719,13 +714,13 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
             (z3_check(state, a->get_z3_value() % d->get_z3_value() == 0) == Z3Result::True ||
              z3_check(state, b->get_z3_value() % d->get_z3_value() == 0) == Z3Result::True)) {
             auto elems1 = make_unique<vector<unique_ptr<SpecNode>>>();
-            elems1->push_back(unique_ptr<SpecNode>(ea));
+            elems1->push_back(std::move(ea));
             elems1->push_back(ed->deep_copy());
-            auto expr1 = new Expr("/", std::move(elems1), Int::INT);
+            auto expr1 = new Expr(Expr::DIV, std::move(elems1), Int::INT);
             auto elems2 = make_unique<vector<unique_ptr<SpecNode>>>();
-            elems2->push_back(unique_ptr<SpecNode>(eb));
-            elems2->push_back(unique_ptr<SpecNode>(ed));
-            auto expr2 = new Expr("/", std::move(elems2), Int::INT);
+            elems2->push_back(std::move(eb));
+            elems2->push_back(std::move(ed));
+            auto expr2 = new Expr(Expr::ADD, std::move(elems2), Int::INT);
             auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
             new_elems->push_back(unique_ptr<SpecNode>(expr1));
             new_elems->push_back(unique_ptr<SpecNode>(expr2));
