@@ -602,31 +602,61 @@ SpecNode* reconstruct_expr(z3::expr z3_val,
 SpecNode* reconstruct_zmap(Project* proj, SpecNode* spec, shared_ptr<EvalState> state) {
     auto expr = instance_of(spec, Expr);
     auto elem0 = instance_of(expr->elems->at(0).get(), Expr);
-    auto elem1 = instance_of(expr->elems->at(1).get(), Expr);
-    if (is_instance(elem0->elems->at(1).get(), Symbol)) {
+    auto elem1 = expr->elems->at(1).get();
+
+    if (elem0 && is_instance(elem0->elems->at(1).get(), Symbol))
         return nullptr;
-    }
+
+    // If not potential ZMap.gss, ZMap.set2, ZMap.gso, skip Z3 checks and early return
+    auto expr_op = std::get_if<Expr::ops>(&expr->op);
+    if (!expr_op)
+        return nullptr;
+
+    auto elem0_op = std::get_if<Expr::ops>(&elem0->op);
+    if (!elem0_op)
+        return nullptr;
+
+    if (!(*expr_op == Expr::GET && *elem0_op == Expr::SET) &&   // ZMap.gss
+        !(*expr_op == Expr::SET && *elem0_op == Expr::SET) &&   // ZMap.set2
+        !(*expr_op == Expr::GET && *elem0_op == Expr::SET))     // ZMap.gso
+        return nullptr;
+
+
     auto idx = z3_eval(proj, elem1, state);
     auto z3_res = z3_check(state, z3_eval(proj, elem0->elems->at(1).get(), state)->get_z3_value() == idx->get_z3_value());
+
     if (z3_res == Z3Result::True) {
-        if (std::holds_alternative<string>(elem0->op) && std::get<string>(elem0->op) == "ZMap.set") {
-            if (std::holds_alternative<string>(expr->op) && std::get<string>(expr->op) == "ZMap.set") {
+        if (*elem0_op == Expr::SET) {
+            if (*expr_op == Expr::SET) {
                 // ZMap.set2
-                return new Expr("ZMap.set", std::move(expr->elems), expr->get_type());
-            } else if (std::holds_alternative<string>(expr->op) && std::get<string>(expr->op) == "ZMap.get") {
+                auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+
+                new_elems->push_back(std::move(elem0->elems->at(0)));
+                new_elems->push_back(std::move(elem0->elems->at(1)));
+                new_elems->push_back(std::move(expr->elems->at(2)));
+
+                return new Expr(Expr::SET, std::move(new_elems), expr->get_type());
+            } else if (*expr_op == Expr::GET) {
                 // ZMap.gss
-                if (auto elem2 = instance_of(expr->elems->at(2).get(), Expr))
-                    return elem2;
-                else
+                if (auto elem2 = instance_of(elem0->elems->at(2).get(), Expr)) {
+                    return elem0->elems->at(2).release(); // XXX: fail safe way: elem2->deep_copy().release();
+                } else
                     return nullptr;
             }
         }
     } else if (z3_res == Z3Result::False) {
-        if (std::holds_alternative<string>(expr->op) && std::get<string>(expr->op) == "ZMap.get") {
-            if (auto elem2 = instance_of(expr->elems->at(2).get(), Expr))
-                return elem2;
-            else
-                return nullptr;
+        /*
+        if spec.op == "ZMap.get" and isinstance(spec.elems[0], Expr) and spec.elems[0].op == "ZMap.set": # ZMap.gso
+            return Expr("ZMap.get", [spec.elems[0].elems[0], spec.elems[1]], spec.get_type())
+        */
+        if (*expr_op == Expr::GET && *elem0_op == Expr::SET)  {
+            // ZMap.gso
+            auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+
+            new_elems->push_back(std::move(elem0->elems->at(0)));
+            new_elems->push_back(std::move(expr->elems->at(1)));
+
+            return new Expr(Expr::GET, std::move(new_elems), expr->get_type());
         }
     }
     return nullptr;
@@ -702,14 +732,15 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
             auto expr = new Expr(std::move(elem0->op), std::move(new_elems), Int::INT);
             return std::make_pair(expr, true);
         }
-    }
-
-    if (auto op = std::get_if<string>(&spec->op)) {
-        if ((*op == "ZMap.set" || *op == "ZMap.get")) {
+    } else if (auto op = std::get_if<Expr::ops>(&spec->op)) {
+        if ((*op == Expr::SET || *op == Expr::GET)) {
+            auto old_spec = string(*spec);
             auto new_zmap = reconstruct_zmap(proj, spec, state);
 
-            if (new_zmap)
+            if (new_zmap) {
+                delete spec;
                 return std::make_pair(new_zmap, true);
+            }
         }
     }
 

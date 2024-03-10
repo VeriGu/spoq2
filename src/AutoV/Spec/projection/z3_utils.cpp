@@ -284,9 +284,9 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             return _cache(static_pointer_cast<BoolValue>(elems[0])->orb(static_pointer_cast<BoolValue>(elems[1])));
         if (op_eq(expr->op, Expr::binops::IMPLIES))
             return _cache(static_pointer_cast<BoolValue>(elems[0])->implies(static_pointer_cast<BoolValue>(elems[1])));
-        else if (op_eq(expr->op,  "ZMap.get") || op_eq(expr->op, Expr::GET)) {
+        else if (op_eq(expr->op, Expr::GET)) {
             if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
-                if (op_eq(e->op, "ZMap.set") || op_eq(e->op, Expr::SET)) {
+                if (op_eq(e->op, Expr::SET)) {
                     auto z3_res = z3_check(state, z3_eval(proj, e->elems->at(1).get(), state)->get_z3_value() == elems[1]->get_z3_value());
                     if (z3_res == Z3Result::True) {
                         return _cache(z3_eval(proj, e->elems->at(2).get(), state));
@@ -297,15 +297,16 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             }
 
             return _cache(static_pointer_cast<ZMapValue>(elems[0])->get(static_pointer_cast<IntValue>(elems[1])));
-        } else if (op_eq(expr->op, "ZMap.set") || op_eq(expr->op, Expr::SET)) {
+        } else if (op_eq(expr->op, Expr::SET)) {
             if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
-                if (op_eq(e->op, "ZMap.set") || op_eq(e->op, Expr::SET)) {
+                if (op_eq(e->op, Expr::SET)) {
                     auto z3_res = z3_check(state, z3_eval(proj, e->elems->at(1).get(), state)->get_z3_value() == elems[1]->get_z3_value());
                     if (z3_res == Z3Result::True) {
                         elems[0] = z3_eval(proj, e->elems->at(0).get(), state);
                     }
                 }
             }
+
             return _cache(static_pointer_cast<ZMapValue>(elems[0])->set(static_pointer_cast<IntValue>(elems[1]), elems[2]));
         } else if (op_eq(expr->op, Expr::RecordGet)) {
             // expr.elem[0]: record

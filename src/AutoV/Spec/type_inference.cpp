@@ -484,64 +484,6 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                     } else {
                         expr->type = Bool::BOOL;
                     }
-                } else if (op == "ZMap.get") {
-                    if (n == 0) {
-                        expr->elems->at(1)->type = Int::INT;
-                        stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
-                        stack.push_back(std::make_tuple(__LINE__, expr->elems->at(1).get(), 0, known_types));
-                    } else if (n == 1) {
-                        if (expr->type != SpecType::UNKNOWN_TYPE) {
-                            expr->elems->at(0)->type = make_shared<ZMap>(expr->type);
-                        }
-                        stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
-                        stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
-                    } else {
-                        auto elem_type = dynamic_pointer_cast<ZMap>(expr->elems->at(0)->type);
-
-                        expr->type = elem_type->elem_type;
-                    }
-                } else if (op == "ZMap.set") {
-                    if (n == 0) {
-                        expr->elems->at(1)->type = Int::INT;
-                        stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
-                        stack.push_back(std::make_tuple(__LINE__, expr->elems->at(1).get(), 0, known_types));
-                    } else if (n == 1) {
-                        auto zmap_type = dynamic_pointer_cast<ZMap>(expr->type);
-
-                        if (zmap_type) {
-                            expr->elems->at(0)->type = expr->type;
-                        }
-                        stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
-                        stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
-                    } else if (n == 2) {
-                        auto zmap_type = dynamic_pointer_cast<ZMap>(expr->elems->at(0)->type);
-
-                        if (zmap_type) {
-                            expr->elems->at(2)->type = zmap_type->elem_type;
-                        }
-                        stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
-                        stack.push_back(std::make_tuple(__LINE__, expr->elems->at(2).get(), 0, known_types));
-                    } else if (n == 3) {
-                        auto elems0_type = expr->elems->at(0)->type;
-                        auto elems2_type = expr->elems->at(2)->type;
-
-                        stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
-                        if (elems0_type != SpecType::UNKNOWN_TYPE && elems2_type == SpecType::UNKNOWN_TYPE) {
-                            expr->elems->at(2)->type = dynamic_pointer_cast<ZMap>(elems0_type)->elem_type;
-                            stack.push_back(std::make_tuple(__LINE__, expr->elems->at(2).get(), 0, known_types));
-                        }
-                    } else if (n == 4) {
-                        auto elems0_type = expr->elems->at(0)->type;
-                        auto elems2_type = expr->elems->at(2)->type;
-
-                        stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
-                        if (elems2_type != SpecType::UNKNOWN_TYPE && elems0_type == SpecType::UNKNOWN_TYPE) {
-                            expr->elems->at(0)->type = make_shared<ZMap>(elems2_type);
-                            stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
-                        }
-                    } else {
-                        expr->type = expr->elems->at(0)->type;
-                    }
                 } else if (proj.symbols.find(op) != proj.symbols.end() || op.compare(0, 5, "llvm.") == 0) {
                     if (op.compare(0, 5, "llvm.") == 0) {
                         std::replace(op.begin(), op.end(), '.', '_');
