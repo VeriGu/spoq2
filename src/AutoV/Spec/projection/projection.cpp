@@ -12,6 +12,7 @@ static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group1 = {
     rule_eliminate_match_simple,
     rule_subst_match_src_with_content,
     rule_simple_builtin_functions,
+    rule_simple_record_get_set,
     rule_move_rely_out_when,
     rule_move_when_out_when,
     rule_move_if_out_match,
@@ -23,6 +24,8 @@ static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group1 = {
 static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group2 = {
     //rule_eliminiate_indifferent,
     rule_eliminate_let,
+    rule_eliminate_match_simple,
+    rule_simple_record_get_set,
 };
 
 static unordered_map<rule_ret_t(*)(Project *, SpecNode *), string> rule_names = {
@@ -32,6 +35,7 @@ static unordered_map<rule_ret_t(*)(Project *, SpecNode *), string> rule_names = 
     {rule_eliminate_match_simple, "rule_eliminate_match_simple"},
     {rule_subst_match_src_with_content, "rule_subst_match_src_with_content"},
     {rule_simple_builtin_functions, "rule_simple_builtin_functions"},
+    {rule_simple_record_get_set, "rule_simple_record_get_set"},
     {rule_move_rely_out_when, "rule_move_rely_out_when"},
     {rule_move_when_out_when, "rule_move_when_out_when"},
     {rule_move_if_out_match, "rule_move_if_out_match"},
@@ -82,7 +86,7 @@ void spec_transformer(Project *proj, Definition *def) {
                 new_spec = new_spec1;
 
 #if 1
-                // if (__changed)
+                // if (__changed && debug && rule == rule_simple_record_get_set)
                 //     std::cout << "(group1) " << def->name << " new_spec " << rule_names[rule] << ": \n=========================\n"
                 //         << string(*new_spec) << "\n==============================" << std::endl;
 #endif
@@ -132,7 +136,7 @@ void spec_transformer(Project *proj, Definition *def) {
                 new_spec = new_spec1;
 
 #if 1
-                // if (__changed)
+                // if (__changed && debug && rule == rule_simple_record_get_set)
                 //     std::cout << "(group2) " << def->name << " new_spec " << rule_names[rule] << ": \n=========================\n"
                 //         << string(*new_spec) << "\n==============================" << std::endl;
 #endif

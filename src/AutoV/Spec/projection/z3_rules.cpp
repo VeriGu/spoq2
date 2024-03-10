@@ -711,20 +711,6 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
             if (new_zmap)
                 return std::make_pair(new_zmap, true);
         }
-    } else if (auto op = std::get_if<Expr::ops>(&spec->op)) {
-        if (*op == Expr::RecordGet && is_struct_constr(proj, spec->elems->at(0).get())) {
-            auto record_type = static_cast<Struct *>(spec->elems->at(0)->get_type().get());
-            auto field_name = static_cast<Symbol *>(spec->elems->at(1).get())->text;
-
-            for (int i = 0; i < record_type->elems->size(); i++) {
-                if (record_type->elems->at(i)->name == field_name) {
-                    auto record_def = static_cast<Expr *>(spec->elems->at(0).get());
-                    auto new_expr = record_def->elems->at(i)->deep_copy();
-
-                    return std::make_pair(new_expr.release(), true);
-                }
-            }
-        }
     }
 
     return std::make_pair(spec, changed);
