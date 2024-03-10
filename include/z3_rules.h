@@ -61,8 +61,12 @@ enum class Z3Result {
     Unknown
 };
 
-
-Z3Result z3_check(std::shared_ptr<EvalState> state, z3::expr cond=z3ctx.bool_val(true), int timeout=100);
+// timeout 1000: Z3 unknowns: 4384
+// timeout 100: Z3 unknowns: 4385, Z3 accumulative time: 99.2414 (s)
+// timeout 50: Z3 unknowns: 4384, Z3 accumulative time: 58.9793 (s)
+// timeout 25: Z3 unknowns: 4384
+// timeout 13: Z3 unknowns: 4391, Z3 accumulative time: 30.1244 (s)
+Z3Result z3_check(std::shared_ptr<EvalState> state, z3::expr cond=z3ctx.bool_val(true), int timeout=50);
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state);
 rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState> state);
 

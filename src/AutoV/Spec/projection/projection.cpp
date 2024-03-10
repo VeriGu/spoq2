@@ -12,6 +12,7 @@ static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group1 = {
     rule_eliminate_match_simple,
     rule_subst_match_src_with_content,
     rule_simple_builtin_functions,
+    rule_simple_record_get_set,
     rule_move_rely_out_when,
     rule_move_when_out_when,
     rule_move_if_out_match,
@@ -23,6 +24,8 @@ static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group1 = {
 static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group2 = {
     //rule_eliminiate_indifferent,
     rule_eliminate_let,
+    rule_eliminate_match_simple,
+    rule_simple_record_get_set,
 };
 
 static unordered_map<rule_ret_t(*)(Project *, SpecNode *), string> rule_names = {
@@ -32,6 +35,7 @@ static unordered_map<rule_ret_t(*)(Project *, SpecNode *), string> rule_names = 
     {rule_eliminate_match_simple, "rule_eliminate_match_simple"},
     {rule_subst_match_src_with_content, "rule_subst_match_src_with_content"},
     {rule_simple_builtin_functions, "rule_simple_builtin_functions"},
+    {rule_simple_record_get_set, "rule_simple_record_get_set"},
     {rule_move_rely_out_when, "rule_move_rely_out_when"},
     {rule_move_when_out_when, "rule_move_when_out_when"},
     {rule_move_if_out_match, "rule_move_if_out_match"},
@@ -42,7 +46,7 @@ static unordered_map<rule_ret_t(*)(Project *, SpecNode *), string> rule_names = 
 
 void spec_transformer(Project *proj, Definition *def) {
     LOG_INFO << "Transforming " << def->name;
-    bool debug = def->name == "rec_is_simd_allowed_spec";
+    bool debug = def->name == "granule_lock_on_state_match_spec";
     auto known = std::set<string>();
     auto fname = def->name;
 
@@ -58,19 +62,20 @@ void spec_transformer(Project *proj, Definition *def) {
 
         auto changed = false;
         auto new_spec1 = new_spec;
+
+        // Group 1
         while (true) {
             auto this_changed = false;
             new_spec1 = new_spec;
 
-            auto [__spec, __changed] = rule_eliminiate_indifferent(proj, new_spec1, def->name);
-            new_spec1 = __spec;
-            this_changed |= __changed;
-            changed |= __changed;
-
             for (auto rule : rules_group1) {
                 if (rule == rule_eliminate_let) {
                     auto prev_symbols = std::set<string>(known);
-                    new_spec1 = eliminiate_ambiguity(proj, new_spec1, prev_symbols);
+                    auto __changed = false;
+
+                    new_spec1 = eliminiate_ambiguity(proj, new_spec1, prev_symbols, __changed);
+                    this_changed |= __changed;
+                    changed |= __changed;
                 }
 
                 auto [__spec, __changed] = rule(proj, new_spec1);
@@ -81,10 +86,9 @@ void spec_transformer(Project *proj, Definition *def) {
                 new_spec = new_spec1;
 
 #if 1
-                if (__changed) {
-                    std::cout << "(group1) " << def->name << " new_spec " << rule_names[rule] << ": \n=========================\n"
-                        << string(*new_spec) << "\n==============================" << std::endl;
-                }
+                // if (__changed && debug && rule == rule_simple_record_get_set)
+                //     std::cout << "(group1) " << def->name << " new_spec " << rule_names[rule] << ": \n=========================\n"
+                //         << string(*new_spec) << "\n==============================" << std::endl;
 #endif
             }
 
@@ -92,15 +96,21 @@ void spec_transformer(Project *proj, Definition *def) {
                 break;
         }
 
+        // Unfold
         do {
             auto [__spec, __unfolded] = rule_unfold_specs(proj, new_spec1);
             new_spec = __spec;
+            changed |= __unfolded;
 
             if (__unfolded) {
                 auto prev_symbols = std::set<string>(known);
-                new_spec = eliminiate_ambiguity(proj, new_spec, prev_symbols);
-                std::cout << "(unfold) " << def->name << " new_spec: \n=========================\n"
-                    << string(*new_spec) << "\n==============================" << std::endl;
+                bool __changed = false;
+
+                new_spec = eliminiate_ambiguity(proj, new_spec, prev_symbols, __changed);
+                changed |= __changed;
+                // if (__changed)
+                //     std::cout << "(unfold) " << def->name << " new_spec: \n=========================\n"
+                //         << string(*new_spec) << "\n==============================" << std::endl;
             }
         } while (false);
 
@@ -108,21 +118,14 @@ void spec_transformer(Project *proj, Definition *def) {
             auto this_changed = false;
             new_spec1 = new_spec;
 
-            do {
-                auto [__spec, __changed] = rule_eliminiate_indifferent(proj, new_spec1, def->name);
-                new_spec1 = __spec;
-                this_changed |= __changed;
-                changed |= __changed;
-
-                if (__changed)
-                    std::cout << "(indifferent) " << def->name << " new_spec: \n=========================\n"
-                        << string(*new_spec1) << "\n==============================" << std::endl;
-            } while (false);
-
             for (auto rule : rules_group2) {
                 if (rule == rule_eliminate_let) {
                     auto prev_symbols = std::set<string>(known);
-                    new_spec1 = eliminiate_ambiguity(proj, new_spec1, prev_symbols);
+                    auto __changed = false;
+
+                    new_spec1 = eliminiate_ambiguity(proj, new_spec1, prev_symbols, __changed);
+                    this_changed |= __changed;
+                    changed |= __changed;
                 }
 
                 auto [__spec, __changed] = rule(proj, new_spec1);
@@ -133,10 +136,9 @@ void spec_transformer(Project *proj, Definition *def) {
                 new_spec = new_spec1;
 
 #if 1
-                if (__changed) {
-                    std::cout << "(group2) " << def->name << " new_spec " << rule_names[rule] << ": \n=========================\n"
-                        << string(*new_spec) << "\n==============================" << std::endl;
-                }
+                // if (__changed && debug && rule == rule_simple_record_get_set)
+                //     std::cout << "(group2) " << def->name << " new_spec " << rule_names[rule] << ": \n=========================\n"
+                //         << string(*new_spec) << "\n==============================" << std::endl;
 #endif
             }
 
@@ -147,31 +149,70 @@ void spec_transformer(Project *proj, Definition *def) {
 
             new_spec = new_spec1;
 
+            // if (__changed)
+            //     std::cout << "(simplify_expr) " << def->name << " new_spec "<< ": \n=========================\n"
+            //                 << string(*new_spec) << "\n==============================" << std::endl;
+
             if (!this_changed)
                 break;
         }
 
-        auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
-        auto conds = std::make_shared<vector<z3::expr>>();
-        for (auto arg : *def->args) {
-            (*vars)[arg->name] = arg->type->declare(arg->name, 0);
-            std::cout << "arg: " << arg->name << " " << arg->type->operator string() << std::endl;
+        // lens
+        while (true) {
+            auto this_changed = false;
+            new_spec1 = new_spec;
+
+            do {
+                auto before = string(*new_spec1);
+                auto [__spec, __changed] = rule_eliminiate_indifferent(proj, new_spec1, def->name);
+                new_spec1 = __spec;
+                this_changed |= __changed;
+                changed |= __changed;
+
+                if (__changed) {
+                    std::cout << "(indifferent) before: " << def->name << " new_spec: \n=========================\n"
+                        << before << "\n==============================" << std::endl;
+                    std::cout << "(indifferent) " << def->name << " new_spec: \n=========================\n"
+                        << string(*new_spec1) << "\n==============================" << std::endl;
+                }
+            } while (false);
+
+            do {
+                auto before = string(*new_spec1);
+                auto [__spec, __changed] = rule_simplify_lens(proj, new_spec1);
+                new_spec1 = __spec;
+                this_changed |= __changed;
+                changed |= __changed;
+
+                if (__changed) {
+                    std::cout << "(simple indifferent) before: " << def->name << " new_spec: \n=========================\n"
+                        << before << "\n==============================" << std::endl;
+                    std::cout << "(simple indifferent) " << def->name << " new_spec: \n=========================\n"
+                        << string(*new_spec1) << "\n==============================" << std::endl;
+                }
+            } while (false);
+
+            new_spec = new_spec1;
+            if (!this_changed)
+                break;
         }
 
-        if (debug)
-            std::cout << "debug" << std::endl;
+        // Z3
+        auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+        auto conds = std::make_shared<vector<z3::expr>>();
+        for (auto arg : *def->args)
+            (*vars)[arg->name] = arg->type->declare(arg->name, 0);
 
-        std::cout << "Before Z3 " << def->name << ": \n=========================\n"
-            << string(*new_spec) << "\n==============================" << std::endl;
+        // std::cout << "Before Z3 " << def->name << ": \n=========================\n"
+        //     << string(*new_spec) << "\n==============================" << std::endl;
         auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec1, make_shared<EvalState>(vars, conds));
-        //this_changed |= __changed;
         changed |= __changed;
 
         new_spec = __spec;
 
-        if (__changed)
-            std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
-                << string(*new_spec) << "\n==============================\n";
+        // if (__changed)
+        //     std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
+        //         << string(*new_spec) << "\n==============================\n";
 
 
         def->body.reset(new_spec);

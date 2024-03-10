@@ -74,5 +74,18 @@
     "cmake.configureSettings": {
         "CMAKE_BUILD_TYPE": "Debug",
     },
-    "cmake.generator": "Unix Makefiles"
+    "cmake.generator": "Unix Makefiles",
+    "C_Cpp.files.exclude": {
+        "**/.vscode": true,
+        "**/.vs": true,
+        "**/iasm_test": true,
+        "**/testcase": true,
+        "**/SpoqRules": true,
+        "**/build": true,
+        "**/dist": true,
+        "**/AsmGen": true,
+        "**/low_test": true,
+        "**/Spec/Parser/antlr4": true,
+        "**/Spec/Parser/.antlr": true,
+    }
 }

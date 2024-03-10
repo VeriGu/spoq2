@@ -672,6 +672,10 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx) {
                 return (SpecNode *)(new Expr(Expr::None, std::move(elems)));
             else if (((Symbol *)op.get())->text == "Some")
                 return (SpecNode *)(new Expr(Expr::Some, std::move(elems)));
+            else if (((Symbol *)op.get())->text == "ZMap.get")
+                return (SpecNode *)(new Expr(Expr::GET, std::move(elems)));
+            else if (((Symbol *)op.get())->text == "ZMap.set")
+                return (SpecNode *)(new Expr(Expr::SET, std::move(elems)));
             else
                 return (SpecNode *)(new Expr(string(((Symbol *)op.get())->text), std::move(elems)));
         } else {

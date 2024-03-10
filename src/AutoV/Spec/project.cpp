@@ -5,6 +5,7 @@
 #include <regex>
 #include <rules.h>
 #include <projection.h>
+#include <chrono>
 
 namespace autov {
 
@@ -456,6 +457,12 @@ void Project::finalize_project()
 #endif
         }
     }
+
+    extern unsigned long z3_unknowns;
+    extern std::chrono::duration<double> z3_accumulative_time;
+
+    LOG_DEBUG << "Z3 unknowns: " << z3_unknowns;
+    LOG_DEBUG << "Z3 accumulative time: " << z3_accumulative_time.count() << " (s)";
 
 }
 
