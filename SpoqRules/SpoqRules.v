@@ -204,26 +204,120 @@ Section move_when_out_when.
 End move_when_out_when.
 
 
-(* Inductive Const := *)
-(* | Int : Z -> Const *)
-(* | Bool : bool -> Const *)
-(* | String : string -> Const. *)
+(* T6 *)
+Section substitution_lemma.
+  Variable T: Type.
+  Variable T1: Type.
+  Variable f: T -> T1.
+
+                       
+  Theorem rule_6_correct :
+    forall (V: T) (P1 : T) (f : T -> T1),
+       V = P1 -> f V = f P1.
+  Proof.
+    intros. f_equal. auto.
+  Qed.
+
+End substitution_lemma.
+
+
+(*
+when X == (if c then (Some Y) else (Some Z)); body
+=> if c then (match Y with X => body) else (match Z with X => body)
+ *)
+Section eliminate_when.
+  Variable T: Type.
+  Variable T1: Type.
+  Theorem eliminate_when_correct:
+    forall (c: bool) (Y: T) (Z: T) (body: T -> option T1),
+      (match (if c then (Some Y) else (Some Z)) with
+       | Some x => body x   
+       | None => None           
+       end)
+      = if c then (match Y with x => body x end) else (match Z with x => body x end).
+  Proof.
+    intros. destruct c. reflexivity. reflexivity.
+  Qed.
+End eliminate_when.
+
+
+
+
+
+
+(* Definition not (c : bool) := *)
+(*   match c with *)
+(*   | true => false *)
+(*   | false => true *)
+(*   end. *)
+
+(* Definition not_test (c: bool) (X: bool) := *)
+(*   match Some (true)  with *)
+(*   | Some x => match x with *)
+(*                | true => if c then X else X *)
+(*                | false => if not c then X else X *)
+(*                end *)
+                 
+(*   | None => true *)
+(*   end. *)
+
+(* Print not_test. *)
+
+(* Definition not_simplified :  bool -> bool -> bool.  *)
+(*   let y := eval cbv delta iota in not_test in *)
+(*   idtac y; exact y. *)
+(* Defined. *)
+
+
+(* Definition not_simplified_2 := *)
+(*   Eval cbv delta iota in not_test. *)
+
+(* Print not_simplified_2. *)
+
+(* Theorem t : *)
+(*   not_test = not_simplified. *)
+(* Proof. *)
+(*   unfold not_test. unfold not_simplified. *)
+(*   reflexivity. *)
+(* Qed. *)
+
+
+(* Print not_simplified. *)
+
+
+
+
+(* Ltac match_subst e := *)
+(*   match e with *)
+(*   | [ match ?X with *)
+(*         | Some x => ?B *)
+(*         | None  => ?C *)
+(*         end ] => simpl *)
+(*   end. *)
+    
+
+(* Inductive type : Type := *)
+(* | Z_t : type *)
+(* | BOOL_t : type *)
+(* | STRING_t : type *)
+(* | LIST_t : type -> type *)
+(* | RECORD_t : list (string * type) -> type. *)
+
 
 (* Inductive biop := *)
 (* | ADD. *)
 
-
 (* Inductive uop := *)
 (*  | Not. *)
 
-(* Inductive SpecNode := *)
-(* | nil : SpecNode *)
-(* | const : Const -> SpecNode *)
-(* | record : (string -> SpecNode) -> SpecNode *)
+(* Inductive SpecNode : type -> Type := *)
+(* | z_const : Z -> SpecNode Z_t *)
+(* | b_const : bool -> SpecNode BOOL_t *)
+(* | s_const : string -> SpecNode STRING_t *)
+(* | record : list (string * SpecNode t) -> SpecNode (RECORD_t) *)
 (* | biopexpr : biop -> SpecNode -> SpecNode -> SpecNode *)
 (* | uopexpr : uop -> SpecNode -> SpecNode *)
 (* | func : string -> (string -> SpecNode). *)
-
 
 (* Inductive SpecValue := *)
 (* | constV : Const -> SpecValue *)
@@ -237,13 +331,9 @@ End move_when_out_when.
 (*     dynamic_eval (biopexpr ADD e1 e2) (constV (Int (z1 + z2))). *)
 
 
-  
-
-
-
 (* eliminate match is not expressable *)
 
-(* Test refinement *)
+
 (* Record RData := mkRData { *)
 (*                     a : Z; *)
 (*                     b : Z *)
@@ -292,7 +382,7 @@ End move_when_out_when.
 (* Qed. *)
 
 
-(* Copied from metacoq tutorial *)
+(* (* Copied from metacoq tutorial *) *)
 
 (* From MetaCoq.Template Require Export All Checker Reduction. *)
 
@@ -356,10 +446,10 @@ End move_when_out_when.
 
 (* Parameter X : Type. *)
 (* Parameter x : bool. *)
-(* Parameter y : list nat. *)
+(* Parameter y : list Z. *)
 (* Parameter f : nat -> nat. *)
 (* Check ($quote (if x then X else X)). *)
-(* Check ($quote (match y with *)
+(* Check ($quote (match (1 :: y) with *)
 (*                | a :: b :: [] => hd (a :: b :: []) *)
 (*                | [] => hd y *)
 (*                | c :: xs => hd y *)
