@@ -260,6 +260,75 @@ Require Import Coq.ZArith.Znumtheory.
 
   
 Section arithmatic_simplify.
+  Theorem eq_move_left :
+    forall a b: Z,
+      a = b -> a - b = 0.
+  Proof.
+     intros.
+     rewrite <- Z.sub_cancel_r with (p:=b) in H.
+     rewrite Z.sub_diag in H.
+     auto.
+  Qed.
+
+  Theorem eqb_move_left :
+    forall a b : Z,
+      a =? b = true -> a - b =? 0 = true.
+  Proof.
+    intros.
+    rewrite Z.eqb_eq in H |- *.
+    apply eq_move_left.
+    auto.
+  Qed.
+
+  Theorem neq_move_left :
+    forall a b: Z,
+      a <> b -> a - b <> 0.
+  Proof.
+    unfold not.
+    intros.
+    rewrite <- Z.sub_cancel_r with (p:=b) in H.
+    rewrite Z.sub_diag in H.
+    apply H.
+    auto.
+  Qed.
+
+  Theorem neqb_move_left :
+    forall a b: Z,
+      a <>? b = true -> a - b <>? 0 = true.
+  Proof.
+    intros.
+    unfold negb in *.
+    destruct (a =? b) eqn:Heq. inversion H.
+    rewrite Z.eqb_neq in Heq.
+    destruct (a - b =? 0) eqn:Heq2.
+    rewrite <- Z.sub_cancel_r with (p:=b) in Heq.
+    rewrite Z.sub_diag in Heq.
+    rewrite Z.eqb_eq in Heq2.
+    contradiction. auto.
+  Qed.
+
+  Theorem lt_move_left :
+    forall a b : Z,
+      a < b -> a - b < 0.
+  Proof.
+    intros.
+    rewrite Z.sub_lt_mono_r with (p:=b) in H.
+    rewrite Z.sub_diag in H.
+    auto.
+  Qed.
+
+
+  Theorem ltb_move_left :
+    forall a b : Z,
+      a <? b = true -> a - b <? 0 = true.
+  Proof.
+    intros.
+    apply Zlt_is_lt_bool in H.
+    apply Zlt_is_lt_bool.
+    apply lt_move_left. auto.
+  Qed.
+
+  
   Theorem lte_move_left :
     forall a b: Z, 
       a <= b -> a - b <= 0.
@@ -284,7 +353,38 @@ Section arithmatic_simplify.
     auto.    
   Qed.
 
-   Theorem ge_move_left :
+
+  Theorem gt_move_left :
+    forall a b : Z,
+      a > b -> a - b > 0.
+  Proof.
+    intros.
+    
+    apply Z.lt_gt.
+
+    rewrite Z.gt_lt_iff in H.
+    
+    rewrite Z.sub_lt_mono_r with (p:=b) in H.
+    rewrite Z.sub_diag in H.
+    auto.
+  Qed.
+
+
+  Theorem gtb_move_left :
+    forall a b : Z,
+      a >? b = true -> a - b >? 0 = true.
+  Proof.
+    intros.
+    rewrite Z.gtb_ltb in H |- *.
+    apply Zlt_is_lt_bool in H.
+    apply Zlt_is_lt_bool.
+    rewrite Z.sub_lt_mono_r with (p:=b) in H.
+    rewrite Z.sub_diag in H.
+    auto.    
+  Qed.
+
+
+  Theorem ge_move_left :
     forall a b: Z, 
       a >= b -> a - b >= 0.
   Proof.
@@ -310,10 +410,7 @@ Section arithmatic_simplify.
     apply Zle_imp_le_bool.
     auto.       
   Qed.
-
-  
-
-  
+ 
   Theorem add_divide_constant_factor :
     forall a b c : Z,
      0 < c -> (c | a) -> (c | b) -> a + b = c * (a / c + b / c).
@@ -328,31 +425,53 @@ Section arithmatic_simplify.
     exact H.
     exact H0.
   Qed.
+
+  Theorem minus_divide_constant_factor :
+     forall a b c : Z,
+     0 < c -> (c | a) -> (c | b) -> a - b = c * (a / c - b / c).
+  Proof.
+    intros.
+    rewrite Z.mul_sub_distr_l.
+    rewrite <- Zdivide_Zdiv_eq with (a := c) (b := a).
+    rewrite <- Zdivide_Zdiv_eq with (a := c) (b := b).
+    reflexivity.
+    exact H.
+    exact H1.
+    exact H.
+    exact H0.
+  Qed.
+
 End arithmatic_simplify.
 
-(* Definition not (c : bool) := *)
-(*   match c with *)
-(*   | true => false *)
-(*   | false => true *)
-(*   end. *)
 
-(* Definition not_test (c: bool) (X: bool) := *)
-(*   match Some (true)  with *)
-(*   | Some x => match x with *)
-(*                | true => if c then X else X *)
-(*                | false => if not c then X else X *)
-(*                end *)
+Tactic Notation "eliminate_match" constr(e):=
+  let y := eval cbv iota delta [e] in e in
+        idtac y; exact y.
+                                    
+  
+Definition not (c : bool) :=
+  match c with
+  | true => false
+  | false => true
+  end.
+
+Definition not_test (c: bool) (X: bool) :=
+  match Some (true)  with
+  | Some x => match x with
+               | true => if c then X else X
+               | false => if not c then X else X
+               end
                  
-(*   | None => true *)
-(*   end. *)
+  | None => true
+  end.
 
-(* Print not_test. *)
+Print not_test.
 
-(* Definition not_simplified :  bool -> bool -> bool.  *)
-(*   let y := eval cbv delta iota in not_test in *)
-(*   idtac y; exact y. *)
-(* Defined. *)
+Definition not_simplified :  bool -> bool -> bool.
+  eliminate_match not_test.
+Defined.
 
+Print not_simplified.
 
 (* Definition not_simplified_2 := *)
 (*   Eval cbv delta iota in not_test. *)
