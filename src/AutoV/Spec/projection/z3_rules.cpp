@@ -223,14 +223,12 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
             return std::make_pair(then_ret.first, true);
         }
         return std::make_pair(new If(unique_ptr<SpecNode>(cond_ret.first), unique_ptr<SpecNode>(then_ret.first), unique_ptr<SpecNode>(else_ret.first)), changed);
-    }
-    else if (res == Z3Result::True) {
+    } else if (res == Z3Result::True) {
         auto ret = rule_simple_by_z3(proj, spec->then_body.release(), state);
         delete cond_ret.first;
         delete spec;
         return std::make_pair(ret.first, true);
-    }
-    else {
+    } else {
         auto ret = rule_simple_by_z3(proj, spec->else_body.release(), state);
         delete cond_ret.first;
         delete spec;
@@ -649,10 +647,6 @@ SpecNode* reconstruct_zmap(Project* proj, SpecNode* spec, shared_ptr<EvalState> 
             }
         }
     } else if (z3_res == Z3Result::False) {
-        /*
-        if spec.op == "ZMap.get" and isinstance(spec.elems[0], Expr) and spec.elems[0].op == "ZMap.set": # ZMap.gso
-            return Expr("ZMap.get", [spec.elems[0].elems[0], spec.elems[1]], spec.get_type())
-        */
         if (*expr_op == Expr::GET && *elem0_op == Expr::SET)  {
             // ZMap.gso
             auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
@@ -699,6 +693,7 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
 
     auto elem0 = instance_of(spec->elems->at(0).get(), Expr);
 
+    // div (+ a b) c ==> (div a c) + (div b c)
     if (std::holds_alternative<Expr::binops>(spec->op) && std::get<Expr::binops>(spec->op) == Expr::DIV &&
         std::holds_alternative<Expr::binops>(elem0->op) && std::get<Expr::binops>(elem0->op) == Expr::ADD) {
         auto ea = elem0->elems->at(0)->deep_copy();
@@ -729,7 +724,6 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
         }
     } else if (auto op = std::get_if<Expr::ops>(&spec->op)) {
         if ((*op == Expr::SET || *op == Expr::GET)) {
-            auto old_spec = string(*spec);
             auto new_zmap = reconstruct_zmap(proj, spec, state);
 
             if (new_zmap) {
