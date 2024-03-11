@@ -225,10 +225,10 @@ End substitution_lemma.
 when X == (if c then (Some Y) else (Some Z)); body
 => if c then (match Y with X => body) else (match Z with X => body)
  *)
-Section eliminate_when.
+Section move_if_out_of_when.
   Variable T: Type.
   Variable T1: Type.
-  Theorem eliminate_when_correct:
+  Theorem move_if_out_of_when_correct:
     forall (c: bool) (Y: T) (Z: T) (body: T -> option T1),
       (match (if c then (Some Y) else (Some Z)) with
        | Some x => body x   
@@ -238,12 +238,97 @@ Section eliminate_when.
   Proof.
     intros. destruct c. reflexivity. reflexivity.
   Qed.
+End move_if_out_of_when.
+
+
+Section eliminate_when.
+  Variable T: Type.
+  Variable T1: Type.
+  Theorem eliminate_when_correct :
+    forall (Y:T) (body: T -> option T1),
+               match (Some Y) with
+               | Some x => body x
+               | None => None
+               end = body Y.
+  Proof.
+    intros. simpl. reflexivity.
+  Qed.
 End eliminate_when.
 
+Require Import Coq.ZArith.Znumtheory.
 
 
+  
+Section arithmatic_simplify.
+  Theorem lte_move_left :
+    forall a b: Z, 
+      a <= b -> a - b <= 0.
+  Proof.
+    intros.
+    rewrite Z.sub_le_mono_r with (p:=b) in H.
+    rewrite Z.sub_diag in H.
+    intuition.
+  Qed.
 
+  Theorem leb_move_left :
+    forall a b: Z,
+      a <=? b = true -> a - b <=? 0 = true.
+  Proof.
+    intros.
+ 
+    apply Zle_bool_imp_le in H.
+    rewrite Z.sub_le_mono_r with (p:=b) in H.
+    rewrite Z.sub_diag in H.
 
+    apply Zle_imp_le_bool.
+    auto.    
+  Qed.
+
+   Theorem ge_move_left :
+    forall a b: Z, 
+      a >= b -> a - b >= 0.
+  Proof.
+    intros.
+    apply Z.ge_le in H.
+    apply Z.le_ge.
+    rewrite Z.sub_le_mono_r with (p:=b) in H.
+    rewrite Z.sub_diag in H.
+    auto.    
+  Qed.
+
+  Theorem geb_move_left :
+    forall a b: Z, 
+      a >=? b = true -> a - b >=? 0 = true.
+  Proof.
+    intros a b.
+    rewrite Z.geb_leb.
+    rewrite Z.geb_leb.
+    intros.
+    apply Zle_bool_imp_le in H.
+    rewrite Z.sub_le_mono_r with (p:=b) in H.
+    rewrite Z.sub_diag in H.
+    apply Zle_imp_le_bool.
+    auto.       
+  Qed.
+
+  
+
+  
+  Theorem add_divide_constant_factor :
+    forall a b c : Z,
+     0 < c -> (c | a) -> (c | b) -> a + b = c * (a / c + b / c).
+  Proof.
+    intros.
+    rewrite Z.mul_add_distr_l.
+    rewrite <- Zdivide_Zdiv_eq with (a := c) (b := a).
+    rewrite <- Zdivide_Zdiv_eq with (a := c) (b := b).
+    reflexivity.
+    exact H.
+    exact H1.
+    exact H.
+    exact H0.
+  Qed.
+End arithmatic_simplify.
 
 (* Definition not (c : bool) := *)
 (*   match c with *)
