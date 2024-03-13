@@ -473,6 +473,134 @@ Defined.
 
 Print not_simplified.
 
+Set Primitive Projections.
+
+Record record := mka {a : Z; b : Z}.
+Print a.
+Definition gss (p: record) :=
+  {|a := a p; b := b p|}.
+
+
+Definition gs_test (p: record) v1 := {|a := v1; b := b p|}.(a).
+
+Definition gs_test_simplify : record -> Z -> Z.
+  let y := eval cbv iota beta delta [gs_test a b] in gs_test in idtac y; exact y.
+Defined.
+
+Print gs_test_simplify.
+
+
+Definition gs_test_2 (p: record) v1 := {|a := v1; b := b p|}.(b).
+
+Definition gs_test_simplify2 : record -> Z -> Z.
+  let y := eval cbv iota beta delta [gs_test_2 a b] in gs_test_2 in idtac y; exact y.
+Defined.
+
+Print gs_test_simplify2.
+
+(* Ltac record_conversion e := *)
+(*   match e with *)
+(*   | context G [ {| a := a (?X); b := b (?X)|} ]  => let y := context G [X] in change e with y *)
+(*   | context G [ {| a := ?X; b := _  |}.(a) ] => let y := context G [X] in change e with y *)
+(*   | context G [ {| a := _ ; b := ?X |}.(b) ] =>  let y := context G [X] in change e with y *)
+(*   end. *)
+                                                          
+
+
+(* Lemma record_sgs : *)
+(*   forall (p: record) v1, *)
+(*     {|a := v1; b := b p|}.(a) = v1. *)
+(* Proof. *)
+(*   intros. cbv. simpl. reflexivity. *)
+(* Qed. *)
+
+
+(* Lemma record_sgd : *)
+(*   forall (p: record) v1, *)
+(*     {|a := v1; b := b p|}.(b) = p.(b). *)
+(* Proof. *)
+(*   intros. cbv. simpl. reflexivity. *)
+(* Qed. *)
+
+
+(* Lemma record_sgd : *)
+(*   forall (p: record) v1, *)
+(*     {|a := v1; b := b p|}.(b) = p.(b). *)
+(* Proof. *)
+(*   intros. cbv. simpl. reflexivity. *)
+(* Qed. *)
+
+
+
+
+
+
+(* Tactic Notation "record_gss" constr(e) "[" ne_smart_global_list(l) "]":= *)
+(*   let y := eval cbv beta iota delta [ ltac:(l) ] in e in *)
+(*     idtac y; pose y. *)
+
+
+(* Definition p2 (p: record) : record. *)
+(*   record_gss ({|a := a p; b := b p|}) [a b]. *)
+(* Defined. *)
+
+      
+
+(* Section hlist. *)
+(*   Variable A : Type. *)
+(*   Variable B : A -> Type. *)
+
+(*   Inductive hlist : list A -> Type := *)
+(*   | HNil : hlist nil *)
+(*   | HCons : forall (x : A) (ls : list A), B x -> hlist ls -> hlist (x :: ls). *)
+    
+(* End hlist. *)
+
+(*  Arguments HNil {A B}. *)
+(*  Arguments HCons [A B x ls] _ _. *)
+(*  Infix ":::" := HCons (right associativity, at level 60). *)
+
+(*  Section record. *)
+
+(*   (* record is a partial map of (string * Type) *) *)
+(*   Definition constructor : Type := string -> Type. *)
+                                
+
+(*   (* Definition recordType := list constructor. *) *)
+(*   Inductive Empty : Type := . *)
+  
+(*   Definition emptyrecord : constructor := (fun x => Empty). *)
+  
+(*   Definition unit_record : constructor := (fun x => *)
+(*                                            if String.eqb x "a" then unit *)
+(*                                            else emptyrecord x). *)
+  
+(*   (* Definition two_elem_record : recordType := (Con "a" Z) :: (Con "b" Z) :: nil. *) *)
+  
+
+(*   Section denote. *)
+(*     Definition constructorDenote (c : constructor) := *)
+(*       retType c. *)
+    
+(*     Definition recordBuild := hlist constructor constructorDenote.   *)
+(*   End denote. *)
+
+(*   Notation "[ x ]" := (x : constructorDenote (Con _ _)). *)
+
+(*   Definition empty_record_v : recordBuild unit_record := *)
+(*     [ tt ] ::: HNil. *)
+
+
+(*   Definition two_element_record_v : recordBuild two_elem_record := *)
+(*     [ 1 ] ::: [ 2 ] :::  HNil. *)
+
+
+(*   Definition proj (s : string) := *)
+    
+(* End record. *)
+
+
+
 (* Definition not_simplified_2 := *)
 (*   Eval cbv delta iota in not_test. *)
 
@@ -487,8 +615,6 @@ Print not_simplified.
 
 
 (* Print not_simplified. *)
-
-
 
 
 (* Ltac match_subst e := *)
@@ -586,7 +712,7 @@ Print not_simplified.
 (* Qed. *)
 
 
-(* (* Copied from metacoq tutorial *) *)
+(* Copied from metacoq tutorial *)
 
 (* From MetaCoq.Template Require Export All Checker Reduction. *)
 
@@ -646,6 +772,7 @@ Print not_simplified.
 
 
 (* Check ($quote (3 + 2)). *)
+(* Check ($quote {| a := 3 ; b := 4 |}). *)
 
 
 (* Parameter X : Type. *)
