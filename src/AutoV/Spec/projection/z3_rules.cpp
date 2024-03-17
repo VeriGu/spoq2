@@ -801,6 +801,7 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
 
 rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState> state)
 {
+    state = state->copy();
     if (is_instance(spec, Symbol)) {
         return std::make_pair(spec, false);
     }
