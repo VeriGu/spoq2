@@ -44,6 +44,8 @@ static unordered_map<rule_ret_t(*)(Project *, SpecNode *), string> rule_names = 
     {rule_unfold_specs, "rule_unfold_specs"},
 };
 
+extern unordered_map<size_t, Z3Result> Z3Cache;
+
 void spec_transformer(Project *proj, Definition *def) {
     LOG_INFO << "Transforming " << def->name;
     bool debug = def->name == "granule_lock_on_state_match_spec";
@@ -206,6 +208,7 @@ void spec_transformer(Project *proj, Definition *def) {
         // std::cout << "Before Z3 " << def->name << ": \n=========================\n"
         //     << string(*new_spec) << "\n==============================" << std::endl;
         auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec1, make_shared<EvalState>(vars, conds));
+        Z3Cache.clear();
         changed |= __changed;
 
         new_spec = __spec;
