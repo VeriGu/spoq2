@@ -765,11 +765,14 @@ rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec) {
     return std::make_pair(rec_apply(spec, f), changed);
 }
 
+/*
+match (if c then A else B) with { ... } -> if c then (match A with { ... }) else (match B with { ... })
+*/
 rule_ret_t rule_move_if_out_match(Project *proj, SpecNode *spec) {
     bool changed = false;
 
     std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
-        if (auto m = instance_of(node, Match))
+        if (auto m = instance_of(node, Match)) {
             if (auto src = instance_of(m->src.get(), If)) {
                 unique_ptr<Match> m1(static_cast<Match*>(m->deep_copy().release()));
                 auto new_if = new If(std::move(src->cond),
@@ -780,6 +783,7 @@ rule_ret_t rule_move_if_out_match(Project *proj, SpecNode *spec) {
                 changed = true;
                 return new_if;
             }
+        }
 
         return node;
     };
@@ -1134,23 +1138,6 @@ static bool try_match(Project *proj, SpecNode *pattern, SpecNode *src,
     return def;
 }
 
-/*
-  match (None) with
-  | (Some slot) =>
-    let v_call := ((((-131072 + ((v_g.(poffset)))) - (((SLOT_VIRT + ((slot * (GRANULE_SIZE)))) + (((mkPtr "granules" 0).(poffset)))))) >> (4)) * (GRANULE_SIZE)) in
-    let st_1 := st in
-    when v_call1, st_3 == ((buffer_map_internal_spec v_slot v_call st_1));
-    (Some (v_call1, st_1))
-==========================================================
-  match (None) with
-  | (Some slot) =>
-    let v_call := ((((-131072 + ((v_g.(poffset)))) - (((SLOT_VIRT + ((slot * (GRANULE_SIZE)))) + (((mkPtr "granules" 0).(poffset)))))) >> (4)) * (GRANULE_SIZE)) in
-    let st_1 := st in
-    match ((buffer_map_internal_spec v_slot v_call st_1)) with
-    | (Some (v_call1, st_3)) => (Some (v_call1, st_1))
-    | None => (Some slot)
-    end
-*/
 rule_ret_t rule_eliminate_match_simple(Project *proj, SpecNode *spec) {
     bool changed = false;
 

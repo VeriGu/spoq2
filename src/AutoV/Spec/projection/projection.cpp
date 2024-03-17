@@ -25,6 +25,7 @@ static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group2 = {
     //rule_eliminiate_indifferent,
     rule_eliminate_let,
     rule_eliminate_match_simple,
+    rule_move_if_out_expr,
     rule_simple_record_get_set,
 };
 
