@@ -49,7 +49,7 @@ extern unordered_map<size_t, Z3Result> Z3Cache;
 
 void spec_transformer(Project *proj, Definition *def) {
     LOG_INFO << "Transforming " << def->name;
-    bool debug = def->name == "granule_lock_on_state_match_spec";
+    bool debug = def->name == "inject_sync_idabort_rec_spec";
     auto known = std::set<string>();
     auto fname = def->name;
 
@@ -89,9 +89,9 @@ void spec_transformer(Project *proj, Definition *def) {
                 new_spec = new_spec1;
 
 #if 1
-                // if (__changed && debug && rule == rule_simple_record_get_set)
-                //     std::cout << "(group1) " << def->name << " new_spec " << rule_names[rule] << ": \n=========================\n"
-                //         << string(*new_spec) << "\n==============================" << std::endl;
+                if (__changed && debug)
+                    std::cout << "(group1) " << def->name << " new_spec " << rule_names[rule] << ": \n=========================\n"
+                        << string(*new_spec) << "\n==============================" << std::endl;
 #endif
             }
 
@@ -111,9 +111,9 @@ void spec_transformer(Project *proj, Definition *def) {
 
                 new_spec = eliminiate_ambiguity(proj, new_spec, prev_symbols, __changed);
                 changed |= __changed;
-                // if (__changed)
-                //     std::cout << "(unfold) " << def->name << " new_spec: \n=========================\n"
-                //         << string(*new_spec) << "\n==============================" << std::endl;
+                if (__changed && debug)
+                    std::cout << "(unfold) " << def->name << " new_spec: \n=========================\n"
+                        << string(*new_spec) << "\n==============================" << std::endl;
             }
         } while (false);
 
@@ -139,9 +139,9 @@ void spec_transformer(Project *proj, Definition *def) {
                 new_spec = new_spec1;
 
 #if 1
-                // if (__changed && debug && rule == rule_simple_record_get_set)
-                //     std::cout << "(group2) " << def->name << " new_spec " << rule_names[rule] << ": \n=========================\n"
-                //         << string(*new_spec) << "\n==============================" << std::endl;
+                if (__changed && debug)
+                    std::cout << "(group2) " << def->name << " new_spec " << rule_names[rule] << ": \n=========================\n"
+                        << string(*new_spec) << "\n==============================" << std::endl;
 #endif
             }
 
@@ -152,9 +152,9 @@ void spec_transformer(Project *proj, Definition *def) {
 
             new_spec = new_spec1;
 
-            // if (__changed)
-            //     std::cout << "(simplify_expr) " << def->name << " new_spec "<< ": \n=========================\n"
-            //                 << string(*new_spec) << "\n==============================" << std::endl;
+            if (__changed && debug)
+                std::cout << "(simplify_expr) " << def->name << " new_spec "<< ": \n=========================\n"
+                            << string(*new_spec) << "\n==============================" << std::endl;
 
             if (!this_changed)
                 break;
@@ -172,7 +172,7 @@ void spec_transformer(Project *proj, Definition *def) {
                 this_changed |= __changed;
                 changed |= __changed;
 
-                if (__changed) {
+                if (__changed && debug) {
                     std::cout << "(indifferent) before: " << def->name << " new_spec: \n=========================\n"
                         << before << "\n==============================" << std::endl;
                     std::cout << "(indifferent) " << def->name << " new_spec: \n=========================\n"
@@ -187,7 +187,7 @@ void spec_transformer(Project *proj, Definition *def) {
                 this_changed |= __changed;
                 changed |= __changed;
 
-                if (__changed) {
+                if (__changed && debug) {
                     std::cout << "(simple indifferent) before: " << def->name << " new_spec: \n=========================\n"
                         << before << "\n==============================" << std::endl;
                     std::cout << "(simple indifferent) " << def->name << " new_spec: \n=========================\n"
@@ -206,17 +206,18 @@ void spec_transformer(Project *proj, Definition *def) {
         for (auto arg : *def->args)
             (*vars)[arg->name] = arg->type->declare(arg->name, 0);
 
-        // std::cout << "Before Z3 " << def->name << ": \n=========================\n"
-        //     << string(*new_spec) << "\n==============================" << std::endl;
+        if (debug)
+            std::cout << "Before Z3 " << def->name << ": \n=========================\n"
+                << string(*new_spec) << "\n==============================" << std::endl;
         auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec1, make_shared<EvalState>(vars, conds));
         Z3Cache.clear();
         changed |= __changed;
 
         new_spec = __spec;
 
-        // if (__changed)
-        //     std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
-        //         << string(*new_spec) << "\n==============================\n";
+        if (__changed && debug)
+            std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
+                << string(*new_spec) << "\n==============================\n";
 
 
         def->body.reset(new_spec);

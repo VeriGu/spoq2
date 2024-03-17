@@ -150,7 +150,7 @@ rule_ret_t simple_rely_by_z3(Project* proj, Rely* spec, shared_ptr<EvalState> st
         return std::make_pair(nullptr, changed);
     }
     auto c = z3_eval(proj, cond, state);
-    auto res = z3_check(state, c->get_z3_value(), 1000);
+    auto res = z3_check(state, c->get_z3_value(), 50);
 
     if (res == Z3Result::Unknown) {
         state->conds->push_back(c->get_z3_value());
@@ -178,19 +178,53 @@ rule_ret_t simple_rely_by_z3(Project* proj, Rely* spec, shared_ptr<EvalState> st
 
 rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state) {
     bool changed = false;
+    // auto orig_then = string(*spec->then_body);
+    // auto orig_else = string(*spec->else_body);
+    // auto orig_cond = string(*spec->cond);
+
     auto cond_ret = rule_simple_by_z3(proj, spec->cond.release(), state);
+    //std::cout << "simple_if_by_z3: orig_cond: " << orig_cond << std::endl;
     if (cond_ret.first == nullptr) {
         delete spec;
+        //std::cout << "simple_if_by_z3: cond_ret.first is nullptr" << std::endl;
         return std::make_pair(nullptr, cond_ret.second);
     }
+    // std::cout << "simple_if_by_z3: cond_ret.first: " << string(*cond_ret.first) << std::endl;
+    // if (orig_cond == "((((((v_slot << (12)) + (18446744073709420544)) - (SLOT_VIRT)) / (GRANULE_SIZE)) - (SLOT_DELEGATED)) =? (0))")
+    //     std::cout << "here." << std::endl;
+
     auto c = z3_eval(proj, cond_ret.first, state);
-    auto res = z3_check(state, c->get_z3_value(), 1000);
+    // if (orig_cond == "((((((v_slot << (12)) + (18446744073709420544)) - (SLOT_VIRT)) / (GRANULE_SIZE)) - (SLOT_DELEGATED)) =? (0))") {
+    //     std::cout << "simple_if_by_z3: c: " << c->get_z3_value() << ", hash: " << c->get_z3_value().hash() << std::endl;
+    // }
+    auto res = z3_check(state, c->get_z3_value(), 50);
+    //std::cout << "simple_if_by_z3: res: " << (res == Z3Result::True ? "True" : res == Z3Result::False ? "False" : "Unknown") << std::endl;
     if (res == Z3Result::Unknown) {
-        state->conds->push_back(c->get_z3_value());
+        auto unknown_value = c->get_z3_value();
+        //auto then_state = state->copy();
+
+        //then_state->conds->push_back(unknown_value);
+        state->conds->push_back(unknown_value);
+        // for (const auto &cond: *state->conds) {
+        //     std::cout << "simple_if_by_z3: then cond: " << cond << std::endl;
+        // }
         auto then_ret = rule_simple_by_z3(proj, spec->then_body.release(), state);
-        state->conds->back() = !c->get_z3_value();
+        // std::cout << "simple_if_by_z3: orig then_body: " << string(orig_then) << std::endl;
+        // std::cout << "simple_if_by_z3: then_ret.first: " << string(*then_ret.first) << std::endl;
+
+        //auto else_state = state->copy();
+        //else_state->conds->push_back(!unknown_value);
+        state->conds->back() = !unknown_value;
+
+        // for (const auto &cond: *state->conds) {
+        //     std::cout << "simple_if_by_z3: else cond: " << cond << std::endl;
+        // }
         auto else_ret = rule_simple_by_z3(proj, spec->else_body.release(), state);
+        // std::cout << "simple_if_by_z3: orig else_body: " << string(orig_else) << std::endl;
+        // std::cout << "simple_if_by_z3: else_ret.first: " << string(*else_ret.first) << std::endl;
+
         changed |= then_ret.second || else_ret.second;
+
         // Replace conditions in then and else bodies
         if (then_ret.first != nullptr) {
             auto true_const = new BoolConst(true);
@@ -209,19 +243,18 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
             // std::cout << "simple_if_by_z3: else_ret.first is nullptr" << std::endl;
             // std::cout << "simple_if_by_z3: orig_else: " << orig_else << std::endl;
         }
+
         if (then_ret.first == nullptr && else_ret.first == nullptr) {
             delete cond_ret.first;
             return std::make_pair(nullptr, changed);
-        }
-        else if (then_ret.first == nullptr && is_instance(else_ret.first->get_type().get(), Option)) {
+        } else if (then_ret.first == nullptr && is_instance(else_ret.first->get_type().get(), Option)) {
             auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
             elems->push_back(unique_ptr<SpecNode>(cond_ret.first));
             elems->push_back(unique_ptr<SpecNode>(new BoolConst(false)));
             auto cond = make_unique<Expr>("=", std::move(elems), Prop::PROP);
             delete spec;
             return std::make_pair(new Rely(std::move(cond), unique_ptr<SpecNode>(else_ret.first)), changed);
-        }
-        else if (else_ret.first == nullptr && is_instance(then_ret.first->get_type().get(), Option)) {
+        } else if (else_ret.first == nullptr && is_instance(then_ret.first->get_type().get(), Option)) {
             auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
             elems->push_back(unique_ptr<SpecNode>(cond_ret.first));
             elems->push_back(unique_ptr<SpecNode>(new BoolConst(true)));
@@ -235,11 +268,13 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
             delete spec;
             return std::make_pair(else_ret.first, true);
         }
+
         if (else_ret.first == nullptr) {
             delete cond_ret.first;
             delete spec;
             return std::make_pair(then_ret.first, true);
         }
+
         return std::make_pair(new If(unique_ptr<SpecNode>(cond_ret.first), unique_ptr<SpecNode>(then_ret.first), unique_ptr<SpecNode>(else_ret.first)), changed);
     } else if (res == Z3Result::True) {
         auto ret = rule_simple_by_z3(proj, spec->then_body.release(), state);
@@ -247,6 +282,9 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
         delete spec;
         return std::make_pair(ret.first, true);
     } else {
+        // for (const auto &cond: *state->conds) {
+        //     std::cout << "simple_if_by_z3: cond lead to False: " << cond << std::endl;
+        // }
         auto ret = rule_simple_by_z3(proj, spec->else_body.release(), state);
         delete cond_ret.first;
         delete spec;
@@ -347,10 +385,16 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
         auto new_state = state->copy();
 
         resolve_pattern(proj, spec, (*pm)->pattern.get(), src_val, new_state);
+        // std::cout << "simple_match_by_z3: pattern: " << string(*(*pm)->pattern) << std::endl;
+        // for (auto const &cond: *new_state->conds) {
+        //     std::cout << "simple_match_by_z3: cond: " << cond << std::endl;
+        // }
         if (z3_check(new_state) == Z3Result::False) {
             changed = true;
+            //std::cout << "pattern false" << std::endl;
             continue;
         }
+        //std::cout << "pattern true/unkown" << std::endl;
         auto body_ret = rule_simple_by_z3(proj, (*pm)->body.release(), new_state);
         changed |= body_ret.second;
         if (body_ret.first) {
@@ -740,7 +784,8 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
     unordered_map<unsigned, std::pair<z3::expr, SpecNode*>> subexprs;
     collect_exprs(spec, subexprs);
 
-    if ((spec->get_type() == Int::INT || spec->get_type() == Bool::BOOL) && length_of_exp(spec) <= 20) {
+    if ((spec->get_type() == Int::INT || spec->get_type() == Bool::BOOL)
+         && length_of_exp(spec) <= 20) {
         auto expr = reconstruct_expr(exp_val->get_z3_value(), subexprs, state);
 
         for (auto s = subexprs.begin(); s != subexprs.end(); ++s)
