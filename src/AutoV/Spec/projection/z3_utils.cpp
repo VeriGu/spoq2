@@ -138,7 +138,7 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
             return vars[sym->text];
         }
     } else if (auto con = instance_of(pat, Const)) {
-        if (auto intc = std::get_if<long long>(&con->value)) {
+        if (auto intc = std::get_if<unsigned long>(&con->value)) {
             return make_shared<IntValue>(*intc);
         } else if (auto boolc = std::get_if<bool>(&con->value)) {
             return make_shared<BoolValue>(*boolc);
@@ -172,7 +172,6 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
 }
 
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
-
     //std::cout << "z3_eval: " << string(*val) << std::endl;
 
     if (val->cached_eval) return val->cached_eval;
@@ -206,7 +205,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             throw std::runtime_error("Unknown symbol: " + sym->text);
         }
     } else if (auto con = instance_of(val, Const)) {
-        if (auto intc = std::get_if<long long>(&con->value)) {
+        if (auto intc = std::get_if<unsigned long>(&con->value)) {
             return make_shared<IntValue>(*intc);
         } else if (auto boolc = std::get_if<bool>(&con->value)) {
             return make_shared<BoolValue>(*boolc);
@@ -257,7 +256,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         if (op_eq(expr->op, "Z.xorb"))
             return _cache(static_pointer_cast<IntValue>(elems[0])->xorb(static_pointer_cast<IntValue>(elems[1])));
         if (op_eq(expr->op, Expr::binops::EQUAL))
-            return _cache(Prop::PROP->from_z3_value(elems[0]->get_z3_value() == elems[1]->get_z3_value()));
+            return _cache(Prop::PROP->from_z3_value((elems[0]->get_z3_value() == elems[1]->get_z3_value()).simplify()));
         if (op_eq(expr->op, Expr::binops::BEQ))
             return _cache(static_pointer_cast<IntValue>(elems[0])->eq(static_pointer_cast<IntValue>(elems[1])));
         if (op_eq(expr->op, Expr::binops::SEQ))

@@ -223,13 +223,13 @@ public:
 
 class VInt : public IRValue {
 public:
-    unsigned long long val;
+    unsigned long val;
     int val_signed;
 
     VInt() = delete;
 
-    VInt(shared_ptr<IRType> type, unsigned long long val) : IRValue(type) {
-        unsigned long long max;
+    VInt(shared_ptr<IRType> type, unsigned long val) : IRValue(type) {
+        unsigned long max;
 
         this->val_signed = 0;
         this->val = val;
@@ -266,7 +266,7 @@ public:
 
     string to_coq(void) const override {
         std::string val_str = this->val_signed ? std::to_string((long long)this->val) : std::to_string(this->val);
-    
+
         return "(VInt (" + val_str + "))";
     }
 };

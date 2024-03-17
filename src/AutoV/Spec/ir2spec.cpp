@@ -130,7 +130,16 @@ SpecNode *ir_value_to_spec(Layer* L, IRLoader::IRValue *v, vector<unique_ptr<Spe
         vec->push_back(make_unique<IntConst>(0));
         return new Expr("mkPtr", std::move(vec));
     } else if (auto vi = dynamic_cast<IRLoader::VInt *>(v)) {
-        return new IntConst(vi->val);
+        if ((long)vi->val > -100 && (long)vi->val < 0) {
+            // Heuristically convert a large integer to a negative number
+            auto vec = make_unique<vector<unique_ptr<SpecNode>>>();
+
+            vec->push_back(make_unique<IntConst>(-vi->val));
+
+            return new Expr(Expr::binops::MINUS, std::move(vec));
+        } else {
+            return new IntConst(vi->val);
+        }
     } else if (auto vb = dynamic_cast<IRLoader::VBool *>(v)) {
         return new BoolConst(vb->val);
     } else if (auto ve = dynamic_cast<IRLoader::VExpr *>(v)) {
@@ -249,7 +258,7 @@ SpecNode* get_elem_ptr(Layer *l, IRValue *val, vector<unique_ptr<SpecNode>> *idx
             tv = f->subtype;
         } else if (auto f = dynamic_cast<IRLoader::TStruct *>(tv.get())) {
             if(auto index = dynamic_cast<IntConst*>(i.get())) {
-                unsigned long in = std::get<long long>(index->value);
+                unsigned long in = std::get<unsigned long>(index->value);
                 offs->push_back(unique_ptr<SpecNode>(new IntConst(f->elems->at(in)->offset)));
                 tv = f->elems->at(in)->type;
             } else {
@@ -262,7 +271,7 @@ SpecNode* get_elem_ptr(Layer *l, IRValue *val, vector<unique_ptr<SpecNode>> *idx
             tv = f->structs->at(name);
             if (auto sub = dynamic_cast<IRLoader::TStruct *>(tv.get())) {
                 if (auto index = dynamic_cast<IntConst*>(i.get())) {
-                    unsigned long in = std::get<long long>(index->value);
+                    unsigned long in = std::get<unsigned long>(index->value);
                     offs->push_back(unique_ptr<SpecNode>(new IntConst(sub->elems->at(in)->offset)));
                     tv = sub->elems->at(in)->type;
                 } else {

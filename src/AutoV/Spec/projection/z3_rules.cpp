@@ -247,16 +247,16 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
             state->vars->emplace(sym->text, src);
         }
     } else if (auto con = instance_of(pat, Const)) {
-        if (auto v = std::get_if<long long>(&con->value))
+        if (auto v = std::get_if<unsigned long>(&con->value))
             state->conds->push_back(src->get_z3_value() == z3ctx.int_val((long)*v));
         else if (auto v = std::get_if<bool>(&con->value))
             state->conds->push_back(src->get_z3_value() == z3ctx.bool_val(*v));
         else if (auto v = std::get_if<string>(&con->value))
-            state->conds->push_back(src->get_z3_value() == z3ctx.string_val(*v));
+            state->conds->push_back((src->get_z3_value() == z3ctx.string_val(*v)).simplify());
         else
             throw std::runtime_error("Unknown const type: " + string(*pat));
     } else if (auto con = instance_of(pat, IntConst)) {
-        state->conds->push_back(src->get_z3_value() == z3ctx.int_val((long)std::get<long long>(con->value)));
+        state->conds->push_back(src->get_z3_value() == z3ctx.int_val((long)std::get<unsigned long>(con->value)));
     } else if (auto con = instance_of(pat, BoolConst)) {
         state->conds->push_back(src->get_z3_value() == z3ctx.bool_val(std::get<bool>(con->value)));
     } else if (auto con = instance_of(pat, StringConst)) {
@@ -477,11 +477,42 @@ unsigned length_z3_val(z3::expr z3_val) {
     else throw std::runtime_error("Unknown z3_val type");
 }
 
-SpecNode* reconstruct_expr(z3::expr z3_val,
+static SpecNode* reconstruct_expr(z3::expr z3_val,
                            unordered_map<unsigned, std::pair<z3::expr, SpecNode*>>& subexprs,
                            shared_ptr<EvalState> state) {
+    //std::cout << "reconstruct_expr: " << z3_val << std::endl;
     if (z3_val.is_const() && z3_val.is_int() && z3_val.is_numeral()) {
-        return new IntConst(z3_val.get_numeral_int64());
+        int64_t _v;
+        if (z3_val.is_numeral_i64(_v)) {
+            long v = z3_val.get_numeral_int64();
+
+            if (v > -100 && v < 0) {
+                auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+
+                new_elems->push_back(make_unique<IntConst>(-v));
+                return new Expr(Expr::MINUS, std::move(new_elems), Int::INT);
+            } else
+                return new IntConst(z3_val.get_numeral_int64());
+        } else {
+            uint64_t __v;
+            if (!z3_val.is_numeral_u64(__v)) {
+                z3_val = (-z3_val).simplify();
+                //std::cout << "neg z3_val: " << z3_val << std::endl;
+            }
+            // Large integer greater than 2^63 - 1
+            if (!z3_val.is_numeral_u64(__v)) {
+                throw std::runtime_error("Large integer greater than 2^63 - 1");
+                return nullptr;
+            }
+            long v = z3_val.get_numeral_uint64();
+            if (v > -100 && v < 0) {
+                auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+
+                new_elems->push_back(make_unique<IntConst>(-v));
+                return new Expr(Expr::MINUS, std::move(new_elems), Int::INT);
+            } else
+                return new IntConst(z3_val.get_numeral_uint64());
+        }
     } else if (z3_val.is_const() && z3_val.is_bool()) {
         return new BoolConst(z3_val.is_true());
     } else {
