@@ -406,7 +406,9 @@ void collect_exprs(SpecNode* expr, unordered_map<unsigned, std::pair<z3::expr, S
     if (expr->cached_eval) {
         unsigned h = expr->cached_eval->get_z3_value().hash();
         if (subexprs.find(h) == subexprs.end() || expr->length < subexprs.find(h)->second.second->length) {
-            subexprs.emplace(h, std::make_pair(expr->cached_eval->get_z3_value(), expr));
+            SpecNode *expr_copy = expr->deep_copy().release();
+            expr_copy->cached_eval = expr->cached_eval;
+            subexprs.emplace(h, std::make_pair(expr_copy->cached_eval->get_z3_value(), expr_copy));
         }
     }
 }
@@ -494,7 +496,6 @@ SpecNode* reconstruct_expr(z3::expr z3_val,
         for (auto s = subexprs.begin(); s != subexprs.end(); ++s) {
             sorted_subexprs.push_back(s->second);
         }
-        (subexprs.begin(), subexprs.end());
         std::sort(sorted_subexprs.begin(), sorted_subexprs.end(), [](auto a, auto b) {
             return a.second->length < b.second->length;
         });
@@ -660,9 +661,14 @@ SpecNode* reconstruct_zmap(Project* proj, SpecNode* spec, shared_ptr<EvalState> 
     return nullptr;
 }
 
+/*
+ * The passed-in spec will be freed in this function,
+ * unless it is used in the return value.
+ */
 rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> state) {
     auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
     bool changed = false;
+    Expr *orig_spec = spec;
 
     if (auto op = std::get_if<Expr::ops>(&spec->op)) {
         if (*op == Expr::None)
@@ -673,12 +679,13 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
         auto ret = rule_simple_by_z3(proj, elem->release(), state);
         changed |= ret.second;
         if (ret.first == nullptr) {
-            delete spec;
+            delete orig_spec;
             return std::make_pair(nullptr, true);
         }
         elems->push_back(unique_ptr<SpecNode>(ret.first));
     }
     spec = new Expr(std::move(spec->op), std::move(elems), spec->get_type());
+    delete orig_spec;
     auto exp_val = z3_eval(proj, spec, state);
 
     unordered_map<unsigned, std::pair<z3::expr, SpecNode*>> subexprs;
@@ -687,15 +694,21 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
     if ((spec->get_type() == Int::INT || spec->get_type() == Bool::BOOL) && length_of_exp(spec) <= 20) {
         auto expr = reconstruct_expr(exp_val->get_z3_value(), subexprs, state);
 
-        if (expr && length_of_exp(expr) < length_of_exp(spec))
+        for (auto s = subexprs.begin(); s != subexprs.end(); ++s)
+            if (s->second.second != expr)
+                delete s->second.second;
+
+        if (expr && length_of_exp(expr) < length_of_exp(spec)) {
+            delete spec;
             return std::make_pair(expr, true);
+        }
     }
 
     auto elem0 = instance_of(spec->elems->at(0).get(), Expr);
 
     // div (+ a b) c ==> (div a c) + (div b c)
     if (std::holds_alternative<Expr::binops>(spec->op) && std::get<Expr::binops>(spec->op) == Expr::DIV &&
-        std::holds_alternative<Expr::binops>(elem0->op) && std::get<Expr::binops>(elem0->op) == Expr::ADD) {
+        elem0 && std::holds_alternative<Expr::binops>(elem0->op) && std::get<Expr::binops>(elem0->op) == Expr::ADD) {
         auto ea = elem0->elems->at(0)->deep_copy();
         auto eb = elem0->elems->at(1)->deep_copy();
         auto ed = spec->elems->at(1)->deep_copy();
@@ -720,6 +733,7 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
             new_elems->push_back(unique_ptr<SpecNode>(expr1));
             new_elems->push_back(unique_ptr<SpecNode>(expr2));
             auto expr = new Expr(std::move(elem0->op), std::move(new_elems), Int::INT);
+            delete spec;
             return std::make_pair(expr, true);
         }
     } else if (auto op = std::get_if<Expr::ops>(&spec->op)) {
