@@ -448,55 +448,79 @@ Tactic Notation "eliminate_match" constr(e):=
   let y := eval cbv iota delta [e] in e in
         idtac y; exact y.
                                     
+
+Module Type RECORD.
+  Parameter keyType : Type.
+  Parameter key_elem_eq : forall (a : keyType) (b: keyType), {a = b} + {a <> b}.
+  Print sigT.
+  Parameter t : (forall x: keyType, Type) -> Type.
+  Parameter init: forall {record: forall x: keyType, Type}, (forall x: keyType, record x) -> t record.
+  Parameter proj: forall {record: forall x: keyType, Type} (x: keyType), t record -> record x.
+  Parameter set: forall {record: forall x: keyType, Type} (x:keyType), t record -> record x -> t record.
+  Axiom projection_gss :
+    forall (record: forall x : keyType, Type) (x : keyType) (rec: t record),
+      set x rec (proj x rec) = rec.
+End RECORD.
+
+
+Import Coq.Logic.FunctionalExtensionality.
+Module string_record <: RECORD.
+  Definition keyType := string.
+  Definition key_elem_eq := string_dec.
+  Definition record_type := forall x: keyType, Type.
+  Definition t (f: record_type) := forall x: keyType, f x.
+
+  (* record only init the values that are not type Empty*)
+  Definition init {record: record_type} (ini: forall x: keyType, record x) : t record.
+    unfold t. intro. unfold record_type in *.
+    exact (ini x).
+  Defined.
+
+  Print init.
+    
+  Definition proj {record: record_type} (x: keyType) (rec: t record) : record x :=
+    rec x.
+    
+  Check proj.
+
+  Definition set {record: record_type} (x: keyType) (rec: t record) (v : record x) : t record.
+    intros. unfold t. intro.
+    destruct (string_dec x x0). rewrite <- e.
+    exact v.
+    exact (rec x0).
+  Defined.
+
+  Print set.
+  Theorem projection_gss' :
+    forall (record: record_type) (x : keyType) (rec: t record) y,
+      set x rec (proj x rec) y = rec y.
+  Proof.
+    intros.
+    unfold proj, set. 
+    destruct (string_dec x y).  unfold eq_rect.
+    simpl. rewrite e. reflexivity. reflexivity.
+  Qed.
+
+  Theorem projection_gss :
+    forall (record: record_type) (x : keyType) (rec: t record),
+      set x rec (proj x rec) = rec.
+  Proof.
+    unfold t in *. intros.
+    apply functional_extensionality_dep.
+    apply projection_gss'.
+  Qed.
   
-Definition not (c : bool) :=
-  match c with
-  | true => false
-  | false => true
-  end.
 
-Definition not_test (c: bool) (X: bool) :=
-  match Some (true)  with
-  | Some x => match x with
-               | true => if c then X else X
-               | false => if not c then X else X
-               end
-                 
-  | None => true
-  end.
-
-Print not_test.
-
-Definition not_simplified :  bool -> bool -> bool.
-  eliminate_match not_test.
-Defined.
-
-Print not_simplified.
-
-Set Primitive Projections.
-
-Record record := mka {a : Z; b : Z}.
-Print a.
-Definition gss (p: record) :=
-  {|a := a p; b := b p|}.
+  Theorem projection_gso :
+    forall (record: record_type) (x: string) (y:string) (rec: t record) (v: record y),
+      y <> x -> proj x (set y rec v) = proj x rec.
+  Proof.
+    intros. unfold proj, set.
+    destruct (string_dec y x) eqn: He. contradiction. reflexivity.
+  Qed.    
+End string_record.
 
 
-Definition gs_test (p: record) v1 := {|a := v1; b := b p|}.(a).
-
-Definition gs_test_simplify : record -> Z -> Z.
-  let y := eval cbv iota beta delta [gs_test a b] in gs_test in idtac y; exact y.
-Defined.
-
-Print gs_test_simplify.
-
-
-Definition gs_test_2 (p: record) v1 := {|a := v1; b := b p|}.(b).
-
-Definition gs_test_simplify2 : record -> Z -> Z.
-  let y := eval cbv iota beta delta [gs_test_2 a b] in gs_test_2 in idtac y; exact y.
-Defined.
-
-Print gs_test_simplify2.
 
 (* Ltac record_conversion e := *)
 (*   match e with *)
