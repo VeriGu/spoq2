@@ -33,6 +33,7 @@ using std::shared_ptr;
 using std::vector;
 
 unordered_map<unsigned, unsigned> length_z3_map;
+SpecNode *subst_expr(Project *proj, SpecNode *spec, SpecNode *expr, SpecNode *var, bool &succ);
 
 // It is probably bad to merge relys if all conditions are conjuncted
 rule_ret_t merge_rely(Project* proj, SpecNode* spec, shared_ptr<EvalState> state) {
@@ -140,7 +141,6 @@ rule_ret_t remove_rely_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState
 }
 
 rule_ret_t simple_rely_by_z3(Project* proj, Rely* spec, shared_ptr<EvalState> state) {
-    //std::cout << "simple_rely_by_z3: " << string(*spec) << std::endl;
     bool changed = false;
     auto ret = rule_simple_by_z3(proj, spec->prop.release(), state);
     changed |= ret.second;
@@ -191,6 +191,24 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
         state->conds->back() = !c->get_z3_value();
         auto else_ret = rule_simple_by_z3(proj, spec->else_body.release(), state);
         changed |= then_ret.second || else_ret.second;
+        // Replace conditions in then and else bodies
+        if (then_ret.first != nullptr) {
+            auto true_const = new BoolConst(true);
+            then_ret.first = subst_expr(proj, then_ret.first, cond_ret.first, true_const, changed);
+            delete true_const;
+        } else {
+            // std::cout << "simple_if_by_z3: then_ret.first is nullptr" << std::endl;
+            // std::cout << "simple_if_by_z3: orig_then: " << orig_then << std::endl;
+        }
+
+        if (else_ret.first != nullptr) {
+            auto false_const = new BoolConst(false);
+            else_ret.first = subst_expr(proj, else_ret.first, cond_ret.first, false_const, changed);
+            delete false_const;
+        } else {
+            // std::cout << "simple_if_by_z3: else_ret.first is nullptr" << std::endl;
+            // std::cout << "simple_if_by_z3: orig_else: " << orig_else << std::endl;
+        }
         if (then_ret.first == nullptr && else_ret.first == nullptr) {
             delete cond_ret.first;
             return std::make_pair(nullptr, changed);

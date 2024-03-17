@@ -376,7 +376,7 @@ substitute [expr] with [var] in [spec]
 [spec] is freed if substitution is successful
 [expr] and [var] is freed by the caller
 */
-static SpecNode *subst_expr(Project *proj, SpecNode *spec, SpecNode *expr, SpecNode *var, bool &succ) {
+SpecNode *subst_expr(Project *proj, SpecNode *spec, SpecNode *expr, SpecNode *var, bool &succ) {
     if (*spec == *expr) {
         succ = true;
         return var->deep_copy().release();
