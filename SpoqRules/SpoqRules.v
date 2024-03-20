@@ -464,13 +464,15 @@ End RECORD.
 
 
 Import Coq.Logic.FunctionalExtensionality.
+Require Import Eqdep.
+Import Eq_rect_eq.
+
 Module string_record <: RECORD.
   Definition keyType := string.
   Definition key_elem_eq := string_dec.
   Definition record_type := forall x: keyType, Type.
   Definition t (f: record_type) := forall x: keyType, f x.
 
-  (* record only init the values that are not type Empty*)
   Definition init {record: record_type} (ini: forall x: keyType, record x) : t record.
     unfold t. intro. unfold record_type in *.
     exact (ini x).
@@ -481,8 +483,6 @@ Module string_record <: RECORD.
   Definition proj {record: record_type} (x: keyType) (rec: t record) : record x :=
     rec x.
     
-  Check proj.
-
   Definition set {record: record_type} (x: keyType) (rec: t record) (v : record x) : t record.
     intros. unfold t. intro.
     destruct (string_dec x x0). rewrite <- e.
@@ -517,8 +517,77 @@ Module string_record <: RECORD.
   Proof.
     intros. unfold proj, set.
     destruct (string_dec y x) eqn: He. contradiction. reflexivity.
-  Qed.    
+  Qed.
+
+  Theorem projection_set_get_same :
+     forall (record: record_type) (x : keyType) (rec: t record) (v1: record x),
+       proj x (set x rec v1) = v1.
+  Proof.
+    unfold proj, keyType. intros.
+    unfold set.
+    destruct (string_dec x x) eqn: He. rewrite <- eq_rect_eq. reflexivity.
+    contradiction.
+  Qed.
+
+
+
+  (* rule2.1: if the lens res = set x rec v, we can introduce a property of lens rec: *)
+  Theorem projection_lens_gso :
+    forall (record: record_type) (x: keyType) (rec: t record) (v: record x) (lens : t record -> t record) (y: keyType) ,
+      x <> y -> set x rec v = lens rec -> proj y (lens rec) = proj y rec.
+  Proof.
+    intros. rewrite <- H0. apply projection_gso.
+    auto.    
+  Qed.
+
+
+   Theorem projection_lens_gso2 :
+    forall (record: record_type) (x: keyType) (rec: t record) (v: record x) (y: keyType) (P: t record -> Type) ,
+      (forall lens : t record -> t record, (x <> y -> proj y (lens rec) = proj y rec) -> P (lens rec)) -> P (set x rec v).
+  Proof.
+    intros.
+    specialize (X (fun rec => set x rec v)).
+    simpl in X.
+    specialize (projection_gso record y x rec v).
+    intro.
+    apply X in H.
+    exact H.
+  Qed.
 End string_record.
+
+Section projection_hiding.
+  Parameter out_type: Type.
+  (* suppose we have a spec of a specific output type*)
+
+  (* This theorem proves that the substitution of a concret spec to a purely abstract lens is correct, i.e, if P works for arbitrary lens l, then P works for the spec if such spec is a well_typed definition*)
+  Theorem pure_abstraction_correct :
+    forall (P: out_type -> Type) (spec: out_type),
+      ((forall (lens: out_type), P lens) -> P spec).
+  Proof.
+    intros. pose (X spec).
+    exact p.
+  Qed.
+
+  (* Propety P about len correct => Property P about len correct *)
+  (* we also want lens has have some property or preconsidion Q, then Q spec must also be correct to make the abstraction sound*)
+  Theorem abstraction_with_properties_correct :
+    forall (P: out_type -> Type) (Q: out_type -> Type) (spec: out_type),
+      ((forall (lens: out_type), Q lens -> P lens) -> Q spec -> P spec).
+  Proof.
+    intros. pose (X spec).
+    apply p.
+    apply X0.
+  Qed.
+
+
+(* These two theorems can provide a guidline on what our rules can do and can't do,
+  for example, we can substitute a expression with a abstract lens and assuming Q is correct about
+ the lens, as long as Q is also correct about the expression*)
+End projection_hiding.
+
+
+
+
 
 
 
