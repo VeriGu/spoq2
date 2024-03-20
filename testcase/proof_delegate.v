@@ -2,10 +2,38 @@ Definition PROJ_NAME: string := "RMMProof.ProofDelegate".
 Definition PROJ_BASE: string := "./ProofDelegate".
 Hint CacheSpec.
 
-(* SLOT begins from here *)
+
+  (* ┌─────────┐                    *)
+  (* │INVALID  │                    *)
+  (* │         │                    *)
+  (* ├─────────┤                    *)
+  (* │granules │ 0xfffffffffebe0000 *)
+  (* │         │                    *)
+  (* │         │                    *)
+  (* ├─────────┤                    *)
+  (* │STACK    │ 0xffffffffffbe0000 *)
+  (* │         │                    *)
+  (* │         │ 1024 pages         *)
+  (* │         │                    *)
+  (* ├─────────┤                    *)
+  (* │SLOT_VIRT│ 0xfffffffffffe0000 *)
+  (* │         │                    *)
+  (* │         │ 31 pages           *)
+  (* ├─────────┤                    *)
+  (* │MAX_ERR  │ 0xfffffffffffff000 *)
+  (* ├─────────┤                    *)
+  (* │         │                    *)
+  (* │INT_MAX  │                    *)
+  (* └─────────┘                    *)
+
+(* SLOT begins from 0xfffffffffffe0000, 31 pages *)
 Definition SLOT_VIRT : Z := 18446744073709420544.
-Parameter GRANULES_BASE : Z.
-(* Hint Axiom (18446744073709428736 - GRANULES_BASE < 0). *)
+Definition STACK_VIRT : Z := 18446744073705226240.
+(* Addresses above 0xfffffffffffff000 are invalid *)
+Definition MAX_ERR : Z := 18446744073709547520.
+(* struct granules begins from 0xfffffffffebe0000 *)
+Definition GRANULES_BASE : Z := 18446744073688449024.
+
 Definition ST_GRANULE_SIZE : Z:= 16.
 Definition RMM_MAX_GRANULES : Z := 1048576.
 Definition MAX_REC_AUX_GRANULES : Z := 16.
@@ -685,6 +713,7 @@ Definition SLOT_RTT : Z := 22. (* SLOT_REC_AUX0 + MAX_REC_AUX_GRANULES. *)
 Definition SLOT_RTT2 : Z := 23. (* SLOT_RTT + 1. *)
 Definition SLOT_RSI_CALL : Z := 24. (* SLOT_RTT2 + 1. *)
 (* Generated SLOT begins *)
+Definition STACK_slot_ofs : Z := 25.
 Definition STACK_attest_setup_platform_token : Z := 25.
 Definition STACK_smc_psci_complete : Z := 26.
 Definition STACK_find_lock_two_granules : Z := 27.
@@ -1624,15 +1653,14 @@ Definition base_to_slot (b: string) : option Z :=
 
 Definition ptr_to_int (p: Ptr) : Z :=
   match base_to_slot p.(pbase) with
-  | Some slot => SLOT_VIRT + slot * GRANULE_SIZE + p.(poffset)
+  | Some slot =>
+      if slot <=? 24 then (SLOT_VIRT + slot * GRANULE_SIZE + p.(poffset))
+      else (STACK_VIRT + (slot - STACK_slot_ofs) * GRANULE_SIZE + p.(poffset))
   | None =>
-      match (p.(pbase), p.(poffset)) with
-      | ("status", ofs) =>
-          if ofs <? 0 then (-ofs) else 0
-      | ("granules", ofs) => GRANULES_BASE + ofs
-      | ("null", ofs) => 0
-      | _ => (-1)
-      end
+      if (p.(pbase) =s "status") then (MAX_ERR + p.(poffset))
+      else if (p.(pbase) =s "granules") then (GRANULES_BASE + p.(poffset))
+      else if (p.(pbase) =s "null") then 0
+      else (-1)
   end.
 
 Definition slot_to_ptr (slot: Z) (val: Z) : Ptr :=
@@ -1647,7 +1675,11 @@ Definition slot_to_ptr (slot: Z) (val: Z) : Ptr :=
   if slot =? SLOT_RTT then (mkPtr "slot_rtt" ofs) else
   if slot =? SLOT_RTT2 then (mkPtr "slot_rtt2" ofs) else
   if slot =? SLOT_RSI_CALL then (mkPtr "slot_rsi_call" ofs) else
-  (* Generated slot_to_ptr begins *)
+    (mkPtr "null" 0).
+
+Definition stack_to_ptr (slot: Z) (val: Z) : Ptr :=
+  let ofs := (val - STACK_VIRT) mod GRANULE_SIZE in
+    (* Generated slot_to_ptr begins *)
   if slot =? STACK_attest_setup_platform_token then (mkPtr "attest_setup_platform_token_stack" ofs) else
   if slot =? STACK_smc_psci_complete then (mkPtr "smc_psci_complete_stack" ofs) else
   if slot =? STACK_find_lock_two_granules then (mkPtr "find_lock_two_granules_stack" ofs) else
@@ -1699,20 +1731,28 @@ Definition slot_to_ptr (slot: Z) (val: Z) : Ptr :=
   (* Generated slot_to_ptr ends *)
     (mkPtr "null" 0).
 
-Hint Axiom (GRANULES_BASE > SLOT_VIRT + GRANULE_SIZE * 1024).
-Hint Axiom (sysreg_handlers_base > 0).
+(* Definition int_to_ptr (v: Z) : Ptr := *)
+(*   if v >? 0 then ( *)
+(*     (if (v >=? GRANULES_BASE) && (v <? GRANULES_BASE + RMM_MAX_GRANULES * ST_GRANULE_SIZE) then *)
+(*       (mkPtr "granules" (v - GRANULES_BASE)) *)
+(*     else ( *)
+(*       let slot := (v - SLOT_VIRT) / GRANULE_SIZE in *)
+(*       slot_to_ptr slot v)) *)
+(*     ) else *)
+(*   if v <? 0 then (mkPtr "status" (-v)) else (mkPtr "null" 0). *)
 
 Definition int_to_ptr (v: Z) : Ptr :=
   if v >? 0 then (
-      (if (v >=? GRANULES_BASE) && (v <? GRANULES_BASE + RMM_MAX_GRANULES * ST_GRANULE_SIZE) then
-        (mkPtr "granules" (v - GRANULES_BASE))
-      else (
-          let slot := (v - SLOT_VIRT) / GRANULE_SIZE in
-          (* let ofs := (v - SLOT_VIRT) mod GRANULE_SIZE in *)
-          slot_to_ptr slot v
-        ))
-    ) else
-  if v <? 0 then (mkPtr "status" (-v)) else (mkPtr "null" 0).
+      if (v >=? MAX_ERR) then (mkPtr "status" (v - MAX_ERR))
+      else if (v >= SLOT_VIRT) then slot_to_ptr ((v - SLOT_VIRT) / GRANULE_SIZE) v
+      else if (v >= STACK_VIRT) then stack_to_ptr (((v - STACK_VIRT) / GRANULE_SIZE) + STACK_slot_ofs) v
+      else if (v >= GRANULES_BASE) then  (mkPtr "granules" (v - GRANULES_BASE))
+      else (mkPtr "null" 0)
+  ) else
+    if v <? 0 then
+      (mkPtr "status" (-v))
+    else
+      (mkPtr "null" 0).
 
 Definition ptr_eqb (p1: Ptr) (p2: Ptr) : bool :=
   ptr_to_int p1 =? ptr_to_int p2.
@@ -1721,7 +1761,10 @@ Definition ptr_ltb (p1: Ptr) (p2: Ptr) : bool :=
   ptr_to_int p1 <? ptr_to_int p2.
 
 Definition ptr_gtb (p1: Ptr) (p2: Ptr) : bool :=
-  ptr_to_int p1 >? ptr_to_int p2.
+  if (p2.(pbase) =s "status") then
+    (if ((p1.(pbase) <>s "status")) then false
+    else p1.(poffset) >? p2.(poffset))
+  else ptr_to_int p1 >? ptr_to_int p2 .
 
 Section Bottom.
   Definition LAYER_DATA := RData.
@@ -2210,46 +2253,25 @@ Section Bottom.
   Definition xlat_map_memory_page_with_attrs_spec (v_table: Ptr) (v_va: Z) (v_pa: Z) (v_attrs: Z) (st: RData) : option (Z * RData) :=
     let v_ptr := int_to_ptr v_va in
     let gidx := v_pa / GRANULE_SIZE in
-    let g := st.(share).(granules) @ gidx in
-    match (v_ptr.(pbase), v_ptr.(poffset)) with
-    | ("slot_ns", ofs) =>
-        (* if g.(e_state) =? GRANULE_STATE_NS then *)
-          Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_NS == gidx)))
-        (* else None *)
-    | ("slot_rd", ofs) =>
-        (* if g.(e_state) =? GRANULE_STATE_RD then *)
-          Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_RD == gidx)))
-        (* else None *)
-    | ("slot_rec", ofs) =>
-        (* if g.(e_state) =? GRANULE_STATE_REC then *)
-          Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_REC == gidx)))
-        (* else None *)
-    | ("slot_rec2", ofs) =>
-        (* if g.(e_state) =? GRANULE_STATE_REC then *)
-          Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_REC2 == gidx)))
-        (* else None *)
-    | ("slot_rec_target", ofs) =>
-        (* if g.(e_state) =? GRANULE_STATE_REC then *)
-          Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_REC_TARGET == gidx)))
-        (* else None *)
-    | ("slot_rec_aux0", ofs) =>
-        (* if g.(e_state) =? GRANULE_STATE_REC_AUX then *)
-          Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_REC_AUX0 == gidx)))
-        (* else None *)
-    | ("slot_rtt", ofs) =>
-        (* if g.(e_state) =? GRANULE_STATE_RTT then *)
-          Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_RTT == gidx)))
-        (* else None *)
-    | ("slot_rtt2", ofs) =>
-        (* if g.(e_state) =? GRANULE_STATE_RTT then *)
-          Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_RTT2 == gidx)))
-        (* else None *)
-    | ("slot_rsi_call", ofs) =>
-        (* if g.(e_state) =? GRANULE_STATE_DATA then *)
-          Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_RSI_CALL == gidx)))
-        (* else None *)
-    | _ => None
-    end.
+    if (v_ptr.(pbase) =s "slot_ns") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_NS == gidx)))
+    else if (v_ptr.(pbase) =s "slot_rd") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_RD == gidx)))
+    else if (v_ptr.(pbase) =s "slot_rec") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_REC == gidx)))
+    else if (v_ptr.(pbase) =s "slot_rec2") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_REC2 == gidx)))
+    else if (v_ptr.(pbase) =s "slot_rec_target") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_REC_TARGET == gidx)))
+    else if (v_ptr.(pbase) =s "slot_rec_aux0") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_REC_AUX0 == gidx)))
+    else if (v_ptr.(pbase) =s "slot_rtt") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_RTT == gidx)))
+    else if (v_ptr.(pbase) =s "slot_rtt2") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_RTT2 == gidx)))
+    else if (v_ptr.(pbase) =s "slot_rsi_call") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_RSI_CALL == gidx)))
+    else None.
 
   Parameter fxlt_ret_succ: Ptr.
   Definition find_xlat_last_table_spec (va: Z) (ctx: Ptr) (out_level: Ptr) (tt_base_va: Ptr) (st: RData) : option (Ptr * RData) := Some (fxlt_ret_succ, st).
@@ -2816,7 +2838,6 @@ Section Helpers.
   Hint InitRely __tte_read (v_ttep.(pbase) = "slot_rtt" \/ v_ttep.(pbase) = "slot_rtt2").
   Hint InitRely __tte_write (v_ttep.(pbase) = "slot_rtt" \/ v_ttep.(pbase) = "slot_rtt2").
   Hint InitRely ptr_status (v_ptr.(pbase) = "status" \/ v_ptr.(pbase) = "null").
-  Hint InitRely ptr_is_err (v_ptr.(pbase) = "status" \/ v_ptr.(pbase) = "null").
   Hint InitRely requested_ipa_bits (v_p.(pbase) = "stack").
   (* Hint InitRely psci_reset_rec (v_rec.(pbase) = "slot_rec" /\ (v_rec.(poffset) = 280 \/ v_rec.(poffset) = 352)). *)
   (* Hint InitRely rec_is_simd_allowed (v_rec.(pbase) = "slot_rec" /\ v_rec.(poffset) = 1120). *)
@@ -2840,6 +2861,30 @@ Section Helpers.
   Hint Unfold status_ptr_spec'.
   Hint Unfold ptr_is_err_spec'.
 End Helpers.
+
+Section InjectAbort.
+  Definition LAYER_DATA := RData.
+  Definition LAYER_CODE : string := "./rmm.json".
+  Definition LAYER_LOAD : string := "load_RData".
+  Definition LAYER_STORE : string := "store_RData".
+  Definition LAYER_ALLOC : string := "alloc_stack".
+  Definition LAYER_FREE : string := "free_stack".
+  Definition LAYER_PTR2INT : string := "ptr_to_int".
+  Definition LAYER_INT2PTR : string := "int_to_ptr".
+  Definition LAYER_PTR_EQB : string := "ptr_eqb".
+  Definition LAYER_PTR_GTB : string := "ptr_gtb".
+  Definition LAYER_PTR_LTB : string := "ptr_ltb".
+  Definition LAYER_PRIMS: list string :=
+    "realm_inject_undef_abort" ::
+      "inject_sync_idabort" ::
+      "inject_serror" ::
+      "inject_sync_idabort_rec" ::
+      nil.
+  Hint InitRely inject_serror (v_rec.(pbase) = "slot_rec" /\ v_rec.(poffset) = 0).
+  Hint InitRely inject_sync_idabort_rec (v_rec.(pbase) = "slot_rec" /\ v_rec.(poffset) = 0).
+  Hint InitRely inject_sync_idabort_rec (rec_is_unlocked st).
+  Hint InitRely inject_sync_idabort_rec (rec_refcount_one st).
+End InjectAbort.
 
 Section GranuleState.
   Definition LAYER_DATA := RData.
@@ -2977,9 +3022,7 @@ Section MmapInternal.
                                          ((v_buf).(pbase) = "slot_rsi_call") \/
                                          ((v_buf).(pbase) = "slot_ns")).
   Hint InitRely buffer_unmap_internal (v_buf.(poffset) = 0).
-  Hint InitRely buffer_unmap_internal (SLOT_VIRT + 33 * GRANULE_SIZE < GRANULES_BASE).
 
-  Hint InitRely buffer_map_internal (SLOT_VIRT < GRANULES_BASE).
   Hint InitRely buffer_map_internal (v_slot >= 0).
   Hint InitRely buffer_map_internal (v_slot <= 24).
   Hint InitRely granule_addr (v_g.(pbase) = "granules").
@@ -3006,66 +3049,66 @@ Section Mmap.
 
 End Mmap.
 
-(* Section MemRW. *)
-(*   Definition LAYER_DATA := RData. *)
-(*   Definition LAYER_CODE : string := "./rmm.json". *)
-(*   Definition LAYER_LOAD : string := "load_RData". *)
-(*   Definition LAYER_STORE : string := "store_RData". *)
-(*   Definition LAYER_PTR2INT : string := "ptr_to_int". *)
-(*   Definition LAYER_INT2PTR : string := "int_to_ptr". *)
-(*   Definition LAYER_PTR_EQB : string := "ptr_eqb". *)
-(*   Definition LAYER_PTR_GTB : string := "ptr_gtb". *)
-(*   Definition LAYER_PTR_LTB : string := "ptr_ltb". *)
-(*   Definition LAYER_PRIMS: list string := *)
-(*       "granule_memzero" :: *)
-(*       nil. *)
-(*   Hint InitRely ns_buffer_read (v_slot = SLOT_NS). *)
-(*   Hint InitRely ns_buffer_read (v_ns_gr.(pbase) = "granules"). *)
-(*   Hint InitRely ns_buffer_read ((v_ns_gr.(poffset) mod ST_GRANULE_SIZE) = 0). *)
-(*   Hint InitRely ns_buffer_read (v_offset = 0). *)
-(*   Hint InitRely ns_buffer_write (v_slot = SLOT_NS). *)
-(*   Hint InitRely ns_buffer_write (v_ns_gr.(pbase) = "granules"). *)
-(*   Hint InitRely ns_buffer_write ((v_ns_gr.(poffset) mod ST_GRANULE_SIZE) = 0). *)
-(*   Hint InitRely ns_buffer_write (v_offset = 0). *)
-(*   Hint NoTrans granule_memzero_spec_mid. *)
-(*   Hint NoTrans granule_memzero_mapped_spec_mid. *)
-(*   Hint NoUnfold granule_memzero_spec. *)
-(*   Hint NoUnfold granule_memzero_mapped_spec. *)
+Section MemRW.
+  Definition LAYER_DATA := RData.
+  Definition LAYER_CODE : string := "./rmm.json".
+  Definition LAYER_LOAD : string := "load_RData".
+  Definition LAYER_STORE : string := "store_RData".
+  Definition LAYER_PTR2INT : string := "ptr_to_int".
+  Definition LAYER_INT2PTR : string := "int_to_ptr".
+  Definition LAYER_PTR_EQB : string := "ptr_eqb".
+  Definition LAYER_PTR_GTB : string := "ptr_gtb".
+  Definition LAYER_PTR_LTB : string := "ptr_ltb".
+  Definition LAYER_PRIMS: list string :=
+      "granule_memzero" ::
+      nil.
+  Hint InitRely ns_buffer_read (v_slot = SLOT_NS).
+  Hint InitRely ns_buffer_read (v_ns_gr.(pbase) = "granules").
+  Hint InitRely ns_buffer_read ((v_ns_gr.(poffset) mod ST_GRANULE_SIZE) = 0).
+  Hint InitRely ns_buffer_read (v_offset = 0).
+  Hint InitRely ns_buffer_write (v_slot = SLOT_NS).
+  Hint InitRely ns_buffer_write (v_ns_gr.(pbase) = "granules").
+  Hint InitRely ns_buffer_write ((v_ns_gr.(poffset) mod ST_GRANULE_SIZE) = 0).
+  Hint InitRely ns_buffer_write (v_offset = 0).
+  Hint NoTrans granule_memzero_spec_mid.
+  Hint NoTrans granule_memzero_mapped_spec_mid.
+  Hint NoUnfold granule_memzero_spec.
+  Hint NoUnfold granule_memzero_mapped_spec.
 
-(* End MemRW. *)
+End MemRW.
 
-(* Section EL3IFC. *)
-(*   Definition LAYER_DATA := RData. *)
-(*   Definition LAYER_CODE : string := "./rmm.json". *)
-(*   Definition LAYER_LOAD : string := "load_RData". *)
-(*   Definition LAYER_STORE : string := "store_RData". *)
-(*   Definition LAYER_ALLOC : string := "alloc_stack". *)
-(*   Definition LAYER_FREE : string := "free_stack". *)
-(*   Definition LAYER_PTR2INT : string := "ptr_to_int". *)
-(*   Definition LAYER_INT2PTR : string := "int_to_ptr". *)
-(*   Definition LAYER_PTR_EQB : string := "ptr_eqb". *)
-(*   Definition LAYER_PTR_GTB : string := "ptr_gtb". *)
-(*   Definition LAYER_PTR_LTB : string := "ptr_ltb". *)
-(*   Definition LAYER_PRIMS : list string := *)
-(*     "rmm_el3_ifc_gtsi_delegate" :: *)
-(*       "rmm_el3_ifc_gtsi_undelegate" :: *)
-(*       nil. *)
-(* End EL3IFC. *)
+Section EL3IFC.
+  Definition LAYER_DATA := RData.
+  Definition LAYER_CODE : string := "./rmm.json".
+  Definition LAYER_LOAD : string := "load_RData".
+  Definition LAYER_STORE : string := "store_RData".
+  Definition LAYER_ALLOC : string := "alloc_stack".
+  Definition LAYER_FREE : string := "free_stack".
+  Definition LAYER_PTR2INT : string := "ptr_to_int".
+  Definition LAYER_INT2PTR : string := "int_to_ptr".
+  Definition LAYER_PTR_EQB : string := "ptr_eqb".
+  Definition LAYER_PTR_GTB : string := "ptr_gtb".
+  Definition LAYER_PTR_LTB : string := "ptr_ltb".
+  Definition LAYER_PRIMS : list string :=
+    "rmm_el3_ifc_gtsi_delegate" ::
+      "rmm_el3_ifc_gtsi_undelegate" ::
+      nil.
+End EL3IFC.
 
-(* Section SMCHandler. *)
-(*   Definition LAYER_DATA := RData. *)
-(*   Definition LAYER_CODE : string := "./rmm.json". *)
-(*   Definition LAYER_LOAD : string := "load_RData". *)
-(*   Definition LAYER_STORE : string := "store_RData". *)
-(*   Definition LAYER_ALLOC : string := "alloc_stack". *)
-(*   Definition LAYER_FREE : string := "free_stack". *)
-(*   Definition LAYER_PTR2INT : string := "ptr_to_int". *)
-(*   Definition LAYER_INT2PTR : string := "int_to_ptr". *)
-(*   Definition LAYER_PTR_EQB : string := "ptr_eqb". *)
-(*   Definition LAYER_PTR_GTB : string := "ptr_gtb". *)
-(*   Definition LAYER_PTR_LTB : string := "ptr_ltb". *)
-(*   Definition LAYER_PRIMS : list string := *)
-(*     "smc_granule_delegate" :: *)
-(*       "smc_granule_undelegate" :: *)
-(*       nil. *)
-(* End SMCHandler. *)
+Section SMCHandler.
+  Definition LAYER_DATA := RData.
+  Definition LAYER_CODE : string := "./rmm.json".
+  Definition LAYER_LOAD : string := "load_RData".
+  Definition LAYER_STORE : string := "store_RData".
+  Definition LAYER_ALLOC : string := "alloc_stack".
+  Definition LAYER_FREE : string := "free_stack".
+  Definition LAYER_PTR2INT : string := "ptr_to_int".
+  Definition LAYER_INT2PTR : string := "int_to_ptr".
+  Definition LAYER_PTR_EQB : string := "ptr_eqb".
+  Definition LAYER_PTR_GTB : string := "ptr_gtb".
+  Definition LAYER_PTR_LTB : string := "ptr_ltb".
+  Definition LAYER_PRIMS : list string :=
+    "smc_granule_delegate" ::
+      "smc_granule_undelegate" ::
+      nil.
+End SMCHandler.

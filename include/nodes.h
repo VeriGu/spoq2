@@ -144,17 +144,21 @@ private:
 
 class Const : public SpecNode {
 public:
-    std::variant<long long, string, bool> value;
+    std::variant<unsigned long, string, bool> value;
 
     Const() { throw std::invalid_argument("Const must have a value"); }
-    Const(const std::variant<long long, string, bool>& value) : SpecNode(SpecType::UNKNOWN_TYPE), value(value) {}
-    Const(const std::variant<long long, string, bool>& value, shared_ptr<SpecType> type)
+    Const(const std::variant<unsigned long, string, bool>& value) : SpecNode(SpecType::UNKNOWN_TYPE), value(value) {}
+    Const(const std::variant<unsigned long, string, bool>& value, shared_ptr<SpecType> type)
         : SpecNode(type), value(value) {
-            // if (auto i = std::get_if<long long>(&this->value)) {
-            //     if ((unsigned long long)*i == -32768)
-            //         throw std::invalid_argument("Const value cannot be -32768");
-            // }
+#if 0
+        if (!std::holds_alternative<unsigned long>(this->value))
+            return;
+        long long v = std::get<unsigned long>(this->value);
+        if (v > -100 && v < 0) {
+            throw std::invalid_argument("Const must be positive, currrnt value: " + std::to_string(v));
         }
+#endif
+    }
 
     bool operator==(const SpecNode& other) const {
         if (typeid(other) != typeid(*this)) {
@@ -185,11 +189,11 @@ private:
         if (this->type == SpecType::UNKNOWN_TYPE) {
             throw std::invalid_argument("Const must have a type");
         } else if (dynamic_cast<Int *>(this->type.get()) != nullptr) {
-            long long v = std::get<long long>(this->value);
+            long long v = std::get<unsigned long>(this->value);
             if (v > -100 && v < 0) {
-                return "(" + std::to_string(v) + ")";
+                return "(-" + std::to_string(-v) + ")";
             } else
-                return std::to_string((unsigned long long)v);
+                return std::to_string((unsigned long)v);
         } else if (dynamic_cast<String *>(this->type.get()) != nullptr) {
             return "\"" + std::get<string>(this->value) + "\"";
         } else if (dynamic_cast<Bool *>(this->type.get()) != nullptr) {
@@ -203,17 +207,17 @@ private:
 class IntConst : public Const {
 public:
     IntConst() { throw std::invalid_argument("IntConst must have a value"); }
-    IntConst(long long value) : Const(value, Int::INT) {}
+    IntConst(unsigned long value) : Const(value, Int::INT) {}
     //IntConst(unsigned long value, SpecType type) : Const(value, type) {}
 
     ~IntConst() {}
 private:
     const string to_string() const {
-        long long v = std::get<long long>(this->value);
+        long long v = std::get<unsigned long>(this->value);
         if (v > -100 && v < 0) {
-            return "(" + std::to_string(v) + ")";
+            return "(-" + std::to_string(-v) + ")";
         } else
-            return std::to_string((unsigned long long)v);
+            return std::to_string((unsigned long)v);
     }
 };
 

@@ -376,7 +376,7 @@ substitute [expr] with [var] in [spec]
 [spec] is freed if substitution is successful
 [expr] and [var] is freed by the caller
 */
-static SpecNode *subst_expr(Project *proj, SpecNode *spec, SpecNode *expr, SpecNode *var, bool &succ) {
+SpecNode *subst_expr(Project *proj, SpecNode *spec, SpecNode *expr, SpecNode *var, bool &succ) {
     if (*spec == *expr) {
         succ = true;
         return var->deep_copy().release();
@@ -765,11 +765,14 @@ rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec) {
     return std::make_pair(rec_apply(spec, f), changed);
 }
 
+/*
+match (if c then A else B) with { ... } -> if c then (match A with { ... }) else (match B with { ... })
+*/
 rule_ret_t rule_move_if_out_match(Project *proj, SpecNode *spec) {
     bool changed = false;
 
     std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
-        if (auto m = instance_of(node, Match))
+        if (auto m = instance_of(node, Match)) {
             if (auto src = instance_of(m->src.get(), If)) {
                 unique_ptr<Match> m1(static_cast<Match*>(m->deep_copy().release()));
                 auto new_if = new If(std::move(src->cond),
@@ -780,6 +783,7 @@ rule_ret_t rule_move_if_out_match(Project *proj, SpecNode *spec) {
                 changed = true;
                 return new_if;
             }
+        }
 
         return node;
     };
@@ -1134,23 +1138,6 @@ static bool try_match(Project *proj, SpecNode *pattern, SpecNode *src,
     return def;
 }
 
-/*
-  match (None) with
-  | (Some slot) =>
-    let v_call := ((((-131072 + ((v_g.(poffset)))) - (((SLOT_VIRT + ((slot * (GRANULE_SIZE)))) + (((mkPtr "granules" 0).(poffset)))))) >> (4)) * (GRANULE_SIZE)) in
-    let st_1 := st in
-    when v_call1, st_3 == ((buffer_map_internal_spec v_slot v_call st_1));
-    (Some (v_call1, st_1))
-==========================================================
-  match (None) with
-  | (Some slot) =>
-    let v_call := ((((-131072 + ((v_g.(poffset)))) - (((SLOT_VIRT + ((slot * (GRANULE_SIZE)))) + (((mkPtr "granules" 0).(poffset)))))) >> (4)) * (GRANULE_SIZE)) in
-    let st_1 := st in
-    match ((buffer_map_internal_spec v_slot v_call st_1)) with
-    | (Some (v_call1, st_3)) => (Some (v_call1, st_1))
-    | None => (Some slot)
-    end
-*/
 rule_ret_t rule_eliminate_match_simple(Project *proj, SpecNode *spec) {
     bool changed = false;
 
@@ -1385,8 +1372,8 @@ static vector<int> PRIM_NUMS = get_prime();
 
 SpecNode* try_divide_const_factor(SpecNode *expr, int factor) {
     if(auto m = instance_of(expr, IntConst)) {
-        if(std::get<long long>(m->value) != 0 && std::get<long long>(m->value) % factor == 0) {
-            return new IntConst(std::get<long long>(m->value) / factor);
+        if(std::get<unsigned long>(m->value) != 0 && std::get<unsigned long>(m->value) % factor == 0) {
+            return new IntConst(std::get<unsigned long>(m->value) / factor);
         }
     } else if(auto m = instance_of(expr, Expr)) {
         if(holds_alternative<Expr::binops>(m->op)) {
@@ -1729,52 +1716,52 @@ rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec) {
 
                     if(ops == op::ADD) {
                         expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<long long>(elem0->value) + std::get<long long>(elem1->value)));
+                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) + std::get<unsigned long>(elem1->value)));
                     } else if (ops == op::MINUS && m->elems->size() == 1) {
                         expr_is_changed = true;
-                        expr.reset(new IntConst(-std::get<long long>(elem0->value)));
+                        expr.reset(new IntConst(-std::get<unsigned long>(elem0->value)));
                     } else if (ops == op::MINUS && m->elems->size() == 2) {
                         expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<long long>(elem0->value) - std::get<long long>(elem1->value)));
+                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) - std::get<unsigned long>(elem1->value)));
                     } else if (ops == op::MULT) {
                         expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<long long>(elem0->value) * std::get<long long>(elem1->value)));
+                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) * std::get<unsigned long>(elem1->value)));
                     } else if(ops == op::DIV) {
                         expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<long long>(elem0->value) / std::get<long long>(elem1->value)));
+                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) / std::get<unsigned long>(elem1->value)));
                     } else if(ops == op::MOD) {
                         expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<long long>(elem0->value) + std::get<long long>(elem1->value)));
+                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) + std::get<unsigned long>(elem1->value)));
                     } else if(ops == op::BITAND) {
                         expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<long long>(elem0->value) & std::get<long long>(elem1->value)));
+                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) & std::get<unsigned long>(elem1->value)));
                     } else if(ops == op::BITOR) {
                         expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<long long>(elem0->value) | std::get<long long>(elem1->value)));
+                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) | std::get<unsigned long>(elem1->value)));
                     } else if(ops == op::LSHIFT) {
                         expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<long long>(elem0->value) << std::get<long long>(elem1->value)));
+                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) << std::get<unsigned long>(elem1->value)));
                     } else if(ops == op::RSHIFT) {
                         expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<long long>(elem0->value) >> std::get<long long>(elem1->value)));
+                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) >> std::get<unsigned long>(elem1->value)));
                     } else if(ops == op::BEQ) {
                         expr_is_changed = true;
-                        expr.reset(new BoolConst(std::get<long long>(elem0->value) == std::get<long long>(elem1->value)));
+                        expr.reset(new BoolConst(std::get<unsigned long>(elem0->value) == std::get<unsigned long>(elem1->value)));
                     } else if(ops == op::BNE) {
                         expr_is_changed = true;
-                        expr.reset(new BoolConst(std::get<long long>(elem0->value) != std::get<long long>(elem1->value)));
+                        expr.reset(new BoolConst(std::get<unsigned long>(elem0->value) != std::get<unsigned long>(elem1->value)));
                     } else if(ops == op::BGT) {
                         expr_is_changed = true;
-                        expr.reset(new BoolConst(std::get<long long>(elem0->value) > std::get<long long>(elem1->value)));
+                        expr.reset(new BoolConst(std::get<unsigned long>(elem0->value) > std::get<unsigned long>(elem1->value)));
                     } else if(ops == op::BLT) {
                         expr_is_changed = true;
-                        expr.reset(new BoolConst(std::get<long long>(elem0->value) < std::get<long long>(elem1->value)));
+                        expr.reset(new BoolConst(std::get<unsigned long>(elem0->value) < std::get<unsigned long>(elem1->value)));
                     } else if(ops == op::BGE) {
                         expr_is_changed = true;
-                        expr.reset(new BoolConst(std::get<long long>(elem0->value) >= std::get<long long>(elem1->value)));
+                        expr.reset(new BoolConst(std::get<unsigned long>(elem0->value) >= std::get<unsigned long>(elem1->value)));
                     } else if(ops == op::BLE) {
                         expr_is_changed = true;
-                        expr.reset(new BoolConst(std::get<long long>(elem0->value) <= std::get<long long>(elem1->value)));
+                        expr.reset(new BoolConst(std::get<unsigned long>(elem0->value) <= std::get<unsigned long>(elem1->value)));
                     }
 
                     expr->_str = "";

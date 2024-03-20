@@ -387,7 +387,7 @@ public:
     shared_ptr<SpecType> typ;
     z3::expr value;
 
-    SpecValue(shared_ptr<SpecType> typ, long long value) : typ(typ), value(z3ctx.int_val((long)value)) {}
+    SpecValue(shared_ptr<SpecType> typ, unsigned long value) : typ(typ), value(z3ctx.int_val((unsigned long)value)) {}
     SpecValue(shared_ptr<SpecType> typ, bool value) : typ(typ), value(z3ctx.bool_val(value)) {}
     SpecValue(shared_ptr<SpecType> typ, string value) : typ(typ), value(z3ctx.string_val(value.c_str())) {}
     SpecValue(shared_ptr<SpecType> typ, z3::expr value) : typ(typ), value(value) {}
@@ -441,7 +441,7 @@ public:
 
 class IntValue : public SpecValue {
 public:
-    IntValue(long long value) : SpecValue(Int::INT, value) {}
+    IntValue(unsigned long value) : SpecValue(Int::INT, value) {}
     IntValue(z3::expr value) : SpecValue(Int::INT, value) {}
 
     shared_ptr<IntValue> neg() { return make_shared<IntValue>((-value).simplify()); }

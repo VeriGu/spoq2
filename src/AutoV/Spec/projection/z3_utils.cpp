@@ -43,13 +43,31 @@ size_t hash_unsigned_vector(const vector<unsigned> &v) {
     return hash;
 }
 
+static size_t hash_z3_expr(z3::expr &e) {
+    // Combine e.hash() and e.id()
+    size_t hash = 0;
+    boost::hash_combine(hash, e.hash());
+    boost::hash_combine(hash, e.id());
+    return hash;
+}
+
+size_t hash_z3_state(std::shared_ptr<EvalState> state, int timeout) {
+    std::vector<unsigned> hashes;
+    for (auto &c : *state->conds) {
+        hashes.push_back(hash_z3_expr(c));
+    }
+    sort(hashes.begin(), hashes.end());
+    hashes.push_back(timeout);
+    return hash_unsigned_vector(hashes);
+}
+
 size_t hash_z3_state(std::shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     std::vector<unsigned> hashes;
     for (auto &c : *state->conds) {
-        hashes.push_back(c);
+        hashes.push_back(hash_z3_expr(c));
     }
     sort(hashes.begin(), hashes.end());
-    hashes.push_back(cond.hash());
+    hashes.push_back(hash_z3_expr(cond));
     hashes.push_back(timeout);
     return hash_unsigned_vector(hashes);
 }
@@ -64,7 +82,7 @@ std::chrono::duration<double> z3_accumulative_time = std::chrono::duration<doubl
 // Defautl value of timeout is 100
 Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     auto start = std::chrono::high_resolution_clock::now();
-    auto hash = hash_z3_state(state, cond, 1000);
+    auto hash = hash_z3_state(state, cond, timeout);
     if (Z3Cache.find(hash) != Z3Cache.end()) {
         return Z3Cache[hash];
     }
@@ -88,14 +106,6 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     z3::expr_vector not_cond_vec(z3ctx);
     not_cond_vec.push_back(!cond);
     auto not_res = Z3Solver.check(not_cond_vec);
-#if 0
-    if (not_res == z3::unsat) {
-        auto core = Z3Solver.unsat_core();
-        std::cout << "Unsat core: " << core.size() << std::endl;
-        for (int i = 0; i < core.size(); i++)
-            std::cout << core[i] << std::endl;
-    }
-#endif
     Z3Solver.pop();
 
     Z3Solver.pop();
@@ -103,7 +113,8 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
     // std::cout << "-----------------Z3-----------------" << std::endl;
-    // std::cout << "z3 check cond: " << cond << std::endl;
+    // std::cout << "hash: " << hash << std::endl;
+    // std::cout << "z3 check cond: " << cond << ", hash: " << cond.hash() << std::endl;
     // for (auto &c : *state->conds) {
     //     std::cout << "z3 check state conds: " << c << std::endl;
     // }
@@ -115,6 +126,45 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
         Z3Cache[hash] = Z3Result::True;
         return Z3Result::True;
     } else if (res == z3::unsat) {
+        Z3Cache[hash] = Z3Result::False;
+        return Z3Result::False;
+    } else {
+        Z3Cache[hash] = Z3Result::Unknown;
+        z3_unknowns++;
+        return Z3Result::Unknown;
+    }
+}
+
+Z3Result z3_check(shared_ptr<EvalState> state, int timeout) {
+    auto start = std::chrono::high_resolution_clock::now();
+    auto hash = hash_z3_state(state, timeout);
+    if (Z3Cache.find(hash) != Z3Cache.end()) {
+        return Z3Cache[hash];
+    }
+    Z3Params.set("timeout", (unsigned int)timeout);
+    Z3Params.set("unsat_core", true);
+    Z3Solver.set(Z3Params);
+
+    Z3Solver.push();
+
+    for (auto &c : *state->conds) {
+        Z3Solver.add(c);
+    }
+    Z3Solver.push();
+    auto res = Z3Solver.check();
+    Z3Solver.pop();
+
+    Z3Solver.pop();
+    auto end = std::chrono::high_resolution_clock::now();
+    z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+
+    // std::cout << "-----------------Z3-----------------" << std::endl;
+    // for (auto &c : *state->conds) {
+    //     std::cout << "z3 check state conds: " << c << std::endl;
+    // }
+    // std::cout << "-----------------Z3-----------------" << std::endl;
+
+    if (res == z3::unsat) {
         Z3Cache[hash] = Z3Result::False;
         return Z3Result::False;
     } else {
@@ -138,7 +188,7 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
             return vars[sym->text];
         }
     } else if (auto con = instance_of(pat, Const)) {
-        if (auto intc = std::get_if<long long>(&con->value)) {
+        if (auto intc = std::get_if<unsigned long>(&con->value)) {
             return make_shared<IntValue>(*intc);
         } else if (auto boolc = std::get_if<bool>(&con->value)) {
             return make_shared<BoolValue>(*boolc);
@@ -172,7 +222,6 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
 }
 
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
-
     //std::cout << "z3_eval: " << string(*val) << std::endl;
 
     if (val->cached_eval) return val->cached_eval;
@@ -206,7 +255,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             throw std::runtime_error("Unknown symbol: " + sym->text);
         }
     } else if (auto con = instance_of(val, Const)) {
-        if (auto intc = std::get_if<long long>(&con->value)) {
+        if (auto intc = std::get_if<unsigned long>(&con->value)) {
             return make_shared<IntValue>(*intc);
         } else if (auto boolc = std::get_if<bool>(&con->value)) {
             return make_shared<BoolValue>(*boolc);
@@ -257,7 +306,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         if (op_eq(expr->op, "Z.xorb"))
             return _cache(static_pointer_cast<IntValue>(elems[0])->xorb(static_pointer_cast<IntValue>(elems[1])));
         if (op_eq(expr->op, Expr::binops::EQUAL))
-            return _cache(Prop::PROP->from_z3_value(elems[0]->get_z3_value() == elems[1]->get_z3_value()));
+            return _cache(Prop::PROP->from_z3_value((elems[0]->get_z3_value() == elems[1]->get_z3_value()).simplify()));
         if (op_eq(expr->op, Expr::binops::BEQ))
             return _cache(static_pointer_cast<IntValue>(elems[0])->eq(static_pointer_cast<IntValue>(elems[1])));
         if (op_eq(expr->op, Expr::binops::SEQ))
