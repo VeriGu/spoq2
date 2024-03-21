@@ -468,6 +468,7 @@ Require Import Eqdep.
 Import Eq_rect_eq.
 
 Module string_record <: RECORD.
+
   Definition keyType := string.
   Definition key_elem_eq := string_dec.
   Definition record_type := forall x: keyType, Type.
@@ -509,8 +510,8 @@ Module string_record <: RECORD.
     apply functional_extensionality_dep.
     apply projection_gss'.
   Qed.
-  
 
+  
   Theorem projection_gso :
     forall (record: record_type) (x: string) (y:string) (rec: t record) (v: record y),
       y <> x -> proj x (set y rec v) = proj x rec.
@@ -530,6 +531,20 @@ Module string_record <: RECORD.
   Qed.
 
 
+  Theorem projection_sso :
+    forall (record: record_type) (x: keyType) (y: keyType) (rec: t record) (v1: record x) (v2: record y),
+      x <> y -> set x (set y rec v2) v1 = set y (set x rec v1) v2.
+  Proof.
+    intros. apply functional_extensionality_dep. intro.
+    unfold set.
+    destruct (string_dec x x0) eqn: Heq.
+    destruct (string_dec y x0) eqn: Heq2.
+    assert (x = y).
+    rewrite e. rewrite e0. reflexivity. contradiction. reflexivity.
+
+    destruct (string_dec y x0) eqn: Heq2.
+    reflexivity. reflexivity.
+  Qed.
 
   (* rule2.1: if the lens res = set x rec v, we can introduce a property of lens rec: *)
   Theorem projection_lens_gso :
@@ -554,6 +569,91 @@ Module string_record <: RECORD.
     exact H.
   Qed.
 End string_record.
+
+(* rule 2.2 *)
+Notation "a '.[' b ']' ':<' c" := (string_record.set b a c) (at level 1).
+Notation "a '.(' b ')'" := (string_record.proj b a) (at level 1).
+
+Section projection_zmap_record.
+  Variable record: forall s: string, Type.
+  Variable outter_record : forall s: string, Type.
+  Variable a: string.
+  Variable record_a : outter_record a = ZMap.t (string_record.t record).
+  Variable st : string_record.t outter_record.
+
+  Definition cast (x: outter_record a) : ZMap.t (string_record.t record).
+    rewrite <- record_a. exact x.
+  Defined.
+
+
+  Definition cast_back (x: ZMap.t (string_record.t record)) : outter_record a.
+    rewrite record_a. exact x.
+  Defined.
+
+  Theorem cast_cast_back_is_identity: 
+    forall (x: outter_record a), cast_back (cast x) = x.
+  Proof.
+    intros.
+    unfold cast_back, cast. rewrite <- record_a.
+    simpl. unfold eq_rect_r. simpl. reflexivity.
+  Qed.
+
+
+   Theorem cast_back_cast_is_identity: 
+    forall (x:  ZMap.t (string_record.t record)), cast (cast_back x) = x.
+  Proof.
+    intros.
+    unfold cast_back, cast. rewrite record_a.
+    simpl. unfold eq_rect_r. simpl. reflexivity.
+  Qed.
+  Print cast.
+  
+Theorem zmap_projection :
+  forall (x:string) (idx: Z) (v: record x),
+  forall (y: string) (lens: string_record.t outter_record -> string_record.t outter_record),
+    x <> y ->
+    st.[a] :< (cast_back ((cast st.(a)) # idx == (((cast st.(a)) @ idx).[x] :< v))) = (lens st) ->
+              ((cast (lens st).(a)) @ idx).(y) = ((cast st.(a)) @ idx).(y).
+Proof.
+  set (map := (cast st.(a))).
+  intro. intro. intro. intro. intro.
+  set (inner_record := map @ idx).
+  intros.
+  assert (inner_record.(y) = (inner_record.[x] :< v).(y)).
+  symmetry. apply string_record.projection_gso.
+  exact H.
+  rewrite <- H0. rewrite string_record.projection_set_get_same.
+  rewrite cast_back_cast_is_identity.
+  rewrite ZMap.gss. symmetry.
+  exact H1.
+Qed.
+End projection_zmap_record.
+
+Section projection_lens_commutative.
+  Variable record_t : forall s: string, Type.
+  Variable st: string_record.t record_t.
+  Variable x: string.
+  Variable v2: record_t x.
+ 
+  Theorem lens_commutative:
+    forall (y: string) (v1: record_t y) (rec: string_record.t record_t)  (lens : string_record.t record_t -> string_record.t record_t),
+      (forall (r: string_record.t record_t),
+         lens r = r.[x] :< v2) ->
+      x <> y -> rec = (st.[y] :< v1) ->
+      lens (st.[y] :< v1) = (lens st).[y] :< v1.
+  Proof.
+    intros.
+    remember  H. clear Heqe.
+    specialize (H rec).
+    rewrite H1 in H.
+    specialize (e st).
+    rewrite e.
+    rewrite H.
+    rewrite string_record.projection_sso.
+    reflexivity.
+    exact H0.
+  Qed.
+End projection_lens_commutative.
 
 Section projection_hiding.
   Parameter out_type: Type.
@@ -585,6 +685,19 @@ Section projection_hiding.
  the lens, as long as Q is also correct about the expression*)
 End projection_hiding.
 
+
+
+
+(* Section invariant_test. *)
+(*   Parameter lens_type: Type. *)
+(*   Parameter inv : list string. *)
+  
+(*   Inductive transform := *)
+(*   | rule_1 : forall (record_type: string_record.record_type) (e: string_record.t record_type) *)
+(*      (x: string) (v: record_type x), *)
+(*       transform (e.[x] :< v). *)
+    
+(* End invariant_test. *)
 
 
 
