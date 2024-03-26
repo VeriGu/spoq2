@@ -57,15 +57,15 @@ public:
     }
 
     operator string() const {
-#ifndef DEBUG
-        if (this->_str == "") {
-            this->_str = this->to_string();
-        }
+// #ifndef DEBUG
+//         if (this->_str == "") {
+//             this->_str = this->to_string();
+//         }
 
-        return this->_str;
-#else
+//         return this->_str;
+// #else
         return this->to_string();
-#endif
+//#endif
     }
 
     bool has_type() const {
