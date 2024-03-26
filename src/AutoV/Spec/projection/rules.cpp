@@ -564,10 +564,11 @@ static void search_field_path(Project *proj, string name, string parent, vector<
     return;
 }
 
-static const std::set<string> interest_list = {"e_lock", "e_refcount", "log"};
-static vector<vector<FieldPath>> collect_interest_path(Project *proj) {
-    vector<vector<FieldPath>> interest_path;
-
+static vector<vector<FieldPath>> interest_path;
+//static const std::set<string> interest_list = {"e_lock", "e_refcount", "log"};
+static const std::set<string> interest_list = {"gpt", "g_norm", "e_state", "g_rec", "slots", "granule_data", "e_lock"}; // delegate/undelegate
+//static const std::set<string> interest_list = {};
+static void collect_interest_path(Project *proj) {
     for (auto &i: interest_list) {
         vector<FieldPath> path;
 
@@ -576,11 +577,7 @@ static vector<vector<FieldPath>> collect_interest_path(Project *proj) {
             interest_path.push_back(path);
         }
     }
-
-    return interest_path;
 }
-
-static vector<vector<FieldPath>> interest_path;
 
 static bool contains_interest_fields(SpecNode *spec) {
     if (auto s = instance_of(spec, Symbol)) {
@@ -632,6 +629,31 @@ static bool contains_interest_fields(SpecNode *spec) {
     //throw std::runtime_error("Unknown SpecNode: " + string(*spec));
 }
 
+static bool op_is_lens(const std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string> &op) {
+    if (auto s = std::get_if<string>(&op))
+        return *s == "lens";
+
+    return false;
+}
+
+static bool rec_is_lens(SpecNode *spec) {
+    if (auto e = instance_of(spec, Expr)) {
+        if (e->is_lens)
+            return true;
+
+        if (auto op = std::get_if<string>(&e->op))
+            return op_is_lens(*op);
+        else if (auto op = std::get_if<Expr::ops>(&e->op)) {
+            if (*op == Expr::RecordGet || *op == Expr::GET || *op == Expr::RecordSet || *op == Expr::SET)
+                return rec_is_lens(e->elems->at(0).get());
+        } else if (auto op = std::get_if<unique_ptr<SpecNode>>(&e->op)) {
+            return rec_is_lens(op->get());
+        }
+    }
+
+    return false;
+}
+
 rule_ret_t rule_eliminiate_indifferent(Project *proj, SpecNode *spec, string fname) {
     bool changed = false;
     std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
@@ -651,10 +673,11 @@ rule_ret_t rule_eliminiate_indifferent(Project *proj, SpecNode *spec, string fna
 
             auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
+            new_elems->push_back(make_unique<IntConst>(get_mono_lens_id()));
             new_elems->push_back(std::move(e->elems->at(0)));
 
-            auto lens_name = fname + "_lens";
-            auto new_e = new Expr(lens_name, std::move(new_elems), e->type);
+            auto lens_name = "lens";
+            auto new_e = new Expr(lens_name, std::move(new_elems), abs_data);
             new_e->is_lens = true;
             delete e;
             changed = true;
@@ -676,53 +699,28 @@ rule_ret_t rule_eliminiate_indifferent(Project *proj, SpecNode *spec, string fna
 
             return new_e;
 
-#if 0
-            for (auto &elem: *e->elems) {
-                if (auto s = instance_of(elem.get(), Symbol)) {
-                    if (std::find(interest_list.begin(), interest_list.end(), s->text) == interest_list.end()) {
-                        auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                        new_elems->push_back(std::move(e->elems->at(0)));
-
-                        auto lens_name = fname + "_lens";
-                        auto new_e = new Expr(lens_name, std::move(new_elems), e->type);
-                        new_e->is_lens = true;
-                        delete e;
-                        changed = true;
-
-                        // Add the lens to the global scope
-                        if (!proj->is_known_symbol(lens_name)) {
-                            auto arg_types = make_shared<vector<shared_ptr<SpecType>>>();
-
-                            for (auto &t: *new_e->elems) {
-                                arg_types->push_back(t->get_type());
-                            }
-
-                            auto lens_type = make_shared<Function>(new_e->type, arg_types);
-
-                            auto lens = make_unique<Declaration>(lens_name, lens_type);
-
-                            proj->add_declaration(std::move(lens), make_shared<loc_t>(Project::LOC_GLOBALDEFS, "", ""));
-                        }
-
-                        return new_e;
-                    }
-                }
-            }
-#endif
          }
-
         return node;
     };
 
-    // if (interest_path.size() == 0) {
-    //     interest_path = collect_interest_path(proj);
-    // }
+    if (interest_path.size() == 0) {
+        collect_interest_path(proj);
+
+        // for (const auto &p: interest_path) {
+        //     std::cout << "Interest path: " << std::endl;
+        //     for (const auto &f: p) {
+        //         std::cout << f.name << " ";
+        //     }
+        //     std::cout << std::endl;
+        // }
+    }
 
 
     return std::make_pair(rec_apply(spec, f), changed);
 }
 
+
+#if 0
 static bool ends_with_lens(const std::string& str) {
     if (str.length() >= 4) {
         return str.rfind("lens") == str.length() - 4;
@@ -733,13 +731,27 @@ static bool ends_with_lens(const std::string& str) {
 static bool expr_is_lens(const Expr *e) {
     if (e->is_lens)
         return true;
+
     if (auto op = std::get_if<string>(&e->op)) {
         return ends_with_lens(*op);
+    } else if (holds_alternative<unique_ptr<SpecNode>>(e->op)) {
+        auto &op = std::get<unique_ptr<SpecNode>>(e->op);
+        if (auto e = instance_of(op.get(), Expr)) {
+            return expr_is_lens(e);
+        }
+    } else if (auto op = std::get_if<Expr::ops>(&e->op)) {
+        if (*op == Expr::GET || *op == Expr::RecordGet) {
+            auto &rec = e->elems->at(0);
+
+            if (auto e = instance_of(rec.get(), Expr)) {
+                return expr_is_lens(e);
+            }
+        }
     }
     return false;
 }
 
-// lens (lens st) -> lens st
+
 rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec) {
     bool changed = false;
 
@@ -748,15 +760,180 @@ rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec) {
             if (!expr_is_lens(e))
                 return node;
 
-            if (auto ee = instance_of(e->elems->at(0).get(), Expr)) {
+
+            if (auto ee = instance_of(e->elems->at(1).get(), Expr)) {
                 if (!expr_is_lens(ee))
                     return node;
 
-                e->elems = std::move(ee->elems);
-                changed = true;
+                auto orig_e = string(*e);
+
+                auto &op0 = e->op;
+                auto &op1 = ee->op;
+
+                if (holds_alternative<string>(op0) && holds_alternative<string>(op1)) {
+                    // lens y (lens x st) -> lens z st
+                    e->elems = std::move(ee->elems);
+                    e->elems->at(0).reset(new IntConst(get_mono_lens_id()));
+                    changed = true;
+                }
+
+                // std::cout << "merge lens: " << orig_e << " to "
+                //     << string(*node)<< std::endl;
                 return node;
             }
 
+        }
+
+        return node;
+    };
+
+    return std::make_pair(rec_apply(spec, f), changed);
+}
+#endif
+
+static SpecNode* remove_expr_lens(Expr *e, bool &changed) {
+    if (op_is_lens(e->op)) {
+        auto ret = e->elems->at(1).release();
+
+        changed = true;
+        return ret;
+    } else if (auto op = std::get_if<Expr::ops>(&e->op)) {
+        if (*op == Expr::GET || *op == Expr::RecordGet) {
+            auto rec = e->elems->at(0).get();
+
+            if (auto rec_e = instance_of(rec, Expr)) {
+                auto ret = remove_expr_lens(rec_e, changed);
+
+                if (ret != rec_e)
+                    e->elems->at(0).reset(ret);
+            }
+            return e;
+        }
+    }
+
+    return e;
+}
+
+rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec) {
+    bool changed = false;
+
+    std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
+        if (auto e = instance_of(node, Expr)) {
+            if (op_is_lens(e->op)) {
+                if (auto ee = instance_of(e->elems->at(1).get(), Expr)) {
+                    if (op_is_lens(ee->op)) {
+                        // 1. lens y (lens x st) -> lens z st
+                        e->elems = std::move(ee->elems);
+                        e->elems->at(0).reset(new IntConst(get_mono_lens_id()));
+                        changed = true;
+                    } else if (auto op = std::get_if<Expr::ops>(&ee->op)) {
+                        if (*op == Expr::RecordSet) {
+                            auto rec = ee->elems->at(0).get();
+
+                            if (auto rec_e = instance_of(rec, Expr)) {
+                                bool __this_changed = false;
+                                auto orig = string(*e);
+                                auto ret = remove_expr_lens(rec_e, __this_changed);
+
+                                changed |= __this_changed;
+
+                                if (ret != rec_e) {
+                                    // 3.4. lens x (lens y st).[z] :< v ==> lens x st.[z] :< v
+                                    ee->elems->at(0).reset(ret);
+                                    e->elems->at(0).reset(new IntConst(get_mono_lens_id()));
+                                    e->_str = "";
+                                }
+
+                                // 3.3 lens (st.[y] :< v) ==> (lens st).[y] :< v
+                                auto lens_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                                auto lens_type = ee->elems->at(0)->get_type();
+
+                                lens_elems->push_back(make_unique<IntConst>(get_mono_lens_id()));
+                                lens_elems->push_back(std::move(ee->elems->at(0)));
+
+                                auto lens_expr = make_unique<Expr>("lens", std::move(lens_elems), lens_type);
+
+                                auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                                new_elems->push_back(std::move(lens_expr));
+                                for (int i = 1; i < ee->elems->size(); i++)
+                                    new_elems->push_back(std::move(ee->elems->at(i)));
+
+                                auto new_expr = new Expr(Expr::RecordSet, std::move(new_elems), lens_type);
+
+                                if (__this_changed)
+                                    std::cout << "Simplify lens: " << orig << " to " << string(*new_expr) << std::endl;
+
+                                return new_expr;
+                            }
+                        }
+                    }
+                }
+            } else if (auto op = std::get_if<Expr::ops>(&e->op)) {
+                if (*op == Expr::RecordGet) {
+                    auto field = static_cast<Symbol *>(e->elems->back().get());
+
+                    if (interest_list.find(field->text) != interest_list.end()) {
+                        auto rec = e->elems->at(0).get();
+
+                        if (auto rec_e = instance_of(rec, Expr)) {
+                            // 3.1. (lens st).(y) ==> st.(y)
+                            bool __this_changed = false;
+                            auto ret = remove_expr_lens(rec_e, __this_changed);
+
+                            changed |= __this_changed;
+
+                            if (ret != rec_e)
+                                e->elems->at(0).reset(ret);
+                        }
+                    }
+                }
+            }
+        } else if (auto m = instance_of(node, Match)) {
+            int none_cnt = 0;
+            SpecNode *body;
+            for (auto &pm : *m->match_list) {
+                if (auto s = instance_of(pm->body.get(), Symbol)) {
+                    if (s->text == "None") {
+                        none_cnt++;
+                        continue;
+                    }
+                }
+
+                body = pm->body.get();
+            }
+
+            // More than one match arms that are not None
+            if (m->match_list->size() - none_cnt > 1)
+                return node;
+
+            // if (!m->is_when())
+            //     return node;
+
+            auto src = m->src.get();
+
+            if (auto e = instance_of(src, Expr)) {
+                if (auto op = std::get_if<Expr::ops>(&e->op)) {
+                    if (*op == Expr::RecordGet) {
+                        auto rec = e->elems->at(0).get();
+
+                        if (rec_is_lens(rec)) {
+                            // when _ == (lens st).(y); B ==> B
+
+                            auto vars = std::set<string>();
+                            auto pm = m->match_list->at(0).get();
+
+                            get_vars_from_pattern(proj, pm->pattern.get(), vars);
+                            if (contains_vars(proj, body, vars))
+                                return node;
+
+                            changed = true;
+                            auto ret = pm->body.release();
+                            delete m;
+                            return ret;
+                        }
+                    }
+                }
+            }
         }
 
         return node;

@@ -4,6 +4,8 @@
 
 namespace autov {
 
+unsigned long mono_lens_id = 0;
+
 static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group1 = {
     //rule_eliminiate_indifferent,
     rule_eliminate_let,

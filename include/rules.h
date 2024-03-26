@@ -10,10 +10,16 @@
 #include <utils.h>
 
 namespace autov {
+extern unsigned long mono_lens_id;
+
+static unsigned long get_mono_lens_id() {
+    return mono_lens_id++;
+}
+
 using rule_ret_t = std::pair<SpecNode *, bool>;
 SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &prev_symbols, bool &changed);
-
 rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec);
+
 rule_ret_t rule_simple_record_get_set(Project *proj, SpecNode *spec);
 rule_ret_t rule_eliminiate_indifferent(Project *proj, SpecNode *spec, string fname);
 rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec);
