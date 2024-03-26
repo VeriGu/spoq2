@@ -51,7 +51,7 @@ extern unordered_map<size_t, Z3Result> Z3Cache;
 
 void spec_transformer(Project *proj, Definition *def) {
     LOG_INFO << "Transforming " << def->name;
-    bool debug = def->name == "inject_sync_idabort_rec_spec";
+    bool debug = def->name.compare(0, 21, "rtt_walk_lock_unlock") == 0;
     auto known = std::set<string>();
     auto fname = def->name;
 
@@ -162,6 +162,8 @@ void spec_transformer(Project *proj, Definition *def) {
                 break;
         }
 
+#define APPLY_LENS
+#ifdef APPLY_LENS
         // lens
         while (true) {
             auto this_changed = false;
@@ -201,6 +203,7 @@ void spec_transformer(Project *proj, Definition *def) {
             if (!this_changed)
                 break;
         }
+#endif
 
         // Z3
         auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();

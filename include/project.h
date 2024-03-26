@@ -79,6 +79,7 @@ public:
     unordered_map<string, shared_ptr<SpecType>> typedefs;
     unordered_map<string, unique_ptr<Declaration>> decls;
     unordered_map<string, unique_ptr<Definition>> defs;
+    vector<string> def_order;
     vector<unique_ptr<Expr>> axioms;
 
     unordered_map<string, SymbolInfo> symbols;
@@ -99,21 +100,10 @@ public:
 
     std::set<string> has_shadow;
 
-    // bool is_ind_constr(std::string name) {
-    //     static const std::unordered_set<std::string> ind_constr_symbols = {"None", "Some", "nil", "cons"};
-
-    //     if (symbols.find(name) != symbols.end() && symbols[name].kind == SymbolKind::IndConstructor) {
-    //         return true;
-    //     } else if (ind_constr_symbols.find(name) == ind_constr_symbols.end()) {
-    //         return true;
-    //     } else {
-    //         return false;
-    //     }
-    // }
-
     Project();
 
     void add_symbol(string symbol, SymbolKind kind, string info, shared_ptr<loc_t> loc);
+    void update_symbol_loc(string symbol, shared_ptr<loc_t> loc);
 
     void add_struct(shared_ptr<Struct> s, shared_ptr<loc_t> loc);
     void add_struct(shared_ptr<Struct> s);

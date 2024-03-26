@@ -41,6 +41,11 @@ void Project::add_symbol(string name, SymbolKind kind, string info, shared_ptr<l
     symbols[name] = SymbolInfo{kind, info, *loc, symbols.size()};
 }
 
+void Project::update_symbol_loc(string name, shared_ptr<loc_t> loc)
+{
+    symbols[name].loc = *loc;
+}
+
 void Project::add_struct(shared_ptr<Struct> s, shared_ptr<loc_t> loc)
 {
     string name = s->name;
@@ -89,6 +94,7 @@ void Project::add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc) 
     auto def_ = def.get();
 
     defs[name] = std::move(def);
+    def_order.push_back(name);
     this->add_symbol(defs[name]->name, SymbolKind::Def, "", loc);
 
     LOG_DEBUG << "Adding definition " << name;
@@ -326,10 +332,12 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
     vector<Definition *> *low_specs;
     string low_name = fname + "_spec_low";
     std::unordered_map<string, string> name_map;
-    bool have_loop;
+    bool have_loop = false, have_sub = false;
 
+    // Generate/collate low specs
     if (proj->code->functions->find(fname) != proj->code->functions->end()) {
         if (proj->defs.find(low_name) == proj->defs.end()) {
+            // Generate low spec if not provided
             string suffix = "_low";
             low_specs = ir_to_spec(proj, fname, L.get(), suffix);
 
@@ -348,7 +356,8 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
             }
         } else {
             auto func = proj->code->functions->at(fname);
-            std::regex pattern(fname + "_loop\\d+_low");
+            std::regex pattern1(fname + "_loop\\d+_low");
+            std::regex pattern2(fname + "_\\d+_low");
 
             func->types = make_unique<unordered_map<string, shared_ptr<SpecType>>>();
             func->types->emplace("st", L->abs_data);
@@ -356,10 +365,26 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
 
             low_specs = new vector<Definition *>();
 
-            for (auto& pair : proj->defs) {
-                const std::string& spec_name = pair.first;
-                if (spec_name == fname + "_spec_low" || std::regex_match(spec_name, pattern)) {
-                    low_specs->push_back(pair.second.get());
+            // Since loop spec might be provided and we don't know the name of the loop spec, we cannot directly get the
+            // spec Definition object from `proj->defs`. Instead, we need to iterate through all the definitions and
+            // check if the name matches the pattern.
+            for (auto &spec_name : proj->def_order) {
+                auto &spec = proj->defs[spec_name];
+                bool _have_loop = false, _have_sub = false;
+
+                if (std::regex_match(spec_name, pattern1)) {
+                    _have_loop = true;
+                    have_loop = true;
+                } else if (std::regex_match(spec_name, pattern2)) {
+                    _have_sub = true;
+                    have_loop = true;
+                }
+
+                if (spec_name == fname + "_spec_low" || _have_loop || _have_sub) {
+                    low_specs->push_back(spec.get());
+                    proj->update_symbol_loc(spec_name, make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
+                    name_map[spec_name] = spec_name.substr(0, spec_name.size() - 4);
+                    std::cout << "name_map " << spec_name << " -> " << name_map[spec_name] << std::endl;
                 }
             }
         }
@@ -371,13 +396,14 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         // If the high spec is provided, skip
         if (proj->defs.find(name_map[def->name]) != proj->defs.end()) {
             LOG_INFO << "Provided: " << name_map[def->name] << std::endl;
+            proj->update_symbol_loc(name_map[def->name], make_shared<loc_t>(L->name, Project::LOC_SPEC, ""));
             continue;
         }
 
         auto high_name = name_map[def->name];
         unique_ptr<SpecNode> high_body = def->body->deep_copy();
 
-        if (have_loop) {
+        if (have_loop || have_sub) {
             auto [new_high, __changed] = replace_spec_name(proj, high_body.release(), name_map);
 
             high_body.reset(new_high);
@@ -422,10 +448,6 @@ void Project::finalize_project()
 
     this->code = IRLoader::post_process(module);
 
-    // auto new_store_RData = new Definition(*this->defs["store_RData"]);
-    // spec_transformer(this, new_store_RData);
-    // std::cout << "new_store_RData:\n" << string(*new_store_RData) << std::endl;
-
     for (auto it = this->layers.rbegin(); it != this->layers.rend() - 1; it++) {
         auto &L = *it;
 
@@ -458,29 +480,6 @@ void Project::finalize_project()
                 continue;
 
             auto [fname, low_specs, high_specs] = infer_spec_task(this, i, p);
-#if 0
-            std::string filename = "./low_test/" + fname + "Low.v";
-
-            std::remove(filename.c_str());
-
-            for (auto &low_spec: *low_specs) {
-                std::ofstream file(filename, std::ios::app);
-
-                if (!file) {
-                    throw std::runtime_error("Failed to open file " + filename);
-                }
-
-                file << string(*low_spec) << std::endl;
-
-                if (!file) {
-                    throw std::runtime_error("Failed to write to file " + filename);
-                }
-
-                file.close();
-
-                std::cout << "Inferred: " << filename << std::endl;
-            }
-#endif
         }
     }
 
