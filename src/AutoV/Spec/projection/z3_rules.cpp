@@ -361,11 +361,11 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
                     resolve_pattern(proj, spec, expr->elems->at(i).get(), dynamic_pointer_cast<IndValue>(src)->get(arg->name), state);
                 }
             } else
-                throw std::runtime_error("Unknown pattern: " + string(*pat));
+                throw std::runtime_error("Unknown pattern(" + std::to_string(__LINE__) + "): " + string(*pat));
         } else
-            throw std::runtime_error("Unknown pattern: " + string(*pat));
+            throw std::runtime_error("Unknown pattern(" + std::to_string(__LINE__) + "): " + string(*pat));
     } else
-        throw std::runtime_error("Unknown pattern: " + string(*pat));
+        throw std::runtime_error("Unknown pattern(" + std::to_string(__LINE__) + "): " + string(*pat));
 }
 
 rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> state) {

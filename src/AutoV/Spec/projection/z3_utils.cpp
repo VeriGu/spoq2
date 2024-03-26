@@ -214,11 +214,28 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
             auto t = dynamic_pointer_cast<Inductive>(src->get_type());
 
             return t->construct("None", {});
-        } else
-            throw std::runtime_error("Unknown pattern: " + pat->operator std::string());
+        } else if (std::holds_alternative<string>(expr->op)) {
+            auto op = std::get<string>(expr->op);
+            auto sym = proj->symbols.find(op);
+            vector<shared_ptr<SpecValue>> args;
+
+            if (sym != proj->symbols.end() && sym->second.kind == SymbolKind::IndConstructor) {
+                auto ind_typ = static_pointer_cast<Inductive>(typ);
+
+                for (int i = 0; i < ind_typ->constr.at(op)->size(); i++) {
+                    auto &arg = ind_typ->constr.at(op)->at(i);
+                    args.push_back(resolve_pattern(proj, val, expr->elems->at(i).get(),
+                                                   static_pointer_cast<IndValue>(src)->get(arg->name), vars, assigns));
+                }
+
+                return ind_typ->construct(op, args);
+            }
+        } else {
+            throw std::runtime_error("Unknown pattern(" + std::to_string(__LINE__) + "): " + string(*pat));
+        }
     }
 
-    throw std::runtime_error("Unknown pattern: " + pat->operator std::string());
+    throw std::runtime_error("Unknown pattern(" + std::to_string(__LINE__) + "): " + string(*pat));
 }
 
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
