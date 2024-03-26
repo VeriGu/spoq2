@@ -474,6 +474,9 @@ rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec) {
                 if (proj->defs.find(*op) == proj->defs.end())
                     return node;
 
+                if (proj->cmds.NoUnfold.find(*op) != proj->cmds.NoUnfold.end())
+                    return node;
+
                 auto define = proj->defs[*op].get();
 
                 // std::cout << "======================================" << std::endl;
