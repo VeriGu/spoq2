@@ -251,14 +251,14 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
             auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
             elems->push_back(unique_ptr<SpecNode>(cond_ret.first));
             elems->push_back(unique_ptr<SpecNode>(new BoolConst(false)));
-            auto cond = make_unique<Expr>("=", std::move(elems), Prop::PROP);
+            auto cond = make_unique<Expr>(Expr::EQUAL, std::move(elems), Prop::PROP);
             delete spec;
             return std::make_pair(new Rely(std::move(cond), unique_ptr<SpecNode>(else_ret.first)), changed);
         } else if (else_ret.first == nullptr && is_instance(then_ret.first->get_type().get(), Option)) {
             auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
             elems->push_back(unique_ptr<SpecNode>(cond_ret.first));
             elems->push_back(unique_ptr<SpecNode>(new BoolConst(true)));
-            auto cond = make_unique<Expr>("=", std::move(elems), Prop::PROP);
+            auto cond = make_unique<Expr>(Expr::EQUAL, std::move(elems), Prop::PROP);
             delete spec;
             return std::make_pair(new Rely(std::move(cond), unique_ptr<SpecNode>(then_ret.first)), changed);
         }
