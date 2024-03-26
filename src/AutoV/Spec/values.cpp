@@ -530,6 +530,6 @@ shared_ptr<SpecValue> ptr_to_int() {
 shared_ptr<SpecValue> z_to_nat() {
     auto args = make_shared<vector<shared_ptr<SpecType>>>();
     args->push_back(Int::INT);
-    return make_shared<Function>(Struct::Ptr, args)->declare("z_to_nat", 0);
+    return make_shared<Function>(Inductive::Nat, args)->declare("z_to_nat", 0);
 }
 } // namespace autov
