@@ -69,7 +69,7 @@ void Project::add_indtype(shared_ptr<Inductive> ind, shared_ptr<loc_t> loc) {
 }
 
 void Project::add_indtype(shared_ptr<Inductive> ind) {
-    this->add_indtype(std::move(ind), make_shared<loc_t>(Project::LOC_DATATYPES, "", ""));
+    this->add_indtype(ind, make_shared<loc_t>(Project::LOC_DATATYPES, "", ""));
 }
 
 void Project::add_typedef(string name, shared_ptr<SpecType> t) {
@@ -245,6 +245,25 @@ Project::Project()
     add_indtype(Inductive::Nat);
     add_definition(make_ptr_offset(), make_shared<loc_t>(Project::LOC_GLOBALDEFS, "", ""));
     add_definition(make_bool_to_int(), make_shared<loc_t>(Project::LOC_GLOBALDEFS, "", ""));
+
+#if 0
+    unordered_map<SymbolKind, string> kind_str = {
+        {SymbolKind::Struct, "Struct"},
+        {SymbolKind::StructElem, "StructElem"},
+        {SymbolKind::StructConstr, "StructConstr"},
+        {SymbolKind::IndType, "IndType"},
+        {SymbolKind::IndConstructor, "IndConstructor"},
+        {SymbolKind::TypeDef, "TypeDef"},
+        {SymbolKind::Decl, "Decl"},
+        {SymbolKind::Def, "Def"},
+    };
+
+    for (const auto &[name, info] : symbols) {
+        LOG_INFO << "Symbol: " << name << " " << kind_str[info.kind] << " " << info.info;
+    }
+
+    exit(0);
+#endif
 }
 
 std::set<string> Project::calc_dependencies(SpecNode *expr) {
@@ -350,8 +369,10 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
 
     for (auto &def: *low_specs) {
         // If the high spec is provided, skip
-        if (proj->defs.find(name_map[def->name]) != proj->defs.end())
+        if (proj->defs.find(name_map[def->name]) != proj->defs.end()) {
+            LOG_INFO << "Provided: " << name_map[def->name] << std::endl;
             continue;
+        }
 
         auto high_name = name_map[def->name];
         unique_ptr<SpecNode> high_body = def->body->deep_copy();
@@ -370,8 +391,13 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
 
         // if (high_name == "__granule_refcount_dec_spec")
         //     std::cout << "Transforming: " << high_name << std::endl;
-        spec_transformer(proj, high_def);
-        std::cout << "Transformed: " << std::endl << string(*high_def) << std::endl;
+        if (proj->cmds.NoTrans.find(name_map[def->name]) == proj->cmds.NoTrans.end()) {
+            spec_transformer(proj, high_def);
+            std::cout << "Transformed: " << std::endl << string(*high_def) << std::endl;
+        } else {
+            LOG_INFO << "No transformation for " << high_name;
+        }
+
         proj->deps[high_name] = proj->calc_dependencies(high_def->body.get());
         proj->add_definition(unique_ptr<Definition>(high_def), make_shared<loc_t>(L->name, Project::LOC_SPEC, ""));
 
