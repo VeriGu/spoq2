@@ -537,6 +537,7 @@ unsigned length_z3_val(z3::expr z3_val) {
     else throw std::runtime_error("Unknown z3_val type");
 }
 
+static z3::sort bv64 = z3ctx.bv_sort(64);
 static SpecNode* reconstruct_expr(z3::expr z3_val,
                            unordered_map<unsigned, std::pair<z3::expr, SpecNode*>>& subexprs,
                            shared_ptr<EvalState> state) {
@@ -559,10 +560,19 @@ static SpecNode* reconstruct_expr(z3::expr z3_val,
                 z3_val = (-z3_val).simplify();
                 //std::cout << "neg z3_val: " << z3_val << std::endl;
             }
-            // Large integer greater than 2^63 - 1
+            // Large integer greater than 2^64 - 1
             if (!z3_val.is_numeral_u64(__v)) {
-                throw std::runtime_error("Large integer greater than 2^63 - 1");
-                return nullptr;
+                // throw std::runtime_error("Large integer greater than 2^64 - 1: " + z3_val.to_string());
+                // return nullptr;
+                //std::cout << "z3_val (greater than 2^64 - 1): " << z3_val << std::endl;
+                auto bv_expr = z3::to_expr(z3_val.ctx(), Z3_mk_int2bv(z3_val.ctx(), 64, z3_val));
+
+                // std::cout << "bv_expr: " << bv_expr.simplify() << std::endl;
+                // std::cout << "bv_expr: " << Z3_get_numeral_string(z3_val.ctx(), bv_expr.simplify()) << std::endl;
+                uint64_t v = std::stoull(Z3_get_numeral_string(z3_val.ctx(), bv_expr.simplify()));
+
+                //std::cout << "new IntConst: " << v << std::endl;
+                return new IntConst(v);
             }
             long v = z3_val.get_numeral_uint64();
             if (v > -100 && v < 0) {
