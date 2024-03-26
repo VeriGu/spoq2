@@ -39,6 +39,13 @@ Definition RMM_MAX_GRANULES : Z := 1048576.
 Definition MAX_REC_AUX_GRANULES : Z := 16.
 Definition GRANULE_SIZE : Z := 4096.
 
+
+Definition SMC_RMM_GTSI_DELEGATE : Z := 3288334768.
+Definition SMC_RMM_GTSI_UNDELEGATE : Z := 3288334769.
+
+Parameter zero_granule_data_normal : ZMap.t Z.
+
+
 Definition int_is_granule (v: Z) : Prop :=
   (v > 0 /\ (v >= GRANULES_BASE) /\ (v < GRANULES_BASE + RMM_MAX_GRANULES * ST_GRANULE_SIZE)).
 
@@ -488,7 +495,7 @@ Record PerCPU :=
 Record Shared :=
   mkShared {
       glk: ZMap.t (option Z);
-      gpt: ZMap.t bool;
+      gpt: ZMap.t bool; (* gidx -> PAS *)
 
       (* granule index is multiplex by both the index to the *)
       (* struct granule granules[] array and the internal index *)
@@ -881,25 +888,28 @@ Definition load_RData (sz: Z) (p: Ptr) (st: RData) : (option (Z * RData)) :=
   if (p.(pbase) =s "gic_virt_feature_2") then Some (gic_virt_feature_2, st) else
   if (p.(pbase) =s "gic_virt_feature_3") then Some (gic_virt_feature_3, st) else
   if (p.(pbase) =s "gic_virt_feature_4") then Some (gic_virt_feature_4, st) else
-  if p.(pbase) =s "granules" then
+  if p.(pbase) =s "granules" then (
       let ofs := p.(poffset) in
       let idx := ofs / ST_GRANULE_SIZE in
       let ofs := ofs mod ST_GRANULE_SIZE in
-      rely (s_granule_field_accessible (ZMap.get st.(share).(granules) idx) ofs = true);
-      when ret == load_s_granule sz ofs (ZMap.get st.(share).(granules) idx);
-      Some (ret, st) else
-  if p.(pbase) =s "slot_rd" then
+      if (s_granule_field_accessible (ZMap.get st.(share).(granules) idx) ofs) then
+        when ret == load_s_granule sz ofs (ZMap.get st.(share).(granules) idx);
+        Some (ret, st)
+      else None ) else
+  if p.(pbase) =s "slot_rd" then (
       let ofs := p.(poffset) in
       let g_idx := st.(share).(slots) @ SLOT_RD in
       let g_data := st.(share).(granule_data) @ g_idx in
       let g := st.(share).(granules) @ g_idx in
-      rely (rd_field_accessible g_data.(g_rd) ofs g false st = true);
-      match g.(e_lock) with
-      | Some cid =>
-          when ret == load_s_rd sz ofs g_data.(g_rd);
-          Some (ret, st)
-      | None => None
-      end else
+      if (rd_field_accessible g_data.(g_rd) ofs g false st) then
+        match g.(e_lock) with
+        | Some cid =>
+            when ret == load_s_rd sz ofs g_data.(g_rd);
+            Some (ret, st)
+        | None => None
+        end
+      else None
+    ) else
   if p.(pbase) =s "slot_rec" then (
       let ofs := p.(poffset) in
       let g_idx := st.(share).(slots) @ SLOT_REC in
@@ -910,12 +920,10 @@ Definition load_RData (sz: Z) (p: Ptr) (st: RData) : (option (Z * RData)) :=
                     | Some cid => true
                     | None => false
                     end in
-      rely (rec_field_accessible g locked st = true);
-      (* let st := *)
-      (*   ( if (!locked) then st.[log] :< ((EVT CPU_ID (REC_REFP g_idx)) :: st.(log)) else st) *)
-      (* in *)
-      when ret == load_s_rec sz ofs g_data.(g_rec);
-      Some (ret, st)
+      if (rec_field_accessible g locked st) then
+        when ret == load_s_rec sz ofs g_data.(g_rec);
+        Some (ret, st)
+      else None
     ) else
   if p.(pbase) =s "slot_rec2" then (
       let ofs := p.(poffset) in
@@ -927,12 +935,10 @@ Definition load_RData (sz: Z) (p: Ptr) (st: RData) : (option (Z * RData)) :=
                     | Some cid => true
                     | None => false
                     end in
-      rely (rec_field_accessible g locked st = true);
-      (* let st := *)
-      (*   (if (!locked) then st.[log] :< ((EVT CPU_ID (REC_REFP g_idx)) :: st.(log)) else st ) *)
-      (* in *)
-      when ret == load_s_rec sz ofs g_data.(g_rec);
-      Some (ret, st)
+      if (rec_field_accessible g locked st) then
+        when ret == load_s_rec sz ofs g_data.(g_rec);
+        Some (ret, st)
+      else None
     ) else
   if p.(pbase) =s "slot_rtt" then (
       let ofs := p.(poffset) in
@@ -982,16 +988,17 @@ Definition load_RData (sz: Z) (p: Ptr) (st: RData) : (option (Z * RData)) :=
        * protection level of rec->aux_data. So we pass the offset to
        * rec->aux_data instead.
        *)
-      rely (rec_field_accessible parent_g locked st = true);
-      (* Attestation HEAP *)
-      if (0 <=? ofs) && (ofs <? REC_HEAP_SIZE) then Some (0, st) else
-      (* struct pmu_state *)
-      if (REC_HEAP_SIZE <=? ofs) && (ofs <? REC_HEAP_SIZE + REC_PMU_SIZE) then
-        when ret == load_s_pmu_state sz (ofs - REC_HEAP_SIZE) g_data.(g_aux_pmu_state);
-        Some (ret, st) else
-      if (REC_HEAP_SIZE + REC_PMU_SIZE <=? ofs) then
-        when ret == load_s_simd_state sz (ofs - REC_HEAP_SIZE - REC_PMU_SIZE) g_data.(g_aux_simd_state);
-        Some (ret, st)
+      if (rec_field_accessible parent_g locked st) then (
+        (* Attestation HEAP *)
+        if (0 <=? ofs) && (ofs <? REC_HEAP_SIZE) then Some (0, st) else
+        (* struct pmu_state *)
+        if (REC_HEAP_SIZE <=? ofs) && (ofs <? REC_HEAP_SIZE + REC_PMU_SIZE) then
+          when ret == load_s_pmu_state sz (ofs - REC_HEAP_SIZE) g_data.(g_aux_pmu_state);
+          Some (ret, st) else
+        if (REC_HEAP_SIZE + REC_PMU_SIZE <=? ofs) then
+          when ret == load_s_simd_state sz (ofs - REC_HEAP_SIZE - REC_PMU_SIZE) g_data.(g_aux_simd_state);
+          Some (ret, st)
+        else None )
       else None
     ) else
   if p.(pbase) =s "bad_stack" then (
@@ -1100,31 +1107,36 @@ Definition load_RData (sz: Z) (p: Ptr) (st: RData) : (option (Z * RData)) :=
   else None.
 
 Definition store_RData (sz: Z) (p: Ptr) (v: Z) (st: RData) : option RData :=
-  if p.(pbase) =s "granules" then let ofs := p.(poffset) in (
+  if p.(pbase) =s "granules" then (
+      let ofs := p.(poffset) in
       let idx := ofs / ST_GRANULE_SIZE in
       let elem_ofs := ofs mod ST_GRANULE_SIZE in
-      rely (s_granule_field_accessible (ZMap.get st.(share).(granules) idx) elem_ofs = true);
-      when ret == store_s_granule sz elem_ofs v (ZMap.get st.(share).(granules) idx);
-      let new_granules := ZMap.set st.(share).(granules) idx ret in
-      if (elem_ofs =? 8) && ((ZMap.get st.(share).(granules) idx).(e_state) =? GRANULE_STATE_REC) then
-         let st := st.[log] :< ((EVT CPU_ID (REC_REF idx v)) :: st.(log)) in
-         Some (st.[share].[granules] :< new_granules)
-      else
-         Some (st.[share].[granules] :< new_granules)) else
-  if p.(pbase) =s "slot_rd" then let ofs := p.(poffset) in
+      if (s_granule_field_accessible (ZMap.get st.(share).(granules) idx) elem_ofs) then (
+        when ret == store_s_granule sz elem_ofs v (ZMap.get st.(share).(granules) idx);
+        let new_granules := ZMap.set st.(share).(granules) idx ret in
+        if (elem_ofs =? 8) && ((ZMap.get st.(share).(granules) idx).(e_state) =? GRANULE_STATE_REC) then
+           let st := st.[log] :< ((EVT CPU_ID (REC_REF idx v)) :: st.(log)) in
+           Some (st.[share].[granules] :< new_granules)
+        else
+          Some (st.[share].[granules] :< new_granules))
+      else None ) else
+  if p.(pbase) =s "slot_rd" then (
+      let ofs := p.(poffset) in
       let g_idx := st.(share).(slots) @ SLOT_RD in
       let g_data := st.(share).(granule_data) @ g_idx in
       let g := st.(share).(granules) @ g_idx in
-      rely (rd_field_accessible g_data.(g_rd) ofs g true st = true);
-      match g.(e_lock) with
-      | Some cid =>
-          when new_rd == store_s_rd sz ofs v g_data.(g_rd);
-          let new_gdata := (g_data.[g_rd] :< new_rd) in
-          (* let new_slots := (st.(share).(slots) # SLOT_RD == new_gdata) in *)
-          (* Some (st.[share].[slots] :< new_slots) *)
-          Some (st.[share].[granule_data] :< (st.(share).(granule_data) # g_idx == new_gdata))
-      | None => None
-      end else
+      if (rd_field_accessible g_data.(g_rd) ofs g true st) then
+        match g.(e_lock) with
+        | Some cid =>
+            when new_rd == store_s_rd sz ofs v g_data.(g_rd);
+            let new_gdata := (g_data.[g_rd] :< new_rd) in
+            (* let new_slots := (st.(share).(slots) # SLOT_RD == new_gdata) in *)
+            (* Some (st.[share].[slots] :< new_slots) *)
+            Some (st.[share].[granule_data] :< (st.(share).(granule_data) # g_idx == new_gdata))
+        | None => None
+        end
+      else None
+    ) else
   if p.(pbase) =s "slot_rec" then (
       let ofs := p.(poffset) in
       let g_idx := st.(share).(slots) @ SLOT_REC in
@@ -1135,13 +1147,11 @@ Definition store_RData (sz: Z) (p: Ptr) (v: Z) (st: RData) : option RData :=
                     | Some cid => true
                     | None => false
                     end in
-      rely (rec_field_accessible g locked st = true);
-      (* let st := *)
-      (*   if (!locked) then st.[log] :< ((EVT CPU_ID (REC_REFP g_idx)) :: st.(log)) else st in *)
-      when new_rec == store_s_rec sz ofs v g_data.(g_rec);
-      let new_gdata := (g_data.[g_rec] :< new_rec) in
-      (* let new_slots := (st.(share).(slots) # SLOT_REC == new_gdata) in *)
-      Some (st.[share].[granule_data] :< st.(share).(granule_data) # g_idx == new_gdata)
+      if (rec_field_accessible g locked st) then
+        when new_rec == store_s_rec sz ofs v g_data.(g_rec);
+        let new_gdata := (g_data.[g_rec] :< new_rec) in
+        Some (st.[share].[granule_data] :< st.(share).(granule_data) # g_idx == new_gdata)
+      else None
     ) else
   if p.(pbase) =s "slot_rec2" then (
       let ofs := p.(poffset) in
@@ -1153,13 +1163,11 @@ Definition store_RData (sz: Z) (p: Ptr) (v: Z) (st: RData) : option RData :=
                     | Some cid => true
                     | None => false
                     end in
-      rely (rec_field_accessible g locked st = true);
-      (* let st := *)
-      (*   if (!locked) then st.[log] :< ((EVT CPU_ID (REC_REFP g_idx)) :: st.(log)) else st in *)
-      when new_rec == store_s_rec sz ofs v g_data.(g_rec);
-      let new_gdata := (g_data.[g_rec] :< new_rec) in
-      (* let new_slots := (st.(share).(slots) # SLOT_REC2 == new_gdata) in *)
-      Some (st.[share].[granule_data] :< (st.(share).(granule_data) # g_idx == new_gdata))
+      if (rec_field_accessible g locked st) then
+        when new_rec == store_s_rec sz ofs v g_data.(g_rec);
+        let new_gdata := (g_data.[g_rec] :< new_rec) in
+        Some (st.[share].[granule_data] :< (st.(share).(granule_data) # g_idx == new_gdata))
+      else None
     ) else
   if p.(pbase) =s "slot_rtt" then let ofs := p.(poffset) in
       let g_idx := st.(share).(slots) @ SLOT_RTT in
@@ -1186,20 +1194,21 @@ Definition store_RData (sz: Z) (p: Ptr) (v: Z) (st: RData) : option RData :=
        * protection level of rec->aux_data. So we pass the offset to
        * rec->aux_data instead.
        *)
-      rely (rec_field_accessible parent_g locked st = true);
-      (* Attestation HEAP *)
-      if (0 <=? ofs) && (ofs <? REC_HEAP_SIZE) then Some st else
-      (* struct pmu_state *)
-      if (REC_HEAP_SIZE <=? ofs) && (ofs <? REC_HEAP_SIZE + REC_PMU_SIZE) then
-        when new_pmu_state == store_s_pmu_state sz (ofs - REC_HEAP_SIZE) v g_data.(g_aux_pmu_state);
-        let new_gdata := (g_data.[g_aux_pmu_state] :< new_pmu_state) in
-        Some (st.[share].[granule_data] :< (st.(share).(granule_data) # g_idx == new_gdata))
-      else
-        if (REC_HEAP_SIZE + REC_PMU_SIZE <=? ofs) then
-          when new_simd_state == store_s_simd_state sz (ofs - REC_HEAP_SIZE - REC_PMU_SIZE) v g_data.(g_aux_simd_state);
-          let new_gdata := (g_data.[g_aux_simd_state] :< new_simd_state) in
+      if (rec_field_accessible parent_g locked st) then (
+        (* Attestation HEAP *)
+        if (0 <=? ofs) && (ofs <? REC_HEAP_SIZE) then Some st else
+        (* struct pmu_state *)
+        if (REC_HEAP_SIZE <=? ofs) && (ofs <? REC_HEAP_SIZE + REC_PMU_SIZE) then
+          when new_pmu_state == store_s_pmu_state sz (ofs - REC_HEAP_SIZE) v g_data.(g_aux_pmu_state);
+          let new_gdata := (g_data.[g_aux_pmu_state] :< new_pmu_state) in
           Some (st.[share].[granule_data] :< (st.(share).(granule_data) # g_idx == new_gdata))
-        else None
+        else
+          if (REC_HEAP_SIZE + REC_PMU_SIZE <=? ofs) then
+            when new_simd_state == store_s_simd_state sz (ofs - REC_HEAP_SIZE - REC_PMU_SIZE) v g_data.(g_aux_simd_state);
+            let new_gdata := (g_data.[g_aux_simd_state] :< new_simd_state) in
+            Some (st.[share].[granule_data] :< (st.(share).(granule_data) # g_idx == new_gdata))
+          else None)
+      else None
     ) else
   if p.(pbase) =s "slot_rtt2" then let ofs := p.(poffset) in
       let g_idx := st.(share).(slots) @ SLOT_RTT2 in
@@ -1744,9 +1753,9 @@ Definition stack_to_ptr (slot: Z) (val: Z) : Ptr :=
 Definition int_to_ptr (v: Z) : Ptr :=
   if v >? 0 then (
       if (v >=? MAX_ERR) then (mkPtr "status" (v - MAX_ERR))
-      else if (v >= SLOT_VIRT) then slot_to_ptr ((v - SLOT_VIRT) / GRANULE_SIZE) v
-      else if (v >= STACK_VIRT) then stack_to_ptr (((v - STACK_VIRT) / GRANULE_SIZE) + STACK_slot_ofs) v
-      else if (v >= GRANULES_BASE) then  (mkPtr "granules" (v - GRANULES_BASE))
+      else if (v >=? SLOT_VIRT) then slot_to_ptr ((v - SLOT_VIRT) / GRANULE_SIZE) v
+      else if (v >=? STACK_VIRT) then stack_to_ptr (((v - STACK_VIRT) / GRANULE_SIZE) + STACK_slot_ofs) v
+      else if (v >=? GRANULES_BASE) then  (mkPtr "granules" (v - GRANULES_BASE))
       else (mkPtr "null" 0)
   ) else
     if v <? 0 then
@@ -2232,29 +2241,54 @@ Section Bottom.
   Parameter memcpy_ns_write_spec_state_oracle : Ptr -> (Ptr -> (Z -> (RData -> (option (bool * RData))))).
   Definition memcpy_ns_write_spec (v_dest: Ptr) (v_3: Ptr) (v_conv: Z) (st: RData) : option (bool * RData) :=
     memcpy_ns_write_spec_state_oracle v_dest v_3 v_conv st.
-  Definition memset_spec (v_s: Ptr) (c: Z) (n: Z) (st: RData) : option (Ptr * RData) := Some (v_s, st).
+  Definition memset_spec (v_s: Ptr) (c: Z) (n: Z) (st: RData) : option (Ptr * RData) :=
+    if ((v_s.(pbase) =s "slot_delegated") && (v_s.(poffset) =? 0)) then
+      if ((n =? GRANULE_SIZE) && (c =? 0)) then
+        let g_idx := st.(share).(slots) @ SLOT_DELEGATED in
+        let g_data := st.(share).(granule_data) @ g_idx in
+        let g := st.(share).(granules) @ g_idx in
+        match g.(e_lock) with
+        | Some cid =>
+            Some (v_s, st.[share].[granule_data] :<
+                    (st.(share).(granule_data) # g_idx == (g_data.[g_norm] :<
+                                                             zero_granule_data_normal)))
+        | None => None
+        end
+      else None
+    else Some (v_s, st).
   Definition memcpy_spec (v_dst: Ptr) (v_src: Ptr) (v_len: Z) (st: RData) : option (Ptr * RData) := Some (v_dst, st).
   (* xlat *)
   Definition xlat_unmap_memory_page_spec (v_table: Ptr) (v_va: Z) (st: RData) : option (Z * RData) :=
     let v_ptr := int_to_ptr v_va in
-    match (v_ptr.(pbase), v_ptr.(poffset)) with
-    | ("slot_ns", ofs) => Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_NS == (-1))))
-    | ("slot_rd", ofs) => Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_RD == (-1))))
-    | ("slot_rec", ofs) => Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_REC == (-1))))
-    | ("slot_rec2", ofs) => Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_REC2 == (-1))))
-    | ("slot_rec_target", ofs) => Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_REC_TARGET == (-1))))
-    | ("slot_rec_aux0", ofs) => Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_REC_AUX0 == (-1))))
-    | ("slot_rtt", ofs) => Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_RTT == (-1))))
-    | ("slot_rtt2", ofs) => Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_RTT2 == (-1))))
-    | ("slot_rsi_call", ofs) => Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_RSI_CALL == (-1))))
-    | _ => None
-    end.
+    if (v_ptr.(pbase) =s "slot_ns") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_NS == (-1))))
+    else if (v_ptr.(pbase) =s "slot_delegated") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_DELEGATED == (-1))))
+    else if (v_ptr.(pbase) =s "slot_rd") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_RD == (-1))))
+    else if (v_ptr.(pbase) =s "slot_rec") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_REC == (-1))))
+    else if (v_ptr.(pbase) =s "slot_rec2") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_REC2 == (-1))))
+    else if (v_ptr.(pbase) =s "slot_rec_target") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_REC_TARGET == (-1))))
+    else if (v_ptr.(pbase) =s "slot_rec_aux0") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_REC_AUX0 == (-1))))
+    else if (v_ptr.(pbase) =s "slot_rtt") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_RTT == (-1))))
+    else if (v_ptr.(pbase) =s "slot_rtt2") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_RTT2 == (-1))))
+    else if (v_ptr.(pbase) =s "slot_rsi_call") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_RSI_CALL == (-1))))
+    else None.
 
   Definition xlat_map_memory_page_with_attrs_spec (v_table: Ptr) (v_va: Z) (v_pa: Z) (v_attrs: Z) (st: RData) : option (Z * RData) :=
     let v_ptr := int_to_ptr v_va in
     let gidx := v_pa / GRANULE_SIZE in
     if (v_ptr.(pbase) =s "slot_ns") then
       Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_NS == gidx)))
+    else if (v_ptr.(pbase) =s "slot_delegated") then
+      Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_DELEGATED == gidx)))
     else if (v_ptr.(pbase) =s "slot_rd") then
       Some (0, (st.[share].[slots] :< (st.(share).(slots) # SLOT_RD == gidx)))
     else if (v_ptr.(pbase) =s "slot_rec") then
@@ -2362,7 +2396,19 @@ Section Bottom.
 
 
   Parameter monitor_call_state_oracle : Z -> (Z -> (Z -> (Z -> (Z -> (Z -> (Z -> (RData -> (option (Z * RData))))))))).
-  Definition monitor_call_spec (id: Z) (arg0: Z) (arg1: Z) (arg2: Z) (arg3: Z) (arg4: Z) (arg5: Z) (st: RData) : option (Z * RData) := monitor_call_state_oracle id arg0 arg1 arg2 arg3 arg4 arg5 st.
+  Definition monitor_call_spec (id: Z) (arg0: Z) (arg1: Z) (arg2: Z) (arg3: Z) (arg4: Z) (arg5: Z) (st: RData) : option (Z * RData) :=
+    if id =? SMC_RMM_GTSI_DELEGATE then
+      let gidx := arg0 / GRANULE_SIZE in
+      rely ((st.(share).(granules) @ gidx).(e_lock) = Some CPU_ID);
+      let st := st.[share].[gpt] :< (st.(share).(gpt) # gidx == true) in
+      Some (0, st)
+    else if id =? SMC_RMM_GTSI_UNDELEGATE then
+      let gidx := arg0 / GRANULE_SIZE in
+      rely ((st.(share).(granules) @ gidx).(e_lock) = Some CPU_ID);
+      let st := st.[share].[gpt] :< (st.(share).(gpt) # gidx == false) in
+      Some (0, st)
+    else
+      None.
 
   Definition monitor_call_with_res_spec (id: Z) (arg0: Z) (arg1: Z) (arg2: Z) (arg3: Z) (arg4: Z) (arg5: Z) (res: Ptr) (st: RData) : option RData :=
     when ret, st == (monitor_call_state_oracle id arg0 arg1 arg2 arg3 arg4 arg5 st);
@@ -2862,29 +2908,29 @@ Section Helpers.
   Hint Unfold ptr_is_err_spec'.
 End Helpers.
 
-Section InjectAbort.
-  Definition LAYER_DATA := RData.
-  Definition LAYER_CODE : string := "./rmm.json".
-  Definition LAYER_LOAD : string := "load_RData".
-  Definition LAYER_STORE : string := "store_RData".
-  Definition LAYER_ALLOC : string := "alloc_stack".
-  Definition LAYER_FREE : string := "free_stack".
-  Definition LAYER_PTR2INT : string := "ptr_to_int".
-  Definition LAYER_INT2PTR : string := "int_to_ptr".
-  Definition LAYER_PTR_EQB : string := "ptr_eqb".
-  Definition LAYER_PTR_GTB : string := "ptr_gtb".
-  Definition LAYER_PTR_LTB : string := "ptr_ltb".
-  Definition LAYER_PRIMS: list string :=
-    "realm_inject_undef_abort" ::
-      "inject_sync_idabort" ::
-      "inject_serror" ::
-      "inject_sync_idabort_rec" ::
-      nil.
-  Hint InitRely inject_serror (v_rec.(pbase) = "slot_rec" /\ v_rec.(poffset) = 0).
-  Hint InitRely inject_sync_idabort_rec (v_rec.(pbase) = "slot_rec" /\ v_rec.(poffset) = 0).
-  Hint InitRely inject_sync_idabort_rec (rec_is_unlocked st).
-  Hint InitRely inject_sync_idabort_rec (rec_refcount_one st).
-End InjectAbort.
+(* Section InjectAbort. *)
+(*   Definition LAYER_DATA := RData. *)
+(*   Definition LAYER_CODE : string := "./rmm.json". *)
+(*   Definition LAYER_LOAD : string := "load_RData". *)
+(*   Definition LAYER_STORE : string := "store_RData". *)
+(*   Definition LAYER_ALLOC : string := "alloc_stack". *)
+(*   Definition LAYER_FREE : string := "free_stack". *)
+(*   Definition LAYER_PTR2INT : string := "ptr_to_int". *)
+(*   Definition LAYER_INT2PTR : string := "int_to_ptr". *)
+(*   Definition LAYER_PTR_EQB : string := "ptr_eqb". *)
+(*   Definition LAYER_PTR_GTB : string := "ptr_gtb". *)
+(*   Definition LAYER_PTR_LTB : string := "ptr_ltb". *)
+(*   Definition LAYER_PRIMS: list string := *)
+(*     "realm_inject_undef_abort" :: *)
+(*       "inject_sync_idabort" :: *)
+(*       "inject_serror" :: *)
+(*       "inject_sync_idabort_rec" :: *)
+(*       nil. *)
+(*   Hint InitRely inject_serror (v_rec.(pbase) = "slot_rec" /\ v_rec.(poffset) = 0). *)
+(*   Hint InitRely inject_sync_idabort_rec (v_rec.(pbase) = "slot_rec" /\ v_rec.(poffset) = 0). *)
+(*   Hint InitRely inject_sync_idabort_rec (rec_is_unlocked st). *)
+(*   Hint InitRely inject_sync_idabort_rec (rec_refcount_one st). *)
+(* End InjectAbort. *)
 
 Section GranuleState.
   Definition LAYER_DATA := RData.
@@ -3013,6 +3059,8 @@ Section MmapInternal.
       nil.
 
   Hint InitRely buffer_unmap_internal (((v_buf).(pbase) = "slot_rd") \/
+                                         ((v_buf).(pbase) = "slot_ns") \/
+                                         ((v_buf).(pbase) = "slot_delegated") \/
                                          ((v_buf).(pbase) = "slot_rec") \/
                                          ((v_buf).(pbase) = "slot_rec2") \/
                                          ((v_buf).(pbase) = "slot_rec_target") \/
