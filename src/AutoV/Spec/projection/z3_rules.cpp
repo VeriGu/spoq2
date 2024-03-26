@@ -369,8 +369,6 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
 }
 
 rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> state) {
-    auto orig = string(*spec);
-
     auto src_ret = rule_simple_by_z3(proj, spec->src.release(), state);
     if (src_ret.first == nullptr) {
         delete spec;

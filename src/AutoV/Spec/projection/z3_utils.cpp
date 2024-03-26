@@ -77,6 +77,7 @@ int complexity(shared_ptr<SpecNode> spec) {
 }
 
 unsigned long z3_unknowns = 0;
+unsigned long z3_checks = 0;
 std::chrono::duration<double> z3_accumulative_time = std::chrono::duration<double>::zero();
 
 // Defautl value of timeout is 100
@@ -86,8 +87,11 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     if (Z3Cache.find(hash) != Z3Cache.end()) {
         return Z3Cache[hash];
     }
+
+    z3_checks++;
+
     Z3Params.set("timeout", (unsigned int)timeout);
-    Z3Params.set("unsat_core", true);
+
     Z3Solver.set(Z3Params);
 
     Z3Solver.push();
@@ -141,8 +145,11 @@ Z3Result z3_check(shared_ptr<EvalState> state, int timeout) {
     if (Z3Cache.find(hash) != Z3Cache.end()) {
         return Z3Cache[hash];
     }
+
+    z3_checks++;
+
     Z3Params.set("timeout", (unsigned int)timeout);
-    Z3Params.set("unsat_core", true);
+
     Z3Solver.set(Z3Params);
 
     Z3Solver.push();
