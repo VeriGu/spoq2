@@ -601,7 +601,6 @@ public:
             auto pm = (*match_list)[0].get();
             auto none = (*match_list)[1].get();
             Expr *pattern = dynamic_cast<Expr *>(pm->pattern.get());
-            Expr *none_pattern;
             Symbol *none_body;
             SpecNode *elem;
             Expr *elem_expr;
@@ -611,16 +610,35 @@ public:
             if (holds_alternative<Expr::ops>(pattern->op) && std::get<Expr::ops>(pattern->op) != Expr::Some)
                 return false;
 
-            none_pattern = dynamic_cast<Expr *>(none->pattern.get());
+            auto none_pattern = none->pattern.get();
             none_body = dynamic_cast<Symbol *>(none->body.get());
-            if (none_pattern == nullptr || none_body == nullptr) {
+
+            // Should only be called after this point since we know the other arm is "Some"
+            auto pattern_is_none = [](SpecNode *pat) {
+                if (dynamic_cast<Expr *>(pat) != nullptr) {
+                    auto e = dynamic_cast<Expr *>(pat);
+
+                    if (holds_alternative<Expr::ops>(e->op) && std::get<Expr::ops>(e->op) == Expr::None) {
+                        return true;
+                    }
+                }  else if (dynamic_cast<Symbol *>(pat) != nullptr) {
+                    auto s = dynamic_cast<Symbol *>(pat);
+
+                    if (s->text == "_" || s->text == "None") {
+                        return true;
+                    }
+                }
+
+                return false;
+            };
+
+            if (none_body == nullptr) {
                 return false;
             }
-            if (!holds_alternative<Expr::ops>(none_pattern->op))
-                return false;
 
-            if ((std::get<Expr::ops>(none_pattern->op) != Expr::None)
-                 || none_body->text != "None")
+            bool is_none = pattern_is_none(none_pattern);
+
+            if (!is_none || none_body->text != "None")
                 return false;
 
             elem = pattern->elems->at(0).get();
