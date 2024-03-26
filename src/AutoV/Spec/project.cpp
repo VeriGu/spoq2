@@ -458,11 +458,11 @@ void Project::finalize_project()
         }
     }
 
-    extern unsigned long z3_unknowns;
+    extern unsigned long z3_unknowns, z3_checks;
     extern std::chrono::duration<double> z3_accumulative_time;
 
-    LOG_DEBUG << "Z3 unknowns: " << z3_unknowns;
-    LOG_DEBUG << "Z3 accumulative time: " << z3_accumulative_time.count() << " (s)";
+    LOG_INFO << "Z3 unknowns: " << z3_unknowns << "/" << z3_checks << std::endl;
+    LOG_INFO << "Z3 accumulative time: " << z3_accumulative_time.count() << " (s)";
 
 }
 
