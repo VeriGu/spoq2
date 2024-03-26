@@ -330,8 +330,9 @@ shared_ptr<SpecValue> IndValue::get(string key) {
                 break;
             i++;
         }
-        auto acc = constructor.accessors()[i];
-        return type->arg_type[accessor]->from_z3_value(acc(val));
+
+        auto acc = accessors[i];
+        return type->arg_type[accessor]->from_z3_value(acc(val).simplify());
     }
 
     throw std::runtime_error("Not an inductive type");

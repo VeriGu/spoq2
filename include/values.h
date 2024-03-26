@@ -535,8 +535,17 @@ public:
 class IndValue : public SpecValue {
 public:
     z3::func_decl constructor;
+    z3::func_decl_vector accessors;
 
-    IndValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value), constructor(value.get_sort().constructors()[0]) {};
+    IndValue(shared_ptr<SpecType> typ, z3::expr value) :
+        SpecValue(typ, value), constructor(value.get_sort().constructors()[0]), accessors(z3ctx) {
+            auto css = value.get_sort().constructors();
+            for (auto cs :css) {
+                for (const auto &acc : cs.accessors()) {
+                    accessors.push_back(acc);
+                }
+            }
+    };
 
     shared_ptr<SpecValue> get(string key);
     // shared_ptr<IndValue> set(string key, shared_ptr<SpecValue> value);
