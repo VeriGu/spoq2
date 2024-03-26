@@ -556,37 +556,37 @@ Module string_record <: RECORD.
   Qed.
 
 
-   Theorem projection_lens_gso2 :
-    forall (record: record_type) (x: keyType) (rec: t record) (v: record x) (y: keyType) (P: t record -> Type) ,
-      (forall lens : t record -> t record, (x <> y -> proj y (lens rec) = proj y rec) -> P (lens rec)) -> P (set x rec v).
-  Proof.
-    intros.
-    specialize (X (fun rec => set x rec v)).
-    simpl in X.
-    specialize (projection_gso record y x rec v).
-    intro.
-    apply X in H.
-    exact H.
-  Qed.
+  (*  Theorem projection_lens_gso2 : *)
+  (*   forall (record: record_type) (x: keyType) (rec: t record) (v: record x) (y: keyType) (P: t record -> Type) , *)
+  (*     (forall lens : t record -> t record, (x <> y -> proj y (lens rec) = proj y rec) -> P (lens rec)) -> P (set x rec v). *)
+  (* Proof. *)
+  (*   intros. *)
+  (*   specialize (X (fun rec => set x rec v)). *)
+  (*   simpl in X. *)
+  (*   specialize (projection_gso record y x rec v). *)
+  (*   intro. *)
+  (*   apply X in H. *)
+  (*   exact H. *)
+  (* Qed. *)
 End string_record.
 
 (* rule 2.2 *)
 Notation "a '.[' b ']' ':<' c" := (string_record.set b a c) (at level 1).
 Notation "a '.(' b ')'" := (string_record.proj b a) (at level 1).
 
-Section projection_zmap_record.
+Section projection_zmap_from_2_2.
   Variable record: forall s: string, Type.
   Variable outter_record : forall s: string, Type.
   Variable a: string.
   Variable record_a : outter_record a = ZMap.t (string_record.t record).
   Variable st : string_record.t outter_record.
 
-  Definition cast (x: outter_record a) : ZMap.t (string_record.t record).
+  Let cast (x: outter_record a) : ZMap.t (string_record.t record).
     rewrite <- record_a. exact x.
   Defined.
 
 
-  Definition cast_back (x: ZMap.t (string_record.t record)) : outter_record a.
+  Let cast_back (x: ZMap.t (string_record.t record)) : outter_record a.
     rewrite record_a. exact x.
   Defined.
 
@@ -626,26 +626,89 @@ Proof.
   rewrite cast_back_cast_is_identity.
   rewrite ZMap.gss. symmetry.
   exact H1.
-Qed.
-End projection_zmap_record.
+Qed.  
+End projection_zmap_from_2_2.
+
+Section throw_lens_from_2_2.
+  Variable record: forall s: string, Type.
+  Variable outter_record : forall s: string, Type.
+  Variable a: string.
+  Variable record_a : outter_record a = ZMap.t (string_record.t record).
+  Variable st : string_record.t outter_record.
+ 
+   Let cast (x: outter_record a) : ZMap.t (string_record.t record).
+    rewrite <- record_a. exact x.
+  Defined.
+
+
+  Let cast_back (x: ZMap.t (string_record.t record)) : outter_record a.
+    rewrite record_a. exact x.
+  Defined.
+
+ 
+  Theorem throw_lens_from_2_2 :
+  forall (x:string) (idx: Z) (v: record x),
+  forall (y: string) (lens: string_record.t outter_record -> string_record.t outter_record),
+    a <> y ->
+    st.[a] :< (cast_back ((cast st.(a)) # idx == (((cast st.(a)) @ idx).[x] :< v))) = (lens st) ->
+              (lens st).(y) = st.(y).
+  Proof.
+    intros.
+    rewrite <- H0.
+    apply string_record.projection_gso.
+    exact H.
+  Qed.    
+End throw_lens_from_2_2.
+
+Section zmap_projection_2_1.
+  Variable x: string.
+  Variable y : string.
+  Variable neq: x <> y.
+  Variable record_t : forall s: string, Type.
+  Variable inner_record : forall s: string, Type.
+  Variable st: string_record.t record_t.
+  Variable a: string.
+  Variable neqa : x <> a.
+  Variable record_a : record_t a = ZMap.t (string_record.t inner_record).
+  Variable v: record_t x.
+
+  Let cast (z: record_t a) : ZMap.t (string_record.t inner_record).
+    rewrite <- record_a. exact z.
+  Defined.
+
+
+  Theorem zmap_projection_2_1 :
+    forall (idx: Z) (lens :  string_record.t record_t -> string_record.t record_t),
+      (forall (rec: string_record.t record_t), lens rec = rec.[x] :< v) ->
+      ((cast (lens st).(a)) @ idx).(y) = ((cast st.(a)) @ idx).(y).
+  Proof.
+    intros.
+    pose (H st).
+    rewrite e.
+    assert ((st .[ x]:< v) .( a) = st.(a)).
+    apply string_record.projection_gso. exact neqa.
+    rewrite H0. reflexivity.
+  Qed.
+End zmap_projection_2_1.
 
 Section projection_lens_commutative.
+  Section lens_commutative2_1.
   Variable record_t : forall s: string, Type.
   Variable st: string_record.t record_t.
   Variable x: string.
   Variable v2: record_t x.
+  
  
-  Theorem lens_commutative:
-    forall (y: string) (v1: record_t y) (rec: string_record.t record_t)  (lens : string_record.t record_t -> string_record.t record_t),
+  Theorem lens_commutative2_1:
+    forall (y: string) (v1: record_t y)  (lens : string_record.t record_t -> string_record.t record_t),
       (forall (r: string_record.t record_t),
          lens r = r.[x] :< v2) ->
-      x <> y -> rec = (st.[y] :< v1) ->
+      x <> y ->
       lens (st.[y] :< v1) = (lens st).[y] :< v1.
   Proof.
     intros.
     remember  H. clear Heqe.
-    specialize (H rec).
-    rewrite H1 in H.
+    specialize (H (st.[y] :< v1)).
     specialize (e st).
     rewrite e.
     rewrite H.
@@ -653,104 +716,159 @@ Section projection_lens_commutative.
     reflexivity.
     exact H0.
   Qed.
+  End lens_commutative2_1.
+
+
+  Section lens_commutative_2_2.
+    Variable record: forall s: string, Type.
+    Variable outter_record : forall s: string, Type.
+    Variable a: string.
+    Variable record_a : outter_record a = ZMap.t (string_record.t record).
+    Variable st : string_record.t outter_record.
+ 
+    Let cast (x: outter_record a) : ZMap.t (string_record.t record).
+    rewrite <- record_a. exact x.
+    Defined.
+
+
+    Let cast_back (x: ZMap.t (string_record.t record)) : outter_record a.
+    rewrite record_a. exact x.
+    Defined.
+    
+    Theorem lens_commutative2_2:
+    forall (x: string) (y: string) (v1: outter_record y) (lens : string_record.t outter_record -> string_record.t outter_record) (idx: Z) (v: record x),
+      (forall (r: string_record.t outter_record),
+         lens r = r.[a] :< (cast_back ((cast r.(a)) # idx == (((cast r.(a)) @ idx).[x] :< v)))) ->
+      a <> y -> 
+      lens (st.[y] :< v1) = (lens st).[y] :< v1.
+    Proof.
+      intros.
+      pose (H st). rewrite e.
+      pose (H st .[ y]:< v1). rewrite e0.
+      rewrite string_record.projection_sso.
+      rewrite string_record.projection_gso. reflexivity.
+      auto. auto.
+    Qed.      
+  End lens_commutative_2_2.  
 End projection_lens_commutative.
 
-Section projection_hiding.
-  Parameter out_type: Type.
-  (* suppose we have a spec of a specific output type*)
-
-  (* This theorem proves that the substitution of a concret spec to a purely abstract lens is correct, i.e, if P works for arbitrary lens l, then P works for the spec if such spec is a well_typed definition*)
-  Theorem pure_abstraction_correct :
-    forall (P: out_type -> Type) (spec: out_type),
-      ((forall (lens: out_type), P lens) -> P spec).
-  Proof.
-    intros. pose (X spec).
-    exact p.
-  Qed.
-
-  (* Propety P about len correct => Property P about len correct *)
-  (* we also want lens has have some property or preconsidion Q, then Q spec must also be correct to make the abstraction sound*)
-  Theorem abstraction_with_properties_correct :
-    forall (P: out_type -> Type) (Q: out_type -> Type) (spec: out_type),
-      ((forall (lens: out_type), Q lens -> P lens) -> Q spec -> P spec).
-  Proof.
-    intros. pose (X spec).
-    apply p.
-    apply X0.
-  Qed.
-
-
-(* These two theorems can provide a guidline on what our rules can do and can't do,
-  for example, we can substitute a expression with a abstract lens and assuming Q is correct about
- the lens, as long as Q is also correct about the expression*)
-End projection_hiding.
 
 
 
-
-(* Section invariant_test. *)
-(*   Parameter lens_type: Type. *)
-(*   Parameter inv : list string. *)
+Section projection_composition.
+  Variable record_t: forall s: string, Type.
+  Variable st: string_record.t record_t.
+  Variable lens1 :  string_record.t record_t ->  string_record.t record_t.
+  Variable lens2 :  string_record.t record_t ->  string_record.t record_t.
+  Variable lens3 : string_record.t record_t -> string_record.t record_t.
+  (* Let lens3 (r :  string_record.t record_t) := *)
+  (*       (lens1 (lens2 r)). *)
   
-(*   Inductive transform := *)
-(*   | rule_1 : forall (record_type: string_record.record_type) (e: string_record.t record_type) *)
-(*      (x: string) (v: record_type x), *)
-(*       transform (e.[x] :< v). *)
+  
+  
+  (* the elimination rules 3.1 3.2 is correct for any composition of lens, even not equal ones, here
+   lens3 st doesn't need to be equal to (lens1 lens2 st) *)
+  Section equivalent_3_1.
+     Variable y: string.
+     Variable len3_3_1: forall rec, (lens3 rec).(y) = (rec).(y).
+     
+     Variable len2_3_1: forall rec, (lens2 rec).(y) = (rec).(y).
+     
+     Variable len1_3_1: forall rec, (lens1 rec).(y) = (rec).(y).
+     
+  
+  Theorem composition_equivalent_3_1 :
+       (st).(y) = (lens1 (lens2 st)).(y).
+  Proof.
+    intros.
+   
+    pose (len2_3_1 st). pose (len1_3_1 (lens2 st)).
+    rewrite e0. rewrite e.
+    reflexivity.
+  Qed.
+  End equivalent_3_1.
+
+
+  Section equivalent_3_2.
+    Variable y : string.
+    Variable idx: Z.
+    Variable a: string.
+    Variable record: forall s: string, Type.
+    Variable record_a : record_t a = ZMap.t (string_record.t record).
+   
     
-(* End invariant_test. *)
+    Let cast (x: record_t a) : ZMap.t (string_record.t record).
+    rewrite <- record_a. exact x.
+    Defined.
 
 
+    Let cast_back (x: ZMap.t (string_record.t record)) : record_t a.
+    rewrite record_a. exact x.
+    Defined.
+
+    Variable len3_3_2: forall rec, ((cast (lens3 rec).(a)) @ idx).(y) = ((cast rec.(a)) @ idx).(y).
+    Variable len2_3_2: forall rec, ((cast (lens2 rec).(a)) @ idx).(y) = ((cast rec.(a)) @ idx).(y).  
+    Variable len1_3_2: forall rec, ((cast (lens1 rec).(a)) @ idx).(y) = ((cast rec.(a)) @ idx).(y).
+   
+  Theorem composition_equivalent_3_2 :
+    ((cast (lens3 st).(a)) @ idx).(y) = ((cast (lens1 (lens2 st)).(a)) @ idx).(y).
+  Proof.
+    pose (len3_3_2 st). rewrite e.
+    pose (len2_3_2 st). pose (len1_3_2 (lens2 st)).
+    rewrite e1. rewrite e0.
+    reflexivity.
+  Qed.
+  End equivalent_3_2.
+
+  (* Assume the rule and prove the composition of lenses are still reduced as if it is a single operation *)
+  Section equivalent_3_3.
+    Variable y : string.
+    Variable len2_3_3: forall rec v, (lens2 rec.[y] :< v) = (lens2 rec).[y] :< v.
+    Variable len1_3_3: forall rec v, (lens1 rec.[y] :< v) = (lens1 rec).[y] :< v.
+    Theorem composition_equivalent_3_3 :
+    forall v,
+    lens1 (lens2 (st.[y] :< v)) = lens1 (lens2 st).[y] :< v.
+  Proof.
+    intros.
+   
+    pose (len2_3_3 st v). pose (len1_3_3 (lens2 st) v).
+    rewrite e.
+    reflexivity.
+  Qed.
+ End equivalent_3_3.
+End projection_composition.
+
+(* Section projection_hiding. *)
+(*   Parameter out_type: Type. *)
+(*   (* suppose we have a spec of a specific output type*) *)
+
+(*   (* This theorem proves that the substitution of a concret spec to a purely abstract lens is correct, i.e, if P works for arbitrary lens l, then P works for the spec if such spec is a well_typed definition*) *)
+(*   Theorem pure_abstraction_correct : *)
+(*     forall (P: out_type -> Type) (spec: out_type), *)
+(*       ((forall (lens: out_type), P lens) -> P spec). *)
+(*   Proof. *)
+(*     intros. pose (X spec). *)
+(*     exact p. *)
+(*   Qed. *)
+
+(*   (* Propety P about len correct => Property P about len correct *) *)
+(*   (* we also want lens has have some property or preconsidion Q, then Q spec must also be correct to make the abstraction sound*) *)
+(*   Theorem abstraction_with_properties_correct : *)
+(*     forall (P: out_type -> Type) (Q: out_type -> Type) (spec: out_type), *)
+(*       ((forall (lens: out_type), Q lens -> P lens) -> Q spec -> P spec). *)
+(*   Proof. *)
+(*     intros. pose (X spec). *)
+(*     apply p. *)
+(*     apply X0. *)
+(*   Qed. *)
 
 
+(* (* These two theorems can provide a guidline on what our rules can do and can't do, *)
+(*   for example, we can substitute a expression with a abstract lens and assuming Q is correct about *)
+(*  the lens, as long as Q is also correct about the expression*) *)
+(* End projection_hiding. *)
 
 
-(* Ltac record_conversion e := *)
-(*   match e with *)
-(*   | context G [ {| a := a (?X); b := b (?X)|} ]  => let y := context G [X] in change e with y *)
-(*   | context G [ {| a := ?X; b := _  |}.(a) ] => let y := context G [X] in change e with y *)
-(*   | context G [ {| a := _ ; b := ?X |}.(b) ] =>  let y := context G [X] in change e with y *)
-(*   end. *)
-                                                          
-
-
-(* Lemma record_sgs : *)
-(*   forall (p: record) v1, *)
-(*     {|a := v1; b := b p|}.(a) = v1. *)
-(* Proof. *)
-(*   intros. cbv. simpl. reflexivity. *)
-(* Qed. *)
-
-
-(* Lemma record_sgd : *)
-(*   forall (p: record) v1, *)
-(*     {|a := v1; b := b p|}.(b) = p.(b). *)
-(* Proof. *)
-(*   intros. cbv. simpl. reflexivity. *)
-(* Qed. *)
-
-
-(* Lemma record_sgd : *)
-(*   forall (p: record) v1, *)
-(*     {|a := v1; b := b p|}.(b) = p.(b). *)
-(* Proof. *)
-(*   intros. cbv. simpl. reflexivity. *)
-(* Qed. *)
-
-
-
-
-
-
-(* Tactic Notation "record_gss" constr(e) "[" ne_smart_global_list(l) "]":= *)
-(*   let y := eval cbv beta iota delta [ ltac:(l) ] in e in *)
-(*     idtac y; pose y. *)
-
-
-(* Definition p2 (p: record) : record. *)
-(*   record_gss ({|a := a p; b := b p|}) [a b]. *)
-(* Defined. *)
-
-      
 
 (* Section hlist. *)
 (*   Variable A : Type. *)
