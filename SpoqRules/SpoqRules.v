@@ -546,7 +546,7 @@ Module string_record <: RECORD.
     reflexivity. reflexivity.
   Qed.
 
-  (* rule2.1: if the lens res = set x rec v, we can introduce a property of lens rec: *)
+  (* rule 2.1->3.1: if the lens res = set x rec v, we can introduce a property of lens rec: *)
   Theorem projection_lens_gso :
     forall (record: record_type) (x: keyType) (rec: t record) (v: record x) (lens : t record -> t record) (y: keyType) ,
       x <> y -> set x rec v = lens rec -> proj y (lens rec) = proj y rec.
@@ -574,6 +574,7 @@ End string_record.
 Notation "a '.[' b ']' ':<' c" := (string_record.set b a c) (at level 1).
 Notation "a '.(' b ')'" := (string_record.proj b a) (at level 1).
 
+(* 2.2 -> 3.2*)
 Section projection_zmap_from_2_2.
   Variable record: forall s: string, Type.
   Variable outter_record : forall s: string, Type.
@@ -629,6 +630,7 @@ Proof.
 Qed.  
 End projection_zmap_from_2_2.
 
+(* 2.2 -> 3.1 *)
 Section throw_lens_from_2_2.
   Variable record: forall s: string, Type.
   Variable outter_record : forall s: string, Type.
@@ -660,6 +662,7 @@ Section throw_lens_from_2_2.
   Qed.    
 End throw_lens_from_2_2.
 
+(* 2.1 -> 3.2 *)
 Section zmap_projection_2_1.
   Variable x: string.
   Variable y : string.
@@ -691,6 +694,8 @@ Section zmap_projection_2_1.
   Qed.
 End zmap_projection_2_1.
 
+
+(* 2.1 \/ 2.2 -> 3.3*)
 Section projection_lens_commutative.
   Section lens_commutative2_1.
   Variable record_t : forall s: string, Type.
@@ -754,7 +759,9 @@ End projection_lens_commutative.
 
 
 
-
+(* rule1.1: lens_composition,
+   prove all the rules that manipuates lens are still valid under
+   any composition of lenses *)
 Section projection_composition.
   Variable record_t: forall s: string, Type.
   Variable st: string_record.t record_t.
@@ -763,8 +770,6 @@ Section projection_composition.
   Variable lens3 : string_record.t record_t -> string_record.t record_t.
   (* Let lens3 (r :  string_record.t record_t) := *)
   (*       (lens1 (lens2 r)). *)
-  
-  
   
   (* the elimination rules 3.1 3.2 is correct for any composition of lens, even not equal ones, here
    lens3 st doesn't need to be equal to (lens1 lens2 st) *)
@@ -838,6 +843,121 @@ Section projection_composition.
  End equivalent_3_3.
 End projection_composition.
 
+
+
+Section lens_match_elimination.
+  Variable C : bool.
+  Variable record_t: forall s: string, Type.
+  Variable st: string_record.t record_t.
+  
+  (* Variable lens1 :  string_record.t record_t ->  string_record.t record_t. *)
+  (* Variable lens2 :  string_record.t record_t ->  string_record.t record_t. *)
+  
+  (* Section lens_if_3_1_correct. *)
+  (*   Variable y: string. *)
+  (*   Variable len2_3_1: forall rec, (lens2 rec).(y) = (rec).(y).    *)
+  (*   Variable len1_3_1: forall rec, (lens1 rec).(y) = (rec).(y). *)
+  (* Theorem lens_if_3_1_correct : *)
+  (*   forall (lens3: string_record.t record_t ->  string_record.t record_t), (if C then lens1 st else lens2 st) = (lens3 st) -> (lens3 st).(y) = st.(y). *)
+  (* Proof. *)
+  (*   intros. *)
+  (*   destruct C. rewrite <- H. *)
+  (*   rewrite len1_3_1. reflexivity. *)
+  (*   rewrite <- H. *)
+  (*   rewrite len2_3_1. reflexivity. *)
+  (* Qed. *)
+
+  (* End lens_if_3_1_correct. *)
+ 
+  (* Section lens_if_3_2_correct. *)
+  (*   Variable y: string. *)
+  (*   Variable len2_3_1: forall rec, (lens2 rec).(y) = (rec).(y).    *)
+  (*   Variable len1_3_1: forall rec, (lens1 rec).(y) = (rec).(y). *)
+  (*   Variable inner_record: forall s: string, Type. *)
+  (*   Variable a : string. *)
+  (*   Variable record_a : record_t a = ZMap.t (string_record.t inner_record). *)
+  (* End lens_if_3_2_correct. *)
+
+  (* both if and match
+    is abstracted to (f P st) and we assume it equal to some lens id? st, the proof is quite direct.
+   *)
+  Section lens_match_3_1.
+    Variable A: Type.
+    Variable y: string.
+    Variable lens : string_record.t record_t ->  string_record.t record_t.
+    Variable lens_3_1: forall rec, (lens rec).(y) = (rec).(y).
+    Theorem lens_match_3_1 :
+      forall (P : A) (f: A -> string_record.t record_t -> string_record.t record_t),
+        (f P st = lens st) ->
+        (lens st).(y) = (st).(y) -> (f P st).(y) = (st).(y).
+    Proof.
+      intros. rewrite H. rewrite lens_3_1. reflexivity.
+    Qed.
+  End lens_match_3_1.
+
+
+  Section lens_match_3_2.
+    Variable A: Type.
+    Variable y: string.
+    Variable lens : string_record.t record_t ->  string_record.t record_t.
+    Variable record: forall s: string, Type.
+    Variable a : string.
+    Variable record_a : record_t a = ZMap.t (string_record.t record).
+
+    Let cast (x: record_t a) : ZMap.t (string_record.t record).
+    rewrite <- record_a. exact x.
+    Defined.
+
+
+    Let cast_back (x: ZMap.t (string_record.t record)) : record_t a.
+    rewrite record_a. exact x.
+    Defined.
+
+    
+    Variable lens_3_2: forall rec idx, ((cast (lens rec).(a)) @ idx).(y) = ((cast (rec).(a)) @ idx).(y).
+    Theorem lens_match_3_2 :
+      forall (P : A) (f: A -> string_record.t record_t -> string_record.t record_t),
+        (f P st = lens st) ->
+        forall idx, 
+        ((cast (f P st).(a)) @ idx).(y) = ((cast (st.(a))) @ idx).(y).
+    Proof.
+      intros. rewrite H. rewrite lens_3_2. reflexivity.
+    Qed.
+  End lens_match_3_2.
+
+
+  Section lens_match_3_3.
+    Variable A: Type.
+    Variable y: string.
+    Variable lens : string_record.t record_t ->  string_record.t record_t.
+    Variable v: record_t y.
+    Variable lens_3_2: forall rec, lens (rec.[y] :< v) = (lens rec).[y] :< v.
+     Theorem lens_match_3_3 :
+      forall (P : A) (f: A -> string_record.t record_t -> string_record.t record_t),
+        (forall rec, f P rec = lens rec) ->
+        (f P st.[y] :< v) = (f P st).[y] :< v.
+     Proof.
+       intros.
+       pose (H st). rewrite e.
+       rewrite <- lens_3_2.
+       rewrite <- H. 
+       pose (H st.[y] :< v).
+       rewrite e0.
+       reflexivity.
+     Qed.
+  End lens_match_3_3.  
+End lens_match_elimination.
+
+
+
+(* Section lens_formalize. *)
+(*   (* This is the type of the machine state *) *)
+(*   Variable record_t: forall s: string, Type. *)
+(*   Variable st: string_record.t record_t. *)
+  
+(*   Inductive can_be_lens (id: nat) : string_record.t record_t -> Prop := *)
+(*     | Changef : lens id (st).[f1] <: v. *)
+    
 (* Section projection_hiding. *)
 (*   Parameter out_type: Type. *)
 (*   (* suppose we have a spec of a specific output type*) *)
