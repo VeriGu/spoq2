@@ -314,6 +314,7 @@ private:
     }
 };
 
+extern unsigned long mono_lens_id;
 class Expr : public SpecNode {
 public:
     bool is_lens = false;
@@ -353,11 +354,36 @@ public:
     Expr(op_t op, elems_t elems) :
         SpecNode(SpecType::UNKNOWN_TYPE), op(std::move(op)), elems(std::move(elems)) {
             this->length = calc_length();
+        if (std::holds_alternative<string>(this->op)) {
+            auto s = std::get<string>(this->op);
+
+            if (s == "lens") {
+                auto lens_id_node = static_cast<Const *>(this->elems->at(0).get());
+                auto lens_id = std::get<unsigned long>(lens_id_node->value);
+
+                if (lens_id > mono_lens_id) {
+                    mono_lens_id = lens_id + 1;
+                }
+            }
+        }
     }
 
     Expr(op_t op, elems_t elems, shared_ptr<SpecType> type) :
         SpecNode(type), op(std::move(op)), elems(std::move(elems)) {
             this->length = calc_length();
+
+        if (std::holds_alternative<string>(this->op)) {
+            auto s = std::get<string>(this->op);
+
+            if (s == "lens") {
+                auto lens_id_node = static_cast<Const *>(this->elems->at(0).get());
+                auto lens_id = std::get<unsigned long>(lens_id_node->value);
+
+                if (lens_id > mono_lens_id) {
+                    mono_lens_id = lens_id + 1;
+                }
+            }
+        }
     }
 
     bool operator==(const SpecNode& other) const {
