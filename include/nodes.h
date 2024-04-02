@@ -1114,8 +1114,9 @@ public:
     Definition() { throw std::invalid_argument("Definition must have a name, rettype, args, and body"); }
     Definition(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args, unique_ptr<SpecNode> body) :
         name(name), rettype(rettype), args(std::move(args)), body(std::move(body)) {
-            this->length = this->body->length; // This cannot be done in the initializer list because body is moved.
-        }
+        this->length = this->body->length; // This cannot be done in the initializer list because body is moved.
+    }
+
     Definition(Definition &other) :
         name(other.name), rettype(other.rettype), args(make_unique<vector<shared_ptr<Arg>>>(*other.args)),
         body(other.body->deep_copy()), length(other.length) {}
@@ -1187,6 +1188,11 @@ public:
 private:
     mutable shared_ptr<FuncValue> _absf;
     virtual const string to_string() const;
+
+protected:
+    // Reserved for Fixpoint
+    Definition(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args) :
+        name(name), rettype(rettype), args(std::move(args)), body(nullptr) {}
 };
 
 class Fixpoint : public Definition {
@@ -1194,6 +1200,9 @@ public:
     Fixpoint() { throw std::invalid_argument("Fixpoint must have a name, rettype, args, and body"); }
     Fixpoint(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args, unique_ptr<SpecNode> body) :
         Definition(name, rettype, std::move(args), std::move(body)) {}
+    Fixpoint(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args) :
+        Definition(name, rettype, std::move(args)) {}
+    Fixpoint(Fixpoint &other) : Definition(other) {}
 
 private:
     const string to_string() const;

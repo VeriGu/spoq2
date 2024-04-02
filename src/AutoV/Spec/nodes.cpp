@@ -883,6 +883,10 @@ void Definition::infer_type(Project &proj) {
     std::set<string> vars;
     bool well_typed;
 
+
+    if (!this->body)
+        return;
+
     for (auto it = args->begin(); it != args->end(); it++) {
         (*known)[(*it)->name] = (*it)->type;
     }

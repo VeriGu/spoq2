@@ -51,7 +51,8 @@ extern unordered_map<size_t, Z3Result> Z3Cache;
 
 void spec_transformer(Project *proj, Definition *def) {
     LOG_INFO << "Transforming " << def->name;
-    bool debug = def->name.compare(0, 21, "rtt_walk_lock_unlock") == 0;
+    std::cout << string(*def) << std::endl;
+    bool debug = (def->name.rfind("smc_rtt_create", 0) == 0);
     auto known = std::set<string>();
     auto fname = def->name;
 
@@ -101,6 +102,8 @@ void spec_transformer(Project *proj, Definition *def) {
                 break;
         }
 
+#define UNFOLD
+#ifdef UNFOLD
         // Unfold
         do {
             auto [__spec, __unfolded] = rule_unfold_specs(proj, new_spec1);
@@ -118,7 +121,7 @@ void spec_transformer(Project *proj, Definition *def) {
                         << string(*new_spec) << "\n==============================" << std::endl;
             }
         } while (false);
-
+#endif
         while (true) {
             auto this_changed = false;
             new_spec1 = new_spec;
@@ -171,6 +174,7 @@ void spec_transformer(Project *proj, Definition *def) {
 
             do {
                 auto before = string(*new_spec1);
+
                 auto [__spec, __changed] = rule_eliminiate_indifferent(proj, new_spec1, def->name);
                 new_spec1 = __spec;
                 this_changed |= __changed;

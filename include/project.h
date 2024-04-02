@@ -103,6 +103,7 @@ public:
     Project();
 
     void add_symbol(string symbol, SymbolKind kind, string info, shared_ptr<loc_t> loc);
+    void add_symbol(string symbol, SymbolKind kind, string info, shared_ptr<loc_t> loc, unsigned long order);
     void update_symbol_loc(string symbol, shared_ptr<loc_t> loc);
 
     void add_struct(shared_ptr<Struct> s, shared_ptr<loc_t> loc);
@@ -116,6 +117,7 @@ public:
     void add_declaration(unique_ptr<Declaration> decl, shared_ptr<loc_t> loc);
 
     void add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc);
+    void add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc, unsigned long order);
 
     void add_layer(unique_ptr<Layer> layer);
 

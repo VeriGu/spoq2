@@ -318,7 +318,7 @@ static SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f
 
 static void get_vars_from_pattern(Project *proj, SpecNode *pattern, std::set<string> &vars) {
     if (auto s = instance_of(pattern, Symbol)) {
-        if (proj->is_known_symbol(s->text) && pattern->get_type() != SpecType::UNKNOWN_TYPE)
+        if (!proj->is_known_symbol(s->text) && pattern->get_type() != SpecType::UNKNOWN_TYPE)
             vars.insert(s->text);
     } else if (auto e = instance_of(pattern, Expr)) {
         if (auto *o = std::get_if<unique_ptr<SpecNode>>(&e->op))
@@ -479,6 +479,9 @@ rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec) {
 
                 auto define = proj->defs[*op].get();
 
+                if (is_instance(define, Fixpoint))
+                    return node;
+
                 // std::cout << "======================================" << std::endl;
                 // std::cout << "Unfold definition: " << string(*define) << std::endl;
                 // std::cout << "======================================" << std::endl;
@@ -569,7 +572,9 @@ static void search_field_path(Project *proj, string name, string parent, vector<
 
 static vector<vector<FieldPath>> interest_path;
 //static const std::set<string> interest_list = {"e_lock", "e_refcount", "log"};
-static const std::set<string> interest_list = {"gpt", "g_norm", "e_state", "g_rec", "slots", "granule_data", "e_lock"}; // delegate/undelegate
+//static const std::set<string> interest_list = {"gpt", "g_norm", "e_state", "g_rec", "slots", "granule_data", "e_lock"}; // delegate/undelegate
+static const std::set<string> interest_list = {"gpt", "g_norm", "e_state", "g_rec", "slots", "granule_data"}; // RTT
+
 //static const std::set<string> interest_list = {};
 static void collect_interest_path(Project *proj) {
     for (auto &i: interest_list) {
@@ -589,30 +594,42 @@ static bool contains_interest_fields(SpecNode *spec) {
         }
         return false;
     } if (auto e = instance_of(spec, Expr)) {
-#if 0
-        if (auto op = std::get_if<Expr::op>(&e->op)) {
-            if (*op == Expr::RecordSet || *op == Expr::SET) {
-                for (auto &elem: *e->elems) {
-                    if (auto s = instance_of(elem.get(), Symbol)) {
-                        if (std::find(interest_list.begin(), interest_list.end(), s->text) != interest_list.end()) {
-                            return true;
-                        }
-                    } else {
-                        bool changed = contains_interest_fields(elem.get());
-                        if (changed)
-                            return true;
-                    }
+        if (auto op = std::get_if<Expr::ops>(&e->op)) {
+            if (*op == Expr::RecordSet) {
+                // elems[0]: record
+                // elems[1...n-1]: fields
+                // elems[n]: value
+                for (int i = 1; i < e->elems->size() - 1; i++) {
+                    auto f = e->elems->at(i).get();
+                    assert(is_instance(f, Symbol));
+                    if (std::find(interest_list.begin(), interest_list.end(), static_cast<Symbol*>(f)->text) != interest_list.end())
+                        return true;
                 }
-            }
 
+                if (is_instance(e->elems->back()->get_type().get(), ZMap))
+                    return contains_interest_fields(e->elems->back().get());
+
+                return false;
+            } else if (*op == Expr::SET) {
+                auto v = e->elems->back().get();
+
+                if (is_instance(v, Expr))
+                    return contains_interest_fields(v);
+
+                return false;
+            }
             return false;
         }
-#endif
+
+        return false;
+#if 0
         for (auto &elem: *e->elems) {
             if (contains_interest_fields(elem.get()))
                 return true;
         }
+
         return false;
+#endif
     } else if (auto m = instance_of(spec, Match)) {
         if (contains_interest_fields(m->src.get()))
             return true;
@@ -722,78 +739,6 @@ rule_ret_t rule_eliminiate_indifferent(Project *proj, SpecNode *spec, string fna
     return std::make_pair(rec_apply(spec, f), changed);
 }
 
-
-#if 0
-static bool ends_with_lens(const std::string& str) {
-    if (str.length() >= 4) {
-        return str.rfind("lens") == str.length() - 4;
-    }
-    return false;
-}
-
-static bool expr_is_lens(const Expr *e) {
-    if (e->is_lens)
-        return true;
-
-    if (auto op = std::get_if<string>(&e->op)) {
-        return ends_with_lens(*op);
-    } else if (holds_alternative<unique_ptr<SpecNode>>(e->op)) {
-        auto &op = std::get<unique_ptr<SpecNode>>(e->op);
-        if (auto e = instance_of(op.get(), Expr)) {
-            return expr_is_lens(e);
-        }
-    } else if (auto op = std::get_if<Expr::ops>(&e->op)) {
-        if (*op == Expr::GET || *op == Expr::RecordGet) {
-            auto &rec = e->elems->at(0);
-
-            if (auto e = instance_of(rec.get(), Expr)) {
-                return expr_is_lens(e);
-            }
-        }
-    }
-    return false;
-}
-
-
-rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec) {
-    bool changed = false;
-
-    std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
-        if (auto e = instance_of(node, Expr)) {
-            if (!expr_is_lens(e))
-                return node;
-
-
-            if (auto ee = instance_of(e->elems->at(1).get(), Expr)) {
-                if (!expr_is_lens(ee))
-                    return node;
-
-                auto orig_e = string(*e);
-
-                auto &op0 = e->op;
-                auto &op1 = ee->op;
-
-                if (holds_alternative<string>(op0) && holds_alternative<string>(op1)) {
-                    // lens y (lens x st) -> lens z st
-                    e->elems = std::move(ee->elems);
-                    e->elems->at(0).reset(new IntConst(get_mono_lens_id()));
-                    changed = true;
-                }
-
-                // std::cout << "merge lens: " << orig_e << " to "
-                //     << string(*node)<< std::endl;
-                return node;
-            }
-
-        }
-
-        return node;
-    };
-
-    return std::make_pair(rec_apply(spec, f), changed);
-}
-#endif
-
 static SpecNode* remove_expr_lens(Expr *e, bool &changed) {
     if (op_is_lens(e->op)) {
         auto ret = e->elems->at(1).release();
@@ -815,6 +760,22 @@ static SpecNode* remove_expr_lens(Expr *e, bool &changed) {
     }
 
     return e;
+}
+
+static bool expr_emits_lens(SpecNode *node) {
+    auto e = instance_of(node, Expr);
+
+    if (!e)
+        return false;
+
+    if (std::holds_alternative<string>(e->op)) {
+        return op_is_lens(e->op);
+    } else if (auto op = std::get_if<Expr::ops>(&e->op)) {
+        if (*op == Expr::Some)
+            return expr_emits_lens(e->elems->at(0).get());
+    }
+
+    return false;
 }
 
 rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec) {
@@ -909,9 +870,6 @@ rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec) {
             if (m->match_list->size() - none_cnt > 1)
                 return node;
 
-            // if (!m->is_when())
-            //     return node;
-
             auto src = m->src.get();
 
             if (auto e = instance_of(src, Expr)) {
@@ -937,6 +895,23 @@ rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec) {
                     }
                 }
             }
+        } else if (auto i = instance_of(node, If)) {
+            auto then_body = i->then_body.get();
+            auto else_body = i->else_body.get();
+
+            while (instance_of(then_body, RelyAnno))
+                then_body = static_cast<RelyAnno*>(then_body)->body.get();
+
+            while (instance_of(else_body, RelyAnno))
+                else_body = static_cast<RelyAnno*>(else_body)->body.get();
+
+            if (!expr_emits_lens(then_body) || !expr_emits_lens(else_body))
+                return node;
+
+            auto ret = then_body->deep_copy();
+            changed = true;
+            delete i;
+            return ret.release();
         }
 
         return node;
@@ -1153,6 +1128,8 @@ rule_ret_t rule_move_when_out_when(Project *proj, SpecNode *spec) {
 if true then [then_body] else [else_body] ===> [then_body]
 if false then [then_body] else [else_body] ===> [else_body]
 if ... then [body] else [body] ===> [body]
+
+The following simplification may not actually simplify the expression
 if A then [then_body] else (if B then [then_body] else [else_body]) ===> if (A || B) then [then_body] else [else_body]
 */
 rule_ret_t rule_eliminate_if(Project *proj, SpecNode *spec) {
@@ -1182,23 +1159,25 @@ rule_ret_t rule_eliminate_if(Project *proj, SpecNode *spec) {
                 return new_node;
             }
 
-            // if (auto ei = instance_of(i->else_body.get(), If)) {
-            //     if (*i->then_body == *ei->then_body) {
-            //         auto cond_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+#if 0
+            if (auto ei = instance_of(i->else_body.get(), If)) {
+                if (*i->then_body == *ei->then_body) {
+                    auto cond_elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-            //         cond_elems->push_back(std::move(i->cond));
-            //         cond_elems->push_back(std::move(ei->cond));
+                    cond_elems->push_back(std::move(i->cond));
+                    cond_elems->push_back(std::move(ei->cond));
 
-            //         auto new_cond = new Expr(Expr::binops::BOR, std::move(cond_elems), Bool::BOOL);
-            //         auto new_if = new If(unique_ptr<SpecNode>(new_cond),
-            //                              unique_ptr<SpecNode>(ei->then_body.release()),
-            //                              unique_ptr<SpecNode>(ei->else_body.release()));
+                    auto new_cond = new Expr(Expr::binops::BOR, std::move(cond_elems), Bool::BOOL);
+                    auto new_if = new If(unique_ptr<SpecNode>(new_cond),
+                                         unique_ptr<SpecNode>(ei->then_body.release()),
+                                         unique_ptr<SpecNode>(ei->else_body.release()));
 
-            //         delete i;
-            //         changed = true;
-            //         return new_if;
-            //     }
-            // }
+                    delete i;
+                    changed = true;
+                    return new_if;
+                }
+            }
+#endif
         }
         return node;
     };

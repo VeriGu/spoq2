@@ -844,9 +844,10 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
             } else {
                 auto iteration_body = ir_insts_to_spec(proj, Layer, fname, f->body.get(), defs, f->loop_args.get(), true, false, suffix, 0);
                 string low = "_low";
-                auto substring = loop_spec_name.substr(loop_spec_name.size() - low.size());
-                if((proj->cmds).InitRely.find(substring) != (proj->cmds).InitRely.end()){
-                    for(auto &prop : proj->cmds.InitRely[substring]) {
+                auto substring = loop_spec_name.substr(0, loop_spec_name.size() - low.size());
+
+                if ((proj->cmds).InitRely.find(substring) != (proj->cmds).InitRely.end()){
+                    for (auto &prop : proj->cmds.InitRely[substring]) {
                         iteration_body = new Rely(prop->deep_copy(), unique_ptr<SpecNode>(iteration_body));
                     }
                 }
