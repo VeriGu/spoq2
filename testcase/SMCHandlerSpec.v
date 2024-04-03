@@ -123,7 +123,6 @@ Definition smc_rtt_create_6 (v_wi: Ptr) (v_call14: Ptr) (v_call15: Z) (v_call16:
     | None => None
     end).
 
-
 Definition smc_rtt_create_5 (v_wi: Ptr) (v_call14: Ptr) (v_call15: Z) (v_call16: Ptr) (v_ulevel: Z) (v_g_tbl: Ptr) (v_rtt_addr: Z) (st_0: RData) (st_27: RData) : (option (Z * RData)) :=
   rely (((v_wi.(pbase)) = ("smc_rtt_create_stack")));
   rely (((v_call16.(pbase)) = ("slot_delegated")));
@@ -539,3 +538,402 @@ Definition smc_rtt_create_0 (v_g_tbl: Ptr) (v_rtt_addr: Z) (v_ulevel: Z) (v_wi: 
     )))
   else None.
 
+  Definition smc_rtt_create_spec (v_rtt_addr: Z) (v_rd_addr: Z) (v_map_addr: Z) (v_ulevel: Z) (st: RData) : (option (Z * RData)) :=
+    match ((find_lock_granules_loop0 (z_to_nat 2) false false false (mkPtr "find_lock_two_granules_stack" 0) 0 (lens 8328 st))) with
+    | (Some (__return__, __retval__, __break__, v_granules_0, v_i_144, st_3)) =>
+      rely (((v_granules_0.(pbase)) = ("find_lock_two_granules_stack")));
+      if __return__
+      then (
+        if __retval__
+        then (
+          rely (
+            (((((((lens 2449 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (STACK_VIRT)) < (0)) /\
+              (((((((lens 2449 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >= (0)))));
+          rely ((((((((lens 2449 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) mod (ST_GRANULE_SIZE)) = (0)));
+          rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+          when cid == ((((((lens 2449 st_3).(share)).(granules)) @ ((((((lens 2449 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(e_lock)));
+          if (
+            ((v_ulevel >? (3)) ||
+              ((((((((((st_3.(share)).(granule_data)) @ ((((((lens 2449 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_s2_starting_level)) +
+                (1)) -
+                (v_ulevel)) >?
+                (0)))))
+          then (
+            rely (
+              (((((((lens 8333 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (STACK_VIRT)) < (0)) /\
+                (((((((lens 8333 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >= (0)))));
+            (Some (
+              1  ,
+              ((lens 8456 st_3).[share].[slots] :<
+                ((((st_3.(share)).(slots)) #
+                  SLOT_RD ==
+                  ((((((lens 2449 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))) #
+                  SLOT_RD ==
+                  (- 1)))
+            )))
+          else (
+            rely (((Some cid) = ((Some CPU_ID))));
+            if (
+              (((1 <<
+                (((((((st_3.(share)).(granule_data)) @ ((((((lens 2449 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_ipa_bits)))) -
+                (v_map_addr)) >?
+                (0)))
+            then (
+              if (
+                ((((v_map_addr & (281474976710655)) & (((- 1) << (((((((v_ulevel * (18446744069414584320)) + (12884901888)) >> (32)) * (9)) + (12)) & (4294967295)))))) -
+                  (v_map_addr)) =?
+                  (0)))
+              then (
+                rely (
+                  (((((((((st_3.(share)).(granule_data)) @ ((((((lens 2449 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) -
+                    (STACK_VIRT)) <
+                    (0)) /\
+                    (((((((((st_3.(share)).(granule_data)) @ ((((((lens 2449 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) -
+                      (GRANULES_BASE)) >=
+                      (0)))));
+                rely (
+                  (("granules" = ("granules")) /\
+                    ((((((((((st_3.(share)).(granule_data)) @ ((((((lens 2449 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) -
+                      (GRANULES_BASE)) mod
+                      (ST_GRANULE_SIZE)) =
+                      (0)))));
+                when sh == (
+                    (((lens 2449 st_3).(repl))
+                      (((lens 2449 st_3).(oracle)) ((lens 2449 st_3).(log)))
+                      (((lens 2449 st_3).(share)).[slots] :<
+                        ((((st_3.(share)).(slots)) #
+                          SLOT_RD ==
+                          ((((((lens 2449 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))) #
+                          SLOT_RD ==
+                          (- 1)))));
+                rely (
+                  (((((((lens 8492 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (STACK_VIRT)) < (0)) /\
+                    (((((((lens 8492 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >= (0)))));
+                when st_18 == (
+                    (rtt_walk_lock_unlock_spec
+                      (mkPtr
+                        "granules"
+                        (((((((st_3.(share)).(granule_data)) @ ((((((lens 2449 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) -
+                          (GRANULES_BASE)))
+                      ((((((st_3.(share)).(granule_data)) @ ((((((lens 2449 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_s2_starting_level))
+                      ((((((st_3.(share)).(granule_data)) @ ((((((lens 2449 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_ipa_bits))
+                      v_map_addr
+                      (v_ulevel + ((- 1)))
+                      (mkPtr "smc_rtt_create_stack" (((lens 8244 st).(func_sp)).(smc_rtt_create_sp)))
+                      ((lens 8503 st_3).[share].[slots] :<
+                        ((((st_3.(share)).(slots)) #
+                          SLOT_RD ==
+                          ((((((lens 2449 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))) #
+                          SLOT_RD ==
+                          (- 1)))));
+                if (((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (16))) - ((v_ulevel + ((- 1))))) =? (0))
+                then (
+                  rely (
+                    ((((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (STACK_VIRT)) < (0)) /\
+                      ((((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >= (0)))));
+                  rely (((((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) mod (ST_GRANULE_SIZE)) = (0)));
+                  when cid_0 == (((((st_18.(share)).(granules)) @ (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(e_lock)));
+                  rely (
+                    ((((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (STACK_VIRT)) < (0)) /\
+                      ((((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >= (0)))));
+                  rely (((((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) mod (ST_GRANULE_SIZE)) = (0)));
+                  if (
+                    (((((((st_18.(share)).(granule_data)) @ (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (8)))))) &
+                      (3)) =?
+                      (0)))
+                  then (
+                    if (
+                      (((((((st_18.(share)).(granule_data)) @ (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (8)))))) &
+                        (60)) =?
+                        (0)))
+                    then (
+                      (smc_rtt_create_6
+                        (mkPtr "smc_rtt_create_stack" (((lens 8244 st).(func_sp)).(smc_rtt_create_sp)))
+                        (mkPtr "slot_rtt" 0)
+                        (((((st_18.(share)).(granule_data)) @ (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (8))))))
+                        (mkPtr "slot_delegated" 0)
+                        v_ulevel
+                        (mkPtr "smc_rtt_create_stack" (((lens 8204 st).(func_sp)).(smc_rtt_create_sp)))
+                        v_rtt_addr
+                        (lens 8164 st)
+                        (st_18.[share].[slots] :<
+                          ((((st_18.(share)).(slots)) #
+                            SLOT_RTT ==
+                            (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))) #
+                            SLOT_DELEGATED ==
+                            (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))))))
+                    else (
+                      if (
+                        ((((((((st_18.(share)).(granule_data)) @ (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (8)))))) &
+                          (60)) -
+                          (8)) =?
+                          (0)))
+                      then (
+                        (smc_rtt_create_5
+                          (mkPtr "smc_rtt_create_stack" (((lens 8244 st).(func_sp)).(smc_rtt_create_sp)))
+                          (mkPtr "slot_rtt" 0)
+                          (((((st_18.(share)).(granule_data)) @ (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (8))))))
+                          (mkPtr "slot_delegated" 0)
+                          v_ulevel
+                          (mkPtr "smc_rtt_create_stack" (((lens 8204 st).(func_sp)).(smc_rtt_create_sp)))
+                          v_rtt_addr
+                          (lens 8164 st)
+                          (st_18.[share].[slots] :<
+                            ((((st_18.(share)).(slots)) #
+                              SLOT_RTT ==
+                              (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))) #
+                              SLOT_DELEGATED ==
+                              (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))))))
+                      else (
+                        if (
+                          ((((((((st_18.(share)).(granule_data)) @ (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (8)))))) &
+                            (60)) -
+                            (4)) =?
+                            (0)))
+                        then (
+                          (smc_rtt_create_4
+                            (mkPtr "smc_rtt_create_stack" (((lens 8244 st).(func_sp)).(smc_rtt_create_sp)))
+                            (mkPtr "slot_rtt" 0)
+                            (((((st_18.(share)).(granule_data)) @ (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (8))))))
+                            (mkPtr "slot_delegated" 0)
+                            v_ulevel
+                            (mkPtr "smc_rtt_create_stack" (((lens 8204 st).(func_sp)).(smc_rtt_create_sp)))
+                            v_rtt_addr
+                            (lens 8164 st)
+                            (st_18.[share].[slots] :<
+                              ((((st_18.(share)).(slots)) #
+                                SLOT_RTT ==
+                                (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))) #
+                                SLOT_DELEGATED ==
+                                (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))))))
+                        else (
+                          (smc_rtt_create_0
+                            (mkPtr "smc_rtt_create_stack" (((lens 8204 st).(func_sp)).(smc_rtt_create_sp)))
+                            v_rtt_addr
+                            v_ulevel
+                            (mkPtr "smc_rtt_create_stack" (((lens 8244 st).(func_sp)).(smc_rtt_create_sp)))
+                            (mkPtr "slot_rtt" 0)
+                            (mkPtr "slot_delegated" 0)
+                            (lens 8164 st)
+                            (st_18.[share].[slots] :<
+                              ((((st_18.(share)).(slots)) #
+                                SLOT_RTT ==
+                                (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))) #
+                                SLOT_DELEGATED ==
+                                (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4)))))))))
+                  else (
+                    if (
+                      (((((((st_18.(share)).(granule_data)) @ (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (8)))))) &
+                        (36028797018963968)) =?
+                        (0)))
+                    then (
+                      if (
+                        (((v_ulevel + ((- 1))) =? (2)) &&
+                          ((((((((st_18.(share)).(granule_data)) @ (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (8)))))) &
+                            (3)) =?
+                            (1)))))
+                      then (
+                        (smc_rtt_create_3
+                          (mkPtr "smc_rtt_create_stack" (((lens 8244 st).(func_sp)).(smc_rtt_create_sp)))
+                          v_map_addr
+                          (mkPtr "slot_rtt" 0)
+                          (((((st_18.(share)).(granule_data)) @ (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (8))))))
+                          (mkPtr "slot_delegated" 0)
+                          (mkPtr "smc_rtt_create_stack" (((lens 8284 st).(func_sp)).(smc_rtt_create_sp)))
+                          (mkPtr "smc_rtt_create_stack" (((lens 8204 st).(func_sp)).(smc_rtt_create_sp)))
+                          v_rtt_addr
+                          v_ulevel
+                          (lens 8164 st)
+                          (st_18.[share].[slots] :<
+                            ((((st_18.(share)).(slots)) #
+                              SLOT_RTT ==
+                              (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))) #
+                              SLOT_DELEGATED ==
+                              (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))))))
+                      else (
+                        if (
+                          (((v_ulevel + ((- 1))) <? (3)) &&
+                            ((((((((st_18.(share)).(granule_data)) @ (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (8)))))) &
+                              (3)) =?
+                              (3)))))
+                        then (
+                          (smc_rtt_create_1
+                            v_ulevel
+                            (mkPtr "slot_rtt" 0)
+                            (mkPtr "slot_delegated" 0)
+                            (mkPtr "smc_rtt_create_stack" (((lens 8244 st).(func_sp)).(smc_rtt_create_sp)))
+                            (mkPtr "smc_rtt_create_stack" (((lens 8204 st).(func_sp)).(smc_rtt_create_sp)))
+                            (lens 8164 st)
+                            (st_18.[share].[slots] :<
+                              ((((st_18.(share)).(slots)) #
+                                SLOT_RTT ==
+                                (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))) #
+                                SLOT_DELEGATED ==
+                                (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))))))
+                        else (
+                          (smc_rtt_create_0
+                            (mkPtr "smc_rtt_create_stack" (((lens 8204 st).(func_sp)).(smc_rtt_create_sp)))
+                            v_rtt_addr
+                            v_ulevel
+                            (mkPtr "smc_rtt_create_stack" (((lens 8244 st).(func_sp)).(smc_rtt_create_sp)))
+                            (mkPtr "slot_rtt" 0)
+                            (mkPtr "slot_delegated" 0)
+                            (lens 8164 st)
+                            (st_18.[share].[slots] :<
+                              ((((st_18.(share)).(slots)) #
+                                SLOT_RTT ==
+                                (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))) #
+                                SLOT_DELEGATED ==
+                                (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))))))))
+                    else (
+                      if (
+                        ((((((((st_18.(share)).(granule_data)) @ (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (8)))))) &
+                          (36028797018963968)) -
+                          (36028797018963968)) =?
+                          (0)))
+                      then (
+                        if (
+                          (((v_ulevel + ((- 1))) =? (2)) &&
+                            ((((((((st_18.(share)).(granule_data)) @ (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (8)))))) &
+                              (3)) =?
+                              (1)))))
+                        then (
+                          (smc_rtt_create_2
+                            v_map_addr
+                            (mkPtr "smc_rtt_create_stack" (((lens 8244 st).(func_sp)).(smc_rtt_create_sp)))
+                            (mkPtr "slot_rtt" 0)
+                            (((((st_18.(share)).(granule_data)) @ (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (8))))))
+                            (mkPtr "slot_delegated" 0)
+                            v_ulevel
+                            (mkPtr "smc_rtt_create_stack" (((lens 8204 st).(func_sp)).(smc_rtt_create_sp)))
+                            (mkPtr "smc_rtt_create_stack" (((lens 8284 st).(func_sp)).(smc_rtt_create_sp)))
+                            v_rtt_addr
+                            (lens 8164 st)
+                            (st_18.[share].[slots] :<
+                              ((((st_18.(share)).(slots)) #
+                                SLOT_RTT ==
+                                (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))) #
+                                SLOT_DELEGATED ==
+                                (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))))))
+                        else (
+                          if (
+                            (((v_ulevel + ((- 1))) <? (3)) &&
+                              ((((((((st_18.(share)).(granule_data)) @ (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (8)))))) &
+                                (3)) =?
+                                (3)))))
+                          then (
+                            (smc_rtt_create_1
+                              v_ulevel
+                              (mkPtr "slot_rtt" 0)
+                              (mkPtr "slot_delegated" 0)
+                              (mkPtr "smc_rtt_create_stack" (((lens 8244 st).(func_sp)).(smc_rtt_create_sp)))
+                              (mkPtr "smc_rtt_create_stack" (((lens 8204 st).(func_sp)).(smc_rtt_create_sp)))
+                              (lens 8164 st)
+                              (st_18.[share].[slots] :<
+                                ((((st_18.(share)).(slots)) #
+                                  SLOT_RTT ==
+                                  (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))) #
+                                  SLOT_DELEGATED ==
+                                  (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))))))
+                          else (
+                            (smc_rtt_create_0
+                              (mkPtr "smc_rtt_create_stack" (((lens 8204 st).(func_sp)).(smc_rtt_create_sp)))
+                              v_rtt_addr
+                              v_ulevel
+                              (mkPtr "smc_rtt_create_stack" (((lens 8244 st).(func_sp)).(smc_rtt_create_sp)))
+                              (mkPtr "slot_rtt" 0)
+                              (mkPtr "slot_delegated" 0)
+                              (lens 8164 st)
+                              (st_18.[share].[slots] :<
+                                ((((st_18.(share)).(slots)) #
+                                  SLOT_RTT ==
+                                  (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))) #
+                                  SLOT_DELEGATED ==
+                                  (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))))))))
+                      else (
+                        if (
+                          (((v_ulevel + ((- 1))) <? (3)) &&
+                            ((((((((st_18.(share)).(granule_data)) @ (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (8)))))) &
+                              (3)) =?
+                              (3)))))
+                        then (
+                          (smc_rtt_create_1
+                            v_ulevel
+                            (mkPtr "slot_rtt" 0)
+                            (mkPtr "slot_delegated" 0)
+                            (mkPtr "smc_rtt_create_stack" (((lens 8244 st).(func_sp)).(smc_rtt_create_sp)))
+                            (mkPtr "smc_rtt_create_stack" (((lens 8204 st).(func_sp)).(smc_rtt_create_sp)))
+                            (lens 8164 st)
+                            (st_18.[share].[slots] :<
+                              ((((st_18.(share)).(slots)) #
+                                SLOT_RTT ==
+                                (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))) #
+                                SLOT_DELEGATED ==
+                                (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))))))
+                        else (
+                          (smc_rtt_create_0
+                            (mkPtr "smc_rtt_create_stack" (((lens 8204 st).(func_sp)).(smc_rtt_create_sp)))
+                            v_rtt_addr
+                            v_ulevel
+                            (mkPtr "smc_rtt_create_stack" (((lens 8244 st).(func_sp)).(smc_rtt_create_sp)))
+                            (mkPtr "slot_rtt" 0)
+                            (mkPtr "slot_delegated" 0)
+                            (lens 8164 st)
+                            (st_18.[share].[slots] :<
+                              ((((st_18.(share)).(slots)) #
+                                SLOT_RTT ==
+                                (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))) #
+                                SLOT_DELEGATED ==
+                                (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))))))))))
+                else (
+                  rely (
+                    ((((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (STACK_VIRT)) < (0)) /\
+                      ((((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >= (0)))));
+                  when cid_0 == (((((st_18.(share)).(granules)) @ (((((st_18.(stack)).(smc_rtt_create_stack)) @ (((lens 8244 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
+                  rely (
+                    (((((((lens 8505 st_18).(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (STACK_VIRT)) < (0)) /\
+                      (((((((lens 8505 st_18).(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >= (0)))));
+                  (Some (
+                    ((((((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (16))) << (32)) + (4)) >> (24)) & (4294967040)) |'
+                      (((((((st_18.(stack)).(smc_rtt_create_stack)) @ ((((lens 8244 st).(func_sp)).(smc_rtt_create_sp)) + (16))) << (32)) + (4)) & (4294967295))))  ,
+                    (lens 8557 st_18)
+                  )))  )
+              else (
+                rely (
+                  (((((((lens 8715 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (STACK_VIRT)) < (0)) /\
+                    (((((((lens 8715 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >= (0)))));
+                (Some (
+                  1  ,
+                  ((lens 8838 st_3).[share].[slots] :<
+                    ((((st_3.(share)).(slots)) #
+                      SLOT_RD ==
+                      ((((((lens 2449 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))) #
+                      SLOT_RD ==
+                      (- 1)))
+                ))))
+            else (
+              rely (
+                (((((((lens 8869 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (STACK_VIRT)) < (0)) /\
+                  (((((((lens 8869 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8204 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >= (0)))));
+              (Some (
+                1  ,
+                ((lens 8992 st_3).[share].[slots] :<
+                  ((((st_3.(share)).(slots)) #
+                    SLOT_RD ==
+                    ((((((lens 2449 st_3).(stack)).(smc_rtt_create_stack)) @ (((lens 8164 st).(func_sp)).(smc_rtt_create_sp))) - (GRANULES_BASE)) >> (4))) #
+                    SLOT_RD ==
+                    (- 1)))
+              )))))
+        else (Some (1, (lens 9067 st_3))))
+      else (
+        if (v_i_144 >? (0))
+        then (
+          rely ((((((st_3.(stack)).(find_lock_two_granules_stack)) @ ((v_granules_0.(poffset)) + (((40 * ((v_i_144 + ((- 1))))) + (24))))) - (STACK_VIRT)) < (0)));
+          rely ((((((st_3.(stack)).(find_lock_two_granules_stack)) @ ((v_granules_0.(poffset)) + (((40 * ((v_i_144 + ((- 1))))) + (24))))) - (GRANULES_BASE)) >= (0)));
+          when cid == (
+              ((((st_3.(share)).(granules)) @
+                (((((st_3.(stack)).(find_lock_two_granules_stack)) @ ((v_granules_0.(poffset)) + (((40 * ((v_i_144 + ((- 1))))) + (24))))) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
+          (Some (1, (lens 9163 st_3))))
+        else (Some (1, (lens 9259 st_3))))
+    | None => None
+    end.
