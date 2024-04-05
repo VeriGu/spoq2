@@ -61,6 +61,7 @@ Section Mmap_Layer.
           :: ("arch_feat_get_pa_width", prim arch_feat_get_pa_width_spec)
           :: ("buffer_unmap", prim buffer_unmap_spec)
           :: ("entry_is_table", prim entry_is_table_spec)
+          :: ("find_lock_granule", prim find_lock_granule_spec)
           :: ("find_lock_two_granules", prim find_lock_two_granules_spec)
           :: ("get_rd_state_locked", prim get_rd_state_locked_spec)
           :: ("granule_lock", prim granule_lock_spec)
@@ -78,6 +79,7 @@ Section Mmap_Layer.
           :: ("rec_ipa_size", prim rec_ipa_size_spec)
           :: ("s2_addr_to_idx", prim s2_addr_to_idx_spec)
           :: ("s2_sl_addr_to_idx", prim s2_sl_addr_to_idx_spec)
+          :: ("set_rd_state", prim set_rd_state_spec)
           :: ("stage2_tlbi_ipa", prim stage2_tlbi_ipa_spec)
           :: nil
     |}.

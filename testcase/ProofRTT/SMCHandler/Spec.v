@@ -9,6 +9,46 @@ Section SMCHandler_Spec.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Definition smc_realm_activate_spec (v_rd_addr: Z) (st: RData) : (option (Z * RData)) :=
+    if ((v_rd_addr & (4095)) =? (0))
+    then (
+      if ((v_rd_addr / (GRANULE_SIZE)) >? (1048575))
+      then (Some (1, st))
+      else (
+        rely ((((0 - ((v_rd_addr / (GRANULE_SIZE)))) <= (0)) /\ (((v_rd_addr / (GRANULE_SIZE)) < (1048576)))));
+        when sh == (((st.(repl)) ((st.(oracle)) (st.(log))) (st.(share))));
+        match (((((st.(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))).(e_lock))) with
+        | None =>
+          if ((((((st.(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))).(e_state)) - (2)) =? (0))
+          then (
+            rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+            if ((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_rd_state)) =? (0))
+            then (
+              if (
+                match ((((((lens 1135 st).(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))).(e_lock))) with
+                | (Some cid) => true
+                | None => false
+                end)
+              then (
+                (Some (
+                  0  ,
+                  (((lens 9262 st).[share].[granule_data] :<
+                    (((st.(share)).(granule_data)) #
+                      (v_rd_addr / (GRANULE_SIZE)) ==
+                      ((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).[g_rd] :<
+                        (((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).[e_rd_rd_state] :< 1)))).[share].[slots] :<
+                    ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RD == (- 1)))
+                )))
+              else None)
+            else (Some (2, ((lens 9264 st).[share].[slots] :< ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RD == (- 1))))))
+          else (Some (1, (lens 1137 st)))
+        | (Some cid) => None
+        end))
+    else (Some (1, st)).
+
+  Definition smc_version_spec (st: RData) : (option (Z * RData)) :=
+    (Some (3670016, st)).
+
   Definition smc_rtt_create_6 (v_wi: Ptr) (v_call14: Ptr) (v_call15: Z) (v_call16: Ptr) (v_ulevel: Z) (v_g_tbl: Ptr) (v_rtt_addr: Z) (st_0: RData) (st_26: RData) : (option (Z * RData)) :=
     rely (((v_wi.(pbase)) = ("smc_rtt_create_stack")));
     rely (((v_call16.(pbase)) = ("slot_delegated")));
@@ -951,6 +991,8 @@ Section SMCHandler_Spec.
 
 End SMCHandler_Spec.
 
+#[global] Hint Unfold smc_realm_activate_spec: spec.
+#[global] Hint Unfold smc_version_spec: spec.
 Opaque smc_rtt_create_6.
 Opaque smc_rtt_create_5.
 Opaque smc_rtt_create_4.

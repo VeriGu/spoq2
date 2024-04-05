@@ -8,6 +8,7 @@ Require Import Helpers.Spec.
 Require Import InvalidatePages.Spec.
 Require Import LockGranules.Spec.
 Require Import Mmap.Spec.
+Require Import RDState.Spec.
 Require Import S2TTEOps.Spec.
 Require Import S2TTEPA.Spec.
 Require Import S2TTEState.Spec.
@@ -60,7 +61,9 @@ Section TableAux_Layer.
           :: ("__tte_write", prim __tte_write_spec)
           :: ("addr_in_par", prim addr_in_par_spec)
           :: ("buffer_unmap", prim buffer_unmap_spec)
+          :: ("find_lock_granule", prim find_lock_granule_spec)
           :: ("find_lock_two_granules", prim find_lock_two_granules_spec)
+          :: ("get_rd_state_locked", prim get_rd_state_locked_spec)
           :: ("granule_lock", prim granule_lock_spec)
           :: ("granule_map", prim granule_map_spec)
           :: ("granule_set_state", prim granule_set_state_spec)
@@ -85,6 +88,7 @@ Section TableAux_Layer.
           :: ("s2tte_is_valid_ns", prim s2tte_is_valid_ns_spec)
           :: ("s2tte_map_size", prim s2tte_map_size_spec)
           :: ("s2tte_pa", prim s2tte_pa_spec)
+          :: ("set_rd_state", prim set_rd_state_spec)
           :: ("validate_data_create", prim validate_data_create_spec)
           :: ("validate_rtt_structure_cmds", prim validate_rtt_structure_cmds_spec)
           :: nil

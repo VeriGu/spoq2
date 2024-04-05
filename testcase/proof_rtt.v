@@ -3075,7 +3075,8 @@ Section GranuleLock.
       "find_lock_granule" ::
       nil.
 
-  Include "ProofRTT/.CachedSpec/GranuleLockSpec.v".
+  Hint InitRely granule_lock ((st.(share).(granules) @ (v_g.(poffset) mod ST_GRANULE_SIZE)).(e_state) = v_expected_state).
+  Include "ProofRTT/.CachedSpec/GranuleLockSpec.v"
 End GranuleLock.
 
 Section GranuleInfo.
@@ -3449,7 +3450,6 @@ Section TableAux.
   Include "ProofRTT/.CachedSpec/TableAuxSpec.v".
 End TableAux.
 
-
 Section TableWalk.
   Definition LAYER_DATA := RData.
   Definition LAYER_CODE : string := "./rmm.json".
@@ -3476,12 +3476,12 @@ Section TableWalk.
   (* Need fill in: *)
   Definition rtt_walk_lock_unlock_loop370_rank (v_g_tbls: Ptr) (v_indvars_iv: Z) (v_level: Z) (v_map_addr: Z) (v_wi: Ptr) : Z :=
     v_level.
-  Hint NoTrans rtt_walk_lock_unlock_loop370.
+
+  (* Hint NoTrans rtt_walk_lock_unlock_loop370. *)
   (* Hint NoTrans rtt_walk_lock_unlock_spec. *)
-  Hint NoUnfold rtt_walk_lock_unlock_loop370_low.
-  Hint NoUnfold rtt_walk_lock_unlock_loop370.
   Hint NoUnfold rtt_walk_lock_unlock_spec.
 
+  Hint InitRely rtt_walk_lock_unlock_loop370 (v_g_tbls.(pbase) = "granules").
   Include "TableWalkLow.v".
   Include "ProofRTT/.CachedSpec/TableWalkSpec.v".
 End TableWalk.
@@ -3578,23 +3578,43 @@ Section S2TTInit.
   Include "ProofRTT/.CachedSpec/S2TTInitSpec.v".
 End S2TTInit.
 
-(* (* Section EL3IFC. *) *)
-(* (*   Definition LAYER_DATA := RData. *) *)
-(* (*   Definition LAYER_CODE : string := "./rmm.json". *) *)
-(* (*   Definition LAYER_LOAD : string := "load_RData". *) *)
-(* (*   Definition LAYER_STORE : string := "store_RData". *) *)
-(* (*   Definition LAYER_ALLOC : string := "alloc_stack". *) *)
-(* (*   Definition LAYER_FREE : string := "free_stack". *) *)
-(* (*   Definition LAYER_PTR2INT : string := "ptr_to_int". *) *)
-(* (*   Definition LAYER_INT2PTR : string := "int_to_ptr". *) *)
-(* (*   Definition LAYER_PTR_EQB : string := "ptr_eqb". *) *)
-(* (*   Definition LAYER_PTR_GTB : string := "ptr_gtb". *) *)
-(* (*   Definition LAYER_PTR_LTB : string := "ptr_ltb". *) *)
-(* (*   Definition LAYER_PRIMS : list string := *) *)
-(* (*     "rmm_el3_ifc_gtsi_delegate" :: *) *)
-(* (*       "rmm_el3_ifc_gtsi_undelegate" :: *) *)
-(* (*       nil. *) *)
-(* (* End EL3IFC. *) *)
+Section GetFeatureReg.
+  Definition LAYER_DATA := RData.
+  Definition LAYER_CODE : string := "./rmm.json".
+  Definition LAYER_LOAD : string := "load_RData".
+  Definition LAYER_STORE : string := "store_RData".
+  Definition LAYER_ALLOC : string := "alloc_stack".
+  Definition LAYER_FREE : string := "free_stack".
+  Definition LAYER_PTR2INT : string := "ptr_to_int".
+  Definition LAYER_INT2PTR : string := "int_to_ptr".
+  Definition LAYER_PTR_EQB : string := "ptr_eqb".
+  Definition LAYER_PTR_GTB : string := "ptr_gtb".
+  Definition LAYER_PTR_LTB : string := "ptr_ltb".
+  Definition LAYER_PRIMS : list string :=
+    "get_feature_register_0" ::
+      nil.
+  Include "GetFeatureRegSpecMid.v".
+  Include "GetFeatureRegSpec.v".
+End GetFeatureReg.
+
+
+(* (* (* Section EL3IFC. *) *) *)
+(* (* (*   Definition LAYER_DATA := RData. *) *) *)
+(* (* (*   Definition LAYER_CODE : string := "./rmm.json". *) *) *)
+(* (* (*   Definition LAYER_LOAD : string := "load_RData". *) *) *)
+(* (* (*   Definition LAYER_STORE : string := "store_RData". *) *) *)
+(* (* (*   Definition LAYER_ALLOC : string := "alloc_stack". *) *) *)
+(* (* (*   Definition LAYER_FREE : string := "free_stack". *) *) *)
+(* (* (*   Definition LAYER_PTR2INT : string := "ptr_to_int". *) *) *)
+(* (* (*   Definition LAYER_INT2PTR : string := "int_to_ptr". *) *) *)
+(* (* (*   Definition LAYER_PTR_EQB : string := "ptr_eqb". *) *) *)
+(* (* (*   Definition LAYER_PTR_GTB : string := "ptr_gtb". *) *) *)
+(* (* (*   Definition LAYER_PTR_LTB : string := "ptr_ltb". *) *) *)
+(* (* (*   Definition LAYER_PRIMS : list string := *) *) *)
+(* (* (*     "rmm_el3_ifc_gtsi_delegate" :: *) *) *)
+(* (* (*       "rmm_el3_ifc_gtsi_undelegate" :: *) *) *)
+(* (* (*       nil. *) *) *)
+(* (* (* End EL3IFC. *) *) *)
 
 Section SMCHandler.
   Definition LAYER_DATA := RData.
@@ -3612,7 +3632,9 @@ Section SMCHandler.
   Definition LAYER_PRIMS : list string :=
     (* "smc_granule_delegate" :: *)
     (*   "smc_granule_undelegate" :: *)
-      "smc_rtt_create" ::
+    "smc_rtt_create" ::
+      "smc_version" ::
+      "smc_realm_activate" ::
         nil.
 
   Hint NoUnfold smc_rtt_create_0.

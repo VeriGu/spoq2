@@ -171,7 +171,7 @@ Section TableWalk_Spec.
 End TableWalk_Spec.
 
 #[global] Hint Unfold rtt_walk_lock_unlock_2: spec.
-Opaque rtt_walk_lock_unlock_loop370.
+#[global] Hint Unfold rtt_walk_lock_unlock_loop370: spec.
 #[global] Hint Unfold rtt_walk_lock_unlock_1: spec.
 Opaque rtt_walk_lock_unlock_spec.
 #[global] Hint Unfold rtt_walk_lock_unlock_loop370_rank: spec.

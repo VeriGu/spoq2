@@ -62,6 +62,7 @@ Section MmapInternal_Layer.
           :: ("buffer_map_internal", prim buffer_map_internal_spec)
           :: ("buffer_unmap_internal", prim buffer_unmap_internal_spec)
           :: ("entry_is_table", prim entry_is_table_spec)
+          :: ("find_lock_granule", prim find_lock_granule_spec)
           :: ("find_lock_two_granules", prim find_lock_two_granules_spec)
           :: ("get_rd_state_locked", prim get_rd_state_locked_spec)
           :: ("granule_addr", prim granule_addr_spec)
@@ -79,6 +80,7 @@ Section MmapInternal_Layer.
           :: ("rec_ipa_size", prim rec_ipa_size_spec)
           :: ("s2_addr_to_idx", prim s2_addr_to_idx_spec)
           :: ("s2_sl_addr_to_idx", prim s2_sl_addr_to_idx_spec)
+          :: ("set_rd_state", prim set_rd_state_spec)
           :: ("stage2_tlbi_ipa", prim stage2_tlbi_ipa_spec)
           :: nil
     |}.

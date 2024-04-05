@@ -60,6 +60,7 @@ Section S2TTEOps_Layer.
           :: ("addr_is_level_aligned", prim addr_is_level_aligned_spec)
           :: ("arch_feat_get_pa_width", prim arch_feat_get_pa_width_spec)
           :: ("buffer_unmap", prim buffer_unmap_spec)
+          :: ("find_lock_granule", prim find_lock_granule_spec)
           :: ("find_lock_two_granules", prim find_lock_two_granules_spec)
           :: ("get_rd_state_locked", prim get_rd_state_locked_spec)
           :: ("granule_lock", prim granule_lock_spec)
@@ -89,6 +90,7 @@ Section S2TTEOps_Layer.
           :: ("s2tte_is_valid_ns", prim s2tte_is_valid_ns_spec)
           :: ("s2tte_map_size", prim s2tte_map_size_spec)
           :: ("s2tte_pa", prim s2tte_pa_spec)
+          :: ("set_rd_state", prim set_rd_state_spec)
           :: ("update_ripas", prim update_ripas_spec)
           :: nil
     |}.

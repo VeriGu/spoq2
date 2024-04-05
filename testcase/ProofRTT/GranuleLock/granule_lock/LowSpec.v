@@ -11,6 +11,7 @@ Section GranuleLock_granule_lock_LowSpec.
   Context `{int_ptr: IntPtrCast}.
 
   Definition granule_lock_spec_low (v_g: Ptr) (v_expected_state: Z) (st: RData) : (option RData) :=
+    rely ((((((st.(share)).(granules)) @ ((v_g.(poffset)) mod (ST_GRANULE_SIZE))).(e_state)) = (v_expected_state)));
     when v_call, st == ((granule_lock_on_state_match_spec v_g v_expected_state st));
     let __return__ := true in
     (Some st).

@@ -77,6 +77,7 @@ Section GranuleInfo_Layer.
           :: ("rec_ipa_size", prim rec_ipa_size_spec)
           :: ("s2_addr_to_idx", prim s2_addr_to_idx_spec)
           :: ("s2_sl_addr_to_idx", prim s2_sl_addr_to_idx_spec)
+          :: ("set_rd_state", prim set_rd_state_spec)
           :: ("slot_to_va", prim slot_to_va_spec)
           :: ("stage2_tlbi_ipa", prim stage2_tlbi_ipa_spec)
           :: ("status_ptr", prim status_ptr_spec)

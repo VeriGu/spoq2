@@ -40,7 +40,9 @@ Section SMCHandler_Layer.
       PtrLtb := ptr_ltb;
       PtrGtb := ptr_gtb;
       PrimCall :=
-          ("smc_rtt_create", prim smc_rtt_create_spec)
+          ("smc_realm_activate", prim smc_realm_activate_spec)
+          :: ("smc_rtt_create", prim smc_rtt_create_spec)
+          :: ("smc_version", prim smc_version_spec)
           :: nil
     |}.
 

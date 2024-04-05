@@ -309,8 +309,12 @@ S2TTInit/s2tt_init_valid_ns/LowSpec.v
 SMCHandler/Layer.v
 SMCHandler/RefineRel.v
 SMCHandler/Spec.v
+SMCHandler/smc_realm_activate/CodeProof.v
+SMCHandler/smc_realm_activate/LowSpec.v
 SMCHandler/smc_rtt_create/CodeProof.v
 SMCHandler/smc_rtt_create/LowSpec.v
+SMCHandler/smc_version/CodeProof.v
+SMCHandler/smc_version/LowSpec.v
 TableAux/Layer.v
 TableAux/RefineRel.v
 TableAux/Spec.v

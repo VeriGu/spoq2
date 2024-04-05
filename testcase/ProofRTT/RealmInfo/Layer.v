@@ -64,6 +64,7 @@ Section RealmInfo_Layer.
           :: ("addr_in_rec_par", prim addr_in_rec_par_spec)
           :: ("addr_is_level_aligned", prim addr_is_level_aligned_spec)
           :: ("buffer_unmap", prim buffer_unmap_spec)
+          :: ("find_lock_granule", prim find_lock_granule_spec)
           :: ("find_lock_two_granules", prim find_lock_two_granules_spec)
           :: ("get_rd_state_locked", prim get_rd_state_locked_spec)
           :: ("granule_lock", prim granule_lock_spec)
@@ -93,6 +94,7 @@ Section RealmInfo_Layer.
           :: ("s2tte_is_valid_ns", prim s2tte_is_valid_ns_spec)
           :: ("s2tte_map_size", prim s2tte_map_size_spec)
           :: ("s2tte_pa", prim s2tte_pa_spec)
+          :: ("set_rd_state", prim set_rd_state_spec)
           :: nil
     |}.
 

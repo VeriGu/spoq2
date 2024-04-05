@@ -67,6 +67,7 @@ Section S2TTEState_Layer.
           :: ("arch_feat_get_pa_width", prim arch_feat_get_pa_width_spec)
           :: ("buffer_unmap", prim buffer_unmap_spec)
           :: ("entry_is_table", prim entry_is_table_spec)
+          :: ("find_lock_granule", prim find_lock_granule_spec)
           :: ("find_lock_two_granules", prim find_lock_two_granules_spec)
           :: ("get_rd_state_locked", prim get_rd_state_locked_spec)
           :: ("granule_lock", prim granule_lock_spec)
@@ -92,6 +93,7 @@ Section S2TTEState_Layer.
           :: ("s2tte_is_unassigned", prim s2tte_is_unassigned_spec)
           :: ("s2tte_is_valid", prim s2tte_is_valid_spec)
           :: ("s2tte_is_valid_ns", prim s2tte_is_valid_ns_spec)
+          :: ("set_rd_state", prim set_rd_state_spec)
           :: ("table_entry_to_phys", prim table_entry_to_phys_spec)
           :: nil
     |}.

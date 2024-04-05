@@ -63,6 +63,7 @@ Section ValidateAddr_Layer.
           :: ("__tte_write", prim __tte_write_spec)
           :: ("addr_in_par", prim addr_in_par_spec)
           :: ("buffer_unmap", prim buffer_unmap_spec)
+          :: ("find_lock_granule", prim find_lock_granule_spec)
           :: ("find_lock_two_granules", prim find_lock_two_granules_spec)
           :: ("get_rd_state_locked", prim get_rd_state_locked_spec)
           :: ("granule_lock", prim granule_lock_spec)
@@ -88,6 +89,7 @@ Section ValidateAddr_Layer.
           :: ("s2tte_is_valid_ns", prim s2tte_is_valid_ns_spec)
           :: ("s2tte_map_size", prim s2tte_map_size_spec)
           :: ("s2tte_pa", prim s2tte_pa_spec)
+          :: ("set_rd_state", prim set_rd_state_spec)
           :: ("validate_map_addr", prim validate_map_addr_spec)
           :: nil
     |}.

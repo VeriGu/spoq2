@@ -46,8 +46,10 @@
           then (Some (__return__, __break__, v_g_tbls, v_indvars_iv, v_level, v_map_addr, v_wi, st))
           else (
             rely (((0 <= (v_indvars_iv)) /\ ((v_indvars_iv < (4)))));
+            rely (v_g_tbls.(pbase) = "granules");
             let v_arrayidx5 := (ptr_offset v_g_tbls (((8 * (4)) * (0)) + (((8 * (v_indvars_iv)) + (0))))) in
             when v_1_tmp, st == ((load_RData 8 v_arrayidx5 st));
+            rely (v_1_tmp < STACK_VIRT /\ v_1_tmp >= GRANULES_BASE);
             let v_1 := (int_to_ptr v_1_tmp) in
             when v_call7, st == ((__find_lock_next_level_spec v_1 v_map_addr v_indvars_iv st));
             let v_indvars_iv_next := (v_indvars_iv + (1)) in
@@ -80,6 +82,7 @@
             else (
               when v_3_tmp, st == ((load_RData 8 v_arrayidx5 st));
               let v_3 := (int_to_ptr v_3_tmp) in
+              rely (v_3_tmp < STACK_VIRT /\ v_3_tmp >= GRANULES_BASE);
               when st == ((granule_unlock_spec v_3 st));
               let v_cmp2 := (v_indvars_iv_next <? (v_level)) in
               match (
