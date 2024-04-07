@@ -9,6 +9,7 @@ Require Import GranuleState.Spec.
 Require Import Helpers.Spec.
 Require Import InvalidatePages.Spec.
 Require Import LockGranules.Spec.
+Require Import MemRW.Spec.
 Require Import Mmap.Spec.
 Require Import RDState.Spec.
 Require Import S2TTEDesc.Spec.
@@ -57,6 +58,7 @@ Section S2TTEState_Layer.
       PtrGtb := ptr_gtb;
       PrimCall :=
           ("__granule_get", prim __granule_get_spec)
+          :: ("__granule_put", prim __granule_put_spec)
           :: ("__granule_refcount_inc", prim __granule_refcount_inc_spec)
           :: ("__table_get_entry", prim __table_get_entry_spec)
           :: ("__tte_read", prim __tte_read_spec)
@@ -72,6 +74,7 @@ Section S2TTEState_Layer.
           :: ("get_rd_state_locked", prim get_rd_state_locked_spec)
           :: ("granule_lock", prim granule_lock_spec)
           :: ("granule_map", prim granule_map_spec)
+          :: ("granule_memzero_mapped", prim granule_memzero_mapped_spec)
           :: ("granule_set_state", prim granule_set_state_spec)
           :: ("granule_unlock", prim granule_unlock_spec)
           :: ("host_ns_s2tte", prim host_ns_s2tte_spec)

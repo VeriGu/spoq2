@@ -7,6 +7,7 @@ Require Import GranuleState.Spec.
 Require Import Helpers.Spec.
 Require Import InvalidatePages.Spec.
 Require Import LockGranules.Spec.
+Require Import MemRW.Spec.
 Require Import Mmap.Spec.
 Require Import RDState.Spec.
 Require Import S2TTEOps.Spec.
@@ -58,6 +59,7 @@ Section ValidateAddr_Layer.
       PrimCall :=
           ("__find_next_level_idx", prim __find_next_level_idx_spec)
           :: ("__granule_get", prim __granule_get_spec)
+          :: ("__granule_put", prim __granule_put_spec)
           :: ("__granule_refcount_inc", prim __granule_refcount_inc_spec)
           :: ("__tte_read", prim __tte_read_spec)
           :: ("__tte_write", prim __tte_write_spec)
@@ -68,6 +70,7 @@ Section ValidateAddr_Layer.
           :: ("get_rd_state_locked", prim get_rd_state_locked_spec)
           :: ("granule_lock", prim granule_lock_spec)
           :: ("granule_map", prim granule_map_spec)
+          :: ("granule_memzero_mapped", prim granule_memzero_mapped_spec)
           :: ("granule_set_state", prim granule_set_state_spec)
           :: ("granule_unlock", prim granule_unlock_spec)
           :: ("iasm_4", prim iasm_4_spec)
@@ -89,6 +92,7 @@ Section ValidateAddr_Layer.
           :: ("s2tte_is_valid_ns", prim s2tte_is_valid_ns_spec)
           :: ("s2tte_map_size", prim s2tte_map_size_spec)
           :: ("s2tte_pa", prim s2tte_pa_spec)
+          :: ("s2tte_pa_table", prim s2tte_pa_table_spec)
           :: ("set_rd_state", prim set_rd_state_spec)
           :: ("validate_map_addr", prim validate_map_addr_spec)
           :: nil

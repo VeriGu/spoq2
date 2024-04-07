@@ -176,6 +176,8 @@ MemRW/RefineRel.v
 MemRW/Spec.v
 MemRW/granule_memzero/CodeProof.v
 MemRW/granule_memzero/LowSpec.v
+MemRW/granule_memzero_mapped/CodeProof.v
+MemRW/granule_memzero_mapped/LowSpec.v
 Mmap/Layer.v
 Mmap/RefineRel.v
 Mmap/Spec.v
@@ -313,6 +315,8 @@ SMCHandler/smc_realm_activate/CodeProof.v
 SMCHandler/smc_realm_activate/LowSpec.v
 SMCHandler/smc_rtt_create/CodeProof.v
 SMCHandler/smc_rtt_create/LowSpec.v
+SMCHandler/smc_rtt_destroy/CodeProof.v
+SMCHandler/smc_rtt_destroy/LowSpec.v
 SMCHandler/smc_version/CodeProof.v
 SMCHandler/smc_version/LowSpec.v
 TableAux/Layer.v

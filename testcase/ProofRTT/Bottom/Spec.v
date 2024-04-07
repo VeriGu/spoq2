@@ -96,17 +96,22 @@ Section Bottom_Spec.
     (memcpy_ns_write_spec_state_oracle v_dest v_3 v_conv st).
 
   Definition memset_spec (v_s: Ptr) (c: Z) (n: Z) (st: RData) : (option (Ptr * RData)) :=
-    if (((v_s.(pbase)) =s ("slot_delegated")) && (((v_s.(poffset)) =? (0))))
+    if ((v_s.(pbase)) =s ("slot_delegated"))
     then (
-      if ((n =? (GRANULE_SIZE)) && ((c =? (0))))
+      let g_idx := (((st.(share)).(slots)) @ SLOT_DELEGATED) in
+      let g_data := (((st.(share)).(granule_data)) @ g_idx) in
+      let g := (((st.(share)).(granules)) @ g_idx) in
+      when cid == ((g.(e_lock)));
+      (Some (v_s, (st.[share].[granule_data] :< (((st.(share)).(granule_data)) # g_idx == (g_data.[g_norm] :< zero_granule_data_normal))))))
+    else (
+      if ((v_s.(pbase)) =s ("slot_rtt2"))
       then (
-        let g_idx := (((st.(share)).(slots)) @ SLOT_DELEGATED) in
+        let g_idx := (((st.(share)).(slots)) @ SLOT_RTT2) in
         let g_data := (((st.(share)).(granule_data)) @ g_idx) in
         let g := (((st.(share)).(granules)) @ g_idx) in
         when cid == ((g.(e_lock)));
         (Some (v_s, (st.[share].[granule_data] :< (((st.(share)).(granule_data)) # g_idx == (g_data.[g_norm] :< zero_granule_data_normal))))))
-      else None)
-    else (Some (v_s, st)).
+      else (Some (v_s, st))).
 
   Definition memcpy_spec (v_dst: Ptr) (v_src: Ptr) (v_len: Z) (st: RData) : (option (Ptr * RData)) :=
     (Some (v_dst, st)).

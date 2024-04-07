@@ -2246,19 +2246,28 @@ Section Bottom.
   Definition memcpy_ns_write_spec (v_dest: Ptr) (v_3: Ptr) (v_conv: Z) (st: RData) : option (bool * RData) :=
     memcpy_ns_write_spec_state_oracle v_dest v_3 v_conv st.
   Definition memset_spec (v_s: Ptr) (c: Z) (n: Z) (st: RData) : option (Ptr * RData) :=
-    if ((v_s.(pbase) =s "slot_delegated") && (v_s.(poffset) =? 0)) then
-      if ((n =? GRANULE_SIZE) && (c =? 0)) then
-        let g_idx := st.(share).(slots) @ SLOT_DELEGATED in
-        let g_data := st.(share).(granule_data) @ g_idx in
-        let g := st.(share).(granules) @ g_idx in
-        match g.(e_lock) with
-        | Some cid =>
-            Some (v_s, st.[share].[granule_data] :<
-                    (st.(share).(granule_data) # g_idx == (g_data.[g_norm] :<
-                                                             zero_granule_data_normal)))
-        | None => None
-        end
-      else None
+    if ((v_s.(pbase) =s "slot_delegated")) then
+      let g_idx := st.(share).(slots) @ SLOT_DELEGATED in
+      let g_data := st.(share).(granule_data) @ g_idx in
+      let g := st.(share).(granules) @ g_idx in
+      match g.(e_lock) with
+      | Some cid =>
+          Some (v_s, st.[share].[granule_data] :<
+                  (st.(share).(granule_data) # g_idx == (g_data.[g_norm] :<
+                                                           zero_granule_data_normal)))
+      | None => None
+      end
+    else if ((v_s.(pbase) =s "slot_rtt2")) then
+      let g_idx := st.(share).(slots) @ SLOT_RTT2 in
+      let g_data := st.(share).(granule_data) @ g_idx in
+      let g := st.(share).(granules) @ g_idx in
+      match g.(e_lock) with
+      | Some cid =>
+          Some (v_s, st.[share].[granule_data] :<
+                  (st.(share).(granule_data) # g_idx == (g_data.[g_norm] :<
+                                                           zero_granule_data_normal)))
+      | None => None
+      end
     else Some (v_s, st).
   Definition memcpy_spec (v_dst: Ptr) (v_src: Ptr) (v_len: Z) (st: RData) : option (Ptr * RData) := Some (v_dst, st).
   (* xlat *)
@@ -3215,7 +3224,8 @@ Section MemRW.
   Definition LAYER_PTR_GTB : string := "ptr_gtb".
   Definition LAYER_PTR_LTB : string := "ptr_ltb".
   Definition LAYER_PRIMS: list string :=
-      "granule_memzero" ::
+    "granule_memzero" ::
+      "granule_memzero_mapped" ::
       nil.
   Hint InitRely ns_buffer_read (v_slot = SLOT_NS).
   Hint InitRely ns_buffer_read (v_ns_gr.(pbase) = "granules").
@@ -3225,11 +3235,8 @@ Section MemRW.
   Hint InitRely ns_buffer_write (v_ns_gr.(pbase) = "granules").
   Hint InitRely ns_buffer_write ((v_ns_gr.(poffset) mod ST_GRANULE_SIZE) = 0).
   Hint InitRely ns_buffer_write (v_offset = 0).
-  Hint NoTrans granule_memzero_spec_mid.
-  Hint NoTrans granule_memzero_mapped_spec_mid.
-  Hint NoUnfold granule_memzero_spec.
-  Hint NoUnfold granule_memzero_mapped_spec.
 
+  Hint InitRely granule_memzero_mapped (v_buf.(pbase) = "slot_rtt2").
   Include "ProofRTT/.CachedSpec/MemRWSpec.v".
 End MemRW.
 
@@ -3578,43 +3585,23 @@ Section S2TTInit.
   Include "ProofRTT/.CachedSpec/S2TTInitSpec.v".
 End S2TTInit.
 
-Section GetFeatureReg.
-  Definition LAYER_DATA := RData.
-  Definition LAYER_CODE : string := "./rmm.json".
-  Definition LAYER_LOAD : string := "load_RData".
-  Definition LAYER_STORE : string := "store_RData".
-  Definition LAYER_ALLOC : string := "alloc_stack".
-  Definition LAYER_FREE : string := "free_stack".
-  Definition LAYER_PTR2INT : string := "ptr_to_int".
-  Definition LAYER_INT2PTR : string := "int_to_ptr".
-  Definition LAYER_PTR_EQB : string := "ptr_eqb".
-  Definition LAYER_PTR_GTB : string := "ptr_gtb".
-  Definition LAYER_PTR_LTB : string := "ptr_ltb".
-  Definition LAYER_PRIMS : list string :=
-    "get_feature_register_0" ::
-      nil.
-  Include "GetFeatureRegSpecMid.v".
-  Include "GetFeatureRegSpec.v".
-End GetFeatureReg.
-
-
-(* (* (* Section EL3IFC. *) *) *)
-(* (* (*   Definition LAYER_DATA := RData. *) *) *)
-(* (* (*   Definition LAYER_CODE : string := "./rmm.json". *) *) *)
-(* (* (*   Definition LAYER_LOAD : string := "load_RData". *) *) *)
-(* (* (*   Definition LAYER_STORE : string := "store_RData". *) *) *)
-(* (* (*   Definition LAYER_ALLOC : string := "alloc_stack". *) *) *)
-(* (* (*   Definition LAYER_FREE : string := "free_stack". *) *) *)
-(* (* (*   Definition LAYER_PTR2INT : string := "ptr_to_int". *) *) *)
-(* (* (*   Definition LAYER_INT2PTR : string := "int_to_ptr". *) *) *)
-(* (* (*   Definition LAYER_PTR_EQB : string := "ptr_eqb". *) *) *)
-(* (* (*   Definition LAYER_PTR_GTB : string := "ptr_gtb". *) *) *)
-(* (* (*   Definition LAYER_PTR_LTB : string := "ptr_ltb". *) *) *)
-(* (* (*   Definition LAYER_PRIMS : list string := *) *) *)
-(* (* (*     "rmm_el3_ifc_gtsi_delegate" :: *) *) *)
-(* (* (*       "rmm_el3_ifc_gtsi_undelegate" :: *) *) *)
-(* (* (*       nil. *) *) *)
-(* (* (* End EL3IFC. *) *) *)
+(* (* Section EL3IFC. *) *)
+(* (*   Definition LAYER_DATA := RData. *) *)
+(* (*   Definition LAYER_CODE : string := "./rmm.json". *) *)
+(* (*   Definition LAYER_LOAD : string := "load_RData". *) *)
+(* (*   Definition LAYER_STORE : string := "store_RData". *) *)
+(* (*   Definition LAYER_ALLOC : string := "alloc_stack". *) *)
+(* (*   Definition LAYER_FREE : string := "free_stack". *) *)
+(* (*   Definition LAYER_PTR2INT : string := "ptr_to_int". *) *)
+(* (*   Definition LAYER_INT2PTR : string := "int_to_ptr". *) *)
+(* (*   Definition LAYER_PTR_EQB : string := "ptr_eqb". *) *)
+(* (*   Definition LAYER_PTR_GTB : string := "ptr_gtb". *) *)
+(* (*   Definition LAYER_PTR_LTB : string := "ptr_ltb". *) *)
+(* (*   Definition LAYER_PRIMS : list string := *) *)
+(* (*     "rmm_el3_ifc_gtsi_delegate" :: *) *)
+(* (*       "rmm_el3_ifc_gtsi_undelegate" :: *) *)
+(* (*       nil. *) *)
+(* (* End EL3IFC. *) *)
 
 Section SMCHandler.
   Definition LAYER_DATA := RData.
@@ -3633,6 +3620,7 @@ Section SMCHandler.
     (* "smc_granule_delegate" :: *)
     (*   "smc_granule_undelegate" :: *)
     "smc_rtt_create" ::
+      "smc_rtt_destroy" ::
       "smc_version" ::
       "smc_realm_activate" ::
         nil.
@@ -3644,7 +3632,13 @@ Section SMCHandler.
   Hint NoUnfold smc_rtt_create_4.
   Hint NoUnfold smc_rtt_create_5.
   Hint NoUnfold smc_rtt_create_6.
-  (* Hint NoTrans smc_rtt_create_spec. *)
+  (* Hint NoTrans smc_rtt_destroy_spec. *)
+  Hint NoUnfold smc_rtt_destroy_1.
+  Hint NoUnfold smc_rtt_destroy_2.
+  Hint NoUnfold smc_rtt_destroy_3.
   Include "SMCHandlerSpec.v".
   Include "SMCHandlerLow.v".
+
+  (* Conditional Spec *)
+  (* Rely projection *)
 End SMCHandler.

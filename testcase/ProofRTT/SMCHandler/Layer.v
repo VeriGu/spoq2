@@ -42,6 +42,7 @@ Section SMCHandler_Layer.
       PrimCall :=
           ("smc_realm_activate", prim smc_realm_activate_spec)
           :: ("smc_rtt_create", prim smc_rtt_create_spec)
+          :: ("smc_rtt_destroy", prim smc_rtt_destroy_spec)
           :: ("smc_version", prim smc_version_spec)
           :: nil
     |}.

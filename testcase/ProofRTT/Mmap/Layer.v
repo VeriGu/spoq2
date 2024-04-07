@@ -54,6 +54,7 @@ Section Mmap_Layer.
       PtrGtb := ptr_gtb;
       PrimCall :=
           ("__granule_get", prim __granule_get_spec)
+          :: ("__granule_put", prim __granule_put_spec)
           :: ("__granule_refcount_inc", prim __granule_refcount_inc_spec)
           :: ("__tte_read", prim __tte_read_spec)
           :: ("__tte_write", prim __tte_write_spec)

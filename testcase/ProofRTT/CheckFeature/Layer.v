@@ -44,6 +44,7 @@ Section CheckFeature_Layer.
       PtrGtb := ptr_gtb;
       PrimCall :=
           ("__granule_get", prim __granule_get_spec)
+          :: ("__granule_put", prim __granule_put_spec)
           :: ("__granule_refcount_inc", prim __granule_refcount_inc_spec)
           :: ("__sca_read64", prim __sca_read64_spec)
           :: ("__sca_read64_acquire", prim __sca_read64_acquire_spec)
