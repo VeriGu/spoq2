@@ -15,7 +15,7 @@ void gen_layer_refine_rel(Project *proj,int i, string path) {
 
   vector<string> deps = {"CommonDeps", "DataTypes"};
   for(auto d : deps) {
-    out << "Require Import " + d + "\n.";
+    out << "Require Import " + d + ".\n";
   }
 
   out << "\n";
