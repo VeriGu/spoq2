@@ -1755,9 +1755,9 @@ Definition stack_to_ptr (slot: Z) (val: Z) : Ptr :=
 Definition int_to_ptr (v: Z) : Ptr :=
   if v >? 0 then (
       if (v >=? MAX_ERR) then (mkPtr "status" (v - MAX_ERR))
-      else if (v >= SLOT_VIRT) then slot_to_ptr ((v - SLOT_VIRT) / GRANULE_SIZE) v
-      else if (v >= STACK_VIRT) then stack_to_ptr (((v - STACK_VIRT) / GRANULE_SIZE) + STACK_slot_ofs) v
-      else if (v >= GRANULES_BASE) then  (mkPtr "granules" (v - GRANULES_BASE))
+      else if (v >=? SLOT_VIRT) then slot_to_ptr ((v - SLOT_VIRT) / GRANULE_SIZE) v
+      else if (v >=? STACK_VIRT) then stack_to_ptr (((v - STACK_VIRT) / GRANULE_SIZE) + STACK_slot_ofs) v
+      else if (v >=? GRANULES_BASE) then  (mkPtr "granules" (v - GRANULES_BASE))
       else (mkPtr "null" 0)
   ) else
     if v <? 0 then
@@ -3513,6 +3513,8 @@ Section S2TTCreate.
       "s2tte_create_valid" ::
       nil.
 
+  Hint NoTrans map_unmap_ns_spec.
+  (* Include "S2TTCreateLow.v". *)
   Include "ProofRTT/.CachedSpec/S2TTCreateSpec.v".
 End S2TTCreate.
 

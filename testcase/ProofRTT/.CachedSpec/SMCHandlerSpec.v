@@ -1,106 +1,3 @@
-Definition smc_rtt_destroy_spec (v_rtt_addr: Z) (v_rd_addr: Z) (v_map_addr: Z) (v_ulevel: Z) (st: RData) : (option (Z * RData)) :=
-  if ((v_rd_addr & (4095)) =? (0))
-  then (
-    if ((v_rd_addr / (GRANULE_SIZE)) >? (1048575))
-    then (Some (1, (lens 9771 st)))
-    else (
-      rely ((((0 - ((v_rd_addr / (GRANULE_SIZE)))) <= (0)) /\ (((v_rd_addr / (GRANULE_SIZE)) < (1048576)))));
-      when sh == ((((lens 9712 st).(repl)) (((lens 9712 st).(oracle)) ((lens 9712 st).(log))) ((lens 9712 st).(share))));
-      if ((((((st.(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))).(e_state)) - (2)) =? (0))
-      then (
-        rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
-        when cid == ((((((lens 9721 st).(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))).(e_lock)));
-        if (
-          ((v_ulevel >? (3)) ||
-            ((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_s2_starting_level)) + (1)) - (v_ulevel)) >? (0)))))
-        then (Some (1, ((lens 9924 st).[share].[slots] :< ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RD == (- 1)))))
-        else (
-          rely (((Some cid) = ((Some CPU_ID))));
-          if (((1 << (((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_ipa_bits)))) - (v_map_addr)) >? (0))
-          then (
-            if (
-              ((((v_map_addr & (281474976710655)) & (((- 1) << (((((((v_ulevel * (18446744069414584320)) + (12884901888)) >> (32)) * (9)) + (12)) & (4294967295)))))) -
-                (v_map_addr)) =?
-                (0)))
-            then (
-              rely (
-                (((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (STACK_VIRT)) < (0)) /\
-                  (((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) >= (0)))));
-              rely (
-                ((((((st.(share)).(granules)) @ ((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) mod (ST_GRANULE_SIZE))).(e_state)) -
-                  (6)) =
-                  (0)));
-              rely (
-                (("granules" = ("granules")) /\
-                  ((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) mod (ST_GRANULE_SIZE)) = (0)))));
-              when sh_0 == (
-                  (((lens 9721 st).(repl))
-                    (((lens 9721 st).(oracle)) ((lens 9721 st).(log)))
-                    (((lens 9721 st).(share)).[slots] :< ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RD == (- 1)))));
-              when st_14 == (
-                  (rtt_walk_lock_unlock_spec
-                    (mkPtr "granules" (((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)))
-                    ((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_s2_starting_level))
-                    ((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_ipa_bits))
-                    v_map_addr
-                    (v_ulevel + ((- 1)))
-                    (mkPtr "smc_rtt_destroy_stack" (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp)))
-                    ((lens 9971 st).[share].[slots] :< ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RD == (- 1)))));
-              if (((((st_14.(stack)).(smc_rtt_destroy_stack)) @ ((((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp)) + (16))) - ((v_ulevel + ((- 1))))) =? (0))
-              then (
-                rely (
-                  ((((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (STACK_VIRT)) < (0)) /\
-                    ((((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) >= (0)))));
-                rely (((((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) mod (ST_GRANULE_SIZE)) = (0)));
-                when cid_0 == (((((st_14.(share)).(granules)) @ (((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) >> (4))).(e_lock)));
-                if (
-                  (((v_ulevel + ((- 1))) <? (3)) &&
-                    ((((((((st_14.(share)).(granule_data)) @ (((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_14.(stack)).(smc_rtt_destroy_stack)) @ ((((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp)) + (8)))))) &
-                      (3)) =?
-                      (3)))))
-                then (
-                  (smc_rtt_destroy_3
-                    (((((st_14.(share)).(granule_data)) @ (((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_14.(stack)).(smc_rtt_destroy_stack)) @ ((((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp)) + (8))))))
-                    v_ulevel
-                    v_rtt_addr
-                    ((((1 << (((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_ipa_bits)))) >> (1)) - (v_map_addr)) >? (0))
-                    (mkPtr "smc_rtt_destroy_stack" (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp)))
-                    (mkPtr "slot_rtt" 0)
-                    v_map_addr
-                    (mkPtr "smc_rtt_destroy_stack" (((lens 9672 st).(func_sp)).(smc_rtt_destroy_sp)))
-                    (lens 9632 st)
-                    (st_14.[share].[slots] :<
-                      (((st_14.(share)).(slots)) #
-                        SLOT_RTT ==
-                        (((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) >> (4))))))
-                else (
-                  when cid_1 == (((((st_14.(share)).(granules)) @ (((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
-                  (Some (
-                    ((((((v_ulevel + ((- 1))) << (32)) + (4)) >> (24)) & (4294967040)) |' (((((v_ulevel + ((- 1))) << (32)) + (4)) & (4294967295))))  ,
-                    (lens
-                      10020
-                      (st_14.[share].[slots] :<
-                        ((((st_14.(share)).(slots)) #
-                          SLOT_RTT ==
-                          (((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) >> (4))) #
-                          SLOT_RTT ==
-                          (- 1))))
-                  ))))
-              else (
-                rely (
-                  ((((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (STACK_VIRT)) < (0)) /\
-                    ((((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) >= (0)))));
-                when cid_0 == (((((st_14.(share)).(granules)) @ (((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
-                (Some (
-                  ((((((((st_14.(stack)).(smc_rtt_destroy_stack)) @ ((((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp)) + (16))) << (32)) + (4)) >> (24)) & (4294967040)) |'
-                    (((((((st_14.(stack)).(smc_rtt_destroy_stack)) @ ((((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp)) + (16))) << (32)) + (4)) & (4294967295))))  ,
-                  (lens 10116 st_14)
-                ))))
-            else (Some (1, ((lens 10269 st).[share].[slots] :< ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RD == (- 1))))))
-          else (Some (1, ((lens 10415 st).[share].[slots] :< ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RD == (- 1)))))))
-      else (Some (1, (lens 10504 st)))))
-  else (Some (1, (lens 10600 st))).
-
 Definition smc_rtt_destroy_2 (v_wi: Ptr) (v_call16: Ptr) (v_map_addr: Z) (v_s2_ctx: Ptr) (v_call36: Ptr) (v_call31: Ptr) (st_0: RData) (st_24: RData) : (option (Z * RData)) :=
   rely (((v_wi.(pbase)) = ("smc_rtt_destroy_stack")));
   rely (((v_call16.(pbase)) = ("slot_rtt")));
@@ -298,6 +195,109 @@ Definition smc_rtt_destroy_3 (v_call17: Z) (v_ulevel: Z) (v_rtt_addr: Z) (v_call
         ((((((st_20.(stack)).(smc_rtt_destroy_stack)) @ (v_wi.(poffset))) - (GRANULES_BASE)) >= (0)))));
     when cid == (((((st_20.(share)).(granules)) @ (((((st_20.(stack)).(smc_rtt_destroy_stack)) @ (v_wi.(poffset))) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
     (Some (1, (lens 9620 (st_20.[share].[slots] :< (((st_20.(share)).(slots)) # SLOT_RTT == (- 1))))))).
+
+Definition smc_rtt_destroy_spec (v_rtt_addr: Z) (v_rd_addr: Z) (v_map_addr: Z) (v_ulevel: Z) (st: RData) : (option (Z * RData)) :=
+  if ((v_rd_addr & (4095)) =? (0))
+  then (
+    if ((v_rd_addr / (GRANULE_SIZE)) >? (1048575))
+    then (Some (1, (lens 9771 st)))
+    else (
+      rely ((((0 - ((v_rd_addr / (GRANULE_SIZE)))) <= (0)) /\ (((v_rd_addr / (GRANULE_SIZE)) < (1048576)))));
+      when sh == ((((lens 9712 st).(repl)) (((lens 9712 st).(oracle)) ((lens 9712 st).(log))) ((lens 9712 st).(share))));
+      if ((((((st.(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))).(e_state)) - (2)) =? (0))
+      then (
+        rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+        when cid == ((((((lens 9721 st).(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))).(e_lock)));
+        if (
+          ((v_ulevel >? (3)) ||
+            ((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_s2_starting_level)) + (1)) - (v_ulevel)) >? (0)))))
+        then (Some (1, ((lens 9924 st).[share].[slots] :< ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RD == (- 1)))))
+        else (
+          rely (((Some cid) = ((Some CPU_ID))));
+          if (((1 << (((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_ipa_bits)))) - (v_map_addr)) >? (0))
+          then (
+            if (
+              ((((v_map_addr & (281474976710655)) & (((- 1) << (((((((v_ulevel * (18446744069414584320)) + (12884901888)) >> (32)) * (9)) + (12)) & (4294967295)))))) -
+                (v_map_addr)) =?
+                (0)))
+            then (
+              rely (
+                (((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (STACK_VIRT)) < (0)) /\
+                  (((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) >= (0)))));
+              rely (
+                ((((((st.(share)).(granules)) @ ((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) mod (ST_GRANULE_SIZE))).(e_state)) -
+                  (6)) =
+                  (0)));
+              rely (
+                (("granules" = ("granules")) /\
+                  ((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) mod (ST_GRANULE_SIZE)) = (0)))));
+              when sh_0 == (
+                  (((lens 9721 st).(repl))
+                    (((lens 9721 st).(oracle)) ((lens 9721 st).(log)))
+                    (((lens 9721 st).(share)).[slots] :< ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RD == (- 1)))));
+              when st_14 == (
+                  (rtt_walk_lock_unlock_spec
+                    (mkPtr "granules" (((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)))
+                    ((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_s2_starting_level))
+                    ((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_ipa_bits))
+                    v_map_addr
+                    (v_ulevel + ((- 1)))
+                    (mkPtr "smc_rtt_destroy_stack" (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp)))
+                    ((lens 9971 st).[share].[slots] :< ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RD == (- 1)))));
+              if (((((st_14.(stack)).(smc_rtt_destroy_stack)) @ ((((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp)) + (16))) - ((v_ulevel + ((- 1))))) =? (0))
+              then (
+                rely (
+                  ((((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (STACK_VIRT)) < (0)) /\
+                    ((((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) >= (0)))));
+                rely (((((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) mod (ST_GRANULE_SIZE)) = (0)));
+                when cid_0 == (((((st_14.(share)).(granules)) @ (((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) >> (4))).(e_lock)));
+                if (
+                  (((v_ulevel + ((- 1))) <? (3)) &&
+                    ((((((((st_14.(share)).(granule_data)) @ (((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_14.(stack)).(smc_rtt_destroy_stack)) @ ((((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp)) + (8)))))) &
+                      (3)) =?
+                      (3)))))
+                then (
+                  (smc_rtt_destroy_3
+                    (((((st_14.(share)).(granule_data)) @ (((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_14.(stack)).(smc_rtt_destroy_stack)) @ ((((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp)) + (8))))))
+                    v_ulevel
+                    v_rtt_addr
+                    ((((1 << (((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_ipa_bits)))) >> (1)) - (v_map_addr)) >? (0))
+                    (mkPtr "smc_rtt_destroy_stack" (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp)))
+                    (mkPtr "slot_rtt" 0)
+                    v_map_addr
+                    (mkPtr "smc_rtt_destroy_stack" (((lens 9672 st).(func_sp)).(smc_rtt_destroy_sp)))
+                    (lens 9632 st)
+                    (st_14.[share].[slots] :<
+                      (((st_14.(share)).(slots)) #
+                        SLOT_RTT ==
+                        (((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) >> (4))))))
+                else (
+                  when cid_1 == (((((st_14.(share)).(granules)) @ (((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
+                  (Some (
+                    ((((((v_ulevel + ((- 1))) << (32)) + (4)) >> (24)) & (4294967040)) |' (((((v_ulevel + ((- 1))) << (32)) + (4)) & (4294967295))))  ,
+                    (lens
+                      10020
+                      (st_14.[share].[slots] :<
+                        ((((st_14.(share)).(slots)) #
+                          SLOT_RTT ==
+                          (((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) >> (4))) #
+                          SLOT_RTT ==
+                          (- 1))))
+                  ))))
+              else (
+                rely (
+                  ((((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (STACK_VIRT)) < (0)) /\
+                    ((((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) >= (0)))));
+                when cid_0 == (((((st_14.(share)).(granules)) @ (((((st_14.(stack)).(smc_rtt_destroy_stack)) @ (((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp))) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
+                (Some (
+                  ((((((((st_14.(stack)).(smc_rtt_destroy_stack)) @ ((((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp)) + (16))) << (32)) + (4)) >> (24)) & (4294967040)) |'
+                    (((((((st_14.(stack)).(smc_rtt_destroy_stack)) @ ((((lens 9632 st).(func_sp)).(smc_rtt_destroy_sp)) + (16))) << (32)) + (4)) & (4294967295))))  ,
+                  (lens 10116 st_14)
+                ))))
+            else (Some (1, ((lens 10269 st).[share].[slots] :< ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RD == (- 1))))))
+          else (Some (1, ((lens 10415 st).[share].[slots] :< ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RD == (- 1)))))))
+      else (Some (1, (lens 10504 st)))))
+  else (Some (1, (lens 10600 st))).
 
 Definition smc_realm_activate_spec (v_rd_addr: Z) (st: RData) : (option (Z * RData)) :=
   if ((v_rd_addr & (4095)) =? (0))

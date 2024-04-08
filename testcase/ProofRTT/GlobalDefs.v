@@ -3255,13 +3255,13 @@ Section GlobalDefs.
       if (v >=? (MAX_ERR))
       then (mkPtr "status" (v - (MAX_ERR)))
       else (
-        if (v >= (SLOT_VIRT))
+        if (v >=? (SLOT_VIRT))
         then (slot_to_ptr ((v - (SLOT_VIRT)) / (GRANULE_SIZE)) v)
         else (
-          if (v >= (STACK_VIRT))
+          if (v >=? (STACK_VIRT))
           then (stack_to_ptr (((v - (STACK_VIRT)) / (GRANULE_SIZE)) + (STACK_slot_ofs)) v)
           else (
-            if (v >= (GRANULES_BASE))
+            if (v >=? (GRANULES_BASE))
             then (mkPtr "granules" (v - (GRANULES_BASE)))
             else (mkPtr "null" 0)))))
     else (
