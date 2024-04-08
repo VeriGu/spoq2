@@ -53,6 +53,15 @@ void generate_proj(Project *p) {
   sort(files.begin(), files.end());
 
   for(auto f : files) {
+#define HIGH_SPEC_ONLY
+#ifdef HIGH_SPEC_ONLY
+  static int low_spec_len = string("LowSpec.v").length();
+  static int code_proof_len = string("CodeProof.v").length();
+  if (f.rfind("LowSpec.v", f.length() - low_spec_len) != std::string::npos ||
+      f.rfind("CodeProof.v", f.length() - code_proof_len) != std::string::npos) {
+    continue;
+  }
+#endif
     mkfile << f << std::endl;
   }
 
