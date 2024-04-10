@@ -63,12 +63,6 @@ S2TTEPA/Spec.v
 S2TTEState/Layer.v
 S2TTEState/RefineRel.v
 S2TTEState/Spec.v
-S2TTInit/Layer.v
-S2TTInit/RefineRel.v
-S2TTInit/Spec.v
-SMCHandler/Layer.v
-SMCHandler/RefineRel.v
-SMCHandler/Spec.v
 TableAux/Layer.v
 TableAux/RefineRel.v
 TableAux/Spec.v

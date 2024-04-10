@@ -52,7 +52,7 @@ extern unordered_map<size_t, Z3Result> Z3Cache;
 void spec_transformer(Project *proj, Definition *def) {
     LOG_INFO << "Transforming " << def->name;
     std::cout << string(*def) << std::endl;
-    bool debug = (def->name.rfind("smc_rtt_create", 0) == 0);
+    bool debug = (def->name.rfind("map_unmap_ns", 0) == 0);
     auto known = std::set<string>();
     auto fname = def->name;
 

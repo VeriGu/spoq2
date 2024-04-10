@@ -46,7 +46,6 @@ Section RDState_Layer.
       PrimCall :=
           ("__granule_get", prim __granule_get_spec)
           :: ("__granule_put", prim __granule_put_spec)
-          :: ("__granule_refcount_inc", prim __granule_refcount_inc_spec)
           :: ("__sca_read64_acquire", prim __sca_read64_acquire_spec)
           :: ("__tte_read", prim __tte_read_spec)
           :: ("__tte_write", prim __tte_write_spec)
@@ -59,7 +58,6 @@ Section RDState_Layer.
           :: ("get_rd_state_locked", prim get_rd_state_locked_spec)
           :: ("get_rd_state_unlocked", prim get_rd_state_unlocked_spec)
           :: ("iasm_10", prim iasm_10_spec)
-          :: ("iasm_4", prim iasm_4_spec)
           :: ("is_feat_vmid16_present", prim is_feat_vmid16_present_spec)
           :: ("llvm_memcpy_p0i8_p0i8_i64", prim llvm_memcpy_p0i8_p0i8_i64_spec)
           :: ("llvm_memset_p0i8_i64", prim llvm_memset_p0i8_i64_spec)

@@ -45,7 +45,6 @@ Section CheckFeature_Layer.
       PrimCall :=
           ("__granule_get", prim __granule_get_spec)
           :: ("__granule_put", prim __granule_put_spec)
-          :: ("__granule_refcount_inc", prim __granule_refcount_inc_spec)
           :: ("__sca_read64", prim __sca_read64_spec)
           :: ("__sca_read64_acquire", prim __sca_read64_acquire_spec)
           :: ("__sca_write64_release", prim __sca_write64_release_spec)
@@ -57,7 +56,6 @@ Section CheckFeature_Layer.
           :: ("atomic_load_add_release_64", prim atomic_load_add_release_64_spec)
           :: ("entry_is_table", prim entry_is_table_spec)
           :: ("iasm_10", prim iasm_10_spec)
-          :: ("iasm_4", prim iasm_4_spec)
           :: ("is_feat_lpa2_4k_present", prim is_feat_lpa2_4k_present_spec)
           :: ("is_feat_sve_present", prim is_feat_sve_present_spec)
           :: ("is_feat_vmid16_present", prim is_feat_vmid16_present_spec)

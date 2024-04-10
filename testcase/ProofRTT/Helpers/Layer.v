@@ -66,7 +66,6 @@ Section Helpers_Layer.
           :: ("fsc_is_external_abort", prim fsc_is_external_abort_spec)
           :: ("get_sysreg_write_value", prim get_sysreg_write_value_spec)
           :: ("iasm_10", prim iasm_10_spec)
-          :: ("iasm_4", prim iasm_4_spec)
           :: ("is_el2_data_abort_gpf", prim is_el2_data_abort_gpf_spec)
           :: ("is_valid_vintid", prim is_valid_vintid_spec)
           :: ("llvm_memcpy_p0i8_p0i8_i64", prim llvm_memcpy_p0i8_p0i8_i64_spec)

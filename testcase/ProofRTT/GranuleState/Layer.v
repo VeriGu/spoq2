@@ -47,7 +47,6 @@ Section GranuleState_Layer.
       PrimCall :=
           ("__granule_get", prim __granule_get_spec)
           :: ("__granule_put", prim __granule_put_spec)
-          :: ("__granule_refcount_inc", prim __granule_refcount_inc_spec)
           :: ("__tte_read", prim __tte_read_spec)
           :: ("__tte_write", prim __tte_write_spec)
           :: ("arch_feat_get_pa_width", prim arch_feat_get_pa_width_spec)
@@ -61,7 +60,6 @@ Section GranuleState_Layer.
           :: ("granule_refcount_read_acquire", prim granule_refcount_read_acquire_spec)
           :: ("granule_set_state", prim granule_set_state_spec)
           :: ("iasm_10", prim iasm_10_spec)
-          :: ("iasm_4", prim iasm_4_spec)
           :: ("is_feat_vmid16_present", prim is_feat_vmid16_present_spec)
           :: ("llvm_memcpy_p0i8_p0i8_i64", prim llvm_memcpy_p0i8_p0i8_i64_spec)
           :: ("llvm_memset_p0i8_i64", prim llvm_memset_p0i8_i64_spec)
@@ -75,7 +73,6 @@ Section GranuleState_Layer.
           :: ("rec_ipa_size", prim rec_ipa_size_spec)
           :: ("s2_addr_to_idx", prim s2_addr_to_idx_spec)
           :: ("s2_sl_addr_to_idx", prim s2_sl_addr_to_idx_spec)
-          :: ("set_rd_state", prim set_rd_state_spec)
           :: ("spinlock_acquire", prim spinlock_acquire_spec)
           :: ("spinlock_release", prim spinlock_release_spec)
           :: ("stage2_tlbi_ipa", prim stage2_tlbi_ipa_spec)

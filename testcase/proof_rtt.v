@@ -3507,140 +3507,141 @@ Section S2TTCreate.
   Definition LAYER_PTR_LTB : string := "ptr_ltb".
   Definition LAYER_NEW_FRAME : string := "new_frame".
   Definition LAYER_PRIMS : list string :=
-    (* "map_unmap_ns" :: *)
+    "map_unmap_ns" ::
       "s2tte_create_table" ::
       "s2tte_get_ripas" ::
       "s2tte_create_valid" ::
       nil.
 
   Hint NoTrans map_unmap_ns_spec.
-  (* Include "S2TTCreateLow.v". *)
+  Include "S2TTCreateSpec.v".
+  Include "S2TTCreateLow.v".
   Include "ProofRTT/.CachedSpec/S2TTCreateSpec.v".
 End S2TTCreate.
 
-Section S2TTInit.
-  Definition LAYER_DATA := RData.
-  Definition LAYER_CODE : string := "./rmm.json".
-  Definition LAYER_LOAD : string := "load_RData".
-  Definition LAYER_STORE : string := "store_RData".
-  Definition LAYER_ALLOC : string := "alloc_stack".
-  Definition LAYER_FREE : string := "free_stack".
-  Definition LAYER_PTR2INT : string := "ptr_to_int".
-  Definition LAYER_INT2PTR : string := "int_to_ptr".
-  Definition LAYER_PTR_EQB : string := "ptr_eqb".
-  Definition LAYER_PTR_GTB : string := "ptr_gtb".
-  Definition LAYER_PTR_LTB : string := "ptr_ltb".
-  Definition LAYER_NEW_FRAME : string := "new_frame".
-  Definition LAYER_PRIMS : list string :=
-    "s2tt_init_valid_ns" ::
-      "s2tt_init_valid" ::
-      "s2tt_init_assigned_empty" ::
-      "s2tt_init_destroyed" ::
-      "s2tt_init_unassigned" ::
-      "realm_ipa_get_ripas" ::
-      "realm_ipa_to_pa" ::
-      nil.
+(* Section S2TTInit. *)
+(*   Definition LAYER_DATA := RData. *)
+(*   Definition LAYER_CODE : string := "./rmm.json". *)
+(*   Definition LAYER_LOAD : string := "load_RData". *)
+(*   Definition LAYER_STORE : string := "store_RData". *)
+(*   Definition LAYER_ALLOC : string := "alloc_stack". *)
+(*   Definition LAYER_FREE : string := "free_stack". *)
+(*   Definition LAYER_PTR2INT : string := "ptr_to_int". *)
+(*   Definition LAYER_INT2PTR : string := "int_to_ptr". *)
+(*   Definition LAYER_PTR_EQB : string := "ptr_eqb". *)
+(*   Definition LAYER_PTR_GTB : string := "ptr_gtb". *)
+(*   Definition LAYER_PTR_LTB : string := "ptr_ltb". *)
+(*   Definition LAYER_NEW_FRAME : string := "new_frame". *)
+(*   Definition LAYER_PRIMS : list string := *)
+(*     "s2tt_init_valid_ns" :: *)
+(*       "s2tt_init_valid" :: *)
+(*       "s2tt_init_assigned_empty" :: *)
+(*       "s2tt_init_destroyed" :: *)
+(*       "s2tt_init_unassigned" :: *)
+(*       "realm_ipa_get_ripas" :: *)
+(*       "realm_ipa_to_pa" :: *)
+(*       nil. *)
 
-  Hint InitRely realm_ipa_get_ripas (v_rec.(pbase) = "slot_rec" /\ v_rec.(poffset) = 0 /\
-                                       v_ripas_ptr.(pbase) = "handle_rsi_ipa_state_get_stack" /\
-                                       v_rtt_level.(pbase) = "handle_rsi_ipa_state_get_stack").
-  Hint InitRely realm_ipa_to_pa (v_rd.(pbase) = "slot_rd" /\
-                                   ((v_s2_walk.(pbase) = "rsi_walk_smc_result_stack") \/
-                                      (v_s2_walk.(pbase) = "do_host_call_stack") \/
-                                      (v_s2_walk.(pbase) = "attest_token_continue_write_state_stack"))).
+(*   Hint InitRely realm_ipa_get_ripas (v_rec.(pbase) = "slot_rec" /\ v_rec.(poffset) = 0 /\ *)
+(*                                        v_ripas_ptr.(pbase) = "handle_rsi_ipa_state_get_stack" /\ *)
+(*                                        v_rtt_level.(pbase) = "handle_rsi_ipa_state_get_stack"). *)
+(*   Hint InitRely realm_ipa_to_pa (v_rd.(pbase) = "slot_rd" /\ *)
+(*                                    ((v_s2_walk.(pbase) = "rsi_walk_smc_result_stack") \/ *)
+(*                                       (v_s2_walk.(pbase) = "do_host_call_stack") \/ *)
+(*                                       (v_s2_walk.(pbase) = "attest_token_continue_write_state_stack"))). *)
 
-  Hint NoUnfold realm_ipa_to_pa_spec.
-  Hint NoUnfold realm_ipa_get_ripas_spec.
-  (* Hint NoTrans realm_ipa_get_ripas_spec. *)
-  Hint NoTrans realm_ipa_to_pa_spec.
- (* Need fill in: *)
-  Definition s2tt_init_valid_ns_loop738_rank (v_call: Z) (v_indvars_iv: Z) (v_level: Z) (v_pa_addr_05: Z) (v_s2tt: Ptr) : Z :=
-    512 - v_indvars_iv.
-  Hint InitRely s2tt_init_valid_ns (v_s2tt.(pbase) = "slot_delegated").
-  Hint InitRely s2tt_init_valid_ns_loop738 (v_s2tt.(pbase) = "slot_delegated").
+(*   Hint NoUnfold realm_ipa_to_pa_spec. *)
+(*   Hint NoUnfold realm_ipa_get_ripas_spec. *)
+(*   (* Hint NoTrans realm_ipa_get_ripas_spec. *) *)
+(*   Hint NoTrans realm_ipa_to_pa_spec. *)
+(*  (* Need fill in: *) *)
+(*   Definition s2tt_init_valid_ns_loop738_rank (v_call: Z) (v_indvars_iv: Z) (v_level: Z) (v_pa_addr_05: Z) (v_s2tt: Ptr) : Z := *)
+(*     512 - v_indvars_iv. *)
+(*   Hint InitRely s2tt_init_valid_ns (v_s2tt.(pbase) = "slot_delegated"). *)
+(*   Hint InitRely s2tt_init_valid_ns_loop738 (v_s2tt.(pbase) = "slot_delegated"). *)
 
-  (* Need fill in: *)
-  Definition s2tt_init_valid_loop719_rank (v_call: Z) (v_indvars_iv: Z) (v_level: Z) (v_pa_addr_05: Z) (v_s2tt: Ptr) : Z :=
-    512 - v_indvars_iv.
-  Hint InitRely s2tt_init_valid (v_s2tt.(pbase) = "slot_delegated").
-  Hint InitRely s2tt_init_valid_loop719 (v_s2tt.(pbase) = "slot_delegated").
+(*   (* Need fill in: *) *)
+(*   Definition s2tt_init_valid_loop719_rank (v_call: Z) (v_indvars_iv: Z) (v_level: Z) (v_pa_addr_05: Z) (v_s2tt: Ptr) : Z := *)
+(*     512 - v_indvars_iv. *)
+(*   Hint InitRely s2tt_init_valid (v_s2tt.(pbase) = "slot_delegated"). *)
+(*   Hint InitRely s2tt_init_valid_loop719 (v_s2tt.(pbase) = "slot_delegated"). *)
 
-  (* Need fill in: *)
-  Definition s2tt_init_assigned_empty_loop700_rank (v_call: Z) (v_indvars_iv: Z) (v_level: Z) (v_pa_addr_05: Z) (v_s2tt: Ptr) : Z :=
-    512 - v_indvars_iv.
-  Hint InitRely s2tt_init_assigned_empty (v_s2tt.(pbase) = "slot_delegated").
-  Hint InitRely s2tt_init_assigned_empty_loop700 (v_s2tt.(pbase) = "slot_delegated").
+(*   (* Need fill in: *) *)
+(*   Definition s2tt_init_assigned_empty_loop700_rank (v_call: Z) (v_indvars_iv: Z) (v_level: Z) (v_pa_addr_05: Z) (v_s2tt: Ptr) : Z := *)
+(*     512 - v_indvars_iv. *)
+(*   Hint InitRely s2tt_init_assigned_empty (v_s2tt.(pbase) = "slot_delegated"). *)
+(*   Hint InitRely s2tt_init_assigned_empty_loop700 (v_s2tt.(pbase) = "slot_delegated"). *)
 
-  (* Need fill in: *)
-  Definition s2tt_init_destroyed_loop0_rank (v_index: Z) (v_s2tt: Ptr) : Z :=
-    256 - v_index/2.
-  Hint InitRely s2tt_init_destroyed (v_s2tt.(pbase) = "slot_delegated").
-  Hint InitRely s2tt_init_destroyed_loop0 (v_s2tt.(pbase) = "slot_delegated").
+(*   (* Need fill in: *) *)
+(*   Definition s2tt_init_destroyed_loop0_rank (v_index: Z) (v_s2tt: Ptr) : Z := *)
+(*     256 - v_index/2. *)
+(*   Hint InitRely s2tt_init_destroyed (v_s2tt.(pbase) = "slot_delegated"). *)
+(*   Hint InitRely s2tt_init_destroyed_loop0 (v_s2tt.(pbase) = "slot_delegated"). *)
 
-  (* Need fill in: *)
-  Definition s2tt_init_unassigned_loop0_rank (v_call: Z) (v_index: Z) (v_s2tt: Ptr) : Z :=
-    256 - v_index/2.
-  Hint InitRely s2tt_init_unassigned (v_s2tt.(pbase) = "slot_delegated").
-  Hint InitRely s2tt_init_unassigned_loop0 (v_s2tt.(pbase) = "slot_delegated").
+(*   (* Need fill in: *) *)
+(*   Definition s2tt_init_unassigned_loop0_rank (v_call: Z) (v_index: Z) (v_s2tt: Ptr) : Z := *)
+(*     256 - v_index/2. *)
+(*   Hint InitRely s2tt_init_unassigned (v_s2tt.(pbase) = "slot_delegated"). *)
+(*   Hint InitRely s2tt_init_unassigned_loop0 (v_s2tt.(pbase) = "slot_delegated"). *)
 
-  Include "S2TTInitLow.v".
-  Include "ProofRTT/.CachedSpec/S2TTInitSpec.v".
-End S2TTInit.
+(*   Include "S2TTInitLow.v". *)
+(*   Include "ProofRTT/.CachedSpec/S2TTInitSpec.v". *)
+(* End S2TTInit. *)
 
-(* (* Section EL3IFC. *) *)
-(* (*   Definition LAYER_DATA := RData. *) *)
-(* (*   Definition LAYER_CODE : string := "./rmm.json". *) *)
-(* (*   Definition LAYER_LOAD : string := "load_RData". *) *)
-(* (*   Definition LAYER_STORE : string := "store_RData". *) *)
-(* (*   Definition LAYER_ALLOC : string := "alloc_stack". *) *)
-(* (*   Definition LAYER_FREE : string := "free_stack". *) *)
-(* (*   Definition LAYER_PTR2INT : string := "ptr_to_int". *) *)
-(* (*   Definition LAYER_INT2PTR : string := "int_to_ptr". *) *)
-(* (*   Definition LAYER_PTR_EQB : string := "ptr_eqb". *) *)
-(* (*   Definition LAYER_PTR_GTB : string := "ptr_gtb". *) *)
-(* (*   Definition LAYER_PTR_LTB : string := "ptr_ltb". *) *)
-(* (*   Definition LAYER_PRIMS : list string := *) *)
-(* (*     "rmm_el3_ifc_gtsi_delegate" :: *) *)
-(* (*       "rmm_el3_ifc_gtsi_undelegate" :: *) *)
-(* (*       nil. *) *)
-(* (* End EL3IFC. *) *)
+(* (* (* Section EL3IFC. *) *) *)
+(* (* (*   Definition LAYER_DATA := RData. *) *) *)
+(* (* (*   Definition LAYER_CODE : string := "./rmm.json". *) *) *)
+(* (* (*   Definition LAYER_LOAD : string := "load_RData". *) *) *)
+(* (* (*   Definition LAYER_STORE : string := "store_RData". *) *) *)
+(* (* (*   Definition LAYER_ALLOC : string := "alloc_stack". *) *) *)
+(* (* (*   Definition LAYER_FREE : string := "free_stack". *) *) *)
+(* (* (*   Definition LAYER_PTR2INT : string := "ptr_to_int". *) *) *)
+(* (* (*   Definition LAYER_INT2PTR : string := "int_to_ptr". *) *) *)
+(* (* (*   Definition LAYER_PTR_EQB : string := "ptr_eqb". *) *) *)
+(* (* (*   Definition LAYER_PTR_GTB : string := "ptr_gtb". *) *) *)
+(* (* (*   Definition LAYER_PTR_LTB : string := "ptr_ltb". *) *) *)
+(* (* (*   Definition LAYER_PRIMS : list string := *) *) *)
+(* (* (*     "rmm_el3_ifc_gtsi_delegate" :: *) *) *)
+(* (* (*       "rmm_el3_ifc_gtsi_undelegate" :: *) *) *)
+(* (* (*       nil. *) *) *)
+(* (* (* End EL3IFC. *) *) *)
 
-Section SMCHandler.
-  Definition LAYER_DATA := RData.
-  Definition LAYER_CODE : string := "./rmm.json".
-  Definition LAYER_LOAD : string := "load_RData".
-  Definition LAYER_STORE : string := "store_RData".
-  Definition LAYER_ALLOC : string := "alloc_stack".
-  Definition LAYER_FREE : string := "free_stack".
-  Definition LAYER_PTR2INT : string := "ptr_to_int".
-  Definition LAYER_INT2PTR : string := "int_to_ptr".
-  Definition LAYER_PTR_EQB : string := "ptr_eqb".
-  Definition LAYER_PTR_GTB : string := "ptr_gtb".
-  Definition LAYER_PTR_LTB : string := "ptr_ltb".
-  Definition LAYER_NEW_FRAME : string := "new_frame".
-  Definition LAYER_PRIMS : list string :=
-    (* "smc_granule_delegate" :: *)
-    (*   "smc_granule_undelegate" :: *)
-    "smc_rtt_create" ::
-      "smc_rtt_destroy" ::
-      "smc_version" ::
-      "smc_realm_activate" ::
-        nil.
+(* Section SMCHandler. *)
+(*   Definition LAYER_DATA := RData. *)
+(*   Definition LAYER_CODE : string := "./rmm.json". *)
+(*   Definition LAYER_LOAD : string := "load_RData". *)
+(*   Definition LAYER_STORE : string := "store_RData". *)
+(*   Definition LAYER_ALLOC : string := "alloc_stack". *)
+(*   Definition LAYER_FREE : string := "free_stack". *)
+(*   Definition LAYER_PTR2INT : string := "ptr_to_int". *)
+(*   Definition LAYER_INT2PTR : string := "int_to_ptr". *)
+(*   Definition LAYER_PTR_EQB : string := "ptr_eqb". *)
+(*   Definition LAYER_PTR_GTB : string := "ptr_gtb". *)
+(*   Definition LAYER_PTR_LTB : string := "ptr_ltb". *)
+(*   Definition LAYER_NEW_FRAME : string := "new_frame". *)
+(*   Definition LAYER_PRIMS : list string := *)
+(*     (* "smc_granule_delegate" :: *) *)
+(*     (*   "smc_granule_undelegate" :: *) *)
+(*     "smc_rtt_create" :: *)
+(*       "smc_rtt_destroy" :: *)
+(*       "smc_version" :: *)
+(*       "smc_realm_activate" :: *)
+(*         nil. *)
 
-  Hint NoUnfold smc_rtt_create_0.
-  Hint NoUnfold smc_rtt_create_1.
-  Hint NoUnfold smc_rtt_create_2.
-  Hint NoUnfold smc_rtt_create_3.
-  Hint NoUnfold smc_rtt_create_4.
-  Hint NoUnfold smc_rtt_create_5.
-  Hint NoUnfold smc_rtt_create_6.
-  (* Hint NoTrans smc_rtt_destroy_spec. *)
-  Hint NoUnfold smc_rtt_destroy_1.
-  Hint NoUnfold smc_rtt_destroy_2.
-  Hint NoUnfold smc_rtt_destroy_3.
-  Include "SMCHandlerSpec.v".
-  Include "SMCHandlerLow.v".
+(*   Hint NoUnfold smc_rtt_create_0. *)
+(*   Hint NoUnfold smc_rtt_create_1. *)
+(*   Hint NoUnfold smc_rtt_create_2. *)
+(*   Hint NoUnfold smc_rtt_create_3. *)
+(*   Hint NoUnfold smc_rtt_create_4. *)
+(*   Hint NoUnfold smc_rtt_create_5. *)
+(*   Hint NoUnfold smc_rtt_create_6. *)
+(*   (* Hint NoTrans smc_rtt_destroy_spec. *) *)
+(*   Hint NoUnfold smc_rtt_destroy_1. *)
+(*   Hint NoUnfold smc_rtt_destroy_2. *)
+(*   Hint NoUnfold smc_rtt_destroy_3. *)
+(*   Include "SMCHandlerSpec.v". *)
+(*   Include "SMCHandlerLow.v". *)
 
-  (* Conditional Spec *)
-  (* Rely projection *)
-End SMCHandler.
+(*   (* Conditional Spec *) *)
+(*   (* Rely projection *) *)
+(* End SMCHandler. *)

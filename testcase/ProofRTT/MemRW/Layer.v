@@ -5,9 +5,7 @@ Require Import DataTypes.
 Require Import FindGranule.Spec.
 Require Import GlobalDefs.
 Require Import GranuleLock.Spec.
-Require Import GranuleState.Spec.
 Require Import Helpers.Spec.
-Require Import LockGranules.Spec.
 Require Import MemRW.Spec.
 Require Import Mmap.Spec.
 Require Import RDState.Spec.
@@ -56,7 +54,6 @@ Section MemRW_Layer.
       PrimCall :=
           ("__granule_get", prim __granule_get_spec)
           :: ("__granule_put", prim __granule_put_spec)
-          :: ("__granule_refcount_inc", prim __granule_refcount_inc_spec)
           :: ("__tte_read", prim __tte_read_spec)
           :: ("__tte_write", prim __tte_write_spec)
           :: ("addr_to_granule", prim addr_to_granule_spec)
@@ -64,15 +61,12 @@ Section MemRW_Layer.
           :: ("buffer_unmap", prim buffer_unmap_spec)
           :: ("entry_is_table", prim entry_is_table_spec)
           :: ("find_lock_granule", prim find_lock_granule_spec)
-          :: ("find_lock_two_granules", prim find_lock_two_granules_spec)
           :: ("get_rd_state_locked", prim get_rd_state_locked_spec)
           :: ("granule_lock", prim granule_lock_spec)
           :: ("granule_map", prim granule_map_spec)
           :: ("granule_memzero", prim granule_memzero_spec)
           :: ("granule_memzero_mapped", prim granule_memzero_mapped_spec)
-          :: ("granule_set_state", prim granule_set_state_spec)
           :: ("granule_unlock", prim granule_unlock_spec)
-          :: ("iasm_4", prim iasm_4_spec)
           :: ("is_feat_vmid16_present", prim is_feat_vmid16_present_spec)
           :: ("llvm_memcpy_p0i8_p0i8_i64", prim llvm_memcpy_p0i8_p0i8_i64_spec)
           :: ("llvm_memset_p0i8_i64", prim llvm_memset_p0i8_i64_spec)
@@ -82,7 +76,6 @@ Section MemRW_Layer.
           :: ("rec_ipa_size", prim rec_ipa_size_spec)
           :: ("s2_addr_to_idx", prim s2_addr_to_idx_spec)
           :: ("s2_sl_addr_to_idx", prim s2_sl_addr_to_idx_spec)
-          :: ("set_rd_state", prim set_rd_state_spec)
           :: ("stage2_tlbi_ipa", prim stage2_tlbi_ipa_spec)
           :: nil
     |}.
