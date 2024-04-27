@@ -144,7 +144,8 @@ Definition map_unmap_ns_7_low
   if ((v_4 - (v_level)) =? (0))
   then (
     when v_5_tmp, st_16 == ((load_RData 8 (ptr_offset v_wi 0) st_15));
-    rely (((v_5_tmp < (STACK_VIRT)) /\ ((v_5_tmp >= (GRANULES_BASE)))));
+    rely (v_5_tmp < STACK_VIRT);
+    rely (v_5_tmp >= GRANULES_BASE);
     when v_call18, st_17 == ((granule_map_spec (int_to_ptr v_5_tmp) 22 st_16));
     when v_7, st_18 == ((load_RData 8 (ptr_offset v_wi 8) st_17));
     when v_call19, st_19 == ((__tte_read_spec (ptr_offset v_call18 (8 * (v_7))) st_18));
@@ -154,14 +155,16 @@ Definition map_unmap_ns_7_low
       when v_10, st_21 == ((load_RData 8 (ptr_offset v_wi 8) st_20));
       when st_22 == ((__tte_write_spec (ptr_offset v_call18 (8 * (v_10))) 0 st_21));
       when v_11_tmp, st_23 == ((load_RData 8 (ptr_offset v_wi 0) st_22));
-      rely (((v_11_tmp < (STACK_VIRT)) /\ ((v_11_tmp >= (GRANULES_BASE)))));
+      rely (v_11_tmp < STACK_VIRT);
+      rely (v_11_tmp >= GRANULES_BASE);
       when st_24 == ((__granule_put_spec (int_to_ptr v_11_tmp) st_23));
       if (v_level =? (3))
       then (
         when st_25 == ((invalidate_page_spec v_s2_ctx v_map_addr st_24));
         when st_27 == ((buffer_unmap_spec v_call18 st_25));
         when v_12_tmp, st_28 == ((load_RData 8 (ptr_offset v_wi 0) st_27));
-        rely (((v_12_tmp < (STACK_VIRT)) /\ ((v_12_tmp >= (GRANULES_BASE)))));
+        rely (v_12_tmp < STACK_VIRT);
+        rely (v_12_tmp >= GRANULES_BASE);
         when st_29 == ((granule_unlock_spec (int_to_ptr v_12_tmp) st_28));
         when st_30 == ((free_stack "map_unmap_ns" st_0 st_29));
         (Some (0, st_30)))
@@ -169,7 +172,8 @@ Definition map_unmap_ns_7_low
         when st_25 == ((invalidate_block_spec v_s2_ctx v_map_addr st_24));
         when st_27 == ((buffer_unmap_spec v_call18 st_25));
         when v_12_tmp, st_28 == ((load_RData 8 (ptr_offset v_wi 0) st_27));
-        rely (((v_12_tmp < (STACK_VIRT)) /\ ((v_12_tmp >= (GRANULES_BASE)))));
+        rely (v_12_tmp < STACK_VIRT);
+        rely (v_12_tmp >= GRANULES_BASE);
         when st_29 == ((granule_unlock_spec (int_to_ptr v_12_tmp) st_28));
         when st_30 == ((free_stack "map_unmap_ns" st_0 st_29));
         (Some (0, st_30))))
@@ -177,14 +181,16 @@ Definition map_unmap_ns_7_low
       when v_call38, st_21 == ((pack_return_code_spec 4 v_level st_20));
       when st_22 == ((buffer_unmap_spec v_call18 st_21));
       when v_12_tmp, st_23 == ((load_RData 8 (ptr_offset v_wi 0) st_22));
-      rely (((v_12_tmp < (STACK_VIRT)) /\ ((v_12_tmp >= (GRANULES_BASE)))));
+      rely (v_12_tmp < STACK_VIRT);
+      rely (v_12_tmp >= GRANULES_BASE);
       when st_24 == ((granule_unlock_spec (int_to_ptr v_12_tmp) st_23));
       when st_26 == ((free_stack "map_unmap_ns" st_0 st_24));
       (Some (v_call38, st_26))))
   else (
     when v_call16, st_16 == ((pack_return_code_spec 4 v_4 st_15));
     when v_12_tmp, st_17 == ((load_RData 8 (ptr_offset v_wi 0) st_16));
-    rely (((v_12_tmp < (STACK_VIRT)) /\ ((v_12_tmp >= (GRANULES_BASE)))));
+    rely (v_12_tmp < STACK_VIRT);
+    rely (v_12_tmp >= GRANULES_BASE);
     when st_18 == ((granule_unlock_spec (int_to_ptr v_12_tmp) st_17));
     when st_19 == ((free_stack "map_unmap_ns" st_0 st_18));
     (Some (v_call16, st_19))).
@@ -208,107 +214,8 @@ Definition map_unmap_ns_spec_low (v_rd_addr: Z) (v_map_addr: Z) (v_level: Z) (v_
       when v_call6_1, st_7 == ((realm_rtt_starting_level_spec v_call1_0 st_6));
       when v_call7_1, st_8 == ((realm_ipa_bits_spec v_call1_0 st_7));
       if (v_op =? (0))
-      then (
-        when v_call9, st_9 == ((addr_in_par_spec v_call1_0 v_map_addr st_8));
-        if v_call9
-        then (
-          when st_10 == ((buffer_unmap_spec v_call1_0 st_9));
-          when st_11 == ((granule_unlock_spec v_call st_10));
-          when st_13 == ((free_stack "map_unmap_ns" st_0 st_11));
-          (Some (1, st_13)))
-        else (
-          when st_11 == ((llvm_memcpy_p0i8_p0i8_i64_spec v_s2_ctx (ptr_offset v_call1_0 16) 32 false st_9));
-          when st_12 == ((buffer_unmap_spec v_call1_0 st_11));
-          when st_13 == ((granule_lock_spec (int_to_ptr v_2_tmp) 6 st_12));
-          when st_14 == ((granule_unlock_spec v_call st_13));
-          when st_15 == ((rtt_walk_lock_unlock_spec (int_to_ptr v_2_tmp) v_call6_1 v_call7_1 v_map_addr v_level v_wi st_14));
-          when v_4, st_16 == ((load_RData 8 (ptr_offset v_wi 16) st_15));
-          if ((v_4 - (v_level)) =? (0))
-          then (
-            when v_5_tmp, st_17 == ((load_RData 8 (ptr_offset v_wi 0) st_16));
-            rely (v_5_tmp < STACK_VIRT /\ v_5_tmp >= GRANULES_BASE);
-            when v_call18, st_18 == ((granule_map_spec (int_to_ptr v_5_tmp) 22 st_17));
-            when v_7, st_19 == ((load_RData 8 (ptr_offset v_wi 8) st_18));
-            when v_call19, st_20 == ((__tte_read_spec (ptr_offset v_call18 (8 * (v_7))) st_19));
-            when v_call23, st_21 == ((s2tte_is_unassigned_spec v_call19 st_20));
-            if v_call23
-            then (
-              when v_call28, st_22 == ((s2tte_create_valid_ns_spec v_host_s2tte v_level st_21));
-              when v_8, st_23 == ((load_RData 8 (ptr_offset v_wi 8) st_22));
-              when st_24 == ((__tte_write_spec (ptr_offset v_call18 (8 * (v_8))) v_call28 st_23));
-              when v_9_tmp, st_25 == ((load_RData 8 (ptr_offset v_wi 0) st_24));
-              rely (v_9_tmp < STACK_VIRT /\ v_9_tmp >= GRANULES_BASE);
-              when st_26 == ((__granule_get_spec (int_to_ptr v_9_tmp) st_25));
-              when st_28 == ((buffer_unmap_spec v_call18 st_26));
-              when v_12_tmp, st_29 == ((load_RData 8 (ptr_offset v_wi 0) st_28));
-              rely (v_12_tmp < STACK_VIRT /\ v_12_tmp >= GRANULES_BASE);
-              when st_30 == ((granule_unlock_spec (int_to_ptr v_12_tmp) st_29));
-              when st_31 == ((free_stack "map_unmap_ns" st_0 st_30));
-              (Some (0, st_31)))
-            else (
-              when v_call26, st_22 == ((pack_return_code_spec 4 v_level st_21));
-              when st_23 == ((buffer_unmap_spec v_call18 st_22));
-              when v_12_tmp, st_24 == ((load_RData 8 (ptr_offset v_wi 0) st_23));
-              rely (v_12_tmp < STACK_VIRT /\ v_12_tmp >= GRANULES_BASE);
-              when st_25 == ((granule_unlock_spec (int_to_ptr v_12_tmp) st_24));
-              when st_27 == ((free_stack "map_unmap_ns" st_0 st_25));
-              (Some (v_call26, st_27))))
-          else (
-            when v_call16, st_17 == ((pack_return_code_spec 4 v_4 st_16));
-            when v_12_tmp, st_18 == ((load_RData 8 (ptr_offset v_wi 0) st_17));
-            rely (v_12_tmp < STACK_VIRT /\ v_12_tmp >= GRANULES_BASE);
-            when st_19 == ((granule_unlock_spec (int_to_ptr v_12_tmp) st_18));
-            when st_20 == ((free_stack "map_unmap_ns" st_0 st_19));
-            (Some (v_call16, st_20)))))
-      else (
-        when st_10 == ((llvm_memcpy_p0i8_p0i8_i64_spec v_s2_ctx (ptr_offset v_call1_0 16) 32 false st_8));
-        when st_11 == ((buffer_unmap_spec v_call1_0 st_10));
-        when st_12 == ((granule_lock_spec (int_to_ptr v_2_tmp) 6 st_11));
-        when st_13 == ((granule_unlock_spec v_call st_12));
-        when st_14 == ((rtt_walk_lock_unlock_spec (int_to_ptr v_2_tmp) v_call6_1 v_call7_1 v_map_addr v_level v_wi st_13));
-        when v_4, st_15 == ((load_RData 8 (ptr_offset v_wi 16) st_14));
-        if ((v_4 - (v_level)) =? (0))
-        then (
-          when v_5_tmp, st_16 == ((load_RData 8 (ptr_offset v_wi 0) st_15));
-          rely (v_5_tmp < STACK_VIRT /\ v_5_tmp >= GRANULES_BASE);
-          when v_call18, st_17 == ((granule_map_spec (int_to_ptr v_5_tmp) 22 st_16));
-          when v_7, st_18 == ((load_RData 8 (ptr_offset v_wi 8) st_17));
-          when v_call19, st_19 == ((__tte_read_spec (ptr_offset v_call18 (8 * (v_7))) st_18));
-          when v_call35, st_20 == ((s2tte_is_valid_ns_spec v_call19 v_level st_19));
-          if v_call35
-          then (
-            when v_10, st_21 == ((load_RData 8 (ptr_offset v_wi 8) st_20));
-            when st_22 == ((__tte_write_spec (ptr_offset v_call18 (8 * (v_10))) 0 st_21));
-            when v_11_tmp, st_23 == ((load_RData 8 (ptr_offset v_wi 0) st_22));
-            when st_24 == ((__granule_put_spec (int_to_ptr v_11_tmp) st_23));
-            if (v_level =? (3))
-            then (
-              when st_25 == ((invalidate_page_spec v_s2_ctx v_map_addr st_24));
-              when st_27 == ((buffer_unmap_spec v_call18 st_25));
-              when v_12_tmp, st_28 == ((load_RData 8 (ptr_offset v_wi 0) st_27));
-              when st_29 == ((granule_unlock_spec (int_to_ptr v_12_tmp) st_28));
-              when st_30 == ((free_stack "map_unmap_ns" st_0 st_29));
-              (Some (0, st_30)))
-            else (
-              when st_25 == ((invalidate_block_spec v_s2_ctx v_map_addr st_24));
-              when st_27 == ((buffer_unmap_spec v_call18 st_25));
-              when v_12_tmp, st_28 == ((load_RData 8 (ptr_offset v_wi 0) st_27));
-              when st_29 == ((granule_unlock_spec (int_to_ptr v_12_tmp) st_28));
-              when st_30 == ((free_stack "map_unmap_ns" st_0 st_29));
-              (Some (0, st_30))))
-          else (
-            when v_call38, st_21 == ((pack_return_code_spec 4 v_level st_20));
-            when st_22 == ((buffer_unmap_spec v_call18 st_21));
-            when v_12_tmp, st_23 == ((load_RData 8 (ptr_offset v_wi 0) st_22));
-            when st_24 == ((granule_unlock_spec (int_to_ptr v_12_tmp) st_23));
-            when st_26 == ((free_stack "map_unmap_ns" st_0 st_24));
-            (Some (v_call38, st_26))))
-        else (
-          when v_call16, st_16 == ((pack_return_code_spec 4 v_4 st_15));
-          when v_12_tmp, st_17 == ((load_RData 8 (ptr_offset v_wi 0) st_16));
-          when st_18 == ((granule_unlock_spec (int_to_ptr v_12_tmp) st_17));
-          when st_19 == ((free_stack "map_unmap_ns" st_0 st_18));
-          (Some (v_call16, st_19)))))
+      then (map_unmap_ns_1 v_call1_0 v_map_addr v_call v_s2_ctx v_2_tmp v_level v_host_s2tte v_call6_1 v_call7_1 v_wi st_0 st_8)
+      else (map_unmap_ns_7 v_call1_0 v_map_addr v_call v_s2_ctx v_2_tmp v_level v_host_s2tte v_call6_1 v_call7_1 v_wi st_0 st_8))
     else (
       when st_6 == ((buffer_unmap_spec v_call1_0 st_5));
       when st_7 == ((granule_unlock_spec v_call st_6));

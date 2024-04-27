@@ -1,3 +1,16 @@
+Definition ns_buffer_unmap_spec (v_buf: Ptr) (st: RData) : (option RData) :=
+  rely (((v_buf.(pbase)) = ("slot_ns")));
+  rely (((v_buf.(poffset)) = (0)));
+  rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+  (Some (st.[share].[slots] :< (((st.(share)).(slots)) # SLOT_NS == (- 1)))).
+
+Definition ns_granule_map_spec (v_slot: Z) (v_granule: Ptr) (st: RData) : (option (Ptr * RData)) :=
+  rely ((v_slot = (0)));
+  rely ((((v_granule.(poffset)) mod (ST_GRANULE_SIZE)) = (0)));
+  rely (((v_granule.(pbase)) = ("granules")));
+  rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+  (Some ((mkPtr "slot_ns" 0), (st.[share].[slots] :< (((st.(share)).(slots)) # SLOT_NS == ((v_granule.(poffset)) >> (4)))))).
+
 Definition buffer_unmap_spec (v_buf: Ptr) (st: RData) : (option RData) :=
   rely (((v_buf.(poffset)) = (0)));
   rely (

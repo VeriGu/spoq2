@@ -14,8 +14,15 @@ Section LockGranules_find_lock_two_granules_LowSpec.
   Definition find_lock_two_granules_spec_low (v_addr1: Z) (v_expected_state1: Z) (v_g1: Ptr) (v_addr2: Z) (v_expected_state2: Z) (v_g2: Ptr) (st: RData) : (option (bool * RData)) :=
     when st == ((new_frame "find_lock_two_granules" st));
     let init_st := st in
-    rely (((v_g2.(pbase)) = ("smc_rtt_create_stack")));
-    rely (((v_g1.(pbase)) = ("smc_rtt_create_stack")));
+    rely (((v_g1.(pbase)) = ((v_g2.(pbase)))));
+    rely (
+      ((((((v_g2.(pbase)) = ("smc_rec_create_stack")) \/ (((v_g2.(pbase)) = ("smc_psci_complete_stack")))) \/ (((v_g2.(pbase)) = ("smc_rtt_create_stack")))) \/
+        (((v_g2.(pbase)) = ("data_create_stack")))) \/
+        (((v_g2.(pbase)) = ("smc_rtt_set_ripas_stack")))));
+    rely (
+      ((((((v_g1.(pbase)) = ("smc_rec_create_stack")) \/ (((v_g1.(pbase)) = ("smc_psci_complete_stack")))) \/ (((v_g1.(pbase)) = ("smc_rtt_create_stack")))) \/
+        (((v_g1.(pbase)) = ("data_create_stack")))) \/
+        (((v_g1.(pbase)) = ("smc_rtt_set_ripas_stack")))));
     when v_gs, st == ((alloc_stack "find_lock_two_granules" 80 8 st));
     rely (((0 <= (0)) /\ ((0 < (2)))));
     let v_arrayinit_begin := (ptr_offset v_gs (((40 * (2)) * (0)) + (((40 * (0)) + (0))))) in

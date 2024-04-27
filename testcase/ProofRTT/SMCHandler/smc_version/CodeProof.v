@@ -1,8 +1,8 @@
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
+Require Import ExceptionOps.Layer.
 Require Import GlobalDefs.
-Require Import S2TTInit.Layer.
 Require Import SMCHandler.smc_version.LowSpec.
 Require Import Zwf.
 
@@ -17,7 +17,7 @@ Section SMCHandler_smc_version_CodeProof.
     Lemma f_smc_version_correct:
       forall st st' res
              (Hspec: smc_version_spec_low st = Some (res, st')),
-        exec_func S2TTInit_layer code "smc_version"
+        exec_func ExceptionOps_layer code "smc_version"
                   []
                   st st' (Some (VInt res)).
     Proof.

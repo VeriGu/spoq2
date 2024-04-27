@@ -1777,7 +1777,7 @@ Definition ptr_gtb (p1: Ptr) (p2: Ptr) : bool :=
     else p1.(poffset) >? p2.(poffset))
   else ptr_to_int p1 >? ptr_to_int p2 .
 
-Parameter lens : Z -> (RData -> RData).
+Parameter lens : Z -> (RData -> (RData)).
 
 Section Bottom.
   Definition LAYER_DATA := RData.
@@ -3063,7 +3063,7 @@ Section FindGranule.
   Hint InitRely sort_granules (v_granules.(pbase) = "find_lock_two_granules_stack").
 
 
-  Include "ProofRTT/.CachedSpec/FindGranuleSpec.v"
+  Include "ProofRTT/.CachedSpec/FindGranuleSpec.v".
 End FindGranule.
 
 Section GranuleLock.
@@ -3085,7 +3085,7 @@ Section GranuleLock.
       nil.
 
   Hint InitRely granule_lock ((st.(share).(granules) @ (v_g.(poffset) mod ST_GRANULE_SIZE)).(e_state) = v_expected_state).
-  Include "ProofRTT/.CachedSpec/GranuleLockSpec.v"
+  Include "ProofRTT/.CachedSpec/GranuleLockSpec.v".
 End GranuleLock.
 
 Section GranuleInfo.
@@ -3144,13 +3144,11 @@ Section LockGranules.
       nil.
   (* Hint NoTrans find_lock_two_granules_spec. *)
   (* Hint NoUnfold find_lock_two_granules_spec. *)
-  (* Hint InitRely find_lock_two_granules ((v_g1.(pbase) = "smc_rec_create_stack") \/ (v_g1.(pbase) = "smc_psci_complete_stack") \/ *)
-  (*                                         (v_g1.(pbase) = "smc_rtt_create_stack") \/ (v_g1.(pbase) = "data_create_stack") \/ (v_g1.(pbase) = "smc_rtt_set_ripas_stack")). *)
-  (* Hint InitRely find_lock_two_granules ((v_g2.(pbase) = "smc_rec_create_stack") \/ (v_g2.(pbase) = "smc_psci_complete_stack") \/ *)
-  (*                                         (v_g2.(pbase) = "smc_rtt_create_stack") \/ (v_g2.(pbase) = "data_create_stack") \/ (v_g2.(pbase) = "smc_rtt_set_ripas_stack")). *)
-
-  Hint InitRely find_lock_two_granules ((v_g1.(pbase) = "smc_rtt_create_stack")).
-  Hint InitRely find_lock_two_granules ((v_g2.(pbase) = "smc_rtt_create_stack")).
+  Hint InitRely find_lock_two_granules ((v_g1.(pbase) = "smc_rec_create_stack") \/ (v_g1.(pbase) = "smc_psci_complete_stack") \/
+                                          (v_g1.(pbase) = "smc_rtt_create_stack") \/ (v_g1.(pbase) = "data_create_stack") \/ (v_g1.(pbase) = "smc_rtt_set_ripas_stack")).
+  Hint InitRely find_lock_two_granules ((v_g2.(pbase) = "smc_rec_create_stack") \/ (v_g2.(pbase) = "smc_psci_complete_stack") \/
+                                          (v_g2.(pbase) = "smc_rtt_create_stack") \/ (v_g2.(pbase) = "data_create_stack") \/ (v_g2.(pbase) = "smc_rtt_set_ripas_stack")).
+  Hint InitRely find_lock_two_granules (v_g1.(pbase) = v_g2.(pbase)).
 
   Include "ProofRTT/.CachedSpec/LockGranulesSpec.v".
 End LockGranules.
@@ -3203,6 +3201,8 @@ Section Mmap.
   Definition LAYER_PTR_GTB : string := "ptr_gtb".
   Definition LAYER_PTR_LTB : string := "ptr_ltb".
   Definition LAYER_PRIMS: list string :=
+    "ns_granule_map" ::
+      "ns_buffer_unmap" ::
       "buffer_unmap" ::
       "granule_map" ::
       nil.
@@ -3224,7 +3224,9 @@ Section MemRW.
   Definition LAYER_PTR_GTB : string := "ptr_gtb".
   Definition LAYER_PTR_LTB : string := "ptr_ltb".
   Definition LAYER_PRIMS: list string :=
-    "granule_memzero" ::
+    "ns_buffer_read" ::
+      "ns_buffer_write" ::
+      "granule_memzero" ::
       "granule_memzero_mapped" ::
       nil.
   Hint InitRely ns_buffer_read (v_slot = SLOT_NS).
@@ -3513,135 +3515,298 @@ Section S2TTCreate.
       "s2tte_create_valid" ::
       nil.
 
-  Hint NoTrans map_unmap_ns_spec.
+  (* Hint NoTrans map_unmap_ns_spec. *)
   Include "S2TTCreateSpec.v".
   Include "S2TTCreateLow.v".
   Include "ProofRTT/.CachedSpec/S2TTCreateSpec.v".
 End S2TTCreate.
 
-(* Section S2TTInit. *)
-(*   Definition LAYER_DATA := RData. *)
-(*   Definition LAYER_CODE : string := "./rmm.json". *)
-(*   Definition LAYER_LOAD : string := "load_RData". *)
-(*   Definition LAYER_STORE : string := "store_RData". *)
-(*   Definition LAYER_ALLOC : string := "alloc_stack". *)
-(*   Definition LAYER_FREE : string := "free_stack". *)
-(*   Definition LAYER_PTR2INT : string := "ptr_to_int". *)
-(*   Definition LAYER_INT2PTR : string := "int_to_ptr". *)
-(*   Definition LAYER_PTR_EQB : string := "ptr_eqb". *)
-(*   Definition LAYER_PTR_GTB : string := "ptr_gtb". *)
-(*   Definition LAYER_PTR_LTB : string := "ptr_ltb". *)
-(*   Definition LAYER_NEW_FRAME : string := "new_frame". *)
-(*   Definition LAYER_PRIMS : list string := *)
-(*     "s2tt_init_valid_ns" :: *)
-(*       "s2tt_init_valid" :: *)
-(*       "s2tt_init_assigned_empty" :: *)
-(*       "s2tt_init_destroyed" :: *)
-(*       "s2tt_init_unassigned" :: *)
-(*       "realm_ipa_get_ripas" :: *)
-(*       "realm_ipa_to_pa" :: *)
-(*       nil. *)
+Section TableBlock.
+  Definition LAYER_DATA := RData.
+  Definition LAYER_CODE : string := "./rmm.json".
+  Definition LAYER_LOAD : string := "load_RData".
+  Definition LAYER_STORE : string := "store_RData".
+  Definition LAYER_ALLOC : string := "alloc_stack".
+  Definition LAYER_FREE : string := "free_stack".
+  Definition LAYER_PTR2INT : string := "ptr_to_int".
+  Definition LAYER_INT2PTR : string := "int_to_ptr".
+  Definition LAYER_PTR_EQB : string := "ptr_eqb".
+  Definition LAYER_PTR_GTB : string := "ptr_gtb".
+  Definition LAYER_PTR_LTB : string := "ptr_ltb".
+  Definition LAYER_NEW_FRAME : string := "new_frame".
+  Definition LAYER_PRIMS : list string :=
+    "__table_maps_block" ::
+      "__table_is_uniform_block" ::
+      nil.
 
-(*   Hint InitRely realm_ipa_get_ripas (v_rec.(pbase) = "slot_rec" /\ v_rec.(poffset) = 0 /\ *)
-(*                                        v_ripas_ptr.(pbase) = "handle_rsi_ipa_state_get_stack" /\ *)
-(*                                        v_rtt_level.(pbase) = "handle_rsi_ipa_state_get_stack"). *)
-(*   Hint InitRely realm_ipa_to_pa (v_rd.(pbase) = "slot_rd" /\ *)
-(*                                    ((v_s2_walk.(pbase) = "rsi_walk_smc_result_stack") \/ *)
-(*                                       (v_s2_walk.(pbase) = "do_host_call_stack") \/ *)
-(*                                       (v_s2_walk.(pbase) = "attest_token_continue_write_state_stack"))). *)
+  (* Need fill in: *)
+  Definition __table_maps_block_funptr_wrap849 (func_ptr: Ptr) (arg0: Z) (arg1: Z) (st: RData) : (option (bool * RData)) :=
+    if func_ptr.(pbase) =s "s2tte_is_assigned" then s2tte_is_assigned_spec arg0 arg1 st
+    else if func_ptr.(pbase) =s "s2tte_is_valid" then s2tte_is_valid_spec arg0 arg1 st
+    else if func_ptr.(pbase) =s "s2tte_is_valid_ns" then s2tte_is_valid_ns_spec arg0 arg1 st else None.
 
-(*   Hint NoUnfold realm_ipa_to_pa_spec. *)
-(*   Hint NoUnfold realm_ipa_get_ripas_spec. *)
-(*   (* Hint NoTrans realm_ipa_get_ripas_spec. *) *)
-(*   Hint NoTrans realm_ipa_to_pa_spec. *)
-(*  (* Need fill in: *) *)
-(*   Definition s2tt_init_valid_ns_loop738_rank (v_call: Z) (v_indvars_iv: Z) (v_level: Z) (v_pa_addr_05: Z) (v_s2tt: Ptr) : Z := *)
-(*     512 - v_indvars_iv. *)
-(*   Hint InitRely s2tt_init_valid_ns (v_s2tt.(pbase) = "slot_delegated"). *)
-(*   Hint InitRely s2tt_init_valid_ns_loop738 (v_s2tt.(pbase) = "slot_delegated"). *)
+  (* Need fill in: *)
+  Definition __table_maps_block_loop840_rank (v_call: Z) (v_call3: Z) (v_i_015: Z) (v_level: Z) (v_table: Ptr) (v_s2tte_is_x: Ptr): Z :=
+    512 - v_i_015.
+  (* Need fill in: *)
+  Definition __table_maps_block_funptr_wrap835 (func_ptr: Ptr) (arg0: Z) (arg1: Z) (st: RData) : (option (bool * RData)) :=
+    if func_ptr.(pbase) =s "s2tte_is_assigned" then s2tte_is_assigned_spec arg0 arg1 st
+    else if func_ptr.(pbase) =s "s2tte_is_valid" then s2tte_is_valid_spec arg0 arg1 st
+    else if func_ptr.(pbase) =s "s2tte_is_valid_ns" then s2tte_is_valid_ns_spec arg0 arg1 st else None.
 
-(*   (* Need fill in: *) *)
-(*   Definition s2tt_init_valid_loop719_rank (v_call: Z) (v_indvars_iv: Z) (v_level: Z) (v_pa_addr_05: Z) (v_s2tt: Ptr) : Z := *)
-(*     512 - v_indvars_iv. *)
-(*   Hint InitRely s2tt_init_valid (v_s2tt.(pbase) = "slot_delegated"). *)
-(*   Hint InitRely s2tt_init_valid_loop719 (v_s2tt.(pbase) = "slot_delegated"). *)
+  Hint InitRely __table_maps_block ((v_s2tte_is_x.(pbase) = "s2tte_is_assigned") \/
+                                      (v_s2tte_is_x.(pbase) = "s2tte_is_valid") \/
+                                      (v_s2tte_is_x.(pbase) = "s2tte_is_valid_ns")).
+  Hint InitRely __table_maps_block (v_s2tte_is_x.(poffset) = 0).
 
-(*   (* Need fill in: *) *)
-(*   Definition s2tt_init_assigned_empty_loop700_rank (v_call: Z) (v_indvars_iv: Z) (v_level: Z) (v_pa_addr_05: Z) (v_s2tt: Ptr) : Z := *)
-(*     512 - v_indvars_iv. *)
-(*   Hint InitRely s2tt_init_assigned_empty (v_s2tt.(pbase) = "slot_delegated"). *)
-(*   Hint InitRely s2tt_init_assigned_empty_loop700 (v_s2tt.(pbase) = "slot_delegated"). *)
+  Hint InitRely __table_maps_block (v_table.(pbase) = "slot_rtt2").
+  Hint InitRely __table_maps_block_loop840 ((v_s2tte_is_x.(pbase) = "s2tte_is_assigned") \/
+                                      (v_s2tte_is_x.(pbase) = "s2tte_is_valid") \/
+                                      (v_s2tte_is_x.(pbase) = "s2tte_is_valid_ns")).
+  Hint InitRely __table_maps_block_loop840 (v_table.(pbase) = "slot_rtt22").
+  Hint InitRely __table_maps_block_loop840 (v_s2tte_is_x.(poffset) = 0).
 
-(*   (* Need fill in: *) *)
-(*   Definition s2tt_init_destroyed_loop0_rank (v_index: Z) (v_s2tt: Ptr) : Z := *)
-(*     256 - v_index/2. *)
-(*   Hint InitRely s2tt_init_destroyed (v_s2tt.(pbase) = "slot_delegated"). *)
-(*   Hint InitRely s2tt_init_destroyed_loop0 (v_s2tt.(pbase) = "slot_delegated"). *)
+  (* Need fill in: *)
+  Definition __table_is_uniform_block_funptr_wrap788 (func_ptr: Ptr) (arg0: Z) (st: RData) : (option (bool * RData)) :=
+    if func_ptr.(pbase) =s "s2tte_is_unassigned" then s2tte_is_unassigned_spec arg0 st
+    else if func_ptr.(pbase) =s "s2tte_is_destroyed" then s2tte_is_destroyed_spec arg0 st
+    else None.
+  (* Need fill in: *)
+  Definition __table_is_uniform_block_loop777_rank (v_cmp_not: bool) (v_indvars_iv: Z) (v_ripas_0: Z) (v_ripas_ptr: Ptr) (v_table: Ptr) (v_s2tte_is_x: Ptr) : Z :=
+    512 - v_indvars_iv.
+  (* Need fill in: *)
+  Definition __table_is_uniform_block_funptr_wrap777 (func_ptr: Ptr) (arg0: Z) (st: RData) : (option (bool * RData)) :=
+    if func_ptr.(pbase) =s "s2tte_is_unassigned" then s2tte_is_unassigned_spec arg0 st
+    else if func_ptr.(pbase) =s "s2tte_is_destroyed" then s2tte_is_destroyed_spec arg0 st
+         else None.
+  Hint InitRely __table_is_uniform_block ((v_s2tte_is_x.(pbase) = "s2tte_is_unassigned") \/
+                                            (v_s2tte_is_x.(pbase) = "s2tte_is_destroyed")).
+  Hint InitRely __table_is_uniform_block (v_table.(pbase) = "slot_rtt2").
+  Hint InitRely __table_is_uniform_block (v_s2tte_is_x.(poffset) = 0).
 
-(*   (* Need fill in: *) *)
-(*   Definition s2tt_init_unassigned_loop0_rank (v_call: Z) (v_index: Z) (v_s2tt: Ptr) : Z := *)
-(*     256 - v_index/2. *)
-(*   Hint InitRely s2tt_init_unassigned (v_s2tt.(pbase) = "slot_delegated"). *)
-(*   Hint InitRely s2tt_init_unassigned_loop0 (v_s2tt.(pbase) = "slot_delegated"). *)
+  Hint InitRely __table_is_uniform_block_loop777 ((v_s2tte_is_x.(pbase) = "s2tte_is_unassigned") \/
+                                              (v_s2tte_is_x.(pbase) = "s2tte_is_destroyed")).
+  Hint InitRely __table_is_uniform_block_loop777 (v_table.(pbase) = "slot_rtt2").
+  Hint InitRely __table_is_uniform_block_loop777 (v_s2tte_is_x.(poffset) = 0).
+  Hint InitRely __table_is_uniform_block_loop777 (v_ripas_ptr.(pbase) = "smc_rtt_fold_stack").
 
-(*   Include "S2TTInitLow.v". *)
-(*   Include "ProofRTT/.CachedSpec/S2TTInitSpec.v". *)
-(* End S2TTInit. *)
+  Include "ProofRTT/.CachedSpec/TableBlockSpec.v".
+End TableBlock.
 
-(* (* (* Section EL3IFC. *) *) *)
-(* (* (*   Definition LAYER_DATA := RData. *) *) *)
-(* (* (*   Definition LAYER_CODE : string := "./rmm.json". *) *) *)
-(* (* (*   Definition LAYER_LOAD : string := "load_RData". *) *) *)
-(* (* (*   Definition LAYER_STORE : string := "store_RData". *) *) *)
-(* (* (*   Definition LAYER_ALLOC : string := "alloc_stack". *) *) *)
-(* (* (*   Definition LAYER_FREE : string := "free_stack". *) *) *)
-(* (* (*   Definition LAYER_PTR2INT : string := "ptr_to_int". *) *) *)
-(* (* (*   Definition LAYER_INT2PTR : string := "int_to_ptr". *) *) *)
-(* (* (*   Definition LAYER_PTR_EQB : string := "ptr_eqb". *) *) *)
-(* (* (*   Definition LAYER_PTR_GTB : string := "ptr_gtb". *) *) *)
-(* (* (*   Definition LAYER_PTR_LTB : string := "ptr_ltb". *) *) *)
-(* (* (*   Definition LAYER_PRIMS : list string := *) *) *)
-(* (* (*     "rmm_el3_ifc_gtsi_delegate" :: *) *) *)
-(* (* (*       "rmm_el3_ifc_gtsi_undelegate" :: *) *) *)
-(* (* (*       nil. *) *) *)
-(* (* (* End EL3IFC. *) *) *)
+Section RTTFold.
+  Definition LAYER_DATA := RData.
+  Definition LAYER_CODE : string := "./rmm.json".
+  Definition LAYER_LOAD : string := "load_RData".
+  Definition LAYER_STORE : string := "store_RData".
+  Definition LAYER_ALLOC : string := "alloc_stack".
+  Definition LAYER_FREE : string := "free_stack".
+  Definition LAYER_PTR2INT : string := "ptr_to_int".
+  Definition LAYER_INT2PTR : string := "int_to_ptr".
+  Definition LAYER_PTR_EQB : string := "ptr_eqb".
+  Definition LAYER_PTR_GTB : string := "ptr_gtb".
+  Definition LAYER_PTR_LTB : string := "ptr_ltb".
+  Definition LAYER_NEW_FRAME : string := "new_frame".
+  Definition LAYER_PRIMS : list string :=
+    "table_is_destroyed_block" ::
+      "table_is_unassigned_block" ::
+      "table_maps_assigned_block" ::
+      "table_maps_valid_block" ::
+      "table_maps_valid_ns_block" ::
+      nil.
 
-(* Section SMCHandler. *)
-(*   Definition LAYER_DATA := RData. *)
-(*   Definition LAYER_CODE : string := "./rmm.json". *)
-(*   Definition LAYER_LOAD : string := "load_RData". *)
-(*   Definition LAYER_STORE : string := "store_RData". *)
-(*   Definition LAYER_ALLOC : string := "alloc_stack". *)
-(*   Definition LAYER_FREE : string := "free_stack". *)
-(*   Definition LAYER_PTR2INT : string := "ptr_to_int". *)
-(*   Definition LAYER_INT2PTR : string := "int_to_ptr". *)
-(*   Definition LAYER_PTR_EQB : string := "ptr_eqb". *)
-(*   Definition LAYER_PTR_GTB : string := "ptr_gtb". *)
-(*   Definition LAYER_PTR_LTB : string := "ptr_ltb". *)
-(*   Definition LAYER_NEW_FRAME : string := "new_frame". *)
-(*   Definition LAYER_PRIMS : list string := *)
-(*     (* "smc_granule_delegate" :: *) *)
-(*     (*   "smc_granule_undelegate" :: *) *)
-(*     "smc_rtt_create" :: *)
-(*       "smc_rtt_destroy" :: *)
-(*       "smc_version" :: *)
-(*       "smc_realm_activate" :: *)
-(*         nil. *)
+  Include "ProofRTT/.CachedSpec/RTTFoldSpec.v".
+End RTTFold.
 
-(*   Hint NoUnfold smc_rtt_create_0. *)
-(*   Hint NoUnfold smc_rtt_create_1. *)
-(*   Hint NoUnfold smc_rtt_create_2. *)
-(*   Hint NoUnfold smc_rtt_create_3. *)
-(*   Hint NoUnfold smc_rtt_create_4. *)
-(*   Hint NoUnfold smc_rtt_create_5. *)
-(*   Hint NoUnfold smc_rtt_create_6. *)
-(*   (* Hint NoTrans smc_rtt_destroy_spec. *) *)
-(*   Hint NoUnfold smc_rtt_destroy_1. *)
-(*   Hint NoUnfold smc_rtt_destroy_2. *)
-(*   Hint NoUnfold smc_rtt_destroy_3. *)
-(*   Include "SMCHandlerSpec.v". *)
-(*   Include "SMCHandlerLow.v". *)
+Section S2TTInit.
+  Definition LAYER_DATA := RData.
+  Definition LAYER_CODE : string := "./rmm.json".
+  Definition LAYER_LOAD : string := "load_RData".
+  Definition LAYER_STORE : string := "store_RData".
+  Definition LAYER_ALLOC : string := "alloc_stack".
+  Definition LAYER_FREE : string := "free_stack".
+  Definition LAYER_PTR2INT : string := "ptr_to_int".
+  Definition LAYER_INT2PTR : string := "int_to_ptr".
+  Definition LAYER_PTR_EQB : string := "ptr_eqb".
+  Definition LAYER_PTR_GTB : string := "ptr_gtb".
+  Definition LAYER_PTR_LTB : string := "ptr_ltb".
+  Definition LAYER_NEW_FRAME : string := "new_frame".
+  Definition LAYER_PRIMS : list string :=
+    "s2tt_init_valid_ns" ::
+      "s2tt_init_valid" ::
+      "s2tt_init_assigned_empty" ::
+      "s2tt_init_destroyed" ::
+      "s2tt_init_unassigned" ::
+      "realm_ipa_get_ripas" ::
+      "realm_ipa_to_pa" ::
+      nil.
 
-(*   (* Conditional Spec *) *)
-(*   (* Rely projection *) *)
-(* End SMCHandler. *)
+  Hint InitRely realm_ipa_get_ripas (v_rec.(pbase) = "slot_rec" /\ v_rec.(poffset) = 0 /\
+                                       v_ripas_ptr.(pbase) = "handle_rsi_ipa_state_get_stack" /\
+                                       v_rtt_level.(pbase) = "handle_rsi_ipa_state_get_stack").
+  Hint InitRely realm_ipa_to_pa (v_rd.(pbase) = "slot_rd" /\
+                                   ((v_s2_walk.(pbase) = "rsi_walk_smc_result_stack") \/
+                                      (v_s2_walk.(pbase) = "do_host_call_stack") \/
+                                      (v_s2_walk.(pbase) = "attest_token_continue_write_state_stack"))).
+
+  Hint NoUnfold realm_ipa_to_pa_spec.
+  Hint NoUnfold realm_ipa_get_ripas_spec.
+  (* Hint NoTrans realm_ipa_get_ripas_spec. *)
+  Hint NoTrans realm_ipa_to_pa_spec.
+ (* Need fill in: *)
+  Definition s2tt_init_valid_ns_loop738_rank (v_call: Z) (v_indvars_iv: Z) (v_level: Z) (v_pa_addr_05: Z) (v_s2tt: Ptr) : Z :=
+    512 - v_indvars_iv.
+  Hint InitRely s2tt_init_valid_ns (v_s2tt.(pbase) = "slot_delegated").
+  Hint InitRely s2tt_init_valid_ns_loop738 (v_s2tt.(pbase) = "slot_delegated").
+
+  (* Need fill in: *)
+  Definition s2tt_init_valid_loop719_rank (v_call: Z) (v_indvars_iv: Z) (v_level: Z) (v_pa_addr_05: Z) (v_s2tt: Ptr) : Z :=
+    512 - v_indvars_iv.
+  Hint InitRely s2tt_init_valid (v_s2tt.(pbase) = "slot_delegated").
+  Hint InitRely s2tt_init_valid_loop719 (v_s2tt.(pbase) = "slot_delegated").
+
+  (* Need fill in: *)
+  Definition s2tt_init_assigned_empty_loop700_rank (v_call: Z) (v_indvars_iv: Z) (v_level: Z) (v_pa_addr_05: Z) (v_s2tt: Ptr) : Z :=
+    512 - v_indvars_iv.
+  Hint InitRely s2tt_init_assigned_empty (v_s2tt.(pbase) = "slot_delegated").
+  Hint InitRely s2tt_init_assigned_empty_loop700 (v_s2tt.(pbase) = "slot_delegated").
+
+  (* Need fill in: *)
+  Definition s2tt_init_destroyed_loop0_rank (v_index: Z) (v_s2tt: Ptr) : Z :=
+    256 - v_index/2.
+  Hint InitRely s2tt_init_destroyed (v_s2tt.(pbase) = "slot_delegated").
+  Hint InitRely s2tt_init_destroyed_loop0 (v_s2tt.(pbase) = "slot_delegated").
+
+  (* Need fill in: *)
+  Definition s2tt_init_unassigned_loop0_rank (v_call: Z) (v_index: Z) (v_s2tt: Ptr) : Z :=
+    256 - v_index/2.
+  Hint InitRely s2tt_init_unassigned (v_s2tt.(pbase) = "slot_delegated").
+  Hint InitRely s2tt_init_unassigned_loop0 (v_s2tt.(pbase) = "slot_delegated").
+
+  Include "S2TTInitLow.v".
+  Include "ProofRTT/.CachedSpec/S2TTInitSpec.v".
+End S2TTInit.
+
+Section ExceptionOps.
+  Definition LAYER_DATA := RData.
+  Definition LAYER_CODE : string := "./rmm.json".
+  Definition LAYER_LOAD : string := "load_RData".
+  Definition LAYER_STORE : string := "store_RData".
+  Definition LAYER_ALLOC : string := "alloc_stack".
+  Definition LAYER_FREE : string := "free_stack".
+  Definition LAYER_PTR2INT : string := "ptr_to_int".
+  Definition LAYER_INT2PTR : string := "int_to_ptr".
+  Definition LAYER_PTR_EQB : string := "ptr_eqb".
+  Definition LAYER_PTR_GTB : string := "ptr_gtb".
+  Definition LAYER_PTR_LTB : string := "ptr_ltb".
+  Definition LAYER_NEW_FRAME : string := "new_frame".
+  Definition LAYER_PRIMS : list string :=
+    (* "ipa_is_empty" :: *)
+    (*   "access_in_rec_par" :: *)
+    (*   "fixup_aarch32_data_abort" :: *)
+    (*   "get_dabt_write_value" :: *)
+    (*   "handle_sync_external_abort" :: *)
+    (*   "emulate_sysreg_access_ns" :: *)
+    (*   "handle_rsi_ipa_state_get" :: *)
+      (* Attestation, move to bottom *)
+      (* "attest_token_continue_write_state" :: *)
+      (* "verify_input_parameters_consistency" :: *)
+      (* "attest_token_continue_sign_state" :: *)
+      (* "psci_rsi" :: *)
+      "data_create" ::
+      nil.
+
+  Hint InitRely data_create (v_g_src.(pbase) = "granules" \/ v_g_src.(pbase) = "null").
+  Hint NoUnfold data_create_1.
+  Hint NoUnfold data_create_2.
+  Hint NoUnfold data_create_3.
+  Hint NoUnfold data_create_4.
+  Hint NoUnfold data_create_5.
+  (* Hint NoTrans data_create_spec. *)
+
+  (* Hint NoTrans handle_rsi_ipa_state_get_spec_mid. *)
+  (* Hint NoTrans data_create_spec_mid. *)
+
+  Include "ExceptionOpsSpec.v"
+  Include "ExceptionOpsLow.v".
+
+End ExceptionOps.
+
+(* (* Section EL3IFC. *) *)
+(* (*   Definition LAYER_DATA := RData. *) *)
+(* (*   Definition LAYER_CODE : string := "./rmm.json". *) *)
+(* (*   Definition LAYER_LOAD : string := "load_RData". *) *)
+(* (*   Definition LAYER_STORE : string := "store_RData". *) *)
+(* (*   Definition LAYER_ALLOC : string := "alloc_stack". *) *)
+(* (*   Definition LAYER_FREE : string := "free_stack". *) *)
+(* (*   Definition LAYER_PTR2INT : string := "ptr_to_int". *) *)
+(* (*   Definition LAYER_INT2PTR : string := "int_to_ptr". *) *)
+(* (*   Definition LAYER_PTR_EQB : string := "ptr_eqb". *) *)
+(* (*   Definition LAYER_PTR_GTB : string := "ptr_gtb". *) *)
+(* (*   Definition LAYER_PTR_LTB : string := "ptr_ltb". *) *)
+(* (*   Definition LAYER_PRIMS : list string := *) *)
+(* (*     "rmm_el3_ifc_gtsi_delegate" :: *) *)
+(* (*       "rmm_el3_ifc_gtsi_undelegate" :: *) *)
+(* (*       nil. *) *)
+(* (* End EL3IFC. *) *)
+
+Section SMCHandler.
+  Definition LAYER_DATA := RData.
+  Definition LAYER_CODE : string := "./rmm.json".
+  Definition LAYER_LOAD : string := "load_RData".
+  Definition LAYER_STORE : string := "store_RData".
+  Definition LAYER_ALLOC : string := "alloc_stack".
+  Definition LAYER_FREE : string := "free_stack".
+  Definition LAYER_PTR2INT : string := "ptr_to_int".
+  Definition LAYER_INT2PTR : string := "int_to_ptr".
+  Definition LAYER_PTR_EQB : string := "ptr_eqb".
+  Definition LAYER_PTR_GTB : string := "ptr_gtb".
+  Definition LAYER_PTR_LTB : string := "ptr_ltb".
+  Definition LAYER_NEW_FRAME : string := "new_frame".
+  Definition LAYER_PRIMS : list string :=
+    (* "smc_granule_delegate" :: *)
+    (*   "smc_granule_undelegate" :: *)
+    (* "smc_rtt_create" :: *)
+    (*   "smc_rtt_destroy" :: *)
+    (*   "smc_version" :: *)
+    (*   "smc_realm_activate" :: *)
+    (*   "smc_rtt_map_unprotected" :: *)
+    (*   "smc_rtt_unmap_unprotected" :: *)
+    (*   "smc_data_create" :: *)
+    (*   "smc_data_create_unknown" :: *)
+      "smc_rtt_set_ripas" ::
+      (* "smc_rtt_fold" :: *)
+        nil.
+
+  Hint NoUnfold smc_rtt_create_0.
+  Hint NoUnfold smc_rtt_create_1.
+  Hint NoUnfold smc_rtt_create_2.
+  Hint NoUnfold smc_rtt_create_3.
+  Hint NoUnfold smc_rtt_create_4.
+  Hint NoUnfold smc_rtt_create_5.
+  Hint NoUnfold smc_rtt_create_6.
+  (* Hint NoTrans smc_rtt_destroy_spec. *)
+  Hint NoUnfold smc_rtt_destroy_1.
+  Hint NoUnfold smc_rtt_destroy_2.
+  Hint NoUnfold smc_rtt_destroy_3.
+
+  Hint NoTrans smc_rtt_set_ripas_spec.
+  Hint NoUnfold smc_rtt_set_ripas_1.
+  Hint NoUnfold smc_rtt_set_ripas_2.
+  Hint NoUnfold smc_rtt_set_ripas_3.
+  Hint NoUnfold smc_rtt_set_ripas_4.
+  Hint NoUnfold smc_rtt_set_ripas_5.
+
+  (* Hint NoTrans smc_rtt_fold_spec. *)
+
+  Hint NoUnfold smc_rtt_unfold_1.
+  Hint NoUnfold smc_rtt_unfold_2.
+  Hint NoUnfold smc_rtt_unfold_3.
+  Hint NoUnfold smc_rtt_unfold_4.
+  Hint NoUnfold smc_rtt_unfold_5.
+
+  Include "SMCHandlerSpec.v".
+  Include "SMCHandlerLow.v".
+
+  (* Conditional Spec *)
+  (* Rely projection *)
+End SMCHandler.

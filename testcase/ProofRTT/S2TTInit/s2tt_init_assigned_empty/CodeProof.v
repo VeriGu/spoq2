@@ -2,7 +2,7 @@ Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
-Require Import S2TTCreate.Layer.
+Require Import RTTFold.Layer.
 Require Import S2TTInit.s2tt_init_assigned_empty.LowSpec.
 Require Import Zwf.
 
@@ -17,7 +17,7 @@ Section S2TTInit_s2tt_init_assigned_empty_CodeProof.
     Lemma f_s2tt_init_assigned_empty_correct:
       forall v_s2tt v_pa v_level st st'
              (Hspec: s2tt_init_assigned_empty_spec_low v_s2tt v_pa v_level st = Some st'),
-        exec_func S2TTCreate_layer code "s2tt_init_assigned_empty"
+        exec_func RTTFold_layer code "s2tt_init_assigned_empty"
                   [VPtr v_s2tt; VInt v_pa; VInt v_level]
                   st st' None.
 Admitted.

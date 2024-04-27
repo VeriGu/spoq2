@@ -2,7 +2,7 @@ Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
-Require Import S2TTCreate.Layer.
+Require Import RTTFold.Layer.
 Require Import S2TTInit.s2tt_init_unassigned.LowSpec.
 Require Import Zwf.
 
@@ -17,7 +17,7 @@ Section S2TTInit_s2tt_init_unassigned_CodeProof.
     Lemma f_s2tt_init_unassigned_correct:
       forall v_s2tt v_ripas st st'
              (Hspec: s2tt_init_unassigned_spec_low v_s2tt v_ripas st = Some st'),
-        exec_func S2TTCreate_layer code "s2tt_init_unassigned"
+        exec_func RTTFold_layer code "s2tt_init_unassigned"
                   [VPtr v_s2tt; VInt v_ripas]
                   st st' None.
 Admitted.

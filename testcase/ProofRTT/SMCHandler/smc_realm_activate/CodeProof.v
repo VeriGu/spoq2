@@ -1,8 +1,8 @@
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
+Require Import ExceptionOps.Layer.
 Require Import GlobalDefs.
-Require Import S2TTInit.Layer.
 Require Import SMCHandler.smc_realm_activate.LowSpec.
 Require Import Zwf.
 
@@ -17,7 +17,7 @@ Section SMCHandler_smc_realm_activate_CodeProof.
     Lemma f_smc_realm_activate_correct:
       forall v_rd_addr st st' res
              (Hspec: smc_realm_activate_spec_low v_rd_addr st = Some (res, st')),
-        exec_func S2TTInit_layer code "smc_realm_activate"
+        exec_func ExceptionOps_layer code "smc_realm_activate"
                   [VInt v_rd_addr]
                   st st' (Some (VInt res)).
     Proof.

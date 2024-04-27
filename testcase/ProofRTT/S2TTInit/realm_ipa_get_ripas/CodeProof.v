@@ -2,7 +2,7 @@ Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
-Require Import S2TTCreate.Layer.
+Require Import RTTFold.Layer.
 Require Import S2TTInit.realm_ipa_get_ripas.LowSpec.
 Require Import Zwf.
 
@@ -17,7 +17,7 @@ Section S2TTInit_realm_ipa_get_ripas_CodeProof.
     Lemma f_realm_ipa_get_ripas_correct:
       forall v_rec v_ipa v_ripas_ptr v_rtt_level st st' res
              (Hspec: realm_ipa_get_ripas_spec_low v_rec v_ipa v_ripas_ptr v_rtt_level st = Some (res, st')),
-        exec_func S2TTCreate_layer code "realm_ipa_get_ripas"
+        exec_func RTTFold_layer code "realm_ipa_get_ripas"
                   [VPtr v_rec; VInt v_ipa; VPtr v_ripas_ptr; VPtr v_rtt_level]
                   st st' (Some (VInt res)).
 Admitted.

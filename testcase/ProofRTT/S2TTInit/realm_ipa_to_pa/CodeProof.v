@@ -2,7 +2,7 @@ Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
-Require Import S2TTCreate.Layer.
+Require Import RTTFold.Layer.
 Require Import S2TTInit.realm_ipa_to_pa.LowSpec.
 Require Import Zwf.
 
@@ -17,7 +17,7 @@ Section S2TTInit_realm_ipa_to_pa_CodeProof.
     Lemma f_realm_ipa_to_pa_correct:
       forall v_rd v_ipa v_s2_walk st st' res
              (Hspec: realm_ipa_to_pa_spec_low v_rd v_ipa v_s2_walk st = Some (res, st')),
-        exec_func S2TTCreate_layer code "realm_ipa_to_pa"
+        exec_func RTTFold_layer code "realm_ipa_to_pa"
                   [VPtr v_rd; VInt v_ipa; VPtr v_s2_walk]
                   st st' (Some (VInt res)).
     Proof.
