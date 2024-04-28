@@ -4,6 +4,8 @@
 
 namespace autov {
 
+extern unordered_map<unsigned long, bool> converged_spec;
+
 unsigned long mono_lens_id = 0;
 
 static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group1 = {
@@ -52,7 +54,7 @@ extern unordered_map<size_t, Z3Result> Z3Cache;
 void spec_transformer(Project *proj, Definition *def) {
     LOG_INFO << "Transforming " << def->name;
     std::cout << string(*def) << std::endl;
-    bool debug = (def->name.rfind("map_unmap_ns", 0) == 0);
+    bool debug = (def->name.rfind("smc_rtt_set_ripas", 0) == 0);
     auto known = std::set<string>();
     auto fname = def->name;
 
@@ -62,6 +64,8 @@ void spec_transformer(Project *proj, Definition *def) {
 
     if (debug)
         std::cout << "debug" << std::endl;
+
+    converged_spec.clear();
 
     while(true) {
         auto new_spec = def->body.release();

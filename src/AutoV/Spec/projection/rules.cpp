@@ -796,10 +796,7 @@ rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec) {
 
                             if (auto rec_e = instance_of(rec, Expr)) {
                                 bool __this_changed = false;
-                                auto orig = string(*e);
                                 auto ret = remove_expr_lens(rec_e, __this_changed);
-
-                                changed |= __this_changed;
 
                                 if (ret != rec_e) {
                                     // 3.4. lens x (lens y st).[z] :< v ==> lens x st.[z] :< v
@@ -823,9 +820,28 @@ rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec) {
                                     new_elems->push_back(std::move(ee->elems->at(i)));
 
                                 auto new_expr = new Expr(Expr::RecordSet, std::move(new_elems), lens_type);
+                                changed = true;
 
-                                if (__this_changed)
-                                    std::cout << "Simplify lens: " << orig << " to " << string(*new_expr) << std::endl;
+                                return new_expr;
+                            } else {
+                                // 3.3 lens (st.[y] :< v) ==> (lens st).[y] :< v
+                                assert(is_instance(rec, Symbol));
+
+                                auto lens_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                                auto lens_type = ee->elems->at(0)->get_type();
+
+                                lens_elems->push_back(make_unique<IntConst>(get_mono_lens_id()));
+                                lens_elems->push_back(ee->elems->at(0)->deep_copy());
+                                auto lens_expr = make_unique<Expr>("lens", std::move(lens_elems), lens_type);
+
+                                auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                                new_elems->push_back(std::move(lens_expr));
+                                for (int i = 1; i < ee->elems->size(); i++)
+                                    new_elems->push_back(std::move(ee->elems->at(i)));
+
+                                auto new_expr = new Expr(Expr::RecordSet, std::move(new_elems), lens_type);
+
+                                changed = true;
 
                                 return new_expr;
                             }
@@ -1440,13 +1456,13 @@ rule_ret_t rule_eliminate_when(Project *proj, SpecNode *spec) {
                         auto body = subst_when(m->body);
                         if(body == nullptr)
                             return nullptr;
-                        auto new_rely = new Rely(std::move(m->prop), unique_ptr<SpecNode>(body));
+                        auto new_rely = new Rely(m->prop->deep_copy(), unique_ptr<SpecNode>(body));
                         return new_rely;
                     } else if(auto m = instance_of(node.get(), Anno)) {
                         auto body = subst_when(m->body);
                         if(body == nullptr)
                             return nullptr;
-                        auto new_anno = new Anno(std::move(m->prop), unique_ptr<SpecNode>(body));
+                        auto new_anno = new Anno(m->prop->deep_copy(), unique_ptr<SpecNode>(body));
                         return new_anno;
                     } else if(auto m = instance_of(node.get(), If)) {
                         auto then_body = subst_when(m->then_body);

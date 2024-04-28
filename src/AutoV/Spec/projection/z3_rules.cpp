@@ -9,7 +9,7 @@
 #include <rules.h>
 #include <z3_rules.h>
 #include <vector>
-
+#include <boost/functional/hash.hpp>
 
 namespace autov
 {
@@ -142,11 +142,13 @@ rule_ret_t remove_rely_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState
 
 rule_ret_t simple_rely_by_z3(Project* proj, Rely* spec, shared_ptr<EvalState> state) {
     bool changed = false;
+    auto orig_prop = string(*spec->prop);
     auto ret = rule_simple_by_z3(proj, spec->prop.release(), state);
     changed |= ret.second;
     auto cond = ret.first;
     if (cond == nullptr) {
         delete spec;
+        //throw std::runtime_error("Rely condition is false: " + orig_prop);
         return std::make_pair(nullptr, changed);
     }
     auto c = z3_eval(proj, cond, state);
@@ -161,6 +163,7 @@ rule_ret_t simple_rely_by_z3(Project* proj, Rely* spec, shared_ptr<EvalState> st
         if (body == nullptr) {
             delete cond;
             delete spec;
+            //throw std::runtime_error("Rely condition is false1: " + orig_prop);
             return std::make_pair(nullptr, changed);
         }
         return std::make_pair(new Rely(unique_ptr<SpecNode>(cond), unique_ptr<SpecNode>(body)), changed);
@@ -172,6 +175,7 @@ rule_ret_t simple_rely_by_z3(Project* proj, Rely* spec, shared_ptr<EvalState> st
     } else {
         delete cond;
         delete spec;
+        //throw std::runtime_error("Rely condition is false2: " + orig_prop);
         return std::make_pair(nullptr, true);
     }
 }
@@ -180,13 +184,14 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
     bool changed = false;
     // auto orig_then = string(*spec->then_body);
     // auto orig_else = string(*spec->else_body);
-    // auto orig_cond = string(*spec->cond);
+    auto orig_cond = string(*spec->cond);
 
     auto cond_ret = rule_simple_by_z3(proj, spec->cond.release(), state);
     //std::cout << "simple_if_by_z3: orig_cond: " << orig_cond << std::endl;
     if (cond_ret.first == nullptr) {
         delete spec;
-        //std::cout << "simple_if_by_z3: cond_ret.first is nullptr" << std::endl;
+        throw std::runtime_error("If condition is false3: " + orig_cond);
+        //std::cout << "simple_if_by_z3: nullptr orig_cond: " << orig_cond << std::endl;
         return std::make_pair(nullptr, cond_ret.second);
     }
     // std::cout << "simple_if_by_z3: cond_ret.first: " << string(*cond_ret.first) << std::endl;
@@ -198,7 +203,7 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
     //     std::cout << "simple_if_by_z3: c: " << c->get_z3_value() << ", hash: " << c->get_z3_value().hash() << std::endl;
     // }
     auto res = z3_check(state, c->get_z3_value(), 50);
-    //std::cout << "simple_if_by_z3: res: " << (res == Z3Result::True ? "True" : res == Z3Result::False ? "False" : "Unknown") << std::endl;
+
     if (res == Z3Result::Unknown) {
         auto unknown_value = c->get_z3_value();
         //auto then_state = state->copy();
@@ -246,6 +251,7 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
 
         if (then_ret.first == nullptr && else_ret.first == nullptr) {
             delete cond_ret.first;
+            //throw std::runtime_error("If condition is false4: " + orig_cond);
             return std::make_pair(nullptr, changed);
         } else if (then_ret.first == nullptr && is_instance(else_ret.first->get_type().get(), Option)) {
             auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
@@ -369,9 +375,11 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
 }
 
 rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> state) {
+    string orig_src = string(*spec->src);
     auto src_ret = rule_simple_by_z3(proj, spec->src.release(), state);
     if (src_ret.first == nullptr) {
         delete spec;
+        //throw std::runtime_error("Match source is false: " + orig_src);
         return std::make_pair(nullptr, true);
     }
     auto src_val = z3_eval(proj, src_ret.first, state);
@@ -430,6 +438,7 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
 
     if (match_list->size() == 0) {
         delete spec;
+        //throw std::runtime_error("Match list is empty: " + orig_src);
         return std::make_pair(nullptr, true);
     } else {
         bool only_none = true;
@@ -769,6 +778,7 @@ SpecNode* reconstruct_zmap(Project* proj, SpecNode* spec, shared_ptr<EvalState> 
 rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> state) {
     auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
     bool changed = false;
+    //auto orig_spec_str = string(*spec);
     Expr *orig_spec = spec;
 
     if (auto op = std::get_if<Expr::ops>(&spec->op)) {
@@ -781,6 +791,7 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
         changed |= ret.second;
         if (ret.first == nullptr) {
             delete orig_spec;
+            //throw std::runtime_error("simple_expr_by_z3: elem is nullptr: " + orig_spec_str);
             return std::make_pair(nullptr, true);
         }
         elems->push_back(unique_ptr<SpecNode>(ret.first));
@@ -794,15 +805,20 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
 
     if ((spec->get_type() == Int::INT || spec->get_type() == Bool::BOOL)
          && length_of_exp(spec) <= 20) {
-        auto expr = reconstruct_expr(exp_val->get_z3_value(), subexprs, state);
+        auto _expr = reconstruct_expr(exp_val->get_z3_value(), subexprs, state);
+        unique_ptr<SpecNode> expr;
+        if (_expr) {
+            expr = _expr->deep_copy();
+        }
 
         for (auto s = subexprs.begin(); s != subexprs.end(); ++s)
-            if (s->second.second != expr)
+            if (s->second.second != _expr) {
                 delete s->second.second;
+            }
 
-        if (expr && length_of_exp(expr) < length_of_exp(spec)) {
+        if (expr && length_of_exp(expr.get()) < length_of_exp(spec)) {
             delete spec;
-            return std::make_pair(expr, true);
+            return std::make_pair(expr.release(), true);
         }
     }
 
@@ -852,33 +868,43 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
     return std::make_pair(spec, changed);
 }
 
+unordered_map<size_t, bool> converged_spec;
+unordered_map<size_t, string> spec_hash_collisions;
+#define Z3_OPT_CACHE
+
 rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState> state)
 {
+    rule_ret_t ret;
+#ifdef Z3_OPT_CACHE
+    size_t spec_hash = boost::hash<string>()(string(*spec));
+
+
+    if (converged_spec.find(spec_hash) != converged_spec.end()) {
+        if (spec_hash_collisions.find(spec_hash) != spec_hash_collisions.end() && string(*spec) != spec_hash_collisions[spec_hash]) {
+            std::cout << "Collision: " << spec_hash_collisions[spec_hash] << " vs " << string(*spec) << std::endl;
+            throw std::runtime_error("Collision: " + spec_hash_collisions[spec_hash] + " vs " + string(*spec));
+        }
+    }
+
+    if (converged_spec.find(spec_hash) != converged_spec.end())
+        return std::make_pair(spec, false);
+#endif
+
     state = state->copy();
     if (is_instance(spec, Symbol)) {
-        return std::make_pair(spec, false);
-    }
-    else if (is_instance(spec, Const)) {
-        return std::make_pair(spec, false);
-    }
-    else if (auto expr = instance_of(spec, Expr))
-    {
-        return simple_expr_by_z3(proj, expr, state);
-    }
-    else if (auto match = instance_of(spec, Match))
-    {
-        return simple_match_by_z3(proj, match, state);
-    }
-    else if (auto rely = instance_of(spec, Rely))
-    {
-        return simple_rely_by_z3(proj, rely, state);
-    }
-    else if (auto if_ = instance_of(spec, If))
-    {
-        return simple_if_by_z3(proj, if_, state);
-    }
-    else if (auto forall = instance_of(spec, Forall))
-    {
+        ret = std::make_pair(spec, false);
+    } else if (is_instance(spec, Const)) {
+        ret = std::make_pair(spec, false);
+    } else if (auto expr = instance_of(spec, Expr)) {
+        auto orig = string(*spec);
+        ret = simple_expr_by_z3(proj, expr, state);
+    } else if (auto match = instance_of(spec, Match)) {
+        ret = simple_match_by_z3(proj, match, state);
+    } else if (auto rely = instance_of(spec, Rely)) {
+        ret = simple_rely_by_z3(proj, rely, state);
+    } else if (auto if_ = instance_of(spec, If)) {
+        ret = simple_if_by_z3(proj, if_, state);
+    } else if (auto forall = instance_of(spec, Forall)) {
         for (auto v : *forall->vars)
         {
             state->vars->emplace(v->name, v->type->declare(v->name, forall->nid));
@@ -886,10 +912,8 @@ rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState
         auto res = rule_simple_by_z3(proj, forall->body.release(), state);
         auto new_forall = new Forall(std::move(forall->vars), unique_ptr<SpecNode>(res.first));
         delete spec;
-        return std::make_pair(new_forall, res.second);
-    }
-    else if (auto exists = instance_of(spec, Exists))
-    {
+        ret = std::make_pair(new_forall, res.second);
+    } else if (auto exists = instance_of(spec, Exists)) {
         for (auto v : *exists->vars)
         {
             state->vars->emplace(v->name, v->type->declare(v->name, forall->nid));
@@ -897,12 +921,18 @@ rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState
         auto res = rule_simple_by_z3(proj, exists->body.release(), state);
         auto new_exists = new Exists(std::move(exists->vars), unique_ptr<SpecNode>(res.first));
         delete spec;
-        return std::make_pair(new_exists, res.second);
-    }
-    else
-    {
+        ret = std::make_pair(new_exists, res.second);
+    } else {
         throw std::runtime_error("Unknown node type: " + std::string(typeid(spec).name()));
     }
+
+#ifdef Z3_OPT_CACHE
+    if (!ret.second) {
+        converged_spec.emplace(spec_hash, true);
+    }
+#endif
+
+    return ret;
 }
 
 bool rule_check_pure_by_z3(Project* proj, SpecNode* spec, shared_ptr<StructValue> in_st)
