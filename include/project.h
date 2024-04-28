@@ -6,6 +6,7 @@
 #include <log.h>
 #include <unordered_set>
 #include <llvm.h>
+#include <mutex>
 
 
 namespace autov {
@@ -74,18 +75,22 @@ public:
     string name;
     string base;
     shared_ptr<IRModule> code;
+
+    // Types. RO after parsing.
     unordered_map<string, shared_ptr<Struct>> structs;
     unordered_map<string, shared_ptr<Inductive>> indtypes;
     unordered_map<string, shared_ptr<SpecType>> typedefs;
+
+    // Axioms/layers. RO after parsing.
+    vector<unique_ptr<Expr>> axioms;
+    vector<unique_ptr<Layer>> layers;
+    unordered_map<string, string> includes;
+
     unordered_map<string, unique_ptr<Declaration>> decls;
     unordered_map<string, unique_ptr<Definition>> defs;
     vector<string> def_order;
-    vector<unique_ptr<Expr>> axioms;
-
     unordered_map<string, SymbolInfo> symbols;
 
-    unordered_map<string, string> includes;
-    vector<unique_ptr<Layer>> layers;
 
     class cmds {
     public:

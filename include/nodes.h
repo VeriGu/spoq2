@@ -1220,6 +1220,7 @@ public:
     vector<string> prims;
     string code; // Temp until we ported the IRModule class
     vector<string> passthrough;
+    unordered_map<string, std::set<string>> prim_deps;
 
     Layer() { throw std::invalid_argument("Layer must have a name, abs_data, ops, prims, and code"); }
     Layer(string name) : name(name) {}

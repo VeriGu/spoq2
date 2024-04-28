@@ -350,100 +350,105 @@ static std::set<string> get_prim_dependencies(const vector<unique_ptr<IRLoader::
     return deps;
 }
 
+static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string fname, bool &have_loop, bool &have_sub,
+                                            std::unordered_map<string, string> &name_map) {
+    vector<Definition *> *low_specs = nullptr;
+    string low_name = fname + "_spec_low";
+     auto &L = proj->layers[layer_id];
+
+    // =========================================================================
+    // Generate/collect low specs
+    // =========================================================================
+    if (proj->defs.find(low_name) == proj->defs.end()) {
+        // Generate low spec if not provided
+        string suffix = "_low";
+        low_specs = ir_to_spec(proj, fname, L.get(), suffix);
+
+        for (auto &def: *low_specs) {
+            LOG_INFO << "Generate low definition " << def->name << ", Fixpoint: " << is_instance(def, Fixpoint);
+            proj->deps[fname] = proj->calc_dependencies(def->body.get());
+
+            if (is_instance(def, Fixpoint)) {
+                proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(def)),
+                                     make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
+            } else
+                proj->add_definition(unique_ptr<Definition>(def),
+                                     make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
+
+            if (def->name.rfind(suffix) == def->name.size() - suffix.size()) {
+                std::string high_name = def->name.substr(0, def->name.size() - suffix.size());
+                name_map[def->name] = high_name;
+            }
+
+            if (is_instance(def, Fixpoint))
+                have_loop = true;
+        }
+    } else {
+        // Otherwise, the loop/sub/low spec is provided.
+        auto func = proj->code->functions->at(fname);
+        // The name of the low spec may have three forms: `fname_loop\d+_low`, `fname_\d+_low`, "fname_spec_low"
+        std::regex pattern1(fname + "_loop\\d+_low");
+        std::regex pattern2(fname + "_\\d+_low");
+        string low_name = fname + "_spec_low";
+
+        func->types = make_unique<unordered_map<string, shared_ptr<SpecType>>>();
+        func->types->emplace("st", L->abs_data);
+        analyze_types(func->body.get(), func->types.get());
+
+        low_specs = new vector<Definition *>();
+
+        // Since low spec might be provided and we don't know the name of the low spec, we cannot directly get the
+        // spec Definition object from `proj->defs`. Instead, we need to iterate through all the definitions and
+        // check if the name matches the pattern.
+        for (auto &spec_name : proj->def_order) {
+            auto &spec = proj->defs[spec_name];
+            bool is_loop = false, is_sub = false;
+
+            if (std::regex_match(spec_name, pattern1)) {
+                is_loop = true;
+                have_loop = true;
+            } else if (std::regex_match(spec_name, pattern2)) {
+                is_sub = true;
+                have_sub = true;
+            }
+
+            if (spec_name == low_name || is_loop || is_sub) {
+                auto high_name = spec_name.substr(0, spec_name.size() - 4);
+
+                low_specs->push_back(spec.get());
+                proj->update_symbol_loc(spec_name, make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
+
+                name_map[spec_name] = high_name;
+            }
+        }
+    }
+
+    return low_specs;
+}
+
 static std::tuple<string, vector<Definition *> *, vector<unique_ptr<Definition>> *>
 infer_spec_task(Project *proj, int layer_id, string fname) {
     auto &L = proj->layers[layer_id];
     vector<Definition *> *low_specs;
     string low_name = fname + "_spec_low";
-    std::unordered_map<string, string> name_map;
+    std::unordered_map<string, string> name_map; // low_name -> high_name
     bool have_loop = false, have_sub = false;
 
-    // Generate/collate low specs
-    if (proj->code->functions->find(fname) != proj->code->functions->end()) {
-        if (proj->defs.find(low_name) == proj->defs.end()) {
-            // Generate low spec if not provided
-            string suffix = "_low";
-            low_specs = ir_to_spec(proj, fname, L.get(), suffix);
-
-            for (auto &def: *low_specs) {
-                LOG_INFO << "Add definition " << def->name << ", Fixpoint: " << is_instance(def, Fixpoint);
-                proj->deps[def->name] = proj->calc_dependencies(def->body.get());
-
-                if (is_instance(def, Fixpoint)) {
-                    proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(def)), make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
-                } else
-                    proj->add_definition(unique_ptr<Definition>(def), make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
-
-                if (def->name.rfind(suffix) == def->name.size() - suffix.size()) {
-                    std::string high_name = def->name.substr(0, def->name.size() - suffix.size());
-                    name_map[def->name] = high_name;
-                }
-
-                if (is_instance(def, Fixpoint))
-                    have_loop = true;
-            }
-        } else {
-            auto func = proj->code->functions->at(fname);
-            std::regex pattern1(fname + "_loop\\d+_low");
-            std::regex pattern2(fname + "_\\d+_low");
-
-            func->types = make_unique<unordered_map<string, shared_ptr<SpecType>>>();
-            func->types->emplace("st", L->abs_data);
-            analyze_types(func->body.get(), func->types.get());
-
-            low_specs = new vector<Definition *>();
-
-            // Since loop spec might be provided and we don't know the name of the loop spec, we cannot directly get the
-            // spec Definition object from `proj->defs`. Instead, we need to iterate through all the definitions and
-            // check if the name matches the pattern.
-            for (auto &spec_name : proj->def_order) {
-                auto &spec = proj->defs[spec_name];
-                bool is_loop = false, is_sub = false;
-
-                if (std::regex_match(spec_name, pattern1)) {
-                    is_loop = true;
-                    have_loop = true;
-                } else if (std::regex_match(spec_name, pattern2)) {
-                    is_sub = true;
-                    have_sub = true;
-                }
-
-
-                if (spec_name == fname + "_spec_low" || is_loop || is_sub) {
-                    auto high_name = spec_name.substr(0, spec_name.size() - 4);
-
-                    low_specs->push_back(spec.get());
-                    proj->update_symbol_loc(spec_name, make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
-
-                    name_map[spec_name] = high_name;
-#if 0
-                    // If the high spec for the loop is not provided, create a placeholder for z3_eval;
-                    // otherwise, we just leave the provided high spec as is.
-                    if (proj->defs.find(high_name) == proj->defs.end() && is_loop) {
-                        Definition *tmp_def = nullptr;
-
-                        if (is_instance(spec.get(), Fixpoint))
-                            tmp_def = new Fixpoint(*static_cast<Fixpoint *>(spec.get()));
-                        else
-                            tmp_def = new Definition(*spec);
-
-                        tmp_def->name = high_name;
-                        tmp_def->body.reset();
-
-                        proj->add_definition(unique_ptr<Definition>(tmp_def), make_shared<loc_t>(L->name, Project::LOC_SPEC, ""));
-                        std::cout << "name_map " << spec_name << " -> " << high_name << std::endl;
-                    }
-#endif
-                }
-            }
-        }
-    } else {
+    if (proj->code->functions->find(fname) == proj->code->functions->end())
         throw std::runtime_error("Function " + fname + " not found");
-    }
 
+    // =========================================================================
+    // Generate/collect low specs
+    // =========================================================================
+    low_specs = infer_low_spec(proj, layer_id, fname, have_loop, have_sub, name_map);
+
+    // =========================================================================
+    // Generate high specs
+    // =========================================================================
     for (int i = 0; i < low_specs->size(); i++) {
-        auto &def = (*low_specs)[i];
-        auto high_name = name_map[def->name];
+        auto &low_def = (*low_specs)[i];
+        auto low_name = low_def->name;
+        auto high_name = name_map[low_name];
 
         // If the high spec is provided, skip
         if (proj->defs.find(high_name) != proj->defs.end()) {
@@ -459,7 +464,8 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
             }
         }
 
-        unique_ptr<SpecNode> high_body = def->body->deep_copy();
+        // High spec begins from the low spec
+        unique_ptr<SpecNode> high_body = low_def->body->deep_copy();
 
         if (have_loop || have_sub) {
             auto [new_high, __changed] = replace_spec_name(proj, high_body.release(), name_map);
@@ -468,22 +474,29 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         }
 
         auto high_args = make_unique<vector<shared_ptr<Arg>>>();
-        for (auto &arg: *def->args)
+        for (auto &arg: *low_def->args)
             high_args->push_back(arg);
 
         Definition *high_def = nullptr;
 
-        if (is_instance(def, Fixpoint)) {
+        if (is_instance(low_def, Fixpoint)) {
             // For Fixpoint, we need to add the definition in advance for z3_eval
-            auto tmp_high_def = new Fixpoint(high_name, proj->defs[def->name]->rettype, make_unique<vector<shared_ptr<Arg>>>(*high_args));
+            auto tmp_high_def = new Fixpoint(high_name, proj->defs[low_name]->rettype,
+                                             make_unique<vector<shared_ptr<Arg>>>(*high_args));
 
-            high_def = new Fixpoint(high_name, proj->defs[def->name]->rettype, std::move(high_args), std::move(high_body));
-            proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(tmp_high_def)), make_shared<loc_t>(L->name, Project::LOC_SPEC, ""), i);
+            high_def = new Fixpoint(high_name, proj->defs[low_name]->rettype, std::move(high_args),
+                                    std::move(high_body));
+            proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(tmp_high_def)),
+                                 make_shared<loc_t>(L->name, Project::LOC_SPEC, ""), i);
         } else {
-            high_def = new Definition(high_name, proj->defs[def->name]->rettype, std::move(high_args), std::move(high_body));
+            high_def = new Definition(high_name, proj->defs[low_name]->rettype, std::move(high_args),
+                                      std::move(high_body));
         }
 
-        if (proj->cmds.NoTrans.find(name_map[def->name]) == proj->cmds.NoTrans.end()) {
+        // Transform the low spec to high spec
+        bool no_trans = proj->cmds.NoTrans.find(name_map[low_name]) != proj->cmds.NoTrans.end();
+
+        if (!no_trans) {
             spec_transformer(proj, high_def);
             std::cout << "Transformed: " << std::endl << string(*high_def) << std::endl;
         } else {
@@ -494,11 +507,12 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         proj->deps[high_name] = proj->calc_dependencies(high_def->body.get());
         LOG_DEBUG << "proj.deps size :" << proj->deps[high_name].size();
 
-        if (is_instance(def, Fixpoint))
-            proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(high_def)), make_shared<loc_t>(L->name, Project::LOC_SPEC, ""), i);
+        if (is_instance(low_def, Fixpoint))
+            proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(high_def)),
+                                 make_shared<loc_t>(L->name, Project::LOC_SPEC, ""), i);
         else
-            proj->add_definition(unique_ptr<Definition>(high_def), make_shared<loc_t>(L->name, Project::LOC_SPEC, ""), i);
-
+            proj->add_definition(unique_ptr<Definition>(high_def), make_shared<loc_t>(L->name, Project::LOC_SPEC, ""),
+                                 i);
     }
 
     return std::make_tuple(fname, low_specs, nullptr);
@@ -536,7 +550,8 @@ void Project::finalize_project()
             if (this->code->functions->at(p)->body == nullptr)
                 continue;
 
-            for (auto &d: get_prim_dependencies(*this->code->functions->at(p)->body))
+            L->prim_deps[p] = get_prim_dependencies(*this->code->functions->at(p)->body);
+            for (auto &d: L->prim_deps[p])
                 deps.insert(d);
         }
     }
@@ -544,6 +559,7 @@ void Project::finalize_project()
     deps.insert(this->layers[0]->prims.begin(), this->layers[0]->prims.end());
     this->layers[0]->prims.assign(deps.begin(), deps.end());
 
+#ifndef MT_TRANSFORM
     for (int i = 1; i < this->layers.size(); i++) {
         auto &L = this->layers[i];
 
@@ -554,6 +570,21 @@ void Project::finalize_project()
             auto [fname, low_specs, high_specs] = infer_spec_task(this, i, p);
         }
     }
+#else
+    std::set<string> transformed;
+
+    for (int i = 1; i < this->layers.size(); i++) {
+        auto &L = this->layers[i];
+
+        for (auto &p: L->prims) {
+            if (this->code->functions->at(p)->body == nullptr)
+                continue;
+
+            auto [fname, low_specs, high_specs] = infer_spec_task(this, i, p);
+            transformed.insert(fname);
+        }
+    }
+#endif
 
     extern unsigned long z3_unknowns, z3_checks;
     extern std::chrono::duration<double> z3_accumulative_time;
