@@ -14,6 +14,8 @@ Section Helpers_get_sysreg_write_value_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque load_RData.
+  Local Opacque ptr_offset.
     Lemma f_get_sysreg_write_value_correct:
       forall v_rec v_esr st st' res
              (Hspec: get_sysreg_write_value_spec_low v_rec v_esr st = Some (res, st')),

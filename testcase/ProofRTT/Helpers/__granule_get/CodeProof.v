@@ -14,6 +14,10 @@ Section Helpers___granule_get_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque ST_GRANULE_SIZE.
+  Local Opacque load_RData.
+  Local Opacque ptr_offset.
+  Local Opacque store_RData.
     Lemma f___granule_get_correct:
       forall v_g st st'
              (Hspec: __granule_get_spec_low v_g st = Some st'),

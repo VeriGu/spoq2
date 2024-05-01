@@ -2,6 +2,7 @@ Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
+Require Import Helpers.Spec.
 Require Import S2TTEOps.realm_ipa_size.LowSpec.
 Require Import S2TTEPA.Layer.
 Require Import Zwf.
@@ -14,6 +15,7 @@ Section S2TTEOps_realm_ipa_size_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque realm_ipa_bits_spec.
     Lemma f_realm_ipa_size_correct:
       forall v_rd st st' res
              (Hspec: realm_ipa_size_spec_low v_rd st = Some (res, st')),

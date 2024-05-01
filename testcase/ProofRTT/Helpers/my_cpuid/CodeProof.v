@@ -1,3 +1,4 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
@@ -14,6 +15,7 @@ Section Helpers_my_cpuid_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque read_tpidr_el2_spec.
     Lemma f_my_cpuid_correct:
       forall st st' res
              (Hspec: my_cpuid_spec_low st = Some (res, st')),

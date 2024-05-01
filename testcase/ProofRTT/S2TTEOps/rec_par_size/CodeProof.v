@@ -2,6 +2,7 @@ Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
+Require Import Helpers.Spec.
 Require Import S2TTEOps.rec_par_size.LowSpec.
 Require Import S2TTEPA.Layer.
 Require Import Zwf.
@@ -14,6 +15,7 @@ Section S2TTEOps_rec_par_size_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque rec_ipa_size_spec.
     Lemma f_rec_par_size_correct:
       forall v_rec st st' res
              (Hspec: rec_par_size_spec_low v_rec st = Some (res, st')),

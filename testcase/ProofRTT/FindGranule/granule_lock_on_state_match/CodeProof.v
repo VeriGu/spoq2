@@ -1,9 +1,11 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import FindGranule.granule_lock_on_state_match.LowSpec.
 Require Import GlobalDefs.
 Require Import GranuleState.Layer.
+Require Import GranuleState.Spec.
 Require Import Zwf.
 
 Local Open Scope string_scope.
@@ -14,6 +16,11 @@ Section FindGranule_granule_lock_on_state_match_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque ST_GRANULE_SIZE.
+  Local Opacque granule_get_state_spec.
+  Local Opacque ptr_offset.
+  Local Opacque spinlock_acquire_spec.
+  Local Opacque spinlock_release_spec.
     Lemma f_granule_lock_on_state_match_correct:
       forall v_g v_expected_state st st' res
              (Hspec: granule_lock_on_state_match_spec_low v_g v_expected_state st = Some (res, st')),

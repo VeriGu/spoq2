@@ -4,6 +4,7 @@ Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import Helpers.pack_return_code.LowSpec.
 Require Import MakeReturnCode.Layer.
+Require Import MakeReturnCode.Spec.
 Require Import Zwf.
 
 Local Open Scope string_scope.
@@ -14,6 +15,8 @@ Section Helpers_pack_return_code_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque make_return_code_spec.
+  Local Opacque pack_struct_return_code_spec.
     Lemma f_pack_return_code_correct:
       forall v_status v_index st st' res
              (Hspec: pack_return_code_spec_low v_status v_index st = Some (res, st')),

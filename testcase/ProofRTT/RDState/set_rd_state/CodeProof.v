@@ -1,3 +1,4 @@
+Require Import Bottom.Spec.
 Require Import CheckFeature.Layer.
 Require Import Code.
 Require Import CommonDeps.
@@ -14,6 +15,8 @@ Section RDState_set_rd_state_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque __sca_write64_release_spec.
+  Local Opacque ptr_offset.
     Lemma f_set_rd_state_correct:
       forall v_rd v_state st st'
              (Hspec: set_rd_state_spec_low v_rd v_state st = Some st'),

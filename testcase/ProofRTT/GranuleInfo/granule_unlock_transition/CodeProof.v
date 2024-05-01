@@ -4,6 +4,8 @@ Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import GranuleInfo.granule_unlock_transition.LowSpec.
 Require Import GranuleLock.Layer.
+Require Import GranuleLock.Spec.
+Require Import GranuleState.Spec.
 Require Import Zwf.
 
 Local Open Scope string_scope.
@@ -14,6 +16,8 @@ Section GranuleInfo_granule_unlock_transition_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque granule_set_state_spec.
+  Local Opacque granule_unlock_spec.
     Lemma f_granule_unlock_transition_correct:
       forall v_g v_new_state st st'
              (Hspec: granule_unlock_transition_spec_low v_g v_new_state st = Some st'),

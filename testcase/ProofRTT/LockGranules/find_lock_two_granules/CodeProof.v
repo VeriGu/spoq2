@@ -3,6 +3,7 @@ Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import GranuleInfo.Layer.
+Require Import GranuleInfo.Spec.
 Require Import LockGranules.find_lock_two_granules.LowSpec.
 Require Import Zwf.
 
@@ -14,6 +15,14 @@ Section LockGranules_find_lock_two_granules_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque alloc_stack.
+  Local Opacque find_lock_granules_spec.
+  Local Opacque free_stack.
+  Local Opacque mkPtr.
+  Local Opacque new_frame.
+  Local Opacque ptr_offset.
+  Local Opacque ptr_to_int.
+  Local Opacque store_RData.
     Lemma f_find_lock_two_granules_correct:
       forall v_addr1 v_expected_state1 v_g1 v_addr2 v_expected_state2 v_g2 st st' res
              (Hspec: find_lock_two_granules_spec_low v_addr1 v_expected_state1 v_g1 v_addr2 v_expected_state2 v_g2 st = Some (res, st')),

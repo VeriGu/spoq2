@@ -3,6 +3,7 @@ Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import S2TTEDesc.Layer.
+Require Import S2TTEDesc.Spec.
 Require Import S2TTEState.s2tte_is_unassigned.LowSpec.
 Require Import Zwf.
 
@@ -14,6 +15,7 @@ Section S2TTEState_s2tte_is_unassigned_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque s2tte_has_hipas_spec.
     Lemma f_s2tte_is_unassigned_correct:
       forall v_s2tte st st' res
              (Hspec: s2tte_is_unassigned_spec_low v_s2tte st = Some (res, st')),

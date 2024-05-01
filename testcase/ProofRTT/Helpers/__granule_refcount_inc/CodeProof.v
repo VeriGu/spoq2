@@ -14,6 +14,10 @@ Section Helpers___granule_refcount_inc_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque ST_GRANULE_SIZE.
+  Local Opacque load_RData.
+  Local Opacque ptr_offset.
+  Local Opacque store_RData.
     Lemma f___granule_refcount_inc_correct:
       forall v_g v_val st st'
              (Hspec: __granule_refcount_inc_spec_low v_g v_val st = Some st'),

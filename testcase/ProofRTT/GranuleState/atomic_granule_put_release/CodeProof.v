@@ -1,3 +1,4 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
@@ -14,6 +15,9 @@ Section GranuleState_atomic_granule_put_release_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque ST_GRANULE_SIZE.
+  Local Opacque atomic_load_add_release_64_spec.
+  Local Opacque ptr_offset.
     Lemma f_atomic_granule_put_release_correct:
       forall v_g st st'
              (Hspec: atomic_granule_put_release_spec_low v_g st = Some st'),

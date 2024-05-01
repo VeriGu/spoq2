@@ -2,6 +2,8 @@ Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
+Require Import RDState.Spec.
+Require Import ValidateTable.Spec.
 
 Local Open Scope string_scope.
 Local Open Scope Z_scope.

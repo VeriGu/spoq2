@@ -1,3 +1,4 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
@@ -14,6 +15,13 @@ Section FindGranule_sort_granules_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque alloc_stack.
+  Local Opacque free_stack.
+  Local Opacque llvm_memcpy_p0i8_p0i8_i64_spec.
+  Local Opacque load_RData.
+  Local Opacque new_frame.
+  Local Opacque ptr_offset.
+  Local Opacque store_RData.
     Lemma f_sort_granules_correct:
       forall v_granules v_n st st'
              (Hspec: sort_granules_spec_low v_granules v_n st = Some st'),

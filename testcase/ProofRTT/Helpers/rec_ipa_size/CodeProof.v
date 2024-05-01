@@ -14,6 +14,8 @@ Section Helpers_rec_ipa_size_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque load_RData.
+  Local Opacque ptr_offset.
     Lemma f_rec_ipa_size_correct:
       forall v_rec st st' res
              (Hspec: rec_ipa_size_spec_low v_rec st = Some (res, st')),

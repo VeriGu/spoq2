@@ -1,7 +1,11 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
+Require Import GranuleLock.Spec.
+Require Import Helpers.Spec.
+Require Import S2TTEOps.Spec.
 
 Local Open Scope string_scope.
 Local Open Scope Z_scope.

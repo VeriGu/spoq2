@@ -1,3 +1,4 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
@@ -14,6 +15,7 @@ Section Helpers___tte_read_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque __sca_read64_spec.
     Lemma f___tte_read_correct:
       forall v_ttep st st' res
              (Hspec: __tte_read_spec_low v_ttep st = Some (res, st')),

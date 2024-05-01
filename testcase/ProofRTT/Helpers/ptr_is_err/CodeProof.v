@@ -14,6 +14,8 @@ Section Helpers_ptr_is_err_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque int_to_ptr.
+  Local Opacque ptr_gtb.
     Lemma f_ptr_is_err_correct:
       forall v_ptr st st' res
              (Hspec: ptr_is_err_spec_low v_ptr st = Some (res, st')),

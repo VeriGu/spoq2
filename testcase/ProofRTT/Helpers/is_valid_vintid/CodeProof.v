@@ -14,6 +14,8 @@ Section Helpers_is_valid_vintid_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque load_RData.
+  Local Opacque mkPtr.
     Lemma f_is_valid_vintid_correct:
       forall v_intid st st' res
              (Hspec: is_valid_vintid_spec_low v_intid st = Some (res, st')),

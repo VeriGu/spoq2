@@ -1,3 +1,4 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
@@ -14,6 +15,8 @@ Section Helpers___tte_write_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque __sca_write64_spec.
+  Local Opacque iasm_4_spec.
     Lemma f___tte_write_correct:
       forall v_ttep v_tte st st'
              (Hspec: __tte_write_spec_low v_ttep v_tte st = Some st'),

@@ -1,8 +1,12 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import GranuleInfo.Layer.
+Require Import GranuleLock.Spec.
+Require Import GranuleState.Spec.
+Require Import Helpers.Spec.
 Require Import LockGranules.find_lock_unused_granule.LowSpec.
 Require Import Zwf.
 
@@ -14,6 +18,12 @@ Section LockGranules_find_lock_unused_granule_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque find_lock_granule_spec.
+  Local Opacque granule_refcount_read_acquire_spec.
+  Local Opacque granule_unlock_spec.
+  Local Opacque mkPtr.
+  Local Opacque ptr_eqb.
+  Local Opacque status_ptr_spec.
     Lemma f_find_lock_unused_granule_correct:
       forall v_addr v_expected_state st st' res
              (Hspec: find_lock_unused_granule_spec_low v_addr v_expected_state st = Some (res, st')),

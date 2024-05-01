@@ -14,6 +14,10 @@ Section Helpers_rec_is_simd_allowed_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque load_RData.
+  Local Opacque ptr_offset.
+  Local Opacque rec_is_unlocked.
+  Local Opacque rec_refcount_one.
     Lemma f_rec_is_simd_allowed_correct:
       forall v_rec st st' res
              (Hspec: rec_is_simd_allowed_spec_low v_rec st = Some (res, st')),

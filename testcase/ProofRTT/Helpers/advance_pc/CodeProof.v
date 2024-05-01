@@ -1,3 +1,4 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
@@ -14,6 +15,8 @@ Section Helpers_advance_pc_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque read_elr_el2_spec.
+  Local Opacque write_elr_el2_spec.
     Lemma f_advance_pc_correct:
       forall st st'
              (Hspec: advance_pc_spec_low st = Some st'),

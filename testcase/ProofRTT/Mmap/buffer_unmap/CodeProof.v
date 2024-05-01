@@ -4,6 +4,7 @@ Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import Mmap.buffer_unmap.LowSpec.
 Require Import MmapInternal.Layer.
+Require Import MmapInternal.Spec.
 Require Import Zwf.
 
 Local Open Scope string_scope.
@@ -14,6 +15,7 @@ Section Mmap_buffer_unmap_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque buffer_unmap_internal_spec.
     Lemma f_buffer_unmap_correct:
       forall v_buf st st'
              (Hspec: buffer_unmap_spec_low v_buf st = Some st'),

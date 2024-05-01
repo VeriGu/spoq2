@@ -14,6 +14,8 @@ Section S2TTEOps_s2_walk_result_match_ripas_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque load_RData.
+  Local Opacque ptr_offset.
     Lemma f_s2_walk_result_match_ripas_correct:
       forall v_res v_ripas st st' res
              (Hspec: s2_walk_result_match_ripas_spec_low v_res v_ripas st = Some (res, st')),

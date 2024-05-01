@@ -1,3 +1,4 @@
+Require Import Bottom.Spec.
 Require Import CheckFeature.arch_feat_get_pa_width.LowSpec.
 Require Import Code.
 Require Import CommonDeps.
@@ -14,6 +15,10 @@ Section CheckFeature_arch_feat_get_pa_width_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque load_RData.
+  Local Opacque mkPtr.
+  Local Opacque ptr_offset.
+  Local Opacque read_id_aa64mmfr0_el1_spec.
     Lemma f_arch_feat_get_pa_width_correct:
       forall st st' res
              (Hspec: arch_feat_get_pa_width_spec_low st = Some (res, st')),

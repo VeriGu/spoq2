@@ -14,6 +14,8 @@ Section Helpers_realm_ipa_bits_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque load_RData.
+  Local Opacque ptr_offset.
     Lemma f_realm_ipa_bits_correct:
       forall v_rd st st' res
              (Hspec: realm_ipa_bits_spec_low v_rd st = Some (res, st')),

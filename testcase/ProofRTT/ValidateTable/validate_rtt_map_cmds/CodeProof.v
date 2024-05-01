@@ -3,6 +3,7 @@ Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import ValidateAddr.Layer.
+Require Import ValidateAddr.Spec.
 Require Import ValidateTable.validate_rtt_map_cmds.LowSpec.
 Require Import Zwf.
 
@@ -14,6 +15,7 @@ Section ValidateTable_validate_rtt_map_cmds_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque validate_map_addr_spec.
     Lemma f_validate_rtt_map_cmds_correct:
       forall v_map_addr v_level v_rd st st' res
              (Hspec: validate_rtt_map_cmds_spec_low v_map_addr v_level v_rd st = Some (res, st')),

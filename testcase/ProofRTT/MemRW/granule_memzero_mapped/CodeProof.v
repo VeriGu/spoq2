@@ -1,3 +1,4 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
@@ -14,6 +15,7 @@ Section MemRW_granule_memzero_mapped_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque memset_spec.
     Lemma f_granule_memzero_mapped_correct:
       forall v_buf st st'
              (Hspec: granule_memzero_mapped_spec_low v_buf st = Some st'),

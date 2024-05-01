@@ -14,6 +14,9 @@ Section GranuleState_granule_get_state_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque ST_GRANULE_SIZE.
+  Local Opacque load_RData.
+  Local Opacque ptr_offset.
     Lemma f_granule_get_state_correct:
       forall v_g st st' res
              (Hspec: granule_get_state_spec_low v_g st = Some (res, st')),

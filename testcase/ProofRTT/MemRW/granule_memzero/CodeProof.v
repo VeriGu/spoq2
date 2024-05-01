@@ -1,9 +1,11 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import MemRW.granule_memzero.LowSpec.
 Require Import Mmap.Layer.
+Require Import Mmap.Spec.
 Require Import Zwf.
 
 Local Open Scope string_scope.
@@ -14,6 +16,9 @@ Section MemRW_granule_memzero_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque buffer_unmap_spec.
+  Local Opacque granule_map_spec.
+  Local Opacque memset_spec.
     Lemma f_granule_memzero_correct:
       forall v_g v_slot st st'
              (Hspec: granule_memzero_spec_low v_g v_slot st = Some st'),

@@ -1,9 +1,13 @@
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
+Require Import FindGranule.Spec.
 Require Import GlobalDefs.
+Require Import Helpers.Spec.
+Require Import S2TTEDesc.Spec.
 Require Import S2TTEOps.__find_next_level_idx.LowSpec.
 Require Import S2TTEPA.Layer.
+Require Import S2TTEState.Spec.
 Require Import Zwf.
 
 Local Open Scope string_scope.
@@ -14,6 +18,11 @@ Section S2TTEOps___find_next_level_idx_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque __table_get_entry_spec.
+  Local Opacque addr_to_granule_spec.
+  Local Opacque entry_is_table_spec.
+  Local Opacque mkPtr.
+  Local Opacque table_entry_to_phys_spec.
     Lemma f___find_next_level_idx_correct:
       forall v_g_tbl v_idx st st' res
              (Hspec: __find_next_level_idx_spec_low v_g_tbl v_idx st = Some (res, st')),

@@ -3,6 +3,7 @@ Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import RealmInfo.Layer.
+Require Import RealmInfo.Spec.
 Require Import ValidateAddr.addr_in_par.LowSpec.
 Require Import Zwf.
 
@@ -14,6 +15,8 @@ Section ValidateAddr_addr_in_par_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque rd_is_locked.
+  Local Opacque realm_par_size_spec.
     Lemma f_addr_in_par_correct:
       forall v_rd v_addr st st' res
              (Hspec: addr_in_par_spec_low v_rd v_addr st = Some (res, st')),

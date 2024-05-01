@@ -4,6 +4,7 @@ Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import GranuleInfo.get_cached_llt_info.LowSpec.
 Require Import GranuleLock.Layer.
+Require Import Helpers.Spec.
 Require Import Zwf.
 
 Local Open Scope string_scope.
@@ -14,6 +15,9 @@ Section GranuleInfo_get_cached_llt_info_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque mkPtr.
+  Local Opacque my_cpuid_spec.
+  Local Opacque ptr_offset.
     Lemma f_get_cached_llt_info_correct:
       forall st st' res
              (Hspec: get_cached_llt_info_spec_low st = Some (res, st')),

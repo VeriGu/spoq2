@@ -1,3 +1,4 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
@@ -14,6 +15,9 @@ Section Helpers_sve_config_vq_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque isb_spec.
+  Local Opacque read_zcr_el2_spec.
+  Local Opacque write_zcr_el2_spec.
     Lemma f_sve_config_vq_correct:
       forall v_vq st st'
              (Hspec: sve_config_vq_spec_low v_vq st = Some st'),

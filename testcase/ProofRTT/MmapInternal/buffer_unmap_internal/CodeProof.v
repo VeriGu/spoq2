@@ -1,7 +1,9 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
+Require Import GranuleInfo.Spec.
 Require Import LockGranules.Layer.
 Require Import MmapInternal.buffer_unmap_internal.LowSpec.
 Require Import Zwf.
@@ -14,6 +16,10 @@ Section MmapInternal_buffer_unmap_internal_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque get_cached_llt_info_spec.
+  Local Opacque iasm_10_spec.
+  Local Opacque ptr_to_int.
+  Local Opacque xlat_unmap_memory_page_spec.
     Lemma f_buffer_unmap_internal_correct:
       forall v_buf st st'
              (Hspec: buffer_unmap_internal_spec_low v_buf st = Some st'),

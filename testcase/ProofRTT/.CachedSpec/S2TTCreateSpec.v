@@ -822,6 +822,28 @@ Definition map_unmap_ns_spec (v_rd_addr: Z) (v_map_addr: Z) (v_level: Z) (v_host
       when st_9 == ((free_stack "map_unmap_ns" st_0 st_7));
       (Some (1, st_9)))).
 
+Definition s2tte_get_ripas_spec (v_s2tte: Z) (st: RData) : (option (Z * RData)) :=
+  if ((v_s2tte & (64)) =? (0))
+  then (Some (0, st))
+  else (Some (1, st)).
+
+Definition s2tte_create_table_spec (v_pa: Z) (v_level: Z) (st: RData) : (option (Z * RData)) :=
+  (Some ((v_pa |' (3)), st)).
+
+Definition map_unmap_ns_5 (v_level: Z) (v_call18: Ptr) (v_wi: Ptr) (st_0: RData) (st_21: RData) : (option (Z * RData)) :=
+  rely (((v_call18.(pbase)) = ("slot_rtt")));
+  rely (((v_wi.(pbase)) = ("map_unmap_ns_stack")));
+  rely (((v_call18.(poffset)) = (0)));
+  rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+  rely (
+    ((((((st_21.(stack)).(map_unmap_ns_stack)) @ (v_wi.(poffset))) - (STACK_VIRT)) < (0)) /\
+      ((((((st_21.(stack)).(map_unmap_ns_stack)) @ (v_wi.(poffset))) - (GRANULES_BASE)) >= (0)))));
+  when cid == (((((st_21.(share)).(granules)) @ (((((st_21.(stack)).(map_unmap_ns_stack)) @ (v_wi.(poffset))) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
+  (Some (
+    (((((v_level << (32)) + (4)) >> (24)) & (4294967040)) |' ((((v_level << (32)) + (4)) & (4294967295))))  ,
+    (lens 6631 (st_21.[share].[slots] :< (((st_21.(share)).(slots)) # SLOT_RTT == (- 1))))
+  )).
+
 Definition map_unmap_ns_2 (v_s2_ctx: Ptr) (v_call1_0: Ptr) (v_2_tmp: Z) (v_call: Ptr) (v_call6_1: Z) (v_call7_1: Z) (v_map_addr: Z) (v_level: Z) (v_wi: Ptr) (st_9: RData) : (option (Z * RData)) :=
   rely (((v_s2_ctx.(pbase)) = ("map_unmap_ns_stack")));
   rely (((v_call1_0.(pbase)) = ("slot_rd")));
@@ -847,6 +869,11 @@ Definition map_unmap_ns_2 (v_s2_ctx: Ptr) (v_call1_0: Ptr) (v_2_tmp: Z) (v_call:
     (Some ((((st_15.(stack)).(map_unmap_ns_stack)) @ ((v_wi.(poffset)) + (16))), st_15))
   | (Some cid) => None
   end.
+
+Definition s2tte_create_valid_spec (v_pa: Z) (v_level: Z) (st: RData) : (option (Z * RData)) :=
+  if (v_level =? (3))
+  then (Some ((v_pa |' (2011)), st))
+  else (Some ((v_pa |' (2009)), st)).
 
 Definition map_unmap_ns_3 (v_wi: Ptr) (st_16: RData) : (option (bool * Ptr * RData)) :=
   rely (((v_wi.(pbase)) = ("map_unmap_ns_stack")));
@@ -883,6 +910,14 @@ Definition map_unmap_ns_3 (v_wi: Ptr) (st_16: RData) : (option (bool * Ptr * RDa
       (mkPtr "slot_rtt" 0)  ,
       (st_16.[share].[slots] :< (((st_16.(share)).(slots)) # SLOT_RTT == (((((st_16.(stack)).(map_unmap_ns_stack)) @ (v_wi.(poffset))) - (GRANULES_BASE)) >> (4))))
     ))).
+
+Definition map_unmap_ns_6 (v_4: Z) (v_wi: Ptr) (st_0: RData) (st_16: RData) : (option (Z * RData)) :=
+  rely (((v_wi.(pbase)) = ("map_unmap_ns_stack")));
+  rely (
+    ((((((st_16.(stack)).(map_unmap_ns_stack)) @ (v_wi.(poffset))) - (STACK_VIRT)) < (0)) /\
+      ((((((st_16.(stack)).(map_unmap_ns_stack)) @ (v_wi.(poffset))) - (GRANULES_BASE)) >= (0)))));
+  when cid == (((((st_16.(share)).(granules)) @ (((((st_16.(stack)).(map_unmap_ns_stack)) @ (v_wi.(poffset))) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
+  (Some ((((((v_4 << (32)) + (4)) >> (24)) & (4294967040)) |' ((((v_4 << (32)) + (4)) & (4294967295)))), (lens 6727 st_16))).
 
 Definition map_unmap_ns_4 (v_host_s2tte: Z) (v_level: Z) (v_wi: Ptr) (v_call18: Ptr) (st_0: RData) (st_21: RData) : (option (Z * RData)) :=
   rely (((v_wi.(pbase)) = ("map_unmap_ns_stack")));
@@ -1016,39 +1051,4 @@ Definition map_unmap_ns_4 (v_host_s2tte: Z) (v_level: Z) (v_wi: Ptr) (v_call18: 
             (((st_21.(share)).(slots)) # SLOT_RTT == (- 1)))
         ))))
     else None).
-
-Definition map_unmap_ns_5 (v_level: Z) (v_call18: Ptr) (v_wi: Ptr) (st_0: RData) (st_21: RData) : (option (Z * RData)) :=
-  rely (((v_call18.(pbase)) = ("slot_rtt")));
-  rely (((v_wi.(pbase)) = ("map_unmap_ns_stack")));
-  rely (((v_call18.(poffset)) = (0)));
-  rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
-  rely (
-    ((((((st_21.(stack)).(map_unmap_ns_stack)) @ (v_wi.(poffset))) - (STACK_VIRT)) < (0)) /\
-      ((((((st_21.(stack)).(map_unmap_ns_stack)) @ (v_wi.(poffset))) - (GRANULES_BASE)) >= (0)))));
-  when cid == (((((st_21.(share)).(granules)) @ (((((st_21.(stack)).(map_unmap_ns_stack)) @ (v_wi.(poffset))) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
-  (Some (
-    (((((v_level << (32)) + (4)) >> (24)) & (4294967040)) |' ((((v_level << (32)) + (4)) & (4294967295))))  ,
-    (lens 6631 (st_21.[share].[slots] :< (((st_21.(share)).(slots)) # SLOT_RTT == (- 1))))
-  )).
-
-Definition map_unmap_ns_6 (v_4: Z) (v_wi: Ptr) (st_0: RData) (st_16: RData) : (option (Z * RData)) :=
-  rely (((v_wi.(pbase)) = ("map_unmap_ns_stack")));
-  rely (
-    ((((((st_16.(stack)).(map_unmap_ns_stack)) @ (v_wi.(poffset))) - (STACK_VIRT)) < (0)) /\
-      ((((((st_16.(stack)).(map_unmap_ns_stack)) @ (v_wi.(poffset))) - (GRANULES_BASE)) >= (0)))));
-  when cid == (((((st_16.(share)).(granules)) @ (((((st_16.(stack)).(map_unmap_ns_stack)) @ (v_wi.(poffset))) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
-  (Some ((((((v_4 << (32)) + (4)) >> (24)) & (4294967040)) |' ((((v_4 << (32)) + (4)) & (4294967295)))), (lens 6727 st_16))).
-
-Definition s2tte_get_ripas_spec (v_s2tte: Z) (st: RData) : (option (Z * RData)) :=
-  if ((v_s2tte & (64)) =? (0))
-  then (Some (0, st))
-  else (Some (1, st)).
-
-Definition s2tte_create_table_spec (v_pa: Z) (v_level: Z) (st: RData) : (option (Z * RData)) :=
-  (Some ((v_pa |' (3)), st)).
-
-Definition s2tte_create_valid_spec (v_pa: Z) (v_level: Z) (st: RData) : (option (Z * RData)) :=
-  if (v_level =? (3))
-  then (Some ((v_pa |' (2011)), st))
-  else (Some ((v_pa |' (2009)), st)).
 

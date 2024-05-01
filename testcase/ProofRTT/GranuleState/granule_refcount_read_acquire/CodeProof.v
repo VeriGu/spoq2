@@ -1,3 +1,4 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
@@ -14,6 +15,9 @@ Section GranuleState_granule_refcount_read_acquire_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque ST_GRANULE_SIZE.
+  Local Opacque __sca_read64_acquire_spec.
+  Local Opacque ptr_offset.
     Lemma f_granule_refcount_read_acquire_correct:
       forall v_g st st' res
              (Hspec: granule_refcount_read_acquire_spec_low v_g st = Some (res, st')),

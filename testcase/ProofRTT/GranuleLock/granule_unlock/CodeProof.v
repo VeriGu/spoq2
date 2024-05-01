@@ -1,3 +1,4 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
@@ -14,6 +15,8 @@ Section GranuleLock_granule_unlock_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque ptr_offset.
+  Local Opacque spinlock_release_spec.
     Lemma f_granule_unlock_correct:
       forall v_g st st'
              (Hspec: granule_unlock_spec_low v_g st = Some st'),

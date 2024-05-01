@@ -2,8 +2,10 @@ Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
+Require Import RDState.Spec.
 Require Import TableAux.validate_data_create.LowSpec.
 Require Import ValidateTable.Layer.
+Require Import ValidateTable.Spec.
 Require Import Zwf.
 
 Local Open Scope string_scope.
@@ -14,6 +16,8 @@ Section TableAux_validate_data_create_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque get_rd_state_locked_spec.
+  Local Opacque validate_data_create_unknown_spec.
     Lemma f_validate_data_create_correct:
       forall v_map_addr v_rd st st' res
              (Hspec: validate_data_create_spec_low v_map_addr v_rd st = Some (res, st')),

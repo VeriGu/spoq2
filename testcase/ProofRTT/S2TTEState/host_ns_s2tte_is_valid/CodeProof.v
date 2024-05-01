@@ -3,6 +3,7 @@ Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import S2TTEDesc.Layer.
+Require Import S2TTEDesc.Spec.
 Require Import S2TTEState.host_ns_s2tte_is_valid.LowSpec.
 Require Import Zwf.
 
@@ -14,6 +15,7 @@ Section S2TTEState_host_ns_s2tte_is_valid_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque addr_level_mask_spec.
     Lemma f_host_ns_s2tte_is_valid_correct:
       forall v_s2tte v_level st st' res
              (Hspec: host_ns_s2tte_is_valid_spec_low v_s2tte v_level st = Some (res, st')),

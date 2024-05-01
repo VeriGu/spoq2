@@ -2,11 +2,6 @@ Require Import CommonDeps.
 
 Local Open Scope Z_scope.
 
-Inductive nat: Type :=
- | O 
- | S (pred: nat).
-
-
 Record s_gic_cpu_state :=
   mks_gic_cpu_state {
     e_ich_ap0r_el2: (ZMap.t Z);

@@ -1,3 +1,4 @@
+Require Import CheckFeature.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
@@ -14,6 +15,7 @@ Section RealmInfo_max_ipa_size_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque arch_feat_get_pa_width_spec.
     Lemma f_max_ipa_size_correct:
       forall st st' res
              (Hspec: max_ipa_size_spec_low st = Some (res, st')),

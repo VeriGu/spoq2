@@ -4,6 +4,7 @@ Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import RealmInfo.realm_par_size.LowSpec.
 Require Import S2TTEOps.Layer.
+Require Import S2TTEOps.Spec.
 Require Import Zwf.
 
 Local Open Scope string_scope.
@@ -14,6 +15,7 @@ Section RealmInfo_realm_par_size_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque realm_ipa_size_spec.
     Lemma f_realm_par_size_correct:
       forall v_rd st st' res
              (Hspec: realm_par_size_spec_low v_rd st = Some (res, st')),

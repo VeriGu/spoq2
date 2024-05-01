@@ -9652,7 +9652,7 @@ Definition f_isb:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_11_isb") [ ])
+            ((ICall TVoid None (VGlobal "iasm_11") [ ])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -12592,7 +12592,7 @@ Definition f_read_actlr_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_actlr_el1") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_23") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12604,7 +12604,7 @@ Definition f_read_afsr0_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_23") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_24") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12616,7 +12616,7 @@ Definition f_read_afsr1_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_24") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_25") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12628,7 +12628,7 @@ Definition f_read_amair_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_25") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_26") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12686,7 +12686,7 @@ Definition f_read_cnthctl_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_cnthctl_el2") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_27") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12698,7 +12698,7 @@ Definition f_read_cntkctl_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_26") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_28") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12710,7 +12710,7 @@ Definition f_read_cntp_ctl_el02:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_27") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_29") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12722,7 +12722,7 @@ Definition f_read_cntp_cval_el02:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_28") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_30") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12734,7 +12734,7 @@ Definition f_read_cntpoff_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_cntpoff_el2") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_31") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12746,7 +12746,7 @@ Definition f_read_cntv_ctl_el02:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_29") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_32") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12758,7 +12758,7 @@ Definition f_read_cntv_cval_el02:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_30") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_33") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12770,7 +12770,7 @@ Definition f_read_cntvoff_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_cntvoff_el2") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_34") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12782,7 +12782,7 @@ Definition f_read_contextidr_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_31") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_35") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12794,7 +12794,7 @@ Definition f_read_cpacr_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_32") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_36") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12806,7 +12806,7 @@ Definition f_read_cptr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_cptr_el2") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_37") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12818,7 +12818,7 @@ Definition f_read_csselr_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_csselr_el1") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_38") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12830,7 +12830,7 @@ Definition f_read_disr_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_disr_el1") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_39") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12842,7 +12842,7 @@ Definition f_read_elr_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_33") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_40") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12854,7 +12854,7 @@ Definition f_read_elr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_elr_el2") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_41") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12866,7 +12866,7 @@ Definition f_read_esr_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_34") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_42") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12878,7 +12878,7 @@ Definition f_read_esr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_esr_el2") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_43") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12890,7 +12890,7 @@ Definition f_read_far_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_35") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_44") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12902,7 +12902,7 @@ Definition f_read_far_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_far_el2") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_45") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12914,7 +12914,7 @@ Definition f_read_hpfar_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_hpfar_el2") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_46") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12926,7 +12926,7 @@ Definition f_read_icc_ctrl_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_36") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_47") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12938,7 +12938,7 @@ Definition f_read_icc_hppir1_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_37") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_48") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12950,7 +12950,7 @@ Definition f_read_icc_sre_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_38") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_49") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12962,7 +12962,7 @@ Definition f_read_ich_ap0r0_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_39") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_50") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12974,7 +12974,7 @@ Definition f_read_ich_ap0r1_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_40") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_51") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12986,7 +12986,7 @@ Definition f_read_ich_ap0r2_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_41") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_52") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -12998,7 +12998,7 @@ Definition f_read_ich_ap0r3_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_42") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_53") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13010,7 +13010,7 @@ Definition f_read_ich_ap1r0_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_43") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_54") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13022,7 +13022,7 @@ Definition f_read_ich_ap1r1_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_44") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_55") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13034,7 +13034,7 @@ Definition f_read_ich_ap1r2_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_45") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_56") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13046,7 +13046,7 @@ Definition f_read_ich_ap1r3_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_46") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_57") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13058,7 +13058,7 @@ Definition f_read_ich_hcr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_47") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_58") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13070,7 +13070,7 @@ Definition f_read_ich_lr0_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_48") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_59") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13082,7 +13082,7 @@ Definition f_read_ich_lr10_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_49") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_60") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13094,7 +13094,7 @@ Definition f_read_ich_lr11_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_50") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_61") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13106,7 +13106,7 @@ Definition f_read_ich_lr12_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_51") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_62") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13118,7 +13118,7 @@ Definition f_read_ich_lr13_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_52") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_63") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13130,7 +13130,7 @@ Definition f_read_ich_lr14_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_53") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_64") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13142,7 +13142,7 @@ Definition f_read_ich_lr15_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_54") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_65") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13154,7 +13154,7 @@ Definition f_read_ich_lr1_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_55") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_66") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13166,7 +13166,7 @@ Definition f_read_ich_lr2_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_56") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_67") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13178,7 +13178,7 @@ Definition f_read_ich_lr3_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_57") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_68") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13190,7 +13190,7 @@ Definition f_read_ich_lr4_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_58") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_69") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13202,7 +13202,7 @@ Definition f_read_ich_lr5_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_59") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_70") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13214,7 +13214,7 @@ Definition f_read_ich_lr6_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_60") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_71") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13226,7 +13226,7 @@ Definition f_read_ich_lr7_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_61") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_72") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13238,7 +13238,7 @@ Definition f_read_ich_lr8_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_62") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_73") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13250,7 +13250,7 @@ Definition f_read_ich_lr9_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_63") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_74") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13262,7 +13262,7 @@ Definition f_read_ich_misr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_64") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_75") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13274,7 +13274,7 @@ Definition f_read_ich_vmcr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_65") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_76") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13286,7 +13286,7 @@ Definition f_read_ich_vtr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_66") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_77") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13346,7 +13346,7 @@ Definition f_read_id_aa64zfr0_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_67") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_78") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13358,7 +13358,7 @@ Definition f_read_isr_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_68") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_79") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13476,7 +13476,7 @@ Definition f_read_mair_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_69") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_80") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13488,7 +13488,7 @@ Definition f_read_mdccint_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_mdccint_el1") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_81") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13500,7 +13500,7 @@ Definition f_read_mdcr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_70") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_82") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13512,7 +13512,7 @@ Definition f_read_mdscr_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_mdscr_el1") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_83") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13524,7 +13524,7 @@ Definition f_read_midr_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_71") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_84") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13536,7 +13536,7 @@ Definition f_read_par_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_par_el1") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_85") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13548,7 +13548,7 @@ Definition f_read_pmccfiltr_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_72") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_86") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13560,7 +13560,7 @@ Definition f_read_pmccntr_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_73") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_87") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13572,7 +13572,7 @@ Definition f_read_pmcntenclr_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_74") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_88") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13584,7 +13584,7 @@ Definition f_read_pmcntenset_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_75") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_89") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13596,7 +13596,7 @@ Definition f_read_pmcr_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_pmcr_el0") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_90") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13608,7 +13608,7 @@ Definition f_read_pmevcntr0_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_76") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_91") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13620,7 +13620,7 @@ Definition f_read_pmevcntr10_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_77") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_92") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13632,7 +13632,7 @@ Definition f_read_pmevcntr11_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_78") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_93") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13644,7 +13644,7 @@ Definition f_read_pmevcntr12_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_79") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_94") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13656,7 +13656,7 @@ Definition f_read_pmevcntr13_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_80") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_95") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13668,7 +13668,7 @@ Definition f_read_pmevcntr14_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_81") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_96") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13680,7 +13680,7 @@ Definition f_read_pmevcntr15_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_82") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_97") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13692,7 +13692,7 @@ Definition f_read_pmevcntr16_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_83") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_98") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13704,7 +13704,7 @@ Definition f_read_pmevcntr17_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_84") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_99") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13716,7 +13716,7 @@ Definition f_read_pmevcntr18_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_85") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_100") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13728,7 +13728,7 @@ Definition f_read_pmevcntr19_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_86") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_101") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13740,7 +13740,7 @@ Definition f_read_pmevcntr1_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_87") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_102") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13752,7 +13752,7 @@ Definition f_read_pmevcntr20_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_88") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_103") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13764,7 +13764,7 @@ Definition f_read_pmevcntr21_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_89") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_104") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13776,7 +13776,7 @@ Definition f_read_pmevcntr22_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_90") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_105") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13788,7 +13788,7 @@ Definition f_read_pmevcntr23_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_91") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_106") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13800,7 +13800,7 @@ Definition f_read_pmevcntr24_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_92") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_107") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13812,7 +13812,7 @@ Definition f_read_pmevcntr25_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_93") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_108") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13824,7 +13824,7 @@ Definition f_read_pmevcntr26_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_94") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_109") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13836,7 +13836,7 @@ Definition f_read_pmevcntr27_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_95") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_110") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13848,7 +13848,7 @@ Definition f_read_pmevcntr28_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_96") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_111") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13860,7 +13860,7 @@ Definition f_read_pmevcntr29_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_97") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_112") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13872,7 +13872,7 @@ Definition f_read_pmevcntr2_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_98") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_113") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13884,7 +13884,7 @@ Definition f_read_pmevcntr30_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_99") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_114") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13896,7 +13896,7 @@ Definition f_read_pmevcntr3_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_100") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_115") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13908,7 +13908,7 @@ Definition f_read_pmevcntr4_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_101") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_116") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13920,7 +13920,7 @@ Definition f_read_pmevcntr5_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_102") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_117") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13932,7 +13932,7 @@ Definition f_read_pmevcntr6_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_103") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_118") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13944,7 +13944,7 @@ Definition f_read_pmevcntr7_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_104") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_119") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13956,7 +13956,7 @@ Definition f_read_pmevcntr8_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_105") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_120") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13968,7 +13968,7 @@ Definition f_read_pmevcntr9_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_106") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_121") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13980,7 +13980,7 @@ Definition f_read_pmevtyper0_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_107") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_122") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -13992,7 +13992,7 @@ Definition f_read_pmevtyper10_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_108") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_123") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14004,7 +14004,7 @@ Definition f_read_pmevtyper11_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_109") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_124") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14016,7 +14016,7 @@ Definition f_read_pmevtyper12_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_110") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_125") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14028,7 +14028,7 @@ Definition f_read_pmevtyper13_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_111") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_126") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14040,7 +14040,7 @@ Definition f_read_pmevtyper14_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_112") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_127") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14052,7 +14052,7 @@ Definition f_read_pmevtyper15_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_113") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_128") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14064,7 +14064,7 @@ Definition f_read_pmevtyper16_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_114") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_129") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14076,7 +14076,7 @@ Definition f_read_pmevtyper17_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_115") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_130") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14088,7 +14088,7 @@ Definition f_read_pmevtyper18_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_116") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_131") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14100,7 +14100,7 @@ Definition f_read_pmevtyper19_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_117") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_132") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14112,7 +14112,7 @@ Definition f_read_pmevtyper1_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_118") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_133") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14124,7 +14124,7 @@ Definition f_read_pmevtyper20_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_119") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_134") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14136,7 +14136,7 @@ Definition f_read_pmevtyper21_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_120") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_135") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14148,7 +14148,7 @@ Definition f_read_pmevtyper22_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_121") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_136") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14160,7 +14160,7 @@ Definition f_read_pmevtyper23_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_122") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_137") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14172,7 +14172,7 @@ Definition f_read_pmevtyper24_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_123") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_138") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14184,7 +14184,7 @@ Definition f_read_pmevtyper25_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_124") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_139") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14196,7 +14196,7 @@ Definition f_read_pmevtyper26_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_125") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_140") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14208,7 +14208,7 @@ Definition f_read_pmevtyper27_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_126") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_141") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14220,7 +14220,7 @@ Definition f_read_pmevtyper28_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_127") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_142") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14232,7 +14232,7 @@ Definition f_read_pmevtyper29_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_128") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_143") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14244,7 +14244,7 @@ Definition f_read_pmevtyper2_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_129") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_144") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14256,7 +14256,7 @@ Definition f_read_pmevtyper30_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_130") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_145") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14268,7 +14268,7 @@ Definition f_read_pmevtyper3_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_131") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_146") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14280,7 +14280,7 @@ Definition f_read_pmevtyper4_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_132") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_147") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14292,7 +14292,7 @@ Definition f_read_pmevtyper5_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_133") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_148") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14304,7 +14304,7 @@ Definition f_read_pmevtyper6_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_134") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_149") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14316,7 +14316,7 @@ Definition f_read_pmevtyper7_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_135") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_150") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14328,7 +14328,7 @@ Definition f_read_pmevtyper8_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_136") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_151") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14340,7 +14340,7 @@ Definition f_read_pmevtyper9_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_137") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_152") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14352,7 +14352,7 @@ Definition f_read_pmintenclr_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_138") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_153") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14364,7 +14364,7 @@ Definition f_read_pmintenset_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_139") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_154") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14376,7 +14376,7 @@ Definition f_read_pmovsclr_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_140") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_155") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14388,7 +14388,7 @@ Definition f_read_pmovsset_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_141") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_156") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14400,7 +14400,7 @@ Definition f_read_pmselr_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_142") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_157") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14412,7 +14412,7 @@ Definition f_read_pmuserenr_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_pmuserenr_el0") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_158") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14424,7 +14424,7 @@ Definition f_read_pmxevcntr_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_143") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_159") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14436,7 +14436,7 @@ Definition f_read_pmxevtyper_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_144") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_160") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14448,7 +14448,7 @@ Definition f_read_sctlr_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_145") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_161") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14460,7 +14460,7 @@ Definition f_read_sctlr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_sctlr_el2") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_162") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14472,7 +14472,7 @@ Definition f_read_sp_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_sp_el0") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_163") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14484,7 +14484,7 @@ Definition f_read_sp_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_sp_el1") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_164") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14496,7 +14496,7 @@ Definition f_read_spsr_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_146") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_165") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14508,7 +14508,7 @@ Definition f_read_spsr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_spsr_el2") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_166") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14520,7 +14520,7 @@ Definition f_read_tcr_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_147") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_167") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14532,7 +14532,7 @@ Definition f_read_tcr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_tcr_el2") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_168") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14544,7 +14544,7 @@ Definition f_read_tpidr_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_tpidr_el0") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_169") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14556,7 +14556,7 @@ Definition f_read_tpidr_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_tpidr_el1") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_170") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14568,7 +14568,7 @@ Definition f_read_tpidr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_tpidr_el2") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_171") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14580,7 +14580,7 @@ Definition f_read_tpidrro_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_tpidrro_el0") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_172") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14592,7 +14592,7 @@ Definition f_read_ttbr0_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_148") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_173") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14604,7 +14604,7 @@ Definition f_read_ttbr1_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_149") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_174") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14616,7 +14616,7 @@ Definition f_read_vbar_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_150") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_175") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14628,7 +14628,7 @@ Definition f_read_vttbr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_get_vttbr_el2") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_176") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -14640,7 +14640,7 @@ Definition f_read_zcr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_151") [ ])
+            ((ICall (TInt TI64) (Some "v_0") (VGlobal "iasm_177") [ ])
              :: (IReturn (TInt TI64) (Some (VLocal "v_0")))
              :: nil)) |}.
 
@@ -19332,7 +19332,7 @@ Definition f_spinlock_acquire:=
        fbody := 
         (Some 
             ((IGetElemPtr (TPtr (TInt TI32)) "v_val" (TPtr (TNamedStruct "struct.spinlock_t" 4)) (VLocal "v_l") [(VInt (0)); (VInt (0))])
-             :: (ICall (TInt TI32) (Some "v_0") (VGlobal "iasm_152") [(VLocal "v_val"); (VInt (1)); (VLocal "v_val")])
+             :: (ICall (TInt TI32) (Some "v_0") (VGlobal "iasm_178") [(VLocal "v_val"); (VInt (1)); (VLocal "v_val")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -19346,7 +19346,7 @@ Definition f_spinlock_release:=
        fbody := 
         (Some 
             ((IGetElemPtr (TPtr (TInt TI32)) "v_val" (TPtr (TNamedStruct "struct.spinlock_t" 4)) (VLocal "v_l") [(VInt (0)); (VInt (0))])
-             :: (ICall TVoid None (VGlobal "iasm_153") [(VLocal "v_val"); (VLocal "v_val")])
+             :: (ICall TVoid None (VGlobal "iasm_179") [(VLocal "v_val"); (VLocal "v_val")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -20058,7 +20058,7 @@ Definition f_tlbiipas2e1is:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_154") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_180") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -20071,7 +20071,7 @@ Definition f_tlbivae2is:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_155") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_181") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -20083,7 +20083,7 @@ Definition f_tlbivmalle1is:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_156") [ ])
+            ((ICall TVoid None (VGlobal "iasm_182") [ ])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21009,7 +21009,7 @@ Definition f_wfe_318:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_157") [ ])
+            ((ICall TVoid None (VGlobal "iasm_183") [ ])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21022,7 +21022,7 @@ Definition f_write_actlr_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_actlr_el1") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_184") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21035,7 +21035,7 @@ Definition f_write_afsr0_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_158") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_185") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21048,7 +21048,7 @@ Definition f_write_afsr1_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_159") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_186") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21061,7 +21061,7 @@ Definition f_write_amair_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_160") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_187") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21120,7 +21120,7 @@ Definition f_write_cnthctl_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_cnthctl_el2") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_188") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21133,7 +21133,7 @@ Definition f_write_cntkctl_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_161") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_189") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21146,7 +21146,7 @@ Definition f_write_cntp_ctl_el02:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_162") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_190") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21159,7 +21159,7 @@ Definition f_write_cntp_cval_el02:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_163") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_191") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21172,7 +21172,7 @@ Definition f_write_cntpoff_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_cntpoff_el2") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_192") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21185,7 +21185,7 @@ Definition f_write_cntv_ctl_el02:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_164") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_193") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21198,7 +21198,7 @@ Definition f_write_cntv_cval_el02:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_165") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_194") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21211,7 +21211,7 @@ Definition f_write_cntvoff_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_cntvoff_el2") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_195") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21224,7 +21224,7 @@ Definition f_write_contextidr_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_166") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_196") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21237,7 +21237,7 @@ Definition f_write_cpacr_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_167") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_197") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21250,7 +21250,7 @@ Definition f_write_cptr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_cptr_el2") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_198") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21263,7 +21263,7 @@ Definition f_write_csselr_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_csselr_el1") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_199") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21276,7 +21276,7 @@ Definition f_write_disr_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_disr_el1") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_200") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21289,7 +21289,7 @@ Definition f_write_elr_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_168") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_201") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21302,7 +21302,7 @@ Definition f_write_elr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_elr_el2") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_202") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21315,7 +21315,7 @@ Definition f_write_esr_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_169") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_203") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21328,7 +21328,7 @@ Definition f_write_far_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_170") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_204") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21341,7 +21341,7 @@ Definition f_write_hcr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_hcr_el2") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_205") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21354,7 +21354,7 @@ Definition f_write_icc_sre_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_171") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_206") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21367,7 +21367,7 @@ Definition f_write_ich_ap0r0_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_172") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_207") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21380,7 +21380,7 @@ Definition f_write_ich_ap0r1_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_173") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_208") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21393,7 +21393,7 @@ Definition f_write_ich_ap0r2_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_174") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_209") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21406,7 +21406,7 @@ Definition f_write_ich_ap0r3_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_175") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_210") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21419,7 +21419,7 @@ Definition f_write_ich_ap1r0_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_176") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_211") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21432,7 +21432,7 @@ Definition f_write_ich_ap1r1_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_177") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_212") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21445,7 +21445,7 @@ Definition f_write_ich_ap1r2_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_178") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_213") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21458,7 +21458,7 @@ Definition f_write_ich_ap1r3_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_179") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_214") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21471,7 +21471,7 @@ Definition f_write_ich_hcr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_180") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_215") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21484,7 +21484,7 @@ Definition f_write_ich_lr0_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_181") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_216") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21497,7 +21497,7 @@ Definition f_write_ich_lr10_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_182") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_217") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21510,7 +21510,7 @@ Definition f_write_ich_lr11_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_183") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_218") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21523,7 +21523,7 @@ Definition f_write_ich_lr12_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_184") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_219") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21536,7 +21536,7 @@ Definition f_write_ich_lr13_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_185") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_220") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21549,7 +21549,7 @@ Definition f_write_ich_lr14_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_186") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_221") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21562,7 +21562,7 @@ Definition f_write_ich_lr15_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_187") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_222") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21575,7 +21575,7 @@ Definition f_write_ich_lr1_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_188") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_223") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21588,7 +21588,7 @@ Definition f_write_ich_lr2_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_189") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_224") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21601,7 +21601,7 @@ Definition f_write_ich_lr3_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_190") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_225") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21614,7 +21614,7 @@ Definition f_write_ich_lr4_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_191") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_226") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21627,7 +21627,7 @@ Definition f_write_ich_lr5_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_192") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_227") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21640,7 +21640,7 @@ Definition f_write_ich_lr6_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_193") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_228") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21653,7 +21653,7 @@ Definition f_write_ich_lr7_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_194") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_229") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21666,7 +21666,7 @@ Definition f_write_ich_lr8_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_195") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_230") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21679,7 +21679,7 @@ Definition f_write_ich_lr9_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_196") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_231") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21692,7 +21692,7 @@ Definition f_write_ich_vmcr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_197") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_232") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21811,7 +21811,7 @@ Definition f_write_mair_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_198") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_233") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21824,7 +21824,7 @@ Definition f_write_mair_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_mair_el2") [(VInt (4457727))])
+            ((ICall TVoid None (VGlobal "iasm_234") [(VInt (4457727))])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21837,7 +21837,7 @@ Definition f_write_mdccint_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_mdccint_el1") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_235") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21850,7 +21850,7 @@ Definition f_write_mdcr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_199") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_236") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21863,7 +21863,7 @@ Definition f_write_mdscr_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_mdscr_el1") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_237") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21876,7 +21876,7 @@ Definition f_write_par_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_par_el1") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_238") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21889,7 +21889,7 @@ Definition f_write_pmccfiltr_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_200") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_239") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21902,7 +21902,7 @@ Definition f_write_pmccntr_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_201") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_240") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21915,7 +21915,7 @@ Definition f_write_pmcntenclr_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_202") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_241") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21928,7 +21928,7 @@ Definition f_write_pmcntenset_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_203") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_242") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21941,7 +21941,7 @@ Definition f_write_pmcr_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_pmcr_el0") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_243") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21954,7 +21954,7 @@ Definition f_write_pmevcntr0_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_204") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_244") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21967,7 +21967,7 @@ Definition f_write_pmevcntr10_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_205") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_245") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21980,7 +21980,7 @@ Definition f_write_pmevcntr11_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_206") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_246") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -21993,7 +21993,7 @@ Definition f_write_pmevcntr12_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_207") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_247") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22006,7 +22006,7 @@ Definition f_write_pmevcntr13_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_208") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_248") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22019,7 +22019,7 @@ Definition f_write_pmevcntr14_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_209") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_249") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22032,7 +22032,7 @@ Definition f_write_pmevcntr15_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_210") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_250") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22045,7 +22045,7 @@ Definition f_write_pmevcntr16_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_211") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_251") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22058,7 +22058,7 @@ Definition f_write_pmevcntr17_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_212") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_252") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22071,7 +22071,7 @@ Definition f_write_pmevcntr18_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_213") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_253") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22084,7 +22084,7 @@ Definition f_write_pmevcntr19_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_214") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_254") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22097,7 +22097,7 @@ Definition f_write_pmevcntr1_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_215") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_255") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22110,7 +22110,7 @@ Definition f_write_pmevcntr20_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_216") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_256") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22123,7 +22123,7 @@ Definition f_write_pmevcntr21_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_217") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_257") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22136,7 +22136,7 @@ Definition f_write_pmevcntr22_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_218") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_258") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22149,7 +22149,7 @@ Definition f_write_pmevcntr23_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_219") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_259") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22162,7 +22162,7 @@ Definition f_write_pmevcntr24_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_220") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_260") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22175,7 +22175,7 @@ Definition f_write_pmevcntr25_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_221") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_261") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22188,7 +22188,7 @@ Definition f_write_pmevcntr26_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_222") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_262") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22201,7 +22201,7 @@ Definition f_write_pmevcntr27_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_223") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_263") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22214,7 +22214,7 @@ Definition f_write_pmevcntr28_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_224") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_264") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22227,7 +22227,7 @@ Definition f_write_pmevcntr29_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_225") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_265") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22240,7 +22240,7 @@ Definition f_write_pmevcntr2_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_226") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_266") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22253,7 +22253,7 @@ Definition f_write_pmevcntr30_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_227") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_267") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22266,7 +22266,7 @@ Definition f_write_pmevcntr3_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_228") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_268") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22279,7 +22279,7 @@ Definition f_write_pmevcntr4_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_229") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_269") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22292,7 +22292,7 @@ Definition f_write_pmevcntr5_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_230") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_270") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22305,7 +22305,7 @@ Definition f_write_pmevcntr6_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_231") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_271") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22318,7 +22318,7 @@ Definition f_write_pmevcntr7_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_232") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_272") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22331,7 +22331,7 @@ Definition f_write_pmevcntr8_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_233") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_273") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22344,7 +22344,7 @@ Definition f_write_pmevcntr9_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_234") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_274") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22357,7 +22357,7 @@ Definition f_write_pmevtyper0_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_235") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_275") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22370,7 +22370,7 @@ Definition f_write_pmevtyper10_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_236") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_276") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22383,7 +22383,7 @@ Definition f_write_pmevtyper11_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_237") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_277") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22396,7 +22396,7 @@ Definition f_write_pmevtyper12_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_238") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_278") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22409,7 +22409,7 @@ Definition f_write_pmevtyper13_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_239") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_279") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22422,7 +22422,7 @@ Definition f_write_pmevtyper14_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_240") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_280") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22435,7 +22435,7 @@ Definition f_write_pmevtyper15_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_241") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_281") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22448,7 +22448,7 @@ Definition f_write_pmevtyper16_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_242") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_282") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22461,7 +22461,7 @@ Definition f_write_pmevtyper17_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_243") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_283") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22474,7 +22474,7 @@ Definition f_write_pmevtyper18_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_244") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_284") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22487,7 +22487,7 @@ Definition f_write_pmevtyper19_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_245") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_285") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22500,7 +22500,7 @@ Definition f_write_pmevtyper1_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_246") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_286") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22513,7 +22513,7 @@ Definition f_write_pmevtyper20_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_247") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_287") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22526,7 +22526,7 @@ Definition f_write_pmevtyper21_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_248") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_288") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22539,7 +22539,7 @@ Definition f_write_pmevtyper22_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_249") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_289") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22552,7 +22552,7 @@ Definition f_write_pmevtyper23_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_250") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_290") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22565,7 +22565,7 @@ Definition f_write_pmevtyper24_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_251") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_291") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22578,7 +22578,7 @@ Definition f_write_pmevtyper25_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_252") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_292") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22591,7 +22591,7 @@ Definition f_write_pmevtyper26_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_253") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_293") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22604,7 +22604,7 @@ Definition f_write_pmevtyper27_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_254") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_294") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22617,7 +22617,7 @@ Definition f_write_pmevtyper28_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_255") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_295") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22630,7 +22630,7 @@ Definition f_write_pmevtyper29_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_256") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_296") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22643,7 +22643,7 @@ Definition f_write_pmevtyper2_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_257") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_297") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22656,7 +22656,7 @@ Definition f_write_pmevtyper30_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_258") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_298") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22669,7 +22669,7 @@ Definition f_write_pmevtyper3_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_259") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_299") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22682,7 +22682,7 @@ Definition f_write_pmevtyper4_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_260") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_300") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22695,7 +22695,7 @@ Definition f_write_pmevtyper5_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_261") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_301") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22708,7 +22708,7 @@ Definition f_write_pmevtyper6_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_262") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_302") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22721,7 +22721,7 @@ Definition f_write_pmevtyper7_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_263") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_303") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22734,7 +22734,7 @@ Definition f_write_pmevtyper8_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_264") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_304") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22747,7 +22747,7 @@ Definition f_write_pmevtyper9_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_265") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_305") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22760,7 +22760,7 @@ Definition f_write_pmintenclr_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_266") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_306") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22773,7 +22773,7 @@ Definition f_write_pmintenset_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_267") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_307") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22786,7 +22786,7 @@ Definition f_write_pmovsclr_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_268") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_308") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22799,7 +22799,7 @@ Definition f_write_pmovsset_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_269") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_309") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22812,7 +22812,7 @@ Definition f_write_pmselr_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_270") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_310") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22825,7 +22825,7 @@ Definition f_write_pmuserenr_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_pmuserenr_el0") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_311") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22838,7 +22838,7 @@ Definition f_write_pmxevcntr_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_271") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_312") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22851,7 +22851,7 @@ Definition f_write_pmxevtyper_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_272") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_313") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22864,7 +22864,7 @@ Definition f_write_sctlr_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_273") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_314") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22877,7 +22877,7 @@ Definition f_write_sp_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_sp_el0") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_315") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22890,7 +22890,7 @@ Definition f_write_sp_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_sp_el1") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_316") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22903,7 +22903,7 @@ Definition f_write_spsr_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_274") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_317") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22916,7 +22916,7 @@ Definition f_write_spsr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_spsr_el2") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_318") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22929,7 +22929,7 @@ Definition f_write_tcr_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_275") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_319") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22942,7 +22942,7 @@ Definition f_write_tcr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_tcr_el2") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_320") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22955,7 +22955,7 @@ Definition f_write_tpidr_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_tpidr_el0") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_321") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22968,7 +22968,7 @@ Definition f_write_tpidr_el1:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_tpidr_el1") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_322") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22981,7 +22981,7 @@ Definition f_write_tpidrro_el0:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_tpidrro_el0") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_323") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -22994,7 +22994,7 @@ Definition f_write_ttbr0_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_276") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_324") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -23007,7 +23007,7 @@ Definition f_write_ttbr0_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_ttbr0_el2") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_325") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -23020,7 +23020,7 @@ Definition f_write_ttbr1_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_277") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_326") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -23033,7 +23033,7 @@ Definition f_write_ttbr1_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_278") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_327") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -23046,7 +23046,7 @@ Definition f_write_vbar_el12:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_279") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_328") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -23059,7 +23059,7 @@ Definition f_write_vmpidr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_vmpidr_el2") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_329") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -23072,7 +23072,7 @@ Definition f_write_vpidr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_vpidr_el2") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_330") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -23085,7 +23085,7 @@ Definition f_write_vsesr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_280") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_331") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -23098,7 +23098,7 @@ Definition f_write_vtcr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_vtcr_el2") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_332") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -23111,7 +23111,7 @@ Definition f_write_vttbr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_set_vttbr_el2") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_333") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -23124,7 +23124,7 @@ Definition f_write_zcr_el2:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_281") [(VLocal "v_v")])
+            ((ICall TVoid None (VGlobal "iasm_334") [(VLocal "v_v")])
              :: (IReturn TVoid None)
              :: nil)) |}.
 
@@ -23253,7 +23253,7 @@ Definition f_xlat_arch_tlbi_va:=
        falloca_vars := nil;
        fbody := 
         (Some 
-            ((ICall TVoid None (VGlobal "iasm_282") [ ])
+            ((ICall TVoid None (VGlobal "iasm_335") [ ])
              :: (IBinOp (TInt TI64) "v_shr" OLshr (VLocal "v_va") (VInt (12)))
              :: (IBinOp (TInt TI64) "v_and" OAnd (VLocal "v_shr") (VInt (17592186044415)))
              :: (ICall TVoid None (VGlobal "tlbivae2is") [(VLocal "v_and")])
@@ -23769,7 +23769,7 @@ Definition f_xlat_map_memory_page_with_attrs:=
                             :: (ICall (TInt TI64) (Some "v_call11") (VGlobal "xlat_desc") [(VLocal "v_attrs"); (VLocal "v_and"); (VLocal "v_0")])
                             :: (IBinOp (TInt TI64) "v_or" OOr (VLocal "v_call11") (VInt (36028797018963968)))
                             :: (ICall TVoid None (VGlobal "xlat_write_tte") [(VLocal "v_call"); (VLocal "v_or")])
-                            :: (ICall TVoid None (VGlobal "iasm_282") [ ])
+                            :: (ICall TVoid None (VGlobal "iasm_335") [ ])
                             :: (ICall TVoid None (VGlobal "isb") [ ])
                             :: (IAssign (TInt TI32) "v_retval_0" (VInt (0)))
                             :: nil))
@@ -25035,570 +25035,8 @@ Definition funcs :=
 
 (************ AsmProcs ************)
 
-Definition p_iasm_0 :=
-  {|
-  ploc := 0;
-  pname := "iasm_0";
-  pbody := (Isub (Rsp) (Rsp) 16)
-::(Istr (Rx0 SZ64) (MemOp (Rsp) (8) SignedIndex))
-::(Ildr (Rx0 SZ64) (Some (OpWithoutExt ((MemOp (Rsp) (8) SignedIndex)))) None)
-::(Iadd (Rsp) (Rsp) 16)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_10 :=
-  {|
-  ploc := 0;
-  pname := "iasm_10";
-  pbody := (Iret)
-::nil
- |}.
-
-Definition p_iasm_11_isb :=
-  {|
-  ploc := 0;
-  pname := "iasm_11_isb";
-  pbody := (Iisb)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_actlr_el1 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_actlr_el1";
-  pbody := (Imrs (Rx0 SZ64) Ractlr_el1)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_cnthctl_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_cnthctl_el2";
-  pbody := (Imrs (Rx0 SZ64) Rcnthctl_el2)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_cntpoff_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_cntpoff_el2";
-  pbody := (Imrs (Rx0 SZ64) Rcntpoff_el2)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_cntvoff_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_cntvoff_el2";
-  pbody := (Imrs (Rx0 SZ64) Rcntvoff_el2)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_cptr_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_cptr_el2";
-  pbody := (Imrs (Rx0 SZ64) Rcptr_el2)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_csselr_el1 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_csselr_el1";
-  pbody := (Imrs (Rx0 SZ64) Rcsselr_el1)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_disr_el1 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_disr_el1";
-  pbody := (Imrs (Rx0 SZ64) Rdisr_el1)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_elr_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_elr_el2";
-  pbody := (Imrs (Rx0 SZ64) Relr_el2)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_esr_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_esr_el2";
-  pbody := (Imrs (Rx0 SZ64) Resr_el2)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_far_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_far_el2";
-  pbody := (Imrs (Rx0 SZ64) Rfar_el2)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_hpfar_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_hpfar_el2";
-  pbody := (Imrs (Rx0 SZ64) Rhpfar_el2)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_mdccint_el1 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_mdccint_el1";
-  pbody := (Imrs (Rx0 SZ64) Rmdccint_el1)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_mdscr_el1 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_mdscr_el1";
-  pbody := (Imrs (Rx0 SZ64) Rmdscr_el1)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_par_el1 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_par_el1";
-  pbody := (Imrs (Rx0 SZ64) Rpar_el1)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_pmcr_el0 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_pmcr_el0";
-  pbody := (Imrs (Rx0 SZ64) Rpmcr_el0)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_pmuserenr_el0 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_pmuserenr_el0";
-  pbody := (Imrs (Rx0 SZ64) Rpmuserenr_el0)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_sctlr_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_sctlr_el2";
-  pbody := (Imrs (Rx0 SZ64) Rsctlr_el2)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_sp_el0 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_sp_el0";
-  pbody := (Imrs (Rx0 SZ64) Rsp_el0)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_sp_el1 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_sp_el1";
-  pbody := (Imrs (Rx0 SZ64) Rsp_el1)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_spsr_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_spsr_el2";
-  pbody := (Imrs (Rx0 SZ64) Rspsr_el2)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_tcr_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_tcr_el2";
-  pbody := (Imrs (Rx0 SZ64) Rtcr_el2)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_tpidr_el0 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_tpidr_el0";
-  pbody := (Imrs (Rx0 SZ64) Rtpidr_el0)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_tpidr_el1 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_tpidr_el1";
-  pbody := (Imrs (Rx0 SZ64) Rtpidr_el1)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_tpidr_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_tpidr_el2";
-  pbody := (Imrs (Rx0 SZ64) Rtpidr_el2)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_tpidrro_el0 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_tpidrro_el0";
-  pbody := (Imrs (Rx0 SZ64) Rtpidrro_el0)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_get_vttbr_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_get_vttbr_el2";
-  pbody := (Imrs (Rx0 SZ64) Rvttbr_el2)
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_actlr_el1 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_actlr_el1";
-  pbody := (Imsr Ractlr_el1 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_cnthctl_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_cnthctl_el2";
-  pbody := (Imsr Rcnthctl_el2 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_cntpoff_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_cntpoff_el2";
-  pbody := (Imsr Rcntpoff_el2 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_cntvoff_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_cntvoff_el2";
-  pbody := (Imsr Rcntvoff_el2 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_cptr_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_cptr_el2";
-  pbody := (Imsr Rcptr_el2 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_csselr_el1 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_csselr_el1";
-  pbody := (Imsr Rcsselr_el1 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_disr_el1 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_disr_el1";
-  pbody := (Imsr Rdisr_el1 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_elr_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_elr_el2";
-  pbody := (Imsr Relr_el2 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_hcr_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_hcr_el2";
-  pbody := (Imsr Rhcr_el2 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_mair_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_mair_el2";
-  pbody := (Imsr Rmair_el2 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_mdccint_el1 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_mdccint_el1";
-  pbody := (Imsr Rmdccint_el1 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_mdscr_el1 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_mdscr_el1";
-  pbody := (Imsr Rmdscr_el1 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_par_el1 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_par_el1";
-  pbody := (Imsr Rpar_el1 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_pmcr_el0 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_pmcr_el0";
-  pbody := (Imsr Rpmcr_el0 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_pmuserenr_el0 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_pmuserenr_el0";
-  pbody := (Imsr Rpmuserenr_el0 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_sp_el0 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_sp_el0";
-  pbody := (Imsr Rsp_el0 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_sp_el1 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_sp_el1";
-  pbody := (Imsr Rsp_el1 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_spsr_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_spsr_el2";
-  pbody := (Imsr Rspsr_el2 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_tcr_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_tcr_el2";
-  pbody := (Imsr Rtcr_el2 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_tpidr_el0 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_tpidr_el0";
-  pbody := (Imsr Rtpidr_el0 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_tpidr_el1 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_tpidr_el1";
-  pbody := (Imsr Rtpidr_el1 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_tpidrro_el0 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_tpidrro_el0";
-  pbody := (Imsr Rtpidrro_el0 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_ttbr0_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_ttbr0_el2";
-  pbody := (Imsr Rttbr0_el2 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_vmpidr_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_vmpidr_el2";
-  pbody := (Imsr Rvmpidr_el2 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_vpidr_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_vpidr_el2";
-  pbody := (Imsr Rvpidr_el2 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_vtcr_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_vtcr_el2";
-  pbody := (Imsr Rvtcr_el2 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
-Definition p_iasm_set_vttbr_el2 :=
-  {|
-  ploc := 0;
-  pname := "iasm_set_vttbr_el2";
-  pbody := (Imsr Rvttbr_el2 (Rx0 SZ64))
-::(Iret)
-::nil
- |}.
-
 Definition asm_procs : list (string * procedure) :=
-    (("iasm_0"), v_iasm_0)
-     :: ("iasm_10"), v_iasm_10)
-     :: ("iasm_11_isb"), v_iasm_11_isb)
-     :: ("iasm_get_actlr_el1"), v_iasm_get_actlr_el1)
-     :: ("iasm_get_cnthctl_el2"), v_iasm_get_cnthctl_el2)
-     :: ("iasm_get_cntpoff_el2"), v_iasm_get_cntpoff_el2)
-     :: ("iasm_get_cntvoff_el2"), v_iasm_get_cntvoff_el2)
-     :: ("iasm_get_cptr_el2"), v_iasm_get_cptr_el2)
-     :: ("iasm_get_csselr_el1"), v_iasm_get_csselr_el1)
-     :: ("iasm_get_disr_el1"), v_iasm_get_disr_el1)
-     :: ("iasm_get_elr_el2"), v_iasm_get_elr_el2)
-     :: ("iasm_get_esr_el2"), v_iasm_get_esr_el2)
-     :: ("iasm_get_far_el2"), v_iasm_get_far_el2)
-     :: ("iasm_get_hpfar_el2"), v_iasm_get_hpfar_el2)
-     :: ("iasm_get_mdccint_el1"), v_iasm_get_mdccint_el1)
-     :: ("iasm_get_mdscr_el1"), v_iasm_get_mdscr_el1)
-     :: ("iasm_get_par_el1"), v_iasm_get_par_el1)
-     :: ("iasm_get_pmcr_el0"), v_iasm_get_pmcr_el0)
-     :: ("iasm_get_pmuserenr_el0"), v_iasm_get_pmuserenr_el0)
-     :: ("iasm_get_sctlr_el2"), v_iasm_get_sctlr_el2)
-     :: ("iasm_get_sp_el0"), v_iasm_get_sp_el0)
-     :: ("iasm_get_sp_el1"), v_iasm_get_sp_el1)
-     :: ("iasm_get_spsr_el2"), v_iasm_get_spsr_el2)
-     :: ("iasm_get_tcr_el2"), v_iasm_get_tcr_el2)
-     :: ("iasm_get_tpidr_el0"), v_iasm_get_tpidr_el0)
-     :: ("iasm_get_tpidr_el1"), v_iasm_get_tpidr_el1)
-     :: ("iasm_get_tpidr_el2"), v_iasm_get_tpidr_el2)
-     :: ("iasm_get_tpidrro_el0"), v_iasm_get_tpidrro_el0)
-     :: ("iasm_get_vttbr_el2"), v_iasm_get_vttbr_el2)
-     :: ("iasm_set_actlr_el1"), v_iasm_set_actlr_el1)
-     :: ("iasm_set_cnthctl_el2"), v_iasm_set_cnthctl_el2)
-     :: ("iasm_set_cntpoff_el2"), v_iasm_set_cntpoff_el2)
-     :: ("iasm_set_cntvoff_el2"), v_iasm_set_cntvoff_el2)
-     :: ("iasm_set_cptr_el2"), v_iasm_set_cptr_el2)
-     :: ("iasm_set_csselr_el1"), v_iasm_set_csselr_el1)
-     :: ("iasm_set_disr_el1"), v_iasm_set_disr_el1)
-     :: ("iasm_set_elr_el2"), v_iasm_set_elr_el2)
-     :: ("iasm_set_hcr_el2"), v_iasm_set_hcr_el2)
-     :: ("iasm_set_mair_el2"), v_iasm_set_mair_el2)
-     :: ("iasm_set_mdccint_el1"), v_iasm_set_mdccint_el1)
-     :: ("iasm_set_mdscr_el1"), v_iasm_set_mdscr_el1)
-     :: ("iasm_set_par_el1"), v_iasm_set_par_el1)
-     :: ("iasm_set_pmcr_el0"), v_iasm_set_pmcr_el0)
-     :: ("iasm_set_pmuserenr_el0"), v_iasm_set_pmuserenr_el0)
-     :: ("iasm_set_sp_el0"), v_iasm_set_sp_el0)
-     :: ("iasm_set_sp_el1"), v_iasm_set_sp_el1)
-     :: ("iasm_set_spsr_el2"), v_iasm_set_spsr_el2)
-     :: ("iasm_set_tcr_el2"), v_iasm_set_tcr_el2)
-     :: ("iasm_set_tpidr_el0"), v_iasm_set_tpidr_el0)
-     :: ("iasm_set_tpidr_el1"), v_iasm_set_tpidr_el1)
-     :: ("iasm_set_tpidrro_el0"), v_iasm_set_tpidrro_el0)
-     :: ("iasm_set_ttbr0_el2"), v_iasm_set_ttbr0_el2)
-     :: ("iasm_set_vmpidr_el2"), v_iasm_set_vmpidr_el2)
-     :: ("iasm_set_vpidr_el2"), v_iasm_set_vpidr_el2)
-     :: ("iasm_set_vtcr_el2"), v_iasm_set_vtcr_el2)
-     :: ("iasm_set_vttbr_el2"), v_iasm_set_vttbr_el2)
-     :: nil).
+    nil.
 
 (************ IR Module ************)
 

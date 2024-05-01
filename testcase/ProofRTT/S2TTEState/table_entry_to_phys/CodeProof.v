@@ -3,6 +3,7 @@ Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import S2TTEDesc.Layer.
+Require Import S2TTEDesc.Spec.
 Require Import S2TTEState.table_entry_to_phys.LowSpec.
 Require Import Zwf.
 
@@ -14,6 +15,7 @@ Section S2TTEState_table_entry_to_phys_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque addr_level_mask_spec.
     Lemma f_table_entry_to_phys_correct:
       forall v_entry1 st st' res
              (Hspec: table_entry_to_phys_spec_low v_entry1 st = Some (res, st')),

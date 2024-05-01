@@ -1,7 +1,11 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
+Require Import GranuleLock.Spec.
+Require Import Helpers.Spec.
+Require Import S2TTEOps.Spec.
 Require Import TableAux.__find_lock_next_level.LowSpec.
 Require Import ValidateTable.Layer.
 Require Import Zwf.
@@ -14,6 +18,11 @@ Section TableAux___find_lock_next_level_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque __find_next_level_idx_spec.
+  Local Opacque granule_lock_spec.
+  Local Opacque mkPtr.
+  Local Opacque ptr_eqb.
+  Local Opacque s2_addr_to_idx_spec.
     Lemma f___find_lock_next_level_correct:
       forall v_g_tbl v_map_addr v_level st st' res
              (Hspec: __find_lock_next_level_spec_low v_g_tbl v_map_addr v_level st = Some (res, st')),

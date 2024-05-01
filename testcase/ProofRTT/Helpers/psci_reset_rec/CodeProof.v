@@ -14,6 +14,8 @@ Section Helpers_psci_reset_rec_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque ptr_offset.
+  Local Opacque store_RData.
     Lemma f_psci_reset_rec_correct:
       forall v_rec v_caller_sctlr_el1 st st'
              (Hspec: psci_reset_rec_spec_low v_rec v_caller_sctlr_el1 st = Some st'),

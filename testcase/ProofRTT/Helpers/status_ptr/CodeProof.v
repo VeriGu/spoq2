@@ -14,6 +14,8 @@ Section Helpers_status_ptr_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque GRANULES_BASE.
+  Local Opacque int_to_ptr.
     Lemma f_status_ptr_correct:
       forall v_status st st' res
              (Hspec: status_ptr_spec_low v_status st = Some (res, st')),

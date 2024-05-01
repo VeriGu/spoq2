@@ -14,6 +14,8 @@ Section GranuleState_granule_from_idx_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque mkPtr.
+  Local Opacque ptr_offset.
     Lemma f_granule_from_idx_correct:
       forall v_idx st st' res
              (Hspec: granule_from_idx_spec_low v_idx st = Some (res, st')),

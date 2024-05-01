@@ -2,6 +2,8 @@ Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
+Require Import S2TTEOps.Spec.
+Require Import S2TTEState.Spec.
 
 Local Open Scope string_scope.
 Local Open Scope Z_scope.

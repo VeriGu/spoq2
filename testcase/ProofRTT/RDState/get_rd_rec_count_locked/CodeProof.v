@@ -1,3 +1,4 @@
+Require Import Bottom.Spec.
 Require Import CheckFeature.Layer.
 Require Import Code.
 Require Import CommonDeps.
@@ -14,6 +15,8 @@ Section RDState_get_rd_rec_count_locked_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque __sca_read64_spec.
+  Local Opacque ptr_offset.
     Lemma f_get_rd_rec_count_locked_correct:
       forall v_rd st st' res
              (Hspec: get_rd_rec_count_locked_spec_low v_rd st = Some (res, st')),

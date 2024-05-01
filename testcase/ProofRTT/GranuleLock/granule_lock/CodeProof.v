@@ -2,6 +2,7 @@ Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import FindGranule.Layer.
+Require Import FindGranule.Spec.
 Require Import GlobalDefs.
 Require Import GranuleLock.granule_lock.LowSpec.
 Require Import Zwf.
@@ -14,6 +15,8 @@ Section GranuleLock_granule_lock_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque ST_GRANULE_SIZE.
+  Local Opacque granule_lock_on_state_match_spec.
     Lemma f_granule_lock_correct:
       forall v_g v_expected_state st st'
              (Hspec: granule_lock_spec_low v_g v_expected_state st = Some st'),

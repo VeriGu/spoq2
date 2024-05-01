@@ -1,6 +1,10 @@
+Require Import Bottom.Spec.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
+Require Import GranuleLock.Spec.
+Require Import Helpers.Spec.
+Require Import TableAux.Spec.
 
 Local Open Scope string_scope.
 Local Open Scope Z_scope.

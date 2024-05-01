@@ -2,6 +2,7 @@ Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
+Require Import S2TTEDesc.Spec.
 Require Import S2TTEPA.s2tte_pa_table.LowSpec.
 Require Import S2TTEState.Layer.
 Require Import Zwf.
@@ -14,6 +15,7 @@ Section S2TTEPA_s2tte_pa_table_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque addr_level_mask_spec.
     Lemma f_s2tte_pa_table_correct:
       forall v_s2tte v_level st st' res
              (Hspec: s2tte_pa_table_spec_low v_s2tte v_level st = Some (res, st')),

@@ -1,3 +1,4 @@
+Require Import Bottom.Spec.
 Require Import CheckFeature.is_feat_sve_present.LowSpec.
 Require Import Code.
 Require Import CommonDeps.
@@ -14,6 +15,7 @@ Section CheckFeature_is_feat_sve_present_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque read_id_aa64pfr0_el1_spec.
     Lemma f_is_feat_sve_present_correct:
       forall st st' res
              (Hspec: is_feat_sve_present_spec_low st = Some (res, st')),

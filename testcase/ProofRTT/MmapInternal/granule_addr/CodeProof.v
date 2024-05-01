@@ -1,3 +1,4 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
@@ -14,6 +15,10 @@ Section MmapInternal_granule_addr_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque ST_GRANULE_SIZE.
+  Local Opacque mkPtr.
+  Local Opacque plat_granule_idx_to_addr_spec.
+  Local Opacque ptr_to_int.
     Lemma f_granule_addr_correct:
       forall v_g st st' res
              (Hspec: granule_addr_spec_low v_g st = Some (res, st')),

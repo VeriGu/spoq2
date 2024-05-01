@@ -1,7 +1,11 @@
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
+Require Import FindGranule.Spec.
 Require Import GlobalDefs.
+Require Import Helpers.Spec.
+Require Import S2TTEDesc.Spec.
+Require Import S2TTEState.Spec.
 
 Local Open Scope string_scope.
 Local Open Scope Z_scope.

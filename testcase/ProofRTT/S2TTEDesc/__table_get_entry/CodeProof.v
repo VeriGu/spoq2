@@ -2,7 +2,9 @@ Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
+Require Import Helpers.Spec.
 Require Import InvalidatePages.Layer.
+Require Import Mmap.Spec.
 Require Import S2TTEDesc.__table_get_entry.LowSpec.
 Require Import Zwf.
 
@@ -14,6 +16,11 @@ Section S2TTEDesc___table_get_entry_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque ST_GRANULE_SIZE.
+  Local Opacque __tte_read_spec.
+  Local Opacque buffer_unmap_spec.
+  Local Opacque granule_map_spec.
+  Local Opacque ptr_offset.
     Lemma f___table_get_entry_correct:
       forall v_g_tbl v_idx st st' res
              (Hspec: __table_get_entry_spec_low v_g_tbl v_idx st = Some (res, st')),

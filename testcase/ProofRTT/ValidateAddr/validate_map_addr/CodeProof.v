@@ -3,6 +3,8 @@ Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import RealmInfo.Layer.
+Require Import S2TTEOps.Spec.
+Require Import S2TTEState.Spec.
 Require Import ValidateAddr.validate_map_addr.LowSpec.
 Require Import Zwf.
 
@@ -14,6 +16,9 @@ Section ValidateAddr_validate_map_addr_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque addr_is_level_aligned_spec.
+  Local Opacque rd_is_locked.
+  Local Opacque realm_ipa_size_spec.
     Lemma f_validate_map_addr_correct:
       forall v_map_addr v_level v_rd st st' res
              (Hspec: validate_map_addr_spec_low v_map_addr v_level v_rd st = Some (res, st')),

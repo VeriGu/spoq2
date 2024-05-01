@@ -4,6 +4,8 @@ Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import S2TTEOps.update_ripas.LowSpec.
 Require Import S2TTEPA.Layer.
+Require Import S2TTEPA.Spec.
+Require Import S2TTEState.Spec.
 Require Import Zwf.
 
 Local Open Scope string_scope.
@@ -14,6 +16,15 @@ Section S2TTEOps_update_ripas_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque load_RData.
+  Local Opacque s2tte_create_assigned_empty_spec.
+  Local Opacque s2tte_create_ripas_spec.
+  Local Opacque s2tte_is_assigned_spec.
+  Local Opacque s2tte_is_table_spec.
+  Local Opacque s2tte_is_unassigned_spec.
+  Local Opacque s2tte_is_valid_spec.
+  Local Opacque s2tte_pa_spec.
+  Local Opacque store_RData.
     Lemma f_update_ripas_correct:
       forall v_s2tte v_level v_ripas st st' res
              (Hspec: update_ripas_spec_low v_s2tte v_level v_ripas st = Some (res, st')),

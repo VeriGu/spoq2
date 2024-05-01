@@ -4,6 +4,7 @@ Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import Mmap.granule_map.LowSpec.
 Require Import MmapInternal.Layer.
+Require Import MmapInternal.Spec.
 Require Import Zwf.
 
 Local Open Scope string_scope.
@@ -14,6 +15,8 @@ Section Mmap_granule_map_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque buffer_map_internal_spec.
+  Local Opacque granule_addr_spec.
     Lemma f_granule_map_correct:
       forall v_g v_slot st st' res
              (Hspec: granule_map_spec_low v_g v_slot st = Some (res, st')),

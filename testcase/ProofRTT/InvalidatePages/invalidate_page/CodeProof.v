@@ -1,3 +1,4 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
@@ -14,6 +15,7 @@ Section InvalidatePages_invalidate_page_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque stage2_tlbi_ipa_spec.
     Lemma f_invalidate_page_correct:
       forall v_s2_ctx v_addr st st'
              (Hspec: invalidate_page_spec_low v_s2_ctx v_addr st = Some st'),

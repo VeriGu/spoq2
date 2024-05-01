@@ -1,7 +1,9 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
+Require Import GranuleInfo.Spec.
 Require Import LockGranules.Layer.
 Require Import MmapInternal.buffer_map_internal.LowSpec.
 Require Import Zwf.
@@ -14,6 +16,11 @@ Section MmapInternal_buffer_map_internal_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque get_cached_llt_info_spec.
+  Local Opacque int_to_ptr.
+  Local Opacque mkPtr.
+  Local Opacque slot_to_va_spec.
+  Local Opacque xlat_map_memory_page_with_attrs_spec.
     Lemma f_buffer_map_internal_correct:
       forall v_slot v_addr st st' res
              (Hspec: buffer_map_internal_spec_low v_slot v_addr st = Some (res, st')),

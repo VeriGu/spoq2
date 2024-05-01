@@ -2,6 +2,8 @@ Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
+Require Import Helpers.Spec.
+Require Import Mmap.Spec.
 
 Local Open Scope string_scope.
 Local Open Scope Z_scope.

@@ -3,6 +3,7 @@ Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import S2TTEDesc.Layer.
+Require Import S2TTEDesc.Spec.
 Require Import S2TTEState.addr_is_level_aligned.LowSpec.
 Require Import Zwf.
 
@@ -14,6 +15,7 @@ Section S2TTEState_addr_is_level_aligned_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque addr_level_mask_spec.
     Lemma f_addr_is_level_aligned_correct:
       forall v_addr v_level st st' res
              (Hspec: addr_is_level_aligned_spec_low v_addr v_level st = Some (res, st')),

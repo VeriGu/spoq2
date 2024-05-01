@@ -1,9 +1,11 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import FindGranule.addr_to_granule.LowSpec.
 Require Import GlobalDefs.
 Require Import GranuleState.Layer.
+Require Import GranuleState.Spec.
 Require Import Zwf.
 
 Local Open Scope string_scope.
@@ -14,6 +16,8 @@ Section FindGranule_addr_to_granule_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque granule_from_idx_spec.
+  Local Opacque plat_granule_addr_to_idx_spec.
     Lemma f_addr_to_granule_correct:
       forall v_addr st st' res
              (Hspec: addr_to_granule_spec_low v_addr st = Some (res, st')),

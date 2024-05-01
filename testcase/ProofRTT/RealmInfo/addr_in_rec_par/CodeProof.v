@@ -4,6 +4,7 @@ Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import RealmInfo.addr_in_rec_par.LowSpec.
 Require Import S2TTEOps.Layer.
+Require Import S2TTEOps.Spec.
 Require Import Zwf.
 
 Local Open Scope string_scope.
@@ -14,6 +15,7 @@ Section RealmInfo_addr_in_rec_par_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque rec_par_size_spec.
     Lemma f_addr_in_rec_par_correct:
       forall v_rec v_addr st st' res
              (Hspec: addr_in_rec_par_spec_low v_rec v_addr st = Some (res, st')),

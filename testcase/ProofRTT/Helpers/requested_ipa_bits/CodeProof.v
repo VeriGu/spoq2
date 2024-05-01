@@ -14,6 +14,8 @@ Section Helpers_requested_ipa_bits_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque load_RData.
+  Local Opacque ptr_offset.
     Lemma f_requested_ipa_bits_correct:
       forall v_p st st' res
              (Hspec: requested_ipa_bits_spec_low v_p st = Some (res, st')),

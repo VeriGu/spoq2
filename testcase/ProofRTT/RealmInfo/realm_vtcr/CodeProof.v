@@ -1,7 +1,9 @@
+Require Import CheckFeature.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
+Require Import Helpers.Spec.
 Require Import RealmInfo.realm_vtcr.LowSpec.
 Require Import S2TTEOps.Layer.
 Require Import Zwf.
@@ -14,6 +16,12 @@ Section RealmInfo_realm_vtcr_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque is_feat_vmid16_present_spec.
+  Local Opacque load_RData.
+  Local Opacque mkPtr.
+  Local Opacque ptr_offset.
+  Local Opacque realm_ipa_bits_spec.
+  Local Opacque realm_rtt_starting_level_spec.
     Lemma f_realm_vtcr_correct:
       forall v_rd st st' res
              (Hspec: realm_vtcr_spec_low v_rd st = Some (res, st')),

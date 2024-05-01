@@ -4,6 +4,7 @@ Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import Helpers.Layer.
+Require Import Helpers.Spec.
 Require Import Zwf.
 
 Local Open Scope string_scope.
@@ -14,6 +15,7 @@ Section CheckFeature_access_len_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque esr_sas_spec.
     Lemma f_access_len_correct:
       forall v_esr st st' res
              (Hspec: access_len_spec_low v_esr st = Some (res, st')),

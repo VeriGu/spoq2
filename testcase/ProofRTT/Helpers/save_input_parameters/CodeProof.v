@@ -1,3 +1,4 @@
+Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
@@ -14,6 +15,10 @@ Section Helpers_save_input_parameters_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Local Opacque load_RData.
+  Local Opacque memcpy_spec.
+  Local Opacque ptr_offset.
+  Local Opacque store_RData.
     Lemma f_save_input_parameters_correct:
       forall v_rec st st'
              (Hspec: save_input_parameters_spec_low v_rec st = Some st'),

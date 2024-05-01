@@ -1,6 +1,7 @@
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
+Require Import FindGranule.Spec.
 Require Import GlobalDefs.
 
 Local Open Scope string_scope.
