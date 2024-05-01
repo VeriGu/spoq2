@@ -7,6 +7,8 @@
 #include <unordered_set>
 #include <llvm.h>
 #include <mutex>
+#include <oneapi/tbb/concurrent_unordered_map.h>
+#include <oneapi/tbb/concurrent_vector.h>
 
 
 namespace autov {
@@ -22,6 +24,9 @@ using std::dynamic_pointer_cast;
 using std::unordered_map;
 using std::holds_alternative;
 using IRLoader::IRModule;
+
+using oneapi::tbb::concurrent_unordered_map;
+using oneapi::tbb::concurrent_vector;
 
 using loc_t = tuple<string, string, string>;
 
@@ -86,10 +91,10 @@ public:
     vector<unique_ptr<Layer>> layers;
     unordered_map<string, string> includes;
 
-    unordered_map<string, unique_ptr<Declaration>> decls;
-    unordered_map<string, unique_ptr<Definition>> defs;
-    vector<string> def_order;
-    unordered_map<string, SymbolInfo> symbols;
+    concurrent_unordered_map<string, unique_ptr<Declaration>> decls;
+    concurrent_unordered_map<string, unique_ptr<Definition>> defs;
+    concurrent_vector<string> def_order;
+    concurrent_unordered_map<string, SymbolInfo> symbols;
 
 
     class cmds {

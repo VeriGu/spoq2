@@ -7,8 +7,14 @@
 #include <projection.h>
 #include <chrono>
 
+#include <thread>
+#include <oneapi/tbb/concurrent_set.h>
+#include <oneapi/tbb/parallel_for.h>
+#include <oneapi/tbb/blocked_range.h>
+
 namespace autov {
 
+using oneapi::tbb::concurrent_set;
 
 const string Project::LOC_DATATYPES = "DataTypes";
 const string Project::LOC_LOWSPEC = "LowSpec";
@@ -564,14 +570,19 @@ void Project::finalize_project()
         auto &L = this->layers[i];
 
         for (auto &p: L->prims) {
-            if (this->code->functions->at(p)->body == nullptr)
+            if (this->code->functions->find(p) == this->code->functions->end() ||
+                this->code->functions->at(p)->body == nullptr)
                 continue;
 
             auto [fname, low_specs, high_specs] = infer_spec_task(this, i, p);
         }
     }
 #else
-    std::set<string> transformed;
+    concurrent_set<string> transformed;
+    std::vector<std::thread> threads;
+
+    for (auto &p: this->layers[0]->prims)
+        transformed.insert(fname);
 
     for (int i = 1; i < this->layers.size(); i++) {
         auto &L = this->layers[i];
@@ -580,10 +591,29 @@ void Project::finalize_project()
             if (this->code->functions->at(p)->body == nullptr)
                 continue;
 
-            auto [fname, low_specs, high_specs] = infer_spec_task(this, i, p);
-            transformed.insert(fname);
+            threads.emplace_back(std::thread([this, i, p] {
+                while (true) {
+                    bool all_deps_transformed = true;
+
+                    for (auto &d: this->code->functions->at(p)->deps) {
+                        if (transformed.find(d) == transformed.end()) {
+                            all_deps_transformed = false;
+                            break;
+                        }
+                    }
+
+                    if (all_deps_transformed)
+                        break;
+                }
+
+                auto [fname, low_specs, high_specs] = infer_spec_task(this, i, p);
+                transformed.insert(fname);
+            }));
         }
     }
+
+    for (auto &t: threads)
+        t.join();
 #endif
 
     extern unsigned long z3_unknowns, z3_checks;

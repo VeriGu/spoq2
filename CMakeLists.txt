@@ -33,6 +33,11 @@ if(Boost_FOUND)
 endif()
 
 # ------------------------------------------------------------------------------
+# libTBB
+# ------------------------------------------------------------------------------
+find_package(TBB REQUIRED)
+
+# ------------------------------------------------------------------------------
 # External libaries are always build in release mode
 # ------------------------------------------------------------------------------
 set(MAIN_CMAKE_BUILDTYPE ${CMAKE_BUILD_TYPE})
@@ -87,6 +92,7 @@ set(IRLOADER_SOURCES
 )
 
 add_library(irloader SHARED ${IRLOADER_SOURCES})
+target_link_libraries(irloader TBB::tbb)
 if(Boost_FOUND)
     target_link_libraries(irloader ${Boost_LIBRARIES})
 endif()
@@ -99,6 +105,7 @@ set(JSON2COQ_SOURCES
 )
 
 add_executable(json2coq ${JSON2COQ_SOURCES})
+target_link_libraries(json2coq TBB::tbb)
 if(Boost_FOUND)
     target_link_libraries(json2coq ${Boost_LIBRARIES})
 endif()
@@ -114,6 +121,7 @@ set(PARSER_SOURCES
     src/AutoV/Spec/Parser/parse_light.cpp
 )
 add_library(parser SHARED ${PARSER_SOURCES})
+target_link_libraries(parser TBB::tbb)
 if(Boost_FOUND)
     target_link_libraries(parser ${Boost_LIBRARIES})
 endif()
@@ -128,17 +136,12 @@ set(SOURCES
     src/AutoV/Spec/utils.cpp
     src/AutoV/Spec/project.cpp
     src/AutoV/Spec/type_inference.cpp
-    # src/AutoV/Spec/Parser/SpecLexer.cpp
-    # src/AutoV/Spec/Parser/SpecParser.cpp
-    # src/AutoV/Spec/Parser/parse.cpp
     src/AutoV/Spec/ir2spec.cpp
     src/AutoV/Spec/shortcuts.cpp
     src/AutoV/Spec/projection/rules.cpp
     src/AutoV/Spec/projection/projection.cpp
     src/AutoV/Spec/projection/z3_rules.cpp
     src/AutoV/Spec/projection/z3_utils.cpp
-    # Add other source files here
-
     src/AutoV/GenCoq/gen_code.cpp
     src/AutoV/GenCoq/gen_data.cpp
     src/AutoV/GenCoq/gen_high_proof.cpp
@@ -152,7 +155,7 @@ set(SOURCES
 # Specify the executable target and its source files
 add_executable(spoq ${SOURCES})
 # Link the shared library to the main executable
-target_link_libraries(spoq irloader parser antlr4_shared libz3)
+target_link_libraries(spoq irloader parser antlr4_shared libz3 TBB::tbb)
 
 # Link the Boost libraries to the executable
 if(Boost_FOUND)
