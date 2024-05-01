@@ -19,17 +19,17 @@ namespace autov {
     sort(syms.begin(),syms.end(), [proj](string s1, string s2) {return proj->symbols[s1].order < proj->symbols[s2].order; });
     std::set<string> deps = {"CommonDeps", "Code", "DataTypes", "GlobalDefs"};
     for(auto s : syms) {
-      if(proj->deps.find(s) != proj->deps.end())
+      if(proj->deps.find(s) == proj->deps.end())
         continue;
       for(auto d : proj->deps[s]) {
         if(proj->symbols[d].loc == loc) continue;
         if(proj->symbols[d].loc == loc_t("","","")) continue;
-        string l = std::get<0>(loc);
-        if(std::get<1>(loc) != "") {
-          l += "." + std::get<1>(loc);
+        string l = std::get<0>(proj->symbols[d].loc);
+        if(std::get<1>(proj->symbols[d].loc) != "") {
+          l += "." + std::get<1>(proj->symbols[d].loc);
         }
-        if(std::get<2>(loc) != "") {
-          l += "." + std::get<2>(loc);
+        if(std::get<2>(proj->symbols[d].loc) != "") {
+          l += "." + std::get<2>(proj->symbols[d].loc);
         }
         deps.insert(l);
       }

@@ -27,18 +27,21 @@ namespace autov {
 
     std::set<string> dep_defs;
     for(auto s : syms) {
-      if(p->deps.find(s) != p->deps.end()) continue;
+      if(p->deps.find(s) == p->deps.end()) continue;
       for(auto d : p->deps[s]) {
         if(p->symbols[d].loc == loc_t("","","")) continue;
         dep_defs.insert(d);
-        deps.insert(std::get<0>(p->symbols[d].loc));
+        string l = "";
+        l += (std::get<0>(p->symbols[d].loc));
         if(std::get<1>(p->symbols[d].loc) != "") {
-          deps.insert("." + std::get<1>(p->symbols[d].loc));
+          l += ("." + std::get<1>(p->symbols[d].loc));
         }
 
         if(std::get<2>(p->symbols[d].loc) != "") {
-          deps.insert("." + std::get<2>(p->symbols[d].loc));
+          l += ("." + std::get<2>(p->symbols[d].loc));
         }
+
+        deps.insert(l);
       }
     }
 

@@ -30,10 +30,11 @@ void gen_specs(Project *proj, loc_t loc, string out_path, string cache_out = "")
 
     if (std::get<0>(loc) != "GlobalDefs")
         deps.insert("GlobalDefs");
-
+    
     for (auto s : syms) {
-        if (proj->deps.find(s) != proj->deps.end())
+        if (proj->deps.find(s) == proj->deps.end())
             continue;
+        
 
         for (auto d : proj->deps[s]) {
             if (proj->symbols[d].loc == loc)
@@ -42,7 +43,6 @@ void gen_specs(Project *proj, loc_t loc, string out_path, string cache_out = "")
                 continue;
 
             string l = "";
-
             l += std::get<0>(proj->symbols[d].loc);
             if (std::get<1>(proj->symbols[d].loc) != "")
                 l += ("." + std::get<1>(proj->symbols[d].loc));

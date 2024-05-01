@@ -92,7 +92,7 @@ void print_module(IRModule *ir, string out_path) {
 
      fout << as->to_coq();
      fout << ".\n\n";
-     asm_procs.push_back("(\"" + as->name + "\")" + ", v_" + IRLoader::to_coq_name(as->name) + ")");
+     asm_procs.push_back("((\"" + as->name + "\")" + ", p_" + IRLoader::to_coq_name(as->name) + ")");
   }
 
   fout << "Definition asm_procs : list (string * procedure) :=\n";

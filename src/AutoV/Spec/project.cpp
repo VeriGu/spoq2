@@ -316,9 +316,11 @@ std::set<string> Project::calc_dependencies(SpecNode *expr) {
             deps.merge(calc_dependencies(elem.get()));
         if (auto op = std::get_if<unique_ptr<SpecNode>>(&e->op))
             deps.merge(calc_dependencies(op->get()));
+        else if(auto op = std::get_if<string>(&e->op)) {
+            deps.insert(*op);
+        }
     } else if (auto s = instance_of(expr, Symbol)) {
         auto text = s->text;
-
         if (this->symbols.find(text) != this->symbols.end()) {
             auto &info = this->symbols.at(text);
 
@@ -365,7 +367,7 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
 
             for (auto &def: *low_specs) {
                 LOG_INFO << "Add definition " << def->name << ", Fixpoint: " << is_instance(def, Fixpoint);
-                proj->deps[fname] = proj->calc_dependencies(def->body.get());
+                proj->deps[def->name] = proj->calc_dependencies(def->body.get());
 
                 if (is_instance(def, Fixpoint)) {
                     proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(def)), make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
@@ -446,6 +448,9 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         // If the high spec is provided, skip
         if (proj->defs.find(high_name) != proj->defs.end()) {
             auto _def = proj->defs[high_name].get();
+            LOG_DEBUG << "High_name: " << high_name;
+            proj->deps[high_name] = proj->calc_dependencies(_def->body.get());
+            LOG_DEBUG << "proj.deps size :" << proj->deps[high_name].size();
 
             if (_def->body) {
                 LOG_INFO << "Provided: " << high_name << std::endl;
@@ -485,7 +490,9 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
             LOG_INFO << "No transformation for " << high_name;
         }
 
+        LOG_DEBUG << "High_name: " << high_name;
         proj->deps[high_name] = proj->calc_dependencies(high_def->body.get());
+        LOG_DEBUG << "proj.deps size :" << proj->deps[high_name].size();
 
         if (is_instance(def, Fixpoint))
             proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(high_def)), make_shared<loc_t>(L->name, Project::LOC_SPEC, ""), i);
