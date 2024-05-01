@@ -455,6 +455,8 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         vector<unique_ptr<SpecNode>> *name_args = new vector<unique_ptr<SpecNode>>();
 
         for(auto a : *args) {
+            if (a == "")
+                continue;
             name_args->push_back(unique_ptr<SpecNode>(_name(a, types.get())));
         }
         name_args->push_back(unique_ptr<SpecNode>(_st(abs_data)));
@@ -510,9 +512,10 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
     } else if(auto f = dynamic_cast<IRLoader::ISelect*>(inst.get())) {
         auto cond = ir_value_to_spec(Layer, f->cond.get(), relies);
         auto stmt = _Let(f->assign,
-        new If(unique_ptr<SpecNode>(cond),
-        unique_ptr<SpecNode>(ir_value_to_spec(Layer, f->true_val.get(), relies)),
-        unique_ptr<SpecNode>(ir_value_to_spec(Layer, f->false_val.get(), relies))), remain_spec);
+                         new If(unique_ptr<SpecNode>(cond),
+                                unique_ptr<SpecNode>(ir_value_to_spec(Layer, f->true_val.get(), relies)),
+                                unique_ptr<SpecNode>(ir_value_to_spec(Layer, f->false_val.get(), relies))),
+                         remain_spec);
 
         for(auto &p : *relies) {
             stmt = new Rely(std::move(p), unique_ptr<SpecNode>(stmt));
@@ -737,9 +740,11 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         auto else_body = ir_insts_to_spec(proj, Layer, fname, f->false_body.get(), defs, f->output.get(), in_loop, false, suffix, 0);
 
         SpecNode* val = new If(unique_ptr<SpecNode>(cond), unique_ptr<SpecNode>(then_body), unique_ptr<SpecNode>(else_body));
-        for(auto o : *f->need_init)
+        for(auto o : *f->need_init) {
+            if (o == "")
+                continue;
             val = _Let(o, default_val((*types)[o]), val);
-
+        }
 
         if (in_loop) {
             if (std::find(f->output->begin(), f->output->end(), "__continue__") != f->output->end()) {
@@ -762,6 +767,8 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         if(f->output->size() > 0) {
             auto vec = new vector<unique_ptr<SpecNode>>();
             for(auto o : *f->output) {
+                if (o == "")
+                    continue;
                 vec->push_back(unique_ptr<SpecNode>(new Symbol(o)));
             }
             vec->push_back(unique_ptr<SpecNode>(_st(abs_data)));
