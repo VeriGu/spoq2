@@ -62,7 +62,13 @@ int main(int argc, char *argv[])
     }
 
     //write_json(std::cout, pt);
-    parse_module(pt);
+    auto mod = parse_module(pt);
+
+    auto output = std::ofstream(output_file);
+    for (auto &f: *mod->functions) {
+        // Append f.second->to_coq() to output_file
+        output << f.second->to_coq() << std::endl;
+    }
 
     return 0;
 }
