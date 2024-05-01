@@ -730,7 +730,12 @@ static bool parse_struct(string name, ptree &module, ptree &sinfo, ptree &debug_
     else if (auto sz = module_sinfo.get_optional<coq_sz_t>("size"))
         size = sz.get();
 
-    assert(sinfo.get_child_optional("elements"));
+    //assert(sinfo.get_child_optional("elements"));
+    auto selems_opt = sinfo.get_child_optional("elements");
+    if (!selems_opt) {
+        structs_info.emplace(name, make_shared<TStruct>(std::move(elems), 0));
+        return false;
+    }
     auto selems = sinfo.get_child_optional("elements").get();
 
     if (is_union) {
@@ -754,7 +759,7 @@ static bool parse_struct(string name, ptree &module, ptree &sinfo, ptree &debug_
                     if (typ_name.compare(0, 6, "struct") == 0 || typ_name.compare(0, 5, "union") == 0) {
                         std::replace(typ_name.begin(), typ_name.end(), '.', '!');
                         if (!debug_info.get_child("structs").get_child_optional(typ_name)) {
-                            type_elem_type.get().get_child("name").put_value(typ_name);
+                            type_elem_type.get().put("name", typ_name);
                             debug_info.get_child("structs").add_child(typ_name, type_elem_type.get());
                         }
                     }
@@ -769,9 +774,10 @@ static bool parse_struct(string name, ptree &module, ptree &sinfo, ptree &debug_
             auto info_ofs = it->second.get<coq_sz_t>("offset");
             auto &pad_type_elem = (*std::next(stype.begin(), i + npaddings)).second;
 
-            if (i + npaddings >= stype.size())
-                throw std::runtime_error("Too many elements in struct " + name + ", i + npaddings: " + std::to_string(i + npaddings) + ", stype.size(): " + std::to_string(stype.size()));
-            else {
+            if (i + npaddings >= stype.size()) {
+                break;
+                //throw std::runtime_error("Too many elements in struct " + name + ", i + npaddings: " + std::to_string(i + npaddings) + ", stype.size(): " + std::to_string(stype.size()));
+            } else {
                 if (auto sz = pad_type_elem.get_optional<coq_sz_t>("offset"))
                     type_ofs = sz.get();
                 else
@@ -780,11 +786,14 @@ static bool parse_struct(string name, ptree &module, ptree &sinfo, ptree &debug_
 
             // This loops seems never to be executed in the python implementation
             while (info_ofs != type_ofs) {
-                throw std::runtime_error("Struct " + name + " has padding at offset " + std::to_string(info_ofs));
+                //throw std::runtime_error("Struct " + name + " has padding at offset " + std::to_string(info_ofs));
                 elems->push_back(make_shared<TStructElem>("padding" + std::to_string(npaddings), parse_type(pad_type_elem), type_ofs, true));
                 npaddings += 1;
-                if (i + npaddings >= stype.size())
-                    throw std::runtime_error("Too many elements in struct " + name + ", i + npaddings: " + std::to_string(i + npaddings) + ", stype.size(): " + std::to_string(stype.size()));
+                if (i + npaddings >= stype.size()) {
+                    structs_info.emplace(name, make_shared<TStruct>(std::move(elems), size));
+                    return true;
+                }
+
                 type_ofs = (*std::next(stype.begin(), i + npaddings)).second.get<coq_sz_t>("offset");
             }
 
@@ -810,9 +819,6 @@ static bool parse_struct(string name, ptree &module, ptree &sinfo, ptree &debug_
         }
     }
 
-    //auto tmp = name;
-    //std::replace(tmp.begin(), tmp.end(), '!', '.');
-    //std::cout << tmp << std::endl;
     structs_info.emplace(name, make_shared<TStruct>(std::move(elems), size));
     return true;
 }
