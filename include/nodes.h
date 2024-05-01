@@ -633,7 +633,9 @@ public:
 
             if (pattern == nullptr)
                 return false;
-            if (holds_alternative<Expr::ops>(pattern->op) && std::get<Expr::ops>(pattern->op) != Expr::Some)
+            if (!holds_alternative<Expr::ops>(pattern->op))
+                return false;
+            if (std::get<Expr::ops>(pattern->op) != Expr::Some)
                 return false;
 
             auto none_pattern = none->pattern.get();
