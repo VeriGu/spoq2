@@ -377,6 +377,7 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
 rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> state) {
     string orig_src = string(*spec->src);
     auto src_ret = rule_simple_by_z3(proj, spec->src.release(), state);
+
     if (src_ret.first == nullptr) {
         delete spec;
         //throw std::runtime_error("Match source is false: " + orig_src);
@@ -385,7 +386,7 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
     auto src_val = z3_eval(proj, src_ret.first, state);
     auto match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
 
-    bool changed = false;
+    bool changed = src_ret.second;
 
     for (auto pm = spec->match_list->begin(); pm != spec->match_list->end(); pm++) {
         auto new_state = state->copy();
