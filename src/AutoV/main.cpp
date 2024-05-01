@@ -13,7 +13,7 @@ using std::string;
 
 const string base_file_dir = "testcase/";
 
-int main(void)
+int main(int argc, char *argv[])
 {
     autov::log::init();
     autov::log::set_logging_level();
@@ -23,9 +23,14 @@ int main(void)
     LOG_WARNING << "Hello world!";
     LOG_ERROR << "Hello world!";
 
+    if (argc != 2) {
+        LOG_ERROR << "Usage: " << argv[0] << " <file>";
+        return 1;
+    }
+
     std::unique_ptr<autov::Project> proj = std::make_unique<autov::Project>();
 
-    autov::parser::parse(proj.get(), "testcase/proof_rtt.v");
+    autov::parser::parse(proj.get(), argv[1]);
 
     proj->finalize_project();
 

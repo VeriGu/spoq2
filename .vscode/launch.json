@@ -2,11 +2,20 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(lldb) Launch Spoq",
+            "name": "(lldb) Launch Spoq proof_rtt",
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
-            "args": [], // Any command-line arguments
+            "args": ["testcase/proof_rtt.v"], // Any command-line arguments
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "(lldb) Launch Spoq proof_sekvm",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["sekvm/proof_sekvm.v"], // Any command-line arguments
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "CMake: build debug"
         },
