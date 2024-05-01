@@ -484,6 +484,17 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                     } else {
                         expr->type = Bool::BOOL;
                     }
+                } else if (op == "ZMap.init" || op == "zmap_init") {
+                    if (n == 0) {
+                        auto zmap_type = dynamic_pointer_cast<ZMap>(expr->type);
+
+                        if (zmap_type)
+                            expr->elems->at(0)->type = zmap_type->elem_type;
+                        stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
+                        stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
+                    } else {
+                        expr->type = expr->elems->at(0)->type;
+                    }
                 } else if (proj.symbols.find(op) != proj.symbols.end() || op.compare(0, 5, "llvm.") == 0) {
                     if (op.compare(0, 5, "llvm.") == 0) {
                         std::replace(op.begin(), op.end(), '.', '_');
