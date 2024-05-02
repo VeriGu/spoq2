@@ -11,6 +11,7 @@
 #include <oneapi/tbb/concurrent_set.h>
 #include <oneapi/tbb/parallel_for.h>
 #include <oneapi/tbb/blocked_range.h>
+#include <oneapi/tbb/flow_graph.h>
 
 namespace autov {
 
@@ -565,6 +566,7 @@ void Project::finalize_project()
     deps.insert(this->layers[0]->prims.begin(), this->layers[0]->prims.end());
     this->layers[0]->prims.assign(deps.begin(), deps.end());
 
+#define MT_TRANSFORM
 #ifndef MT_TRANSFORM
     for (int i = 1; i < this->layers.size(); i++) {
         auto &L = this->layers[i];
@@ -579,10 +581,39 @@ void Project::finalize_project()
     }
 #else
     concurrent_set<string> transformed;
-    std::vector<std::thread> threads;
 
     for (auto &p: this->layers[0]->prims)
-        transformed.insert(fname);
+        transformed.insert(p);
+
+    // for (int i = 1; i < this->layers.size(); i++) {
+    //     auto &L = this->layers[i];
+
+    //     for (auto &p: L->prims) {
+    //         if (this->code->functions->at(p)->body == nullptr)
+    //             continue;
+
+    //         while (true) {
+    //             bool all_deps_transformed = true;
+
+    //             for (auto &d: this->code->functions->at(p)->deps) {
+    //                 if (transformed.find(d) == transformed.end()) {
+    //                     all_deps_transformed = false;
+    //                     break;
+    //                 }
+    //             }
+
+    //             if (all_deps_transformed)
+    //                 break;
+    //         }
+
+    //         auto [fname, low_specs, high_specs] = infer_spec_task(this, i, p);
+    //         transformed.insert(fname);
+
+    //     }
+    // }
+    tbb::flow::graph g;
+
+    std::map<std::string, tbb::flow::continue_node<tbb::flow::continue_msg>*> nodes;
 
     for (int i = 1; i < this->layers.size(); i++) {
         auto &L = this->layers[i];
@@ -591,29 +622,26 @@ void Project::finalize_project()
             if (this->code->functions->at(p)->body == nullptr)
                 continue;
 
-            threads.emplace_back(std::thread([this, i, p] {
-                while (true) {
-                    bool all_deps_transformed = true;
-
-                    for (auto &d: this->code->functions->at(p)->deps) {
-                        if (transformed.find(d) == transformed.end()) {
-                            all_deps_transformed = false;
-                            break;
-                        }
-                    }
-
-                    if (all_deps_transformed)
-                        break;
-                }
-
+            nodes[p] = new tbb::flow::continue_node<tbb::flow::continue_msg>(g, [this, i, p, &transformed](const tbb::flow::continue_msg&) {
+                std::cout << "Starting task for prim: " << p << std::endl;
                 auto [fname, low_specs, high_specs] = infer_spec_task(this, i, p);
                 transformed.insert(fname);
-            }));
+                std::cout << "Finished task for prim: " << p << std::endl;
+            });
+
+            for (auto &d: L->prim_deps[p]) {
+                if (nodes.find(d) != nodes.end()) {
+                    tbb::flow::make_edge(*nodes[d], *nodes[p]);
+                }
+            }
         }
     }
 
-    for (auto &t: threads)
-        t.join();
+    for (auto &[p, node]: nodes) {
+        node->try_put(tbb::flow::continue_msg());
+    }
+
+    g.wait_for_all();
 #endif
 
     extern unsigned long z3_unknowns, z3_checks;

@@ -1,7 +1,7 @@
 #include <rules.h>
 #include <z3_rules.h>
 #include <projection.h>
-
+#include <mutex>
 namespace autov {
 
 extern unordered_map<unsigned long, bool> converged_spec;
@@ -51,10 +51,13 @@ static unordered_map<rule_ret_t(*)(Project *, SpecNode *), string> rule_names = 
 
 extern unordered_map<size_t, Z3Result> Z3Cache;
 
+std::mutex Z3mtx;
+
 void spec_transformer(Project *proj, Definition *def) {
-    LOG_INFO << "Transforming " << def->name;
-    std::cout << string(*def) << std::endl;
-    bool debug = (def->name.rfind("smc_rtt_set_ripas", 0) == 0);
+    // LOG_INFO << "Transforming " << def->name;
+    // std::cout << string(*def) << std::endl;
+
+    bool debug = (def->name.rfind("mem_region_search", 0) == 0);
     auto known = std::set<string>();
     auto fname = def->name;
 
@@ -169,7 +172,7 @@ void spec_transformer(Project *proj, Definition *def) {
                 break;
         }
 
-#define APPLY_LENS
+//#define APPLY_LENS
 #ifdef APPLY_LENS
         // lens
         while (true) {
@@ -222,13 +225,15 @@ void spec_transformer(Project *proj, Definition *def) {
         if (debug)
             std::cout << "Before Z3 " << def->name << ": \n=========================\n"
                 << string(*new_spec) << "\n==============================" << std::endl;
+
         auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec1, make_shared<EvalState>(vars, conds));
         Z3Cache.clear();
+
         changed |= __changed;
 
         new_spec = __spec;
 
-        if (__changed && debug)
+        if (debug)
             std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
                 << string(*new_spec) << "\n==============================\n";
 

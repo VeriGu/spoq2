@@ -106,7 +106,7 @@ public:
     };
     cmds cmds;
 
-    unordered_map<string, std::set<string>> deps;
+    concurrent_unordered_map<string, std::set<string>> deps;
 
     std::set<string> has_shadow;
 
