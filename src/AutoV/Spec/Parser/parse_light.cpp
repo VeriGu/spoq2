@@ -14,10 +14,13 @@ using std::any_cast;
 using std::make_unique;
 
 antlrcpp::Any LightProgramVisitor::visitProgram(SpecParser::ProgramContext* ctx) {
+    vector<Definition *> ret;
+
     for (auto& stmt : ctx->statement()) {
-        return visitStatement(stmt);
+        ret.push_back(any_cast<Definition *>(visitStatement(stmt)));
     }
-    return std::any();
+
+    return ret;
 }
 
 antlrcpp::Any LightProgramVisitor::visitStatement(SpecParser::StatementContext* ctx) {
@@ -30,7 +33,7 @@ antlrcpp::Any LightProgramVisitor::visitStatement(SpecParser::StatementContext* 
     } else if (ctx->decl() != nullptr) {
         return visitDecl(ctx->decl());
     } else if (ctx->fixpoint() != nullptr) {
-        return visitFixpoint(ctx->fixpoint());
+        return static_cast<Definition *>(any_cast<Fixpoint *>(visitFixpoint(ctx->fixpoint())));
     } else if (ctx->inductive_decl() != nullptr) {
         return visitInductive_decl(ctx->inductive_decl());
     } else if (ctx->record_decl() != nullptr) {
@@ -209,6 +212,10 @@ antlrcpp::Any LightProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx)
                 return (SpecNode *)(new Expr(Expr::None, std::move(elems)));
             else if (((Symbol *)op.get())->text == "Some")
                 return (SpecNode *)(new Expr(Expr::Some, std::move(elems)));
+            else if (((Symbol *)op.get())->text == "ZMap.get")
+                return (SpecNode *)(new Expr(Expr::GET, std::move(elems)));
+            else if (((Symbol *)op.get())->text == "ZMap.set")
+                return (SpecNode *)(new Expr(Expr::SET, std::move(elems)));
             else
                 return (SpecNode *)(new Expr(string(((Symbol *)op.get())->text), std::move(elems)));
         } else {
@@ -270,7 +277,6 @@ antlrcpp::Any LightProgramVisitor::visitType(SpecParser::TypeContext* ctx) {
         return static_pointer_cast<SpecType>(make_shared<ZMap>(any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)))));
     } else if (ctx->name()) {
         std::string name = ctx->name()->getText();
-        LOG_DEBUG << "Visiting type: " << name;
 
         // temp: don't use proj until finalize_project is ready
         // return make_shared<SpecType>(name);

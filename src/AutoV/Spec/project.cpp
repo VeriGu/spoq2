@@ -7,15 +7,20 @@
 #include <projection.h>
 #include <chrono>
 
-#include <thread>
-#include <oneapi/tbb/concurrent_set.h>
-#include <oneapi/tbb/parallel_for.h>
-#include <oneapi/tbb/blocked_range.h>
-#include <oneapi/tbb/flow_graph.h>
+#define MT_TRANSFORM
+#ifdef MT_TRANSFORM
+#include <unistd.h>
+#include <sys/wait.h>
+#include <cstring>
+#include <parser.h>
+#include <ext/stdio_filebuf.h>
+
+#define READ_END 0
+#define WRITE_END 1
+
+#endif
 
 namespace autov {
-
-using oneapi::tbb::concurrent_set;
 
 const string Project::LOC_DATATYPES = "DataTypes";
 const string Project::LOC_LOWSPEC = "LowSpec";
@@ -433,10 +438,89 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
     return low_specs;
 }
 
+#ifdef MT_TRANSFORM
+static bool collect_transformed_defs(Project *proj, std::set<string> &transformed,
+                                     vector<pid_t> &children, unordered_map<pid_t, int[2]> &pipes,
+                                     unordered_map<pid_t, std::tuple<string, int>> &tasks,
+                                     bool nohang) {
+    int status;
+    pid_t pid = waitpid(-1, &status, nohang ? WNOHANG : 0);
+
+    if (pid == -1) {
+        LOG_ERROR << "waitpid() failed";
+        exit(EXIT_FAILURE);
+    } else if (pid == 0) {
+        return false;
+    }
+
+    auto &task = tasks[pid];
+    auto &fname = std::get<0>(task);
+    int layer_id = std::get<1>(task);
+    auto &_L = proj->layers[layer_id];
+
+    LOG_INFO << "Reading result for " << fname << std::endl;
+    // Read from pipe
+    FILE* stream = fdopen(pipes[pid][READ_END], "r");
+    __gnu_cxx::stdio_filebuf<char> filebuf(stream, std::ios::in);
+    std::istream is(&filebuf);
+    std::stringstream ss;
+    ss << is.rdbuf();
+
+    string specs = ss.str();
+
+    if (!specs.empty() && specs.back() == '\0') {
+        specs.erase(specs.length() - 1);
+    }
+
+    auto defs = std::any_cast<vector<Definition *>>(parser::parse_light(proj, specs));
+
+    // clean the pipe
+    is.clear();
+    fclose(stream);
+    pipes.erase(pid);
+
+    // Find the child in the vector and remove it
+    auto it = std::find(children.begin(), children.end(), pid);
+    if (it != children.end()) {
+        children.erase(it);
+    } else {
+        LOG_ERROR << "Child not found";
+    }
+
+    for (auto def : defs) {
+        // check if def->name ends with "_low"
+        shared_ptr<loc_t> loc;
+
+        if (def->name.rfind("_low") == def->name.size() - 4) {
+            loc = make_shared<loc_t>(_L->name, fname, Project::LOC_LOWSPEC);
+        } else {
+            loc = make_shared<loc_t>(_L->name, Project::LOC_SPEC, "");
+            proj->deps[def->name] = proj->calc_dependencies(def->body.get());
+        }
+
+        if (is_instance(def, Fixpoint))
+            proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(def)), loc);
+        else
+            proj->add_definition(unique_ptr<Definition>(def), loc);
+
+        transformed.insert(fname);
+    }
+
+    return true;
+}
+#endif
+
+#ifndef MT_TRANSFORM
 static std::tuple<string, vector<Definition *> *, vector<unique_ptr<Definition>> *>
+#else
+static string
+#endif
 infer_spec_task(Project *proj, int layer_id, string fname) {
     auto &L = proj->layers[layer_id];
     vector<Definition *> *low_specs;
+#ifdef MT_TRANSFORM
+    vector<Definition *> high_specs;
+#endif
     string low_name = fname + "_spec_low";
     std::unordered_map<string, string> name_map; // low_name -> high_name
     bool have_loop = false, have_sub = false;
@@ -510,19 +594,35 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
             LOG_INFO << "No transformation for " << high_name;
         }
 
-        LOG_DEBUG << "High_name: " << high_name;
+#ifndef MT_TRANSFORM
         proj->deps[high_name] = proj->calc_dependencies(high_def->body.get());
-        LOG_DEBUG << "proj.deps size :" << proj->deps[high_name].size();
-
+#endif
         if (is_instance(low_def, Fixpoint))
             proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(high_def)),
                                  make_shared<loc_t>(L->name, Project::LOC_SPEC, ""), i);
         else
             proj->add_definition(unique_ptr<Definition>(high_def), make_shared<loc_t>(L->name, Project::LOC_SPEC, ""),
                                  i);
+#ifdef MT_TRANSFORM
+        high_specs.push_back(high_def);
+#endif
     }
 
+#ifndef MT_TRANSFORM
     return std::make_tuple(fname, low_specs, nullptr);
+#else
+    string out;
+
+    for (auto &def: *low_specs) {
+        out += string(*def) + "\n";
+    }
+
+    for (auto &def: high_specs) {
+        out += string(*def) + "\n";
+    }
+
+    return out;
+#endif
 }
 
 void Project::finalize_project()
@@ -566,7 +666,6 @@ void Project::finalize_project()
     deps.insert(this->layers[0]->prims.begin(), this->layers[0]->prims.end());
     this->layers[0]->prims.assign(deps.begin(), deps.end());
 
-#define MT_TRANSFORM
 #ifndef MT_TRANSFORM
     for (int i = 1; i < this->layers.size(); i++) {
         auto &L = this->layers[i];
@@ -580,7 +679,7 @@ void Project::finalize_project()
         }
     }
 #else
-    concurrent_set<string> transformed;
+    std::set<string> transformed;
 
     for (auto &p: this->layers[0]->prims)
         transformed.insert(p);
@@ -611,37 +710,122 @@ void Project::finalize_project()
 
     //     }
     // }
-    tbb::flow::graph g;
 
-    std::map<std::string, tbb::flow::continue_node<tbb::flow::continue_msg>*> nodes;
+#define NR_PROCS 15
+    std::set<string> untransformed;
+    vector<pid_t> children;
+    unordered_map<pid_t, int[2]> pipes;
+    unordered_map<pid_t, std::tuple<string, int>> tasks;
 
     for (int i = 1; i < this->layers.size(); i++) {
         auto &L = this->layers[i];
 
         for (auto &p: L->prims) {
-            if (this->code->functions->at(p)->body == nullptr)
+            if (this->code->functions->find(p) == this->code->functions->end() ||
+                this->code->functions->at(p)->body == nullptr) {
+                transformed.insert(p);
                 continue;
+            }
 
-            nodes[p] = new tbb::flow::continue_node<tbb::flow::continue_msg>(g, [this, i, p, &transformed](const tbb::flow::continue_msg&) {
-                std::cout << "Starting task for prim: " << p << std::endl;
-                auto [fname, low_specs, high_specs] = infer_spec_task(this, i, p);
-                transformed.insert(fname);
-                std::cout << "Finished task for prim: " << p << std::endl;
-            });
-
-            for (auto &d: L->prim_deps[p]) {
-                if (nodes.find(d) != nodes.end()) {
-                    tbb::flow::make_edge(*nodes[d], *nodes[p]);
-                }
+            for (auto &p: L->prims) {
+                untransformed.insert(p);
             }
         }
     }
 
-    for (auto &[p, node]: nodes) {
-        node->try_put(tbb::flow::continue_msg());
+    while (!untransformed.empty()) {
+        for (int i = 1; i < this->layers.size(); i++) {
+            auto &L = this->layers[i];
+
+            for (auto &p: L->prims) {
+                if (this->code->functions->find(p) == this->code->functions->end() ||
+                    this->code->functions->at(p)->body == nullptr) {
+                    transformed.insert(p);
+                    untransformed.erase(p);
+                    continue;
+                }
+
+                // If p is transformed, skip
+                if (untransformed.find(p) == untransformed.end())
+                    continue;
+
+                // Check if all dependencies are transformed
+                bool all_deps_transformed = true;
+
+                // Collect the results
+                for (int child_no = 0; child_no < children.size(); child_no++) {
+                    bool succ = collect_transformed_defs(this, transformed, children, pipes, tasks, children.size() != NR_PROCS);
+
+                    if (!succ)
+                        break;
+                }
+
+                for (auto &d: L->prim_deps[p]) {
+                    if (transformed.find(d) == transformed.end()) {
+                        all_deps_transformed = false;
+                        break;
+                    }
+                }
+
+                if (!all_deps_transformed)
+                    continue;
+
+                // At this point, p is not transformed and all dependencies are transformed
+
+                // Check if we can fork a new process
+                if (children.size() < NR_PROCS) {
+                    int pipefd[2];
+
+                    if (pipe(pipefd) == -1) {
+                        LOG_ERROR << "pipe() failed";
+                        exit(EXIT_FAILURE);
+                    }
+                    LOG_INFO << "Current number of children: " << children.size() << std::endl;
+                    for (auto &child: children) {
+                        if (tasks.find(child) == tasks.end()) {
+                            throw std::runtime_error("Child not found in the task map");
+                        }
+
+                        LOG_INFO << "Child: " << child << ", task: " << std::get<0>(tasks[child]);
+                    }
+                    pid_t pid = fork();
+
+                    if (pid == 0) {
+                        LOG_INFO << "Transforming start: " << p;
+                        auto specs = infer_spec_task(this, i, p);
+                        LOG_INFO << "Transforming finish: " << p;
+
+                        write(pipefd[WRITE_END], specs.c_str(), specs.size() + 1);  // Write to pipe
+                        close(pipefd[WRITE_END]);  // Close write end
+                        close(pipefd[READ_END]);  // Close read end
+
+                        exit(0);
+                    } else if (pid > 0) {
+                        untransformed.erase(p);
+                        children.push_back(pid);
+                        pipes[pid][READ_END] = pipefd[READ_END];
+                        pipes[pid][WRITE_END] = pipefd[WRITE_END];
+                        tasks[pid] = std::make_tuple(p, i);
+                        close(pipefd[WRITE_END]);
+                    } else {
+                        throw std::runtime_error("fork() failed");
+                    }
+                }
+
+                // Collect the results
+                // for (int child_no = 0; child_no < children.size(); child_no++) {
+                //     collect_transformed_defs(this, transformed, children, pipes, tasks, children.size() != NR_PROCS);
+                // }
+            }
+        }
     }
 
-    g.wait_for_all();
+    LOG_INFO << "Waiting for children to finish" << std::endl;
+
+    while (!children.empty()) {
+        collect_transformed_defs(this, transformed, children, pipes, tasks, false);
+    }
+
 #endif
 
     extern unsigned long z3_unknowns, z3_checks;

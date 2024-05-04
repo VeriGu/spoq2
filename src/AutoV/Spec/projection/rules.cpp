@@ -1262,7 +1262,8 @@ static bool pattern_is_symbol(SpecNode *node) {
 //filled with the matched variables, return [default] if not sure.
 static bool try_match(Project *proj, SpecNode *pattern, SpecNode *src,
                       std::unordered_map<string, unique_ptr<SpecNode>> &assigns, bool def) {
-    //std::cout << "try_match " << string(*src) << " with " << string(*pattern) << std::endl;
+    // if (string(*pattern) == "(LOCK_PROT lk)")
+    //     std::cout << "try_match " << string(*src) << " with " << string(*pattern) << std::endl;
 
     if (auto p = instance_of(pattern, Const)) {
         if(auto s = instance_of(src, Const)) {
@@ -1289,13 +1290,21 @@ static bool try_match(Project *proj, SpecNode *pattern, SpecNode *src,
                         if (*op != Expr::None) {
                             if (auto s = instance_of(src, Expr)) {
                                 for (int i = 0; i < p->elems->size(); ++i) {
-                                    // std::cout << "    try_match elem" << string(*p->elems->at(i)) <<
-                                    //     " with " << string(*s->elems->at(i)) << std::endl;
                                     if (!try_match(proj, p->elems->at(i).get(), s->elems->at(i).get(), assigns, def))
                                         return false;
                                 }
                                 return true;
                             }
+                        }
+                    } else if (auto op = std::get_if<string>(&p->op)) {
+                        if (auto s = instance_of(src, Expr)) {
+                            if (p->elems->size() != s->elems->size())
+                                return false;
+                            for (int i = 0; i < p->elems->size(); ++i) {
+                                if (!try_match(proj, p->elems->at(i).get(), s->elems->at(i).get(), assigns, def))
+                                    return false;
+                            }
+                            return true;
                         }
                     }
                 }
@@ -1304,7 +1313,7 @@ static bool try_match(Project *proj, SpecNode *pattern, SpecNode *src,
     }
 
     if (auto p = instance_of(pattern, Symbol)) {
-        if(!proj->is_known_symbol(p->text)) {
+        if (!proj->is_known_symbol(p->text)) {
             assigns[p->text] = src->deep_copy();
             return true;
         }

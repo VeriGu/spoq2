@@ -194,8 +194,8 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
         //std::cout << "simple_if_by_z3: nullptr orig_cond: " << orig_cond << std::endl;
         return std::make_pair(nullptr, cond_ret.second);
     }
-    // std::cout << "simple_if_by_z3: cond_ret.first: " << string(*cond_ret.first) << std::endl;
-    // if (orig_cond == "((((((v_slot << (12)) + (18446744073709420544)) - (SLOT_VIRT)) / (GRANULE_SIZE)) - (SLOT_DELEGATED)) =? (0))")
+    // // std::cout << "simple_if_by_z3: cond_ret.first: " << string(*cond_ret.first) << std::endl;
+    // if (orig_cond == "(((33686424 - ((33686424 + (((768 * (v_vmid)) + (752)))))) <=? (0)) && (((33686424 + (((768 * (v_vmid)) + (752)))) <? (33701016))))")
     //     std::cout << "here." << std::endl;
 
     auto c = z3_eval(proj, cond_ret.first, state);
@@ -205,6 +205,7 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
     auto res = z3_check(state, c->get_z3_value(), 50);
 
     if (res == Z3Result::Unknown) {
+        //std::cout << "simple_if_by_z3: unknown condition: " << orig_cond << std::endl;
         auto unknown_value = c->get_z3_value();
         //auto then_state = state->copy();
 
@@ -283,11 +284,14 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
 
         return std::make_pair(new If(unique_ptr<SpecNode>(cond_ret.first), unique_ptr<SpecNode>(then_ret.first), unique_ptr<SpecNode>(else_ret.first)), changed);
     } else if (res == Z3Result::True) {
+        //std::cout << "simple_if_by_z3: condition is true: " << orig_cond << std::endl;
         auto ret = rule_simple_by_z3(proj, spec->then_body.release(), state);
         delete cond_ret.first;
         delete spec;
         return std::make_pair(ret.first, true);
     } else {
+        // std::cout << "simple_if_by_z3: condition is false: " << c->get_z3_value() << std::endl;
+        // std::cout << "simple_if_by_z3: condition is false: " << orig_cond << std::endl;
         // for (const auto &cond: *state->conds) {
         //     std::cout << "simple_if_by_z3: cond lead to False: " << cond << std::endl;
         // }
@@ -557,7 +561,8 @@ static SpecNode* reconstruct_expr(z3::expr z3_val,
         if (z3_val.is_numeral_i64(_v)) {
             long v = z3_val.get_numeral_int64();
 
-            if (v > -100 && v < 0) {
+            if (v < 0) {
+            //if (v > -100 && v < 0) {
                 auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
                 new_elems->push_back(make_unique<IntConst>(-v));
