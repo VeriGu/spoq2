@@ -384,7 +384,7 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
 
         for (auto &def: *low_specs) {
             LOG_INFO << "Generate low definition " << def->name << ", Fixpoint: " << is_instance(def, Fixpoint);
-            proj->deps[fname] = proj->calc_dependencies(def->body.get());
+            proj->deps[def->name] = proj->calc_dependencies(def->body.get());
 
             if (is_instance(def, Fixpoint)) {
                 proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(def)),
@@ -626,6 +626,8 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
             LOG_DEBUG << "High_name: " << high_name;
             proj->deps[high_name] = proj->calc_dependencies(_def->body.get());
             LOG_DEBUG << "proj.deps size :" << proj->deps[high_name].size();
+
+            proj->deps[high_name] = proj->calc_dependencies(_def->body.get());
 
             if (_def->body) {
                 LOG_INFO << "Provided: " << high_name << std::endl;
