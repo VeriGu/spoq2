@@ -66,7 +66,7 @@ enum class Z3Result {
 // timeout 50: Z3 unknowns: 4384, Z3 accumulative time: 58.9793 (s)
 // timeout 25: Z3 unknowns: 4384
 // timeout 13: Z3 unknowns: 4391, Z3 accumulative time: 30.1244 (s)
-#define Z3_TIMEOUT 200
+#define Z3_TIMEOUT 50
 Z3Result z3_check(std::shared_ptr<EvalState> state, z3::expr cond, int timeout=Z3_TIMEOUT);
 Z3Result z3_check(shared_ptr<EvalState> state, int timeout=Z3_TIMEOUT);
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state);

@@ -20,6 +20,11 @@ set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -Wall -Wno-unused-function")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wno-unused-function")
 set(CMAKE_CXX_STANDARD 17)
 
+if(MT_TRANSFORM)
+    message("MT_TRANSFORM: ${MT_TRANSFORM}")
+    add_definitions(-DMT_TRANSFORM=${MT_TRANSFORM})
+endif()
+
 include_directories(include)
 # DO NOT put z3 include directory here, it will cause conflict with the z3 library in the system PATH
 # include_directories(include/z3)

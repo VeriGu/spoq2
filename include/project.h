@@ -97,11 +97,14 @@ public:
         std::set<string> Unfold;
         std::set<string> NoUnfold;
         std::set<string> NoTrans;
+        std::set<string> OnlyTrans;
+        bool NoUnfoldAll = false;
         std::map<string, vector<unique_ptr<SpecNode>>> InitRely;
     };
     cmds cmds;
 
     unordered_map<string, std::set<string>> deps;
+    unordered_map<string, std::set<string>> prim_deps;
 
     std::set<string> has_shadow;
 

@@ -1840,7 +1840,7 @@ rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec) {
                 }
             }
         } else if (auto m = instance_of(node, Expr)) {
-            if(holds_alternative<Expr::binops>(m->op)) {
+            if (holds_alternative<Expr::binops>(m->op)) {
                 auto ops = std::get<Expr::binops>(m->op);
                 using op = Expr::binops;
                 std::set<op> vec = {op::EQUAL, op::NOT_EQUAL, op::LTE, op::GTE, op::GT, op::LT, op::BEQ,
@@ -1884,19 +1884,25 @@ rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec) {
                     }
 
                     //here expr is not changed;
+                } else if (ops == op::MINUS && m->elems->size() == 1) {
+                    return expr.release();
                 }
 
                 bool all_intconst = true;
                 for (auto & e : *m->elems) {
-                    if(!is_instance(e.get(), IntConst)) {
+                    if (!is_instance(e.get(), IntConst)) {
+                        if (is_instance(e.get(), Const) &&
+                            holds_alternative<unsigned long>((static_cast<Const *>(e.get()))->value)) {
+                            continue;
+                        }
                         all_intconst = false;
                         break;
                     }
                 }
 
                 if(all_intconst) {
-                    auto elem0 = instance_of(m->elems->at(0).get(), IntConst);
-                    auto elem1 = instance_of(m->elems->at(1).get(), IntConst);
+                    auto elem0 = instance_of(m->elems->at(0).get(), Const);
+                    auto elem1 = instance_of(m->elems->at(1).get(), Const);
 
                     if(ops == op::ADD) {
                         expr_is_changed = true;
@@ -1906,7 +1912,17 @@ rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec) {
                         expr.reset(new IntConst(-std::get<unsigned long>(elem0->value)));
                     } else if (ops == op::MINUS && m->elems->size() == 2) {
                         expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) - std::get<unsigned long>(elem1->value)));
+                        long long res = std::get<unsigned long>(elem0->value) - std::get<unsigned long>(elem1->value);
+
+                        if (res < 0) {
+                            auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                            elems->push_back(make_unique<IntConst>((unsigned long)(-res)));
+
+                            //return new Expr(op::MINUS, std::move(elems), Int::INT);
+                            expr.reset(new Expr(op::MINUS, std::move(elems), Int::INT));
+                        } else {
+                            expr.reset(new IntConst(std::get<unsigned long>(elem0->value) - std::get<unsigned long>(elem1->value)));
+                        }
                     } else if (ops == op::MULT) {
                         expr_is_changed = true;
                         expr.reset(new IntConst(std::get<unsigned long>(elem0->value) * std::get<unsigned long>(elem1->value)));
@@ -1915,7 +1931,7 @@ rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec) {
                         expr.reset(new IntConst(std::get<unsigned long>(elem0->value) / std::get<unsigned long>(elem1->value)));
                     } else if(ops == op::MOD) {
                         expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) + std::get<unsigned long>(elem1->value)));
+                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) % std::get<unsigned long>(elem1->value)));
                     } else if(ops == op::BITAND) {
                         expr_is_changed = true;
                         expr.reset(new IntConst(std::get<unsigned long>(elem0->value) & std::get<unsigned long>(elem1->value)));

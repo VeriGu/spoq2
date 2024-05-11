@@ -185,9 +185,11 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
     // auto orig_then = string(*spec->then_body);
     // auto orig_else = string(*spec->else_body);
     auto orig_cond = string(*spec->cond);
+   //bool debug = orig_cond == "((0 & (281474976706560)) =? (0))";
 
     auto cond_ret = rule_simple_by_z3(proj, spec->cond.release(), state);
-    //std::cout << "simple_if_by_z3: orig_cond: " << orig_cond << std::endl;
+    // if (debug)
+    //     std::cout << "simple_if_by_z3: orig_cond: " << orig_cond << std::endl;
     if (cond_ret.first == nullptr) {
         delete spec;
         throw std::runtime_error("If condition is false3: " + orig_cond);
@@ -199,7 +201,7 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
     //     std::cout << "here." << std::endl;
 
     auto c = z3_eval(proj, cond_ret.first, state);
-    // if (orig_cond == "((((((v_slot << (12)) + (18446744073709420544)) - (SLOT_VIRT)) / (GRANULE_SIZE)) - (SLOT_DELEGATED)) =? (0))") {
+    // if (debug) {
     //     std::cout << "simple_if_by_z3: c: " << c->get_z3_value() << ", hash: " << c->get_z3_value().hash() << std::endl;
     // }
     auto res = z3_check(state, c->get_z3_value(), 50);
@@ -555,7 +557,7 @@ static z3::sort bv64 = z3ctx.bv_sort(64);
 static SpecNode* reconstruct_expr(z3::expr z3_val,
                            unordered_map<unsigned, std::pair<z3::expr, SpecNode*>>& subexprs,
                            shared_ptr<EvalState> state) {
-    //std::cout << "reconstruct_expr: " << z3_val << std::endl;
+    std::cout << "reconstruct_expr: " << z3_val << std::endl;
     if (z3_val.is_const() && z3_val.is_int() && z3_val.is_numeral()) {
         int64_t _v;
         if (z3_val.is_numeral_i64(_v)) {

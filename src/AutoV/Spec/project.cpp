@@ -7,7 +7,7 @@
 #include <projection.h>
 #include <chrono>
 
-#define MT_TRANSFORM
+//#define MT_TRANSFORM
 #ifdef MT_TRANSFORM
 #include <unistd.h>
 #include <sys/wait.h>
@@ -168,6 +168,12 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             assert(cmd->elems->size() == 1);
             cmd->elems->at(0).release();
             this->axioms.push_back(unique_ptr<Expr>(expr));
+        } else if (op_str == "OnlyTrans") {
+            assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            this->cmds.OnlyTrans.insert(s->text);
+        } else if (op_str == "NoUnfoldAll") {
+            this->cmds.NoUnfoldAll = true;
         } else {
             LOG_WARNING << "Unknown command " << op_str;
         }
@@ -458,6 +464,19 @@ static bool collect_transformed_defs(Project *proj, std::set<string> &transforme
     int layer_id = std::get<1>(task);
     auto &_L = proj->layers[layer_id];
 
+    if (WIFEXITED(status)) {
+        if (WEXITSTATUS(status) != 0) {
+            LOG_ERROR << "Child process " << fname << " exited with status " << WEXITSTATUS(status);
+            exit(EXIT_FAILURE);
+        }
+    } else if (WIFSIGNALED(status)) {
+        LOG_ERROR << "Child process " << fname << " killed by signal " << WTERMSIG(status);
+        exit(EXIT_FAILURE);
+    } else {
+        LOG_ERROR << "Child process " << fname << " exited abnormally";
+        exit(EXIT_FAILURE);
+    }
+
     LOG_INFO << "Reading result for " << fname << std::endl;
     // Read from pipe
     FILE* stream = fdopen(pipes[pid][READ_END], "r");
@@ -509,6 +528,66 @@ static bool collect_transformed_defs(Project *proj, std::set<string> &transforme
     return true;
 }
 #endif
+
+static void merge_keep(Project *proj, std::set<string> &to_keep, string fname) {
+    // if (proj->code->functions->find(fname) == proj->code->functions->end())
+    //     throw std::runtime_error("Function " + fname + " not found");
+
+    to_keep.insert(fname);
+    to_keep.insert(proj->prim_deps[fname].begin(), proj->prim_deps[fname].end());
+
+    for (auto &dep : proj->prim_deps[fname]) {
+        merge_keep(proj, to_keep, dep);
+    }
+}
+
+static void filter_only_trans(Project *proj) {
+    if (proj->cmds.OnlyTrans.empty())
+        return;
+
+    std::set<string> to_keep;
+
+    // Insert functions in OnlyTrans and their deps to to_keep
+    for (auto &fname: proj->cmds.OnlyTrans) {
+        merge_keep(proj, to_keep, fname);
+    }
+
+    for (auto &keep: to_keep) {
+        LOG_DEBUG << "Keeping " << keep;
+    }
+
+    // Remove functions not in to_keep from layer definitions
+    for (int i = 1; i < proj->layers.size(); i++) {
+        auto &L = proj->layers[i];
+
+        for (auto it = L->prims.begin(); it != L->prims.end();) {
+            if (to_keep.find(*it) == to_keep.end()) {
+                it = L->prims.erase(it);
+            } else {
+                it++;
+            }
+        }
+    }
+
+    // Remove layers have no prims
+    for (auto it = proj->layers.begin() + 1; it != proj->layers.end();) {
+        if ((*it)->prims.empty()) {
+            it = proj->layers.erase(it);
+        } else {
+            it++;
+        }
+    }
+
+    // print remianing layers and prims
+    for (int i = 1; i < proj->layers.size(); i++) {
+        auto &L = proj->layers[i];
+
+        LOG_DEBUG << "Layer " << L->name << " prims: ";
+        for (auto &prim: L->prims) {
+            LOG_DEBUG << prim << " ";
+        }
+    }
+}
 
 #ifndef MT_TRANSFORM
 static std::tuple<string, vector<Definition *> *, vector<unique_ptr<Definition>> *>
@@ -658,6 +737,7 @@ void Project::finalize_project()
                 continue;
 
             L->prim_deps[p] = get_prim_dependencies(*this->code->functions->at(p)->body);
+            prim_deps[p] = L->prim_deps[p];
             for (auto &d: L->prim_deps[p])
                 deps.insert(d);
         }
@@ -665,6 +745,8 @@ void Project::finalize_project()
 
     deps.insert(this->layers[0]->prims.begin(), this->layers[0]->prims.end());
     this->layers[0]->prims.assign(deps.begin(), deps.end());
+
+    filter_only_trans(this);
 
 #ifndef MT_TRANSFORM
     for (int i = 1; i < this->layers.size(); i++) {
@@ -684,34 +766,7 @@ void Project::finalize_project()
     for (auto &p: this->layers[0]->prims)
         transformed.insert(p);
 
-    // for (int i = 1; i < this->layers.size(); i++) {
-    //     auto &L = this->layers[i];
-
-    //     for (auto &p: L->prims) {
-    //         if (this->code->functions->at(p)->body == nullptr)
-    //             continue;
-
-    //         while (true) {
-    //             bool all_deps_transformed = true;
-
-    //             for (auto &d: this->code->functions->at(p)->deps) {
-    //                 if (transformed.find(d) == transformed.end()) {
-    //                     all_deps_transformed = false;
-    //                     break;
-    //                 }
-    //             }
-
-    //             if (all_deps_transformed)
-    //                 break;
-    //         }
-
-    //         auto [fname, low_specs, high_specs] = infer_spec_task(this, i, p);
-    //         transformed.insert(fname);
-
-    //     }
-    // }
-
-#define NR_PROCS 15
+#define NR_PROCS 8
     std::set<string> untransformed;
     vector<pid_t> children;
     unordered_map<pid_t, int[2]> pipes;

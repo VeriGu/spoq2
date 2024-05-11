@@ -1,6 +1,7 @@
 #include <rules.h>
 #include <z3_rules.h>
 #include <projection.h>
+#include <project.h>
 #include <mutex>
 namespace autov {
 
@@ -57,7 +58,7 @@ void spec_transformer(Project *proj, Definition *def) {
     // LOG_INFO << "Transforming " << def->name;
     // std::cout << string(*def) << std::endl;
 
-    bool debug = (def->name.rfind("mem_region_search", 0) == 0);
+    bool debug = (def->name.rfind("ptr_status", 0) == 0);
     auto known = std::set<string>();
     auto fname = def->name;
 
@@ -113,6 +114,8 @@ void spec_transformer(Project *proj, Definition *def) {
 #ifdef UNFOLD
         // Unfold
         do {
+            if (proj->cmds.NoUnfoldAll)
+                break;
             auto [__spec, __unfolded] = rule_unfold_specs(proj, new_spec1);
             new_spec = __spec;
             changed |= __unfolded;
