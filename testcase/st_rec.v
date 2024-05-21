@@ -492,7 +492,15 @@ Definition store_s_psci_info (sz: Z) (ofs: Z) (v: Z) (st: s_psci_info) : option 
   None.
 
 Definition load_s_rec_simd_state (sz: Z) (ofs: Z) (st: s_rec_simd_state) : option Z :=
-  if (ofs =? 0) then Some (st.(e_simd)) else
+  if (ofs =? 0) then (
+    let ret := st.(e_simd) in
+    rely (ret < MAX_ERR);
+    rely (ret >= SLOT_VIRT);
+    let slot := ((ret - SLOT_VIRT) / GRANULE_SIZE) in
+    rely (slot >= SLOT_REC_AUX0);
+    rely (slot < SLOT_REC_AUX0 + MAX_REC_AUX_GRANULES);
+    Some ret
+  ) else
   if (ofs =? 8) then Some (st.(e_simd_allowed)) else
   if (ofs =? 9) then Some (st.(e_init_done)) else
   None.

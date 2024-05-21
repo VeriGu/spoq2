@@ -2,6 +2,11 @@ Require Import CommonDeps.
 
 Local Open Scope Z_scope.
 
+(* Inductive nat: Type := *)
+(*  | O  *)
+(*  | S (pred: nat). *)
+
+
 Record s_gic_cpu_state :=
   mks_gic_cpu_state {
     e_ich_ap0r_el2: (ZMap.t Z);
@@ -206,6 +211,12 @@ Record u_anon_6 :=
     e_padding0: (ZMap.t Z);
 }.
 
+Record u_anon_7 :=
+  mku_anon_7 {
+    e_union_anon_7_0: Z;
+    e_union_anon_7_1: (ZMap.t Z);
+}.
+
 
 Record s_simd_state :=
   mks_simd_state {
@@ -222,17 +233,10 @@ Record s_ns_simd_state :=
 }.
 
 
-Record u_anon_7 :=
-  mku_anon_7 {
-    e_features_0: Z;
-    e_rec_params_padding0: (ZMap.t Z);
-}.
-
-
 Record u_anon_10 :=
   mku_anon_10 {
-    e_gprs: (ZMap.t Z);
-    e__rec_params_padding0: (ZMap.t Z);
+    e_union_anon_10_0: (ZMap.t Z);
+    e_union_anon_10_1: (ZMap.t Z);
 }.
 
 
@@ -245,8 +249,8 @@ Record s_anon_14 :=
 
 Record u_anon_11_154 :=
   mku_anon_11_154 {
-    e__0: s_anon_14;
-    e___rec_params_padding0: (ZMap.t Z);
+    e_union_anon_11_154_0: s_anon_14;
+    e_union_anon_11_154_1: (ZMap.t Z);
 }.
 
 
@@ -257,6 +261,51 @@ Record s_rmi_rec_params :=
     e_rmi_rec_params_2: u_anon_7;
     e_rmi_rec_params_3: u_anon_10;
     e_rmi_rec_params_4: u_anon_11_154;
+}.
+
+
+Record s_rtt_walk :=
+  mks_rtt_walk {
+    e_g_llt: Z;
+    e_index: Z;
+    e_last_level: Z;
+}.
+
+
+Record u_anon_0_95 :=
+  mku_anon_0_95 {
+    e_union_anon_0_95_0: (ZMap.t Z);
+}.
+
+
+Record u_anon_1_96 :=
+  mku_anon_1_96 {
+    e_union_anon_1_96_0: (ZMap.t Z);
+}.
+
+
+Record s_anon_97 :=
+  mks_anon_97 {
+    e_vmid: Z;
+    e_rtt_base: Z;
+    e_rtt_level_start: Z;
+    e_rtt_num_start: Z;
+}.
+
+
+Record u_anon_2_98 :=
+  mku_anon_2_98 {
+    e_union_anon_2_98_0: s_anon_97;
+    e_union_anon_2_98_1: (ZMap.t Z);
+}.
+
+
+Record s_rmi_realm_params :=
+  mks_rmi_realm_params {
+    e_rmi_realm_params_0: u_anon_7;
+    e_rmi_realm_params_1: u_anon_0_95;
+    e_rmi_realm_params_2: u_anon_1_96;
+    e_rmi_realm_params_3: u_anon_2_98;
 }.
 
 
@@ -576,6 +625,21 @@ Definition Replay: Type :=list Event -> (Shared -> (option Shared)).
 
 Record STACK :=
   mkSTACK {
+    stack_wi: s_rtt_walk;
+    stack_g_tbls: (ZMap.t Z);
+    stack_gs0: s_granule_set;
+    stack_gs1: s_granule_set;
+    stack_gs_temp: s_granule_set;
+    stack_g_tbl: Z;
+    stack_g0: Z;
+    stack_g1: Z;
+    stack_s2_ctx: s_realm_s2_context;
+    stack_ripas_ptr: Z;
+    stack_ripas: Z;
+    stack_rtt_level: Z;
+    stack_walk_res: s_s2_walk_result;
+    stack_s2tte: Z;
+    stack_realm_params: s_rmi_realm_params;
     attest_setup_platform_token_stack: (ZMap.t Z);
     smc_psci_complete_stack: (ZMap.t Z);
     find_lock_two_granules_stack: (ZMap.t Z);
@@ -1375,21 +1439,13 @@ Definition update_s_ns_simd_state_e_ns_saved(_a: s_ns_simd_state) _b :=
   mks_ns_simd_state (_a.(e_ns_simd)) (_a.(e_ns_zcr_el2)) _b.
 Notation "_a '.[e_ns_saved]' ':<' _b" := (update_s_ns_simd_state_e_ns_saved _a _b) (at level 1).
 
-Definition update_u_anon_7_e_features_0(_a: u_anon_7) _b :=
-  mku_anon_7 _b (_a.(e_rec_params_padding0)).
-Notation "_a '.[e_features_0]' ':<' _b" := (update_u_anon_7_e_features_0 _a _b) (at level 1).
+Definition update_u_anon_10_e_union_anon_10_0(_a: u_anon_10) _b :=
+  mku_anon_10 _b (_a.(e_union_anon_10_1)).
+Notation "_a '.[e_union_anon_10_0]' ':<' _b" := (update_u_anon_10_e_union_anon_10_0 _a _b) (at level 1).
 
-Definition update_u_anon_7_e_rec_params_padding0(_a: u_anon_7) _b :=
-  mku_anon_7 (_a.(e_features_0)) _b.
-Notation "_a '.[e_rec_params_padding0]' ':<' _b" := (update_u_anon_7_e_rec_params_padding0 _a _b) (at level 1).
-
-Definition update_u_anon_10_e_gprs(_a: u_anon_10) _b :=
-  mku_anon_10 _b (_a.(e__rec_params_padding0)).
-Notation "_a '.[e_gprs]' ':<' _b" := (update_u_anon_10_e_gprs _a _b) (at level 1).
-
-Definition update_u_anon_10_e__rec_params_padding0(_a: u_anon_10) _b :=
-  mku_anon_10 (_a.(e_gprs)) _b.
-Notation "_a '.[e__rec_params_padding0]' ':<' _b" := (update_u_anon_10_e__rec_params_padding0 _a _b) (at level 1).
+Definition update_u_anon_10_e_union_anon_10_1(_a: u_anon_10) _b :=
+  mku_anon_10 (_a.(e_union_anon_10_0)) _b.
+Notation "_a '.[e_union_anon_10_1]' ':<' _b" := (update_u_anon_10_e_union_anon_10_1 _a _b) (at level 1).
 
 Definition update_s_anon_14_e_num_aux(_a: s_anon_14) _b :=
   mks_anon_14 _b (_a.(e_aux)).
@@ -1399,13 +1455,13 @@ Definition update_s_anon_14_e_aux(_a: s_anon_14) _b :=
   mks_anon_14 (_a.(e_num_aux)) _b.
 Notation "_a '.[e_aux]' ':<' _b" := (update_s_anon_14_e_aux _a _b) (at level 1).
 
-Definition update_u_anon_11_154_e__0(_a: u_anon_11_154) _b :=
-  mku_anon_11_154 _b (_a.(e___rec_params_padding0)).
-Notation "_a '.[e__0]' ':<' _b" := (update_u_anon_11_154_e__0 _a _b) (at level 1).
+Definition update_u_anon_11_154_e_union_anon_11_154_0(_a: u_anon_11_154) _b :=
+  mku_anon_11_154 _b (_a.(e_union_anon_11_154_1)).
+Notation "_a '.[e_union_anon_11_154_0]' ':<' _b" := (update_u_anon_11_154_e_union_anon_11_154_0 _a _b) (at level 1).
 
-Definition update_u_anon_11_154_e___rec_params_padding0(_a: u_anon_11_154) _b :=
-  mku_anon_11_154 (_a.(e__0)) _b.
-Notation "_a '.[e___rec_params_padding0]' ':<' _b" := (update_u_anon_11_154_e___rec_params_padding0 _a _b) (at level 1).
+Definition update_u_anon_11_154_e_union_anon_11_154_1(_a: u_anon_11_154) _b :=
+  mku_anon_11_154 (_a.(e_union_anon_11_154_0)) _b.
+Notation "_a '.[e_union_anon_11_154_1]' ':<' _b" := (update_u_anon_11_154_e_union_anon_11_154_1 _a _b) (at level 1).
 
 Definition update_s_rmi_rec_params_e_rmi_rec_params_0(_a: s_rmi_rec_params) _b :=
   mks_rmi_rec_params _b (_a.(e_rmi_rec_params_1)) (_a.(e_rmi_rec_params_2)) (_a.(e_rmi_rec_params_3)) (_a.(e_rmi_rec_params_4)).
@@ -1426,6 +1482,74 @@ Notation "_a '.[e_rmi_rec_params_3]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_
 Definition update_s_rmi_rec_params_e_rmi_rec_params_4(_a: s_rmi_rec_params) _b :=
   mks_rmi_rec_params (_a.(e_rmi_rec_params_0)) (_a.(e_rmi_rec_params_1)) (_a.(e_rmi_rec_params_2)) (_a.(e_rmi_rec_params_3)) _b.
 Notation "_a '.[e_rmi_rec_params_4]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_4 _a _b) (at level 1).
+
+Definition update_s_rtt_walk_e_g_llt(_a: s_rtt_walk) _b :=
+  mks_rtt_walk _b (_a.(e_index)) (_a.(e_last_level)).
+Notation "_a '.[e_g_llt]' ':<' _b" := (update_s_rtt_walk_e_g_llt _a _b) (at level 1).
+
+Definition update_s_rtt_walk_e_index(_a: s_rtt_walk) _b :=
+  mks_rtt_walk (_a.(e_g_llt)) _b (_a.(e_last_level)).
+Notation "_a '.[e_index]' ':<' _b" := (update_s_rtt_walk_e_index _a _b) (at level 1).
+
+Definition update_s_rtt_walk_e_last_level(_a: s_rtt_walk) _b :=
+  mks_rtt_walk (_a.(e_g_llt)) (_a.(e_index)) _b.
+Notation "_a '.[e_last_level]' ':<' _b" := (update_s_rtt_walk_e_last_level _a _b) (at level 1).
+
+Definition update_u_anon_7_e_union_anon_7_0(_a: u_anon_7) _b :=
+  mku_anon_7 _b (_a.(e_union_anon_7_1)).
+Notation "_a '.[e_union_anon_7_0]' ':<' _b" := (update_u_anon_7_e_union_anon_7_0 _a _b) (at level 1).
+
+Definition update_u_anon_7_e_union_anon_7_1(_a: u_anon_7) _b :=
+  mku_anon_7 (_a.(e_union_anon_7_0)) _b.
+Notation "_a '.[e_union_anon_7_1]' ':<' _b" := (update_u_anon_7_e_union_anon_7_1 _a _b) (at level 1).
+
+Definition update_u_anon_0_95_e_union_anon_0_95_0(_a: u_anon_0_95) _b :=
+  mku_anon_0_95 _b.
+Notation "_a '.[e_union_anon_0_95_0]' ':<' _b" := (update_u_anon_0_95_e_union_anon_0_95_0 _a _b) (at level 1).
+
+Definition update_u_anon_1_96_e_union_anon_1_96_0(_a: u_anon_1_96) _b :=
+  mku_anon_1_96 _b.
+Notation "_a '.[e_union_anon_1_96_0]' ':<' _b" := (update_u_anon_1_96_e_union_anon_1_96_0 _a _b) (at level 1).
+
+Definition update_s_anon_97_e_vmid(_a: s_anon_97) _b :=
+  mks_anon_97 _b (_a.(e_rtt_base)) (_a.(e_rtt_level_start)) (_a.(e_rtt_num_start)).
+Notation "_a '.[e_vmid]' ':<' _b" := (update_s_anon_97_e_vmid _a _b) (at level 1).
+
+Definition update_s_anon_97_e_rtt_base(_a: s_anon_97) _b :=
+  mks_anon_97 (_a.(e_vmid)) _b (_a.(e_rtt_level_start)) (_a.(e_rtt_num_start)).
+Notation "_a '.[e_rtt_base]' ':<' _b" := (update_s_anon_97_e_rtt_base _a _b) (at level 1).
+
+Definition update_s_anon_97_e_rtt_level_start(_a: s_anon_97) _b :=
+  mks_anon_97 (_a.(e_vmid)) (_a.(e_rtt_base)) _b (_a.(e_rtt_num_start)).
+Notation "_a '.[e_rtt_level_start]' ':<' _b" := (update_s_anon_97_e_rtt_level_start _a _b) (at level 1).
+
+Definition update_s_anon_97_e_rtt_num_start(_a: s_anon_97) _b :=
+  mks_anon_97 (_a.(e_vmid)) (_a.(e_rtt_base)) (_a.(e_rtt_level_start)) _b.
+Notation "_a '.[e_rtt_num_start]' ':<' _b" := (update_s_anon_97_e_rtt_num_start _a _b) (at level 1).
+
+Definition update_u_anon_2_98_e_union_anon_2_98_0(_a: u_anon_2_98) _b :=
+  mku_anon_2_98 _b (_a.(e_union_anon_2_98_1)).
+Notation "_a '.[e_union_anon_2_98_0]' ':<' _b" := (update_u_anon_2_98_e_union_anon_2_98_0 _a _b) (at level 1).
+
+Definition update_u_anon_2_98_e_union_anon_2_98_1(_a: u_anon_2_98) _b :=
+  mku_anon_2_98 (_a.(e_union_anon_2_98_0)) _b.
+Notation "_a '.[e_union_anon_2_98_1]' ':<' _b" := (update_u_anon_2_98_e_union_anon_2_98_1 _a _b) (at level 1).
+
+Definition update_s_rmi_realm_params_e_rmi_realm_params_0(_a: s_rmi_realm_params) _b :=
+  mks_rmi_realm_params _b (_a.(e_rmi_realm_params_1)) (_a.(e_rmi_realm_params_2)) (_a.(e_rmi_realm_params_3)).
+Notation "_a '.[e_rmi_realm_params_0]' ':<' _b" := (update_s_rmi_realm_params_e_rmi_realm_params_0 _a _b) (at level 1).
+
+Definition update_s_rmi_realm_params_e_rmi_realm_params_1(_a: s_rmi_realm_params) _b :=
+  mks_rmi_realm_params (_a.(e_rmi_realm_params_0)) _b (_a.(e_rmi_realm_params_2)) (_a.(e_rmi_realm_params_3)).
+Notation "_a '.[e_rmi_realm_params_1]' ':<' _b" := (update_s_rmi_realm_params_e_rmi_realm_params_1 _a _b) (at level 1).
+
+Definition update_s_rmi_realm_params_e_rmi_realm_params_2(_a: s_rmi_realm_params) _b :=
+  mks_rmi_realm_params (_a.(e_rmi_realm_params_0)) (_a.(e_rmi_realm_params_1)) _b (_a.(e_rmi_realm_params_3)).
+Notation "_a '.[e_rmi_realm_params_2]' ':<' _b" := (update_s_rmi_realm_params_e_rmi_realm_params_2 _a _b) (at level 1).
+
+Definition update_s_rmi_realm_params_e_rmi_realm_params_3(_a: s_rmi_realm_params) _b :=
+  mks_rmi_realm_params (_a.(e_rmi_realm_params_0)) (_a.(e_rmi_realm_params_1)) (_a.(e_rmi_realm_params_2)) _b.
+Notation "_a '.[e_rmi_realm_params_3]' ':<' _b" := (update_s_rmi_realm_params_e_rmi_realm_params_3 _a _b) (at level 1).
 
 Definition update_s_granule_e_lock(_a: s_granule) _b :=
   mks_granule _b (_a.(e_state)) (_a.(e_refcount)).
@@ -4590,436 +4714,697 @@ Definition update_Shared_gv_vmids(_a: Shared) _b :=
  _b.
 Notation "_a '.[gv_vmids]' ':<' _b" := (update_Shared_gv_vmids _a _b) (at level 1).
 
+Definition update_STACK_stack_wi(_a: STACK) _b :=
+  mkSTACK _b (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+Notation "_a '.[stack_wi]' ':<' _b" := (update_STACK_stack_wi _a _b) (at level 1).
+
+Definition update_STACK_stack_g_tbls(_a: STACK) _b :=
+  mkSTACK (_a.(stack_wi)) _b (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+Notation "_a '.[stack_g_tbls]' ':<' _b" := (update_STACK_stack_g_tbls _a _b) (at level 1).
+
+Definition update_STACK_stack_gs0(_a: STACK) _b :=
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) _b (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+Notation "_a '.[stack_gs0]' ':<' _b" := (update_STACK_stack_gs0 _a _b) (at level 1).
+
+Definition update_STACK_stack_gs1(_a: STACK) _b :=
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) _b (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+Notation "_a '.[stack_gs1]' ':<' _b" := (update_STACK_stack_gs1 _a _b) (at level 1).
+
+Definition update_STACK_stack_gs_temp(_a: STACK) _b :=
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) _b (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+Notation "_a '.[stack_gs_temp]' ':<' _b" := (update_STACK_stack_gs_temp _a _b) (at level 1).
+
+Definition update_STACK_stack_g_tbl(_a: STACK) _b :=
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) _b (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+Notation "_a '.[stack_g_tbl]' ':<' _b" := (update_STACK_stack_g_tbl _a _b) (at level 1).
+
+Definition update_STACK_stack_g0(_a: STACK) _b :=
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) _b (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+Notation "_a '.[stack_g0]' ':<' _b" := (update_STACK_stack_g0 _a _b) (at level 1).
+
+Definition update_STACK_stack_g1(_a: STACK) _b :=
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) _b
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+Notation "_a '.[stack_g1]' ':<' _b" := (update_STACK_stack_g1 _a _b) (at level 1).
+
+Definition update_STACK_stack_s2_ctx(_a: STACK) _b :=
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ _b (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+Notation "_a '.[stack_s2_ctx]' ':<' _b" := (update_STACK_stack_s2_ctx _a _b) (at level 1).
+
+Definition update_STACK_stack_ripas_ptr(_a: STACK) _b :=
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) _b (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+Notation "_a '.[stack_ripas_ptr]' ':<' _b" := (update_STACK_stack_ripas_ptr _a _b) (at level 1).
+
+Definition update_STACK_stack_ripas(_a: STACK) _b :=
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) _b (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+Notation "_a '.[stack_ripas]' ':<' _b" := (update_STACK_stack_ripas _a _b) (at level 1).
+
+Definition update_STACK_stack_rtt_level(_a: STACK) _b :=
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) _b (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+Notation "_a '.[stack_rtt_level]' ':<' _b" := (update_STACK_stack_rtt_level _a _b) (at level 1).
+
+Definition update_STACK_stack_walk_res(_a: STACK) _b :=
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) _b (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+Notation "_a '.[stack_walk_res]' ':<' _b" := (update_STACK_stack_walk_res _a _b) (at level 1).
+
+Definition update_STACK_stack_s2tte(_a: STACK) _b :=
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) _b (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+Notation "_a '.[stack_s2tte]' ':<' _b" := (update_STACK_stack_s2tte _a _b) (at level 1).
+
+Definition update_STACK_stack_realm_params(_a: STACK) _b :=
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) _b (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+Notation "_a '.[stack_realm_params]' ':<' _b" := (update_STACK_stack_realm_params _a _b) (at level 1).
+
 Definition update_STACK_attest_setup_platform_token_stack(_a: STACK) _b :=
-  mkSTACK _b (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) _b
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[attest_setup_platform_token_stack]' ':<' _b" := (update_STACK_attest_setup_platform_token_stack _a _b) (at level 1).
 
 Definition update_STACK_smc_psci_complete_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) _b (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ _b (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[smc_psci_complete_stack]' ':<' _b" := (update_STACK_smc_psci_complete_stack _a _b) (at level 1).
 
 Definition update_STACK_find_lock_two_granules_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) _b (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) _b (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[find_lock_two_granules_stack]' ':<' _b" := (update_STACK_find_lock_two_granules_stack _a _b) (at level 1).
 
 Definition update_STACK_attest_token_continue_write_state_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) _b (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) _b (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[attest_token_continue_write_state_stack]' ':<' _b" := (update_STACK_attest_token_continue_write_state_stack _a _b) (at level 1).
 
 Definition update_STACK_rmm_log_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) _b (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) _b (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[rmm_log_stack]' ':<' _b" := (update_STACK_rmm_log_stack _a _b) (at level 1).
 
 Definition update_STACK_attest_realm_token_create_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) _b (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) _b (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[attest_realm_token_create_stack]' ':<' _b" := (update_STACK_attest_realm_token_create_stack _a _b) (at level 1).
 
 Definition update_STACK_smc_rec_enter_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) _b (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) _b (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[smc_rec_enter_stack]' ':<' _b" := (update_STACK_smc_rec_enter_stack _a _b) (at level 1).
 
 Definition update_STACK_do_host_call_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) _b
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) _b (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[do_host_call_stack]' ':<' _b" := (update_STACK_do_host_call_stack _a _b) (at level 1).
 
 Definition update_STACK_attest_rnd_prng_init_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- _b (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) _b
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[attest_rnd_prng_init_stack]' ':<' _b" := (update_STACK_attest_rnd_prng_init_stack _a _b) (at level 1).
 
 Definition update_STACK_plat_setup_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) _b (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ _b (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[plat_setup_stack]' ':<' _b" := (update_STACK_plat_setup_stack _a _b) (at level 1).
 
 Definition update_STACK_attest_token_encode_start_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) _b (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) _b (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[attest_token_encode_start_stack]' ':<' _b" := (update_STACK_attest_token_encode_start_stack _a _b) (at level 1).
 
 Definition update_STACK_smc_data_destroy_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) _b (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) _b (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[smc_data_destroy_stack]' ':<' _b" := (update_STACK_smc_data_destroy_stack _a _b) (at level 1).
 
 Definition update_STACK_xlat_get_llt_from_va_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) _b (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) _b (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[xlat_get_llt_from_va_stack]' ':<' _b" := (update_STACK_xlat_get_llt_from_va_stack _a _b) (at level 1).
 
 Definition update_STACK_smc_rec_create_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) _b (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) _b (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[smc_rec_create_stack]' ':<' _b" := (update_STACK_smc_rec_create_stack _a _b) (at level 1).
 
 Definition update_STACK_measurement_extend_sha512_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) _b (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) _b (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[measurement_extend_sha512_stack]' ':<' _b" := (update_STACK_measurement_extend_sha512_stack _a _b) (at level 1).
 
 Definition update_STACK_data_granule_measure_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) _b
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) _b (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[data_granule_measure_stack]' ':<' _b" := (update_STACK_data_granule_measure_stack _a _b) (at level 1).
 
 Definition update_STACK_sort_granules_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- _b (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) _b
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[sort_granules_stack]' ':<' _b" := (update_STACK_sort_granules_stack _a _b) (at level 1).
 
 Definition update_STACK_measurement_extend_sha256_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) _b (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ _b (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[measurement_extend_sha256_stack]' ':<' _b" := (update_STACK_measurement_extend_sha256_stack _a _b) (at level 1).
 
 Definition update_STACK_realm_ipa_to_pa_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) _b (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) _b (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[realm_ipa_to_pa_stack]' ':<' _b" := (update_STACK_realm_ipa_to_pa_stack _a _b) (at level 1).
 
 Definition update_STACK_attest_realm_token_sign_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) _b (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) _b (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[attest_realm_token_sign_stack]' ':<' _b" := (update_STACK_attest_realm_token_sign_stack _a _b) (at level 1).
 
 Definition update_STACK_rmm_el3_ifc_get_platform_token_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) _b (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) _b (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[rmm_el3_ifc_get_platform_token_stack]' ':<' _b" := (update_STACK_rmm_el3_ifc_get_platform_token_stack _a _b) (at level 1).
 
 Definition update_STACK_attest_init_realm_attestation_key_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) _b (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) _b (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[attest_init_realm_attestation_key_stack]' ':<' _b" := (update_STACK_attest_init_realm_attestation_key_stack _a _b) (at level 1).
 
 Definition update_STACK_plat_cmn_setup_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) _b (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) _b (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[plat_cmn_setup_stack]' ':<' _b" := (update_STACK_plat_cmn_setup_stack _a _b) (at level 1).
 
 Definition update_STACK_complete_rsi_host_call_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) _b
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) _b (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[complete_rsi_host_call_stack]' ':<' _b" := (update_STACK_complete_rsi_host_call_stack _a _b) (at level 1).
 
 Definition update_STACK_handle_realm_rsi_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- _b (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) _b
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[handle_realm_rsi_stack]' ':<' _b" := (update_STACK_handle_realm_rsi_stack _a _b) (at level 1).
 
 Definition update_STACK_smc_rtt_set_ripas_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) _b (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ _b (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[smc_rtt_set_ripas_stack]' ':<' _b" := (update_STACK_smc_rtt_set_ripas_stack _a _b) (at level 1).
 
 Definition update_STACK_rtt_walk_lock_unlock_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) _b (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) _b (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[rtt_walk_lock_unlock_stack]' ':<' _b" := (update_STACK_rtt_walk_lock_unlock_stack _a _b) (at level 1).
 
 Definition update_STACK_smc_rtt_destroy_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) _b (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) _b (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[smc_rtt_destroy_stack]' ':<' _b" := (update_STACK_smc_rtt_destroy_stack _a _b) (at level 1).
 
 Definition update_STACK_map_unmap_ns_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) _b (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) _b (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[map_unmap_ns_stack]' ':<' _b" := (update_STACK_map_unmap_ns_stack _a _b) (at level 1).
 
 Definition update_STACK_handle_rsi_attest_token_init_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) _b (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) _b (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[handle_rsi_attest_token_init_stack]' ':<' _b" := (update_STACK_handle_rsi_attest_token_init_stack _a _b) (at level 1).
 
 Definition update_STACK_realm_params_measure_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) _b (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) _b (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[realm_params_measure_stack]' ':<' _b" := (update_STACK_realm_params_measure_stack _a _b) (at level 1).
 
 Definition update_STACK_handle_rsi_ipa_state_get_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) _b
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) _b (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[handle_rsi_ipa_state_get_stack]' ':<' _b" := (update_STACK_handle_rsi_ipa_state_get_stack _a _b) (at level 1).
 
 Definition update_STACK_realm_ipa_get_ripas_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- _b (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) _b
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[realm_ipa_get_ripas_stack]' ':<' _b" := (update_STACK_realm_ipa_get_ripas_stack _a _b) (at level 1).
 
 Definition update_STACK_smc_rtt_fold_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) _b (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ _b (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[smc_rtt_fold_stack]' ':<' _b" := (update_STACK_smc_rtt_fold_stack _a _b) (at level 1).
 
 Definition update_STACK_smc_rtt_create_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) _b (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) _b (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[smc_rtt_create_stack]' ':<' _b" := (update_STACK_smc_rtt_create_stack _a _b) (at level 1).
 
 Definition update_STACK_rsi_log_on_exit_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) _b (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) _b (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[rsi_log_on_exit_stack]' ':<' _b" := (update_STACK_rsi_log_on_exit_stack _a _b) (at level 1).
 
 Definition update_STACK_attest_cca_token_create_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) _b (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) _b (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[attest_cca_token_create_stack]' ':<' _b" := (update_STACK_attest_cca_token_create_stack _a _b) (at level 1).
 
 Definition update_STACK_rec_params_measure_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) _b (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) _b (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[rec_params_measure_stack]' ':<' _b" := (update_STACK_rec_params_measure_stack _a _b) (at level 1).
 
 Definition update_STACK_handle_ns_smc_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) _b (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) _b (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[handle_ns_smc_stack]' ':<' _b" := (update_STACK_handle_ns_smc_stack _a _b) (at level 1).
 
 Definition update_STACK_rmm_el3_ifc_get_realm_attest_key_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) _b
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) _b (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[rmm_el3_ifc_get_realm_attest_key_stack]' ':<' _b" := (update_STACK_rmm_el3_ifc_get_realm_attest_key_stack _a _b) (at level 1).
 
 Definition update_STACK_handle_rsi_realm_config_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- _b (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) _b
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[handle_rsi_realm_config_stack]' ':<' _b" := (update_STACK_handle_rsi_realm_config_stack _a _b) (at level 1).
 
 Definition update_STACK_smc_rtt_init_ripas_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) _b (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ _b (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[smc_rtt_init_ripas_stack]' ':<' _b" := (update_STACK_smc_rtt_init_ripas_stack _a _b) (at level 1).
 
 Definition update_STACK_smc_rtt_read_entry_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) _b (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) _b (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[smc_rtt_read_entry_stack]' ':<' _b" := (update_STACK_smc_rtt_read_entry_stack _a _b) (at level 1).
 
 Definition update_STACK_handle_data_abort_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) _b (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) _b (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[handle_data_abort_stack]' ':<' _b" := (update_STACK_handle_data_abort_stack _a _b) (at level 1).
 
 Definition update_STACK_data_create_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) _b (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) _b (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[data_create_stack]' ':<' _b" := (update_STACK_data_create_stack _a _b) (at level 1).
 
 Definition update_STACK_smc_realm_create_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) _b (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) _b (_a.(ripas_granule_measure_stack)) (_a.(ipa_is_empty_stack)).
 Notation "_a '.[smc_realm_create_stack]' ':<' _b" := (update_STACK_smc_realm_create_stack _a _b) (at level 1).
 
 Definition update_STACK_ripas_granule_measure_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) _b (_a.(ipa_is_empty_stack)).
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) _b (_a.(ipa_is_empty_stack)).
 Notation "_a '.[ripas_granule_measure_stack]' ':<' _b" := (update_STACK_ripas_granule_measure_stack _a _b) (at level 1).
 
 Definition update_STACK_ipa_is_empty_stack(_a: STACK) _b :=
-  mkSTACK (_a.(attest_setup_platform_token_stack)) (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack))
- (_a.(attest_rnd_prng_init_stack)) (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack))
- (_a.(sort_granules_stack)) (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack))
- (_a.(handle_realm_rsi_stack)) (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack))
- (_a.(realm_ipa_get_ripas_stack)) (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack))
- (_a.(handle_rsi_realm_config_stack)) (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) _b.
+  mkSTACK (_a.(stack_wi)) (_a.(stack_g_tbls)) (_a.(stack_gs0)) (_a.(stack_gs1)) (_a.(stack_gs_temp)) (_a.(stack_g_tbl)) (_a.(stack_g0)) (_a.(stack_g1))
+ (_a.(stack_s2_ctx)) (_a.(stack_ripas_ptr)) (_a.(stack_ripas)) (_a.(stack_rtt_level)) (_a.(stack_walk_res)) (_a.(stack_s2tte)) (_a.(stack_realm_params)) (_a.(attest_setup_platform_token_stack))
+ (_a.(smc_psci_complete_stack)) (_a.(find_lock_two_granules_stack)) (_a.(attest_token_continue_write_state_stack)) (_a.(rmm_log_stack)) (_a.(attest_realm_token_create_stack)) (_a.(smc_rec_enter_stack)) (_a.(do_host_call_stack)) (_a.(attest_rnd_prng_init_stack))
+ (_a.(plat_setup_stack)) (_a.(attest_token_encode_start_stack)) (_a.(smc_data_destroy_stack)) (_a.(xlat_get_llt_from_va_stack)) (_a.(smc_rec_create_stack)) (_a.(measurement_extend_sha512_stack)) (_a.(data_granule_measure_stack)) (_a.(sort_granules_stack))
+ (_a.(measurement_extend_sha256_stack)) (_a.(realm_ipa_to_pa_stack)) (_a.(attest_realm_token_sign_stack)) (_a.(rmm_el3_ifc_get_platform_token_stack)) (_a.(attest_init_realm_attestation_key_stack)) (_a.(plat_cmn_setup_stack)) (_a.(complete_rsi_host_call_stack)) (_a.(handle_realm_rsi_stack))
+ (_a.(smc_rtt_set_ripas_stack)) (_a.(rtt_walk_lock_unlock_stack)) (_a.(smc_rtt_destroy_stack)) (_a.(map_unmap_ns_stack)) (_a.(handle_rsi_attest_token_init_stack)) (_a.(realm_params_measure_stack)) (_a.(handle_rsi_ipa_state_get_stack)) (_a.(realm_ipa_get_ripas_stack))
+ (_a.(smc_rtt_fold_stack)) (_a.(smc_rtt_create_stack)) (_a.(rsi_log_on_exit_stack)) (_a.(attest_cca_token_create_stack)) (_a.(rec_params_measure_stack)) (_a.(handle_ns_smc_stack)) (_a.(rmm_el3_ifc_get_realm_attest_key_stack)) (_a.(handle_rsi_realm_config_stack))
+ (_a.(smc_rtt_init_ripas_stack)) (_a.(smc_rtt_read_entry_stack)) (_a.(handle_data_abort_stack)) (_a.(data_create_stack)) (_a.(smc_realm_create_stack)) (_a.(ripas_granule_measure_stack)) _b.
 Notation "_a '.[ipa_is_empty_stack]' ':<' _b" := (update_STACK_ipa_is_empty_stack _a _b) (at level 1).
 
 Definition update_stack_ptrs_attest_setup_platform_token_sp(_a: stack_ptrs) _b :=
@@ -5610,61 +5995,117 @@ Definition update_s_ns_simd_state_e_ns_simd_e_simd_type(_a: s_ns_simd_state) _b 
   update_s_ns_simd_state_e_ns_simd _a ((_a.(e_ns_simd)).[e_simd_type] :< _b).
 Notation "_a '.[e_ns_simd].[e_simd_type]' ':<' _b" := (update_s_ns_simd_state_e_ns_simd_e_simd_type _a _b) (at level 1).
 
-Definition update_u_anon_11_154_e__0_e_num_aux(_a: u_anon_11_154) _b :=
-  update_u_anon_11_154_e__0 _a ((_a.(e__0)).[e_num_aux] :< _b).
-Notation "_a '.[e__0].[e_num_aux]' ':<' _b" := (update_u_anon_11_154_e__0_e_num_aux _a _b) (at level 1).
+Definition update_u_anon_11_154_e_union_anon_11_154_0_e_num_aux(_a: u_anon_11_154) _b :=
+  update_u_anon_11_154_e_union_anon_11_154_0 _a ((_a.(e_union_anon_11_154_0)).[e_num_aux] :< _b).
+Notation "_a '.[e_union_anon_11_154_0].[e_num_aux]' ':<' _b" := (update_u_anon_11_154_e_union_anon_11_154_0_e_num_aux _a _b) (at level 1).
 
-Definition update_u_anon_11_154_e__0_e_aux(_a: u_anon_11_154) _b :=
-  update_u_anon_11_154_e__0 _a ((_a.(e__0)).[e_aux] :< _b).
-Notation "_a '.[e__0].[e_aux]' ':<' _b" := (update_u_anon_11_154_e__0_e_aux _a _b) (at level 1).
+Definition update_u_anon_11_154_e_union_anon_11_154_0_e_aux(_a: u_anon_11_154) _b :=
+  update_u_anon_11_154_e_union_anon_11_154_0 _a ((_a.(e_union_anon_11_154_0)).[e_aux] :< _b).
+Notation "_a '.[e_union_anon_11_154_0].[e_aux]' ':<' _b" := (update_u_anon_11_154_e_union_anon_11_154_0_e_aux _a _b) (at level 1).
 
-Definition update_s_rmi_rec_params_e_rmi_rec_params_0_e_features_0(_a: s_rmi_rec_params) _b :=
-  update_s_rmi_rec_params_e_rmi_rec_params_0 _a ((_a.(e_rmi_rec_params_0)).[e_features_0] :< _b).
-Notation "_a '.[e_rmi_rec_params_0].[e_features_0]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_0_e_features_0 _a _b) (at level 1).
+Definition update_s_rmi_rec_params_e_rmi_rec_params_0_e_union_anon_7_0(_a: s_rmi_rec_params) _b :=
+  update_s_rmi_rec_params_e_rmi_rec_params_0 _a ((_a.(e_rmi_rec_params_0)).[e_union_anon_7_0] :< _b).
+Notation "_a '.[e_rmi_rec_params_0].[e_union_anon_7_0]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_0_e_union_anon_7_0 _a _b) (at level 1).
 
-Definition update_s_rmi_rec_params_e_rmi_rec_params_0_e_rec_params_padding0(_a: s_rmi_rec_params) _b :=
-  update_s_rmi_rec_params_e_rmi_rec_params_0 _a ((_a.(e_rmi_rec_params_0)).[e_rec_params_padding0] :< _b).
-Notation "_a '.[e_rmi_rec_params_0].[e_rec_params_padding0]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_0_e_rec_params_padding0 _a _b) (at level 1).
+Definition update_s_rmi_rec_params_e_rmi_rec_params_0_e_union_anon_7_1(_a: s_rmi_rec_params) _b :=
+  update_s_rmi_rec_params_e_rmi_rec_params_0 _a ((_a.(e_rmi_rec_params_0)).[e_union_anon_7_1] :< _b).
+Notation "_a '.[e_rmi_rec_params_0].[e_union_anon_7_1]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_0_e_union_anon_7_1 _a _b) (at level 1).
 
-Definition update_s_rmi_rec_params_e_rmi_rec_params_1_e_features_0(_a: s_rmi_rec_params) _b :=
-  update_s_rmi_rec_params_e_rmi_rec_params_1 _a ((_a.(e_rmi_rec_params_1)).[e_features_0] :< _b).
-Notation "_a '.[e_rmi_rec_params_1].[e_features_0]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_1_e_features_0 _a _b) (at level 1).
+Definition update_s_rmi_rec_params_e_rmi_rec_params_1_e_union_anon_7_0(_a: s_rmi_rec_params) _b :=
+  update_s_rmi_rec_params_e_rmi_rec_params_1 _a ((_a.(e_rmi_rec_params_1)).[e_union_anon_7_0] :< _b).
+Notation "_a '.[e_rmi_rec_params_1].[e_union_anon_7_0]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_1_e_union_anon_7_0 _a _b) (at level 1).
 
-Definition update_s_rmi_rec_params_e_rmi_rec_params_1_e_rec_params_padding0(_a: s_rmi_rec_params) _b :=
-  update_s_rmi_rec_params_e_rmi_rec_params_1 _a ((_a.(e_rmi_rec_params_1)).[e_rec_params_padding0] :< _b).
-Notation "_a '.[e_rmi_rec_params_1].[e_rec_params_padding0]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_1_e_rec_params_padding0 _a _b) (at level 1).
+Definition update_s_rmi_rec_params_e_rmi_rec_params_1_e_union_anon_7_1(_a: s_rmi_rec_params) _b :=
+  update_s_rmi_rec_params_e_rmi_rec_params_1 _a ((_a.(e_rmi_rec_params_1)).[e_union_anon_7_1] :< _b).
+Notation "_a '.[e_rmi_rec_params_1].[e_union_anon_7_1]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_1_e_union_anon_7_1 _a _b) (at level 1).
 
-Definition update_s_rmi_rec_params_e_rmi_rec_params_2_e_features_0(_a: s_rmi_rec_params) _b :=
-  update_s_rmi_rec_params_e_rmi_rec_params_2 _a ((_a.(e_rmi_rec_params_2)).[e_features_0] :< _b).
-Notation "_a '.[e_rmi_rec_params_2].[e_features_0]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_2_e_features_0 _a _b) (at level 1).
+Definition update_s_rmi_rec_params_e_rmi_rec_params_2_e_union_anon_7_0(_a: s_rmi_rec_params) _b :=
+  update_s_rmi_rec_params_e_rmi_rec_params_2 _a ((_a.(e_rmi_rec_params_2)).[e_union_anon_7_0] :< _b).
+Notation "_a '.[e_rmi_rec_params_2].[e_union_anon_7_0]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_2_e_union_anon_7_0 _a _b) (at level 1).
 
-Definition update_s_rmi_rec_params_e_rmi_rec_params_2_e_rec_params_padding0(_a: s_rmi_rec_params) _b :=
-  update_s_rmi_rec_params_e_rmi_rec_params_2 _a ((_a.(e_rmi_rec_params_2)).[e_rec_params_padding0] :< _b).
-Notation "_a '.[e_rmi_rec_params_2].[e_rec_params_padding0]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_2_e_rec_params_padding0 _a _b) (at level 1).
+Definition update_s_rmi_rec_params_e_rmi_rec_params_2_e_union_anon_7_1(_a: s_rmi_rec_params) _b :=
+  update_s_rmi_rec_params_e_rmi_rec_params_2 _a ((_a.(e_rmi_rec_params_2)).[e_union_anon_7_1] :< _b).
+Notation "_a '.[e_rmi_rec_params_2].[e_union_anon_7_1]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_2_e_union_anon_7_1 _a _b) (at level 1).
 
-Definition update_s_rmi_rec_params_e_rmi_rec_params_3_e_gprs(_a: s_rmi_rec_params) _b :=
-  update_s_rmi_rec_params_e_rmi_rec_params_3 _a ((_a.(e_rmi_rec_params_3)).[e_gprs] :< _b).
-Notation "_a '.[e_rmi_rec_params_3].[e_gprs]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_3_e_gprs _a _b) (at level 1).
+Definition update_s_rmi_rec_params_e_rmi_rec_params_3_e_union_anon_10_0(_a: s_rmi_rec_params) _b :=
+  update_s_rmi_rec_params_e_rmi_rec_params_3 _a ((_a.(e_rmi_rec_params_3)).[e_union_anon_10_0] :< _b).
+Notation "_a '.[e_rmi_rec_params_3].[e_union_anon_10_0]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_3_e_union_anon_10_0 _a _b) (at level 1).
 
-Definition update_s_rmi_rec_params_e_rmi_rec_params_3_e__rec_params_padding0(_a: s_rmi_rec_params) _b :=
-  update_s_rmi_rec_params_e_rmi_rec_params_3 _a ((_a.(e_rmi_rec_params_3)).[e__rec_params_padding0] :< _b).
-Notation "_a '.[e_rmi_rec_params_3].[e__rec_params_padding0]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_3_e__rec_params_padding0 _a _b) (at level 1).
+Definition update_s_rmi_rec_params_e_rmi_rec_params_3_e_union_anon_10_1(_a: s_rmi_rec_params) _b :=
+  update_s_rmi_rec_params_e_rmi_rec_params_3 _a ((_a.(e_rmi_rec_params_3)).[e_union_anon_10_1] :< _b).
+Notation "_a '.[e_rmi_rec_params_3].[e_union_anon_10_1]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_3_e_union_anon_10_1 _a _b) (at level 1).
 
-Definition update_s_rmi_rec_params_e_rmi_rec_params_4_e__0(_a: s_rmi_rec_params) _b :=
-  update_s_rmi_rec_params_e_rmi_rec_params_4 _a ((_a.(e_rmi_rec_params_4)).[e__0] :< _b).
-Notation "_a '.[e_rmi_rec_params_4].[e__0]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_4_e__0 _a _b) (at level 1).
+Definition update_s_rmi_rec_params_e_rmi_rec_params_4_e_union_anon_11_154_0(_a: s_rmi_rec_params) _b :=
+  update_s_rmi_rec_params_e_rmi_rec_params_4 _a ((_a.(e_rmi_rec_params_4)).[e_union_anon_11_154_0] :< _b).
+Notation "_a '.[e_rmi_rec_params_4].[e_union_anon_11_154_0]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_4_e_union_anon_11_154_0 _a _b) (at level 1).
 
-Definition update_s_rmi_rec_params_e_rmi_rec_params_4_e__0_e_num_aux(_a: s_rmi_rec_params) _b :=
-  update_s_rmi_rec_params_e_rmi_rec_params_4_e__0 _a ((_a.(e_rmi_rec_params_4).(e__0)).[e_num_aux] :< _b).
-Notation "_a '.[e_rmi_rec_params_4].[e__0].[e_num_aux]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_4_e__0_e_num_aux _a _b) (at level 1).
+Definition update_s_rmi_rec_params_e_rmi_rec_params_4_e_union_anon_11_154_0_e_num_aux(_a: s_rmi_rec_params) _b :=
+  update_s_rmi_rec_params_e_rmi_rec_params_4_e_union_anon_11_154_0 _a ((_a.(e_rmi_rec_params_4).(e_union_anon_11_154_0)).[e_num_aux] :< _b).
+Notation "_a '.[e_rmi_rec_params_4].[e_union_anon_11_154_0].[e_num_aux]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_4_e_union_anon_11_154_0_e_num_aux _a _b) (at level 1).
 
-Definition update_s_rmi_rec_params_e_rmi_rec_params_4_e__0_e_aux(_a: s_rmi_rec_params) _b :=
-  update_s_rmi_rec_params_e_rmi_rec_params_4_e__0 _a ((_a.(e_rmi_rec_params_4).(e__0)).[e_aux] :< _b).
-Notation "_a '.[e_rmi_rec_params_4].[e__0].[e_aux]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_4_e__0_e_aux _a _b) (at level 1).
+Definition update_s_rmi_rec_params_e_rmi_rec_params_4_e_union_anon_11_154_0_e_aux(_a: s_rmi_rec_params) _b :=
+  update_s_rmi_rec_params_e_rmi_rec_params_4_e_union_anon_11_154_0 _a ((_a.(e_rmi_rec_params_4).(e_union_anon_11_154_0)).[e_aux] :< _b).
+Notation "_a '.[e_rmi_rec_params_4].[e_union_anon_11_154_0].[e_aux]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_4_e_union_anon_11_154_0_e_aux _a _b) (at level 1).
 
-Definition update_s_rmi_rec_params_e_rmi_rec_params_4_e___rec_params_padding0(_a: s_rmi_rec_params) _b :=
-  update_s_rmi_rec_params_e_rmi_rec_params_4 _a ((_a.(e_rmi_rec_params_4)).[e___rec_params_padding0] :< _b).
-Notation "_a '.[e_rmi_rec_params_4].[e___rec_params_padding0]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_4_e___rec_params_padding0 _a _b) (at level 1).
+Definition update_s_rmi_rec_params_e_rmi_rec_params_4_e_union_anon_11_154_1(_a: s_rmi_rec_params) _b :=
+  update_s_rmi_rec_params_e_rmi_rec_params_4 _a ((_a.(e_rmi_rec_params_4)).[e_union_anon_11_154_1] :< _b).
+Notation "_a '.[e_rmi_rec_params_4].[e_union_anon_11_154_1]' ':<' _b" := (update_s_rmi_rec_params_e_rmi_rec_params_4_e_union_anon_11_154_1 _a _b) (at level 1).
+
+Definition update_u_anon_2_98_e_union_anon_2_98_0_e_vmid(_a: u_anon_2_98) _b :=
+  update_u_anon_2_98_e_union_anon_2_98_0 _a ((_a.(e_union_anon_2_98_0)).[e_vmid] :< _b).
+Notation "_a '.[e_union_anon_2_98_0].[e_vmid]' ':<' _b" := (update_u_anon_2_98_e_union_anon_2_98_0_e_vmid _a _b) (at level 1).
+
+Definition update_u_anon_2_98_e_union_anon_2_98_0_e_rtt_base(_a: u_anon_2_98) _b :=
+  update_u_anon_2_98_e_union_anon_2_98_0 _a ((_a.(e_union_anon_2_98_0)).[e_rtt_base] :< _b).
+Notation "_a '.[e_union_anon_2_98_0].[e_rtt_base]' ':<' _b" := (update_u_anon_2_98_e_union_anon_2_98_0_e_rtt_base _a _b) (at level 1).
+
+Definition update_u_anon_2_98_e_union_anon_2_98_0_e_rtt_level_start(_a: u_anon_2_98) _b :=
+  update_u_anon_2_98_e_union_anon_2_98_0 _a ((_a.(e_union_anon_2_98_0)).[e_rtt_level_start] :< _b).
+Notation "_a '.[e_union_anon_2_98_0].[e_rtt_level_start]' ':<' _b" := (update_u_anon_2_98_e_union_anon_2_98_0_e_rtt_level_start _a _b) (at level 1).
+
+Definition update_u_anon_2_98_e_union_anon_2_98_0_e_rtt_num_start(_a: u_anon_2_98) _b :=
+  update_u_anon_2_98_e_union_anon_2_98_0 _a ((_a.(e_union_anon_2_98_0)).[e_rtt_num_start] :< _b).
+Notation "_a '.[e_union_anon_2_98_0].[e_rtt_num_start]' ':<' _b" := (update_u_anon_2_98_e_union_anon_2_98_0_e_rtt_num_start _a _b) (at level 1).
+
+Definition update_s_rmi_realm_params_e_rmi_realm_params_0_e_union_anon_7_0(_a: s_rmi_realm_params) _b :=
+  update_s_rmi_realm_params_e_rmi_realm_params_0 _a ((_a.(e_rmi_realm_params_0)).[e_union_anon_7_0] :< _b).
+Notation "_a '.[e_rmi_realm_params_0].[e_union_anon_7_0]' ':<' _b" := (update_s_rmi_realm_params_e_rmi_realm_params_0_e_union_anon_7_0 _a _b) (at level 1).
+
+Definition update_s_rmi_realm_params_e_rmi_realm_params_0_e_union_anon_7_1(_a: s_rmi_realm_params) _b :=
+  update_s_rmi_realm_params_e_rmi_realm_params_0 _a ((_a.(e_rmi_realm_params_0)).[e_union_anon_7_1] :< _b).
+Notation "_a '.[e_rmi_realm_params_0].[e_union_anon_7_1]' ':<' _b" := (update_s_rmi_realm_params_e_rmi_realm_params_0_e_union_anon_7_1 _a _b) (at level 1).
+
+Definition update_s_rmi_realm_params_e_rmi_realm_params_1_e_union_anon_0_95_0(_a: s_rmi_realm_params) _b :=
+  update_s_rmi_realm_params_e_rmi_realm_params_1 _a ((_a.(e_rmi_realm_params_1)).[e_union_anon_0_95_0] :< _b).
+Notation "_a '.[e_rmi_realm_params_1].[e_union_anon_0_95_0]' ':<' _b" := (update_s_rmi_realm_params_e_rmi_realm_params_1_e_union_anon_0_95_0 _a _b) (at level 1).
+
+Definition update_s_rmi_realm_params_e_rmi_realm_params_2_e_union_anon_1_96_0(_a: s_rmi_realm_params) _b :=
+  update_s_rmi_realm_params_e_rmi_realm_params_2 _a ((_a.(e_rmi_realm_params_2)).[e_union_anon_1_96_0] :< _b).
+Notation "_a '.[e_rmi_realm_params_2].[e_union_anon_1_96_0]' ':<' _b" := (update_s_rmi_realm_params_e_rmi_realm_params_2_e_union_anon_1_96_0 _a _b) (at level 1).
+
+Definition update_s_rmi_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0(_a: s_rmi_realm_params) _b :=
+  update_s_rmi_realm_params_e_rmi_realm_params_3 _a ((_a.(e_rmi_realm_params_3)).[e_union_anon_2_98_0] :< _b).
+Notation "_a '.[e_rmi_realm_params_3].[e_union_anon_2_98_0]' ':<' _b" := (update_s_rmi_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0 _a _b) (at level 1).
+
+Definition update_s_rmi_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_vmid(_a: s_rmi_realm_params) _b :=
+  update_s_rmi_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0 _a ((_a.(e_rmi_realm_params_3).(e_union_anon_2_98_0)).[e_vmid] :< _b).
+Notation "_a '.[e_rmi_realm_params_3].[e_union_anon_2_98_0].[e_vmid]' ':<' _b" := (update_s_rmi_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_vmid _a _b) (at level 1).
+
+Definition update_s_rmi_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_rtt_base(_a: s_rmi_realm_params) _b :=
+  update_s_rmi_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0 _a ((_a.(e_rmi_realm_params_3).(e_union_anon_2_98_0)).[e_rtt_base] :< _b).
+Notation "_a '.[e_rmi_realm_params_3].[e_union_anon_2_98_0].[e_rtt_base]' ':<' _b" := (update_s_rmi_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_rtt_base _a _b) (at level 1).
+
+Definition update_s_rmi_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_rtt_level_start(_a: s_rmi_realm_params) _b :=
+  update_s_rmi_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0 _a ((_a.(e_rmi_realm_params_3).(e_union_anon_2_98_0)).[e_rtt_level_start] :< _b).
+Notation "_a '.[e_rmi_realm_params_3].[e_union_anon_2_98_0].[e_rtt_level_start]' ':<' _b" := (update_s_rmi_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_rtt_level_start _a _b) (at level 1).
+
+Definition update_s_rmi_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_rtt_num_start(_a: s_rmi_realm_params) _b :=
+  update_s_rmi_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0 _a ((_a.(e_rmi_realm_params_3).(e_union_anon_2_98_0)).[e_rtt_num_start] :< _b).
+Notation "_a '.[e_rmi_realm_params_3].[e_union_anon_2_98_0].[e_rtt_num_start]' ':<' _b" := (update_s_rmi_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_rtt_num_start _a _b) (at level 1).
+
+Definition update_s_rmi_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_1(_a: s_rmi_realm_params) _b :=
+  update_s_rmi_realm_params_e_rmi_realm_params_3 _a ((_a.(e_rmi_realm_params_3)).[e_union_anon_2_98_1] :< _b).
+Notation "_a '.[e_rmi_realm_params_3].[e_union_anon_2_98_1]' ':<' _b" := (update_s_rmi_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_1 _a _b) (at level 1).
 
 Definition update_s_rd_e_rd_s2_ctx_e_rls2ctx_ipa_bits(_a: s_rd) _b :=
   update_s_rd_e_rd_s2_ctx _a ((_a.(e_rd_s2_ctx)).[e_rls2ctx_ipa_bits] :< _b).
@@ -6786,6 +7227,174 @@ Definition update_PerCPU_pcpu_regs_pcpu_dummy_regs(_a: PerCPU) _b :=
   update_PerCPU_pcpu_regs _a ((_a.(pcpu_regs)).[pcpu_dummy_regs] :< _b).
 Notation "_a '.[pcpu_regs].[pcpu_dummy_regs]' ':<' _b" := (update_PerCPU_pcpu_regs_pcpu_dummy_regs _a _b) (at level 1).
 
+Definition update_STACK_stack_wi_e_g_llt(_a: STACK) _b :=
+  update_STACK_stack_wi _a ((_a.(stack_wi)).[e_g_llt] :< _b).
+Notation "_a '.[stack_wi].[e_g_llt]' ':<' _b" := (update_STACK_stack_wi_e_g_llt _a _b) (at level 1).
+
+Definition update_STACK_stack_wi_e_index(_a: STACK) _b :=
+  update_STACK_stack_wi _a ((_a.(stack_wi)).[e_index] :< _b).
+Notation "_a '.[stack_wi].[e_index]' ':<' _b" := (update_STACK_stack_wi_e_index _a _b) (at level 1).
+
+Definition update_STACK_stack_wi_e_last_level(_a: STACK) _b :=
+  update_STACK_stack_wi _a ((_a.(stack_wi)).[e_last_level] :< _b).
+Notation "_a '.[stack_wi].[e_last_level]' ':<' _b" := (update_STACK_stack_wi_e_last_level _a _b) (at level 1).
+
+Definition update_STACK_stack_gs0_e_gset_idx(_a: STACK) _b :=
+  update_STACK_stack_gs0 _a ((_a.(stack_gs0)).[e_gset_idx] :< _b).
+Notation "_a '.[stack_gs0].[e_gset_idx]' ':<' _b" := (update_STACK_stack_gs0_e_gset_idx _a _b) (at level 1).
+
+Definition update_STACK_stack_gs0_e_gset_addr(_a: STACK) _b :=
+  update_STACK_stack_gs0 _a ((_a.(stack_gs0)).[e_gset_addr] :< _b).
+Notation "_a '.[stack_gs0].[e_gset_addr]' ':<' _b" := (update_STACK_stack_gs0_e_gset_addr _a _b) (at level 1).
+
+Definition update_STACK_stack_gs0_e_gset_state(_a: STACK) _b :=
+  update_STACK_stack_gs0 _a ((_a.(stack_gs0)).[e_gset_state] :< _b).
+Notation "_a '.[stack_gs0].[e_gset_state]' ':<' _b" := (update_STACK_stack_gs0_e_gset_state _a _b) (at level 1).
+
+Definition update_STACK_stack_gs0_e_gset_g(_a: STACK) _b :=
+  update_STACK_stack_gs0 _a ((_a.(stack_gs0)).[e_gset_g] :< _b).
+Notation "_a '.[stack_gs0].[e_gset_g]' ':<' _b" := (update_STACK_stack_gs0_e_gset_g _a _b) (at level 1).
+
+Definition update_STACK_stack_gs0_e_gset_g_ret(_a: STACK) _b :=
+  update_STACK_stack_gs0 _a ((_a.(stack_gs0)).[e_gset_g_ret] :< _b).
+Notation "_a '.[stack_gs0].[e_gset_g_ret]' ':<' _b" := (update_STACK_stack_gs0_e_gset_g_ret _a _b) (at level 1).
+
+Definition update_STACK_stack_gs1_e_gset_idx(_a: STACK) _b :=
+  update_STACK_stack_gs1 _a ((_a.(stack_gs1)).[e_gset_idx] :< _b).
+Notation "_a '.[stack_gs1].[e_gset_idx]' ':<' _b" := (update_STACK_stack_gs1_e_gset_idx _a _b) (at level 1).
+
+Definition update_STACK_stack_gs1_e_gset_addr(_a: STACK) _b :=
+  update_STACK_stack_gs1 _a ((_a.(stack_gs1)).[e_gset_addr] :< _b).
+Notation "_a '.[stack_gs1].[e_gset_addr]' ':<' _b" := (update_STACK_stack_gs1_e_gset_addr _a _b) (at level 1).
+
+Definition update_STACK_stack_gs1_e_gset_state(_a: STACK) _b :=
+  update_STACK_stack_gs1 _a ((_a.(stack_gs1)).[e_gset_state] :< _b).
+Notation "_a '.[stack_gs1].[e_gset_state]' ':<' _b" := (update_STACK_stack_gs1_e_gset_state _a _b) (at level 1).
+
+Definition update_STACK_stack_gs1_e_gset_g(_a: STACK) _b :=
+  update_STACK_stack_gs1 _a ((_a.(stack_gs1)).[e_gset_g] :< _b).
+Notation "_a '.[stack_gs1].[e_gset_g]' ':<' _b" := (update_STACK_stack_gs1_e_gset_g _a _b) (at level 1).
+
+Definition update_STACK_stack_gs1_e_gset_g_ret(_a: STACK) _b :=
+  update_STACK_stack_gs1 _a ((_a.(stack_gs1)).[e_gset_g_ret] :< _b).
+Notation "_a '.[stack_gs1].[e_gset_g_ret]' ':<' _b" := (update_STACK_stack_gs1_e_gset_g_ret _a _b) (at level 1).
+
+Definition update_STACK_stack_gs_temp_e_gset_idx(_a: STACK) _b :=
+  update_STACK_stack_gs_temp _a ((_a.(stack_gs_temp)).[e_gset_idx] :< _b).
+Notation "_a '.[stack_gs_temp].[e_gset_idx]' ':<' _b" := (update_STACK_stack_gs_temp_e_gset_idx _a _b) (at level 1).
+
+Definition update_STACK_stack_gs_temp_e_gset_addr(_a: STACK) _b :=
+  update_STACK_stack_gs_temp _a ((_a.(stack_gs_temp)).[e_gset_addr] :< _b).
+Notation "_a '.[stack_gs_temp].[e_gset_addr]' ':<' _b" := (update_STACK_stack_gs_temp_e_gset_addr _a _b) (at level 1).
+
+Definition update_STACK_stack_gs_temp_e_gset_state(_a: STACK) _b :=
+  update_STACK_stack_gs_temp _a ((_a.(stack_gs_temp)).[e_gset_state] :< _b).
+Notation "_a '.[stack_gs_temp].[e_gset_state]' ':<' _b" := (update_STACK_stack_gs_temp_e_gset_state _a _b) (at level 1).
+
+Definition update_STACK_stack_gs_temp_e_gset_g(_a: STACK) _b :=
+  update_STACK_stack_gs_temp _a ((_a.(stack_gs_temp)).[e_gset_g] :< _b).
+Notation "_a '.[stack_gs_temp].[e_gset_g]' ':<' _b" := (update_STACK_stack_gs_temp_e_gset_g _a _b) (at level 1).
+
+Definition update_STACK_stack_gs_temp_e_gset_g_ret(_a: STACK) _b :=
+  update_STACK_stack_gs_temp _a ((_a.(stack_gs_temp)).[e_gset_g_ret] :< _b).
+Notation "_a '.[stack_gs_temp].[e_gset_g_ret]' ':<' _b" := (update_STACK_stack_gs_temp_e_gset_g_ret _a _b) (at level 1).
+
+Definition update_STACK_stack_s2_ctx_e_rls2ctx_ipa_bits(_a: STACK) _b :=
+  update_STACK_stack_s2_ctx _a ((_a.(stack_s2_ctx)).[e_rls2ctx_ipa_bits] :< _b).
+Notation "_a '.[stack_s2_ctx].[e_rls2ctx_ipa_bits]' ':<' _b" := (update_STACK_stack_s2_ctx_e_rls2ctx_ipa_bits _a _b) (at level 1).
+
+Definition update_STACK_stack_s2_ctx_e_rls2ctx_s2_starting_level(_a: STACK) _b :=
+  update_STACK_stack_s2_ctx _a ((_a.(stack_s2_ctx)).[e_rls2ctx_s2_starting_level] :< _b).
+Notation "_a '.[stack_s2_ctx].[e_rls2ctx_s2_starting_level]' ':<' _b" := (update_STACK_stack_s2_ctx_e_rls2ctx_s2_starting_level _a _b) (at level 1).
+
+Definition update_STACK_stack_s2_ctx_e_rls2ctx_num_root_rtts(_a: STACK) _b :=
+  update_STACK_stack_s2_ctx _a ((_a.(stack_s2_ctx)).[e_rls2ctx_num_root_rtts] :< _b).
+Notation "_a '.[stack_s2_ctx].[e_rls2ctx_num_root_rtts]' ':<' _b" := (update_STACK_stack_s2_ctx_e_rls2ctx_num_root_rtts _a _b) (at level 1).
+
+Definition update_STACK_stack_s2_ctx_e_rls2ctx_g_rtt(_a: STACK) _b :=
+  update_STACK_stack_s2_ctx _a ((_a.(stack_s2_ctx)).[e_rls2ctx_g_rtt] :< _b).
+Notation "_a '.[stack_s2_ctx].[e_rls2ctx_g_rtt]' ':<' _b" := (update_STACK_stack_s2_ctx_e_rls2ctx_g_rtt _a _b) (at level 1).
+
+Definition update_STACK_stack_s2_ctx_e_rls2ctx_vmid(_a: STACK) _b :=
+  update_STACK_stack_s2_ctx _a ((_a.(stack_s2_ctx)).[e_rls2ctx_vmid] :< _b).
+Notation "_a '.[stack_s2_ctx].[e_rls2ctx_vmid]' ':<' _b" := (update_STACK_stack_s2_ctx_e_rls2ctx_vmid _a _b) (at level 1).
+
+Definition update_STACK_stack_walk_res_e_walk_pa(_a: STACK) _b :=
+  update_STACK_stack_walk_res _a ((_a.(stack_walk_res)).[e_walk_pa] :< _b).
+Notation "_a '.[stack_walk_res].[e_walk_pa]' ':<' _b" := (update_STACK_stack_walk_res_e_walk_pa _a _b) (at level 1).
+
+Definition update_STACK_stack_walk_res_e_walk_rtt_level(_a: STACK) _b :=
+  update_STACK_stack_walk_res _a ((_a.(stack_walk_res)).[e_walk_rtt_level] :< _b).
+Notation "_a '.[stack_walk_res].[e_walk_rtt_level]' ':<' _b" := (update_STACK_stack_walk_res_e_walk_rtt_level _a _b) (at level 1).
+
+Definition update_STACK_stack_walk_res_e_walk_ripas(_a: STACK) _b :=
+  update_STACK_stack_walk_res _a ((_a.(stack_walk_res)).[e_walk_ripas] :< _b).
+Notation "_a '.[stack_walk_res].[e_walk_ripas]' ':<' _b" := (update_STACK_stack_walk_res_e_walk_ripas _a _b) (at level 1).
+
+Definition update_STACK_stack_walk_res_e_walk_destroyed(_a: STACK) _b :=
+  update_STACK_stack_walk_res _a ((_a.(stack_walk_res)).[e_walk_destroyed] :< _b).
+Notation "_a '.[stack_walk_res].[e_walk_destroyed]' ':<' _b" := (update_STACK_stack_walk_res_e_walk_destroyed _a _b) (at level 1).
+
+Definition update_STACK_stack_walk_res_e_walk_llt(_a: STACK) _b :=
+  update_STACK_stack_walk_res _a ((_a.(stack_walk_res)).[e_walk_llt] :< _b).
+Notation "_a '.[stack_walk_res].[e_walk_llt]' ':<' _b" := (update_STACK_stack_walk_res_e_walk_llt _a _b) (at level 1).
+
+Definition update_STACK_stack_realm_params_e_rmi_realm_params_0(_a: STACK) _b :=
+  update_STACK_stack_realm_params _a ((_a.(stack_realm_params)).[e_rmi_realm_params_0] :< _b).
+Notation "_a '.[stack_realm_params].[e_rmi_realm_params_0]' ':<' _b" := (update_STACK_stack_realm_params_e_rmi_realm_params_0 _a _b) (at level 1).
+
+Definition update_STACK_stack_realm_params_e_rmi_realm_params_0_e_union_anon_7_0(_a: STACK) _b :=
+  update_STACK_stack_realm_params_e_rmi_realm_params_0 _a ((_a.(stack_realm_params).(e_rmi_realm_params_0)).[e_union_anon_7_0] :< _b).
+Notation "_a '.[stack_realm_params].[e_rmi_realm_params_0].[e_union_anon_7_0]' ':<' _b" := (update_STACK_stack_realm_params_e_rmi_realm_params_0_e_union_anon_7_0 _a _b) (at level 1).
+
+Definition update_STACK_stack_realm_params_e_rmi_realm_params_0_e_union_anon_7_1(_a: STACK) _b :=
+  update_STACK_stack_realm_params_e_rmi_realm_params_0 _a ((_a.(stack_realm_params).(e_rmi_realm_params_0)).[e_union_anon_7_1] :< _b).
+Notation "_a '.[stack_realm_params].[e_rmi_realm_params_0].[e_union_anon_7_1]' ':<' _b" := (update_STACK_stack_realm_params_e_rmi_realm_params_0_e_union_anon_7_1 _a _b) (at level 1).
+
+Definition update_STACK_stack_realm_params_e_rmi_realm_params_1(_a: STACK) _b :=
+  update_STACK_stack_realm_params _a ((_a.(stack_realm_params)).[e_rmi_realm_params_1] :< _b).
+Notation "_a '.[stack_realm_params].[e_rmi_realm_params_1]' ':<' _b" := (update_STACK_stack_realm_params_e_rmi_realm_params_1 _a _b) (at level 1).
+
+Definition update_STACK_stack_realm_params_e_rmi_realm_params_1_e_union_anon_0_95_0(_a: STACK) _b :=
+  update_STACK_stack_realm_params_e_rmi_realm_params_1 _a ((_a.(stack_realm_params).(e_rmi_realm_params_1)).[e_union_anon_0_95_0] :< _b).
+Notation "_a '.[stack_realm_params].[e_rmi_realm_params_1].[e_union_anon_0_95_0]' ':<' _b" := (update_STACK_stack_realm_params_e_rmi_realm_params_1_e_union_anon_0_95_0 _a _b) (at level 1).
+
+Definition update_STACK_stack_realm_params_e_rmi_realm_params_2(_a: STACK) _b :=
+  update_STACK_stack_realm_params _a ((_a.(stack_realm_params)).[e_rmi_realm_params_2] :< _b).
+Notation "_a '.[stack_realm_params].[e_rmi_realm_params_2]' ':<' _b" := (update_STACK_stack_realm_params_e_rmi_realm_params_2 _a _b) (at level 1).
+
+Definition update_STACK_stack_realm_params_e_rmi_realm_params_2_e_union_anon_1_96_0(_a: STACK) _b :=
+  update_STACK_stack_realm_params_e_rmi_realm_params_2 _a ((_a.(stack_realm_params).(e_rmi_realm_params_2)).[e_union_anon_1_96_0] :< _b).
+Notation "_a '.[stack_realm_params].[e_rmi_realm_params_2].[e_union_anon_1_96_0]' ':<' _b" := (update_STACK_stack_realm_params_e_rmi_realm_params_2_e_union_anon_1_96_0 _a _b) (at level 1).
+
+Definition update_STACK_stack_realm_params_e_rmi_realm_params_3(_a: STACK) _b :=
+  update_STACK_stack_realm_params _a ((_a.(stack_realm_params)).[e_rmi_realm_params_3] :< _b).
+Notation "_a '.[stack_realm_params].[e_rmi_realm_params_3]' ':<' _b" := (update_STACK_stack_realm_params_e_rmi_realm_params_3 _a _b) (at level 1).
+
+Definition update_STACK_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0(_a: STACK) _b :=
+  update_STACK_stack_realm_params_e_rmi_realm_params_3 _a ((_a.(stack_realm_params).(e_rmi_realm_params_3)).[e_union_anon_2_98_0] :< _b).
+Notation "_a '.[stack_realm_params].[e_rmi_realm_params_3].[e_union_anon_2_98_0]' ':<' _b" := (update_STACK_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0 _a _b) (at level 1).
+
+Definition update_STACK_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_vmid(_a: STACK) _b :=
+  update_STACK_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0 _a ((_a.(stack_realm_params).(e_rmi_realm_params_3).(e_union_anon_2_98_0)).[e_vmid] :< _b).
+Notation "_a '.[stack_realm_params].[e_rmi_realm_params_3].[e_union_anon_2_98_0].[e_vmid]' ':<' _b" := (update_STACK_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_vmid _a _b) (at level 1).
+
+Definition update_STACK_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_rtt_base(_a: STACK) _b :=
+  update_STACK_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0 _a ((_a.(stack_realm_params).(e_rmi_realm_params_3).(e_union_anon_2_98_0)).[e_rtt_base] :< _b).
+Notation "_a '.[stack_realm_params].[e_rmi_realm_params_3].[e_union_anon_2_98_0].[e_rtt_base]' ':<' _b" := (update_STACK_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_rtt_base _a _b) (at level 1).
+
+Definition update_STACK_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_rtt_level_start(_a: STACK) _b :=
+  update_STACK_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0 _a ((_a.(stack_realm_params).(e_rmi_realm_params_3).(e_union_anon_2_98_0)).[e_rtt_level_start] :< _b).
+Notation "_a '.[stack_realm_params].[e_rmi_realm_params_3].[e_union_anon_2_98_0].[e_rtt_level_start]' ':<' _b" := (update_STACK_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_rtt_level_start _a _b) (at level 1).
+
+Definition update_STACK_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_rtt_num_start(_a: STACK) _b :=
+  update_STACK_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0 _a ((_a.(stack_realm_params).(e_rmi_realm_params_3).(e_union_anon_2_98_0)).[e_rtt_num_start] :< _b).
+Notation "_a '.[stack_realm_params].[e_rmi_realm_params_3].[e_union_anon_2_98_0].[e_rtt_num_start]' ':<' _b" := (update_STACK_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_rtt_num_start _a _b) (at level 1).
+
+Definition update_STACK_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_1(_a: STACK) _b :=
+  update_STACK_stack_realm_params_e_rmi_realm_params_3 _a ((_a.(stack_realm_params).(e_rmi_realm_params_3)).[e_union_anon_2_98_1] :< _b).
+Notation "_a '.[stack_realm_params].[e_rmi_realm_params_3].[e_union_anon_2_98_1]' ':<' _b" := (update_STACK_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_1 _a _b) (at level 1).
+
 Definition update_RData_share_glk(_a: RData) _b :=
   update_RData_share _a ((_a.(share)).[glk] :< _b).
 Notation "_a '.[share].[glk]' ':<' _b" := (update_RData_share_glk _a _b) (at level 1).
@@ -7393,6 +8002,234 @@ Notation "_a '.[priv].[pcpu_regs].[pcpu_dummy_regs]' ':<' _b" := (update_RData_p
 Definition update_RData_priv_pcpu_llt_info_cache(_a: RData) _b :=
   update_RData_priv _a ((_a.(priv)).[pcpu_llt_info_cache] :< _b).
 Notation "_a '.[priv].[pcpu_llt_info_cache]' ':<' _b" := (update_RData_priv_pcpu_llt_info_cache _a _b) (at level 1).
+
+Definition update_RData_stack_stack_wi(_a: RData) _b :=
+  update_RData_stack _a ((_a.(stack)).[stack_wi] :< _b).
+Notation "_a '.[stack].[stack_wi]' ':<' _b" := (update_RData_stack_stack_wi _a _b) (at level 1).
+
+Definition update_RData_stack_stack_wi_e_g_llt(_a: RData) _b :=
+  update_RData_stack_stack_wi _a ((_a.(stack).(stack_wi)).[e_g_llt] :< _b).
+Notation "_a '.[stack].[stack_wi].[e_g_llt]' ':<' _b" := (update_RData_stack_stack_wi_e_g_llt _a _b) (at level 1).
+
+Definition update_RData_stack_stack_wi_e_index(_a: RData) _b :=
+  update_RData_stack_stack_wi _a ((_a.(stack).(stack_wi)).[e_index] :< _b).
+Notation "_a '.[stack].[stack_wi].[e_index]' ':<' _b" := (update_RData_stack_stack_wi_e_index _a _b) (at level 1).
+
+Definition update_RData_stack_stack_wi_e_last_level(_a: RData) _b :=
+  update_RData_stack_stack_wi _a ((_a.(stack).(stack_wi)).[e_last_level] :< _b).
+Notation "_a '.[stack].[stack_wi].[e_last_level]' ':<' _b" := (update_RData_stack_stack_wi_e_last_level _a _b) (at level 1).
+
+Definition update_RData_stack_stack_g_tbls(_a: RData) _b :=
+  update_RData_stack _a ((_a.(stack)).[stack_g_tbls] :< _b).
+Notation "_a '.[stack].[stack_g_tbls]' ':<' _b" := (update_RData_stack_stack_g_tbls _a _b) (at level 1).
+
+Definition update_RData_stack_stack_gs0(_a: RData) _b :=
+  update_RData_stack _a ((_a.(stack)).[stack_gs0] :< _b).
+Notation "_a '.[stack].[stack_gs0]' ':<' _b" := (update_RData_stack_stack_gs0 _a _b) (at level 1).
+
+Definition update_RData_stack_stack_gs0_e_gset_idx(_a: RData) _b :=
+  update_RData_stack_stack_gs0 _a ((_a.(stack).(stack_gs0)).[e_gset_idx] :< _b).
+Notation "_a '.[stack].[stack_gs0].[e_gset_idx]' ':<' _b" := (update_RData_stack_stack_gs0_e_gset_idx _a _b) (at level 1).
+
+Definition update_RData_stack_stack_gs0_e_gset_addr(_a: RData) _b :=
+  update_RData_stack_stack_gs0 _a ((_a.(stack).(stack_gs0)).[e_gset_addr] :< _b).
+Notation "_a '.[stack].[stack_gs0].[e_gset_addr]' ':<' _b" := (update_RData_stack_stack_gs0_e_gset_addr _a _b) (at level 1).
+
+Definition update_RData_stack_stack_gs0_e_gset_state(_a: RData) _b :=
+  update_RData_stack_stack_gs0 _a ((_a.(stack).(stack_gs0)).[e_gset_state] :< _b).
+Notation "_a '.[stack].[stack_gs0].[e_gset_state]' ':<' _b" := (update_RData_stack_stack_gs0_e_gset_state _a _b) (at level 1).
+
+Definition update_RData_stack_stack_gs0_e_gset_g(_a: RData) _b :=
+  update_RData_stack_stack_gs0 _a ((_a.(stack).(stack_gs0)).[e_gset_g] :< _b).
+Notation "_a '.[stack].[stack_gs0].[e_gset_g]' ':<' _b" := (update_RData_stack_stack_gs0_e_gset_g _a _b) (at level 1).
+
+Definition update_RData_stack_stack_gs0_e_gset_g_ret(_a: RData) _b :=
+  update_RData_stack_stack_gs0 _a ((_a.(stack).(stack_gs0)).[e_gset_g_ret] :< _b).
+Notation "_a '.[stack].[stack_gs0].[e_gset_g_ret]' ':<' _b" := (update_RData_stack_stack_gs0_e_gset_g_ret _a _b) (at level 1).
+
+Definition update_RData_stack_stack_gs1(_a: RData) _b :=
+  update_RData_stack _a ((_a.(stack)).[stack_gs1] :< _b).
+Notation "_a '.[stack].[stack_gs1]' ':<' _b" := (update_RData_stack_stack_gs1 _a _b) (at level 1).
+
+Definition update_RData_stack_stack_gs1_e_gset_idx(_a: RData) _b :=
+  update_RData_stack_stack_gs1 _a ((_a.(stack).(stack_gs1)).[e_gset_idx] :< _b).
+Notation "_a '.[stack].[stack_gs1].[e_gset_idx]' ':<' _b" := (update_RData_stack_stack_gs1_e_gset_idx _a _b) (at level 1).
+
+Definition update_RData_stack_stack_gs1_e_gset_addr(_a: RData) _b :=
+  update_RData_stack_stack_gs1 _a ((_a.(stack).(stack_gs1)).[e_gset_addr] :< _b).
+Notation "_a '.[stack].[stack_gs1].[e_gset_addr]' ':<' _b" := (update_RData_stack_stack_gs1_e_gset_addr _a _b) (at level 1).
+
+Definition update_RData_stack_stack_gs1_e_gset_state(_a: RData) _b :=
+  update_RData_stack_stack_gs1 _a ((_a.(stack).(stack_gs1)).[e_gset_state] :< _b).
+Notation "_a '.[stack].[stack_gs1].[e_gset_state]' ':<' _b" := (update_RData_stack_stack_gs1_e_gset_state _a _b) (at level 1).
+
+Definition update_RData_stack_stack_gs1_e_gset_g(_a: RData) _b :=
+  update_RData_stack_stack_gs1 _a ((_a.(stack).(stack_gs1)).[e_gset_g] :< _b).
+Notation "_a '.[stack].[stack_gs1].[e_gset_g]' ':<' _b" := (update_RData_stack_stack_gs1_e_gset_g _a _b) (at level 1).
+
+Definition update_RData_stack_stack_gs1_e_gset_g_ret(_a: RData) _b :=
+  update_RData_stack_stack_gs1 _a ((_a.(stack).(stack_gs1)).[e_gset_g_ret] :< _b).
+Notation "_a '.[stack].[stack_gs1].[e_gset_g_ret]' ':<' _b" := (update_RData_stack_stack_gs1_e_gset_g_ret _a _b) (at level 1).
+
+Definition update_RData_stack_stack_gs_temp(_a: RData) _b :=
+  update_RData_stack _a ((_a.(stack)).[stack_gs_temp] :< _b).
+Notation "_a '.[stack].[stack_gs_temp]' ':<' _b" := (update_RData_stack_stack_gs_temp _a _b) (at level 1).
+
+Definition update_RData_stack_stack_gs_temp_e_gset_idx(_a: RData) _b :=
+  update_RData_stack_stack_gs_temp _a ((_a.(stack).(stack_gs_temp)).[e_gset_idx] :< _b).
+Notation "_a '.[stack].[stack_gs_temp].[e_gset_idx]' ':<' _b" := (update_RData_stack_stack_gs_temp_e_gset_idx _a _b) (at level 1).
+
+Definition update_RData_stack_stack_gs_temp_e_gset_addr(_a: RData) _b :=
+  update_RData_stack_stack_gs_temp _a ((_a.(stack).(stack_gs_temp)).[e_gset_addr] :< _b).
+Notation "_a '.[stack].[stack_gs_temp].[e_gset_addr]' ':<' _b" := (update_RData_stack_stack_gs_temp_e_gset_addr _a _b) (at level 1).
+
+Definition update_RData_stack_stack_gs_temp_e_gset_state(_a: RData) _b :=
+  update_RData_stack_stack_gs_temp _a ((_a.(stack).(stack_gs_temp)).[e_gset_state] :< _b).
+Notation "_a '.[stack].[stack_gs_temp].[e_gset_state]' ':<' _b" := (update_RData_stack_stack_gs_temp_e_gset_state _a _b) (at level 1).
+
+Definition update_RData_stack_stack_gs_temp_e_gset_g(_a: RData) _b :=
+  update_RData_stack_stack_gs_temp _a ((_a.(stack).(stack_gs_temp)).[e_gset_g] :< _b).
+Notation "_a '.[stack].[stack_gs_temp].[e_gset_g]' ':<' _b" := (update_RData_stack_stack_gs_temp_e_gset_g _a _b) (at level 1).
+
+Definition update_RData_stack_stack_gs_temp_e_gset_g_ret(_a: RData) _b :=
+  update_RData_stack_stack_gs_temp _a ((_a.(stack).(stack_gs_temp)).[e_gset_g_ret] :< _b).
+Notation "_a '.[stack].[stack_gs_temp].[e_gset_g_ret]' ':<' _b" := (update_RData_stack_stack_gs_temp_e_gset_g_ret _a _b) (at level 1).
+
+Definition update_RData_stack_stack_g_tbl(_a: RData) _b :=
+  update_RData_stack _a ((_a.(stack)).[stack_g_tbl] :< _b).
+Notation "_a '.[stack].[stack_g_tbl]' ':<' _b" := (update_RData_stack_stack_g_tbl _a _b) (at level 1).
+
+Definition update_RData_stack_stack_g0(_a: RData) _b :=
+  update_RData_stack _a ((_a.(stack)).[stack_g0] :< _b).
+Notation "_a '.[stack].[stack_g0]' ':<' _b" := (update_RData_stack_stack_g0 _a _b) (at level 1).
+
+Definition update_RData_stack_stack_g1(_a: RData) _b :=
+  update_RData_stack _a ((_a.(stack)).[stack_g1] :< _b).
+Notation "_a '.[stack].[stack_g1]' ':<' _b" := (update_RData_stack_stack_g1 _a _b) (at level 1).
+
+Definition update_RData_stack_stack_s2_ctx(_a: RData) _b :=
+  update_RData_stack _a ((_a.(stack)).[stack_s2_ctx] :< _b).
+Notation "_a '.[stack].[stack_s2_ctx]' ':<' _b" := (update_RData_stack_stack_s2_ctx _a _b) (at level 1).
+
+Definition update_RData_stack_stack_s2_ctx_e_rls2ctx_ipa_bits(_a: RData) _b :=
+  update_RData_stack_stack_s2_ctx _a ((_a.(stack).(stack_s2_ctx)).[e_rls2ctx_ipa_bits] :< _b).
+Notation "_a '.[stack].[stack_s2_ctx].[e_rls2ctx_ipa_bits]' ':<' _b" := (update_RData_stack_stack_s2_ctx_e_rls2ctx_ipa_bits _a _b) (at level 1).
+
+Definition update_RData_stack_stack_s2_ctx_e_rls2ctx_s2_starting_level(_a: RData) _b :=
+  update_RData_stack_stack_s2_ctx _a ((_a.(stack).(stack_s2_ctx)).[e_rls2ctx_s2_starting_level] :< _b).
+Notation "_a '.[stack].[stack_s2_ctx].[e_rls2ctx_s2_starting_level]' ':<' _b" := (update_RData_stack_stack_s2_ctx_e_rls2ctx_s2_starting_level _a _b) (at level 1).
+
+Definition update_RData_stack_stack_s2_ctx_e_rls2ctx_num_root_rtts(_a: RData) _b :=
+  update_RData_stack_stack_s2_ctx _a ((_a.(stack).(stack_s2_ctx)).[e_rls2ctx_num_root_rtts] :< _b).
+Notation "_a '.[stack].[stack_s2_ctx].[e_rls2ctx_num_root_rtts]' ':<' _b" := (update_RData_stack_stack_s2_ctx_e_rls2ctx_num_root_rtts _a _b) (at level 1).
+
+Definition update_RData_stack_stack_s2_ctx_e_rls2ctx_g_rtt(_a: RData) _b :=
+  update_RData_stack_stack_s2_ctx _a ((_a.(stack).(stack_s2_ctx)).[e_rls2ctx_g_rtt] :< _b).
+Notation "_a '.[stack].[stack_s2_ctx].[e_rls2ctx_g_rtt]' ':<' _b" := (update_RData_stack_stack_s2_ctx_e_rls2ctx_g_rtt _a _b) (at level 1).
+
+Definition update_RData_stack_stack_s2_ctx_e_rls2ctx_vmid(_a: RData) _b :=
+  update_RData_stack_stack_s2_ctx _a ((_a.(stack).(stack_s2_ctx)).[e_rls2ctx_vmid] :< _b).
+Notation "_a '.[stack].[stack_s2_ctx].[e_rls2ctx_vmid]' ':<' _b" := (update_RData_stack_stack_s2_ctx_e_rls2ctx_vmid _a _b) (at level 1).
+
+Definition update_RData_stack_stack_ripas_ptr(_a: RData) _b :=
+  update_RData_stack _a ((_a.(stack)).[stack_ripas_ptr] :< _b).
+Notation "_a '.[stack].[stack_ripas_ptr]' ':<' _b" := (update_RData_stack_stack_ripas_ptr _a _b) (at level 1).
+
+Definition update_RData_stack_stack_ripas(_a: RData) _b :=
+  update_RData_stack _a ((_a.(stack)).[stack_ripas] :< _b).
+Notation "_a '.[stack].[stack_ripas]' ':<' _b" := (update_RData_stack_stack_ripas _a _b) (at level 1).
+
+Definition update_RData_stack_stack_rtt_level(_a: RData) _b :=
+  update_RData_stack _a ((_a.(stack)).[stack_rtt_level] :< _b).
+Notation "_a '.[stack].[stack_rtt_level]' ':<' _b" := (update_RData_stack_stack_rtt_level _a _b) (at level 1).
+
+Definition update_RData_stack_stack_walk_res(_a: RData) _b :=
+  update_RData_stack _a ((_a.(stack)).[stack_walk_res] :< _b).
+Notation "_a '.[stack].[stack_walk_res]' ':<' _b" := (update_RData_stack_stack_walk_res _a _b) (at level 1).
+
+Definition update_RData_stack_stack_walk_res_e_walk_pa(_a: RData) _b :=
+  update_RData_stack_stack_walk_res _a ((_a.(stack).(stack_walk_res)).[e_walk_pa] :< _b).
+Notation "_a '.[stack].[stack_walk_res].[e_walk_pa]' ':<' _b" := (update_RData_stack_stack_walk_res_e_walk_pa _a _b) (at level 1).
+
+Definition update_RData_stack_stack_walk_res_e_walk_rtt_level(_a: RData) _b :=
+  update_RData_stack_stack_walk_res _a ((_a.(stack).(stack_walk_res)).[e_walk_rtt_level] :< _b).
+Notation "_a '.[stack].[stack_walk_res].[e_walk_rtt_level]' ':<' _b" := (update_RData_stack_stack_walk_res_e_walk_rtt_level _a _b) (at level 1).
+
+Definition update_RData_stack_stack_walk_res_e_walk_ripas(_a: RData) _b :=
+  update_RData_stack_stack_walk_res _a ((_a.(stack).(stack_walk_res)).[e_walk_ripas] :< _b).
+Notation "_a '.[stack].[stack_walk_res].[e_walk_ripas]' ':<' _b" := (update_RData_stack_stack_walk_res_e_walk_ripas _a _b) (at level 1).
+
+Definition update_RData_stack_stack_walk_res_e_walk_destroyed(_a: RData) _b :=
+  update_RData_stack_stack_walk_res _a ((_a.(stack).(stack_walk_res)).[e_walk_destroyed] :< _b).
+Notation "_a '.[stack].[stack_walk_res].[e_walk_destroyed]' ':<' _b" := (update_RData_stack_stack_walk_res_e_walk_destroyed _a _b) (at level 1).
+
+Definition update_RData_stack_stack_walk_res_e_walk_llt(_a: RData) _b :=
+  update_RData_stack_stack_walk_res _a ((_a.(stack).(stack_walk_res)).[e_walk_llt] :< _b).
+Notation "_a '.[stack].[stack_walk_res].[e_walk_llt]' ':<' _b" := (update_RData_stack_stack_walk_res_e_walk_llt _a _b) (at level 1).
+
+Definition update_RData_stack_stack_s2tte(_a: RData) _b :=
+  update_RData_stack _a ((_a.(stack)).[stack_s2tte] :< _b).
+Notation "_a '.[stack].[stack_s2tte]' ':<' _b" := (update_RData_stack_stack_s2tte _a _b) (at level 1).
+
+Definition update_RData_stack_stack_realm_params(_a: RData) _b :=
+  update_RData_stack _a ((_a.(stack)).[stack_realm_params] :< _b).
+Notation "_a '.[stack].[stack_realm_params]' ':<' _b" := (update_RData_stack_stack_realm_params _a _b) (at level 1).
+
+Definition update_RData_stack_stack_realm_params_e_rmi_realm_params_0(_a: RData) _b :=
+  update_RData_stack_stack_realm_params _a ((_a.(stack).(stack_realm_params)).[e_rmi_realm_params_0] :< _b).
+Notation "_a '.[stack].[stack_realm_params].[e_rmi_realm_params_0]' ':<' _b" := (update_RData_stack_stack_realm_params_e_rmi_realm_params_0 _a _b) (at level 1).
+
+Definition update_RData_stack_stack_realm_params_e_rmi_realm_params_0_e_union_anon_7_0(_a: RData) _b :=
+  update_RData_stack_stack_realm_params_e_rmi_realm_params_0 _a ((_a.(stack).(stack_realm_params).(e_rmi_realm_params_0)).[e_union_anon_7_0] :< _b).
+Notation "_a '.[stack].[stack_realm_params].[e_rmi_realm_params_0].[e_union_anon_7_0]' ':<' _b" := (update_RData_stack_stack_realm_params_e_rmi_realm_params_0_e_union_anon_7_0 _a _b) (at level 1).
+
+Definition update_RData_stack_stack_realm_params_e_rmi_realm_params_0_e_union_anon_7_1(_a: RData) _b :=
+  update_RData_stack_stack_realm_params_e_rmi_realm_params_0 _a ((_a.(stack).(stack_realm_params).(e_rmi_realm_params_0)).[e_union_anon_7_1] :< _b).
+Notation "_a '.[stack].[stack_realm_params].[e_rmi_realm_params_0].[e_union_anon_7_1]' ':<' _b" := (update_RData_stack_stack_realm_params_e_rmi_realm_params_0_e_union_anon_7_1 _a _b) (at level 1).
+
+Definition update_RData_stack_stack_realm_params_e_rmi_realm_params_1(_a: RData) _b :=
+  update_RData_stack_stack_realm_params _a ((_a.(stack).(stack_realm_params)).[e_rmi_realm_params_1] :< _b).
+Notation "_a '.[stack].[stack_realm_params].[e_rmi_realm_params_1]' ':<' _b" := (update_RData_stack_stack_realm_params_e_rmi_realm_params_1 _a _b) (at level 1).
+
+Definition update_RData_stack_stack_realm_params_e_rmi_realm_params_1_e_union_anon_0_95_0(_a: RData) _b :=
+  update_RData_stack_stack_realm_params_e_rmi_realm_params_1 _a ((_a.(stack).(stack_realm_params).(e_rmi_realm_params_1)).[e_union_anon_0_95_0] :< _b).
+Notation "_a '.[stack].[stack_realm_params].[e_rmi_realm_params_1].[e_union_anon_0_95_0]' ':<' _b" := (update_RData_stack_stack_realm_params_e_rmi_realm_params_1_e_union_anon_0_95_0 _a _b) (at level 1).
+
+Definition update_RData_stack_stack_realm_params_e_rmi_realm_params_2(_a: RData) _b :=
+  update_RData_stack_stack_realm_params _a ((_a.(stack).(stack_realm_params)).[e_rmi_realm_params_2] :< _b).
+Notation "_a '.[stack].[stack_realm_params].[e_rmi_realm_params_2]' ':<' _b" := (update_RData_stack_stack_realm_params_e_rmi_realm_params_2 _a _b) (at level 1).
+
+Definition update_RData_stack_stack_realm_params_e_rmi_realm_params_2_e_union_anon_1_96_0(_a: RData) _b :=
+  update_RData_stack_stack_realm_params_e_rmi_realm_params_2 _a ((_a.(stack).(stack_realm_params).(e_rmi_realm_params_2)).[e_union_anon_1_96_0] :< _b).
+Notation "_a '.[stack].[stack_realm_params].[e_rmi_realm_params_2].[e_union_anon_1_96_0]' ':<' _b" := (update_RData_stack_stack_realm_params_e_rmi_realm_params_2_e_union_anon_1_96_0 _a _b) (at level 1).
+
+Definition update_RData_stack_stack_realm_params_e_rmi_realm_params_3(_a: RData) _b :=
+  update_RData_stack_stack_realm_params _a ((_a.(stack).(stack_realm_params)).[e_rmi_realm_params_3] :< _b).
+Notation "_a '.[stack].[stack_realm_params].[e_rmi_realm_params_3]' ':<' _b" := (update_RData_stack_stack_realm_params_e_rmi_realm_params_3 _a _b) (at level 1).
+
+Definition update_RData_stack_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0(_a: RData) _b :=
+  update_RData_stack_stack_realm_params_e_rmi_realm_params_3 _a ((_a.(stack).(stack_realm_params).(e_rmi_realm_params_3)).[e_union_anon_2_98_0] :< _b).
+Notation "_a '.[stack].[stack_realm_params].[e_rmi_realm_params_3].[e_union_anon_2_98_0]' ':<' _b" := (update_RData_stack_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0 _a _b) (at level 1).
+
+Definition update_RData_stack_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_vmid(_a: RData) _b :=
+  update_RData_stack_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0 _a ((_a.(stack).(stack_realm_params).(e_rmi_realm_params_3).(e_union_anon_2_98_0)).[e_vmid] :< _b).
+Notation "_a '.[stack].[stack_realm_params].[e_rmi_realm_params_3].[e_union_anon_2_98_0].[e_vmid]' ':<' _b" := (update_RData_stack_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_vmid _a _b) (at level 1).
+
+Definition update_RData_stack_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_rtt_base(_a: RData) _b :=
+  update_RData_stack_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0 _a ((_a.(stack).(stack_realm_params).(e_rmi_realm_params_3).(e_union_anon_2_98_0)).[e_rtt_base] :< _b).
+Notation "_a '.[stack].[stack_realm_params].[e_rmi_realm_params_3].[e_union_anon_2_98_0].[e_rtt_base]' ':<' _b" := (update_RData_stack_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_rtt_base _a _b) (at level 1).
+
+Definition update_RData_stack_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_rtt_level_start(_a: RData) _b :=
+  update_RData_stack_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0 _a ((_a.(stack).(stack_realm_params).(e_rmi_realm_params_3).(e_union_anon_2_98_0)).[e_rtt_level_start] :< _b).
+Notation "_a '.[stack].[stack_realm_params].[e_rmi_realm_params_3].[e_union_anon_2_98_0].[e_rtt_level_start]' ':<' _b" := (update_RData_stack_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_rtt_level_start _a _b) (at level 1).
+
+Definition update_RData_stack_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_rtt_num_start(_a: RData) _b :=
+  update_RData_stack_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0 _a ((_a.(stack).(stack_realm_params).(e_rmi_realm_params_3).(e_union_anon_2_98_0)).[e_rtt_num_start] :< _b).
+Notation "_a '.[stack].[stack_realm_params].[e_rmi_realm_params_3].[e_union_anon_2_98_0].[e_rtt_num_start]' ':<' _b" := (update_RData_stack_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_0_e_rtt_num_start _a _b) (at level 1).
+
+Definition update_RData_stack_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_1(_a: RData) _b :=
+  update_RData_stack_stack_realm_params_e_rmi_realm_params_3 _a ((_a.(stack).(stack_realm_params).(e_rmi_realm_params_3)).[e_union_anon_2_98_1] :< _b).
+Notation "_a '.[stack].[stack_realm_params].[e_rmi_realm_params_3].[e_union_anon_2_98_1]' ':<' _b" := (update_RData_stack_stack_realm_params_e_rmi_realm_params_3_e_union_anon_2_98_1 _a _b) (at level 1).
 
 Definition update_RData_stack_attest_setup_platform_token_stack(_a: RData) _b :=
   update_RData_stack _a ((_a.(stack)).[attest_setup_platform_token_stack] :< _b).

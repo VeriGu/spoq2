@@ -14,6 +14,8 @@ Parameter empty_st : Z -> Shared.
 
 Parameter realm_trap_determ : list Event -> realm_trap_type.
 
+Parameter rmi_realm_params : s_rmi_realm_params.
+
 Parameter gic_virt_feature_0 : Z.
 
 Parameter gic_virt_feature_1 : Z.
@@ -77,6 +79,192 @@ Section GlobalDefs.
 
   Definition SMC_RMM_GTSI_UNDELEGATE  : Z :=
     3288334769.
+
+  Definition SLOT_NS  : Z :=
+    0.
+
+  Definition SLOT_DELEGATED  : Z :=
+    1.
+
+  Definition SLOT_RD  : Z :=
+    2.
+
+  Definition SLOT_REC  : Z :=
+    3.
+
+  Definition SLOT_REC2  : Z :=
+    4.
+
+  Definition SLOT_REC_TARGET  : Z :=
+    5.
+
+  Definition SLOT_REC_AUX0  : Z :=
+    6.
+
+  Definition SLOT_RTT  : Z :=
+    22.
+
+  Definition SLOT_RTT2  : Z :=
+    23.
+
+  Definition SLOT_RSI_CALL  : Z :=
+    24.
+
+  Definition STACK_slot_ofs  : Z :=
+    25.
+
+  Definition STACK_attest_setup_platform_token  : Z :=
+    25.
+
+  Definition STACK_smc_psci_complete  : Z :=
+    26.
+
+  Definition STACK_find_lock_two_granules  : Z :=
+    27.
+
+  Definition STACK_attest_token_continue_write_state  : Z :=
+    28.
+
+  Definition STACK_rmm_log  : Z :=
+    29.
+
+  Definition STACK_attest_realm_token_create  : Z :=
+    30.
+
+  Definition STACK_smc_rec_enter  : Z :=
+    31.
+
+  Definition STACK_do_host_call  : Z :=
+    32.
+
+  Definition STACK_attest_rnd_prng_init  : Z :=
+    33.
+
+  Definition STACK_plat_setup  : Z :=
+    34.
+
+  Definition STACK_attest_token_encode_start  : Z :=
+    35.
+
+  Definition STACK_smc_data_destroy  : Z :=
+    36.
+
+  Definition STACK_xlat_get_llt_from_va  : Z :=
+    37.
+
+  Definition STACK_smc_rec_create  : Z :=
+    38.
+
+  Definition STACK_measurement_extend_sha512  : Z :=
+    39.
+
+  Definition STACK_data_granule_measure  : Z :=
+    40.
+
+  Definition STACK_sort_granules  : Z :=
+    41.
+
+  Definition STACK_measurement_extend_sha256  : Z :=
+    42.
+
+  Definition STACK_realm_ipa_to_pa  : Z :=
+    43.
+
+  Definition STACK_attest_realm_token_sign  : Z :=
+    44.
+
+  Definition STACK_rmm_el3_ifc_get_platform_token  : Z :=
+    45.
+
+  Definition STACK_attest_init_realm_attestation_key  : Z :=
+    46.
+
+  Definition STACK_plat_cmn_setup  : Z :=
+    47.
+
+  Definition STACK_complete_rsi_host_call  : Z :=
+    48.
+
+  Definition STACK_handle_realm_rsi  : Z :=
+    49.
+
+  Definition STACK_smc_rtt_set_ripas  : Z :=
+    50.
+
+  Definition STACK_rtt_walk_lock_unlock  : Z :=
+    51.
+
+  Definition STACK_smc_rtt_destroy  : Z :=
+    52.
+
+  Definition STACK_map_unmap_ns  : Z :=
+    53.
+
+  Definition STACK_handle_rsi_attest_token_init  : Z :=
+    54.
+
+  Definition STACK_realm_params_measure  : Z :=
+    55.
+
+  Definition STACK_handle_rsi_ipa_state_get  : Z :=
+    56.
+
+  Definition STACK_realm_ipa_get_ripas  : Z :=
+    57.
+
+  Definition STACK_smc_rtt_fold  : Z :=
+    58.
+
+  Definition STACK_smc_rtt_create  : Z :=
+    59.
+
+  Definition STACK_rsi_log_on_exit  : Z :=
+    60.
+
+  Definition STACK_attest_cca_token_create  : Z :=
+    61.
+
+  Definition STACK_rec_params_measure  : Z :=
+    62.
+
+  Definition STACK_handle_ns_smc  : Z :=
+    63.
+
+  Definition STACK_rmm_el3_ifc_get_realm_attest_key  : Z :=
+    64.
+
+  Definition STACK_handle_rsi_realm_config  : Z :=
+    65.
+
+  Definition STACK_smc_rtt_init_ripas  : Z :=
+    66.
+
+  Definition STACK_smc_rtt_read_entry  : Z :=
+    67.
+
+  Definition STACK_handle_data_abort  : Z :=
+    68.
+
+  Definition STACK_data_create  : Z :=
+    69.
+
+  Definition STACK_smc_realm_create  : Z :=
+    70.
+
+  Definition STACK_ripas_granule_measure  : Z :=
+    71.
+
+  Definition STACK_ipa_is_empty  : Z :=
+    72.
+
+  Definition STACK_g0  : Z :=
+    73.
+
+  Definition STACK_g1  : Z :=
+    74.
+
+  Definition non_slot  : Z :=
+    75.
 
   Definition int_is_granule (v: Z) : Prop :=
     (((v > (0)) /\ ((v >= (GRANULES_BASE)))) /\ ((v < ((GRANULES_BASE + ((RMM_MAX_GRANULES * (ST_GRANULE_SIZE)))))))).
@@ -535,7 +723,14 @@ Section GlobalDefs.
 
   Definition load_s_rec_simd_state (sz: Z) (ofs: Z) (st: s_rec_simd_state) : (option Z) :=
     if (ofs =? (0))
-    then (Some (st.(e_simd)))
+    then (
+      let ret := (st.(e_simd)) in
+      rely ((ret < (MAX_ERR)));
+      rely ((ret >= (SLOT_VIRT)));
+      let slot := ((ret - (SLOT_VIRT)) / (GRANULE_SIZE)) in
+      rely ((slot >= (SLOT_REC_AUX0)));
+      rely ((slot < ((SLOT_REC_AUX0 + (MAX_REC_AUX_GRANULES)))));
+      (Some ret))
     else (
       if (ofs =? (8))
       then (Some (st.(e_simd_allowed)))
@@ -980,6 +1175,25 @@ Section GlobalDefs.
         (Some (st.[e_padding0] :< ((st.(e_padding0)) # idx == v))))
       else None).
 
+  Definition load_u_anon_7 (sz: Z) (ofs: Z) (st: u_anon_7) : (option Z) :=
+    if (ofs =? (0))
+    then (Some (st.(e_union_anon_7_0)))
+    else (
+      if ((ofs >=? (1)) && ((ofs <? (249))))
+      then (
+        let idx := ((ofs - (1)) / (1)) in
+        (Some ((st.(e_union_anon_7_1)) @ idx)))
+      else None).
+  Definition store_u_anon_7 (sz: Z) (ofs: Z) (v: Z) (st: u_anon_7) : (option u_anon_7) :=
+    if (ofs =? (0))
+    then (Some (st.[e_union_anon_7_0] :< v))
+    else (
+      if ((ofs >=? (1)) && ((ofs <? (249))))
+      then (
+        let idx := ((ofs - (1)) / (1)) in
+        (Some (st.[e_union_anon_7_1] :< ((st.(e_union_anon_7_1)) # idx == v))))
+      else None).
+
   Definition load_s_simd_state (sz: Z) (ofs: Z) (st: s_simd_state) : (option Z) :=
     if ((ofs >=? (0)) && ((ofs <? (8768))))
     then (
@@ -1028,48 +1242,28 @@ Section GlobalDefs.
         then (Some (st.[e_ns_saved] :< v))
         else None)).
 
-  Definition load_u_anon_7 (sz: Z) (ofs: Z) (st: u_anon_7) : (option Z) :=
-    if (ofs =? (0))
-    then (Some (st.(e_features_0)))
-    else (
-      if ((ofs >=? (8)) && ((ofs <? (256))))
-      then (
-        let idx := ((ofs - (8)) / (1)) in
-        (Some ((st.(e_rec_params_padding0)) @ idx)))
-      else None).
-
-  Definition store_u_anon_7 (sz: Z) (ofs: Z) (v: Z) (st: u_anon_7) : (option u_anon_7) :=
-    if (ofs =? (0))
-    then (Some (st.[e_features_0] :< v))
-    else (
-      if ((ofs >=? (8)) && ((ofs <? (256))))
-      then (
-        let idx := ((ofs - (8)) / (1)) in
-        (Some (st.[e_rec_params_padding0] :< ((st.(e_rec_params_padding0)) # idx == v))))
-      else None).
-
   Definition load_u_anon_10 (sz: Z) (ofs: Z) (st: u_anon_10) : (option Z) :=
     if ((ofs >=? (0)) && ((ofs <? (64))))
     then (
       let idx := ((ofs - (0)) / (8)) in
-      (Some ((st.(e_gprs)) @ idx)))
+      (Some ((st.(e_union_anon_10_0)) @ idx)))
     else (
-      if ((ofs >=? (64)) && ((ofs <? (1280))))
+      if ((ofs >=? (1)) && ((ofs <? (1217))))
       then (
-        let idx := ((ofs - (64)) / (1)) in
-        (Some ((st.(e__rec_params_padding0)) @ idx)))
+        let idx := ((ofs - (1)) / (1)) in
+        (Some ((st.(e_union_anon_10_1)) @ idx)))
       else None).
 
   Definition store_u_anon_10 (sz: Z) (ofs: Z) (v: Z) (st: u_anon_10) : (option u_anon_10) :=
     if ((ofs >=? (0)) && ((ofs <? (64))))
     then (
       let idx := ((ofs - (0)) / (8)) in
-      (Some (st.[e_gprs] :< ((st.(e_gprs)) # idx == v))))
+      (Some (st.[e_union_anon_10_0] :< ((st.(e_union_anon_10_0)) # idx == v))))
     else (
-      if ((ofs >=? (64)) && ((ofs <? (1280))))
+      if ((ofs >=? (1)) && ((ofs <? (1217))))
       then (
-        let idx := ((ofs - (64)) / (1)) in
-        (Some (st.[e__rec_params_padding0] :< ((st.(e__rec_params_padding0)) # idx == v))))
+        let idx := ((ofs - (1)) / (1)) in
+        (Some (st.[e_union_anon_10_1] :< ((st.(e_union_anon_10_1)) # idx == v))))
       else None).
 
   Definition load_s_anon_14 (sz: Z) (ofs: Z) (st: s_anon_14) : (option Z) :=
@@ -1096,25 +1290,25 @@ Section GlobalDefs.
     if ((ofs >=? (0)) && ((ofs <? (136))))
     then (
       let elem_ofs := (ofs - (0)) in
-      (load_s_anon_14 sz elem_ofs (st.(e__0))))
+      (load_s_anon_14 sz elem_ofs (st.(e_union_anon_11_154_0))))
     else (
-      if ((ofs >=? (136)) && ((ofs <? (2048))))
+      if ((ofs >=? (1)) && ((ofs <? (1913))))
       then (
-        let idx := ((ofs - (136)) / (1)) in
-        (Some ((st.(e___rec_params_padding0)) @ idx)))
+        let idx := ((ofs - (1)) / (1)) in
+        (Some ((st.(e_union_anon_11_154_1)) @ idx)))
       else None).
 
   Definition store_u_anon_11_154 (sz: Z) (ofs: Z) (v: Z) (st: u_anon_11_154) : (option u_anon_11_154) :=
     if ((ofs >=? (0)) && ((ofs <? (136))))
     then (
       let elem_ofs := (ofs - (0)) in
-      when ret == ((store_s_anon_14 sz elem_ofs v (st.(e__0))));
-      (Some (st.[e__0] :< ret)))
+      when ret == ((store_s_anon_14 sz elem_ofs v (st.(e_union_anon_11_154_0))));
+      (Some (st.[e_union_anon_11_154_0] :< ret)))
     else (
-      if ((ofs >=? (136)) && ((ofs <? (2048))))
+      if ((ofs >=? (1)) && ((ofs <? (1913))))
       then (
-        let idx := ((ofs - (136)) / (1)) in
-        (Some (st.[e___rec_params_padding0] :< ((st.(e___rec_params_padding0)) # idx == v))))
+        let idx := ((ofs - (1)) / (1)) in
+        (Some (st.[e_union_anon_11_154_1] :< ((st.(e_union_anon_11_154_1)) # idx == v))))
       else None).
 
   Definition load_s_rmi_rec_params (sz: Z) (ofs: Z) (st: s_rmi_rec_params) : (option Z) :=
@@ -1175,6 +1369,157 @@ Section GlobalDefs.
               when ret == ((store_u_anon_11_154 sz elem_ofs v (st.(e_rmi_rec_params_4))));
               (Some (st.[e_rmi_rec_params_4] :< ret)))
             else None)))).
+
+  Definition load_s_rtt_walk (sz: Z) (ofs: Z) (st: s_rtt_walk) : (option Z) :=
+    if (ofs =? (0))
+    then (Some (st.(e_g_llt)))
+    else (
+      if (ofs =? (8))
+      then (Some (st.(e_index)))
+      else (
+        if (ofs =? (16))
+        then (Some (st.(e_last_level)))
+        else None)).
+
+  Definition store_s_rtt_walk (sz: Z) (ofs: Z) (v: Z) (st: s_rtt_walk) : (option s_rtt_walk) :=
+    if (ofs =? (0))
+    then (Some (st.[e_g_llt] :< v))
+    else (
+      if (ofs =? (8))
+      then (Some (st.[e_index] :< v))
+      else (
+        if (ofs =? (16))
+        then (Some (st.[e_last_level] :< v))
+        else None)).
+
+  Definition load_u_anon_0_95 (sz: Z) (ofs: Z) (st: u_anon_0_95) : (option Z) :=
+    if ((ofs >=? (0)) && ((ofs <? (768))))
+    then (
+      let idx := ((ofs - (0)) / (1)) in
+      (Some ((st.(e_union_anon_0_95_0)) @ idx)))
+    else None.
+
+  Definition store_u_anon_0_95 (sz: Z) (ofs: Z) (v: Z) (st: u_anon_0_95) : (option u_anon_0_95) :=
+    if ((ofs >=? (0)) && ((ofs <? (768))))
+    then (
+      let idx := ((ofs - (0)) / (1)) in
+      (Some (st.[e_union_anon_0_95_0] :< ((st.(e_union_anon_0_95_0)) # idx == v))))
+    else None.
+
+  Definition load_u_anon_1_96 (sz: Z) (ofs: Z) (st: u_anon_1_96) : (option Z) :=
+    if ((ofs >=? (0)) && ((ofs <? (1024))))
+    then (
+      let idx := ((ofs - (0)) / (1)) in
+      (Some ((st.(e_union_anon_1_96_0)) @ idx)))
+    else None.
+
+  Definition store_u_anon_1_96 (sz: Z) (ofs: Z) (v: Z) (st: u_anon_1_96) : (option u_anon_1_96) :=
+    if ((ofs >=? (0)) && ((ofs <? (1024))))
+    then (
+      let idx := ((ofs - (0)) / (1)) in
+      (Some (st.[e_union_anon_1_96_0] :< ((st.(e_union_anon_1_96_0)) # idx == v))))
+    else None.
+
+  Definition load_s_anon_97 (sz: Z) (ofs: Z) (st: s_anon_97) : (option Z) :=
+    if (ofs =? (0))
+    then (Some (st.(e_vmid)))
+    else (
+      if (ofs =? (8))
+      then (Some (st.(e_rtt_base)))
+      else (
+        if (ofs =? (16))
+        then (Some (st.(e_rtt_level_start)))
+        else (
+          if (ofs =? (24))
+          then (Some (st.(e_rtt_num_start)))
+          else None))).
+
+  Definition store_s_anon_97 (sz: Z) (ofs: Z) (v: Z) (st: s_anon_97) : (option s_anon_97) :=
+    if (ofs =? (0))
+    then (Some (st.[e_vmid] :< v))
+    else (
+      if (ofs =? (8))
+      then (Some (st.[e_rtt_base] :< v))
+      else (
+        if (ofs =? (16))
+        then (Some (st.[e_rtt_level_start] :< v))
+        else (
+          if (ofs =? (24))
+          then (Some (st.[e_rtt_num_start] :< v))
+          else None))).
+
+  Definition load_u_anon_2_98 (sz: Z) (ofs: Z) (st: u_anon_2_98) : (option Z) :=
+    if ((ofs >=? (0)) && ((ofs <? (32))))
+    then (
+      let elem_ofs := (ofs - (0)) in
+      (load_s_anon_97 sz elem_ofs (st.(e_union_anon_2_98_0))))
+    else (
+      if ((ofs >=? (1)) && ((ofs <? (2017))))
+      then (
+        let idx := ((ofs - (1)) / (1)) in
+        (Some ((st.(e_union_anon_2_98_1)) @ idx)))
+      else None).
+
+  Definition store_u_anon_2_98 (sz: Z) (ofs: Z) (v: Z) (st: u_anon_2_98) : (option u_anon_2_98) :=
+    if ((ofs >=? (0)) && ((ofs <? (32))))
+    then (
+      let elem_ofs := (ofs - (0)) in
+      when ret == ((store_s_anon_97 sz elem_ofs v (st.(e_union_anon_2_98_0))));
+      (Some (st.[e_union_anon_2_98_0] :< ret)))
+    else (
+      if ((ofs >=? (1)) && ((ofs <? (2017))))
+      then (
+        let idx := ((ofs - (1)) / (1)) in
+        (Some (st.[e_union_anon_2_98_1] :< ((st.(e_union_anon_2_98_1)) # idx == v))))
+      else None).
+
+  Definition load_s_rmi_realm_params (sz: Z) (ofs: Z) (st: s_rmi_realm_params) : (option Z) :=
+    if ((ofs >=? (0)) && ((ofs <? (256))))
+    then (
+      let elem_ofs := (ofs - (0)) in
+      (load_u_anon_7 sz elem_ofs (st.(e_rmi_realm_params_0))))
+    else (
+      if ((ofs >=? (256)) && ((ofs <? (1024))))
+      then (
+        let elem_ofs := (ofs - (256)) in
+        (load_u_anon_0_95 sz elem_ofs (st.(e_rmi_realm_params_1))))
+      else (
+        if ((ofs >=? (1024)) && ((ofs <? (2048))))
+        then (
+          let elem_ofs := (ofs - (1024)) in
+          (load_u_anon_1_96 sz elem_ofs (st.(e_rmi_realm_params_2))))
+        else (
+          if ((ofs >=? (2048)) && ((ofs <? (4096))))
+          then (
+            let elem_ofs := (ofs - (2048)) in
+            (load_u_anon_2_98 sz elem_ofs (st.(e_rmi_realm_params_3))))
+          else None))).
+
+  Definition store_s_rmi_realm_params (sz: Z) (ofs: Z) (v: Z) (st: s_rmi_realm_params) : (option s_rmi_realm_params) :=
+    if ((ofs >=? (0)) && ((ofs <? (256))))
+    then (
+      let elem_ofs := (ofs - (0)) in
+      when ret == ((store_u_anon_7 sz elem_ofs v (st.(e_rmi_realm_params_0))));
+      (Some (st.[e_rmi_realm_params_0] :< ret)))
+    else (
+      if ((ofs >=? (256)) && ((ofs <? (1024))))
+      then (
+        let elem_ofs := (ofs - (256)) in
+        when ret == ((store_u_anon_0_95 sz elem_ofs v (st.(e_rmi_realm_params_1))));
+        (Some (st.[e_rmi_realm_params_1] :< ret)))
+      else (
+        if ((ofs >=? (1024)) && ((ofs <? (2048))))
+        then (
+          let elem_ofs := (ofs - (1024)) in
+          when ret == ((store_u_anon_1_96 sz elem_ofs v (st.(e_rmi_realm_params_2))));
+          (Some (st.[e_rmi_realm_params_2] :< ret)))
+        else (
+          if ((ofs >=? (2048)) && ((ofs <? (4096))))
+          then (
+            let elem_ofs := (ofs - (2048)) in
+            when ret == ((store_u_anon_2_98 sz elem_ofs v (st.(e_rmi_realm_params_3))));
+            (Some (st.[e_rmi_realm_params_3] :< ret)))
+          else None))).
 
   Definition load_s_granule (sz: Z) (ofs: Z) (st: s_granule) : (option Z) :=
     if (ofs =? (4))
@@ -1356,23 +1701,6 @@ Section GlobalDefs.
             then (Some (st.[e_gset_g_ret] :< v))
             else None)))).
 
-  Definition load_s_s2_walk_result (sz: Z) (ofs: Z) (st: s_s2_walk_result) : (option Z) :=
-    if (ofs =? (0))
-    then (Some (st.(e_walk_pa)))
-    else (
-      if (ofs =? (8))
-      then (Some (st.(e_walk_rtt_level)))
-      else (
-        if (ofs =? (16))
-        then (Some (st.(e_walk_ripas)))
-        else (
-          if (ofs =? (20))
-          then (Some (st.(e_walk_destroyed)))
-          else (
-            if (ofs =? (24))
-            then (Some (st.(e_walk_llt)))
-            else None)))).
-
   Definition store_s_s2_walk_result (sz: Z) (ofs: Z) (v: Z) (st: s_s2_walk_result) : (option s_s2_walk_result) :=
     if (ofs =? (0))
     then (Some (st.[e_walk_pa] :< v))
@@ -1388,6 +1716,23 @@ Section GlobalDefs.
           else (
             if (ofs =? (24))
             then (Some (st.[e_walk_llt] :< v))
+            else None)))).
+
+  Definition load_s_s2_walk_result (sz: Z) (ofs: Z) (st: s_s2_walk_result) : (option Z) :=
+    if (ofs =? (0))
+    then (Some (st.(e_walk_pa)))
+    else (
+      if (ofs =? (8))
+      then (Some (st.(e_walk_rtt_level)))
+      else (
+        if (ofs =? (16))
+        then (Some (st.(e_walk_ripas)))
+        else (
+          if (ofs =? (20))
+          then (Some (st.(e_walk_destroyed)))
+          else (
+            if (ofs =? (24))
+            then (Some (st.(e_walk_llt)))
             else None)))).
 
   Definition stack_ptr_extract_ofs (ofs: Z) : Z :=
@@ -1480,185 +1825,11 @@ Section GlobalDefs.
   Definition GRANULE_STATE_LAST  : Z :=
     GRANULE_STATE_RTT.
 
-  Definition SLOT_NS  : Z :=
-    0.
+  Definition int_is_g0 (v: Z) : Prop :=
+    ((v > (0)) /\ (((((v - (STACK_VIRT)) / (GRANULE_SIZE)) + (STACK_slot_ofs)) = (STACK_g0)))).
 
-  Definition SLOT_DELEGATED  : Z :=
-    1.
-
-  Definition SLOT_RD  : Z :=
-    2.
-
-  Definition SLOT_REC  : Z :=
-    3.
-
-  Definition SLOT_REC2  : Z :=
-    4.
-
-  Definition SLOT_REC_TARGET  : Z :=
-    5.
-
-  Definition SLOT_REC_AUX0  : Z :=
-    6.
-
-  Definition SLOT_RTT  : Z :=
-    22.
-
-  Definition SLOT_RTT2  : Z :=
-    23.
-
-  Definition SLOT_RSI_CALL  : Z :=
-    24.
-
-  Definition STACK_slot_ofs  : Z :=
-    25.
-
-  Definition STACK_attest_setup_platform_token  : Z :=
-    25.
-
-  Definition STACK_smc_psci_complete  : Z :=
-    26.
-
-  Definition STACK_find_lock_two_granules  : Z :=
-    27.
-
-  Definition STACK_attest_token_continue_write_state  : Z :=
-    28.
-
-  Definition STACK_rmm_log  : Z :=
-    29.
-
-  Definition STACK_attest_realm_token_create  : Z :=
-    30.
-
-  Definition STACK_smc_rec_enter  : Z :=
-    31.
-
-  Definition STACK_do_host_call  : Z :=
-    32.
-
-  Definition STACK_attest_rnd_prng_init  : Z :=
-    33.
-
-  Definition STACK_plat_setup  : Z :=
-    34.
-
-  Definition STACK_attest_token_encode_start  : Z :=
-    35.
-
-  Definition STACK_smc_data_destroy  : Z :=
-    36.
-
-  Definition STACK_xlat_get_llt_from_va  : Z :=
-    37.
-
-  Definition STACK_smc_rec_create  : Z :=
-    38.
-
-  Definition STACK_measurement_extend_sha512  : Z :=
-    39.
-
-  Definition STACK_data_granule_measure  : Z :=
-    40.
-
-  Definition STACK_sort_granules  : Z :=
-    41.
-
-  Definition STACK_measurement_extend_sha256  : Z :=
-    42.
-
-  Definition STACK_realm_ipa_to_pa  : Z :=
-    43.
-
-  Definition STACK_attest_realm_token_sign  : Z :=
-    44.
-
-  Definition STACK_rmm_el3_ifc_get_platform_token  : Z :=
-    45.
-
-  Definition STACK_attest_init_realm_attestation_key  : Z :=
-    46.
-
-  Definition STACK_plat_cmn_setup  : Z :=
-    47.
-
-  Definition STACK_complete_rsi_host_call  : Z :=
-    48.
-
-  Definition STACK_handle_realm_rsi  : Z :=
-    49.
-
-  Definition STACK_smc_rtt_set_ripas  : Z :=
-    50.
-
-  Definition STACK_rtt_walk_lock_unlock  : Z :=
-    51.
-
-  Definition STACK_smc_rtt_destroy  : Z :=
-    52.
-
-  Definition STACK_map_unmap_ns  : Z :=
-    53.
-
-  Definition STACK_handle_rsi_attest_token_init  : Z :=
-    54.
-
-  Definition STACK_realm_params_measure  : Z :=
-    55.
-
-  Definition STACK_handle_rsi_ipa_state_get  : Z :=
-    56.
-
-  Definition STACK_realm_ipa_get_ripas  : Z :=
-    57.
-
-  Definition STACK_smc_rtt_fold  : Z :=
-    58.
-
-  Definition STACK_smc_rtt_create  : Z :=
-    59.
-
-  Definition STACK_rsi_log_on_exit  : Z :=
-    60.
-
-  Definition STACK_attest_cca_token_create  : Z :=
-    61.
-
-  Definition STACK_rec_params_measure  : Z :=
-    62.
-
-  Definition STACK_handle_ns_smc  : Z :=
-    63.
-
-  Definition STACK_rmm_el3_ifc_get_realm_attest_key  : Z :=
-    64.
-
-  Definition STACK_handle_rsi_realm_config  : Z :=
-    65.
-
-  Definition STACK_smc_rtt_init_ripas  : Z :=
-    66.
-
-  Definition STACK_smc_rtt_read_entry  : Z :=
-    67.
-
-  Definition STACK_handle_data_abort  : Z :=
-    68.
-
-  Definition STACK_data_create  : Z :=
-    69.
-
-  Definition STACK_smc_realm_create  : Z :=
-    70.
-
-  Definition STACK_ripas_granule_measure  : Z :=
-    71.
-
-  Definition STACK_ipa_is_empty  : Z :=
-    72.
-
-  Definition non_slot  : Z :=
-    73.
+  Definition int_is_g1 (v: Z) : Prop :=
+    ((v > (0)) /\ (((((v - (STACK_VIRT)) / (GRANULE_SIZE)) + (STACK_slot_ofs)) = (STACK_g1)))).
 
   Definition rec_is_locked (st: RData) : Prop :=
     (((((st.(share)).(granules)) @ (((st.(share)).(slots)) @ SLOT_REC)).(e_lock)) = ((Some CPU_ID))).
@@ -1925,227 +2096,166 @@ Section GlobalDefs.
                                       rely ((((((((st.(priv)).(pcpu_stack)) @ slot_nr).(sf_data)) @ slot_ofs).(sd_size)) = (sz)));
                                       (Some (((((((st.(priv)).(pcpu_stack)) @ slot_nr).(sf_data)) @ slot_ofs).(sd_data)), st)))
                                     else (
-                                      if ((p.(pbase)) =s ("attest_setup_platform_token_stack"))
-                                      then (Some ((((st.(stack)).(attest_setup_platform_token_stack)) @ (p.(poffset))), st))
+                                      if ((p.(pbase)) =s ("stack_wi"))
+                                      then (
+                                        when ret == ((load_s_rtt_walk sz (p.(poffset)) ((st.(stack)).(stack_wi))));
+                                        (Some (ret, st)))
                                       else (
-                                        if ((p.(pbase)) =s ("smc_psci_complete_stack"))
-                                        then (Some ((((st.(stack)).(smc_psci_complete_stack)) @ (p.(poffset))), st))
+                                        if ((p.(pbase)) =s ("stack_g_tbls"))
+                                        then (
+                                          let idx := ((p.(poffset)) / (8)) in
+                                          let ptr := (((st.(stack)).(stack_g_tbls)) @ idx) in
+                                          rely ((int_is_granule ptr));
+                                          (Some (ptr, st)))
                                         else (
-                                          if ((p.(pbase)) =s ("find_lock_two_granules_stack"))
-                                          then (Some ((((st.(stack)).(find_lock_two_granules_stack)) @ (p.(poffset))), st))
-                                          else (
-                                            if ((p.(pbase)) =s ("attest_token_continue_write_state_stack"))
-                                            then (Some ((((st.(stack)).(attest_token_continue_write_state_stack)) @ (p.(poffset))), st))
-                                            else (
-                                              if ((p.(pbase)) =s ("rmm_log_stack"))
-                                              then (Some ((((st.(stack)).(rmm_log_stack)) @ (p.(poffset))), st))
+                                          if ((p.(pbase)) =s ("stack_gs"))
+                                          then (
+                                            let idx := ((p.(poffset)) / (40)) in
+                                            let ofs := ((p.(poffset)) mod (40)) in
+                                            if (idx =? (0))
+                                            then (
+                                              when ret == ((load_s_granule_set sz ofs ((st.(stack)).(stack_gs0))));
+                                              if (ofs =? (24))
+                                              then (
+                                                rely ((int_is_granule ret));
+                                                (Some (ret, st)))
                                               else (
-                                                if ((p.(pbase)) =s ("attest_realm_token_create_stack"))
-                                                then (Some ((((st.(stack)).(attest_realm_token_create_stack)) @ (p.(poffset))), st))
+                                                if (ofs =? (32))
+                                                then (
+                                                  rely ((int_is_g0 ret));
+                                                  (Some (ret, st)))
+                                                else (Some (ret, st))))
+                                            else (
+                                              when ret == ((load_s_granule_set sz ofs ((st.(stack)).(stack_gs1))));
+                                              if (ofs =? (24))
+                                              then (
+                                                rely ((int_is_granule ret));
+                                                (Some (ret, st)))
+                                              else (
+                                                if (ofs =? (32))
+                                                then (
+                                                  rely ((int_is_g1 ret));
+                                                  (Some (ret, st)))
+                                                else (Some (ret, st)))))
+                                          else (
+                                            if ((p.(pbase)) =s ("stack_gs_temp"))
+                                            then (
+                                              when ret == ((load_s_granule_set sz (p.(poffset)) ((st.(stack)).(stack_gs_temp))));
+                                              if ((p.(poffset)) =? (24))
+                                              then (
+                                                rely ((int_is_granule ret));
+                                                (Some (ret, st)))
+                                              else (Some (ret, st)))
+                                            else (
+                                              if ((p.(pbase)) =s ("stack_g0"))
+                                              then (
+                                                rely ((int_is_granule ((st.(stack)).(stack_g0))));
+                                                (Some (((st.(stack)).(stack_g0)), st)))
+                                              else (
+                                                if ((p.(pbase)) =s ("stack_g1"))
+                                                then (
+                                                  rely ((int_is_granule ((st.(stack)).(stack_g1))));
+                                                  (Some (((st.(stack)).(stack_g1)), st)))
                                                 else (
-                                                  if ((p.(pbase)) =s ("smc_rec_enter_stack"))
-                                                  then (Some ((((st.(stack)).(smc_rec_enter_stack)) @ (p.(poffset))), st))
+                                                  if ((p.(pbase)) =s ("stack_s2_ctx"))
+                                                  then (
+                                                    when ret == ((load_s_realm_s2_context sz (p.(poffset)) ((st.(stack)).(stack_s2_ctx))));
+                                                    (Some (ret, st)))
                                                   else (
-                                                    if ((p.(pbase)) =s ("do_host_call_stack"))
-                                                    then (Some ((((st.(stack)).(do_host_call_stack)) @ (p.(poffset))), st))
+                                                    if ((p.(pbase)) =s ("stack_ripas_ptr"))
+                                                    then (Some (((st.(stack)).(stack_ripas_ptr)), st))
                                                     else (
-                                                      if ((p.(pbase)) =s ("attest_rnd_prng_init_stack"))
-                                                      then (Some ((((st.(stack)).(attest_rnd_prng_init_stack)) @ (p.(poffset))), st))
+                                                      if ((p.(pbase)) =s ("stack_ripas"))
+                                                      then (Some (((st.(stack)).(stack_ripas)), st))
                                                       else (
-                                                        if ((p.(pbase)) =s ("plat_setup_stack"))
-                                                        then (Some ((((st.(stack)).(plat_setup_stack)) @ (p.(poffset))), st))
+                                                        if ((p.(pbase)) =s ("stack_rtt_level"))
+                                                        then (Some (((st.(stack)).(stack_rtt_level)), st))
                                                         else (
-                                                          if ((p.(pbase)) =s ("attest_token_encode_start_stack"))
-                                                          then (Some ((((st.(stack)).(attest_token_encode_start_stack)) @ (p.(poffset))), st))
+                                                          if ((p.(pbase)) =s ("stack_walk_res"))
+                                                          then (
+                                                            when ret == ((load_s_s2_walk_result sz (p.(poffset)) ((st.(stack)).(stack_walk_res))));
+                                                            (Some (ret, st)))
                                                           else (
-                                                            if ((p.(pbase)) =s ("smc_data_destroy_stack"))
-                                                            then (Some ((((st.(stack)).(smc_data_destroy_stack)) @ (p.(poffset))), st))
+                                                            if ((p.(pbase)) =s ("stack_s2tte"))
+                                                            then (Some (((st.(stack)).(stack_s2tte)), st))
                                                             else (
-                                                              if ((p.(pbase)) =s ("xlat_get_llt_from_va_stack"))
-                                                              then (Some ((((st.(stack)).(xlat_get_llt_from_va_stack)) @ (p.(poffset))), st))
+                                                              if ((p.(pbase)) =s ("stack_realm_params"))
+                                                              then (
+                                                                when ret == ((load_s_rmi_realm_params sz (p.(poffset)) ((st.(stack)).(stack_realm_params))));
+                                                                (Some (ret, st)))
                                                               else (
-                                                                if ((p.(pbase)) =s ("smc_rec_create_stack"))
-                                                                then (Some ((((st.(stack)).(smc_rec_create_stack)) @ (p.(poffset))), st))
-                                                                else (
-                                                                  if ((p.(pbase)) =s ("measurement_extend_sha512_stack"))
-                                                                  then (Some ((((st.(stack)).(measurement_extend_sha512_stack)) @ (p.(poffset))), st))
+                                                                if ((p.(pbase)) =s ("__const_arch_feat_get_pa_width_pa_range_bits_arr"))
+                                                                then (
+                                                                  let ofs := (p.(poffset)) in
+                                                                  if (ofs =? (0))
+                                                                  then (Some (32, st))
                                                                   else (
-                                                                    if ((p.(pbase)) =s ("data_granule_measure_stack"))
-                                                                    then (Some ((((st.(stack)).(data_granule_measure_stack)) @ (p.(poffset))), st))
+                                                                    if (ofs =? (4))
+                                                                    then (Some (36, st))
                                                                     else (
-                                                                      if ((p.(pbase)) =s ("sort_granules_stack"))
-                                                                      then (Some ((((st.(stack)).(sort_granules_stack)) @ (p.(poffset))), st))
+                                                                      if (ofs =? (8))
+                                                                      then (Some (40, st))
                                                                       else (
-                                                                        if ((p.(pbase)) =s ("measurement_extend_sha256_stack"))
-                                                                        then (Some ((((st.(stack)).(measurement_extend_sha256_stack)) @ (p.(poffset))), st))
+                                                                        if (ofs =? (12))
+                                                                        then (Some (42, st))
                                                                         else (
-                                                                          if ((p.(pbase)) =s ("realm_ipa_to_pa_stack"))
-                                                                          then (Some ((((st.(stack)).(realm_ipa_to_pa_stack)) @ (p.(poffset))), st))
+                                                                          if (ofs =? (16))
+                                                                          then (Some (44, st))
                                                                           else (
-                                                                            if ((p.(pbase)) =s ("attest_realm_token_sign_stack"))
-                                                                            then (Some ((((st.(stack)).(attest_realm_token_sign_stack)) @ (p.(poffset))), st))
+                                                                            if (ofs =? (20))
+                                                                            then (Some (48, st))
                                                                             else (
-                                                                              if ((p.(pbase)) =s ("rmm_el3_ifc_get_platform_token_stack"))
-                                                                              then (Some ((((st.(stack)).(rmm_el3_ifc_get_platform_token_stack)) @ (p.(poffset))), st))
+                                                                              if (ofs =? (24))
+                                                                              then (Some (52, st))
+                                                                              else None)))))))
+                                                                else (
+                                                                  if ((p.(pbase)) =s ("g_sve_max_vq"))
+                                                                  then (
+                                                                    let ofs := (p.(poffset)) in
+                                                                    (Some (((st.(share)).(gv_g_sve_max_vq)), st)))
+                                                                  else (
+                                                                    if ((p.(pbase)) =s ("g_ns_simd"))
+                                                                    then (
+                                                                      let ofs := (p.(poffset)) in
+                                                                      let ret := (((st.(share)).(gv_g_ns_simd)) @ ofs) in
+                                                                      (Some (ret, st)))
+                                                                    else (
+                                                                      if ((p.(pbase)) =s ("g_cpu_simd_type"))
+                                                                      then (
+                                                                        let ofs := (p.(poffset)) in
+                                                                        (Some (((st.(share)).(gv_g_cpu_simd_type)), st)))
+                                                                      else (
+                                                                        if ((p.(pbase)) =s ("llt_info_cache"))
+                                                                        then (
+                                                                          let ofs := (p.(poffset)) in
+                                                                          let cpuidx := (ofs / (24)) in
+                                                                          let elem_ofs := (ofs mod (24)) in
+                                                                          let cache_entry := (((st.(priv)).(pcpu_llt_info_cache)) @ cpuidx) in
+                                                                          when ret == ((load_s_xlat_llt_info sz elem_ofs cache_entry));
+                                                                          (Some (ret, st)))
+                                                                        else (
+                                                                          if ((p.(pbase)) =s ("sl0_val"))
+                                                                          then (
+                                                                            let ofs := (p.(poffset)) in
+                                                                            if (ofs =? (0))
+                                                                            then (Some (0, st))
+                                                                            else (
+                                                                              if (ofs =? (8))
+                                                                              then (Some (64, st))
                                                                               else (
-                                                                                if ((p.(pbase)) =s ("attest_init_realm_attestation_key_stack"))
-                                                                                then (Some ((((st.(stack)).(attest_init_realm_attestation_key_stack)) @ (p.(poffset))), st))
+                                                                                if (ofs =? (16))
+                                                                                then (Some (128, st))
                                                                                 else (
-                                                                                  if ((p.(pbase)) =s ("plat_cmn_setup_stack"))
-                                                                                  then (Some ((((st.(stack)).(plat_cmn_setup_stack)) @ (p.(poffset))), st))
-                                                                                  else (
-                                                                                    if ((p.(pbase)) =s ("complete_rsi_host_call_stack"))
-                                                                                    then (Some ((((st.(stack)).(complete_rsi_host_call_stack)) @ (p.(poffset))), st))
-                                                                                    else (
-                                                                                      if ((p.(pbase)) =s ("handle_realm_rsi_stack"))
-                                                                                      then (Some ((((st.(stack)).(handle_realm_rsi_stack)) @ (p.(poffset))), st))
-                                                                                      else (
-                                                                                        if ((p.(pbase)) =s ("smc_rtt_set_ripas_stack"))
-                                                                                        then (Some ((((st.(stack)).(smc_rtt_set_ripas_stack)) @ (p.(poffset))), st))
-                                                                                        else (
-                                                                                          if ((p.(pbase)) =s ("rtt_walk_lock_unlock_stack"))
-                                                                                          then (Some ((((st.(stack)).(rtt_walk_lock_unlock_stack)) @ (p.(poffset))), st))
-                                                                                          else (
-                                                                                            if ((p.(pbase)) =s ("smc_rtt_destroy_stack"))
-                                                                                            then (Some ((((st.(stack)).(smc_rtt_destroy_stack)) @ (p.(poffset))), st))
-                                                                                            else (
-                                                                                              if ((p.(pbase)) =s ("map_unmap_ns_stack"))
-                                                                                              then (Some ((((st.(stack)).(map_unmap_ns_stack)) @ (p.(poffset))), st))
-                                                                                              else (
-                                                                                                if ((p.(pbase)) =s ("handle_rsi_attest_token_init_stack"))
-                                                                                                then (Some ((((st.(stack)).(handle_rsi_attest_token_init_stack)) @ (p.(poffset))), st))
-                                                                                                else (
-                                                                                                  if ((p.(pbase)) =s ("realm_params_measure_stack"))
-                                                                                                  then (Some ((((st.(stack)).(realm_params_measure_stack)) @ (p.(poffset))), st))
-                                                                                                  else (
-                                                                                                    if ((p.(pbase)) =s ("handle_rsi_ipa_state_get_stack"))
-                                                                                                    then (Some ((((st.(stack)).(handle_rsi_ipa_state_get_stack)) @ (p.(poffset))), st))
-                                                                                                    else (
-                                                                                                      if ((p.(pbase)) =s ("realm_ipa_get_ripas_stack"))
-                                                                                                      then (Some ((((st.(stack)).(realm_ipa_get_ripas_stack)) @ (p.(poffset))), st))
-                                                                                                      else (
-                                                                                                        if ((p.(pbase)) =s ("smc_rtt_fold_stack"))
-                                                                                                        then (Some ((((st.(stack)).(smc_rtt_fold_stack)) @ (p.(poffset))), st))
-                                                                                                        else (
-                                                                                                          if ((p.(pbase)) =s ("smc_rtt_create_stack"))
-                                                                                                          then (Some ((((st.(stack)).(smc_rtt_create_stack)) @ (p.(poffset))), st))
-                                                                                                          else (
-                                                                                                            if ((p.(pbase)) =s ("rsi_log_on_exit_stack"))
-                                                                                                            then (Some ((((st.(stack)).(rsi_log_on_exit_stack)) @ (p.(poffset))), st))
-                                                                                                            else (
-                                                                                                              if ((p.(pbase)) =s ("attest_cca_token_create_stack"))
-                                                                                                              then (Some ((((st.(stack)).(attest_cca_token_create_stack)) @ (p.(poffset))), st))
-                                                                                                              else (
-                                                                                                                if ((p.(pbase)) =s ("rec_params_measure_stack"))
-                                                                                                                then (Some ((((st.(stack)).(rec_params_measure_stack)) @ (p.(poffset))), st))
-                                                                                                                else (
-                                                                                                                  if ((p.(pbase)) =s ("handle_ns_smc_stack"))
-                                                                                                                  then (Some ((((st.(stack)).(handle_ns_smc_stack)) @ (p.(poffset))), st))
-                                                                                                                  else (
-                                                                                                                    if ((p.(pbase)) =s ("rmm_el3_ifc_get_realm_attest_key_stack"))
-                                                                                                                    then (Some ((((st.(stack)).(rmm_el3_ifc_get_realm_attest_key_stack)) @ (p.(poffset))), st))
-                                                                                                                    else (
-                                                                                                                      if ((p.(pbase)) =s ("handle_rsi_realm_config_stack"))
-                                                                                                                      then (
-                                                                                                                        if ((p.(poffset)) =? (24))
-                                                                                                                        then (
-                                                                                                                          rely ((int_is_granule (((st.(stack)).(handle_rsi_realm_config_stack)) @ (p.(poffset)))));
-                                                                                                                          (Some ((((st.(stack)).(handle_rsi_realm_config_stack)) @ (p.(poffset))), st)))
-                                                                                                                        else (Some ((((st.(stack)).(handle_rsi_realm_config_stack)) @ (p.(poffset))), st)))
-                                                                                                                      else (
-                                                                                                                        if ((p.(pbase)) =s ("smc_rtt_init_ripas_stack"))
-                                                                                                                        then (Some ((((st.(stack)).(smc_rtt_init_ripas_stack)) @ (p.(poffset))), st))
-                                                                                                                        else (
-                                                                                                                          if ((p.(pbase)) =s ("smc_rtt_read_entry_stack"))
-                                                                                                                          then (Some ((((st.(stack)).(smc_rtt_read_entry_stack)) @ (p.(poffset))), st))
-                                                                                                                          else (
-                                                                                                                            if ((p.(pbase)) =s ("handle_data_abort_stack"))
-                                                                                                                            then (Some ((((st.(stack)).(handle_data_abort_stack)) @ (p.(poffset))), st))
-                                                                                                                            else (
-                                                                                                                              if ((p.(pbase)) =s ("data_create_stack"))
-                                                                                                                              then (Some ((((st.(stack)).(data_create_stack)) @ (p.(poffset))), st))
-                                                                                                                              else (
-                                                                                                                                if ((p.(pbase)) =s ("smc_realm_create_stack"))
-                                                                                                                                then (Some ((((st.(stack)).(smc_realm_create_stack)) @ (p.(poffset))), st))
-                                                                                                                                else (
-                                                                                                                                  if ((p.(pbase)) =s ("ripas_granule_measure_stack"))
-                                                                                                                                  then (Some ((((st.(stack)).(ripas_granule_measure_stack)) @ (p.(poffset))), st))
-                                                                                                                                  else (
-                                                                                                                                    if ((p.(pbase)) =s ("ipa_is_empty_stack"))
-                                                                                                                                    then (Some ((((st.(stack)).(ipa_is_empty_stack)) @ (p.(poffset))), st))
-                                                                                                                                    else (
-                                                                                                                                      if ((p.(pbase)) =s ("__const_arch_feat_get_pa_width_pa_range_bits_arr"))
-                                                                                                                                      then (
-                                                                                                                                        let ofs := (p.(poffset)) in
-                                                                                                                                        if (ofs =? (0))
-                                                                                                                                        then (Some (32, st))
-                                                                                                                                        else (
-                                                                                                                                          if (ofs =? (4))
-                                                                                                                                          then (Some (36, st))
-                                                                                                                                          else (
-                                                                                                                                            if (ofs =? (8))
-                                                                                                                                            then (Some (40, st))
-                                                                                                                                            else (
-                                                                                                                                              if (ofs =? (12))
-                                                                                                                                              then (Some (42, st))
-                                                                                                                                              else (
-                                                                                                                                                if (ofs =? (16))
-                                                                                                                                                then (Some (44, st))
-                                                                                                                                                else (
-                                                                                                                                                  if (ofs =? (20))
-                                                                                                                                                  then (Some (48, st))
-                                                                                                                                                  else (
-                                                                                                                                                    if (ofs =? (24))
-                                                                                                                                                    then (Some (52, st))
-                                                                                                                                                    else None)))))))
-                                                                                                                                      else (
-                                                                                                                                        if ((p.(pbase)) =s ("g_sve_max_vq"))
-                                                                                                                                        then (
-                                                                                                                                          let ofs := (p.(poffset)) in
-                                                                                                                                          (Some (((st.(share)).(gv_g_sve_max_vq)), st)))
-                                                                                                                                        else (
-                                                                                                                                          if ((p.(pbase)) =s ("g_ns_simd"))
-                                                                                                                                          then (
-                                                                                                                                            let ofs := (p.(poffset)) in
-                                                                                                                                            let ret := (((st.(share)).(gv_g_ns_simd)) @ ofs) in
-                                                                                                                                            (Some (ret, st)))
-                                                                                                                                          else (
-                                                                                                                                            if ((p.(pbase)) =s ("g_cpu_simd_type"))
-                                                                                                                                            then (
-                                                                                                                                              let ofs := (p.(poffset)) in
-                                                                                                                                              (Some (((st.(share)).(gv_g_cpu_simd_type)), st)))
-                                                                                                                                            else (
-                                                                                                                                              if ((p.(pbase)) =s ("llt_info_cache"))
-                                                                                                                                              then (
-                                                                                                                                                let ofs := (p.(poffset)) in
-                                                                                                                                                let cpuidx := (ofs / (24)) in
-                                                                                                                                                let elem_ofs := (ofs mod (24)) in
-                                                                                                                                                let cache_entry := (((st.(priv)).(pcpu_llt_info_cache)) @ cpuidx) in
-                                                                                                                                                when ret == ((load_s_xlat_llt_info sz elem_ofs cache_entry));
-                                                                                                                                                (Some (ret, st)))
-                                                                                                                                              else (
-                                                                                                                                                if ((p.(pbase)) =s ("sl0_val"))
-                                                                                                                                                then (
-                                                                                                                                                  let ofs := (p.(poffset)) in
-                                                                                                                                                  if (ofs =? (0))
-                                                                                                                                                  then (Some (0, st))
-                                                                                                                                                  else (
-                                                                                                                                                    if (ofs =? (8))
-                                                                                                                                                    then (Some (64, st))
-                                                                                                                                                    else (
-                                                                                                                                                      if (ofs =? (16))
-                                                                                                                                                      then (Some (128, st))
-                                                                                                                                                      else (
-                                                                                                                                                        if (ofs =? (24))
-                                                                                                                                                        then (Some (192, st))
-                                                                                                                                                        else None))))
-                                                                                                                                                else (
-                                                                                                                                                  if ((p.(pbase)) =s ("vmids"))
-                                                                                                                                                  then (
-                                                                                                                                                    rely ((((p.(poffset)) mod (8)) = (0)));
-                                                                                                                                                    let idx := ((p.(poffset)) / (8)) in
-                                                                                                                                                    (Some ((((st.(share)).(gv_vmids)) @ idx), st)))
-                                                                                                                                                  else None))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))).
+                                                                                  if (ofs =? (24))
+                                                                                  then (Some (192, st))
+                                                                                  else None))))
+                                                                          else (
+                                                                            if ((p.(pbase)) =s ("vmids"))
+                                                                            then (
+                                                                              rely ((((p.(poffset)) mod (8)) = (0)));
+                                                                              let idx := ((p.(poffset)) / (8)) in
+                                                                              (Some ((((st.(share)).(gv_vmids)) @ idx), st)))
+                                                                            else None)))))))))))))))))))))))))))))))))))).
 
   Definition store_RData (sz: Z) (p: Ptr) (v: Z) (st: RData) : (option RData) :=
     if ((p.(pbase)) =s ("granules"))
@@ -2297,583 +2407,115 @@ Section GlobalDefs.
                                   ((((st.(priv)).(pcpu_stack)) @ slot_nr).[sf_data] :< (((((st.(priv)).(pcpu_stack)) @ slot_nr).(sf_data)) # slot_ofs == (mkStackData v sz)))))) in
                           (Some ret))
                         else (
-                          if ((p.(pbase)) =s ("attest_setup_platform_token_stack"))
-                          then (Some (st.[stack].[attest_setup_platform_token_stack] :< (((st.(stack)).(attest_setup_platform_token_stack)) # (p.(poffset)) == v)))
+                          if ((p.(pbase)) =s ("stack_wi"))
+                          then (
+                            when new_wi == ((store_s_rtt_walk sz (p.(poffset)) v ((st.(stack)).(stack_wi))));
+                            (Some (st.[stack].[stack_wi] :< new_wi)))
                           else (
-                            if ((p.(pbase)) =s ("smc_psci_complete_stack"))
-                            then (Some (st.[stack].[smc_psci_complete_stack] :< (((st.(stack)).(smc_psci_complete_stack)) # (p.(poffset)) == v)))
+                            if ((p.(pbase)) =s ("stack_g_tbls"))
+                            then (
+                              let idx := ((p.(poffset)) / (8)) in
+                              let new_ptr := (((st.(stack)).(stack_g_tbls)) # idx == v) in
+                              (Some (st.[stack].[stack_g_tbls] :< new_ptr)))
                             else (
-                              if ((p.(pbase)) =s ("find_lock_two_granules_stack"))
-                              then (Some (st.[stack].[find_lock_two_granules_stack] :< (((st.(stack)).(find_lock_two_granules_stack)) # (p.(poffset)) == v)))
-                              else (
-                                if ((p.(pbase)) =s ("attest_token_continue_write_state_stack"))
-                                then (Some (st.[stack].[attest_token_continue_write_state_stack] :< (((st.(stack)).(attest_token_continue_write_state_stack)) # (p.(poffset)) == v)))
+                              if ((p.(pbase)) =s ("stack_gs"))
+                              then (
+                                let idx := ((p.(poffset)) / (40)) in
+                                let ofs := ((p.(poffset)) mod (40)) in
+                                if (idx =? (0))
+                                then (
+                                  when new_gs == ((store_s_granule_set sz ofs v ((st.(stack)).(stack_gs0))));
+                                  (Some (st.[stack].[stack_gs0] :< new_gs)))
                                 else (
-                                  if ((p.(pbase)) =s ("rmm_log_stack"))
-                                  then (Some (st.[stack].[rmm_log_stack] :< (((st.(stack)).(rmm_log_stack)) # (p.(poffset)) == v)))
+                                  when new_gs == ((store_s_granule_set sz ofs v ((st.(stack)).(stack_gs1))));
+                                  (Some (st.[stack].[stack_gs1] :< new_gs))))
+                              else (
+                                if ((p.(pbase)) =s ("stack_gs_temp"))
+                                then (
+                                  when new_gs == ((store_s_granule_set sz (p.(poffset)) v ((st.(stack)).(stack_gs_temp))));
+                                  (Some (st.[stack].[stack_gs_temp] :< new_gs)))
+                                else (
+                                  if ((p.(pbase)) =s ("stack_g0"))
+                                  then (Some (st.[stack].[stack_g0] :< v))
                                   else (
-                                    if ((p.(pbase)) =s ("attest_realm_token_create_stack"))
-                                    then (Some (st.[stack].[attest_realm_token_create_stack] :< (((st.(stack)).(attest_realm_token_create_stack)) # (p.(poffset)) == v)))
+                                    if ((p.(pbase)) =s ("stack_g1"))
+                                    then (Some (st.[stack].[stack_g1] :< v))
                                     else (
-                                      if ((p.(pbase)) =s ("smc_rec_enter_stack"))
-                                      then (Some (st.[stack].[smc_rec_enter_stack] :< (((st.(stack)).(smc_rec_enter_stack)) # (p.(poffset)) == v)))
+                                      if ((p.(pbase)) =s ("stack_s2_ctx"))
+                                      then (
+                                        when new_s2_ctx == ((store_s_realm_s2_context sz (p.(poffset)) v ((st.(stack)).(stack_s2_ctx))));
+                                        (Some (st.[stack].[stack_s2_ctx] :< new_s2_ctx)))
                                       else (
-                                        if ((p.(pbase)) =s ("do_host_call_stack"))
-                                        then (Some (st.[stack].[do_host_call_stack] :< (((st.(stack)).(do_host_call_stack)) # (p.(poffset)) == v)))
+                                        if ((p.(pbase)) =s ("stack_ripas_ptr"))
+                                        then (Some (st.[stack].[stack_ripas_ptr] :< v))
                                         else (
-                                          if ((p.(pbase)) =s ("attest_rnd_prng_init_stack"))
-                                          then (Some (st.[stack].[attest_rnd_prng_init_stack] :< (((st.(stack)).(attest_rnd_prng_init_stack)) # (p.(poffset)) == v)))
+                                          if ((p.(pbase)) =s ("stack_ripas"))
+                                          then (Some (st.[stack].[stack_ripas] :< v))
                                           else (
-                                            if ((p.(pbase)) =s ("plat_setup_stack"))
-                                            then (Some (st.[stack].[plat_setup_stack] :< (((st.(stack)).(plat_setup_stack)) # (p.(poffset)) == v)))
+                                            if ((p.(pbase)) =s ("stack_rtt_level"))
+                                            then (Some (st.[stack].[stack_rtt_level] :< v))
                                             else (
-                                              if ((p.(pbase)) =s ("attest_token_encode_start_stack"))
-                                              then (Some (st.[stack].[attest_token_encode_start_stack] :< (((st.(stack)).(attest_token_encode_start_stack)) # (p.(poffset)) == v)))
+                                              if ((p.(pbase)) =s ("stack_walk_res"))
+                                              then (
+                                                when new_walk_res == ((store_s_s2_walk_result sz (p.(poffset)) v ((st.(stack)).(stack_walk_res))));
+                                                (Some (st.[stack].[stack_walk_res] :< new_walk_res)))
                                               else (
-                                                if ((p.(pbase)) =s ("smc_data_destroy_stack"))
-                                                then (Some (st.[stack].[smc_data_destroy_stack] :< (((st.(stack)).(smc_data_destroy_stack)) # (p.(poffset)) == v)))
+                                                if ((p.(pbase)) =s ("stack_s2tte"))
+                                                then (Some (st.[stack].[stack_s2tte] :< v))
                                                 else (
-                                                  if ((p.(pbase)) =s ("xlat_get_llt_from_va_stack"))
-                                                  then (Some (st.[stack].[xlat_get_llt_from_va_stack] :< (((st.(stack)).(xlat_get_llt_from_va_stack)) # (p.(poffset)) == v)))
+                                                  if ((p.(pbase)) =s ("g_sve_max_vq"))
+                                                  then (
+                                                    let ofs := (p.(poffset)) in
+                                                    (Some (st.[share].[gv_g_sve_max_vq] :< v)))
                                                   else (
-                                                    if ((p.(pbase)) =s ("smc_rec_create_stack"))
-                                                    then (Some (st.[stack].[smc_rec_create_stack] :< (((st.(stack)).(smc_rec_create_stack)) # (p.(poffset)) == v)))
+                                                    if ((p.(pbase)) =s ("g_ns_simd"))
+                                                    then (
+                                                      let ofs := (p.(poffset)) in
+                                                      let ret := (((st.(share)).(gv_g_ns_simd)) # ofs == v) in
+                                                      (Some (st.[share].[gv_g_ns_simd] :< ret)))
                                                     else (
-                                                      if ((p.(pbase)) =s ("measurement_extend_sha512_stack"))
-                                                      then (Some (st.[stack].[measurement_extend_sha512_stack] :< (((st.(stack)).(measurement_extend_sha512_stack)) # (p.(poffset)) == v)))
+                                                      if ((p.(pbase)) =s ("g_cpu_simd_type"))
+                                                      then (
+                                                        let ofs := (p.(poffset)) in
+                                                        (Some (st.[share].[gv_g_cpu_simd_type] :< v)))
                                                       else (
-                                                        if ((p.(pbase)) =s ("data_granule_measure_stack"))
-                                                        then (Some (st.[stack].[data_granule_measure_stack] :< (((st.(stack)).(data_granule_measure_stack)) # (p.(poffset)) == v)))
+                                                        if ((p.(pbase)) =s ("llt_info_cache"))
+                                                        then (
+                                                          let ofs := (p.(poffset)) in
+                                                          (Some st))
                                                         else (
-                                                          if ((p.(pbase)) =s ("sort_granules_stack"))
-                                                          then (Some (st.[stack].[sort_granules_stack] :< (((st.(stack)).(sort_granules_stack)) # (p.(poffset)) == v)))
-                                                          else (
-                                                            if ((p.(pbase)) =s ("measurement_extend_sha256_stack"))
-                                                            then (Some (st.[stack].[measurement_extend_sha256_stack] :< (((st.(stack)).(measurement_extend_sha256_stack)) # (p.(poffset)) == v)))
-                                                            else (
-                                                              if ((p.(pbase)) =s ("realm_ipa_to_pa_stack"))
-                                                              then (Some (st.[stack].[realm_ipa_to_pa_stack] :< (((st.(stack)).(realm_ipa_to_pa_stack)) # (p.(poffset)) == v)))
-                                                              else (
-                                                                if ((p.(pbase)) =s ("attest_realm_token_sign_stack"))
-                                                                then (Some (st.[stack].[attest_realm_token_sign_stack] :< (((st.(stack)).(attest_realm_token_sign_stack)) # (p.(poffset)) == v)))
-                                                                else (
-                                                                  if ((p.(pbase)) =s ("rmm_el3_ifc_get_platform_token_stack"))
-                                                                  then (Some (st.[stack].[rmm_el3_ifc_get_platform_token_stack] :< (((st.(stack)).(rmm_el3_ifc_get_platform_token_stack)) # (p.(poffset)) == v)))
-                                                                  else (
-                                                                    if ((p.(pbase)) =s ("attest_init_realm_attestation_key_stack"))
-                                                                    then (Some (st.[stack].[attest_init_realm_attestation_key_stack] :< (((st.(stack)).(attest_init_realm_attestation_key_stack)) # (p.(poffset)) == v)))
-                                                                    else (
-                                                                      if ((p.(pbase)) =s ("plat_cmn_setup_stack"))
-                                                                      then (Some (st.[stack].[plat_cmn_setup_stack] :< (((st.(stack)).(plat_cmn_setup_stack)) # (p.(poffset)) == v)))
-                                                                      else (
-                                                                        if ((p.(pbase)) =s ("complete_rsi_host_call_stack"))
-                                                                        then (Some (st.[stack].[complete_rsi_host_call_stack] :< (((st.(stack)).(complete_rsi_host_call_stack)) # (p.(poffset)) == v)))
-                                                                        else (
-                                                                          if ((p.(pbase)) =s ("handle_realm_rsi_stack"))
-                                                                          then (Some (st.[stack].[handle_realm_rsi_stack] :< (((st.(stack)).(handle_realm_rsi_stack)) # (p.(poffset)) == v)))
-                                                                          else (
-                                                                            if ((p.(pbase)) =s ("smc_rtt_set_ripas_stack"))
-                                                                            then (Some (st.[stack].[smc_rtt_set_ripas_stack] :< (((st.(stack)).(smc_rtt_set_ripas_stack)) # (p.(poffset)) == v)))
-                                                                            else (
-                                                                              if ((p.(pbase)) =s ("rtt_walk_lock_unlock_stack"))
-                                                                              then (Some (st.[stack].[rtt_walk_lock_unlock_stack] :< (((st.(stack)).(rtt_walk_lock_unlock_stack)) # (p.(poffset)) == v)))
-                                                                              else (
-                                                                                if ((p.(pbase)) =s ("smc_rtt_destroy_stack"))
-                                                                                then (Some (st.[stack].[smc_rtt_destroy_stack] :< (((st.(stack)).(smc_rtt_destroy_stack)) # (p.(poffset)) == v)))
-                                                                                else (
-                                                                                  if ((p.(pbase)) =s ("map_unmap_ns_stack"))
-                                                                                  then (Some (st.[stack].[map_unmap_ns_stack] :< (((st.(stack)).(map_unmap_ns_stack)) # (p.(poffset)) == v)))
-                                                                                  else (
-                                                                                    if ((p.(pbase)) =s ("handle_rsi_attest_token_init_stack"))
-                                                                                    then (Some (st.[stack].[handle_rsi_attest_token_init_stack] :< (((st.(stack)).(handle_rsi_attest_token_init_stack)) # (p.(poffset)) == v)))
-                                                                                    else (
-                                                                                      if ((p.(pbase)) =s ("realm_params_measure_stack"))
-                                                                                      then (Some (st.[stack].[realm_params_measure_stack] :< (((st.(stack)).(realm_params_measure_stack)) # (p.(poffset)) == v)))
-                                                                                      else (
-                                                                                        if ((p.(pbase)) =s ("handle_rsi_ipa_state_get_stack"))
-                                                                                        then (Some (st.[stack].[handle_rsi_ipa_state_get_stack] :< (((st.(stack)).(handle_rsi_ipa_state_get_stack)) # (p.(poffset)) == v)))
-                                                                                        else (
-                                                                                          if ((p.(pbase)) =s ("realm_ipa_get_ripas_stack"))
-                                                                                          then (Some (st.[stack].[realm_ipa_get_ripas_stack] :< (((st.(stack)).(realm_ipa_get_ripas_stack)) # (p.(poffset)) == v)))
-                                                                                          else (
-                                                                                            if ((p.(pbase)) =s ("smc_rtt_fold_stack"))
-                                                                                            then (Some (st.[stack].[smc_rtt_fold_stack] :< (((st.(stack)).(smc_rtt_fold_stack)) # (p.(poffset)) == v)))
-                                                                                            else (
-                                                                                              if ((p.(pbase)) =s ("smc_rtt_create_stack"))
-                                                                                              then (Some (st.[stack].[smc_rtt_create_stack] :< (((st.(stack)).(smc_rtt_create_stack)) # (p.(poffset)) == v)))
-                                                                                              else (
-                                                                                                if ((p.(pbase)) =s ("rsi_log_on_exit_stack"))
-                                                                                                then (Some (st.[stack].[rsi_log_on_exit_stack] :< (((st.(stack)).(rsi_log_on_exit_stack)) # (p.(poffset)) == v)))
-                                                                                                else (
-                                                                                                  if ((p.(pbase)) =s ("attest_cca_token_create_stack"))
-                                                                                                  then (Some (st.[stack].[attest_cca_token_create_stack] :< (((st.(stack)).(attest_cca_token_create_stack)) # (p.(poffset)) == v)))
-                                                                                                  else (
-                                                                                                    if ((p.(pbase)) =s ("rec_params_measure_stack"))
-                                                                                                    then (Some (st.[stack].[rec_params_measure_stack] :< (((st.(stack)).(rec_params_measure_stack)) # (p.(poffset)) == v)))
-                                                                                                    else (
-                                                                                                      if ((p.(pbase)) =s ("handle_ns_smc_stack"))
-                                                                                                      then (Some (st.[stack].[handle_ns_smc_stack] :< (((st.(stack)).(handle_ns_smc_stack)) # (p.(poffset)) == v)))
-                                                                                                      else (
-                                                                                                        if ((p.(pbase)) =s ("rmm_el3_ifc_get_realm_attest_key_stack"))
-                                                                                                        then (Some (st.[stack].[rmm_el3_ifc_get_realm_attest_key_stack] :< (((st.(stack)).(rmm_el3_ifc_get_realm_attest_key_stack)) # (p.(poffset)) == v)))
-                                                                                                        else (
-                                                                                                          if ((p.(pbase)) =s ("handle_rsi_realm_config_stack"))
-                                                                                                          then (Some (st.[stack].[handle_rsi_realm_config_stack] :< (((st.(stack)).(handle_rsi_realm_config_stack)) # (p.(poffset)) == v)))
-                                                                                                          else (
-                                                                                                            if ((p.(pbase)) =s ("smc_rtt_init_ripas_stack"))
-                                                                                                            then (Some (st.[stack].[smc_rtt_init_ripas_stack] :< (((st.(stack)).(smc_rtt_init_ripas_stack)) # (p.(poffset)) == v)))
-                                                                                                            else (
-                                                                                                              if ((p.(pbase)) =s ("smc_rtt_read_entry_stack"))
-                                                                                                              then (Some (st.[stack].[smc_rtt_read_entry_stack] :< (((st.(stack)).(smc_rtt_read_entry_stack)) # (p.(poffset)) == v)))
-                                                                                                              else (
-                                                                                                                if ((p.(pbase)) =s ("handle_data_abort_stack"))
-                                                                                                                then (Some (st.[stack].[handle_data_abort_stack] :< (((st.(stack)).(handle_data_abort_stack)) # (p.(poffset)) == v)))
-                                                                                                                else (
-                                                                                                                  if ((p.(pbase)) =s ("data_create_stack"))
-                                                                                                                  then (Some (st.[stack].[data_create_stack] :< (((st.(stack)).(data_create_stack)) # (p.(poffset)) == v)))
-                                                                                                                  else (
-                                                                                                                    if ((p.(pbase)) =s ("smc_realm_create_stack"))
-                                                                                                                    then (Some (st.[stack].[smc_realm_create_stack] :< (((st.(stack)).(smc_realm_create_stack)) # (p.(poffset)) == v)))
-                                                                                                                    else (
-                                                                                                                      if ((p.(pbase)) =s ("ripas_granule_measure_stack"))
-                                                                                                                      then (Some (st.[stack].[ripas_granule_measure_stack] :< (((st.(stack)).(ripas_granule_measure_stack)) # (p.(poffset)) == v)))
-                                                                                                                      else (
-                                                                                                                        if ((p.(pbase)) =s ("ipa_is_empty_stack"))
-                                                                                                                        then (Some (st.[stack].[ipa_is_empty_stack] :< (((st.(stack)).(ipa_is_empty_stack)) # (p.(poffset)) == v)))
-                                                                                                                        else (
-                                                                                                                          if ((p.(pbase)) =s ("g_sve_max_vq"))
-                                                                                                                          then (
-                                                                                                                            let ofs := (p.(poffset)) in
-                                                                                                                            (Some (st.[share].[gv_g_sve_max_vq] :< v)))
-                                                                                                                          else (
-                                                                                                                            if ((p.(pbase)) =s ("g_ns_simd"))
-                                                                                                                            then (
-                                                                                                                              let ofs := (p.(poffset)) in
-                                                                                                                              let ret := (((st.(share)).(gv_g_ns_simd)) # ofs == v) in
-                                                                                                                              (Some (st.[share].[gv_g_ns_simd] :< ret)))
-                                                                                                                            else (
-                                                                                                                              if ((p.(pbase)) =s ("g_cpu_simd_type"))
-                                                                                                                              then (
-                                                                                                                                let ofs := (p.(poffset)) in
-                                                                                                                                (Some (st.[share].[gv_g_cpu_simd_type] :< v)))
-                                                                                                                              else (
-                                                                                                                                if ((p.(pbase)) =s ("llt_info_cache"))
-                                                                                                                                then (
-                                                                                                                                  let ofs := (p.(poffset)) in
-                                                                                                                                  (Some st))
-                                                                                                                                else (
-                                                                                                                                  if ((p.(pbase)) =s ("vmids"))
-                                                                                                                                  then (
-                                                                                                                                    let idx := ((p.(poffset)) / (8)) in
-                                                                                                                                    rely ((((p.(poffset)) mod (8)) = (0)));
-                                                                                                                                    (Some (st.[share].[gv_vmids] :< (((st.(share)).(gv_vmids)) # idx == v))))
-                                                                                                                                  else None))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))).
+                                                          if ((p.(pbase)) =s ("vmids"))
+                                                          then (
+                                                            let idx := ((p.(poffset)) / (8)) in
+                                                            rely ((((p.(poffset)) mod (8)) = (0)));
+                                                            (Some (st.[share].[gv_vmids] :< (((st.(share)).(gv_vmids)) # idx == v))))
+                                                          else None))))))))))))))))))))))))))).
 
   Definition alloc_stack (fname: string) (sz: Z) (ofs: Z) (st: RData) : (option (Ptr * RData)) :=
-    if (fname =s ("attest_setup_platform_token"))
-    then (
-      (Some (
-        (mkPtr "attest_setup_platform_token_stack" ((st.(func_sp)).(attest_setup_platform_token_sp)))  ,
-        (st.[func_sp].[attest_setup_platform_token_sp] :< (((st.(func_sp)).(attest_setup_platform_token_sp)) + (sz)))
-      )))
+    if (fname =s ("find_lock_two_granules"))
+    then (Some ((mkPtr "stack_gs" 0), st))
     else (
-      if (fname =s ("smc_psci_complete"))
-      then (
-        (Some (
-          (mkPtr "smc_psci_complete_stack" ((st.(func_sp)).(smc_psci_complete_sp)))  ,
-          (st.[func_sp].[smc_psci_complete_sp] :< (((st.(func_sp)).(smc_psci_complete_sp)) + (sz)))
-        )))
+      if (fname =s ("do_host_call"))
+      then (Some ((mkPtr "stack_walk_res" 0), st))
       else (
-        if (fname =s ("find_lock_two_granules"))
-        then (Some ((mkPtr "find_lock_two_granules_stack" 0), st))
+        if (fname =s ("sort_granules"))
+        then (Some ((mkPtr "stack_gs_temp" 0), st))
         else (
-          if (fname =s ("attest_token_continue_write_state"))
-          then (
-            (Some (
-              (mkPtr "attest_token_continue_write_state_stack" ((st.(func_sp)).(attest_token_continue_write_state_sp)))  ,
-              (st.[func_sp].[attest_token_continue_write_state_sp] :< (((st.(func_sp)).(attest_token_continue_write_state_sp)) + (sz)))
-            )))
+          if (fname =s ("rtt_walk_lock_unlock"))
+          then (Some ((mkPtr "stack_g_tbls" 0), st))
           else (
-            if (fname =s ("rmm_log"))
-            then (Some ((mkPtr "rmm_log_stack" ((st.(func_sp)).(rmm_log_sp))), (st.[func_sp].[rmm_log_sp] :< (((st.(func_sp)).(rmm_log_sp)) + (sz)))))
-            else (
-              if (fname =s ("attest_realm_token_create"))
-              then (Some ((mkPtr "attest_realm_token_create_stack" 0), st))
-              else (
-                if (fname =s ("smc_rec_enter"))
-                then (Some ((mkPtr "smc_rec_enter_stack" 0), st))
-                else (
-                  if (fname =s ("do_host_call"))
-                  then (Some ((mkPtr "do_host_call_stack" 0), st))
-                  else (
-                    if (fname =s ("attest_rnd_prng_init"))
-                    then (
-                      (Some (
-                        (mkPtr "attest_rnd_prng_init_stack" ((st.(func_sp)).(attest_rnd_prng_init_sp)))  ,
-                        (st.[func_sp].[attest_rnd_prng_init_sp] :< (((st.(func_sp)).(attest_rnd_prng_init_sp)) + (sz)))
-                      )))
-                    else (
-                      if (fname =s ("plat_setup"))
-                      then (Some ((mkPtr "plat_setup_stack" 0), st))
-                      else (
-                        if (fname =s ("attest_token_encode_start"))
-                        then (Some ((mkPtr "attest_token_encode_start_stack" 0), st))
-                        else (
-                          if (fname =s ("smc_data_destroy"))
-                          then (
-                            (Some (
-                              (mkPtr "smc_data_destroy_stack" ((st.(func_sp)).(smc_data_destroy_sp)))  ,
-                              (st.[func_sp].[smc_data_destroy_sp] :< (((st.(func_sp)).(smc_data_destroy_sp)) + (sz)))
-                            )))
-                          else (
-                            if (fname =s ("xlat_get_llt_from_va"))
-                            then (
-                              (Some (
-                                (mkPtr "xlat_get_llt_from_va_stack" ((st.(func_sp)).(xlat_get_llt_from_va_sp)))  ,
-                                (st.[func_sp].[xlat_get_llt_from_va_sp] :< (((st.(func_sp)).(xlat_get_llt_from_va_sp)) + (sz)))
-                              )))
-                            else (
-                              if (fname =s ("smc_rec_create"))
-                              then (Some ((mkPtr "smc_rec_create_stack" ((st.(func_sp)).(smc_rec_create_sp))), (st.[func_sp].[smc_rec_create_sp] :< (((st.(func_sp)).(smc_rec_create_sp)) + (sz)))))
-                              else (
-                                if (fname =s ("measurement_extend_sha512"))
-                                then (Some ((mkPtr "measurement_extend_sha512_stack" 0), st))
-                                else (
-                                  if (fname =s ("data_granule_measure"))
-                                  then (Some ((mkPtr "data_granule_measure_stack" 0), st))
-                                  else (
-                                    if (fname =s ("sort_granules"))
-                                    then (Some ((mkPtr "sort_granules_stack" 0), st))
-                                    else (
-                                      if (fname =s ("measurement_extend_sha256"))
-                                      then (Some ((mkPtr "measurement_extend_sha256_stack" 0), st))
-                                      else (
-                                        if (fname =s ("realm_ipa_to_pa"))
-                                        then (Some ((mkPtr "realm_ipa_to_pa_stack" 0), st))
-                                        else (
-                                          if (fname =s ("attest_realm_token_sign"))
-                                          then (Some ((mkPtr "attest_realm_token_sign_stack" 0), st))
-                                          else (
-                                            if (fname =s ("rmm_el3_ifc_get_platform_token"))
-                                            then (Some ((mkPtr "rmm_el3_ifc_get_platform_token_stack" 0), st))
-                                            else (
-                                              if (fname =s ("attest_init_realm_attestation_key"))
-                                              then (
-                                                (Some (
-                                                  (mkPtr "attest_init_realm_attestation_key_stack" ((st.(func_sp)).(attest_init_realm_attestation_key_sp)))  ,
-                                                  (st.[func_sp].[attest_init_realm_attestation_key_sp] :< (((st.(func_sp)).(attest_init_realm_attestation_key_sp)) + (sz)))
-                                                )))
-                                              else (
-                                                if (fname =s ("plat_cmn_setup"))
-                                                then (Some ((mkPtr "plat_cmn_setup_stack" 0), st))
-                                                else (
-                                                  if (fname =s ("complete_rsi_host_call"))
-                                                  then (Some ((mkPtr "complete_rsi_host_call_stack" 0), st))
-                                                  else (
-                                                    if (fname =s ("handle_realm_rsi"))
-                                                    then (
-                                                      (Some (
-                                                        (mkPtr "handle_realm_rsi_stack" ((st.(func_sp)).(handle_realm_rsi_sp)))  ,
-                                                        (st.[func_sp].[handle_realm_rsi_sp] :< (((st.(func_sp)).(handle_realm_rsi_sp)) + (sz)))
-                                                      )))
-                                                    else (
-                                                      if (fname =s ("smc_rtt_set_ripas"))
-                                                      then (
-                                                        (Some (
-                                                          (mkPtr "smc_rtt_set_ripas_stack" ((st.(func_sp)).(smc_rtt_set_ripas_sp)))  ,
-                                                          (st.[func_sp].[smc_rtt_set_ripas_sp] :< (((st.(func_sp)).(smc_rtt_set_ripas_sp)) + (sz)))
-                                                        )))
-                                                      else (
-                                                        if (fname =s ("rtt_walk_lock_unlock"))
-                                                        then (Some ((mkPtr "rtt_walk_lock_unlock_stack" 0), st))
-                                                        else (
-                                                          if (fname =s ("smc_rtt_destroy"))
-                                                          then (Some ((mkPtr "smc_rtt_destroy_stack" ((st.(func_sp)).(smc_rtt_destroy_sp))), (st.[func_sp].[smc_rtt_destroy_sp] :< (((st.(func_sp)).(smc_rtt_destroy_sp)) + (sz)))))
-                                                          else (
-                                                            if (fname =s ("map_unmap_ns"))
-                                                            then (Some ((mkPtr "map_unmap_ns_stack" ((st.(func_sp)).(map_unmap_ns_sp))), (st.[func_sp].[map_unmap_ns_sp] :< (((st.(func_sp)).(map_unmap_ns_sp)) + (sz)))))
-                                                            else (
-                                                              if (fname =s ("handle_rsi_attest_token_init"))
-                                                              then (
-                                                                (Some (
-                                                                  (mkPtr "handle_rsi_attest_token_init_stack" ((st.(func_sp)).(handle_rsi_attest_token_init_sp)))  ,
-                                                                  (st.[func_sp].[handle_rsi_attest_token_init_sp] :< (((st.(func_sp)).(handle_rsi_attest_token_init_sp)) + (sz)))
-                                                                )))
-                                                              else (
-                                                                if (fname =s ("realm_params_measure"))
-                                                                then (Some ((mkPtr "realm_params_measure_stack" 0), st))
-                                                                else (
-                                                                  if (fname =s ("handle_rsi_ipa_state_get"))
-                                                                  then (
-                                                                    (Some (
-                                                                      (mkPtr "handle_rsi_ipa_state_get_stack" ((st.(func_sp)).(handle_rsi_ipa_state_get_sp)))  ,
-                                                                      (st.[func_sp].[handle_rsi_ipa_state_get_sp] :< (((st.(func_sp)).(handle_rsi_ipa_state_get_sp)) + (sz)))
-                                                                    )))
-                                                                  else (
-                                                                    if (fname =s ("realm_ipa_get_ripas"))
-                                                                    then (Some ((mkPtr "realm_ipa_get_ripas_stack" 0), st))
-                                                                    else (
-                                                                      if (fname =s ("smc_rtt_fold"))
-                                                                      then (Some ((mkPtr "smc_rtt_fold_stack" ((st.(func_sp)).(smc_rtt_fold_sp))), (st.[func_sp].[smc_rtt_fold_sp] :< (((st.(func_sp)).(smc_rtt_fold_sp)) + (sz)))))
-                                                                      else (
-                                                                        if (fname =s ("smc_rtt_create"))
-                                                                        then (Some ((mkPtr "smc_rtt_create_stack" ((st.(func_sp)).(smc_rtt_create_sp))), (st.[func_sp].[smc_rtt_create_sp] :< (((st.(func_sp)).(smc_rtt_create_sp)) + (sz)))))
-                                                                        else (
-                                                                          if (fname =s ("rsi_log_on_exit"))
-                                                                          then (Some ((mkPtr "rsi_log_on_exit_stack" 0), st))
-                                                                          else (
-                                                                            if (fname =s ("attest_cca_token_create"))
-                                                                            then (
-                                                                              (Some (
-                                                                                (mkPtr "attest_cca_token_create_stack" ((st.(func_sp)).(attest_cca_token_create_sp)))  ,
-                                                                                (st.[func_sp].[attest_cca_token_create_sp] :< (((st.(func_sp)).(attest_cca_token_create_sp)) + (sz)))
-                                                                              )))
-                                                                            else (
-                                                                              if (fname =s ("rec_params_measure"))
-                                                                              then (Some ((mkPtr "rec_params_measure_stack" 0), st))
-                                                                              else (
-                                                                                if (fname =s ("handle_ns_smc"))
-                                                                                then (Some ((mkPtr "handle_ns_smc_stack" 0), st))
-                                                                                else (
-                                                                                  if (fname =s ("rmm_el3_ifc_get_realm_attest_key"))
-                                                                                  then (Some ((mkPtr "rmm_el3_ifc_get_realm_attest_key_stack" 0), st))
-                                                                                  else (
-                                                                                    if (fname =s ("handle_rsi_realm_config"))
-                                                                                    then (Some ((mkPtr "handle_rsi_realm_config_stack" 0), st))
-                                                                                    else (
-                                                                                      if (fname =s ("smc_rtt_init_ripas"))
-                                                                                      then (Some ((mkPtr "smc_rtt_init_ripas_stack" 0), st))
-                                                                                      else (
-                                                                                        if (fname =s ("smc_rtt_read_entry"))
-                                                                                        then (Some ((mkPtr "smc_rtt_read_entry_stack" 0), st))
-                                                                                        else (
-                                                                                          if (fname =s ("handle_data_abort"))
-                                                                                          then (Some ((mkPtr "handle_data_abort_stack" 0), st))
-                                                                                          else (
-                                                                                            if (fname =s ("data_create"))
-                                                                                            then (Some ((mkPtr "data_create_stack" ((st.(func_sp)).(data_create_sp))), (st.[func_sp].[data_create_sp] :< (((st.(func_sp)).(data_create_sp)) + (sz)))))
-                                                                                            else (
-                                                                                              if (fname =s ("smc_realm_create"))
-                                                                                              then (
-                                                                                                (Some (
-                                                                                                  (mkPtr "smc_realm_create_stack" ((st.(func_sp)).(smc_realm_create_sp)))  ,
-                                                                                                  (st.[func_sp].[smc_realm_create_sp] :< (((st.(func_sp)).(smc_realm_create_sp)) + (sz)))
-                                                                                                )))
-                                                                                              else (
-                                                                                                if (fname =s ("ripas_granule_measure"))
-                                                                                                then (Some ((mkPtr "ripas_granule_measure_stack" 0), st))
-                                                                                                else (
-                                                                                                  if (fname =s ("ipa_is_empty"))
-                                                                                                  then (Some ((mkPtr "ipa_is_empty_stack" 0), st))
-                                                                                                  else (Some ((mkPtr "bad_stack" 0), st))))))))))))))))))))))))))))))))))))))))))))))))).
+            if (fname =s ("map_unmap_ns"))
+            then (
+              if (sz =? (24))
+              then (Some ((mkPtr "stack_wi" 0), st))
+              else (Some ((mkPtr "stack_s2_ctx" 0), st)))
+            else (Some ((mkPtr "bad_stack" 0), st)))))).
 
   Definition free_stack (fname: string) (init_st: RData) (st: RData) : (option RData) :=
-    if (fname =s ("attest_setup_platform_token"))
-    then (Some (st.[stack].[attest_setup_platform_token_stack] :< ((init_st.(stack)).(attest_setup_platform_token_stack))))
-    else (
-      if (fname =s ("smc_psci_complete"))
-      then (Some (st.[stack].[smc_psci_complete_stack] :< ((init_st.(stack)).(smc_psci_complete_stack))))
-      else (
-        if (fname =s ("find_lock_two_granules"))
-        then (Some (st.[stack].[find_lock_two_granules_stack] :< ((init_st.(stack)).(find_lock_two_granules_stack))))
-        else (
-          if (fname =s ("attest_token_continue_write_state"))
-          then (Some (st.[stack].[attest_token_continue_write_state_stack] :< ((init_st.(stack)).(attest_token_continue_write_state_stack))))
-          else (
-            if (fname =s ("rmm_log"))
-            then (Some (st.[stack].[rmm_log_stack] :< ((init_st.(stack)).(rmm_log_stack))))
-            else (
-              if (fname =s ("attest_realm_token_create"))
-              then (Some (st.[stack].[attest_realm_token_create_stack] :< ((init_st.(stack)).(attest_realm_token_create_stack))))
-              else (
-                if (fname =s ("smc_rec_enter"))
-                then (Some (st.[stack].[smc_rec_enter_stack] :< ((init_st.(stack)).(smc_rec_enter_stack))))
-                else (
-                  if (fname =s ("do_host_call"))
-                  then (Some (st.[stack].[do_host_call_stack] :< ((init_st.(stack)).(do_host_call_stack))))
-                  else (
-                    if (fname =s ("attest_rnd_prng_init"))
-                    then (Some (st.[stack].[attest_rnd_prng_init_stack] :< ((init_st.(stack)).(attest_rnd_prng_init_stack))))
-                    else (
-                      if (fname =s ("plat_setup"))
-                      then (Some (st.[stack].[plat_setup_stack] :< ((init_st.(stack)).(plat_setup_stack))))
-                      else (
-                        if (fname =s ("attest_token_encode_start"))
-                        then (Some (st.[stack].[attest_token_encode_start_stack] :< ((init_st.(stack)).(attest_token_encode_start_stack))))
-                        else (
-                          if (fname =s ("smc_data_destroy"))
-                          then (Some (st.[stack].[smc_data_destroy_stack] :< ((init_st.(stack)).(smc_data_destroy_stack))))
-                          else (
-                            if (fname =s ("xlat_get_llt_from_va"))
-                            then (Some (st.[stack].[xlat_get_llt_from_va_stack] :< ((init_st.(stack)).(xlat_get_llt_from_va_stack))))
-                            else (
-                              if (fname =s ("smc_rec_create"))
-                              then (Some (st.[stack].[smc_rec_create_stack] :< ((init_st.(stack)).(smc_rec_create_stack))))
-                              else (
-                                if (fname =s ("measurement_extend_sha512"))
-                                then (Some (st.[stack].[measurement_extend_sha512_stack] :< ((init_st.(stack)).(measurement_extend_sha512_stack))))
-                                else (
-                                  if (fname =s ("data_granule_measure"))
-                                  then (Some (st.[stack].[data_granule_measure_stack] :< ((init_st.(stack)).(data_granule_measure_stack))))
-                                  else (
-                                    if (fname =s ("sort_granules"))
-                                    then (Some (st.[stack].[sort_granules_stack] :< ((init_st.(stack)).(sort_granules_stack))))
-                                    else (
-                                      if (fname =s ("measurement_extend_sha256"))
-                                      then (Some (st.[stack].[measurement_extend_sha256_stack] :< ((init_st.(stack)).(measurement_extend_sha256_stack))))
-                                      else (
-                                        if (fname =s ("realm_ipa_to_pa"))
-                                        then (Some (st.[stack].[realm_ipa_to_pa_stack] :< ((init_st.(stack)).(realm_ipa_to_pa_stack))))
-                                        else (
-                                          if (fname =s ("attest_realm_token_sign"))
-                                          then (Some (st.[stack].[attest_realm_token_sign_stack] :< ((init_st.(stack)).(attest_realm_token_sign_stack))))
-                                          else (
-                                            if (fname =s ("rmm_el3_ifc_get_platform_token"))
-                                            then (Some (st.[stack].[rmm_el3_ifc_get_platform_token_stack] :< ((init_st.(stack)).(rmm_el3_ifc_get_platform_token_stack))))
-                                            else (
-                                              if (fname =s ("attest_init_realm_attestation_key"))
-                                              then (Some (st.[stack].[attest_init_realm_attestation_key_stack] :< ((init_st.(stack)).(attest_init_realm_attestation_key_stack))))
-                                              else (
-                                                if (fname =s ("plat_cmn_setup"))
-                                                then (Some (st.[stack].[plat_cmn_setup_stack] :< ((init_st.(stack)).(plat_cmn_setup_stack))))
-                                                else (
-                                                  if (fname =s ("complete_rsi_host_call"))
-                                                  then (Some (st.[stack].[complete_rsi_host_call_stack] :< ((init_st.(stack)).(complete_rsi_host_call_stack))))
-                                                  else (
-                                                    if (fname =s ("handle_realm_rsi"))
-                                                    then (Some (st.[stack].[handle_realm_rsi_stack] :< ((init_st.(stack)).(handle_realm_rsi_stack))))
-                                                    else (
-                                                      if (fname =s ("smc_rtt_set_ripas"))
-                                                      then (Some (st.[stack].[smc_rtt_set_ripas_stack] :< ((init_st.(stack)).(smc_rtt_set_ripas_stack))))
-                                                      else (
-                                                        if (fname =s ("rtt_walk_lock_unlock"))
-                                                        then (Some (st.[stack].[rtt_walk_lock_unlock_stack] :< ((init_st.(stack)).(rtt_walk_lock_unlock_stack))))
-                                                        else (
-                                                          if (fname =s ("smc_rtt_destroy"))
-                                                          then (Some (st.[stack].[smc_rtt_destroy_stack] :< ((init_st.(stack)).(smc_rtt_destroy_stack))))
-                                                          else (
-                                                            if (fname =s ("map_unmap_ns"))
-                                                            then (Some (st.[stack].[map_unmap_ns_stack] :< ((init_st.(stack)).(map_unmap_ns_stack))))
-                                                            else (
-                                                              if (fname =s ("handle_rsi_attest_token_init"))
-                                                              then (Some (st.[stack].[handle_rsi_attest_token_init_stack] :< ((init_st.(stack)).(handle_rsi_attest_token_init_stack))))
-                                                              else (
-                                                                if (fname =s ("realm_params_measure"))
-                                                                then (Some (st.[stack].[realm_params_measure_stack] :< ((init_st.(stack)).(realm_params_measure_stack))))
-                                                                else (
-                                                                  if (fname =s ("handle_rsi_ipa_state_get"))
-                                                                  then (Some (st.[stack].[handle_rsi_ipa_state_get_stack] :< ((init_st.(stack)).(handle_rsi_ipa_state_get_stack))))
-                                                                  else (
-                                                                    if (fname =s ("realm_ipa_get_ripas"))
-                                                                    then (Some (st.[stack].[realm_ipa_get_ripas_stack] :< ((init_st.(stack)).(realm_ipa_get_ripas_stack))))
-                                                                    else (
-                                                                      if (fname =s ("smc_rtt_fold"))
-                                                                      then (Some (st.[stack].[smc_rtt_fold_stack] :< ((init_st.(stack)).(smc_rtt_fold_stack))))
-                                                                      else (
-                                                                        if (fname =s ("smc_rtt_create"))
-                                                                        then (Some (st.[stack].[smc_rtt_create_stack] :< ((init_st.(stack)).(smc_rtt_create_stack))))
-                                                                        else (
-                                                                          if (fname =s ("rsi_log_on_exit"))
-                                                                          then (Some (st.[stack].[rsi_log_on_exit_stack] :< ((init_st.(stack)).(rsi_log_on_exit_stack))))
-                                                                          else (
-                                                                            if (fname =s ("attest_cca_token_create"))
-                                                                            then (Some (st.[stack].[attest_cca_token_create_stack] :< ((init_st.(stack)).(attest_cca_token_create_stack))))
-                                                                            else (
-                                                                              if (fname =s ("rec_params_measure"))
-                                                                              then (Some (st.[stack].[rec_params_measure_stack] :< ((init_st.(stack)).(rec_params_measure_stack))))
-                                                                              else (
-                                                                                if (fname =s ("handle_ns_smc"))
-                                                                                then (Some (st.[stack].[handle_ns_smc_stack] :< ((init_st.(stack)).(handle_ns_smc_stack))))
-                                                                                else (
-                                                                                  if (fname =s ("rmm_el3_ifc_get_realm_attest_key"))
-                                                                                  then (Some (st.[stack].[rmm_el3_ifc_get_realm_attest_key_stack] :< ((init_st.(stack)).(rmm_el3_ifc_get_realm_attest_key_stack))))
-                                                                                  else (
-                                                                                    if (fname =s ("handle_rsi_realm_config"))
-                                                                                    then (Some (st.[stack].[handle_rsi_realm_config_stack] :< ((init_st.(stack)).(handle_rsi_realm_config_stack))))
-                                                                                    else (
-                                                                                      if (fname =s ("smc_rtt_init_ripas"))
-                                                                                      then (Some (st.[stack].[smc_rtt_init_ripas_stack] :< ((init_st.(stack)).(smc_rtt_init_ripas_stack))))
-                                                                                      else (
-                                                                                        if (fname =s ("smc_rtt_read_entry"))
-                                                                                        then (Some (st.[stack].[smc_rtt_read_entry_stack] :< ((init_st.(stack)).(smc_rtt_read_entry_stack))))
-                                                                                        else (
-                                                                                          if (fname =s ("handle_data_abort"))
-                                                                                          then (Some (st.[stack].[handle_data_abort_stack] :< ((init_st.(stack)).(handle_data_abort_stack))))
-                                                                                          else (
-                                                                                            if (fname =s ("data_create"))
-                                                                                            then (Some (st.[stack].[data_create_stack] :< ((init_st.(stack)).(data_create_stack))))
-                                                                                            else (
-                                                                                              if (fname =s ("smc_realm_create"))
-                                                                                              then (Some (st.[stack].[smc_realm_create_stack] :< ((init_st.(stack)).(smc_realm_create_stack))))
-                                                                                              else (
-                                                                                                if (fname =s ("ripas_granule_measure"))
-                                                                                                then (Some (st.[stack].[ripas_granule_measure_stack] :< ((init_st.(stack)).(ripas_granule_measure_stack))))
-                                                                                                else (
-                                                                                                  if (fname =s ("ipa_is_empty"))
-                                                                                                  then (Some (st.[stack].[ipa_is_empty_stack] :< ((init_st.(stack)).(ipa_is_empty_stack))))
-                                                                                                  else (Some st)))))))))))))))))))))))))))))))))))))))))))))))).
+    (Some st).
 
   Definition new_frame (fname: string) (st: RData) : (option RData) :=
-    if (fname =s ("attest_setup_platform_token"))
-    then (Some (st.[func_sp].[attest_setup_platform_token_sp] :< 0))
-    else (
-      if (fname =s ("smc_psci_complete"))
-      then (Some (st.[func_sp].[smc_psci_complete_sp] :< 0))
-      else (
-        if (fname =s ("attest_token_continue_write_state"))
-        then (Some (st.[func_sp].[attest_token_continue_write_state_sp] :< 0))
-        else (
-          if (fname =s ("rmm_log"))
-          then (Some (st.[func_sp].[rmm_log_sp] :< 0))
-          else (
-            if (fname =s ("attest_rnd_prng_init"))
-            then (Some (st.[func_sp].[attest_rnd_prng_init_sp] :< 0))
-            else (
-              if (fname =s ("smc_data_destroy"))
-              then (Some (st.[func_sp].[smc_data_destroy_sp] :< 0))
-              else (
-                if (fname =s ("xlat_get_llt_from_va"))
-                then (Some (st.[func_sp].[xlat_get_llt_from_va_sp] :< 0))
-                else (
-                  if (fname =s ("smc_rec_create"))
-                  then (Some (st.[func_sp].[smc_rec_create_sp] :< 0))
-                  else (
-                    if (fname =s ("attest_init_realm_attestation_key"))
-                    then (Some (st.[func_sp].[attest_init_realm_attestation_key_sp] :< 0))
-                    else (
-                      if (fname =s ("handle_realm_rsi"))
-                      then (Some (st.[func_sp].[handle_realm_rsi_sp] :< 0))
-                      else (
-                        if (fname =s ("smc_rtt_set_ripas"))
-                        then (Some (st.[func_sp].[smc_rtt_set_ripas_sp] :< 0))
-                        else (
-                          if (fname =s ("smc_rtt_destroy"))
-                          then (Some (st.[func_sp].[smc_rtt_destroy_sp] :< 0))
-                          else (
-                            if (fname =s ("map_unmap_ns"))
-                            then (Some (st.[func_sp].[map_unmap_ns_sp] :< 0))
-                            else (
-                              if (fname =s ("handle_rsi_attest_token_init"))
-                              then (Some (st.[func_sp].[handle_rsi_attest_token_init_sp] :< 0))
-                              else (
-                                if (fname =s ("handle_rsi_ipa_state_get"))
-                                then (Some (st.[func_sp].[handle_rsi_ipa_state_get_sp] :< 0))
-                                else (
-                                  if (fname =s ("smc_rtt_fold"))
-                                  then (Some (st.[func_sp].[smc_rtt_fold_sp] :< 0))
-                                  else (
-                                    if (fname =s ("smc_rtt_create"))
-                                    then (Some (st.[func_sp].[smc_rtt_create_sp] :< 0))
-                                    else (
-                                      if (fname =s ("attest_cca_token_create"))
-                                      then (Some (st.[func_sp].[attest_cca_token_create_sp] :< 0))
-                                      else (
-                                        if (fname =s ("data_create"))
-                                        then (Some (st.[func_sp].[data_create_sp] :< 0))
-                                        else (
-                                          if (fname =s ("smc_realm_create"))
-                                          then (Some (st.[func_sp].[smc_realm_create_sp] :< 0))
-                                          else (Some st)))))))))))))))))))).
+    (Some st).
 
   Definition base_to_slot (b: string) : Z :=
     if (b =s ("slot_ns"))
@@ -3049,7 +2691,13 @@ Section GlobalDefs.
                                                                                                                     else (
                                                                                                                       if (b =s ("ipa_is_empty_stack"))
                                                                                                                       then STACK_ipa_is_empty
-                                                                                                                      else non_slot))))))))))))))))))))))))))))))))))))))))))))))))))))))))).
+                                                                                                                      else (
+                                                                                                                        if (b =s ("stack_g0"))
+                                                                                                                        then STACK_g0
+                                                                                                                        else (
+                                                                                                                          if (b =s ("stack_g1"))
+                                                                                                                          then STACK_g1
+                                                                                                                          else non_slot))))))))))))))))))))))))))))))))))))))))))))))))))))))))))).
 
   Definition ptr_to_int (p: Ptr) : Z :=
     let slot := (base_to_slot (p.(pbase))) in
@@ -3104,150 +2752,12 @@ Section GlobalDefs.
 
   Definition stack_to_ptr (slot: Z) (val: Z) : Ptr :=
     let ofs := ((val - (STACK_VIRT)) mod (GRANULE_SIZE)) in
-    if (slot =? (STACK_attest_setup_platform_token))
-    then (mkPtr "attest_setup_platform_token_stack" ofs)
+    if (slot =? (STACK_g0))
+    then (mkPtr "stack_g0" ofs)
     else (
-      if (slot =? (STACK_smc_psci_complete))
-      then (mkPtr "smc_psci_complete_stack" ofs)
-      else (
-        if (slot =? (STACK_find_lock_two_granules))
-        then (mkPtr "find_lock_two_granules_stack" ofs)
-        else (
-          if (slot =? (STACK_attest_token_continue_write_state))
-          then (mkPtr "attest_token_continue_write_state_stack" ofs)
-          else (
-            if (slot =? (STACK_rmm_log))
-            then (mkPtr "rmm_log_stack" ofs)
-            else (
-              if (slot =? (STACK_attest_realm_token_create))
-              then (mkPtr "attest_realm_token_create_stack" ofs)
-              else (
-                if (slot =? (STACK_smc_rec_enter))
-                then (mkPtr "smc_rec_enter_stack" ofs)
-                else (
-                  if (slot =? (STACK_do_host_call))
-                  then (mkPtr "do_host_call_stack" ofs)
-                  else (
-                    if (slot =? (STACK_attest_rnd_prng_init))
-                    then (mkPtr "attest_rnd_prng_init_stack" ofs)
-                    else (
-                      if (slot =? (STACK_plat_setup))
-                      then (mkPtr "plat_setup_stack" ofs)
-                      else (
-                        if (slot =? (STACK_attest_token_encode_start))
-                        then (mkPtr "attest_token_encode_start_stack" ofs)
-                        else (
-                          if (slot =? (STACK_smc_data_destroy))
-                          then (mkPtr "smc_data_destroy_stack" ofs)
-                          else (
-                            if (slot =? (STACK_xlat_get_llt_from_va))
-                            then (mkPtr "xlat_get_llt_from_va_stack" ofs)
-                            else (
-                              if (slot =? (STACK_smc_rec_create))
-                              then (mkPtr "smc_rec_create_stack" ofs)
-                              else (
-                                if (slot =? (STACK_measurement_extend_sha512))
-                                then (mkPtr "measurement_extend_sha512_stack" ofs)
-                                else (
-                                  if (slot =? (STACK_data_granule_measure))
-                                  then (mkPtr "data_granule_measure_stack" ofs)
-                                  else (
-                                    if (slot =? (STACK_sort_granules))
-                                    then (mkPtr "sort_granules_stack" ofs)
-                                    else (
-                                      if (slot =? (STACK_measurement_extend_sha256))
-                                      then (mkPtr "measurement_extend_sha256_stack" ofs)
-                                      else (
-                                        if (slot =? (STACK_realm_ipa_to_pa))
-                                        then (mkPtr "realm_ipa_to_pa_stack" ofs)
-                                        else (
-                                          if (slot =? (STACK_attest_realm_token_sign))
-                                          then (mkPtr "attest_realm_token_sign_stack" ofs)
-                                          else (
-                                            if (slot =? (STACK_rmm_el3_ifc_get_platform_token))
-                                            then (mkPtr "rmm_el3_ifc_get_platform_token_stack" ofs)
-                                            else (
-                                              if (slot =? (STACK_attest_init_realm_attestation_key))
-                                              then (mkPtr "attest_init_realm_attestation_key_stack" ofs)
-                                              else (
-                                                if (slot =? (STACK_plat_cmn_setup))
-                                                then (mkPtr "plat_cmn_setup_stack" ofs)
-                                                else (
-                                                  if (slot =? (STACK_complete_rsi_host_call))
-                                                  then (mkPtr "complete_rsi_host_call_stack" ofs)
-                                                  else (
-                                                    if (slot =? (STACK_handle_realm_rsi))
-                                                    then (mkPtr "handle_realm_rsi_stack" ofs)
-                                                    else (
-                                                      if (slot =? (STACK_smc_rtt_set_ripas))
-                                                      then (mkPtr "smc_rtt_set_ripas_stack" ofs)
-                                                      else (
-                                                        if (slot =? (STACK_rtt_walk_lock_unlock))
-                                                        then (mkPtr "rtt_walk_lock_unlock_stack" ofs)
-                                                        else (
-                                                          if (slot =? (STACK_smc_rtt_destroy))
-                                                          then (mkPtr "smc_rtt_destroy_stack" ofs)
-                                                          else (
-                                                            if (slot =? (STACK_map_unmap_ns))
-                                                            then (mkPtr "map_unmap_ns_stack" ofs)
-                                                            else (
-                                                              if (slot =? (STACK_handle_rsi_attest_token_init))
-                                                              then (mkPtr "handle_rsi_attest_token_init_stack" ofs)
-                                                              else (
-                                                                if (slot =? (STACK_realm_params_measure))
-                                                                then (mkPtr "realm_params_measure_stack" ofs)
-                                                                else (
-                                                                  if (slot =? (STACK_handle_rsi_ipa_state_get))
-                                                                  then (mkPtr "handle_rsi_ipa_state_get_stack" ofs)
-                                                                  else (
-                                                                    if (slot =? (STACK_realm_ipa_get_ripas))
-                                                                    then (mkPtr "realm_ipa_get_ripas_stack" ofs)
-                                                                    else (
-                                                                      if (slot =? (STACK_smc_rtt_fold))
-                                                                      then (mkPtr "smc_rtt_fold_stack" ofs)
-                                                                      else (
-                                                                        if (slot =? (STACK_smc_rtt_create))
-                                                                        then (mkPtr "smc_rtt_create_stack" ofs)
-                                                                        else (
-                                                                          if (slot =? (STACK_rsi_log_on_exit))
-                                                                          then (mkPtr "rsi_log_on_exit_stack" ofs)
-                                                                          else (
-                                                                            if (slot =? (STACK_attest_cca_token_create))
-                                                                            then (mkPtr "attest_cca_token_create_stack" ofs)
-                                                                            else (
-                                                                              if (slot =? (STACK_rec_params_measure))
-                                                                              then (mkPtr "rec_params_measure_stack" ofs)
-                                                                              else (
-                                                                                if (slot =? (STACK_handle_ns_smc))
-                                                                                then (mkPtr "handle_ns_smc_stack" ofs)
-                                                                                else (
-                                                                                  if (slot =? (STACK_rmm_el3_ifc_get_realm_attest_key))
-                                                                                  then (mkPtr "rmm_el3_ifc_get_realm_attest_key_stack" ofs)
-                                                                                  else (
-                                                                                    if (slot =? (STACK_handle_rsi_realm_config))
-                                                                                    then (mkPtr "handle_rsi_realm_config_stack" ofs)
-                                                                                    else (
-                                                                                      if (slot =? (STACK_smc_rtt_init_ripas))
-                                                                                      then (mkPtr "smc_rtt_init_ripas_stack" ofs)
-                                                                                      else (
-                                                                                        if (slot =? (STACK_smc_rtt_read_entry))
-                                                                                        then (mkPtr "smc_rtt_read_entry_stack" ofs)
-                                                                                        else (
-                                                                                          if (slot =? (STACK_handle_data_abort))
-                                                                                          then (mkPtr "handle_data_abort_stack" ofs)
-                                                                                          else (
-                                                                                            if (slot =? (STACK_data_create))
-                                                                                            then (mkPtr "data_create_stack" ofs)
-                                                                                            else (
-                                                                                              if (slot =? (STACK_smc_realm_create))
-                                                                                              then (mkPtr "smc_realm_create_stack" ofs)
-                                                                                              else (
-                                                                                                if (slot =? (STACK_ripas_granule_measure))
-                                                                                                then (mkPtr "ripas_granule_measure_stack" ofs)
-                                                                                                else (
-                                                                                                  if (slot =? (STACK_ipa_is_empty))
-                                                                                                  then (mkPtr "ipa_is_empty_stack" ofs)
-                                                                                                  else (mkPtr "null" 0)))))))))))))))))))))))))))))))))))))))))))))))).
+      if (slot =? (STACK_g1))
+      then (mkPtr "stack_g1" ofs)
+      else (mkPtr "null" 0)).
 
   Definition int_to_ptr (v: Z) : Ptr :=
     if (v >? (0))
@@ -3264,10 +2774,7 @@ Section GlobalDefs.
             if (v >=? (GRANULES_BASE))
             then (mkPtr "granules" (v - (GRANULES_BASE)))
             else (mkPtr "null" 0)))))
-    else (
-      if (v <? (0))
-      then (mkPtr "status" (- v))
-      else (mkPtr "null" 0)).
+    else (mkPtr "null" 0).
 
   Definition ptr_ltb (p1: Ptr) (p2: Ptr) : bool :=
     ((ptr_to_int p1) <? ((ptr_to_int p2))).
@@ -3294,92 +2801,6 @@ End GlobalDefs.
 #[global] Hint Unfold GRANULE_SIZE: spec.
 #[global] Hint Unfold SMC_RMM_GTSI_DELEGATE: spec.
 #[global] Hint Unfold SMC_RMM_GTSI_UNDELEGATE: spec.
-#[global] Hint Unfold int_is_granule: spec.
-#[global] Hint Unfold REALM_STATE_NEW: spec.
-#[global] Hint Unfold REALM_STATE_ACTIVE: spec.
-#[global] Hint Unfold REALM_STATE_SYSTEM_OFF: spec.
-#[global] Hint Unfold load_s_gic_cpu_state: spec.
-#[global] Hint Unfold store_s_gic_cpu_state: spec.
-#[global] Hint Unfold load_s_sysreg_state: spec.
-#[global] Hint Unfold store_s_sysreg_state: spec.
-#[global] Hint Unfold load_s_common_sysreg_state: spec.
-#[global] Hint Unfold store_s_common_sysreg_state: spec.
-#[global] Hint Unfold load_s_set_ripas: spec.
-#[global] Hint Unfold store_s_set_ripas: spec.
-#[global] Hint Unfold load_s_realm_info: spec.
-#[global] Hint Unfold store_s_realm_info: spec.
-#[global] Hint Unfold load_s_last_run_info: spec.
-#[global] Hint Unfold store_s_last_run_info: spec.
-#[global] Hint Unfold load_s_psci_info: spec.
-#[global] Hint Unfold store_s_psci_info: spec.
-#[global] Hint Unfold load_s_rec_simd_state: spec.
-#[global] Hint Unfold store_s_rec_simd_state: spec.
-#[global] Hint Unfold load_s_rec_aux_data: spec.
-#[global] Hint Unfold store_s_rec_aux_data: spec.
-#[global] Hint Unfold load_s_buffer_alloc_ctx: spec.
-#[global] Hint Unfold store_s_buffer_alloc_ctx: spec.
-#[global] Hint Unfold load_s_alloc_info: spec.
-#[global] Hint Unfold store_s_alloc_info: spec.
-#[global] Hint Unfold load_s_serror_info: spec.
-#[global] Hint Unfold store_s_serror_info: spec.
-#[global] Hint Unfold load_s_rec: spec.
-#[global] Hint Unfold store_s_rec: spec.
-#[global] Hint Unfold load_s_pmev_regs: spec.
-#[global] Hint Unfold store_s_pmev_regs: spec.
-#[global] Hint Unfold load_s_pmu_state: spec.
-#[global] Hint Unfold store_s_pmu_state: spec.
-#[global] Hint Unfold load_s_fpu_state: spec.
-#[global] Hint Unfold store_s_fpu_state: spec.
-#[global] Hint Unfold load_u_anon_6: spec.
-#[global] Hint Unfold store_u_anon_6: spec.
-#[global] Hint Unfold load_s_simd_state: spec.
-#[global] Hint Unfold store_s_simd_state: spec.
-#[global] Hint Unfold load_s_ns_simd_state: spec.
-#[global] Hint Unfold store_s_ns_simd_state: spec.
-#[global] Hint Unfold load_u_anon_7: spec.
-#[global] Hint Unfold store_u_anon_7: spec.
-#[global] Hint Unfold load_u_anon_10: spec.
-#[global] Hint Unfold store_u_anon_10: spec.
-#[global] Hint Unfold load_s_anon_14: spec.
-#[global] Hint Unfold store_s_anon_14: spec.
-#[global] Hint Unfold load_u_anon_11_154: spec.
-#[global] Hint Unfold store_u_anon_11_154: spec.
-#[global] Hint Unfold load_s_rmi_rec_params: spec.
-#[global] Hint Unfold store_s_rmi_rec_params: spec.
-#[global] Hint Unfold load_s_granule: spec.
-#[global] Hint Unfold store_s_granule: spec.
-#[global] Hint Unfold load_s_realm_s2_context: spec.
-#[global] Hint Unfold store_s_realm_s2_context: spec.
-#[global] Hint Unfold load_s_rd: spec.
-#[global] Hint Unfold store_s_rd: spec.
-#[global] Hint Unfold load_s_granule_set: spec.
-#[global] Hint Unfold store_s_granule_set: spec.
-#[global] Hint Unfold load_s_s2_walk_result: spec.
-#[global] Hint Unfold store_s_s2_walk_result: spec.
-#[global] Hint Unfold stack_ptr_extract_ofs: spec.
-#[global] Hint Unfold stack_ptr_extract_slot: spec.
-#[global] Hint Unfold s_granule_set_size: spec.
-#[global] Hint Unfold load_s_xlat_llt_info: spec.
-#[global] Hint Unfold store_s_xlat_llt_info: spec.
-#[global] Hint Unfold RMI_HASH_ALGO_SHA256: spec.
-#[global] Hint Unfold RMI_HASH_ALGO_SHA512: spec.
-#[global] Hint Unfold HASH_ALGO_SHA256: spec.
-#[global] Hint Unfold HASH_ALGO_SHA512: spec.
-#[global] Hint Unfold SHA256_SIZE: spec.
-#[global] Hint Unfold SHA512_SIZE: spec.
-#[global] Hint Unfold query_oracle: spec.
-#[global] Hint Unfold REC_HEAP_SIZE: spec.
-#[global] Hint Unfold REC_PMU_SIZE: spec.
-#[global] Hint Unfold NS_SIMD_SIZE: spec.
-#[global] Hint Unfold GRANULE_STATE_NS: spec.
-#[global] Hint Unfold GRANULE_STATE_UNDELEGATED: spec.
-#[global] Hint Unfold GRANULE_STATE_DELEAGATE: spec.
-#[global] Hint Unfold GRANULE_STATE_RD: spec.
-#[global] Hint Unfold GRANULE_STATE_REC: spec.
-#[global] Hint Unfold GRANULE_STATE_REC_AUX: spec.
-#[global] Hint Unfold GRANULE_STATE_DATA: spec.
-#[global] Hint Unfold GRANULE_STATE_RTT: spec.
-#[global] Hint Unfold GRANULE_STATE_LAST: spec.
 #[global] Hint Unfold SLOT_NS: spec.
 #[global] Hint Unfold SLOT_DELEGATED: spec.
 #[global] Hint Unfold SLOT_RD: spec.
@@ -3439,7 +2860,109 @@ End GlobalDefs.
 #[global] Hint Unfold STACK_smc_realm_create: spec.
 #[global] Hint Unfold STACK_ripas_granule_measure: spec.
 #[global] Hint Unfold STACK_ipa_is_empty: spec.
+#[global] Hint Unfold STACK_g0: spec.
+#[global] Hint Unfold STACK_g1: spec.
 #[global] Hint Unfold non_slot: spec.
+#[global] Hint Unfold int_is_granule: spec.
+#[global] Hint Unfold REALM_STATE_NEW: spec.
+#[global] Hint Unfold REALM_STATE_ACTIVE: spec.
+#[global] Hint Unfold REALM_STATE_SYSTEM_OFF: spec.
+#[global] Hint Unfold load_s_gic_cpu_state: spec.
+#[global] Hint Unfold store_s_gic_cpu_state: spec.
+#[global] Hint Unfold load_s_sysreg_state: spec.
+#[global] Hint Unfold store_s_sysreg_state: spec.
+#[global] Hint Unfold load_s_common_sysreg_state: spec.
+#[global] Hint Unfold store_s_common_sysreg_state: spec.
+#[global] Hint Unfold load_s_set_ripas: spec.
+#[global] Hint Unfold store_s_set_ripas: spec.
+#[global] Hint Unfold load_s_realm_info: spec.
+#[global] Hint Unfold store_s_realm_info: spec.
+#[global] Hint Unfold load_s_last_run_info: spec.
+#[global] Hint Unfold store_s_last_run_info: spec.
+#[global] Hint Unfold load_s_psci_info: spec.
+#[global] Hint Unfold store_s_psci_info: spec.
+#[global] Hint Unfold load_s_rec_simd_state: spec.
+#[global] Hint Unfold store_s_rec_simd_state: spec.
+#[global] Hint Unfold load_s_rec_aux_data: spec.
+#[global] Hint Unfold store_s_rec_aux_data: spec.
+#[global] Hint Unfold load_s_buffer_alloc_ctx: spec.
+#[global] Hint Unfold store_s_buffer_alloc_ctx: spec.
+#[global] Hint Unfold load_s_alloc_info: spec.
+#[global] Hint Unfold store_s_alloc_info: spec.
+#[global] Hint Unfold load_s_serror_info: spec.
+#[global] Hint Unfold store_s_serror_info: spec.
+#[global] Hint Unfold load_s_rec: spec.
+#[global] Hint Unfold store_s_rec: spec.
+#[global] Hint Unfold load_s_pmev_regs: spec.
+#[global] Hint Unfold store_s_pmev_regs: spec.
+#[global] Hint Unfold load_s_pmu_state: spec.
+#[global] Hint Unfold store_s_pmu_state: spec.
+#[global] Hint Unfold load_s_fpu_state: spec.
+#[global] Hint Unfold store_s_fpu_state: spec.
+#[global] Hint Unfold load_u_anon_6: spec.
+#[global] Hint Unfold store_u_anon_6: spec.
+#[global] Hint Unfold load_s_simd_state: spec.
+#[global] Hint Unfold store_s_simd_state: spec.
+#[global] Hint Unfold load_s_ns_simd_state: spec.
+#[global] Hint Unfold store_s_ns_simd_state: spec.
+#[global] Hint Unfold load_u_anon_10: spec.
+#[global] Hint Unfold store_u_anon_10: spec.
+#[global] Hint Unfold load_s_anon_14: spec.
+#[global] Hint Unfold store_s_anon_14: spec.
+#[global] Hint Unfold load_u_anon_11_154: spec.
+#[global] Hint Unfold store_u_anon_11_154: spec.
+#[global] Hint Unfold load_s_rmi_rec_params: spec.
+#[global] Hint Unfold store_s_rmi_rec_params: spec.
+#[global] Hint Unfold load_s_rtt_walk: spec.
+#[global] Hint Unfold store_s_rtt_walk: spec.
+#[global] Hint Unfold store_u_anon_7: spec.
+#[global] Hint Unfold load_u_anon_0_95: spec.
+#[global] Hint Unfold load_u_anon_7: spec.
+#[global] Hint Unfold store_u_anon_0_95: spec.
+#[global] Hint Unfold load_u_anon_1_96: spec.
+#[global] Hint Unfold store_u_anon_1_96: spec.
+#[global] Hint Unfold load_s_anon_97: spec.
+#[global] Hint Unfold store_s_anon_97: spec.
+#[global] Hint Unfold load_u_anon_2_98: spec.
+#[global] Hint Unfold store_u_anon_2_98: spec.
+#[global] Hint Unfold load_s_rmi_realm_params: spec.
+#[global] Hint Unfold store_s_rmi_realm_params: spec.
+#[global] Hint Unfold load_s_granule: spec.
+#[global] Hint Unfold store_s_granule: spec.
+#[global] Hint Unfold load_s_realm_s2_context: spec.
+#[global] Hint Unfold store_s_realm_s2_context: spec.
+#[global] Hint Unfold load_s_rd: spec.
+#[global] Hint Unfold store_s_rd: spec.
+#[global] Hint Unfold load_s_granule_set: spec.
+#[global] Hint Unfold store_s_granule_set: spec.
+#[global] Hint Unfold store_s_s2_walk_result: spec.
+#[global] Hint Unfold load_s_s2_walk_result: spec.
+#[global] Hint Unfold stack_ptr_extract_ofs: spec.
+#[global] Hint Unfold stack_ptr_extract_slot: spec.
+#[global] Hint Unfold s_granule_set_size: spec.
+#[global] Hint Unfold load_s_xlat_llt_info: spec.
+#[global] Hint Unfold store_s_xlat_llt_info: spec.
+#[global] Hint Unfold RMI_HASH_ALGO_SHA256: spec.
+#[global] Hint Unfold RMI_HASH_ALGO_SHA512: spec.
+#[global] Hint Unfold HASH_ALGO_SHA256: spec.
+#[global] Hint Unfold HASH_ALGO_SHA512: spec.
+#[global] Hint Unfold SHA256_SIZE: spec.
+#[global] Hint Unfold SHA512_SIZE: spec.
+#[global] Hint Unfold query_oracle: spec.
+#[global] Hint Unfold REC_HEAP_SIZE: spec.
+#[global] Hint Unfold REC_PMU_SIZE: spec.
+#[global] Hint Unfold NS_SIMD_SIZE: spec.
+#[global] Hint Unfold GRANULE_STATE_NS: spec.
+#[global] Hint Unfold GRANULE_STATE_UNDELEGATED: spec.
+#[global] Hint Unfold GRANULE_STATE_DELEAGATE: spec.
+#[global] Hint Unfold GRANULE_STATE_RD: spec.
+#[global] Hint Unfold GRANULE_STATE_REC: spec.
+#[global] Hint Unfold GRANULE_STATE_REC_AUX: spec.
+#[global] Hint Unfold GRANULE_STATE_DATA: spec.
+#[global] Hint Unfold GRANULE_STATE_RTT: spec.
+#[global] Hint Unfold GRANULE_STATE_LAST: spec.
+#[global] Hint Unfold int_is_g0: spec.
+#[global] Hint Unfold int_is_g1: spec.
 #[global] Hint Unfold rec_is_locked: spec.
 #[global] Hint Unfold rec_is_unlocked: spec.
 #[global] Hint Unfold rec_aux_is_locked: spec.
@@ -3451,7 +2974,7 @@ End GlobalDefs.
 #[global] Hint Unfold rec_refcount_zero: spec.
 #[global] Hint Unfold rec_refcount_one: spec.
 #[global] Hint Unfold rd_is_locked: spec.
-#[global] Hint Unfold rec_field_accessible: spec.
+Opaque rec_field_accessible.
 #[global] Hint Unfold _rec_field_accessible: spec.
 #[global] Hint Unfold rd_field_accessible: spec.
 #[global] Hint Unfold s_granule_field_accessible: spec.

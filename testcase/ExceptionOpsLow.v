@@ -7,11 +7,12 @@ Definition data_create_1_low
   (v_g_data: Ptr)
   (st_0: RData)
   (st_20: RData) : option (Z * RData) :=
-  rely (v_wi.(pbase) = "data_create_stack");
+  rely (v_wi.(pbase) = "stack_wi");
+  rely (v_wi.(poffset) = 0);
   rely (v_call14.(pbase) = "slot_rtt");
   rely (v_call1_0.(pbase) = "slot_rd");
-  rely (v_g_rd.(pbase) = "data_create_stack");
-  rely (v_g_data.(pbase) = "data_create_stack");
+  rely (v_g_rd.(pbase) = "stack_g1");
+  rely (v_g_data.(pbase) = "stack_g0");
   when v_call33, st_22 == ((s2tte_create_assigned_empty_spec v_data_addr 3 st_20));
   when v_9, st_23 == ((load_RData 8 (ptr_offset v_wi 8) st_22));
   when st_24 == ((__tte_write_spec (ptr_offset v_call14 (8 * (v_9))) v_call33 st_23));
@@ -41,11 +42,12 @@ Definition data_create_2_low
   (v_g_data: Ptr)
   (st_0: RData)
   (st_20: RData) : option (Z * RData) :=
-  rely (v_wi.(pbase) = "data_create_stack");
+  rely (v_wi.(pbase) = "stack_wi");
+  rely (v_wi.(poffset) = 0);
   rely (v_call14.(pbase) = "slot_rtt");
   rely (v_call1_0.(pbase) = "slot_rd");
-  rely (v_g_rd.(pbase) = "data_create_stack");
-  rely (v_g_data.(pbase) = "data_create_stack");
+  rely (v_g_rd.(pbase) = "stack_g1");
+  rely (v_g_data.(pbase) = "stack_g0");
   when v_call35, st_22 == ((s2tte_create_valid_spec v_data_addr 3 st_20));
   when v_9, st_23 == ((load_RData 8 (ptr_offset v_wi 8) st_22));
   when st_24 == ((__tte_write_spec (ptr_offset v_call14 (8 * (v_9))) v_call35 st_23));
@@ -75,10 +77,11 @@ Definition data_create_3_low
   (st_0: RData)
   (st_19: RData) : option (Z * RData) :=
   rely (v_call14.(pbase) = "slot_rtt");
-  rely (v_wi.(pbase) = "data_create_stack");
+  rely (v_wi.(pbase) = "stack_wi");
+  rely (v_wi.(poffset) = 0);
   rely (v_call1_0.(pbase) = "slot_rd");
-  rely (v_g_rd.(pbase) = "data_create_stack");
-  rely (v_g_data.(pbase) = "data_create_stack");
+  rely (v_g_rd.(pbase) = "stack_g1");
+  rely (v_g_data.(pbase) = "stack_g0");
   when v_call18, st_20 == ((pack_return_code_spec 4 3 st_19));
   when st_21 == ((buffer_unmap_spec v_call14 st_20));
   when v_11_tmp, st_22 == ((load_RData 8 (ptr_offset v_wi 0) st_21));
@@ -102,10 +105,11 @@ Definition data_create_4_low
   (v_g_data: Ptr)
   (st_0: RData)
   (st_14: RData) : option (Z * RData) :=
-  rely (v_wi.(pbase) = "data_create_stack");
+  rely (v_wi.(pbase) = "stack_wi");
+  rely (v_wi.(poffset) = 0);
   rely (v_call1_0.(pbase) = "slot_rd");
-  rely (v_g_rd.(pbase) = "data_create_stack");
-  rely (v_g_data.(pbase) = "data_create_stack");
+  rely (v_g_rd.(pbase) = "stack_g1");
+  rely (v_g_data.(pbase) = "stack_g0");
   when v_call12, st_15 == ((pack_return_code_spec 4 v_4 st_14));
   when v_11_tmp, st_16 == ((load_RData 8 (ptr_offset v_wi 0) st_15));
   rely (v_11_tmp < STACK_VIRT /\ v_11_tmp >= GRANULES_BASE);
@@ -128,8 +132,8 @@ Definition data_create_5_low
   (st_0: RData)
   (st_7: RData) : option (Z * RData) :=
   rely (v_call1_0.(pbase) = "slot_rd");
-  rely (v_g_rd.(pbase) = "data_create_stack");
-  rely (v_g_data.(pbase) = "data_create_stack");
+  rely (v_g_rd.(pbase) = "stack_g1");
+  rely (v_g_data.(pbase) = "stack_g0");
   when st_9 == ((buffer_unmap_spec v_call1_0 st_7));
   when v_12_tmp, st_10 == ((load_RData 8 v_g_rd st_9));
   rely (v_12_tmp < STACK_VIRT /\ v_12_tmp >= GRANULES_BASE);
@@ -151,10 +155,11 @@ Definition data_create_6_low
   (st_23: RData) : option (Z * RData) :=
   rely (v_call24.(pbase) = "slot_delegated");
   rely (v_call14.(pbase) = "slot_rtt");
-  rely (v_wi.(pbase) = "smc_rtt_create_stack");
+  rely (v_wi.(pbase) = "stack_wi");
+  rely (v_wi.(poffset) = 0);
   rely (v_call1_0.(pbase) = "slot_rd");
-  rely (v_g_rd.(pbase) = "data_create_stack");
-  rely (v_g_data.(pbase) = "data_create_stack");
+  rely (v_g_rd.(pbase) = "stack_g1");
+  rely (v_g_data.(pbase) = "stack_g0");
   when v_call27, st_24 == ((memset_spec v_call24 0 4096 st_23));
   when st_25 == ((buffer_unmap_spec v_call24 st_24));
   when st_26 == ((buffer_unmap_spec v_call14 st_25));
@@ -174,9 +179,13 @@ Definition data_create_6_low
 Definition data_create_spec_low (v_data_addr: Z) (v_rd_addr: Z) (v_map_addr: Z) (v_g_src: Ptr) (v_flags: Z) (st: RData) : (option (Z * RData)) :=
   when st_0 == ((new_frame "data_create" st));
   rely (((v_g_src.(pbase)) = ("granules")) \/ ((v_g_src.(pbase)) = ("null")));
-  when v_g_data, st_1 == ((alloc_stack "data_create" 8 8 st_0));
-  when v_g_rd, st_2 == ((alloc_stack "data_create" 8 8 st_1));
-  when v_wi, st_3 == ((alloc_stack "data_create" 24 8 st_2));
+  (* when v_g_data, st_1 == ((alloc_stack "data_create" 8 8 st_0)); *)
+  (* when v_g_rd, st_2 == ((alloc_stack "data_create" 8 8 st_1)); *)
+  (* when v_wi, st_3 == ((alloc_stack "data_create" 24 8 st_2)); *)
+  let v_g_data := (mkPtr "stack_g0" 0) in
+  let v_g_rd := (mkPtr "stack_g1" 0) in
+  let v_wi := (mkPtr "stack_wi" 0) in
+  let st_3 := st_0 in
   when v_call, st_4 == ((find_lock_two_granules_spec v_data_addr 1 v_g_data v_rd_addr 2 v_g_rd st_3));
   if v_call
   then (

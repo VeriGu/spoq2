@@ -1,7 +1,8 @@
 Definition map_unmap_ns_3_low
   (v_wi: Ptr)
   (st_16: RData) : option (bool * Ptr * RData) :=
-  rely (v_wi.(pbase) = "map_unmap_ns_stack");
+  rely (v_wi.(pbase) = "stack_wi");
+  rely (v_wi.(poffset) = 0);
   when v_5_tmp, st_17 == ((load_RData 8 (ptr_offset v_wi 0) st_16));
   rely (v_5_tmp < STACK_VIRT /\ v_5_tmp >= GRANULES_BASE);
   when v_call18, st_18 == ((granule_map_spec (int_to_ptr v_5_tmp) 22 st_17));
@@ -21,17 +22,20 @@ Definition map_unmap_ns_2_low
   (v_level: Z)
   (v_wi: Ptr)
   (st_9: RData) : option (Z * RData) :=
-  rely (v_s2_ctx.(pbase) = "map_unmap_ns_stack");
+  rely (v_s2_ctx.(pbase) = "stack_s2_ctx");
+  rely (v_s2_ctx.(poffset) = 0);
   rely (v_call1_0.(pbase) = "slot_rd");
+  rely (v_call1_0.(poffset) = 0);
   rely (v_2_tmp < STACK_VIRT /\ v_2_tmp >= GRANULES_BASE);
   rely (v_call.(pbase) = "granules");
-  rely (v_wi.(pbase) = "map_unmap_ns_stack");
+  rely (v_wi.(pbase) = "stack_wi");
+  rely (v_wi.(poffset) = 0);
   when st_11 == ((llvm_memcpy_p0i8_p0i8_i64_spec v_s2_ctx (ptr_offset v_call1_0 16) 32 false st_9));
   when st_12 == ((buffer_unmap_spec v_call1_0 st_11));
   when st_13 == ((granule_lock_spec (int_to_ptr v_2_tmp) 6 st_12));
   when st_14 == ((granule_unlock_spec v_call st_13));
   when st_15 == ((rtt_walk_lock_unlock_spec (int_to_ptr v_2_tmp) v_call6_1 v_call7_1 v_map_addr v_level v_wi st_14));
-  load_RData 8 (ptr_offset v_wi 16) st_15.
+  load_RData 8 (ptr_offset v_wi 16) st_11.
 
 Definition map_unmap_ns_4_low
   (v_host_s2tte: Z)
@@ -40,7 +44,8 @@ Definition map_unmap_ns_4_low
   (v_call18: Ptr)
   (st_0: RData)
   (st_21: RData) : option (Z * RData) :=
-  rely (v_wi.(pbase) = "map_unmap_ns_stack");
+  rely (v_wi.(pbase) = "stack_wi");
+  rely (v_wi.(poffset) = 0);
   rely (v_call18.(pbase) = "slot_rtt");
   when v_call28, st_22 == ((s2tte_create_valid_ns_spec v_host_s2tte v_level st_21));
   when v_8, st_23 == ((load_RData 8 (ptr_offset v_wi 8) st_22));
@@ -62,7 +67,8 @@ Definition map_unmap_ns_5_low
   (st_0: RData)
   (st_21: RData) : option (Z * RData) :=
   rely (v_call18.(pbase) = "slot_rtt");
-  rely (v_wi.(pbase) = "map_unmap_ns_stack");
+  rely (v_wi.(pbase) = "stack_wi");
+  rely (v_wi.(poffset) = 0);
   when v_call26, st_22 == ((pack_return_code_spec 4 v_level st_21));
   when st_23 == ((buffer_unmap_spec v_call18 st_22));
   when v_12_tmp, st_24 == ((load_RData 8 (ptr_offset v_wi 0) st_23));
@@ -76,7 +82,8 @@ Definition map_unmap_ns_6_low
   (v_wi: Ptr)
   (st_0: RData)
   (st_16: RData) : option (Z * RData) :=
-  rely (v_wi.(pbase) = "map_unmap_ns_stack");
+  rely (v_wi.(pbase) = "stack_wi");
+  rely (v_wi.(poffset) = 0);
   when v_call16, st_17 == ((pack_return_code_spec 4 v_4 st_16));
   when v_12_tmp, st_18 == ((load_RData 8 (ptr_offset v_wi 0) st_17));
   rely (v_12_tmp < STACK_VIRT /\ v_12_tmp >= GRANULES_BASE);
@@ -99,9 +106,11 @@ Definition map_unmap_ns_1_low
   (st_8: RData) : option (Z * RData) :=
   rely (v_call1_0.(pbase) = "slot_rd");
   rely (v_call.(pbase) = "granules");
-  rely (v_s2_ctx.(pbase) = "map_unmap_ns_stack");
+  rely (v_s2_ctx.(pbase) = "stack_s2_ctx");
+  rely (v_s2_ctx.(poffset) = 0);
   rely (v_2_tmp < STACK_VIRT /\ v_2_tmp >= GRANULES_BASE);
-  rely (v_wi.(pbase) = "map_unmap_ns_stack");
+  rely (v_wi.(pbase) = "stack_wi");
+  rely (v_wi.(poffset) = 0);
   when v_call9, st_9 == ((addr_in_par_spec v_call1_0 v_map_addr st_8));
   if v_call9
   then (
@@ -137,9 +146,11 @@ Definition map_unmap_ns_7_low
   (st_8: RData) : option (Z * RData) :=
   rely (v_call1_0.(pbase) = "slot_rd");
   rely (v_call.(pbase) = "granules");
-  rely (v_s2_ctx.(pbase) = "map_unmap_ns_stack");
+  rely (v_s2_ctx.(pbase) = "stack_s2_ctx");
+  rely (v_s2_ctx.(poffset) = 0);
   rely (v_2_tmp < STACK_VIRT /\ v_2_tmp >= GRANULES_BASE);
-  rely (v_wi.(pbase) = "map_unmap_ns_stack");
+  rely (v_wi.(pbase) = "stack_wi");
+  rely (v_wi.(poffset) = 0);
   when v_4, st_15 == (map_unmap_ns_2 v_s2_ctx v_call1_0 v_2_tmp v_call v_call6_1 v_call7_1 v_map_addr v_level v_wi st_8);
   if ((v_4 - (v_level)) =? (0))
   then (
