@@ -26,7 +26,7 @@ z3::func_decl land_func = z3ctx.function("land", z3ctx.int_sort(), z3ctx.int_sor
 z3::func_decl lor_func = z3ctx.function("lor", z3ctx.int_sort(), z3ctx.int_sort(), z3ctx.int_sort());
 z3::func_decl lxor_func = z3ctx.function("lxor", z3ctx.int_sort(), z3ctx.int_sort(), z3ctx.int_sort());
 z3::func_decl lnot_func = z3ctx.function("lnot", z3ctx.int_sort(), z3ctx.int_sort());
-z3::func_decl testbit_func = z3ctx.function("testbit", z3ctx.int_sort(), z3ctx.int_sort(), z3ctx.int_sort());
+z3::func_decl testbit_func = z3ctx.function("testbit", z3ctx.int_sort(), z3ctx.int_sort(), z3ctx.bool_sort());
 z3::func_decl setbit_func = z3ctx.function("setbit", z3ctx.int_sort(), z3ctx.int_sort(), z3ctx.int_sort());
 z3::func_decl clearbit_func = z3ctx.function("clearbit", z3ctx.int_sort(), z3ctx.int_sort(), z3ctx.int_sort());
 

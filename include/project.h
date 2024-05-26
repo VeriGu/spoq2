@@ -98,6 +98,8 @@ public:
         std::set<string> NoUnfold;
         std::set<string> NoTrans;
         std::set<string> OnlyTrans;
+        std::set<string> TrySplit;
+        std::unordered_map<string, vector<string>> AddDep;
         bool NoUnfoldAll = false;
         std::map<string, vector<unique_ptr<SpecNode>>> InitRely;
     };
@@ -126,6 +128,7 @@ public:
 
     void add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc);
     void add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc, unsigned long order);
+    void update_definition_body(Definition *def);
 
     void add_layer(unique_ptr<Layer> layer);
 

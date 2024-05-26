@@ -118,7 +118,12 @@ void Project::add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc, 
 
 
     LOG_DEBUG << "Adding definition " << name;
-    def_->infer_type(*this);
+    try {
+        def_->infer_type(*this);
+    } catch (std::exception &e) {
+        LOG_DEBUG << "Failed to infer type for " << name << ": " << e.what() <<". Delaying inference." << std::endl;
+        def_->deleyed_type_inference = true;
+    }
 }
 
 void Project::add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc) {
@@ -132,7 +137,21 @@ void Project::add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc) 
     this->add_symbol(defs[name]->name, SymbolKind::Def, "", loc);
 
     LOG_DEBUG << "Adding definition " << name;
-    def_->infer_type(*this);
+    try {
+        def_->infer_type(*this);
+    } catch (std::exception &e) {
+        LOG_DEBUG << "Failed to infer type for " << name << ": " << e.what() <<". Delaying inference." << std::endl;
+        def_->deleyed_type_inference = true;
+    }
+}
+
+void Project::update_definition_body(Definition *def) {
+    if (defs.find(def->name) == defs.end())
+        throw std::runtime_error("update_definition_body: Definition " + def->name + " not found");
+
+    auto old_def = defs[def->name].get();
+
+    def->body = std::move(old_def->body);
 }
 
 void Project::add_layer(std::unique_ptr<Layer> layer) {
@@ -155,6 +174,10 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
             auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
             this->cmds.NoTrans.insert(s->text);
+        } else if (op_str == "TrySplit") {
+            assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            this->cmds.TrySplit.insert(s->text);
         } else if (op_str == "InitRely") {
             assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) &&
                    dynamic_cast<Expr *>(cmd->elems->at(1).get()));
@@ -163,6 +186,13 @@ void Project::add_command(unique_ptr<Expr> cmd) {
 
             cmd->elems->at(1).release();
             this->cmds.InitRely[s->text].push_back(unique_ptr<Expr>(expr));
+        } else if (op_str == "AddDep") {
+            assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) &&
+                   dynamic_cast<Symbol *>(cmd->elems->at(1).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            auto d = dynamic_cast<Symbol *>(cmd->elems->at(1).get());
+
+            this->cmds.AddDep[s->text].push_back(d->text);
         } else if (op_str == "Axiom") {
             auto expr = dynamic_cast<Expr *>(cmd->elems->at(0).get());
             assert(cmd->elems->size() == 1);
@@ -224,12 +254,6 @@ bool Project::is_known_symbol(string name) {
 }
 
 static inline unique_ptr<Definition> make_ptr_offset(void) {
-/*
- *        ptr_offset = Definition("ptr_offset", Ptr, [Arg("_ptr", Ptr), Arg("_offs", Int())],
-                                Expr("mkPtr", [Expr("Record.get", [Symbol("_ptr", Ptr), Symbol("pbase")]),
-                                               Expr("+", [Expr("Record.get", [Symbol("_ptr", Ptr), Symbol("poffset")]),
-                                                          Symbol("_offs", Int())])]))
- */
     auto record_get1_elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
     record_get1_elems->push_back(make_unique<Symbol>("_ptr", Struct::Ptr));
@@ -383,15 +407,18 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
         low_specs = ir_to_spec(proj, fname, L.get(), suffix);
 
         for (auto &def: *low_specs) {
-            LOG_INFO << "Generate low definition " << def->name << ", Fixpoint: " << is_instance(def, Fixpoint);
+            LOG_INFO << "Generate low definition " << def->name << ", Fixpoint: " << is_instance(def, Fixpoint) << std::endl;
+            std::cout << string(*def) << std::endl;
             proj->deps[def->name] = proj->calc_dependencies(def->body.get());
 
+            auto loc = make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC);
+
             if (is_instance(def, Fixpoint)) {
-                proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(def)),
-                                     make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
+                proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(def)), loc);
             } else
-                proj->add_definition(unique_ptr<Definition>(def),
-                                     make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
+                proj->add_definition(unique_ptr<Definition>(def), loc);
+
+            spec_transformer(proj, def, false);
 
             if (def->name.rfind(suffix) == def->name.size() - suffix.size()) {
                 std::string high_name = def->name.substr(0, def->name.size() - suffix.size());
@@ -635,7 +662,8 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
                 continue;
             }
         }
-
+        if (low_def->deleyed_type_inference)
+            low_def->infer_type(*proj);
         // High spec begins from the low spec
         unique_ptr<SpecNode> high_body = low_def->body->deep_copy();
 
@@ -684,6 +712,8 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         else
             proj->add_definition(unique_ptr<Definition>(high_def), make_shared<loc_t>(L->name, Project::LOC_SPEC, ""),
                                  i);
+
+
 #ifdef MT_TRANSFORM
         high_specs.push_back(high_def);
 #endif
@@ -739,6 +769,9 @@ void Project::finalize_project()
                 continue;
 
             L->prim_deps[p] = get_prim_dependencies(*this->code->functions->at(p)->body);
+            if (this->cmds.AddDep.find(p) != this->cmds.AddDep.end()) {
+                L->prim_deps[p].insert(this->cmds.AddDep[p].begin(), this->cmds.AddDep[p].end());
+            }
             prim_deps[p] = L->prim_deps[p];
             for (auto &d: L->prim_deps[p])
                 deps.insert(d);

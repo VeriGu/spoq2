@@ -10,7 +10,6 @@ extern unordered_map<unsigned long, bool> converged_spec;
 unsigned long mono_lens_id = 0;
 
 static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group1 = {
-    //rule_eliminiate_indifferent,
     rule_eliminate_let,
     rule_eliminate_when,
     rule_eliminate_if,
@@ -27,7 +26,6 @@ static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group1 = {
 };
 
 static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group2 = {
-    //rule_eliminiate_indifferent,
     rule_eliminate_let,
     rule_eliminate_match_simple,
     rule_move_if_out_expr,
@@ -54,11 +52,11 @@ extern unordered_map<size_t, Z3Result> Z3Cache;
 
 std::mutex Z3mtx;
 
-void spec_transformer(Project *proj, Definition *def) {
-    // LOG_INFO << "Transforming " << def->name;
+void spec_transformer(Project *proj, Definition *def, bool unfold) {
+    LOG_INFO << "Transforming " << def->name;
     // std::cout << string(*def) << std::endl;
 
-    bool debug = (def->name.rfind("ptr_status", 0) == 0);
+    bool debug = unfold && (def->name.rfind("rtt_walk_lock_unlock", 0) == 0);
     auto known = std::set<string>();
     auto fname = def->name;
 
@@ -99,7 +97,7 @@ void spec_transformer(Project *proj, Definition *def) {
 
                 new_spec = new_spec1;
 
-#if 1
+#if 0
                 if (__changed && debug)
                     std::cout << "(group1) " << def->name << " new_spec " << rule_names[rule] << ": \n=========================\n"
                         << string(*new_spec) << "\n==============================" << std::endl;
@@ -110,28 +108,31 @@ void spec_transformer(Project *proj, Definition *def) {
                 break;
         }
 
-#define UNFOLD
-#ifdef UNFOLD
-        // Unfold
-        do {
-            if (proj->cmds.NoUnfoldAll)
-                break;
-            auto [__spec, __unfolded] = rule_unfold_specs(proj, new_spec1);
-            new_spec = __spec;
-            changed |= __unfolded;
+        // `unfold` by default is true
+        if (unfold) {
+            // Unfold
+            do {
+                if (proj->cmds.NoUnfoldAll)
+                    break;
+                auto [__spec, __unfolded] = rule_unfold_specs(proj, new_spec1);
+                new_spec = __spec;
+                changed |= __unfolded;
 
-            if (__unfolded) {
-                auto prev_symbols = std::set<string>(known);
-                bool __changed = false;
+                if (__unfolded) {
+                    auto prev_symbols = std::set<string>(known);
+                    bool __changed = false;
 
-                new_spec = eliminiate_ambiguity(proj, new_spec, prev_symbols, __changed);
-                changed |= __changed;
-                if (__changed && debug)
-                    std::cout << "(unfold) " << def->name << " new_spec: \n=========================\n"
-                        << string(*new_spec) << "\n==============================" << std::endl;
-            }
-        } while (false);
+                    new_spec = eliminiate_ambiguity(proj, new_spec, prev_symbols, __changed);
+                    changed |= __changed;
+#if 0
+                    if (__changed && debug)
+                        std::cout << "(unfold) " << def->name << " new_spec: \n=========================\n"
+                            << string(*new_spec) << "\n==============================" << std::endl;
 #endif
+                }
+            } while (false);
+        }
+
         while (true) {
             auto this_changed = false;
             new_spec1 = new_spec;
@@ -153,7 +154,7 @@ void spec_transformer(Project *proj, Definition *def) {
 
                 new_spec = new_spec1;
 
-#if 1
+#if 0
                 if (__changed && debug)
                     std::cout << "(group2) " << def->name << " new_spec " << rule_names[rule] << ": \n=========================\n"
                         << string(*new_spec) << "\n==============================" << std::endl;
@@ -167,10 +168,11 @@ void spec_transformer(Project *proj, Definition *def) {
 
             new_spec = new_spec1;
 
+#if 0
             if (__changed && debug)
                 std::cout << "(simplify_expr) " << def->name << " new_spec "<< ": \n=========================\n"
                             << string(*new_spec) << "\n==============================" << std::endl;
-
+#endif
             if (!this_changed)
                 break;
         }
@@ -185,7 +187,7 @@ void spec_transformer(Project *proj, Definition *def) {
             do {
                 auto before = string(*new_spec1);
 
-                auto [__spec, __changed] = rule_eliminiate_indifferent(proj, new_spec1, def->name);
+                auto [__spec, __changed] = rule_keep_fields_of_interest(proj, new_spec1, def->name);
                 new_spec1 = __spec;
                 this_changed |= __changed;
                 changed |= __changed;
@@ -220,26 +222,28 @@ void spec_transformer(Project *proj, Definition *def) {
 #endif
 
         // Z3
-        auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
-        auto conds = std::make_shared<vector<z3::expr>>();
-        for (auto arg : *def->args)
-            (*vars)[arg->name] = arg->type->declare(arg->name, 0);
+        //if (unfold) {
+            auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+            auto conds = std::make_shared<vector<z3::expr>>();
+            for (auto arg : *def->args)
+                (*vars)[arg->name] = arg->type->declare(arg->name, 0);
+#if 0
+            if (debug)
+                std::cout << "Before Z3 " << def->name << ": \n=========================\n"
+                    << string(*new_spec) << "\n==============================" << std::endl;
+#endif
+            auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec1, make_shared<EvalState>(vars, conds));
+            Z3Cache.clear();
 
-        if (debug)
-            std::cout << "Before Z3 " << def->name << ": \n=========================\n"
-                << string(*new_spec) << "\n==============================" << std::endl;
+            changed |= __changed;
 
-        auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec1, make_shared<EvalState>(vars, conds));
-        Z3Cache.clear();
+            new_spec = __spec;
 
-        changed |= __changed;
+            if (debug)
+                std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
+                    << string(*new_spec) << "\n==============================\n";
 
-        new_spec = __spec;
-
-        if (debug)
-            std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
-                << string(*new_spec) << "\n==============================\n";
-
+        //}
 
         def->body.reset(new_spec);
         def->_str = "";

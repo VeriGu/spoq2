@@ -493,7 +493,7 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
                     } else {
-                        expr->type = expr->elems->at(0)->type;
+                        expr->type = make_shared<ZMap>(expr->elems->at(0)->type);
                     }
                 } else if (proj.symbols.find(op) != proj.symbols.end() || op.compare(0, 5, "llvm.") == 0) {
                     if (op.compare(0, 5, "llvm.") == 0) {

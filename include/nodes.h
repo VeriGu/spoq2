@@ -73,9 +73,9 @@ public:
     }
 
     void set_type(shared_ptr<SpecType> type) {
-        if (this->has_type() && this->type != type) {
+        if (this->has_type() && this->type != type && type != SpecType::UNKNOWN_TYPE) {
             LOG_ERROR << "Overwriting type " << string(*this->type) << " with " << string(*type);
-            throw std::invalid_argument("Overwriting type" + string(*this->type) + " with " + string(*type));
+            throw std::invalid_argument("Overwriting type " + string(*this->type) + " with " + string(*type));
         }
         this->type = type;
     }
@@ -189,6 +189,15 @@ private:
         if (this->type == SpecType::UNKNOWN_TYPE) {
             throw std::invalid_argument("Const must have a type");
         } else if (dynamic_cast<Int *>(this->type.get()) != nullptr) {
+            // if (std::get_if<unsigned long>(&this->value) == nullptr) {
+            //     if (std::get_if<string>(&this->value) != nullptr) {
+            //         std::cout << ("Const must have an integer value, not a string: " + std::get<string>(this->value));
+            //         return std::get<string>(this->value);
+            //     } else {
+            //         std::cout << ("Const must have an integer value, not a bool: " + std::to_string(std::get<bool>(this->value)));
+            //         return std::to_string(std::get<bool>(this->value));
+            //     }
+            // }
             long long v = std::get<unsigned long>(this->value);
             if (v > -100 && v < 0) {
                 return "(-" + std::to_string(-v) + ")";
@@ -434,6 +443,7 @@ public:
         }
 
         ret->is_lens = this->is_lens;
+        ret->length = this->length;
         return ret;
     }
 
@@ -454,11 +464,8 @@ private:
         int length = 0;
 
         for (auto it = elems->begin(); it != elems->end(); it++) {
-            if (it == elems->begin()) {
                 length += (*it)->length;
-            }
         }
-
         return length;
     }
 
@@ -515,7 +522,11 @@ public:
         unique_ptr<SpecNode> new_pattern = this->pattern->deep_copy();
         unique_ptr<SpecNode> new_body = this->body->deep_copy();
 
-        return make_unique<PatternMatch>(std::move(new_pattern), std::move(new_body));
+        auto ret = make_unique<PatternMatch>(std::move(new_pattern), std::move(new_body));
+
+        ret->length = this->length;
+
+        return ret;
     }
 
     void deep_copy_down(unique_ptr<PatternMatch> &p) const {
@@ -524,6 +535,7 @@ public:
         unique_ptr<SpecNode> new_body = this->body->deep_copy();
 
         p = make_unique<PatternMatch>(std::move(new_pattern), std::move(new_body));
+        p->length = this->length;
     }
 
     ~PatternMatch() {}
@@ -582,7 +594,11 @@ public:
             new_match_list->push_back((*it)->deep_copy_down());
         }
 
-        return make_unique<Match>(std::move(new_src), std::move(new_match_list));
+        auto ret = make_unique<Match>(std::move(new_src), std::move(new_match_list));
+
+        ret->length = this->length;
+
+        return ret;
     }
 
     void deep_copy(unique_ptr<SpecNode> &p) const {
@@ -595,6 +611,8 @@ public:
         }
 
         p = make_unique<Match>(std::move(new_src), std::move(new_match_list));
+
+        p->length = this->length;
     }
 
     bool is_let() const {
@@ -735,9 +753,7 @@ private:
         int length = src->length;
 
         for (auto it = match_list->begin(); it != match_list->end(); it++) {
-            if (it == match_list->begin()) {
                 length += (*it)->length;
-            }
         }
 
         return length;
@@ -782,7 +798,11 @@ public:
         unique_ptr<SpecNode> new_prop = this->prop->deep_copy();
         unique_ptr<SpecNode> new_body = this->body->deep_copy();
 
-        return make_unique<Rely>(std::move(new_prop), std::move(new_body));
+        auto ret = make_unique<Rely>(std::move(new_prop), std::move(new_body));
+
+        ret->length = this->length;
+
+        return ret;
     }
 
     void deep_copy(unique_ptr<SpecNode> &p) const {
@@ -791,6 +811,8 @@ public:
         unique_ptr<SpecNode> new_body = this->body->deep_copy();
 
         p = make_unique<Rely>(std::move(new_prop), std::move(new_body));
+
+        p->length = this->length;
     }
 
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
@@ -1111,6 +1133,7 @@ public:
     unique_ptr<SpecNode> body;
     int length;
     mutable string _str;
+    bool deleyed_type_inference = false;
 
 
     Definition() { throw std::invalid_argument("Definition must have a name, rettype, args, and body"); }

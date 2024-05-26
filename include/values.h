@@ -449,7 +449,7 @@ public:
     shared_ptr<IntValue> sub(shared_ptr<IntValue> other) { return make_shared<IntValue>((value - other->value).simplify()); }
     shared_ptr<IntValue> mul(shared_ptr<IntValue> other) { return make_shared<IntValue>((value * other->value).simplify()); }
     shared_ptr<IntValue> div(shared_ptr<IntValue> other) { return make_shared<IntValue>((value / other->value).simplify()); }
-    shared_ptr<IntValue> mod(shared_ptr<IntValue> other) { return make_shared<IntValue>((value % other->value).simplify()); }
+    shared_ptr<IntValue> mod(shared_ptr<IntValue> other) {return make_shared<IntValue>((value % other->value).simplify()); }
     shared_ptr<IntValue> shiftl(shared_ptr<IntValue> other) { return make_shared<IntValue>(( value * z3::pw(2, other->value)).simplify()); }
     shared_ptr<IntValue> shiftr(shared_ptr<IntValue> other) { return make_shared<IntValue>(( value / z3::pw(2, other->value)).simplify()); }
     shared_ptr<IntValue> xorb(shared_ptr<IntValue> other) { return make_shared<IntValue>((value ^ other->value).simplify()); }
@@ -459,7 +459,7 @@ public:
     shared_ptr<IntValue> lnot() { return make_shared<IntValue>(lnot_func(value)); }
     shared_ptr<IntValue> setbit(shared_ptr<IntValue> other) { return make_shared<IntValue>(setbit_func(value, other->value)); }
     shared_ptr<IntValue> clearbit(shared_ptr<IntValue> other) { return make_shared<IntValue>(clearbit_func(value, other->value)); }
-    shared_ptr<IntValue> testbit(shared_ptr<IntValue> other) { return make_shared<IntValue>(testbit_func(value, other->value)); }
+    shared_ptr<BoolValue> testbit(shared_ptr<IntValue> other) { return make_shared<BoolValue>(testbit_func(value, other->value)); }
     shared_ptr<BoolValue> eq(shared_ptr<IntValue> other) { return make_shared<BoolValue>((value == other->value).simplify()); }
     shared_ptr<BoolValue> ne(shared_ptr<IntValue> other) { return make_shared<BoolValue>((value != other->value).simplify()); }
     shared_ptr<BoolValue> lt(shared_ptr<IntValue> other) { return make_shared<BoolValue>((value < other->value).simplify()); }

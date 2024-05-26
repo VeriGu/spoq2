@@ -527,7 +527,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         auto func = v->name;
 
         auto args = new vector<unique_ptr<SpecNode>>();
-        for(auto & a : *f->args) {
+        for (auto & a : *f->args) {
           args->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, a.get(), relies)));
         }
 
@@ -543,7 +543,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
           ret = _Tuple(children);
         }
         auto stmt = _When(ret, new Expr(func + "_spec",
-        unique_ptr<vector<unique_ptr<SpecNode>>>(args)), remain_spec);
+                                        unique_ptr<vector<unique_ptr<SpecNode>>>(args)), remain_spec);
         for(auto &p : *relies) {
           stmt = new Rely(std::move(p) , unique_ptr<SpecNode>(stmt));
         }
@@ -963,8 +963,18 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         for (auto it = loop_args->begin() + 1; it != loop_args->end(); it++)
             loop_args_sub->push_back((*it)->deep_copy());
 
+        string low = "_low";
+        auto substring = loop_spec_name.substr(0, loop_spec_name.size() - low.size());
+
+        if ((proj->cmds).InitRely.find(substring) != (proj->cmds).InitRely.end()){
+            for (auto &prop : proj->cmds.InitRely[substring]) {
+                remain_spec = new Rely(prop->deep_copy(), unique_ptr<SpecNode>(remain_spec));
+            }
+        }
+
         auto spec = _When(_Tuple(loop_args_sub),
                           new Expr(fname + "_loop" + loop_hash + suffix, std::move(loop_init)), remain_spec);
+
 
         return new Rely(unique_ptr<SpecNode>(prop), unique_ptr<SpecNode>(spec));
     }  else if(auto f = dynamic_cast<IRLoader::IInsertValue*>(inst.get())) {

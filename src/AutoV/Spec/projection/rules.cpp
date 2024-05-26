@@ -172,8 +172,19 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
             };
             collect_symbols(pm->pattern.get());
             auto prev = std::set<string>(prev_symbols);
+            auto _prev = std::set<string>(prev_symbols);
             auto pattern = pm->pattern->deep_copy().release();
             auto body = pm->body->deep_copy().release();
+
+            for (auto &sym : symbols) {
+                if (sym == "_")
+                    continue;
+                if (!proj->is_known_symbol(sym)) {
+                    auto new_sym = pick_new_name(sym, _prev);
+                    _prev.insert(new_sym);
+                }
+            }
+            body = eliminiate_ambiguity(proj, body, _prev, changed);
 
             for (auto &sym : symbols) {
                 if (sym == "_")
@@ -193,7 +204,7 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
                     }
                 }
             }
-            body = eliminiate_ambiguity(proj, body, prev, changed);
+
             matches->push_back(make_unique<PatternMatch>(unique_ptr<SpecNode>(pattern), unique_ptr<SpecNode>(body)));
         }
 
@@ -573,7 +584,8 @@ static void search_field_path(Project *proj, string name, string parent, vector<
 static vector<vector<FieldPath>> interest_path;
 //static const std::set<string> interest_list = {"e_lock", "e_refcount", "log"};
 //static const std::set<string> interest_list = {"gpt", "g_norm", "e_state", "g_rec", "slots", "granule_data", "e_lock"}; // delegate/undelegate
-static const std::set<string> interest_list = {"gpt", "g_norm", "e_state", "g_rec", "slots", "granule_data"}; // RTT
+static const std::set<string> interest_list = {"gpt", "g_norm", "e_state", "slots", "granule_data", "stack"}; // RTT
+static const std::set<string> indifferent_list = {"g_aux_simd_state", "g_rec", "g_rd"}; // RTT
 
 //static const std::set<string> interest_list = {};
 static void collect_interest_path(Project *proj) {
@@ -599,17 +611,38 @@ static bool contains_interest_fields(SpecNode *spec) {
                 // elems[0]: record
                 // elems[1...n-1]: fields
                 // elems[n]: value
+                auto likely_contains = false;
+
                 for (int i = 1; i < e->elems->size() - 1; i++) {
                     auto f = e->elems->at(i).get();
                     assert(is_instance(f, Symbol));
                     if (std::find(interest_list.begin(), interest_list.end(), static_cast<Symbol*>(f)->text) != interest_list.end())
-                        return true;
+                        likely_contains = true;
                 }
 
+                // If the field is a ZMap, we need to check the subfields of the Record in the ZMap
                 if (is_instance(e->elems->back()->get_type().get(), ZMap))
                     return contains_interest_fields(e->elems->back().get());
 
-                return false;
+                // XXX: This is really a dirty hack
+                // Also check the subfield of the Record, but for subfield, we use a blacklist
+                auto last_type = e->elems->at(0)->get_type();
+                if (likely_contains && is_instance(last_type.get(), Struct)) {
+                    if (auto v = instance_of(e->elems->back().get(), Expr)) {
+                        if (auto v_op = std::get_if<Expr::ops>(&v->op)) {
+                            if (*v_op == Expr::RecordSet) {
+                                for (int i = 1; i < v->elems->size() - 1; i++) {
+                                    auto f = v->elems->at(i).get();
+                                    assert(is_instance(f, Symbol));
+                                    if (std::find(indifferent_list.begin(), indifferent_list.end(), static_cast<Symbol*>(f)->text) != indifferent_list.end())
+                                        return false;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return likely_contains;
             } else if (*op == Expr::SET) {
                 auto v = e->elems->back().get();
 
@@ -674,7 +707,7 @@ static bool rec_is_lens(SpecNode *spec) {
     return false;
 }
 
-rule_ret_t rule_eliminiate_indifferent(Project *proj, SpecNode *spec, string fname) {
+rule_ret_t rule_keep_fields_of_interest(Project *proj, SpecNode *spec, string fname) {
     bool changed = false;
     std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
         if (auto e = instance_of(node, Expr)) {
@@ -723,21 +756,16 @@ rule_ret_t rule_eliminiate_indifferent(Project *proj, SpecNode *spec, string fna
         return node;
     };
 
+#if 0
     if (interest_path.size() == 0) {
         collect_interest_path(proj);
-
-        // for (const auto &p: interest_path) {
-        //     std::cout << "Interest path: " << std::endl;
-        //     for (const auto &f: p) {
-        //         std::cout << f.name << " ";
-        //     }
-        //     std::cout << std::endl;
-        // }
     }
-
+#endif
 
     return std::make_pair(rec_apply(spec, f), changed);
 }
+
+rule_ret_t rule_eliminate_indifferent(Project *proj, SpecNode *spec, string fname) {}
 
 static SpecNode* remove_expr_lens(Expr *e, bool &changed) {
     if (op_is_lens(e->op)) {
@@ -1361,6 +1389,8 @@ rule_ret_t rule_subst_match_src_with_content(Project *proj, SpecNode *spec) {
 
     std::function<SpecNode*(SpecNode*)> f = [&] (SpecNode *node) -> SpecNode* {
         if (auto s = instance_of(node, Match)) {
+            if (s->is_let())
+                return node;
             unique_ptr<vector<unique_ptr<PatternMatch>>> matches = make_unique<vector<unique_ptr<PatternMatch>>>();
             for (auto & pm : *s->match_list) {
                 std::set<string> vars;

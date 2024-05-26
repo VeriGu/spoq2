@@ -21,7 +21,7 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
 rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec);
 
 rule_ret_t rule_simple_record_get_set(Project *proj, SpecNode *spec);
-rule_ret_t rule_eliminiate_indifferent(Project *proj, SpecNode *spec, string fname);
+rule_ret_t rule_keep_fields_of_interest(Project *proj, SpecNode *spec, string fname);
 rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec);
 rule_ret_t rule_move_if_out_match(Project *proj, SpecNode *spec);
 rule_ret_t rule_move_if_out_expr(Project *proj, SpecNode *spec);

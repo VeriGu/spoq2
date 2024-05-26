@@ -185,7 +185,7 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
     // auto orig_then = string(*spec->then_body);
     // auto orig_else = string(*spec->else_body);
     auto orig_cond = string(*spec->cond);
-   //bool debug = orig_cond == "((0 & (281474976706560)) =? (0))";
+    //bool debug = false && orig_cond == "((((st_1.(stack)).(stack_wi)).(e_g_llt)) >? (0))";
 
     auto cond_ret = rule_simple_by_z3(proj, spec->cond.release(), state);
     // if (debug)
@@ -200,11 +200,17 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
     // if (orig_cond == "(((33686424 - ((33686424 + (((768 * (v_vmid)) + (752)))))) <=? (0)) && (((33686424 + (((768 * (v_vmid)) + (752)))) <? (33701016))))")
     //     std::cout << "here." << std::endl;
 
+    // if (debug)
+    //     std::cout << "cond_ret: " << string(*cond_ret.first) << std::endl;
     auto c = z3_eval(proj, cond_ret.first, state);
     // if (debug) {
-    //     std::cout << "simple_if_by_z3: c: " << c->get_z3_value() << ", hash: " << c->get_z3_value().hash() << std::endl;
+    //     std::cout << "simple_if_by_z3: c: " << c->get_z3_value().simplify() << ", hash: " << c->get_z3_value().hash() << std::endl;
+    //     for (const auto &cond: *state->conds) {
+    //         std::cout << "simple_if_by_z3: cond: " << cond.simplify() << std::endl;
+    //     }
     // }
-    auto res = z3_check(state, c->get_z3_value(), 50);
+
+    auto res = z3_check(state, c->get_z3_value(), 200);
 
     if (res == Z3Result::Unknown) {
         //std::cout << "simple_if_by_z3: unknown condition: " << orig_cond << std::endl;
@@ -557,7 +563,7 @@ static z3::sort bv64 = z3ctx.bv_sort(64);
 static SpecNode* reconstruct_expr(z3::expr z3_val,
                            unordered_map<unsigned, std::pair<z3::expr, SpecNode*>>& subexprs,
                            shared_ptr<EvalState> state) {
-    std::cout << "reconstruct_expr: " << z3_val << std::endl;
+    //std::cout << "reconstruct_expr: " << z3_val << std::endl;
     if (z3_val.is_const() && z3_val.is_int() && z3_val.is_numeral()) {
         int64_t _v;
         if (z3_val.is_numeral_i64(_v)) {
@@ -720,13 +726,37 @@ static SpecNode* reconstruct_expr(z3::expr z3_val,
     }
 }
 
+static SpecNode* __simplify_zmap_init(Project* proj, Expr* expr, shared_ptr<EvalState> state) {
+    auto elem0 = instance_of(expr->elems->at(0).get(), Expr); // ZMap
+
+    if (!elem0)
+        return nullptr;
+
+    auto elem0_op = std::get_if<string>(&elem0->op);
+
+    if (!elem0_op || (*elem0_op != "ZMap.init" && *elem0_op != "zmap_init"))
+        return nullptr;
+
+    // elem0 is ZMap.init, regardless of the second argument, return the default value
+    auto expr_op = std::get_if<Expr::ops>(&expr->op);
+    if (!expr_op || *expr_op != Expr::GET)
+        return nullptr;
+
+    assert(elem0->elems->size() == 1);
+    //std::cout << "simplfy " << string(*expr) << " to " << string(*elem0->elems->at(0)) << std::endl;
+    return elem0->elems->at(0).release();
+}
+
 SpecNode* reconstruct_zmap(Project* proj, SpecNode* spec, shared_ptr<EvalState> state) {
     auto expr = instance_of(spec, Expr);
-    auto elem0 = instance_of(expr->elems->at(0).get(), Expr);
-    auto elem1 = expr->elems->at(1).get();
+    auto elem0 = instance_of(expr->elems->at(0).get(), Expr); // ZMap
+    auto elem1 = expr->elems->at(1).get(); // index
 
-    if (elem0 && is_instance(elem0->elems->at(1).get(), Symbol))
+    if (elem0 && elem0->elems->size() > 1 && is_instance(elem0->elems->at(1).get(), Symbol))
         return nullptr;
+
+    if (auto ret = __simplify_zmap_init(proj, expr, state))
+        return ret;
 
     // If not potential ZMap.gss, ZMap.set2, ZMap.gso, skip Z3 checks and early return
     auto expr_op = std::get_if<Expr::ops>(&expr->op);
@@ -810,7 +840,14 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
 
     unordered_map<unsigned, std::pair<z3::expr, SpecNode*>> subexprs;
     collect_exprs(spec, subexprs);
-
+    // bool debug = false;
+    // if (orig_spec_str == "(((v_granules_0.(poffset)) + (8)) / (40))") {
+    //     debug = true;
+    //     std::cout << "simple_expr_by_z3: " << orig_spec_str << std::endl;
+    //     // for (auto s = subexprs.begin(); s != subexprs.end(); ++s) {
+    //     //     std::cout << "simple_expr_by_z3: " << " " << string(*s->second.second) << std::endl;
+    //     // }
+    // }
     if ((spec->get_type() == Int::INT || spec->get_type() == Bool::BOOL)
          && length_of_exp(spec) <= 20) {
         auto _expr = reconstruct_expr(exp_val->get_z3_value(), subexprs, state);
@@ -847,6 +884,12 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
             z3_check(state, d->get_z3_value() > 0) == Z3Result::True &&
             (z3_check(state, a->get_z3_value() % d->get_z3_value() == 0) == Z3Result::True ||
              z3_check(state, b->get_z3_value() % d->get_z3_value() == 0) == Z3Result::True)) {
+
+            // if (debug) {
+            //     std::cout << "a: " << a->get_z3_value() << std::endl;
+            //     std::cout << "b: " << b->get_z3_value() << std::endl;
+            //     std::cout << "d: " << d->get_z3_value() << std::endl;
+            // }
             auto elems1 = make_unique<vector<unique_ptr<SpecNode>>>();
             elems1->push_back(std::move(ea));
             elems1->push_back(ed->deep_copy());
@@ -854,7 +897,7 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
             auto elems2 = make_unique<vector<unique_ptr<SpecNode>>>();
             elems2->push_back(std::move(eb));
             elems2->push_back(std::move(ed));
-            auto expr2 = new Expr(Expr::ADD, std::move(elems2), Int::INT);
+            auto expr2 = new Expr(Expr::DIV, std::move(elems2), Int::INT);
             auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
             new_elems->push_back(unique_ptr<SpecNode>(expr1));
             new_elems->push_back(unique_ptr<SpecNode>(expr2));
@@ -887,12 +930,14 @@ rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState
     size_t spec_hash = boost::hash<string>()(string(*spec));
 
 
+#ifdef DEBUG
     if (converged_spec.find(spec_hash) != converged_spec.end()) {
         if (spec_hash_collisions.find(spec_hash) != spec_hash_collisions.end() && string(*spec) != spec_hash_collisions[spec_hash]) {
             std::cout << "Collision: " << spec_hash_collisions[spec_hash] << " vs " << string(*spec) << std::endl;
             throw std::runtime_error("Collision: " + spec_hash_collisions[spec_hash] + " vs " + string(*spec));
         }
     }
+#endif
 
     if (converged_spec.find(spec_hash) != converged_spec.end())
         return std::make_pair(spec, false);
