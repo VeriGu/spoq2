@@ -3,6 +3,7 @@ Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import SMCHandler.Spec.
 
+Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
 (************************************************************************************)
@@ -475,9 +476,66 @@ Lemma granule_data_slots_update_permu:
   forall st v0 v1, ((share st).[granule_data] :< v0).[slots] :< v1 = ((share st).[slots] :< v1).[granule_data] :< v0.
 Proof. easy. Qed.
 
+Definition smc_rtt_fold_3 (v_s2_ctx: Ptr) (v_map_addr: Z) (v_wi: Ptr) (v_call15: Ptr) (v_call34: Ptr) (v_call44: Z) (v_call33: Ptr) (st_0: RData) (st_34: RData) : (option (Z * RData)) :=
+  rely (((v_s2_ctx.(pbase)) = ("stack_s2_ctx")));
+  rely (((v_s2_ctx.(poffset)) = (0)));
+  rely (((v_wi.(pbase)) = ("stack_wi")));
+  rely (((v_wi.(poffset)) = (0)));
+  rely (((v_call15.(pbase)) = ("slot_rtt")));
+  rely (((v_call34.(pbase)) = ("slot_rtt2")));
+  rely (((v_call33.(pbase)) = ("granules")));
+  rely ((((st_34.(share)).(granules)) @ (((st_34.(share)).(slots)) @ SLOT_RTT)).(e_state) = GRANULE_STATE_RTT);
+  rely ((((st_34.(share)).(granules)) @ (((st_34.(share)).(slots)) @ SLOT_RTT2)).(e_state) = GRANULE_STATE_RTT);
+  when cid == (((((st_34.(share)).(granules)) @ (((st_34.(share)).(slots)) @ SLOT_RTT)).(e_lock)));
+  when cid_0 == (((((st_34.(share)).(granules)) @ (((st_34.(share)).(slots)) @ SLOT_RTT2)).(e_lock)));
+  rely ((((v_call33.(pbase)) = ("granules")) /\ ((((v_call33.(poffset)) mod (ST_GRANULE_SIZE)) = (0)))));
+  if (
+    match (((((st_34.(share)).(granules)) @ (((v_call33.(poffset)) + (4)) / (ST_GRANULE_SIZE))).(e_lock))) with
+    | (Some cid_1) => true
+    | None => false
+    end)
+  then (
+    when cid_1 == (((((st_34.(share)).(granules)) @ (((v_call33.(poffset)) + (4)) / (ST_GRANULE_SIZE))).(e_lock)));
+    rely (((v_call34.(poffset)) = (0)));
+    rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+    rely (((v_call15.(poffset)) = (0)));
+    rely (((((((st_34.(stack)).(stack_wi)).(e_g_llt)) - (STACK_VIRT)) < (0)) /\ ((((((st_34.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))));
+    (Some (
+      0  ,
+      (((lens 106 st_34).[share].[granule_data] :<
+        ((((st_34.(share)).(granule_data)) #
+          (((st_34.(share)).(slots)) @ SLOT_RTT) ==
+          ((((st_34.(share)).(granule_data)) @ (((st_34.(share)).(slots)) @ SLOT_RTT)).[g_norm] :<
+            (((((st_34.(share)).(granule_data)) @ (((st_34.(share)).(slots)) @ SLOT_RTT)).(g_norm)) #
+              ((v_call15.(poffset)) + ((8 * ((((st_34.(stack)).(stack_wi)).(e_index)))))) ==
+              v_call44))) #
+          (((st_34.(share)).(slots)) @ SLOT_RTT2) ==
+          (((((st_34.(share)).(granule_data)) #
+            (((st_34.(share)).(slots)) @ SLOT_RTT) ==
+            ((((st_34.(share)).(granule_data)) @ (((st_34.(share)).(slots)) @ SLOT_RTT)).[g_norm] :<
+              (((((st_34.(share)).(granule_data)) @ (((st_34.(share)).(slots)) @ SLOT_RTT)).(g_norm)) #
+                ((v_call15.(poffset)) + ((8 * ((((st_34.(stack)).(stack_wi)).(e_index)))))) ==
+                v_call44))) @ (((st_34.(share)).(slots)) @ SLOT_RTT2)).[g_norm] :<
+            zero_granule_data_normal))).[share].[slots] :<
+        ((((st_34.(share)).(slots)) # SLOT_RTT2 == (- 1)) # SLOT_RTT == (- 1)))
+    )))
+  else None.
+
+Record lens_field_same: Prop := {
+    lens_gpt_same: forall st v, gpt (share (lens v st)) = gpt (share st)
+  }.
+
+Parameter lens_field_same_prop: lens_field_same.
+
+Ltac rewrite_lens :=
+  match goal with
+  | [|- context[gpt (share (lens ?v ?st))] ] => rewrite (lens_gpt_same lens_field_same_prop st v)
+  | [H: context[gpt (share (lens ?v ?st)) ] |- _] => rewrite (lens_gpt_same lens_field_same_prop st v) in H
+  end.
+
 Lemma smc_rtt_fold_3_secure:
   forall sec_d sec_st norm_d (Hrel: relate sec_d sec_st norm_d)
-    s2_ctx map_addr wi call15 call34 call44 call33 norm_d_init norm_d ret_n ret_s sec_d' norm_d'
+    s2_ctx map_addr wi call15 call34 call44 call33 norm_d_init ret_n ret_s sec_d' norm_d'
     (Hnorm: smc_rtt_fold_3 s2_ctx map_addr wi call15 call34 call44 call33 norm_d_init norm_d = Some (ret_n, norm_d'))
     (Hsec: smc_rtt_fold_3 s2_ctx map_addr wi call15 call34 call44 call33 norm_d_init sec_d = Some (ret_s, sec_d'))
     (Hinv: SharedInv (norm_d.(share))),
@@ -485,26 +543,75 @@ Lemma smc_rtt_fold_3_secure:
 Proof.
   intros. pose proof Hrel as D. destruct D.
   unfold smc_rtt_fold_3 in *; autounfold with sem in *.
-  repeat simpl_hyp Hsec; inv Hsec; inv Hnorm.
+  repeat simpl_hyp Hsec; inv Hsec.
+  Frewrite. simpl_hyp Hnorm. inv Hnorm.
+  extract_prop.
   split.
-  - repeat simpl_hyp H0; inv H0; try reflexivity.
-  -
-  constructor.
-  constructor.
-  intros.
-  repeat simpl_hyp H0; inv H0.
-  inv relate_sec_data0.
+  - reflexivity.
+  - constructor.
+    {
+      constructor; simpl.
+      inv relate_sec_data0.
+      rewrite_id.
+      remember ((slots (share sec_d)) @ SLOT_RTT) as rtt_idx.
+      remember ((slots (share sec_d)) @ SLOT_RTT2) as rtt2_idx.
+      remember ((g_norm (granule_data (share sec_d)) @ rtt_idx)).
+      remember (match e_index (stack_wi (stack norm_d)) with | 0 => 0  | Z.pos y' => Z.pos y'~0~0~0 | Z.neg y' => Z.neg y'~0~0~0 end) as e_idx.
+      remember (poffset call15) as call15_ofs.
+      remember (call15_ofs + e_idx) as g_norm_idx.
+      remember ((granule_data (share sec_d))) as granule_data_sec.
+      intros.
+      rewrite lens_same in Hrd. repeat rewrite_id.
+      repeat rewrite lens_same in Hwalk.
+      match type of Hwalk with
+      | walk_rtt ?d ?rd ?addr = _ =>
+        assert(Hwalk_eq: walk_rtt d rd addr = walk_rtt (share sec_d) rd addr)
+      end.
+      {
+        (*
+          need rely/prove
+          - rd_gidx is a valid RD
+          - walk_rtt_level (share sec_d) rd_gidx (addr_to_gidx map_addr) (level - 1) = Some (slots (share norm_d)) @ SLOT_RTT)
+            walk_rtt_level (share sec_d) rd_gidx (addr_to_gidx map_addr) level = Some (slots (share norm_d)) @ SLOT_RTT2)
+          - refcount == 0
+          - forall 0 <= i < 512, SLOT_RTT @ i = DESTROYED
+          - forall level, walk_rtt_level d rd addr level = Some pte -> pte = DESTROYED -> walk_rtt d rd addr = None
+          - 
 
-  remember ((slots (share sec_d)) @ SLOT_RTT) as rtt_idx.
-  remember ((slots (share sec_d)) @ SLOT_RTT2) as rtt2_idx.
-  remember ((g_norm (granule_data (share sec_d)) @ rtt_idx)).
-  remember (match e_index (stack_wi (stack sec_d)) with | 0 => 0  | Z.pos y' => Z.pos y'~0~0~0 | Z.neg y' => Z.neg y'~0~0~0 end)
-    as e_index.
-  remember (poffset call15) as call15_ofs.
-  remember (call15_ofs + e_index) as g_norm_idx.
-  remember ((granule_data (share sec_d))) as granule_data_sec.
-  remember (((granule_data_sec @ rtt_idx).[g_norm]:< (t # g_norm_idx == call44))) as new_granule_data_entry_sec.
-  remember ((granule_data_sec # rtt_idx == new_granule_data_entry_sec)) as new_granule_data_sec.
+         *)
+        admit.
+      }
+      rewrite Hwalk_eq in Hwalk.
+      pose proof (mem_rel0 rd_gidx Hrd vaddr data_gidx Hwalk) as mem_rel.
+      simpl in mem_rel.
+      inv Hinv. unfold rtt_map_data in *.
+      erewrite relate_walk_rtt_same in *; try eassumption.
+      pose proof (rtt_map_data_inv0 rd_gidx Hrd (addr_to_gidx vaddr) data_gidx Hwalk) as Hdata.
+      autounfold with spec in *.
+      assert_gso. red; intro T; inv T; lia.
+      rewrite (ZMap.gso _ _ Hneq).
+      assert_gso. red; intro T; inv T; lia.
+      rewrite (ZMap.gso _ _ Hneq0).
+      rewrite (ZMap.gso _ _ Hneq).
+      rewrite (ZMap.gso _ _ Hneq0).
+      assumption.
+    }
+    {
+      pose proof relate_share0 as D; destruct D.
+      constructor; simpl; repeat rewrite lens_same; rewrite_id; try reflexivity.
+      all:intros; rewrite_id; simpl; repeat (destruct_zmap; simpl; rewrite_id); try reflexivity.
+      all:rewrite id_g_norm0; rewrite_id; subst; try reflexivity; try assumption.
+    }
+    {
+      constructor; simpl; repeat rewrite lens_same; rewrite_id; try reflexivity.
+    }
+Qed.
+
+constructor.
+intros.
+repeat simpl_hyp H0; inv H0.
+inv relate_sec_data0.
+
   simpl in *.
   rewrite e_state_lens_same in Hrd.
   destruct Hinv.
@@ -513,7 +620,6 @@ Proof.
 
   rewrite walk_rtt_slots_unrelated in Hwalk.
   rewrite walk_rtt_granule_data_update_lens_same in Hwalk.
-  rewrite granule_data_slots_update_permu in Hwalk.
 
 
 
