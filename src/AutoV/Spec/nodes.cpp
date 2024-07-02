@@ -695,6 +695,12 @@ void Match::infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>
 // Rely
 // ----------------------------------------------------------------------------
 const string Rely::to_string() const {
+    // std::ostringstream oss;
+    // string body = string(*(this->body));
+
+    // return body;
+
+
     std::ostringstream oss;
     string body = string(*(this->body));
     string prop = string(*(this->prop));
@@ -703,6 +709,7 @@ const string Rely::to_string() const {
         return "rely (\n" + add_indent(prop, 2) + ");\n" + body;
     } else
         return "rely (" + string(*(this->prop)) + ");\n" + body;
+
 }
 
 void Rely::infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
@@ -721,6 +728,8 @@ void Rely::infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>>
 // Anno
 // ----------------------------------------------------------------------------
 const string Anno::to_string() const {
+    return string(*(this->body));
+#if 0
     std::ostringstream oss;
     string body = string(*(this->body));
     string prop = string(*(this->prop));
@@ -729,6 +738,7 @@ const string Anno::to_string() const {
         return "anno (\n" + add_indent(prop, 2) + ");\n" + add_indent(body, 2);
     } else
         return "anno (" + string(*(this->prop)) + ");\n" + body;
+#endif
 }
 
 void Anno::infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,

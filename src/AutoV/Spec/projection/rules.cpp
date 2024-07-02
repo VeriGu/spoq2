@@ -485,7 +485,8 @@ rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec) {
                 if (proj->defs.find(*op) == proj->defs.end())
                     return node;
 
-                if (proj->cmds.NoUnfold.find(*op) != proj->cmds.NoUnfold.end())
+                if (proj->cmds.NoUnfold.find(*op) != proj->cmds.NoUnfold.end() &&
+                    proj->cmds.Unfold.find(*op) == proj->cmds.Unfold.end())
                     return node;
 
                 auto define = proj->defs[*op].get();
@@ -585,6 +586,7 @@ static vector<vector<FieldPath>> interest_path;
 //static const std::set<string> interest_list = {"e_lock", "e_refcount", "log"};
 //static const std::set<string> interest_list = {"gpt", "g_norm", "e_state", "g_rec", "slots", "granule_data", "e_lock"}; // delegate/undelegate
 static const std::set<string> interest_list = {"gpt", "g_norm", "e_state", "slots", "granule_data", "stack"}; // RTT
+//static const std::set<string> interest_list = {"pcpu_gpregs"};
 static const std::set<string> indifferent_list = {"g_aux_simd_state", "g_rec", "g_rd"}; // RTT
 
 //static const std::set<string> interest_list = {};
@@ -616,31 +618,14 @@ static bool contains_interest_fields(SpecNode *spec) {
                 for (int i = 1; i < e->elems->size() - 1; i++) {
                     auto f = e->elems->at(i).get();
                     assert(is_instance(f, Symbol));
-                    if (std::find(interest_list.begin(), interest_list.end(), static_cast<Symbol*>(f)->text) != interest_list.end())
-                        likely_contains = true;
+                    if (std::find(interest_list.begin(), interest_list.end(), static_cast<Symbol*>(f)->text) != interest_list.end()) {
+                        return true;
+                    }
                 }
 
                 // If the field is a ZMap, we need to check the subfields of the Record in the ZMap
                 if (is_instance(e->elems->back()->get_type().get(), ZMap))
                     return contains_interest_fields(e->elems->back().get());
-
-                // XXX: This is really a dirty hack
-                // Also check the subfield of the Record, but for subfield, we use a blacklist
-                auto last_type = e->elems->at(0)->get_type();
-                if (likely_contains && is_instance(last_type.get(), Struct)) {
-                    if (auto v = instance_of(e->elems->back().get(), Expr)) {
-                        if (auto v_op = std::get_if<Expr::ops>(&v->op)) {
-                            if (*v_op == Expr::RecordSet) {
-                                for (int i = 1; i < v->elems->size() - 1; i++) {
-                                    auto f = v->elems->at(i).get();
-                                    assert(is_instance(f, Symbol));
-                                    if (std::find(indifferent_list.begin(), indifferent_list.end(), static_cast<Symbol*>(f)->text) != indifferent_list.end())
-                                        return false;
-                                }
-                            }
-                        }
-                    }
-                }
 
                 return likely_contains;
             } else if (*op == Expr::SET) {
@@ -653,16 +638,7 @@ static bool contains_interest_fields(SpecNode *spec) {
             }
             return false;
         }
-
         return false;
-#if 0
-        for (auto &elem: *e->elems) {
-            if (contains_interest_fields(elem.get()))
-                return true;
-        }
-
-        return false;
-#endif
     } else if (auto m = instance_of(spec, Match)) {
         if (contains_interest_fields(m->src.get()))
             return true;
@@ -2042,4 +2018,138 @@ rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec) {
 
     return std::make_pair(rec_apply(spec, f, false), expr_is_changed);
 }
+
+bool spec_is_pure(Project *proj, SpecNode *spec, bool &has_if) {
+    if (auto e = instance_of(spec, Expr)) {
+        if (auto op = std::get_if<Expr::ops>(&e->op)) {
+            if (*op == Expr::None)
+                return true;
+            else if (*op == Expr::Some) {
+                if (auto ee = instance_of(e->elems->at(0).get(), Expr)) {
+                    if (auto ee_op = std::get_if<Expr::ops>(&ee->op)) {
+                        if (*ee_op == Expr::Tuple) {
+
+                            auto last_elem = ee->elems->back().get();
+
+                            if (auto s = instance_of(last_elem, Symbol)) {
+                                return s->text == "st";
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
+    } else if (auto m = instance_of(spec, Match)) {
+        for (auto &pm : *m->match_list) {
+            if (!spec_is_pure(proj, pm->body.get(), has_if))
+                return false;
+        }
+
+        return true;
+    } else if (auto i = instance_of(spec, If)) {
+        has_if = true;
+        return spec_is_pure(proj, i->then_body.get(), has_if) && spec_is_pure(proj, i->else_body.get(), has_if);
+    } else if (auto r = instance_of(spec, RelyAnno)) {
+        return spec_is_pure(proj, r->body.get(), has_if);
+    } else if (auto s = instance_of(spec, Symbol)) {
+        return s->text == "st" || s->text == "None";
+    }
+
+    throw std::runtime_error("spec_is_pure: unexpected node: " + string(*spec));
+    return false;
+}
+
+bool spec_needs_state(Project *proj, SpecNode *spec) {
+    if (auto e = instance_of(spec, Expr)) {
+        if (auto op = std::get_if<Expr::ops>(&e->op)) {
+            if (*op == Expr::RecordGet)
+                return true;
+            else if (*op == Expr::RecordSet)
+                return true;
+        } else if (auto op = std::get_if<unique_ptr<SpecNode>>(&e->op)) {
+            if (spec_needs_state(proj, op->get()))
+                return true;
+        }
+
+        for (auto &elem : *e->elems) {
+            if (spec_needs_state(proj, elem.get()))
+                return true;
+        }
+
+        return false;
+    } else if (auto m = instance_of(spec, Match)) {
+        if (spec_needs_state(proj, m->src.get()))
+            return true;
+
+        for (auto &pm : *m->match_list) {
+            if (spec_needs_state(proj, pm->body.get()))
+                return true;
+        }
+
+        return false;
+    } else if (auto i = instance_of(spec, If)) {
+        return spec_needs_state(proj, i->then_body.get()) || spec_needs_state(proj, i->else_body.get());
+    } else if (auto r = instance_of(spec, RelyAnno)) {
+        return spec_needs_state(proj, r->prop.get()) || spec_needs_state(proj, r->body.get());
+    }
+
+    return false;
+}
+
+void spec_remove_state(Project *proj, SpecNode *spec) {
+    if (auto e = instance_of(spec, Expr)) {
+        if (auto op = std::get_if<Expr::ops>(&e->op)) {
+            if (*op == Expr::None)
+                return;
+            else if (*op == Expr::Some) {
+                if (auto ee = instance_of(e->elems->at(0).get(), Expr)) {
+                    if (auto ee_op = std::get_if<Expr::ops>(&ee->op)) {
+                        if (*ee_op == Expr::Tuple) {
+
+                            auto last_elem = ee->elems->back().get();
+
+                            if (auto s = instance_of(last_elem, Symbol)) {
+                                if (s->text == "st") {
+                                    ee->elems->pop_back();
+                                    ee->set_type(SpecType::UNKNOWN_TYPE);
+                                    if (ee->elems->size() == 1) {
+                                        e->elems = std::move(ee->elems);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return;
+    } else if (auto m = instance_of(spec, Match)) {
+        for (auto &pm : *m->match_list) {
+            spec_remove_state(proj, pm->body.get());
+        }
+
+        return;
+    } else if (auto i = instance_of(spec, If)) {
+        spec_remove_state(proj, i->then_body.get());
+        spec_remove_state(proj, i->else_body.get());
+
+        return;
+    } else if (auto r = instance_of(spec, RelyAnno)) {
+        spec_remove_state(proj, r->body.get());
+
+        return;
+    } else if (auto s = instance_of(spec, Symbol)) {
+        if (s->text == "None") {
+            s->set_type(SpecType::UNKNOWN_TYPE);
+            return;
+        }
+    }
+
+    throw std::runtime_error("spec_remove_state: unexpected node: " + string(*spec));
+    return ;
+}
+
 } // namespace autov

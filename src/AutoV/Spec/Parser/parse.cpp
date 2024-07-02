@@ -817,7 +817,7 @@ antlrcpp::Any ProgramVisitor::visitAnno_stmt(SpecParser::Anno_stmtContext* ctx) 
     auto prop = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr(ctx->expr(0))));
     auto body = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr(ctx->expr(1))));
 
-    return (SpecNode *)(new Rely(move(prop), std::move(body)));
+    return (SpecNode *)(new Anno(move(prop), std::move(body)));
 }
 
 antlrcpp::Any ProgramVisitor::visitFunc_call(SpecParser::Func_callContext* ctx) {

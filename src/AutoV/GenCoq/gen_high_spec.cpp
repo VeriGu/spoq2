@@ -17,6 +17,7 @@ void gen_specs(Project *proj, loc_t loc, string out_path, string cache_out = "")
     vector<string> syms;
     for (auto const& [ s ,v ] : proj->symbols){
         if (v.loc == loc) {
+            std::cout << "symbol: " << s << ", order: " << v.order << std::endl;
             syms.push_back(s);
         }
     }

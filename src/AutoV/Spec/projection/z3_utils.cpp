@@ -413,8 +413,9 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             return _cache(static_pointer_cast<IndValue>(elems[0])->concat(static_pointer_cast<IndValue>(elems[1])));
         else if (op_eq(expr->op, Expr::ops::Some))
             return _cache(static_pointer_cast<Option>(val->get_type())->construct("Some", {elems[0]}));
-        else if (op_eq(expr->op,Expr::ops::Tuple))
+        else if (op_eq(expr->op,Expr::ops::Tuple)) {
             return _cache(static_pointer_cast<Tuple>(val->get_type())->construct(elems));
+        }
         else if (op_eq(expr->op, "prop"))
             return _cache(elems[0]);
         else if (op_eq(expr->op,"ptr_to_int"))

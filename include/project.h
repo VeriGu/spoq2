@@ -101,6 +101,7 @@ public:
         std::set<string> TrySplit;
         std::unordered_map<string, vector<string>> AddDep;
         bool NoUnfoldAll = false;
+        bool NoHighSpec = false;
         std::map<string, vector<unique_ptr<SpecNode>>> InitRely;
     };
     cmds cmds;

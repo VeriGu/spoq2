@@ -2,6 +2,7 @@
 #include <z3_rules.h>
 #include <projection.h>
 #include <project.h>
+#include <shortcuts.h>
 #include <mutex>
 namespace autov {
 
@@ -52,11 +53,11 @@ extern unordered_map<size_t, Z3Result> Z3Cache;
 
 std::mutex Z3mtx;
 
-void spec_transformer(Project *proj, Definition *def, bool unfold) {
+void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold) {
     LOG_INFO << "Transforming " << def->name;
     // std::cout << string(*def) << std::endl;
 
-    bool debug = unfold && (def->name.rfind("rtt_walk_lock_unlock", 0) == 0);
+    bool debug = unfold && (def->name.rfind("smc_rtt_create", 0) == 0);
     auto known = std::set<string>();
     auto fname = def->name;
 
@@ -177,7 +178,7 @@ void spec_transformer(Project *proj, Definition *def, bool unfold) {
                 break;
         }
 
-//#define APPLY_LENS
+#define APPLY_LENS
 #ifdef APPLY_LENS
         // lens
         while (true) {
@@ -249,6 +250,98 @@ void spec_transformer(Project *proj, Definition *def, bool unfold) {
         def->_str = "";
         if (!changed)
             break;
+    }
+
+    bool has_if = false;
+
+    if (unfold && spec_is_pure(proj, def->body.get(), has_if)) {
+        if (!has_if)
+            return;
+
+        auto rettype = static_cast<Option *>(def->rettype.get());
+        auto ret_elem_type = rettype->elem_type.get();
+
+        if (!is_instance(ret_elem_type, Tuple))
+            return;
+
+        auto arg_prime = make_unique<vector<shared_ptr<Arg>>>();
+        auto name_prime = def->name + "'";
+
+        int skip_state = spec_needs_state(proj, def->body.get()) ? 0 : 1;
+
+        for (int i = 0; i < def->args->size() - skip_state; i++)
+            arg_prime->push_back(def->args->at(i));
+
+        shared_ptr<SpecType> prime_rettype;
+        if (skip_state) {
+            spec_remove_state(proj, def->body.get());
+
+            assert(is_instance(def->rettype.get(), Option));
+
+            auto _ret_tuple = static_cast<Option *>(def->rettype.get())->elem_type.get();
+
+            assert(is_instance(_ret_tuple, Tuple));
+
+            auto ret_tuple = static_cast<Tuple *>(_ret_tuple);
+
+            shared_ptr<Option> new_option;
+            if (ret_tuple->types->size() > 2) {
+                auto new_tuple_elems_type = make_shared<vector<shared_ptr<SpecType>>>();
+
+                for (int i = 0; i < ret_tuple->types->size() - 1; i++)
+                    new_tuple_elems_type->push_back(ret_tuple->types->at(i));
+
+                auto new_tuple = make_shared<Tuple>(new_tuple_elems_type);
+                new_option = make_shared<Option>(new_tuple);
+            } else {
+                new_option = make_shared<Option>(ret_tuple->types->at(0));
+            }
+
+            prime_rettype = new_option;
+        } else
+            prime_rettype = def->rettype;
+
+        auto def_prime = make_unique<Definition>(name_prime, prime_rettype, std::move(arg_prime), std::move(def->body));
+
+        auto &L = proj->layers[layer_id];
+
+        std::cout << "def_prime:\n" << string(*def_prime) << std::endl;
+
+        proj->add_definition(std::move(def_prime), make_shared<loc_t>(L->name, Project::LOC_SPEC, ""), 0);
+
+        auto new_body_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+
+        for (int i = 0; i < def->args->size() - skip_state; i++)
+            new_body_elems->push_back(make_unique<Symbol>(def->args->at(i)->name));
+
+        auto new_expr = new Expr(def->name + "'", move(new_body_elems));
+
+        SpecNode *res;
+        if (!skip_state) {
+            auto res_tuple = new vector<unique_ptr<SpecNode>>();
+
+            res_tuple->push_back(make_unique<Symbol>("ret"));
+            res_tuple->push_back(make_unique<Symbol>("st'"));
+
+            res = _Tuple(res_tuple);
+        } else {
+            res = new Symbol("ret");
+        }
+
+        //auto res = _Tuple(res_tuple);
+
+        auto ret_tuple = new vector<unique_ptr<SpecNode>>();
+
+        ret_tuple->push_back(make_unique<Symbol>("ret"));
+        ret_tuple->push_back(make_unique<Symbol>("st"));
+
+        auto ret = _Some(_Tuple(ret_tuple));
+
+        auto new_body = _When(res, new_expr, ret);
+
+        def->body = unique_ptr<SpecNode>(new_body);
+
+        proj->cmds.NoUnfold.insert(name_prime);
     }
 }
 

@@ -57,12 +57,17 @@ void gen_layer(Project* proj, int i, string path) {
 
     if(std::get<2>(loc) != "") {
       l += "." + std::get<2>(loc);
+
+
+      
     }
 
     deps.insert(l);
   }
 
   for(auto d : deps) {
+    if (d == "")
+      continue;
     out << "Require Import " + d + ".\n";
   }
   out << "\n";

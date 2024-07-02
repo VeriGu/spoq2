@@ -140,9 +140,10 @@ rule_ret_t remove_rely_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState
     return merge_rely(proj, spec, state);
 }
 
-rule_ret_t simple_rely_by_z3(Project* proj, Rely* spec, shared_ptr<EvalState> state) {
+rule_ret_t simple_rely_by_z3(Project* proj, RelyAnno* spec, shared_ptr<EvalState> state) {
     bool changed = false;
-    auto orig_prop = string(*spec->prop);
+    //auto orig_prop = string(*spec->prop);
+    bool is_rely = is_instance(spec, Rely);
     auto ret = rule_simple_by_z3(proj, spec->prop.release(), state);
     changed |= ret.second;
     auto cond = ret.first;
@@ -166,7 +167,11 @@ rule_ret_t simple_rely_by_z3(Project* proj, Rely* spec, shared_ptr<EvalState> st
             //throw std::runtime_error("Rely condition is false1: " + orig_prop);
             return std::make_pair(nullptr, changed);
         }
-        return std::make_pair(new Rely(unique_ptr<SpecNode>(cond), unique_ptr<SpecNode>(body)), changed);
+
+        if (is_rely)
+            return std::make_pair(new Rely(unique_ptr<SpecNode>(cond), unique_ptr<SpecNode>(body)), changed);
+        else
+            return std::make_pair(new Anno(unique_ptr<SpecNode>(cond), unique_ptr<SpecNode>(body)), changed);
     } else if (res == Z3Result::True) {
         auto ret = rule_simple_by_z3(proj, spec->body.release(), state);
         delete cond;
@@ -210,7 +215,7 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
     //     }
     // }
 
-    auto res = z3_check(state, c->get_z3_value(), 200);
+    auto res = z3_check(state, c->get_z3_value(), 2000);
 
     if (res == Z3Result::Unknown) {
         //std::cout << "simple_if_by_z3: unknown condition: " << orig_cond << std::endl;
@@ -953,7 +958,7 @@ rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState
         ret = simple_expr_by_z3(proj, expr, state);
     } else if (auto match = instance_of(spec, Match)) {
         ret = simple_match_by_z3(proj, match, state);
-    } else if (auto rely = instance_of(spec, Rely)) {
+    } else if (auto rely = instance_of(spec, RelyAnno)) {
         ret = simple_rely_by_z3(proj, rely, state);
     } else if (auto if_ = instance_of(spec, If)) {
         ret = simple_if_by_z3(proj, if_, state);

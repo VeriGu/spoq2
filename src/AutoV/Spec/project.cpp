@@ -204,6 +204,12 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             this->cmds.OnlyTrans.insert(s->text);
         } else if (op_str == "NoUnfoldAll") {
             this->cmds.NoUnfoldAll = true;
+        } else if (op_str == "NoHighSpec") {
+            assert(cmd->elems->size() == 1 && dynamic_cast<Const *>(cmd->elems->at(0).get()));
+            auto s = dynamic_cast<Const *>(cmd->elems->at(0).get());
+
+            if (string(*s) == "true")
+                this->cmds.NoHighSpec = true;
         } else {
             LOG_WARNING << "Unknown command " << op_str;
         }
@@ -418,7 +424,7 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
             } else
                 proj->add_definition(unique_ptr<Definition>(def), loc);
 
-            spec_transformer(proj, def, false);
+            spec_transformer(proj, def, layer_id, false);
 
             if (def->name.rfind(suffix) == def->name.size() - suffix.size()) {
                 std::string high_name = def->name.substr(0, def->name.size() - suffix.size());
@@ -624,6 +630,7 @@ static string
 infer_spec_task(Project *proj, int layer_id, string fname) {
     auto &L = proj->layers[layer_id];
     vector<Definition *> *low_specs;
+    unsigned long symbol_order = proj->symbols.size();
 #ifdef MT_TRANSFORM
     vector<Definition *> high_specs;
 #endif
@@ -687,17 +694,17 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
             high_def = new Fixpoint(high_name, proj->defs[low_name]->rettype, std::move(high_args),
                                     std::move(high_body));
             proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(tmp_high_def)),
-                                 make_shared<loc_t>(L->name, Project::LOC_SPEC, ""), i);
+                                 make_shared<loc_t>(L->name, Project::LOC_SPEC, ""), i + symbol_order);
         } else {
             high_def = new Definition(high_name, proj->defs[low_name]->rettype, std::move(high_args),
                                       std::move(high_body));
         }
 
         // Transform the low spec to high spec
-        bool no_trans = proj->cmds.NoTrans.find(name_map[low_name]) != proj->cmds.NoTrans.end();
+        bool no_trans = proj->cmds.NoHighSpec || proj->cmds.NoTrans.find(name_map[low_name]) != proj->cmds.NoTrans.end();
 
         if (!no_trans) {
-            spec_transformer(proj, high_def);
+            spec_transformer(proj, high_def, layer_id, layer_id);
             std::cout << "Transformed: " << std::endl << string(*high_def) << std::endl;
         } else {
             LOG_INFO << "No transformation for " << high_name;
@@ -708,13 +715,14 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
 #endif
         if (is_instance(low_def, Fixpoint))
             proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(high_def)),
-                                 make_shared<loc_t>(L->name, Project::LOC_SPEC, ""), i);
+                                 make_shared<loc_t>(L->name, Project::LOC_SPEC, ""), i + symbol_order);
         else
             proj->add_definition(unique_ptr<Definition>(high_def), make_shared<loc_t>(L->name, Project::LOC_SPEC, ""),
-                                 i);
+                                 i + symbol_order);
 
 
 #ifdef MT_TRANSFORM
+        // TODO: prim_spec is not passed back to the main process
         high_specs.push_back(high_def);
 #endif
     }
