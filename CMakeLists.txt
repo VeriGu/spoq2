@@ -35,7 +35,7 @@ endif()
 # ------------------------------------------------------------------------------
 # libTBB
 # ------------------------------------------------------------------------------
-find_package(TBB REQUIRED)
+# find_package(TBB REQUIRED)
 
 # ------------------------------------------------------------------------------
 # External libaries are always build in release mode
@@ -92,7 +92,7 @@ set(IRLOADER_SOURCES
 )
 
 add_library(irloader SHARED ${IRLOADER_SOURCES})
-target_link_libraries(irloader TBB::tbb)
+#target_link_libraries(irloader TBB::tbb)
 if(Boost_FOUND)
     target_link_libraries(irloader ${Boost_LIBRARIES})
 endif()
@@ -105,7 +105,7 @@ set(JSON2COQ_SOURCES
 )
 
 add_executable(json2coq ${JSON2COQ_SOURCES})
-target_link_libraries(json2coq TBB::tbb)
+# target_link_libraries(json2coq TBB::tbb)
 if(Boost_FOUND)
     target_link_libraries(json2coq ${Boost_LIBRARIES})
 endif()
@@ -121,17 +121,19 @@ set(PARSER_SOURCES
     src/AutoV/Spec/Parser/parse_light.cpp
 )
 add_library(parser SHARED ${PARSER_SOURCES})
-target_link_libraries(parser TBB::tbb)
+# target_link_libraries(parser TBB::tbb)
 if(Boost_FOUND)
     target_link_libraries(parser ${Boost_LIBRARIES})
 endif()
 target_compile_options(parser PRIVATE -O3 -UDEBUG)
 
 
-if(MT_TRANSFORM)
-    message("MT_TRANSFORM: ${MT_TRANSFORM}")
-    add_definitions(-DMT_TRANSFORM=${MT_TRANSFORM})
-endif()
+#if(MT_TRANSFORM)
+#    message("MT_TRANSFORM: ${MT_TRANSFORM}")
+#    add_definitions(-DMT_TRANSFORM=${MT_TRANSFORM})
+#endif()
+
+add_definitions(-DMT_TRANSFORM=0)
 
 # List all source files explicitly
 set(SOURCES
@@ -161,7 +163,7 @@ set(SOURCES
 # Specify the executable target and its source files
 add_executable(spoq ${SOURCES})
 # Link the shared library to the main executable
-target_link_libraries(spoq irloader parser antlr4_shared libz3 TBB::tbb)
+target_link_libraries(spoq irloader parser antlr4_shared libz3)
 
 # Link the Boost libraries to the executable
 if(Boost_FOUND)
