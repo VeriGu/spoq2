@@ -3,6 +3,12 @@ Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import ExceptionOps.Spec.
 Require Import Bottom.Spec.
+Require Import ValidateTable.Spec.
+Require Import LockGranules.Spec.
+Require Import S2TTCreate.Spec.
+Require Import S2TTEDesc.Spec.
+Require Import TableAux.Spec.
+Require Import TableWalk.Spec.
 
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
@@ -2556,412 +2562,6 @@ Definition smc_rtt_fold_spec (v_rtt_addr: Z) (v_rd_addr: Z) (v_map_addr: Z) (v_u
       else None))
   else (Some (1, st)).
 
-Definition smc_data_create_unknown_spec (v_data_addr: Z) (v_rd_addr: Z) (v_map_addr: Z) (st: RData) : (option (Z * RData)) :=
-  when v_call, st_4 == ((find_lock_two_granules_spec v_data_addr 1 (mkPtr "stack_g0" 0) v_rd_addr 2 (mkPtr "stack_g1" 0) st));
-  if v_call
-  then (
-    rely (
-      (((((st_4.(stack)).(stack_g1)) > (0)) /\ (((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >= (0)))) /\
-        (((((st_4.(stack)).(stack_g1)) - (18446744073705226240)) < (0)))));
-    rely (((((st_4.(stack)).(stack_g1)) mod (16)) = (0)));
-    rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
-    rely ((((((st_4.(share)).(granules)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(e_lock)) = ((Some CPU_ID))));
-    when cid == (((((st_4.(share)).(granules)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(e_lock)));
-    if (
-      ((((1 << (((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_ipa_bits)))) >> (1)) -
-        (v_map_addr)) >?
-        (0)))
-    then (
-      if ((((v_map_addr & (281474976710655)) & (((- 1) << (12)))) - (v_map_addr)) =? (0))
-      then (
-        rely (
-          (((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (STACK_VIRT)) < (0)) /\
-            (((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) >= (0)))));
-        rely (
-          ((((((st_4.(share)).(granules)) @
-            ((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) /
-              (ST_GRANULE_SIZE))).(e_state)) -
-            (6)) =
-            (0)));
-        rely (((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) mod (16)) = (0)));
-        when sh == (
-            ((st_4.(repl))
-              ((st_4.(oracle)) (st_4.(log)))
-              ((st_4.(share)).[slots] :< (((st_4.(share)).(slots)) # SLOT_RD == ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))))));
-        if (
-          match (
-            (((((lens 82 st_4).(share)).(granules)) @
-              (1152921504605528063 +
-                ((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) / (ST_GRANULE_SIZE))))).(e_lock))
-          ) with
-          | (Some cid_0) => true
-          | None => false
-          end)
-        then (
-          when st_13 == (
-              (rtt_walk_lock_unlock_spec
-                (mkPtr
-                  "granules"
-                  (((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)))
-                ((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_s2_starting_level))
-                ((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_ipa_bits))
-                v_map_addr
-                3
-                (mkPtr "stack_wi" 0)
-                ((lens 83 st_4).[share].[slots] :< (((st_4.(share)).(slots)) # SLOT_RD == ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))))));
-          if ((((st_13.(stack)).(stack_wi)).(e_last_level)) =? (3))
-          then (
-            rely (((((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (STACK_VIRT)) < (0)) /\ ((((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))));
-            rely ((((((st_13.(stack)).(stack_wi)).(e_g_llt)) mod (16)) = (0)));
-            when cid_0 == (((((st_13.(share)).(granules)) @ (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(e_lock)));
-            if (
-              (((((((st_13.(share)).(granule_data)) @ (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_13.(stack)).(stack_wi)).(e_index))))) &
-                (3)) =?
-                (0)))
-            then (
-              if (
-                (((((((st_13.(share)).(granule_data)) @ (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_13.(stack)).(stack_wi)).(e_index))))) &
-                  (60)) =?
-                  (0)))
-              then (
-                if (
-                  (((((((st_13.(share)).(granule_data)) @ (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_13.(stack)).(stack_wi)).(e_index))))) &
-                    (64)) =?
-                    (0)))
-                then (
-                  when v_call_0, st_0 == (
-                      (data_create_1
-                        v_data_addr
-                        (mkPtr "stack_wi" 0)
-                        (mkPtr "slot_rtt" 0)
-                        (mkPtr "slot_rd" 0)
-                        (mkPtr "stack_g1" 0)
-                        (mkPtr "stack_g0" 0)
-                        st
-                        (st_13.[share].[slots] :< (((st_13.(share)).(slots)) # SLOT_RTT == (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))));
-                  (Some (v_call_0, st_0)))
-                else (
-                  when v_call_0, st_0 == (
-                      (data_create_2
-                        v_data_addr
-                        (mkPtr "stack_wi" 0)
-                        (mkPtr "slot_rtt" 0)
-                        (mkPtr "slot_rd" 0)
-                        (mkPtr "stack_g1" 0)
-                        (mkPtr "stack_g0" 0)
-                        st
-                        (st_13.[share].[slots] :< (((st_13.(share)).(slots)) # SLOT_RTT == (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))));
-                  (Some (v_call_0, st_0))))
-              else (
-                when v_call_0, st_0 == (
-                    (data_create_3
-                      (mkPtr "slot_rtt" 0)
-                      (mkPtr "stack_wi" 0)
-                      (mkPtr "slot_rd" 0)
-                      (mkPtr "stack_g1" 0)
-                      (mkPtr "stack_g0" 0)
-                      st
-                      (st_13.[share].[slots] :< (((st_13.(share)).(slots)) # SLOT_RTT == (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))));
-                (Some (v_call_0, st_0))))
-            else (
-              when v_call_0, st_0 == (
-                  (data_create_3
-                    (mkPtr "slot_rtt" 0)
-                    (mkPtr "stack_wi" 0)
-                    (mkPtr "slot_rd" 0)
-                    (mkPtr "stack_g1" 0)
-                    (mkPtr "stack_g0" 0)
-                    st
-                    (st_13.[share].[slots] :< (((st_13.(share)).(slots)) # SLOT_RTT == (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))));
-              (Some (v_call_0, st_0))))
-          else (
-            when v_call_0, st_0 == ((data_create_4 (((st_13.(stack)).(stack_wi)).(e_last_level)) (mkPtr "stack_wi" 0) (mkPtr "slot_rd" 0) (mkPtr "stack_g1" 0) (mkPtr "stack_g0" 0) st st_13));
-            (Some (v_call_0, st_0))))
-        else None)
-      else (
-        when v_call_0, st_0 == (
-            (data_create_5
-              (mkPtr "slot_rd" 0)
-              (mkPtr "stack_g1" 0)
-              (mkPtr "stack_g0" 0)
-              1
-              st
-              (st_4.[share].[slots] :< (((st_4.(share)).(slots)) # SLOT_RD == ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))))));
-        (Some (v_call_0, st_0))))
-    else (
-      when v_call_0, st_0 == (
-          (data_create_5
-            (mkPtr "slot_rd" 0)
-            (mkPtr "stack_g1" 0)
-            (mkPtr "stack_g0" 0)
-            1
-            st
-            (st_4.[share].[slots] :< (((st_4.(share)).(slots)) # SLOT_RD == ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))))));
-      (Some (v_call_0, st_0))))
-  else (Some (1, st_4)).
-
-Definition smc_data_create_spec (v_data_addr: Z) (v_rd_addr: Z) (v_map_addr: Z) (v_src_addr: Z) (v_flags: Z) (st: RData) : (option (Z * RData)) :=
-  if (v_flags <? (2))
-  then (
-    if ((v_src_addr & (4095)) =? (0))
-    then (
-      if ((v_src_addr / (GRANULE_SIZE)) >? (1048575))
-      then (Some (1, st))
-      else (
-        rely ((((0 - ((v_src_addr / (GRANULE_SIZE)))) <= (0)) /\ (((v_src_addr / (GRANULE_SIZE)) < (1048576)))));
-        if (
-          match (((((st.(share)).(granules)) @ (v_src_addr / (GRANULE_SIZE))).(e_lock))) with
-          | (Some cid) => true
-          | None => false
-          end)
-        then (
-          if (((((st.(share)).(granules)) @ (v_src_addr / (GRANULE_SIZE))).(e_state)) =? (0))
-          then (
-            when v_call, st_4 == ((find_lock_two_granules_spec v_data_addr 1 (mkPtr "stack_g0" 0) v_rd_addr 2 (mkPtr "stack_g1" 0) st));
-            if v_call
-            then (
-              rely (
-                (((((st_4.(stack)).(stack_g1)) > (0)) /\ (((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >= (0)))) /\
-                  (((((st_4.(stack)).(stack_g1)) - (18446744073705226240)) < (0)))));
-              rely (((((st_4.(stack)).(stack_g1)) mod (16)) = (0)));
-              rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
-              when cid == (((((st_4.(share)).(granules)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(e_lock)));
-              if ((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_rd_state)) =? (0))
-              then (
-                rely (((Some cid) = ((Some CPU_ID))));
-                if (
-                  ((((1 << (((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_ipa_bits)))) >> (1)) -
-                    (v_map_addr)) >?
-                    (0)))
-                then (
-                  if ((((v_map_addr & (281474976710655)) & (((- 1) << (12)))) - (v_map_addr)) =? (0))
-                  then (
-                    rely (
-                      (((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (STACK_VIRT)) < (0)) /\
-                        (((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) >= (0)))));
-                    rely (
-                      ((((((st_4.(share)).(granules)) @
-                        ((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) /
-                          (ST_GRANULE_SIZE))).(e_state)) -
-                        (6)) =
-                        (0)));
-                    rely (((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) mod (16)) = (0)));
-                    when sh == (
-                        ((st_4.(repl))
-                          ((st_4.(oracle)) (st_4.(log)))
-                          ((st_4.(share)).[slots] :< (((st_4.(share)).(slots)) # SLOT_RD == ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))))));
-                    if (
-                      match (
-                        (((((lens 84 st_4).(share)).(granules)) @
-                          (1152921504605528063 +
-                            ((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) / (ST_GRANULE_SIZE))))).(e_lock))
-                      ) with
-                      | (Some cid_0) => true
-                      | None => false
-                      end)
-                    then (
-                      when st_13 == (
-                          (rtt_walk_lock_unlock_spec
-                            (mkPtr
-                              "granules"
-                              (((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)))
-                            ((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_s2_starting_level))
-                            ((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_ipa_bits))
-                            v_map_addr
-                            3
-                            (mkPtr "stack_wi" 0)
-                            ((lens 85 st_4).[share].[slots] :< (((st_4.(share)).(slots)) # SLOT_RD == ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))))));
-                      if ((((st_13.(stack)).(stack_wi)).(e_last_level)) =? (3))
-                      then (
-                        rely (((((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (STACK_VIRT)) < (0)) /\ ((((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))));
-                        rely ((((((st_13.(stack)).(stack_wi)).(e_g_llt)) mod (16)) = (0)));
-                        when cid_0 == (((((st_13.(share)).(granules)) @ (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(e_lock)));
-                        if (
-                          (((((((st_13.(share)).(granule_data)) @ (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_13.(stack)).(stack_wi)).(e_index))))) &
-                            (3)) =?
-                            (0)))
-                        then (
-                          if (
-                            (((((((st_13.(share)).(granule_data)) @ (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_13.(stack)).(stack_wi)).(e_index))))) &
-                              (60)) =?
-                              (0)))
-                          then (
-                            if (
-                              (((((((st_13.(share)).(granule_data)) @ (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_13.(stack)).(stack_wi)).(e_index))))) &
-                                (64)) =?
-                                (0)))
-                            then (
-                              rely (
-                                (((((st_13.(stack)).(stack_g0)) > (0)) /\ (((((st_13.(stack)).(stack_g0)) - (GRANULES_BASE)) >= (0)))) /\
-                                  (((((st_13.(stack)).(stack_g0)) - (18446744073705226240)) < (0)))));
-                              rely (((((st_13.(stack)).(stack_g0)) mod (16)) = (0)));
-                              when v_call5, st_1 == (
-                                  (memcpy_ns_read_spec_state_oracle
-                                    (mkPtr "slot_delegated" 0)
-                                    (mkPtr "slot_ns" 0)
-                                    4096
-                                    (st_13.[share].[slots] :<
-                                      (((((st_13.(share)).(slots)) # SLOT_RTT == (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))) #
-                                        SLOT_DELEGATED ==
-                                        ((((st_13.(stack)).(stack_g0)) - (GRANULES_BASE)) >> (4))) #
-                                        SLOT_NS ==
-                                        (v_src_addr / (GRANULE_SIZE))))));
-                              if v_call5
-                              then (
-                                when v_call6, st_2 == (
-                                    (data_create_1
-                                      v_data_addr
-                                      (mkPtr "stack_wi" 0)
-                                      (mkPtr "slot_rtt" 0)
-                                      (mkPtr "slot_rd" 0)
-                                      (mkPtr "stack_g1" 0)
-                                      (mkPtr "stack_g0" 0)
-                                      st
-                                      (st_1.[share].[slots] :< ((((st_1.(share)).(slots)) # SLOT_NS == (- 1)) # SLOT_DELEGATED == (- 1)))));
-                                (Some (v_call6, st_2)))
-                              else (
-                                when cid_1 == (((((st_1.(share)).(granules)) @ ((((st_1.(share)).(slots)) # SLOT_NS == (- 1)) @ SLOT_DELEGATED)).(e_lock)));
-                                rely (((((((st_1.(stack)).(stack_wi)).(e_g_llt)) - (STACK_VIRT)) < (0)) /\ ((((((st_1.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))));
-                                when cid_2 == (((((st_1.(share)).(granules)) @ (((((st_1.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
-                                rely (
-                                  (((((st_1.(stack)).(stack_g1)) > (0)) /\ (((((st_1.(stack)).(stack_g1)) - (GRANULES_BASE)) >= (0)))) /\
-                                    (((((st_1.(stack)).(stack_g1)) - (18446744073705226240)) < (0)))));
-                                rely (
-                                  (((((st_1.(stack)).(stack_g0)) > (0)) /\ (((((st_1.(stack)).(stack_g0)) - (GRANULES_BASE)) >= (0)))) /\
-                                    (((((st_1.(stack)).(stack_g0)) - (18446744073705226240)) < (0)))));
-                                rely ((("granules" = ("granules")) /\ (((((st_1.(stack)).(stack_g0)) mod (16)) = (0)))));
-                                if (
-                                  match ((((((lens 86 st_1).(share)).(granules)) @ (1152921504605528063 + ((((st_1.(stack)).(stack_g0)) / (ST_GRANULE_SIZE))))).(e_lock))) with
-                                  | (Some cid_3) => true
-                                  | None => false
-                                  end)
-                                then (
-                                  (Some (
-                                    1  ,
-                                    (((lens 87 st_1).[share].[granule_data] :<
-                                      (((st_1.(share)).(granule_data)) #
-                                        ((((st_1.(share)).(slots)) # SLOT_NS == (- 1)) @ SLOT_DELEGATED) ==
-                                        ((((st_1.(share)).(granule_data)) @ ((((st_1.(share)).(slots)) # SLOT_NS == (- 1)) @ SLOT_DELEGATED)).[g_norm] :< zero_granule_data_normal))).[share].[slots] :<
-                                      ((((((st_1.(share)).(slots)) # SLOT_NS == (- 1)) # SLOT_DELEGATED == (- 1)) # SLOT_RTT == (- 1)) # SLOT_RD == (- 1)))
-                                  )))
-                                else None))
-                            else (
-                              rely (
-                                (((((st_13.(stack)).(stack_g0)) > (0)) /\ (((((st_13.(stack)).(stack_g0)) - (GRANULES_BASE)) >= (0)))) /\
-                                  (((((st_13.(stack)).(stack_g0)) - (18446744073705226240)) < (0)))));
-                              rely (((((st_13.(stack)).(stack_g0)) mod (16)) = (0)));
-                              when v_call5, st_1 == (
-                                  (memcpy_ns_read_spec_state_oracle
-                                    (mkPtr "slot_delegated" 0)
-                                    (mkPtr "slot_ns" 0)
-                                    4096
-                                    (st_13.[share].[slots] :<
-                                      (((((st_13.(share)).(slots)) # SLOT_RTT == (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))) #
-                                        SLOT_DELEGATED ==
-                                        ((((st_13.(stack)).(stack_g0)) - (GRANULES_BASE)) >> (4))) #
-                                        SLOT_NS ==
-                                        (v_src_addr / (GRANULE_SIZE))))));
-                              if v_call5
-                              then (
-                                when v_call6, st_2 == (
-                                    (data_create_2
-                                      v_data_addr
-                                      (mkPtr "stack_wi" 0)
-                                      (mkPtr "slot_rtt" 0)
-                                      (mkPtr "slot_rd" 0)
-                                      (mkPtr "stack_g1" 0)
-                                      (mkPtr "stack_g0" 0)
-                                      st
-                                      (st_1.[share].[slots] :< ((((st_1.(share)).(slots)) # SLOT_NS == (- 1)) # SLOT_DELEGATED == (- 1)))));
-                                (Some (v_call6, st_2)))
-                              else (
-                                when cid_1 == (((((st_1.(share)).(granules)) @ ((((st_1.(share)).(slots)) # SLOT_NS == (- 1)) @ SLOT_DELEGATED)).(e_lock)));
-                                rely (((((((st_1.(stack)).(stack_wi)).(e_g_llt)) - (STACK_VIRT)) < (0)) /\ ((((((st_1.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))));
-                                when cid_2 == (((((st_1.(share)).(granules)) @ (((((st_1.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
-                                rely (
-                                  (((((st_1.(stack)).(stack_g1)) > (0)) /\ (((((st_1.(stack)).(stack_g1)) - (GRANULES_BASE)) >= (0)))) /\
-                                    (((((st_1.(stack)).(stack_g1)) - (18446744073705226240)) < (0)))));
-                                rely (
-                                  (((((st_1.(stack)).(stack_g0)) > (0)) /\ (((((st_1.(stack)).(stack_g0)) - (GRANULES_BASE)) >= (0)))) /\
-                                    (((((st_1.(stack)).(stack_g0)) - (18446744073705226240)) < (0)))));
-                                rely ((("granules" = ("granules")) /\ (((((st_1.(stack)).(stack_g0)) mod (16)) = (0)))));
-                                if (
-                                  match ((((((lens 88 st_1).(share)).(granules)) @ (1152921504605528063 + ((((st_1.(stack)).(stack_g0)) / (ST_GRANULE_SIZE))))).(e_lock))) with
-                                  | (Some cid_3) => true
-                                  | None => false
-                                  end)
-                                then (
-                                  (Some (
-                                    1  ,
-                                    (((lens 89 st_1).[share].[granule_data] :<
-                                      (((st_1.(share)).(granule_data)) #
-                                        ((((st_1.(share)).(slots)) # SLOT_NS == (- 1)) @ SLOT_DELEGATED) ==
-                                        ((((st_1.(share)).(granule_data)) @ ((((st_1.(share)).(slots)) # SLOT_NS == (- 1)) @ SLOT_DELEGATED)).[g_norm] :< zero_granule_data_normal))).[share].[slots] :<
-                                      ((((((st_1.(share)).(slots)) # SLOT_NS == (- 1)) # SLOT_DELEGATED == (- 1)) # SLOT_RTT == (- 1)) # SLOT_RD == (- 1)))
-                                  )))
-                                else None)))
-                          else (
-                            when v_call6, st_2 == (
-                                (data_create_3
-                                  (mkPtr "slot_rtt" 0)
-                                  (mkPtr "stack_wi" 0)
-                                  (mkPtr "slot_rd" 0)
-                                  (mkPtr "stack_g1" 0)
-                                  (mkPtr "stack_g0" 0)
-                                  st
-                                  (st_13.[share].[slots] :< (((st_13.(share)).(slots)) # SLOT_RTT == (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))));
-                            (Some (v_call6, st_2))))
-                        else (
-                          when v_call6, st_2 == (
-                              (data_create_3
-                                (mkPtr "slot_rtt" 0)
-                                (mkPtr "stack_wi" 0)
-                                (mkPtr "slot_rd" 0)
-                                (mkPtr "stack_g1" 0)
-                                (mkPtr "stack_g0" 0)
-                                st
-                                (st_13.[share].[slots] :< (((st_13.(share)).(slots)) # SLOT_RTT == (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))));
-                          (Some (v_call6, st_2))))
-                      else (
-                        when v_call6, st_2 == ((data_create_4 (((st_13.(stack)).(stack_wi)).(e_last_level)) (mkPtr "stack_wi" 0) (mkPtr "slot_rd" 0) (mkPtr "stack_g1" 0) (mkPtr "stack_g0" 0) st st_13));
-                        (Some (v_call6, st_2))))
-                    else None)
-                  else (
-                    when v_call6, st_2 == (
-                        (data_create_5
-                          (mkPtr "slot_rd" 0)
-                          (mkPtr "stack_g1" 0)
-                          (mkPtr "stack_g0" 0)
-                          1
-                          st
-                          (st_4.[share].[slots] :< (((st_4.(share)).(slots)) # SLOT_RD == ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))))));
-                    (Some (v_call6, st_2))))
-                else (
-                  when v_call6, st_2 == (
-                      (data_create_5
-                        (mkPtr "slot_rd" 0)
-                        (mkPtr "stack_g1" 0)
-                        (mkPtr "stack_g0" 0)
-                        1
-                        st
-                        (st_4.[share].[slots] :< (((st_4.(share)).(slots)) # SLOT_RD == ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))))));
-                  (Some (v_call6, st_2))))
-              else (
-                when v_call6, st_2 == (
-                    (data_create_5
-                      (mkPtr "slot_rd" 0)
-                      (mkPtr "stack_g1" 0)
-                      (mkPtr "stack_g0" 0)
-                      2
-                      st
-                      (st_4.[share].[slots] :< (((st_4.(share)).(slots)) # SLOT_RD == ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))))));
-                (Some (v_call6, st_2))))
-            else (Some (1, st_4)))
-          else (Some (1, st)))
-        else None))
-    else (Some (1, st)))
-  else (Some (1, st)).
-
 Fixpoint s2tt_init_assigned_empty_loop700 (_N_: nat) (__return__: bool) (v_call: Z) (v_indvars_iv: Z) (v_level: Z) (v_pa_addr_05: Z) (v_s2tt: Ptr) (st: RData) : (option (bool * Z * Z * Z * Z * Ptr * RData)) :=
   match (_N_) with
   | O => (Some (__return__, v_call, v_indvars_iv, v_level, v_pa_addr_05, v_s2tt, st))
@@ -3140,7 +2740,468 @@ Fixpoint s2tt_init_valid_ns_loop738 (_N_: nat) (__return__: bool) (v_call: Z) (v
     end
   end.
 
+  Definition smc_rtt_destroy_1 (v_wi: Ptr) (v_call16: Ptr) (v_map_addr: Z) (v_s2_ctx: Ptr) (v_call36: Ptr) (v_call31: Ptr) (st_0: RData) (st_24: RData) : (option (Z * RData)) :=
+    rely (((v_wi.(pbase)) = ("stack_wi")));
+    rely (((v_wi.(poffset)) = (0)));
+    rely (((v_call16.(pbase)) = ("slot_rtt")));
+    rely (((v_s2_ctx.(pbase)) = ("stack_s2_ctx")));
+    rely (((v_s2_ctx.(poffset)) = (0)));
+    rely (((v_call36.(pbase)) = ("slot_rtt2")));
+    rely (((v_call31.(pbase)) = ("granules")));
+    rely (
+      ((((((st_24.(stack)).(stack_wi)).(e_g_llt)) > (0)) /\ ((((((st_24.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+        ((((((st_24.(stack)).(stack_wi)).(e_g_llt)) - (18446744073705226240)) < (0)))));
+    rely ((("granules" = ("granules")) /\ ((((18446744073688449016 + ((((st_24.(stack)).(stack_wi)).(e_g_llt)))) mod (ST_GRANULE_SIZE)) = (8)))));
+    when cid == (((((st_24.(share)).(granules)) @ (1152921504605528063 + (((((st_24.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_lock)));
+    if ((((((st_24.(share)).(granules)) @ (1152921504605528063 + (((((st_24.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_refcount)) + ((- 1))) <? (0))
+    then None
+    else (
+      rely ((((v_call31.(pbase)) = ("granules")) /\ ((((v_call31.(poffset)) mod (ST_GRANULE_SIZE)) = (0)))));
+      rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+      (Some (
+        0  ,
+        ((lens 41 st_24).[share].[granule_data] :<
+          ((((st_24.(share)).(granule_data)) #
+            (((st_24.(share)).(slots)) @ SLOT_RTT) ==
+            ((((st_24.(share)).(granule_data)) @ (((st_24.(share)).(slots)) @ SLOT_RTT)).[g_norm] :<
+              (((((st_24.(share)).(granule_data)) @ (((st_24.(share)).(slots)) @ SLOT_RTT)).(g_norm)) #
+                ((v_call16.(poffset)) + ((8 * ((((st_24.(stack)).(stack_wi)).(e_index)))))) ==
+                0))) #
+            (((st_24.(share)).(slots)) @ SLOT_RTT2) ==
+            (((((st_24.(share)).(granule_data)) #
+              (((st_24.(share)).(slots)) @ SLOT_RTT) ==
+              ((((st_24.(share)).(granule_data)) @ (((st_24.(share)).(slots)) @ SLOT_RTT)).[g_norm] :<
+                (((((st_24.(share)).(granule_data)) @ (((st_24.(share)).(slots)) @ SLOT_RTT)).(g_norm)) #
+                  ((v_call16.(poffset)) + ((8 * ((((st_24.(stack)).(stack_wi)).(e_index)))))) ==
+                  0))) @ (((st_24.(share)).(slots)) @ SLOT_RTT2)).[g_norm] :<
+              zero_granule_data_normal)))
+      ))).
 
+  Definition smc_rtt_destroy_2 (v_wi: Ptr) (v_call16: Ptr) (v_map_addr: Z) (v_s2_ctx: Ptr) (v_call36: Ptr) (v_call31: Ptr) (st_0: RData) (st_24: RData) : (option (Z * RData)) :=
+    rely (((v_wi.(pbase)) = ("stack_wi")));
+    rely (((v_wi.(poffset)) = (0)));
+    rely (((v_call16.(pbase)) = ("slot_rtt")));
+    rely (((v_s2_ctx.(pbase)) = ("stack_s2_ctx")));
+    rely (((v_s2_ctx.(poffset)) = (0)));
+    rely (((v_call36.(pbase)) = ("slot_rtt2")));
+    rely (((v_call31.(pbase)) = ("granules")));
+    rely (
+      ((((((st_24.(stack)).(stack_wi)).(e_g_llt)) > (0)) /\ ((((((st_24.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+        ((((((st_24.(stack)).(stack_wi)).(e_g_llt)) - (18446744073705226240)) < (0)))));
+    rely ((("granules" = ("granules")) /\ ((((18446744073688449016 + ((((st_24.(stack)).(stack_wi)).(e_g_llt)))) mod (ST_GRANULE_SIZE)) = (8)))));
+    when cid == (((((st_24.(share)).(granules)) @ (1152921504605528063 + (((((st_24.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_lock)));
+    if ((((((st_24.(share)).(granules)) @ (1152921504605528063 + (((((st_24.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_refcount)) + ((- 1))) <? (0))
+    then None
+    else (
+      rely ((((v_call31.(pbase)) = ("granules")) /\ ((((v_call31.(poffset)) mod (ST_GRANULE_SIZE)) = (0)))));
+      rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+      (Some (
+        0  ,
+        ((lens 47 st_24).[share].[granule_data] :<
+          ((((st_24.(share)).(granule_data)) #
+            (((st_24.(share)).(slots)) @ SLOT_RTT) ==
+            ((((st_24.(share)).(granule_data)) @ (((st_24.(share)).(slots)) @ SLOT_RTT)).[g_norm] :<
+              (((((st_24.(share)).(granule_data)) @ (((st_24.(share)).(slots)) @ SLOT_RTT)).(g_norm)) #
+                ((v_call16.(poffset)) + ((8 * ((((st_24.(stack)).(stack_wi)).(e_index)))))) ==
+                8))) #
+            (((st_24.(share)).(slots)) @ SLOT_RTT2) ==
+            (((((st_24.(share)).(granule_data)) #
+              (((st_24.(share)).(slots)) @ SLOT_RTT) ==
+              ((((st_24.(share)).(granule_data)) @ (((st_24.(share)).(slots)) @ SLOT_RTT)).[g_norm] :<
+                (((((st_24.(share)).(granule_data)) @ (((st_24.(share)).(slots)) @ SLOT_RTT)).(g_norm)) #
+                  ((v_call16.(poffset)) + ((8 * ((((st_24.(stack)).(stack_wi)).(e_index)))))) ==
+                  8))) @ (((st_24.(share)).(slots)) @ SLOT_RTT2)).[g_norm] :<
+              zero_granule_data_normal)))
+      ))).
+
+  Definition smc_rtt_destroy_3 (v_call17: Z) (v_ulevel: Z) (v_rtt_addr: Z) (v_call9: bool) (v_wi: Ptr) (v_call16: Ptr) (v_map_addr: Z) (v_s2_ctx: Ptr) (st_0: RData) (st_20: RData) : (option (Z * RData)) :=
+    rely (((v_wi.(pbase)) = ("stack_wi")));
+    rely (((v_wi.(poffset)) = (0)));
+    rely (((v_call16.(pbase)) = ("slot_rtt")));
+    if ((((v_call17 & (281474976710655)) & (((- 1) << (12)))) - (v_rtt_addr)) =? (0))
+    then (
+      if ((v_rtt_addr & (4095)) =? (0))
+      then (
+        if ((v_rtt_addr / (GRANULE_SIZE)) >? (1048575))
+        then None
+        else (
+          rely ((((0 - ((v_rtt_addr / (GRANULE_SIZE)))) <= (0)) /\ (((v_rtt_addr / (GRANULE_SIZE)) < (1048576)))));
+          rely (((((((st_20.(share)).(granules)) @ (v_rtt_addr / (GRANULE_SIZE))).(e_state)) - (6)) = (0)));
+          when sh == (((st_20.(repl)) ((st_20.(oracle)) (st_20.(log))) (st_20.(share))));
+          if ((((((lens 31 st_20).(share)).(granules)) @ (v_rtt_addr / (GRANULE_SIZE))).(e_refcount)) =? (0))
+          then (
+            rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+            if v_call9
+            then (
+              (smc_rtt_destroy_2
+                v_wi
+                v_call16
+                v_map_addr
+                v_s2_ctx
+                (mkPtr "slot_rtt2" 0)
+                (mkPtr "granules" (16 * ((v_rtt_addr / (GRANULE_SIZE)))))
+                st_0
+                ((lens 31 st_20).[share].[slots] :< (((st_20.(share)).(slots)) # SLOT_RTT2 == (v_rtt_addr / (GRANULE_SIZE))))))
+            else (
+              (smc_rtt_destroy_1
+                v_wi
+                v_call16
+                v_map_addr
+                v_s2_ctx
+                (mkPtr "slot_rtt2" 0)
+                (mkPtr "granules" (16 * ((v_rtt_addr / (GRANULE_SIZE)))))
+                st_0
+                ((lens 31 st_20).[share].[slots] :< (((st_20.(share)).(slots)) # SLOT_RTT2 == (v_rtt_addr / (GRANULE_SIZE)))))))
+          else (
+            rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+            rely (
+              ((((((st_20.(stack)).(stack_wi)).(e_g_llt)) > (0)) /\ ((((((st_20.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+                ((((((st_20.(stack)).(stack_wi)).(e_g_llt)) - (18446744073705226240)) < (0)))));
+            (Some (5, (lens 49 st_20))))))
+      else None)
+    else (
+      rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+      rely (
+        ((((((st_20.(stack)).(stack_wi)).(e_g_llt)) > (0)) /\ ((((((st_20.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+          ((((((st_20.(stack)).(stack_wi)).(e_g_llt)) - (18446744073705226240)) < (0)))));
+      when cid == (((((st_20.(share)).(granules)) @ (((((st_20.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
+      (Some (1, (lens 34 st_20)))).
+
+  Definition smc_rtt_destroy_spec (v_rtt_addr: Z) (v_rd_addr: Z) (v_map_addr: Z) (v_ulevel: Z) (st: RData) : (option (Z * RData)) :=
+    if ((v_rd_addr & (4095)) =? (0))
+    then (
+      if ((v_rd_addr / (GRANULE_SIZE)) >? (1048575))
+      then (Some (1, st))
+      else (
+        rely ((((0 - ((v_rd_addr / (GRANULE_SIZE)))) <= (0)) /\ (((v_rd_addr / (GRANULE_SIZE)) < (1048576)))));
+        rely (((((((st.(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))).(e_state)) - (2)) = (0)));
+        when sh == (((st.(repl)) ((st.(oracle)) (st.(log))) (st.(share))));
+        rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+        when ret, st' == (
+            (validate_rtt_structure_cmds_spec'
+              v_map_addr
+              v_ulevel
+              (mkPtr "slot_rd" 0)
+              ((lens 31 st).[share].[slots] :< (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))))));
+        if ret
+        then (
+          rely (
+            (((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) > (0)) /\
+              (((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) >= (0)))) /\
+              (((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (18446744073705226240)) < (0)))));
+          rely (((((((lens 31 st).(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))).(e_lock)) = ((Some CPU_ID))));
+          rely (
+            ((((((st.(share)).(granules)) @ ((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_state)) -
+              (6)) =
+              (0)));
+          rely (((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) mod (16)) = (0)));
+          when sh_0 == (
+              (((lens 31 st).(repl))
+                (((lens 31 st).(oracle)) ((lens 31 st).(log)))
+                (((lens 31 st).(share)).[slots] :< (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))))));
+          when st_14 == (
+              (rtt_walk_lock_unlock_spec
+                (mkPtr "granules" (((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)))
+                ((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_s2_starting_level))
+                ((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_ipa_bits))
+                v_map_addr
+                (v_ulevel + ((- 1)))
+                (mkPtr "stack_wi" 0)
+                (((lens 55 st).[share].[slots] :< (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))).[stack].[stack_s2_ctx] :<
+                  (((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)))));
+          if (((((st_14.(stack)).(stack_wi)).(e_last_level)) - ((v_ulevel + ((- 1))))) =? (0))
+          then (
+            rely (
+              ((((((st_14.(stack)).(stack_wi)).(e_g_llt)) > (0)) /\ ((((((st_14.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+                ((((((st_14.(stack)).(stack_wi)).(e_g_llt)) - (18446744073705226240)) < (0)))));
+            rely ((((((st_14.(stack)).(stack_wi)).(e_g_llt)) mod (16)) = (0)));
+            when cid == (((((st_14.(share)).(granules)) @ (((((st_14.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(e_lock)));
+            if (
+              (((v_ulevel + ((- 1))) <? (3)) &&
+                ((((((((st_14.(share)).(granule_data)) @ (((((st_14.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_14.(stack)).(stack_wi)).(e_index))))) &
+                  (3)) =?
+                  (3)))))
+            then (
+              (smc_rtt_destroy_3
+                (((((st_14.(share)).(granule_data)) @ (((((st_14.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_14.(stack)).(stack_wi)).(e_index)))))
+                v_ulevel
+                v_rtt_addr
+                ((((1 << (((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_ipa_bits)))) >> (1)) - (v_map_addr)) >? (0))
+                (mkPtr "stack_wi" 0)
+                (mkPtr "slot_rtt" 0)
+                v_map_addr
+                (mkPtr "stack_s2_ctx" 0)
+                st
+                (st_14.[share].[slots] :< (((st_14.(share)).(slots)) # SLOT_RTT == (((((st_14.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))))
+            else (
+              when cid_0 == (((((st_14.(share)).(granules)) @ (((((st_14.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
+              (Some (
+                ((((((v_ulevel + ((- 1))) << (32)) + (4)) >> (24)) & (4294967040)) |' (((((v_ulevel + ((- 1))) << (32)) + (4)) & (4294967295))))  ,
+                ((lens 56 st_14).[share].[slots] :< (((st_14.(share)).(slots)) # SLOT_RTT == (((((st_14.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))
+              ))))
+          else (
+            rely (
+              ((((((st_14.(stack)).(stack_wi)).(e_g_llt)) > (0)) /\ ((((((st_14.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+                ((((((st_14.(stack)).(stack_wi)).(e_g_llt)) - (18446744073705226240)) < (0)))));
+            when cid == (((((st_14.(share)).(granules)) @ (((((st_14.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
+            (Some (
+              ((((((((st_14.(stack)).(stack_wi)).(e_last_level)) << (32)) + (4)) >> (24)) & (4294967040)) |'
+                (((((((st_14.(stack)).(stack_wi)).(e_last_level)) << (32)) + (4)) & (4294967295))))  ,
+              (lens 34 st_14)
+            ))))
+        else (Some (1, ((lens 58 st).[share].[slots] :< (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))))))))
+    else (Some (1, st)).
+  Definition smc_data_create_spec (v_data_addr: Z) (v_rd_addr: Z) (v_map_addr: Z) (v_src_addr: Z) (v_flags: Z) (st: RData) : (option (Z * RData)) :=
+    if (v_flags <? (2))
+    then (
+      if ((v_src_addr & (4095)) =? (0))
+      then (
+        if ((v_src_addr / (GRANULE_SIZE)) >? (1048575))
+        then (Some (1, st))
+        else (
+          rely ((((0 - ((v_src_addr / (GRANULE_SIZE)))) <= (0)) /\ (((v_src_addr / (GRANULE_SIZE)) < (1048576)))));
+          if (((((st.(share)).(granules)) @ (v_src_addr / (GRANULE_SIZE))).(e_state)) =? (0))
+          then (
+            when v_call, st_4 == ((find_lock_two_granules_spec v_data_addr 1 (mkPtr "stack_g0" 0) v_rd_addr 2 (mkPtr "stack_g1" 0) st));
+            if v_call
+            then (
+              rely (
+                (((((st_4.(stack)).(stack_g1)) > (0)) /\ (((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >= (0)))) /\
+                  (((((st_4.(stack)).(stack_g1)) - (18446744073705226240)) < (0)))));
+              rely (((((st_4.(stack)).(stack_g1)) mod (16)) = (0)));
+              rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+              when ret, st' == (
+                  (validate_data_create_spec'
+                    v_map_addr
+                    (mkPtr "slot_rd" 0)
+                    (st_4.[share].[slots] :< (((st_4.(share)).(slots)) # SLOT_RD == ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))))));
+              if (ret =? (0))
+              then (
+                rely (
+                  (((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) > (0)) /\
+                    (((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) >= (0)))) /\
+                    (((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (18446744073705226240)) <
+                      (0)))));
+                rely (
+                  ((((((st_4.(share)).(granules)) @
+                    ((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) /
+                      (ST_GRANULE_SIZE))).(e_state)) -
+                    (6)) =
+                    (0)));
+                rely (((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) mod (16)) = (0)));
+                when sh == (
+                    ((st_4.(repl))
+                      ((st_4.(oracle)) (st_4.(log)))
+                      ((st_4.(share)).[slots] :< (((st_4.(share)).(slots)) # SLOT_RD == ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))))));
+                when st_13 == (
+                    (rtt_walk_lock_unlock_spec
+                      (mkPtr
+                        "granules"
+                        (((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)))
+                      ((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_s2_starting_level))
+                      ((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_ipa_bits))
+                      v_map_addr
+                      3
+                      (mkPtr "stack_wi" 0)
+                      ((lens 62 st_4).[share].[slots] :< (((st_4.(share)).(slots)) # SLOT_RD == ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))))));
+                if ((((st_13.(stack)).(stack_wi)).(e_last_level)) =? (3))
+                then (
+                  rely (
+                    ((((((st_13.(stack)).(stack_wi)).(e_g_llt)) > (0)) /\ ((((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+                      ((((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (18446744073705226240)) < (0)))));
+                  rely ((((((st_13.(stack)).(stack_wi)).(e_g_llt)) mod (16)) = (0)));
+                  when cid == (((((st_13.(share)).(granules)) @ (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(e_lock)));
+                  when ret_0 == (
+                      (s2tte_has_hipas_spec'
+                        (((((st_13.(share)).(granule_data)) @ (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_13.(stack)).(stack_wi)).(e_index)))))
+                        0));
+                  if ret_0
+                  then (
+                    when ret_1 == (
+                        (s2tte_get_ripas_spec'
+                          (((((st_13.(share)).(granule_data)) @ (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_13.(stack)).(stack_wi)).(e_index)))))));
+                    rely (
+                      (((((st_13.(stack)).(stack_g0)) > (0)) /\ (((((st_13.(stack)).(stack_g0)) - (GRANULES_BASE)) >= (0)))) /\
+                        (((((st_13.(stack)).(stack_g0)) - (18446744073705226240)) < (0)))));
+                    rely (((((st_13.(stack)).(stack_g0)) mod (16)) = (0)));
+                    when v_call5, st_1 == (
+                        (memcpy_ns_read_spec_state_oracle
+                          (mkPtr "slot_delegated" 0)
+                          (mkPtr "slot_ns" 0)
+                          4096
+                          (st_13.[share].[slots] :<
+                            (((((st_13.(share)).(slots)) # SLOT_RTT == (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))) #
+                              SLOT_DELEGATED ==
+                              ((((st_13.(stack)).(stack_g0)) - (GRANULES_BASE)) >> (4))) #
+                              SLOT_NS ==
+                              (v_src_addr / (GRANULE_SIZE))))));
+                    if v_call5
+                    then (
+                      if (ret_1 =? (0))
+                      then (
+                        when v_call6, st_2 == ((data_create_1 v_data_addr (mkPtr "stack_wi" 0) (mkPtr "slot_rtt" 0) (mkPtr "slot_rd" 0) (mkPtr "stack_g1" 0) (mkPtr "stack_g0" 0) st st_1));
+                        (Some (v_call6, st_2)))
+                      else (
+                        when v_call6, st_2 == ((data_create_2 v_data_addr (mkPtr "stack_wi" 0) (mkPtr "slot_rtt" 0) (mkPtr "slot_rd" 0) (mkPtr "stack_g1" 0) (mkPtr "stack_g0" 0) st st_1));
+                        (Some (v_call6, st_2))))
+                    else (
+                      when cid_0 == (((((st_1.(share)).(granules)) @ (((st_1.(share)).(slots)) @ SLOT_DELEGATED)).(e_lock)));
+                      rely (
+                        ((((((st_1.(stack)).(stack_wi)).(e_g_llt)) > (0)) /\ ((((((st_1.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+                          ((((((st_1.(stack)).(stack_wi)).(e_g_llt)) - (18446744073705226240)) < (0)))));
+                      when cid_1 == (((((st_1.(share)).(granules)) @ (((((st_1.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
+                      rely (
+                        (((((st_1.(stack)).(stack_g1)) > (0)) /\ (((((st_1.(stack)).(stack_g1)) - (GRANULES_BASE)) >= (0)))) /\
+                          (((((st_1.(stack)).(stack_g1)) - (18446744073705226240)) < (0)))));
+                      rely (
+                        (((((st_1.(stack)).(stack_g0)) > (0)) /\ (((((st_1.(stack)).(stack_g0)) - (GRANULES_BASE)) >= (0)))) /\
+                          (((((st_1.(stack)).(stack_g0)) - (18446744073705226240)) < (0)))));
+                      rely ((("granules" = ("granules")) /\ (((((st_1.(stack)).(stack_g0)) mod (16)) = (0)))));
+                      (Some (
+                        1  ,
+                        ((lens 60 st_1).[share].[granule_data] :<
+                          (((st_1.(share)).(granule_data)) #
+                            (((st_1.(share)).(slots)) @ SLOT_DELEGATED) ==
+                            ((((st_1.(share)).(granule_data)) @ (((st_1.(share)).(slots)) @ SLOT_DELEGATED)).[g_norm] :< zero_granule_data_normal)))
+                      ))))
+                  else (
+                    when v_call6, st_2 == (
+                        (data_create_3
+                          (mkPtr "slot_rtt" 0)
+                          (mkPtr "stack_wi" 0)
+                          (mkPtr "slot_rd" 0)
+                          (mkPtr "stack_g1" 0)
+                          (mkPtr "stack_g0" 0)
+                          st
+                          (st_13.[share].[slots] :< (((st_13.(share)).(slots)) # SLOT_RTT == (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))));
+                    (Some (v_call6, st_2))))
+                else (
+                  when v_call6, st_2 == ((data_create_4 (((st_13.(stack)).(stack_wi)).(e_last_level)) (mkPtr "stack_wi" 0) (mkPtr "slot_rd" 0) (mkPtr "stack_g1" 0) (mkPtr "stack_g0" 0) st st_13));
+                  (Some (v_call6, st_2))))
+              else (
+                when v_call6, st_2 == (
+                    (data_create_5
+                      (mkPtr "slot_rd" 0)
+                      (mkPtr "stack_g1" 0)
+                      (mkPtr "stack_g0" 0)
+                      ret
+                      st
+                      (st_4.[share].[slots] :< (((st_4.(share)).(slots)) # SLOT_RD == ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))))));
+                (Some (v_call6, st_2))))
+            else (Some (1, st_4)))
+          else (Some (1, st))))
+      else (Some (1, st)))
+    else (Some (1, st)).
+
+  Definition smc_data_create_unknown_spec (v_data_addr: Z) (v_rd_addr: Z) (v_map_addr: Z) (st: RData) : (option (Z * RData)) :=
+    when v_call, st_4 == ((find_lock_two_granules_spec v_data_addr 1 (mkPtr "stack_g0" 0) v_rd_addr 2 (mkPtr "stack_g1" 0) st));
+    if v_call
+    then (
+      rely (
+        (((((st_4.(stack)).(stack_g1)) > (0)) /\ (((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >= (0)))) /\
+          (((((st_4.(stack)).(stack_g1)) - (18446744073705226240)) < (0)))));
+      rely (((((st_4.(stack)).(stack_g1)) mod (16)) = (0)));
+      rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+      when ret, st' == (
+          (validate_data_create_unknown_spec'
+            v_map_addr
+            (mkPtr "slot_rd" 0)
+            (st_4.[share].[slots] :< (((st_4.(share)).(slots)) # SLOT_RD == ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))))));
+      if (ret =? (0))
+      then (
+        rely (
+          (((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) > (0)) /\
+            (((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) >= (0)))) /\
+            (((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (18446744073705226240)) <
+              (0)))));
+        rely (
+          ((((((st_4.(share)).(granules)) @
+            ((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) /
+              (ST_GRANULE_SIZE))).(e_state)) -
+            (6)) =
+            (0)));
+        rely (((((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) mod (16)) = (0)));
+        when sh == (
+            ((st_4.(repl))
+              ((st_4.(oracle)) (st_4.(log)))
+              ((st_4.(share)).[slots] :< (((st_4.(share)).(slots)) # SLOT_RD == ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))))));
+        when st_13 == (
+            (rtt_walk_lock_unlock_spec
+              (mkPtr
+                "granules"
+                (((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)))
+              ((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_s2_starting_level))
+              ((((((st_4.(share)).(granule_data)) @ ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_ipa_bits))
+              v_map_addr
+              3
+              (mkPtr "stack_wi" 0)
+              ((lens 61 st_4).[share].[slots] :< (((st_4.(share)).(slots)) # SLOT_RD == ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))))));
+        if ((((st_13.(stack)).(stack_wi)).(e_last_level)) =? (3))
+        then (
+          rely (
+            ((((((st_13.(stack)).(stack_wi)).(e_g_llt)) > (0)) /\ ((((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+              ((((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (18446744073705226240)) < (0)))));
+          rely ((((((st_13.(stack)).(stack_wi)).(e_g_llt)) mod (16)) = (0)));
+          when cid == (((((st_13.(share)).(granules)) @ (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(e_lock)));
+          when ret_0 == (
+              (s2tte_has_hipas_spec'
+                (((((st_13.(share)).(granule_data)) @ (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_13.(stack)).(stack_wi)).(e_index)))))
+                0));
+          if ret_0
+          then (
+            when ret_1 == (
+                (s2tte_get_ripas_spec'
+                  (((((st_13.(share)).(granule_data)) @ (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_13.(stack)).(stack_wi)).(e_index)))))));
+            if (ret_1 =? (0))
+            then (
+              when v_call_0, st_0 == (
+                  (data_create_1
+                    v_data_addr
+                    (mkPtr "stack_wi" 0)
+                    (mkPtr "slot_rtt" 0)
+                    (mkPtr "slot_rd" 0)
+                    (mkPtr "stack_g1" 0)
+                    (mkPtr "stack_g0" 0)
+                    st
+                    (st_13.[share].[slots] :< (((st_13.(share)).(slots)) # SLOT_RTT == (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))));
+              (Some (v_call_0, st_0)))
+            else (
+              when v_call_0, st_0 == (
+                  (data_create_2
+                    v_data_addr
+                    (mkPtr "stack_wi" 0)
+                    (mkPtr "slot_rtt" 0)
+                    (mkPtr "slot_rd" 0)
+                    (mkPtr "stack_g1" 0)
+                    (mkPtr "stack_g0" 0)
+                    st
+                    (st_13.[share].[slots] :< (((st_13.(share)).(slots)) # SLOT_RTT == (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))));
+              (Some (v_call_0, st_0))))
+          else (
+            when v_call_0, st_0 == (
+                (data_create_3
+                  (mkPtr "slot_rtt" 0)
+                  (mkPtr "stack_wi" 0)
+                  (mkPtr "slot_rd" 0)
+                  (mkPtr "stack_g1" 0)
+                  (mkPtr "stack_g0" 0)
+                  st
+                  (st_13.[share].[slots] :< (((st_13.(share)).(slots)) # SLOT_RTT == (((((st_13.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))));
+            (Some (v_call_0, st_0))))
+        else (
+          when v_call_0, st_0 == ((data_create_4 (((st_13.(stack)).(stack_wi)).(e_last_level)) (mkPtr "stack_wi" 0) (mkPtr "slot_rd" 0) (mkPtr "stack_g1" 0) (mkPtr "stack_g0" 0) st st_13));
+          (Some (v_call_0, st_0))))
+      else (
+        when v_call_0, st_0 == (
+            (data_create_5
+              (mkPtr "slot_rd" 0)
+              (mkPtr "stack_g1" 0)
+              (mkPtr "stack_g0" 0)
+              ret
+              st
+              (st_4.[share].[slots] :< (((st_4.(share)).(slots)) # SLOT_RD == ((((st_4.(stack)).(stack_g1)) - (GRANULES_BASE)) >> (4))))));
+        (Some (v_call_0, st_0))))
+    else (Some (1, st_4)).
 End SMCHandler_Spec.
 
 #[global] Hint Unfold smc_data_create_unknown_spec: spec.

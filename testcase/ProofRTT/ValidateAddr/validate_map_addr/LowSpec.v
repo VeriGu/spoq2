@@ -16,29 +16,14 @@ Section ValidateAddr_validate_map_addr_LowSpec.
     rely ((rd_is_locked st));
     rely (((v_rd.(poffset)) = (0)));
     rely (((v_rd.(pbase)) = ("slot_rd")));
-    when v_call, st == ((realm_ipa_size_spec v_rd st));
-    let v_cmp_not := (v_call >? (v_map_addr)) in
-    when v_retval_0, st == (
-        let v_retval_0 := false in
-        if v_cmp_not
-        then (
-          when v_call1, st == ((addr_is_level_aligned_spec v_map_addr v_level st));
-          when v_retval_0, st == (
-              let v_retval_0 := false in
-              if v_call1
-              then (
-                let v_retval_0 := true in
-                (Some (v_retval_0, st)))
-              else (
-                let v_retval_0 := false in
-                (Some (v_retval_0, st))));
-          (Some (v_retval_0, st)))
-        else (
-          let v_retval_0 := false in
-          (Some (v_retval_0, st))));
-    let __return__ := true in
-    let __retval__ := v_retval_0 in
-    (Some (__retval__, st)).
+    when v_call, st_0 == ((realm_ipa_size_spec v_rd st));
+    if ((v_call - (v_map_addr)) >? (0))
+    then (
+      when v_call1, st_1 == ((addr_is_level_aligned_spec v_map_addr v_level st_0));
+      if v_call1
+      then (Some (true, st_1))
+      else (Some (false, st_1)))
+    else (Some (false, st_0)).
 
 End ValidateAddr_validate_map_addr_LowSpec.
 

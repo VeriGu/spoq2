@@ -15,11 +15,8 @@ Section ValidateAddr_addr_in_par_LowSpec.
     rely ((rd_is_locked st));
     rely (((v_rd.(poffset)) = (0)));
     rely (((v_rd.(pbase)) = ("slot_rd")));
-    when v_call, st == ((realm_par_size_spec v_rd st));
-    let v_cmp := (v_call >? (v_addr)) in
-    let __return__ := true in
-    let __retval__ := v_cmp in
-    (Some (__retval__, st)).
+    when v_call, st_0 == ((realm_par_size_spec v_rd st));
+    (Some (((v_call - (v_addr)) >? (0)), st_0)).
 
 End ValidateAddr_addr_in_par_LowSpec.
 

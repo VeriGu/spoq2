@@ -23,13 +23,17 @@ Section S2TTEDesc_Spec.
         else (Some (false, st))))
     else (Some (false, st)).
 
-  Definition s2tte_has_hipas_spec (v_s2tte: Z) (v_hipas: Z) (st: RData) : (option (bool * RData)) :=
+  Definition s2tte_has_hipas_spec' (v_s2tte: Z) (v_hipas: Z) : (option bool) :=
     if ((v_s2tte & (3)) =? (0))
     then (
       if (((v_s2tte & (60)) - (v_hipas)) =? (0))
-      then (Some (true, st))
-      else (Some (false, st)))
-    else (Some (false, st)).
+      then (Some true)
+      else (Some false))
+    else (Some false).
+
+  Definition s2tte_has_hipas_spec (v_s2tte: Z) (v_hipas: Z) (st: RData) : (option (bool * RData)) :=
+    when ret == ((s2tte_has_hipas_spec' v_s2tte v_hipas));
+    (Some (ret, st)).
 
   Definition __table_get_entry_spec (v_g_tbl: Ptr) (v_idx: Z) (st: RData) : (option (Z * RData)) :=
     rely ((((v_g_tbl.(poffset)) mod (ST_GRANULE_SIZE)) = (0)));
@@ -43,6 +47,7 @@ Section S2TTEDesc_Spec.
 
 End S2TTEDesc_Spec.
 
+Opaque s2tte_has_hipas_spec'.
 #[global] Hint Unfold addr_level_mask_spec: spec.
 #[global] Hint Unfold s2tte_check_spec: spec.
 #[global] Hint Unfold s2tte_has_hipas_spec: spec.

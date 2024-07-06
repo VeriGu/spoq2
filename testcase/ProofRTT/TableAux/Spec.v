@@ -1,6 +1,7 @@
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
+Require Import ValidateTable.Spec.
 
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
@@ -9,19 +10,17 @@ Section TableAux_Spec.
 
   Context `{int_ptr: IntPtrCast}.
 
-  Definition validate_data_create_spec (v_map_addr: Z) (v_rd: Ptr) (st: RData) : (option (Z * RData)) :=
+  Definition validate_data_create_spec' (v_map_addr: Z) (v_rd: Ptr) (st: RData) : (option (Z * RData)) :=
     rely ((((v_rd.(pbase)) = ("slot_rd")) /\ (((v_rd.(poffset)) = (0)))));
-    when cid == (((((st.(share)).(granules)) @ (((st.(share)).(slots)) @ SLOT_RD)).(e_lock)));
     if ((((((st.(share)).(granule_data)) @ (((st.(share)).(slots)) @ SLOT_RD)).(g_rd)).(e_rd_rd_state)) =? (0))
     then (
-      rely (((Some cid) = ((Some CPU_ID))));
-      if ((((1 << (((((((st.(share)).(granule_data)) @ (((st.(share)).(slots)) @ SLOT_RD)).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_ipa_bits)))) >> (1)) - (v_map_addr)) >? (0))
-      then (
-        if ((((v_map_addr & (281474976710655)) & (((- 1) << ((66 & (4294967295)))))) - (v_map_addr)) =? (0))
-        then (Some (0, st))
-        else (Some (1, st)))
-      else (Some (1, st)))
+      when ret, st' == ((validate_data_create_unknown_spec' v_map_addr v_rd st));
+      (Some (ret, st)))
     else (Some (2, st)).
+
+  Definition validate_data_create_spec (v_map_addr: Z) (v_rd: Ptr) (st: RData) : (option (Z * RData)) :=
+    when ret, st' == ((validate_data_create_spec' v_map_addr v_rd st));
+    (Some (ret, st)).
 
   Definition __find_lock_next_level_spec (v_g_tbl: Ptr) (v_map_addr: Z) (v_level: Z) (st: RData) : (option (Ptr * RData)) :=
     rely ((((v_g_tbl.(poffset)) mod (ST_GRANULE_SIZE)) = (0)));
@@ -82,5 +81,6 @@ Section TableAux_Spec.
 
 End TableAux_Spec.
 
+Opaque validate_data_create_spec'.
 #[global] Hint Unfold validate_data_create_spec: spec.
 #[global] Hint Unfold __find_lock_next_level_spec: spec.
