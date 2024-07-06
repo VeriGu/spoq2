@@ -178,5 +178,6 @@ FALSE: 'false';
 NUMBER: [0-9]+;
 STR: '"' .*? '"';
 ID: ([a-zA-Z_][a-zA-Z0-9_']*)('.'[a-zA-Z0-9_']+)*;
-COMMENT: '(*' .*? '*)' -> skip;
+//COMMENT: '(*' .*? '*)' -> skip;
+COMMENT: '(*' ('('*? COMMENT | ('('* | '*'*) ~[(*])*? '*'*? '*)' -> skip;
 WS: [ \t\r\n]+ -> skip;
