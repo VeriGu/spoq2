@@ -9,19 +9,16 @@ Section S2TTEDesc_Spec.
 
   Context `{int_ptr: IntPtrCast}.
 
-  Definition addr_level_mask_spec (v_addr: Z) (v_level: Z) (st: RData) : (option (Z * RData)) :=
-    (Some (((v_addr & (281474976710655)) & (((- 1) << (((((((v_level * (18446744069414584320)) + (12884901888)) >> (32)) * (9)) + (12)) & (4294967295)))))), st)).
-
-  Definition s2tte_check_spec (v_s2tte: Z) (v_level: Z) (v_ns: Z) (st: RData) : (option (bool * RData)) :=
+  Definition s2tte_check_spec' (v_s2tte: Z) (v_level: Z) (v_ns: Z) : (option bool) :=
     if (((v_s2tte & (36028797018963968)) - (v_ns)) =? (0))
     then (
       if ((v_level =? (3)) && (((v_s2tte & (3)) =? (3))))
-      then (Some (true, st))
+      then (Some true)
       else (
         if ((v_level =? (2)) && (((v_s2tte & (3)) =? (1))))
-        then (Some (true, st))
-        else (Some (false, st))))
-    else (Some (false, st)).
+        then (Some true)
+        else (Some false)))
+    else (Some false).
 
   Definition s2tte_has_hipas_spec' (v_s2tte: Z) (v_hipas: Z) : (option bool) :=
     if ((v_s2tte & (3)) =? (0))
@@ -30,6 +27,13 @@ Section S2TTEDesc_Spec.
       then (Some true)
       else (Some false))
     else (Some false).
+
+  Definition addr_level_mask_spec (v_addr: Z) (v_level: Z) (st: RData) : (option (Z * RData)) :=
+    (Some (((v_addr & (281474976710655)) & (((- 1) << (((39 + ((38654705655 * (v_level)))) & (4294967295)))))), st)).
+
+  Definition s2tte_check_spec (v_s2tte: Z) (v_level: Z) (v_ns: Z) (st: RData) : (option (bool * RData)) :=
+    when ret == ((s2tte_check_spec' v_s2tte v_level v_ns));
+    (Some (ret, st)).
 
   Definition s2tte_has_hipas_spec (v_s2tte: Z) (v_hipas: Z) (st: RData) : (option (bool * RData)) :=
     when ret == ((s2tte_has_hipas_spec' v_s2tte v_hipas));
@@ -42,11 +46,12 @@ Section S2TTEDesc_Spec.
     when cid == (((((st.(share)).(granules)) @ ((v_g_tbl.(poffset)) >> (4))).(e_lock)));
     (Some (
       (((((st.(share)).(granule_data)) @ ((v_g_tbl.(poffset)) >> (4))).(g_norm)) @ (8 * (v_idx)))  ,
-      (st.[share].[slots] :< ((((st.(share)).(slots)) # SLOT_RTT == ((v_g_tbl.(poffset)) >> (4))) # SLOT_RTT == (- 1)))
+      (st.[share].[slots] :< (((st.(share)).(slots)) # SLOT_RTT == ((v_g_tbl.(poffset)) >> (4))))
     )).
 
 End S2TTEDesc_Spec.
 
+Opaque s2tte_check_spec'.
 Opaque s2tte_has_hipas_spec'.
 #[global] Hint Unfold addr_level_mask_spec: spec.
 #[global] Hint Unfold s2tte_check_spec: spec.

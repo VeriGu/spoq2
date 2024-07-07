@@ -60,14 +60,17 @@ Section S2TTEOps_Spec.
             else (Some (false, st))))
         else (Some (false, st)))).
 
-  Definition s2tte_create_unassigned_spec (v_ripas: Z) (st: RData) : (option (Z * RData)) :=
+  Definition s2tte_create_unassigned_spec' (v_ripas: Z) : (option Z) :=
     if (v_ripas =? (0))
-    then (Some (0, st))
-    else (Some (64, st)).
+    then (Some 0)
+    else (Some 64).
+
+  Definition s2tte_create_unassigned_spec (v_ripas: Z) (st: RData) : (option (Z * RData)) :=
+    when ret == ((s2tte_create_unassigned_spec' v_ripas));
+    (Some (ret, st)).
 
   Definition realm_ipa_size_spec (v_rd: Ptr) (st: RData) : (option (Z * RData)) :=
     rely ((((v_rd.(pbase)) = ("slot_rd")) /\ (((v_rd.(poffset)) = (0)))));
-    when cid == (((((st.(share)).(granules)) @ (((st.(share)).(slots)) @ SLOT_RD)).(e_lock)));
     (Some ((1 << (((((((st.(share)).(granule_data)) @ (((st.(share)).(slots)) @ SLOT_RD)).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_ipa_bits)))), st)).
 
   Definition __find_next_level_idx_spec (v_g_tbl: Ptr) (v_idx: Z) (st: RData) : (option (Ptr * RData)) :=
@@ -78,22 +81,13 @@ Section S2TTEOps_Spec.
     if (((((((st.(share)).(granule_data)) @ ((v_g_tbl.(poffset)) >> (4))).(g_norm)) @ (8 * (v_idx))) & (3)) =? (3))
     then (
       rely (
-        (((0 -
-          (((((((((st.(share)).(granule_data)) @ ((v_g_tbl.(poffset)) >> (4))).(g_norm)) @ (8 * (v_idx))) & (281474976710655)) & (((- 1) << ((66 & (4294967295)))))) /
-            (GRANULE_SIZE)))) <=
-          (0)) /\
-          ((((((((((st.(share)).(granule_data)) @ ((v_g_tbl.(poffset)) >> (4))).(g_norm)) @ (8 * (v_idx))) & (281474976710655)) & (((- 1) << ((66 & (4294967295)))))) /
-            (GRANULE_SIZE)) <
-            (1048576)))));
+        (((0 - ((((((((st.(share)).(granule_data)) @ ((v_g_tbl.(poffset)) >> (4))).(g_norm)) @ (8 * (v_idx))) & (281474976710655)) / (GRANULE_SIZE)))) <= (0)) /\
+          (((((((((st.(share)).(granule_data)) @ ((v_g_tbl.(poffset)) >> (4))).(g_norm)) @ (8 * (v_idx))) & (281474976710655)) / (GRANULE_SIZE)) < (1048576)))));
       (Some (
-        (mkPtr
-          "granules"
-          (16 *
-            (((((((((st.(share)).(granule_data)) @ ((v_g_tbl.(poffset)) >> (4))).(g_norm)) @ (8 * (v_idx))) & (281474976710655)) & (((- 1) << ((66 & (4294967295)))))) /
-              (GRANULE_SIZE)))))  ,
-        (st.[share].[slots] :< ((((st.(share)).(slots)) # SLOT_RTT == ((v_g_tbl.(poffset)) >> (4))) # SLOT_RTT == (- 1)))
+        (mkPtr "granules" (16 * ((((((((st.(share)).(granule_data)) @ ((v_g_tbl.(poffset)) >> (4))).(g_norm)) @ (8 * (v_idx))) & (281474976710655)) / (GRANULE_SIZE)))))  ,
+        (st.[share].[slots] :< (((st.(share)).(slots)) # SLOT_RTT == ((v_g_tbl.(poffset)) >> (4))))
       )))
-    else (Some ((mkPtr "null" 0), (st.[share].[slots] :< ((((st.(share)).(slots)) # SLOT_RTT == ((v_g_tbl.(poffset)) >> (4))) # SLOT_RTT == (- 1))))).
+    else (Some ((mkPtr "null" 0), (st.[share].[slots] :< (((st.(share)).(slots)) # SLOT_RTT == ((v_g_tbl.(poffset)) >> (4)))))).
 
   Definition s2_walk_result_match_ripas_spec (v_res: Ptr) (v_ripas: Z) (st: RData) : (option (bool * RData)) :=
     rely (
@@ -145,6 +139,7 @@ Section S2TTEOps_Spec.
 
 End S2TTEOps_Spec.
 
+Opaque s2tte_create_unassigned_spec'.
 #[global] Hint Unfold update_ripas_spec: spec.
 #[global] Hint Unfold s2tte_create_unassigned_spec: spec.
 #[global] Hint Unfold realm_ipa_size_spec: spec.
