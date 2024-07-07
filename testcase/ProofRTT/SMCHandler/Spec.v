@@ -4302,6 +4302,40 @@ Fixpoint s2tt_init_valid_ns_loop738 (_N_: nat) (__return__: bool) (v_call: Z) (v
         else (Some (2, ((lens 33 st).[share].[slots] :< (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))))))))
     else (Some (1, st)).
 
+  Definition smc_granule_delegate_spec (v_addr: Z) (st: RData) : (option (Z * RData)) :=
+    if ((v_addr & (4095)) =? (0))
+    then (
+      if ((v_addr / (GRANULE_SIZE)) >? (1048575))
+      then (Some (1, st))
+      else (
+        rely ((((0 - ((v_addr / (GRANULE_SIZE)))) <= (0)) /\ (((v_addr / (GRANULE_SIZE)) < (1048576)))));
+        rely ((((((st.(share)).(granules)) @ (v_addr / (GRANULE_SIZE))).(e_state)) = (0)));
+        when sh == (((st.(repl)) ((st.(oracle)) (st.(log))) (st.(share))));
+        rely (((((((lens 15 st).(share)).(granules)) @ (v_addr / (GRANULE_SIZE))).(e_lock)) = ((Some CPU_ID))));
+        rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+        (Some (
+          0  ,
+          ((((lens 24 st).[share].[gpt] :< (((st.(share)).(gpt)) # (v_addr / (GRANULE_SIZE)) == true)).[share].[granule_data] :<
+            (((st.(share)).(granule_data)) #
+              (v_addr / (GRANULE_SIZE)) ==
+              ((((st.(share)).(granule_data)) @ (v_addr / (GRANULE_SIZE))).[g_norm] :< zero_granule_data_normal))).[share].[slots] :<
+            (((st.(share)).(slots)) # SLOT_DELEGATED == (v_addr / (GRANULE_SIZE))))
+        ))))
+    else (Some (1, st)).
+
+  Definition smc_granule_undelegate_spec (v_addr: Z) (st: RData) : (option (Z * RData)) :=
+    if ((v_addr & (4095)) =? (0))
+    then (
+      if ((v_addr / (GRANULE_SIZE)) >? (1048575))
+      then (Some (1, st))
+      else (
+        rely ((((0 - ((v_addr / (GRANULE_SIZE)))) <= (0)) /\ (((v_addr / (GRANULE_SIZE)) < (1048576)))));
+        rely (((((((st.(share)).(granules)) @ (v_addr / (GRANULE_SIZE))).(e_state)) - (1)) = (0)));
+        when sh == (((st.(repl)) ((st.(oracle)) (st.(log))) (st.(share))));
+        rely (((((((lens 15 st).(share)).(granules)) @ (v_addr / (GRANULE_SIZE))).(e_lock)) = ((Some CPU_ID))));
+        (Some (0, ((lens 28 st).[share].[gpt] :< (((st.(share)).(gpt)) # (v_addr / (GRANULE_SIZE)) == false))))))
+    else (Some (1, st)).
+
 End SMCHandler_Spec.
 
 #[global] Hint Unfold smc_data_create_unknown_spec: spec.
