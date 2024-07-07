@@ -16,6 +16,22 @@ Parameter realm_trap_determ : list Event -> realm_trap_type.
 
 Parameter rmi_realm_params : s_rmi_realm_params.
 
+Parameter common_sysregs_init : s_common_sysreg_state.
+
+Parameter sysregs_init : s_sysreg_state.
+
+Parameter rec_regs_init : (ZMap.t Z).
+
+Parameter rec_pc_init : Z.
+
+Parameter rec_pstate_init : Z.
+
+Parameter rec_params_mpidr : Z.
+
+Parameter empty_rec : s_rec.
+
+Parameter empty_rd : s_rd.
+
 Parameter gic_virt_feature_0 : Z.
 
 Parameter gic_virt_feature_1 : Z.

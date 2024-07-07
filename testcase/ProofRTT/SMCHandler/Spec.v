@@ -13,6 +13,7 @@ Require Import ValidateAddr.Spec.
 Require Import S2TTEDesc.Spec.
 Require Import S2TTEOps.Spec.
 Require Import S2TTEState.Spec.
+Require Import RealmCreate.Spec.
 
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
@@ -4334,6 +4335,75 @@ Fixpoint s2tt_init_valid_ns_loop738 (_N_: nat) (__return__: bool) (v_call: Z) (v
         when sh == (((st.(repl)) ((st.(oracle)) (st.(log))) (st.(share))));
         rely (((((((lens 15 st).(share)).(granules)) @ (v_addr / (GRANULE_SIZE))).(e_lock)) = ((Some CPU_ID))));
         (Some (0, ((lens 28 st).[share].[gpt] :< (((st.(share)).(gpt)) # (v_addr / (GRANULE_SIZE)) == false))))))
+    else (Some (1, st)).
+
+  Definition smc_realm_destroy_spec (v_rd_addr: Z) (st: RData) : (option (Z * RData)) :=
+    if ((v_rd_addr & (4095)) =? (0))
+    then (
+      if ((v_rd_addr / (GRANULE_SIZE)) >? (1048575))
+      then (Some (1, st))
+      else (
+        rely ((((0 - ((v_rd_addr / (GRANULE_SIZE)))) <= (0)) /\ (((v_rd_addr / (GRANULE_SIZE)) < (1048576)))));
+        rely (((((((st.(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))).(e_state)) - (2)) = (0)));
+        when sh == (((st.(repl)) ((st.(oracle)) (st.(log))) (st.(share))));
+        if ((((((lens 15 st).(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))).(e_refcount)) =? (0))
+        then (
+          rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+          rely (
+            (((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) > (0)) /\
+              (((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) >= (0)))) /\
+              (((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (18446744073705226240)) < (0)))));
+          rely (
+            (((0 - ((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_vmid)) >> (6)))) <= (0)) /\
+              (((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_vmid)) >> (6)) < (1024)))));
+          if ((0 - (((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_num_root_rtts)))) <? (0))
+          then (
+            match (
+              (total_root_rtt_refcount_loop348
+                (z_to_nat 0)
+                false
+                (mkPtr "granules" (((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)))
+                0
+                0
+                0
+                ((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_num_root_rtts))
+                ((lens 33 st).[share].[slots] :< (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))))
+            ) with
+            | (Some (__break__, v_g_rtt_0, v_indvars_iv_0, v_refcount_9, v_refcount_0_lcssa_0, v_wide_trip_count_0, st_1)) =>
+              if (v_refcount_0_lcssa_0 =? (0))
+              then (
+                match (
+                  (free_sl_rtts_loop193
+                    (z_to_nat 0)
+                    false
+                    (mkPtr "granules" (((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)))
+                    0
+                    ((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_num_root_rtts))
+                    st_1)
+                ) with
+                | (Some (__break___0, v_g_rtt_1, v_indvars_iv_1, v_wide_trip_count_1, st_2)) =>
+                  when cid == (((((st_2.(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))).(e_lock)));
+                  (Some (
+                    0  ,
+                    (((lens 35 st_2).[share].[granule_data] :<
+                      (((st_2.(share)).(granule_data)) # (v_rd_addr / (GRANULE_SIZE)) == ((((st_2.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).[g_rd] :< empty_rd))).[share].[slots] :<
+                      (((st_2.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))))
+                  ))
+                | None => None
+                end)
+              else (
+                when cid == (((((st_1.(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))).(e_lock)));
+                (Some (5, (lens 18 st_1))))
+            | None => None
+            end)
+          else (
+            (Some (
+              0  ,
+              (((lens 38 st).[share].[granule_data] :<
+                (((st.(share)).(granule_data)) # (v_rd_addr / (GRANULE_SIZE)) == ((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).[g_rd] :< empty_rd))).[share].[slots] :<
+                ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))))
+            ))))
+        else (Some (5, (lens 20 st)))))
     else (Some (1, st)).
 
 End SMCHandler_Spec.
