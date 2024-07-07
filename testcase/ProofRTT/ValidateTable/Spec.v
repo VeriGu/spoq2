@@ -41,9 +41,26 @@ Section ValidateTable_Spec.
     when ret, st' == ((validate_data_create_unknown_spec' v_map_addr v_rd st));
     (Some (ret, st)).
 
+ Definition validate_rtt_entry_cmds_spec' (v_map_addr: Z) (v_level: Z) (v_rd: Ptr) (st: RData) : (option (bool * RData)) :=
+    rely (((v_rd.(poffset)) = (0)));
+    rely (((v_rd.(pbase)) = ("slot_rd")));
+    if (
+      ((v_level >? (3)) ||
+        (((((((((st.(share)).(granule_data)) @ (((st.(share)).(slots)) @ SLOT_RD)).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_s2_starting_level)) - (v_level)) >? (0)))))
+    then (Some (false, st))
+    else (
+      when ret, st' == ((validate_map_addr_spec' v_map_addr v_level v_rd st));
+      (Some (ret, st))).
+
+  Definition validate_rtt_entry_cmds_spec (v_map_addr: Z) (v_level: Z) (v_rd: Ptr) (st: RData) : (option (bool * RData)) :=
+    when ret, st' == ((validate_rtt_entry_cmds_spec' v_map_addr v_level v_rd st));
+    (Some (ret, st)).
+
 End ValidateTable_Spec.
 
 Opaque validate_rtt_structure_cmds_spec'.
 Opaque validate_data_create_unknown_spec'.
+Opaque validate_rtt_entry_cmds_spec'.
+#[global] Hint Unfold validate_rtt_entry_cmds_spec: spec.
 #[global] Hint Unfold validate_rtt_structure_cmds_spec: spec.
 #[global] Hint Unfold validate_data_create_unknown_spec: spec.
