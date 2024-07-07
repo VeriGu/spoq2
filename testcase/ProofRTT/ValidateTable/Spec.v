@@ -9,7 +9,27 @@ Local Open Scope Z_scope.
 Section ValidateTable_Spec.
 
   Context `{int_ptr: IntPtrCast}.
+  Definition validate_rtt_map_cmds_spec' (v_map_addr: Z) (v_level: Z) (v_rd: Ptr) (st: RData) : (option (bool * RData)) :=
+    rely (((v_rd.(poffset)) = (0)));
+    rely (((v_rd.(pbase)) = ("slot_rd")));
+    if (((- 2) + (v_level)) <? (0))
+    then (Some (false, st))
+    else (
+      when ret, st' == ((validate_map_addr_spec' v_map_addr v_level v_rd st));
+      (Some (ret, st))).
 
+    Definition validate_rtt_map_cmds_spec (v_map_addr: Z) (v_level: Z) (v_rd: Ptr) (st: RData) : (option (bool * RData)) :=
+    when ret, st' == ((validate_rtt_map_cmds_spec' v_map_addr v_level v_rd st));
+    (Some (ret, st)).
+
+  Definition s2tte_create_valid_ns_spec' (v_s2tte: Z) (v_level: Z) : (option Z) :=
+    if (v_level =? (3))
+    then (Some (v_s2tte |' (54043195528446979)))
+    else (Some (v_s2tte |' (54043195528446977))).
+
+  Definition s2tte_create_valid_ns_spec (v_s2tte: Z) (v_level: Z) (st: RData) : (option (Z * RData)) :=
+    when ret == ((s2tte_create_valid_ns_spec' v_s2tte v_level));
+    (Some (ret, st)).
   Definition validate_rtt_structure_cmds_spec' (v_map_addr: Z) (v_level: Z) (v_rd: Ptr) (st: RData) : (option (bool * RData)) :=
     rely (((v_rd.(poffset)) = (0)));
     rely (((v_rd.(pbase)) = ("slot_rd")));
@@ -61,6 +81,10 @@ End ValidateTable_Spec.
 Opaque validate_rtt_structure_cmds_spec'.
 Opaque validate_data_create_unknown_spec'.
 Opaque validate_rtt_entry_cmds_spec'.
+Opaque validate_rtt_map_cmds_spec'.
+Opaque s2tte_create_valid_ns_spec'.
 #[global] Hint Unfold validate_rtt_entry_cmds_spec: spec.
 #[global] Hint Unfold validate_rtt_structure_cmds_spec: spec.
 #[global] Hint Unfold validate_data_create_unknown_spec: spec.
+#[global] Hint Unfold validate_rtt_map_cmds_spec: spec.
+#[global] Hint Unfold s2tte_create_valid_ns_spec: spec.
