@@ -1820,7 +1820,7 @@ Section GlobalDefs.
   Definition GRANULE_STATE_UNDELEGATED  : Z :=
     GRANULE_STATE_NS.
 
-  Definition GRANULE_STATE_DELEAGATE  : Z :=
+  Definition GRANULE_STATE_DELEGATED  : Z :=
     1.
 
   Definition GRANULE_STATE_RD  : Z :=
@@ -2970,7 +2970,7 @@ End GlobalDefs.
 #[global] Hint Unfold NS_SIMD_SIZE: spec.
 #[global] Hint Unfold GRANULE_STATE_NS: spec.
 #[global] Hint Unfold GRANULE_STATE_UNDELEGATED: spec.
-#[global] Hint Unfold GRANULE_STATE_DELEAGATE: spec.
+#[global] Hint Unfold GRANULE_STATE_DELEGATED: spec.
 #[global] Hint Unfold GRANULE_STATE_RD: spec.
 #[global] Hint Unfold GRANULE_STATE_REC: spec.
 #[global] Hint Unfold GRANULE_STATE_REC_AUX: spec.

@@ -176,15 +176,57 @@ Section Helpers_Spec.
   Definition s2_inconsistent_sl_spec (v_ipa_bits: Z) (v_sl: Z) (st: RData) : (option (bool * RData)) :=
     (Some (((((((3 - (v_sl)) * (9)) + (13)) - (v_ipa_bits)) >? (0)) || ((((((3 - (v_sl)) * (9)) + (25)) - (v_ipa_bits)) <? (0)))), st)).
 
-  Definition s2_num_root_rtts_spec (v_ipa_bits: Z) (v_sl: Z) (st: RData) : (option (Z * RData)) :=
-    if (((((3 - (v_sl)) * (9)) + (21)) - (v_ipa_bits)) <? (0))
-    then (Some ((1 << ((v_ipa_bits - ((((3 - (v_sl)) * (9)) + (21)))))), st))
+  Definition s2_num_root_rtts_spec' (v_ipa_bits: Z) (v_sl: Z) (st: RData) : (option (Z * RData)) :=
+    if (((48 + (((- 9) * (v_sl)))) - (v_ipa_bits)) <? (0))
+    then (Some ((1 << ((v_ipa_bits - ((48 + (((- 9) * (v_sl)))))))), st))
     else (Some (1, st)).
 
+  Definition s2_num_root_rtts_spec (v_ipa_bits: Z) (v_sl: Z) (st: RData) : (option (Z * RData)) :=
+    when ret, st' == ((s2_num_root_rtts_spec' v_ipa_bits v_sl st));
+    (Some (ret, st)).
+
+  Definition requested_ipa_bits_spec' (v_p: Ptr) (st: RData) : (option (Z * RData)) :=
+    rely (((v_p.(pbase)) = ("stack_realm_params")));
+    if (((v_p.(poffset)) >=? (0)) && (((v_p.(poffset)) <? (256))))
+    then (
+      if ((v_p.(poffset)) =? (0))
+      then (Some ((((((st.(stack)).(stack_realm_params)).(e_rmi_realm_params_0)).(e_union_anon_7_0)) & (255)), st))
+      else (
+        if ((v_p.(poffset)) <? (249))
+        then (Some (((((((st.(stack)).(stack_realm_params)).(e_rmi_realm_params_0)).(e_union_anon_7_1)) @ ((v_p.(poffset)) - (1))) & (255)), st))
+        else None))
+    else (
+      if (((v_p.(poffset)) >=? (256)) && (((v_p.(poffset)) <? (1024))))
+      then (Some (((((((st.(stack)).(stack_realm_params)).(e_rmi_realm_params_1)).(e_union_anon_0_95_0)) @ ((v_p.(poffset)) - (256))) & (255)), st))
+      else (
+        if (((v_p.(poffset)) >=? (1024)) && (((v_p.(poffset)) <? (2048))))
+        then (Some (((((((st.(stack)).(stack_realm_params)).(e_rmi_realm_params_2)).(e_union_anon_1_96_0)) @ ((v_p.(poffset)) - (1024))) & (255)), st))
+        else (
+          if (((v_p.(poffset)) >=? (2048)) && (((v_p.(poffset)) <? (4096))))
+          then (
+            if (((v_p.(poffset)) - (2048)) <? (32))
+            then (
+              if (((v_p.(poffset)) - (2048)) =? (0))
+              then (Some (((((((st.(stack)).(stack_realm_params)).(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)) & (255)), st))
+              else (
+                if (((v_p.(poffset)) - (2048)) =? (8))
+                then (Some (((((((st.(stack)).(stack_realm_params)).(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) & (255)), st))
+                else (
+                  if (((v_p.(poffset)) - (2048)) =? (16))
+                  then (Some (((((((st.(stack)).(stack_realm_params)).(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_level_start)) & (255)), st))
+                  else (
+                    if (((v_p.(poffset)) - (2048)) =? (24))
+                    then (Some (((((((st.(stack)).(stack_realm_params)).(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start)) & (255)), st))
+                    else None))))
+            else (
+              if (((v_p.(poffset)) - (2048)) <? (2017))
+              then (Some (((((((st.(stack)).(stack_realm_params)).(e_rmi_realm_params_3)).(e_union_anon_2_98_1)) @ ((- 2049) + ((v_p.(poffset))))) & (255)), st))
+              else None))
+          else None))).
+
   Definition requested_ipa_bits_spec (v_p: Ptr) (st: RData) : (option (Z * RData)) :=
-    rely (((v_p.(pbase)) = ("stack")));
-    rely (((((((((st.(priv)).(pcpu_stack)) @ ((v_p.(poffset)) / (MaxStackOrder))).(sf_data)) @ ((v_p.(poffset)) mod (MaxStackOrder))).(sd_size)) - (8)) = (0)));
-    (Some ((((((((st.(priv)).(pcpu_stack)) @ ((v_p.(poffset)) / (MaxStackOrder))).(sf_data)) @ ((v_p.(poffset)) mod (MaxStackOrder))).(sd_data)) & (255)), st)).
+    when ret, st' == ((requested_ipa_bits_spec' v_p st));
+    (Some (ret, st)).
 
   Definition addr_is_contained_spec (v_container_base: Z) (v_container_end: Z) (v_address: Z) (st: RData) : (option (bool * RData)) :=
     (Some ((((v_address - (v_container_base)) >=? (0)) && ((((v_container_end + ((- 1))) - (v_address)) >=? (0)))), st)).
@@ -321,6 +363,8 @@ Section Helpers_Spec.
 
 End Helpers_Spec.
 
+Opaque requested_ipa_bits_spec'.
+Opaque s2_num_root_rtts_spec'.
 #[global] Hint Unfold save_input_parameters_spec: spec.
 #[global] Hint Unfold my_cpuid_spec: spec.
 #[global] Hint Unfold status_ptr_spec: spec.

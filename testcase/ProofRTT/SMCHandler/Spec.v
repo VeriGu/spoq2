@@ -14,6 +14,8 @@ Require Import S2TTEDesc.Spec.
 Require Import S2TTEOps.Spec.
 Require Import S2TTEState.Spec.
 Require Import RealmCreate.Spec.
+Require Import GranuleInfo.Spec.
+Require Import Helpers.Spec.
 
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
@@ -4405,6 +4407,464 @@ Fixpoint s2tt_init_valid_ns_loop738 (_N_: nat) (__return__: bool) (v_call: Z) (v
             ))))
         else (Some (5, (lens 20 st)))))
     else (Some (1, st)).
+
+  Fixpoint smc_realm_create_loop335 (_N_: nat) (__break__: bool) (v_37: Ptr) (v_indvars_iv: Z) (v_rtt_num_start: Ptr) (st: RData) : (option (bool * Ptr * Z * Ptr * RData)) :=
+    match (_N_) with
+    | O => (Some (__break__, v_37, v_indvars_iv, v_rtt_num_start, st))
+    | (S _N__0) =>
+      match ((smc_realm_create_loop335 _N__0 __break__ v_37 v_indvars_iv v_rtt_num_start st)) with
+      | (Some (__break___0, v_38, v_indvars_iv_0, v_rtt_num_start_0, st_0)) =>
+        if __break___0
+        then (Some (true, v_38, v_indvars_iv_0, v_rtt_num_start_0, st_0))
+        else (
+          when st_1 == ((granule_unlock_transition_spec (ptr_offset v_38 ((16 * (v_indvars_iv_0)) + (0))) 6 st_0));
+          when v_39, st_2 == ((load_RData 4 v_rtt_num_start_0 st_1));
+          if (((v_indvars_iv_0 + (1)) - (v_39)) <? (0))
+          then (Some (false, v_38, (v_indvars_iv_0 + (1)), v_rtt_num_start_0, st_2))
+          else (Some (true, v_38, v_indvars_iv_0, v_rtt_num_start_0, st_2)))
+      | None => None
+      end
+    end.
+
+  Definition smc_realm_create_spec (v_rd_addr: Z) (v_realm_params_addr: Z) (st: RData) : (option (Z * RData)) :=
+    if (
+      (((v_rd_addr - ((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)))) >=? (0)) &&
+        (((((((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start)) << (12)) +
+          ((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)))) +
+          ((- 1))) -
+          (v_rd_addr)) >=?
+          (0)))))
+    then (
+      rely (
+        (((0 - (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)) >> (6)))) <= (0)) /\
+          ((((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)) >> (6)) < (1024)))));
+      (Some (1, ((lens 83 st).[stack].[stack_realm_params] :< rmi_realm_params))))
+    else (
+      if ((v_rd_addr & (4095)) =? (0))
+      then (
+        if ((v_rd_addr / (GRANULE_SIZE)) >? (1048575))
+        then (
+          rely (
+            (((0 - (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)) >> (6)))) <= (0)) /\
+              ((((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)) >> (6)) < (1024)))));
+          (Some (1, ((lens 91 st).[stack].[stack_realm_params] :< rmi_realm_params))))
+        else (
+          rely ((((0 - ((v_rd_addr / (GRANULE_SIZE)))) <= (0)) /\ (((v_rd_addr / (GRANULE_SIZE)) < (1048576)))));
+          rely (((((((st.(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))).(e_state)) - (GRANULE_STATE_DELEGATED)) = (0)));
+          when sh == (((st.(repl)) ((st.(oracle)) (st.(log))) (st.(share))));
+          if (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) & (4095)) =? (0))
+          then (
+            if (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE)) >? (1048575))
+            then (
+              rely (
+                (((0 - (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)) >> (6)))) <= (0)) /\
+                  ((((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)) >> (6)) < (1024)))));
+              (Some (1, ((lens 93 st).[stack].[stack_realm_params] :< rmi_realm_params))))
+            else (
+              rely (
+                (((0 - (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE)))) <= (0)) /\
+                  ((((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE)) < (1048576)))));
+              rely (
+                ((((((st.(share)).(granules)) @ ((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))).(e_state)) -
+                  (GRANULE_STATE_DELEGATED)) =
+                  (0)));
+              when sh_0 == ((((lens 88 st).(repl)) (((lens 86 st).(oracle)) ((lens 85 st).(log))) ((lens 87 st).(share))));
+              rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+              when ret, st' == (
+                  (requested_ipa_bits_spec'
+                    (mkPtr "stack_realm_params" 0)
+                    ((((((lens 89 st).[share].[granule_data] :<
+                      (((st.(share)).(granule_data)) #
+                        (v_rd_addr / (GRANULE_SIZE)) ==
+                        ((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).[g_rd] :<
+                          (((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).[e_rd_rd_state] :< 0).[e_rd_rec_count] :< 0).[e_rd_s2_ctx] :<
+                            ((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).[e_rls2ctx_g_rtt] :<
+                              (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))))))).[share].[slots] :<
+                      (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))).[stack].[stack_g0] :<
+                      (GRANULES_BASE + ((16 * ((v_rd_addr / (GRANULE_SIZE))))))).[stack].[stack_g1] :<
+                      (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[stack].[stack_realm_params] :<
+                      rmi_realm_params)));
+              if ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) & (512)) =? (0))
+              then (
+                if ((((rmi_realm_params.(e_rmi_realm_params_1)).(e_union_anon_0_95_0)) @ 0) =? (1))
+                then (
+                  if ((0 - ((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start)))) <? (0))
+                  then (
+                    match (
+                      (smc_realm_create_loop335
+                        (z_to_nat 0)
+                        false
+                        (mkPtr "granules" (16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE)))))
+                        0
+                        (mkPtr "stack_realm_params" 2072)
+                        ((((((lens 121 st).[share].[granule_data] :<
+                          (((st.(share)).(granule_data)) #
+                            (v_rd_addr / (GRANULE_SIZE)) ==
+                            ((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).[g_rd] :<
+                              ((((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).[e_rd_algorithm] :< 1).[e_rd_num_rec_aux] :< 16).[e_rd_pmu_enabled] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (22)) & (1))).[e_rd_pmu_num_cnts] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (23)) & (31))).[e_rd_rd_state] :<
+                                0).[e_rd_rec_count] :<
+                                0).[e_rd_s2_ctx] :<
+                                ((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).[e_rls2ctx_g_rtt] :<
+                                  (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[e_rls2ctx_ipa_bits] :<
+                                  ret).[e_rls2ctx_num_root_rtts] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start))).[e_rls2ctx_s2_starting_level] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_level_start))).[e_rls2ctx_vmid] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)))).[e_rd_sve_enabled] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) & (512)) >> (9)))))).[share].[slots] :<
+                          (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))).[stack].[stack_g0] :<
+                          (GRANULES_BASE + ((16 * ((v_rd_addr / (GRANULE_SIZE))))))).[stack].[stack_g1] :<
+                          (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[stack].[stack_realm_params] :<
+                          rmi_realm_params))
+                    ) with
+                    | (Some (__break__, v_39, v_indvars_iv_0, v_rtt_num_start_0, st_47)) => (Some (0, st_47))
+                    | None => None
+                    end)
+                  else (
+                    (Some (
+                      0  ,
+                      ((((((lens 121 st).[share].[granule_data] :<
+                        (((st.(share)).(granule_data)) #
+                          (v_rd_addr / (GRANULE_SIZE)) ==
+                          ((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).[g_rd] :<
+                            ((((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).[e_rd_algorithm] :< 1).[e_rd_num_rec_aux] :< 16).[e_rd_pmu_enabled] :<
+                              ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (22)) & (1))).[e_rd_pmu_num_cnts] :<
+                              ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (23)) & (31))).[e_rd_rd_state] :<
+                              0).[e_rd_rec_count] :<
+                              0).[e_rd_s2_ctx] :<
+                              ((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).[e_rls2ctx_g_rtt] :<
+                                (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[e_rls2ctx_ipa_bits] :<
+                                ret).[e_rls2ctx_num_root_rtts] :<
+                                (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start))).[e_rls2ctx_s2_starting_level] :<
+                                (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_level_start))).[e_rls2ctx_vmid] :<
+                                (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)))).[e_rd_sve_enabled] :<
+                              ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) & (512)) >> (9)))))).[share].[slots] :<
+                        (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))).[stack].[stack_g0] :<
+                        (GRANULES_BASE + ((16 * ((v_rd_addr / (GRANULE_SIZE))))))).[stack].[stack_g1] :<
+                        (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[stack].[stack_realm_params] :<
+                        rmi_realm_params)
+                    ))))
+                else (
+                  if ((((rmi_realm_params.(e_rmi_realm_params_1)).(e_union_anon_0_95_0)) @ 0) =? (0))
+                  then (
+                    if ((0 - ((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start)))) <? (0))
+                    then (
+                      match (
+                        (smc_realm_create_loop335
+                          (z_to_nat 0)
+                          false
+                          (mkPtr "granules" (16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE)))))
+                          0
+                          (mkPtr "stack_realm_params" 2072)
+                          ((((((lens 133 st).[share].[granule_data] :<
+                            (((st.(share)).(granule_data)) #
+                              (v_rd_addr / (GRANULE_SIZE)) ==
+                              ((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).[g_rd] :<
+                                ((((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).[e_rd_algorithm] :< 0).[e_rd_num_rec_aux] :< 16).[e_rd_pmu_enabled] :<
+                                  ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (22)) & (1))).[e_rd_pmu_num_cnts] :<
+                                  ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (23)) & (31))).[e_rd_rd_state] :<
+                                  0).[e_rd_rec_count] :<
+                                  0).[e_rd_s2_ctx] :<
+                                  ((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).[e_rls2ctx_g_rtt] :<
+                                    (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[e_rls2ctx_ipa_bits] :<
+                                    ret).[e_rls2ctx_num_root_rtts] :<
+                                    (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start))).[e_rls2ctx_s2_starting_level] :<
+                                    (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_level_start))).[e_rls2ctx_vmid] :<
+                                    (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)))).[e_rd_sve_enabled] :<
+                                  ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) & (512)) >> (9)))))).[share].[slots] :<
+                            (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))).[stack].[stack_g0] :<
+                            (GRANULES_BASE + ((16 * ((v_rd_addr / (GRANULE_SIZE))))))).[stack].[stack_g1] :<
+                            (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[stack].[stack_realm_params] :<
+                            rmi_realm_params))
+                      ) with
+                      | (Some (__break__, v_39, v_indvars_iv_0, v_rtt_num_start_0, st_48)) => (Some (0, st_48))
+                      | None => None
+                      end)
+                    else (
+                      (Some (
+                        0  ,
+                        ((((((lens 133 st).[share].[granule_data] :<
+                          (((st.(share)).(granule_data)) #
+                            (v_rd_addr / (GRANULE_SIZE)) ==
+                            ((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).[g_rd] :<
+                              ((((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).[e_rd_algorithm] :< 0).[e_rd_num_rec_aux] :< 16).[e_rd_pmu_enabled] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (22)) & (1))).[e_rd_pmu_num_cnts] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (23)) & (31))).[e_rd_rd_state] :<
+                                0).[e_rd_rec_count] :<
+                                0).[e_rd_s2_ctx] :<
+                                ((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).[e_rls2ctx_g_rtt] :<
+                                  (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[e_rls2ctx_ipa_bits] :<
+                                  ret).[e_rls2ctx_num_root_rtts] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start))).[e_rls2ctx_s2_starting_level] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_level_start))).[e_rls2ctx_vmid] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)))).[e_rd_sve_enabled] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) & (512)) >> (9)))))).[share].[slots] :<
+                          (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))).[stack].[stack_g0] :<
+                          (GRANULES_BASE + ((16 * ((v_rd_addr / (GRANULE_SIZE))))))).[stack].[stack_g1] :<
+                          (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[stack].[stack_realm_params] :<
+                          rmi_realm_params)
+                      ))))
+                  else (
+                    if ((0 - ((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start)))) <? (0))
+                    then (
+                      match (
+                        (smc_realm_create_loop335
+                          (z_to_nat 0)
+                          false
+                          (mkPtr "granules" (16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE)))))
+                          0
+                          (mkPtr "stack_realm_params" 2072)
+                          ((((((lens 143 st).[share].[granule_data] :<
+                            (((st.(share)).(granule_data)) #
+                              (v_rd_addr / (GRANULE_SIZE)) ==
+                              ((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).[g_rd] :<
+                                ((((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).[e_rd_algorithm] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_1)).(e_union_anon_0_95_0)) @ 0)).[e_rd_num_rec_aux] :<
+                                  16).[e_rd_pmu_enabled] :<
+                                  ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (22)) & (1))).[e_rd_pmu_num_cnts] :<
+                                  ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (23)) & (31))).[e_rd_rd_state] :<
+                                  0).[e_rd_rec_count] :<
+                                  0).[e_rd_s2_ctx] :<
+                                  ((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).[e_rls2ctx_g_rtt] :<
+                                    (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[e_rls2ctx_ipa_bits] :<
+                                    ret).[e_rls2ctx_num_root_rtts] :<
+                                    (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start))).[e_rls2ctx_s2_starting_level] :<
+                                    (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_level_start))).[e_rls2ctx_vmid] :<
+                                    (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)))).[e_rd_sve_enabled] :<
+                                  ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) & (512)) >> (9)))))).[share].[slots] :<
+                            (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))).[stack].[stack_g0] :<
+                            (GRANULES_BASE + ((16 * ((v_rd_addr / (GRANULE_SIZE))))))).[stack].[stack_g1] :<
+                            (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[stack].[stack_realm_params] :<
+                            rmi_realm_params))
+                      ) with
+                      | (Some (__break__, v_39, v_indvars_iv_0, v_rtt_num_start_0, st_47)) => (Some (0, st_47))
+                      | None => None
+                      end)
+                    else (
+                      (Some (
+                        0  ,
+                        ((((((lens 143 st).[share].[granule_data] :<
+                          (((st.(share)).(granule_data)) #
+                            (v_rd_addr / (GRANULE_SIZE)) ==
+                            ((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).[g_rd] :<
+                              ((((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).[e_rd_algorithm] :<
+                                (((rmi_realm_params.(e_rmi_realm_params_1)).(e_union_anon_0_95_0)) @ 0)).[e_rd_num_rec_aux] :<
+                                16).[e_rd_pmu_enabled] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (22)) & (1))).[e_rd_pmu_num_cnts] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (23)) & (31))).[e_rd_rd_state] :<
+                                0).[e_rd_rec_count] :<
+                                0).[e_rd_s2_ctx] :<
+                                ((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).[e_rls2ctx_g_rtt] :<
+                                  (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[e_rls2ctx_ipa_bits] :<
+                                  ret).[e_rls2ctx_num_root_rtts] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start))).[e_rls2ctx_s2_starting_level] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_level_start))).[e_rls2ctx_vmid] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)))).[e_rd_sve_enabled] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) & (512)) >> (9)))))).[share].[slots] :<
+                          (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))).[stack].[stack_g0] :<
+                          (GRANULES_BASE + ((16 * ((v_rd_addr / (GRANULE_SIZE))))))).[stack].[stack_g1] :<
+                          (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[stack].[stack_realm_params] :<
+                          rmi_realm_params)
+                      ))))))
+              else (
+                if ((((rmi_realm_params.(e_rmi_realm_params_1)).(e_union_anon_0_95_0)) @ 0) =? (1))
+                then (
+                  if ((0 - ((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start)))) <? (0))
+                  then (
+                    match (
+                      (smc_realm_create_loop335
+                        (z_to_nat 0)
+                        false
+                        (mkPtr "granules" (16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE)))))
+                        0
+                        (mkPtr "stack_realm_params" 2072)
+                        ((((((lens 159 st).[share].[granule_data] :<
+                          (((st.(share)).(granule_data)) #
+                            (v_rd_addr / (GRANULE_SIZE)) ==
+                            ((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).[g_rd] :<
+                              (((((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).[e_rd_algorithm] :< 1).[e_rd_num_rec_aux] :< 16).[e_rd_pmu_enabled] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (22)) & (1))).[e_rd_pmu_num_cnts] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (23)) & (31))).[e_rd_rd_state] :<
+                                0).[e_rd_rec_count] :<
+                                0).[e_rd_s2_ctx] :<
+                                ((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).[e_rls2ctx_g_rtt] :<
+                                  (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[e_rls2ctx_ipa_bits] :<
+                                  ret).[e_rls2ctx_num_root_rtts] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start))).[e_rls2ctx_s2_starting_level] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_level_start))).[e_rls2ctx_vmid] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)))).[e_rd_sve_enabled] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) & (512)) >> (9))).[e_rd_sve_vq] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (10)) & (15)))))).[share].[slots] :<
+                          (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))).[stack].[stack_g0] :<
+                          (GRANULES_BASE + ((16 * ((v_rd_addr / (GRANULE_SIZE))))))).[stack].[stack_g1] :<
+                          (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[stack].[stack_realm_params] :<
+                          rmi_realm_params))
+                    ) with
+                    | (Some (__break__, v_39, v_indvars_iv_0, v_rtt_num_start_0, st_49)) => (Some (0, st_49))
+                    | None => None
+                    end)
+                  else (
+                    (Some (
+                      0  ,
+                      ((((((lens 159 st).[share].[granule_data] :<
+                        (((st.(share)).(granule_data)) #
+                          (v_rd_addr / (GRANULE_SIZE)) ==
+                          ((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).[g_rd] :<
+                            (((((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).[e_rd_algorithm] :< 1).[e_rd_num_rec_aux] :< 16).[e_rd_pmu_enabled] :<
+                              ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (22)) & (1))).[e_rd_pmu_num_cnts] :<
+                              ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (23)) & (31))).[e_rd_rd_state] :<
+                              0).[e_rd_rec_count] :<
+                              0).[e_rd_s2_ctx] :<
+                              ((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).[e_rls2ctx_g_rtt] :<
+                                (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[e_rls2ctx_ipa_bits] :<
+                                ret).[e_rls2ctx_num_root_rtts] :<
+                                (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start))).[e_rls2ctx_s2_starting_level] :<
+                                (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_level_start))).[e_rls2ctx_vmid] :<
+                                (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)))).[e_rd_sve_enabled] :<
+                              ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) & (512)) >> (9))).[e_rd_sve_vq] :<
+                              ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (10)) & (15)))))).[share].[slots] :<
+                        (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))).[stack].[stack_g0] :<
+                        (GRANULES_BASE + ((16 * ((v_rd_addr / (GRANULE_SIZE))))))).[stack].[stack_g1] :<
+                        (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[stack].[stack_realm_params] :<
+                        rmi_realm_params)
+                    ))))
+                else (
+                  if ((((rmi_realm_params.(e_rmi_realm_params_1)).(e_union_anon_0_95_0)) @ 0) =? (0))
+                  then (
+                    if ((0 - ((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start)))) <? (0))
+                    then (
+                      match (
+                        (smc_realm_create_loop335
+                          (z_to_nat 0)
+                          false
+                          (mkPtr "granules" (16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE)))))
+                          0
+                          (mkPtr "stack_realm_params" 2072)
+                          ((((((lens 171 st).[share].[granule_data] :<
+                            (((st.(share)).(granule_data)) #
+                              (v_rd_addr / (GRANULE_SIZE)) ==
+                              ((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).[g_rd] :<
+                                (((((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).[e_rd_algorithm] :< 0).[e_rd_num_rec_aux] :< 16).[e_rd_pmu_enabled] :<
+                                  ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (22)) & (1))).[e_rd_pmu_num_cnts] :<
+                                  ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (23)) & (31))).[e_rd_rd_state] :<
+                                  0).[e_rd_rec_count] :<
+                                  0).[e_rd_s2_ctx] :<
+                                  ((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).[e_rls2ctx_g_rtt] :<
+                                    (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[e_rls2ctx_ipa_bits] :<
+                                    ret).[e_rls2ctx_num_root_rtts] :<
+                                    (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start))).[e_rls2ctx_s2_starting_level] :<
+                                    (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_level_start))).[e_rls2ctx_vmid] :<
+                                    (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)))).[e_rd_sve_enabled] :<
+                                  ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) & (512)) >> (9))).[e_rd_sve_vq] :<
+                                  ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (10)) & (15)))))).[share].[slots] :<
+                            (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))).[stack].[stack_g0] :<
+                            (GRANULES_BASE + ((16 * ((v_rd_addr / (GRANULE_SIZE))))))).[stack].[stack_g1] :<
+                            (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[stack].[stack_realm_params] :<
+                            rmi_realm_params))
+                      ) with
+                      | (Some (__break__, v_39, v_indvars_iv_0, v_rtt_num_start_0, st_50)) => (Some (0, st_50))
+                      | None => None
+                      end)
+                    else (
+                      (Some (
+                        0  ,
+                        ((((((lens 171 st).[share].[granule_data] :<
+                          (((st.(share)).(granule_data)) #
+                            (v_rd_addr / (GRANULE_SIZE)) ==
+                            ((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).[g_rd] :<
+                              (((((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).[e_rd_algorithm] :< 0).[e_rd_num_rec_aux] :< 16).[e_rd_pmu_enabled] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (22)) & (1))).[e_rd_pmu_num_cnts] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (23)) & (31))).[e_rd_rd_state] :<
+                                0).[e_rd_rec_count] :<
+                                0).[e_rd_s2_ctx] :<
+                                ((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).[e_rls2ctx_g_rtt] :<
+                                  (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[e_rls2ctx_ipa_bits] :<
+                                  ret).[e_rls2ctx_num_root_rtts] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start))).[e_rls2ctx_s2_starting_level] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_level_start))).[e_rls2ctx_vmid] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)))).[e_rd_sve_enabled] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) & (512)) >> (9))).[e_rd_sve_vq] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (10)) & (15)))))).[share].[slots] :<
+                          (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))).[stack].[stack_g0] :<
+                          (GRANULES_BASE + ((16 * ((v_rd_addr / (GRANULE_SIZE))))))).[stack].[stack_g1] :<
+                          (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[stack].[stack_realm_params] :<
+                          rmi_realm_params)
+                      ))))
+                  else (
+                    if ((0 - ((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start)))) <? (0))
+                    then (
+                      match (
+                        (smc_realm_create_loop335
+                          (z_to_nat 0)
+                          false
+                          (mkPtr "granules" (16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE)))))
+                          0
+                          (mkPtr "stack_realm_params" 2072)
+                          ((((((lens 181 st).[share].[granule_data] :<
+                            (((st.(share)).(granule_data)) #
+                              (v_rd_addr / (GRANULE_SIZE)) ==
+                              ((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).[g_rd] :<
+                                (((((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).[e_rd_algorithm] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_1)).(e_union_anon_0_95_0)) @ 0)).[e_rd_num_rec_aux] :<
+                                  16).[e_rd_pmu_enabled] :<
+                                  ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (22)) & (1))).[e_rd_pmu_num_cnts] :<
+                                  ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (23)) & (31))).[e_rd_rd_state] :<
+                                  0).[e_rd_rec_count] :<
+                                  0).[e_rd_s2_ctx] :<
+                                  ((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).[e_rls2ctx_g_rtt] :<
+                                    (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[e_rls2ctx_ipa_bits] :<
+                                    ret).[e_rls2ctx_num_root_rtts] :<
+                                    (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start))).[e_rls2ctx_s2_starting_level] :<
+                                    (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_level_start))).[e_rls2ctx_vmid] :<
+                                    (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)))).[e_rd_sve_enabled] :<
+                                  ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) & (512)) >> (9))).[e_rd_sve_vq] :<
+                                  ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (10)) & (15)))))).[share].[slots] :<
+                            (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))).[stack].[stack_g0] :<
+                            (GRANULES_BASE + ((16 * ((v_rd_addr / (GRANULE_SIZE))))))).[stack].[stack_g1] :<
+                            (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[stack].[stack_realm_params] :<
+                            rmi_realm_params))
+                      ) with
+                      | (Some (__break__, v_39, v_indvars_iv_0, v_rtt_num_start_0, st_49)) => (Some (0, st_49))
+                      | None => None
+                      end)
+                    else (
+                      (Some (
+                        0  ,
+                        ((((((lens 181 st).[share].[granule_data] :<
+                          (((st.(share)).(granule_data)) #
+                            (v_rd_addr / (GRANULE_SIZE)) ==
+                            ((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).[g_rd] :<
+                              (((((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).[e_rd_algorithm] :<
+                                (((rmi_realm_params.(e_rmi_realm_params_1)).(e_union_anon_0_95_0)) @ 0)).[e_rd_num_rec_aux] :<
+                                16).[e_rd_pmu_enabled] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (22)) & (1))).[e_rd_pmu_num_cnts] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (23)) & (31))).[e_rd_rd_state] :<
+                                0).[e_rd_rec_count] :<
+                                0).[e_rd_s2_ctx] :<
+                                ((((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).[e_rls2ctx_g_rtt] :<
+                                  (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[e_rls2ctx_ipa_bits] :<
+                                  ret).[e_rls2ctx_num_root_rtts] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_num_start))).[e_rls2ctx_s2_starting_level] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_level_start))).[e_rls2ctx_vmid] :<
+                                  (((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)))).[e_rd_sve_enabled] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) & (512)) >> (9))).[e_rd_sve_vq] :<
+                                ((((rmi_realm_params.(e_rmi_realm_params_0)).(e_union_anon_7_0)) >> (10)) & (15)))))).[share].[slots] :<
+                          (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))).[stack].[stack_g0] :<
+                          (GRANULES_BASE + ((16 * ((v_rd_addr / (GRANULE_SIZE))))))).[stack].[stack_g1] :<
+                          (GRANULES_BASE + ((16 * (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_rtt_base)) / (GRANULE_SIZE))))))).[stack].[stack_realm_params] :<
+                          rmi_realm_params)
+                      ))))))))
+          else (
+            rely (
+              (((0 - (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)) >> (6)))) <= (0)) /\
+                ((((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)) >> (6)) < (1024)))));
+            (Some (1, ((lens 183 st).[stack].[stack_realm_params] :< rmi_realm_params))))))
+      else (
+        rely (
+          (((0 - (((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)) >> (6)))) <= (0)) /\
+            ((((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)) >> (6)) < (1024)))));
+        (Some (1, ((lens 184 st).[stack].[stack_realm_params] :< rmi_realm_params))))).
 
 End SMCHandler_Spec.
 

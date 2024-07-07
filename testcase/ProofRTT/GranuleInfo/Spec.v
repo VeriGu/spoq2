@@ -26,15 +26,8 @@ Section GranuleInfo_Spec.
 
   Definition granule_unlock_transition_spec (v_g: Ptr) (v_new_state: Z) (st: RData) : (option RData) :=
     rely ((((v_g.(pbase)) = ("granules")) /\ ((((v_g.(poffset)) mod (ST_GRANULE_SIZE)) = (0)))));
-    if (
-      match (((((st.(share)).(granules)) @ (((v_g.(poffset)) + (4)) / (ST_GRANULE_SIZE))).(e_lock))) with
-      | (Some cid) => true
-      | None => false
-      end)
-    then (
-      when cid == (((((st.(share)).(granules)) @ (((v_g.(poffset)) + (4)) / (ST_GRANULE_SIZE))).(e_lock)));
-      (Some (lens 1157 st)))
-    else None.
+    when cid == (((((st.(share)).(granules)) @ (((v_g.(poffset)) + (4)) / (ST_GRANULE_SIZE))).(e_lock)));
+    (Some (lens 35 st)).
 
   Fixpoint find_lock_granules_loop197 (_N_: nat) (__break__: bool) (v_granules: Ptr) (v_i_241: Z) (st: RData) : (option (bool * Ptr * Z * RData)) :=
     match (_N_) with
