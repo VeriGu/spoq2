@@ -4866,6 +4866,62 @@ Fixpoint s2tt_init_valid_ns_loop738 (_N_: nat) (__return__: bool) (v_call: Z) (v
             ((((((rmi_realm_params.(e_rmi_realm_params_3)).(e_union_anon_2_98_0)).(e_vmid)) >> (6)) < (1024)))));
         (Some (1, ((lens 184 st).[stack].[stack_realm_params] :< rmi_realm_params))))).
 
+  Definition smc_realm_activate_spec (v_rd_addr: Z) (st: RData) : (option (Z * RData)) :=
+    if ((v_rd_addr & (4095)) =? (0))
+    then (
+      if ((v_rd_addr / (GRANULE_SIZE)) >? (1048575))
+      then (Some (1, st))
+      else (
+        rely ((((0 - ((v_rd_addr / (GRANULE_SIZE)))) <= (0)) /\ (((v_rd_addr / (GRANULE_SIZE)) < (1048576)))));
+        rely (((((((st.(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))).(e_state)) - (2)) = (0)));
+        when sh == (((st.(repl)) ((st.(oracle)) (st.(log))) (st.(share))));
+        rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+        if ((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_rd_state)) =? (0))
+        then (
+          (Some (
+            0  ,
+            (((lens 21 st).[share].[granule_data] :<
+              (((st.(share)).(granule_data)) #
+                (v_rd_addr / (GRANULE_SIZE)) ==
+                ((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).[g_rd] :<
+                  (((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).[e_rd_rd_state] :< 1)))).[share].[slots] :<
+              (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))))
+          )))
+        else (Some (2, ((lens 23 st).[share].[slots] :< (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))))))))
+    else (Some (1, st)).
+
+  Definition smc_rec_destroy_spec (v_rec_addr: Z) (st: RData) : (option (Z * RData)) :=
+    if ((v_rec_addr & (4095)) =? (0))
+    then (
+      if ((v_rec_addr / (GRANULE_SIZE)) >? (1048575))
+      then (Some (1, st))
+      else (
+        rely ((((0 - ((v_rec_addr / (GRANULE_SIZE)))) <= (0)) /\ (((v_rec_addr / (GRANULE_SIZE)) < (1048576)))));
+        rely (((((((st.(share)).(granules)) @ (v_rec_addr / (GRANULE_SIZE))).(e_state)) - (3)) = (0)));
+        when sh == (((st.(repl)) ((st.(oracle)) (st.(log))) (st.(share))));
+        if ((((((lens 23 st).(share)).(granules)) @ (v_rec_addr / (GRANULE_SIZE))).(e_refcount)) =? (0))
+        then (
+          rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+          rely (
+            (((((((((st.(share)).(granule_data)) @ (v_rec_addr / (GRANULE_SIZE))).(g_rec)).(e_realm_info)).(e_g_rd)) > (0)) /\
+              (((((((((st.(share)).(granule_data)) @ (v_rec_addr / (GRANULE_SIZE))).(g_rec)).(e_realm_info)).(e_g_rd)) - (GRANULES_BASE)) >= (0)))) /\
+              (((((((((st.(share)).(granule_data)) @ (v_rec_addr / (GRANULE_SIZE))).(g_rec)).(e_realm_info)).(e_g_rd)) - (18446744073705226240)) < (0)))));
+          rely ((("granules" = ("granules")) /\ (((((((((st.(share)).(granule_data)) @ (v_rec_addr / (GRANULE_SIZE))).(g_rec)).(e_realm_info)).(e_g_rd)) mod (16)) = (0)))));
+          if (
+            (((((((lens 31 st).(share)).(granules)) @ (1152921504605528063 + ((((((((st.(share)).(granule_data)) @ (v_rec_addr / (GRANULE_SIZE))).(g_rec)).(e_realm_info)).(e_g_rd)) / (ST_GRANULE_SIZE))))).(e_refcount)) +
+              ((- 1))) <?
+              (0)))
+          then None
+          else (
+            (Some (
+              0  ,
+              (((lens 34 st).[share].[granule_data] :<
+                (((st.(share)).(granule_data)) # (v_rec_addr / (GRANULE_SIZE)) == ((((st.(share)).(granule_data)) @ (v_rec_addr / (GRANULE_SIZE))).[g_rec] :< empty_rec))).[share].[slots] :<
+                (((st.(share)).(slots)) # SLOT_REC == (v_rec_addr / (GRANULE_SIZE))))
+            ))))
+        else (Some (5, (lens 28 st)))))
+    else (Some (1, st)).
+
 End SMCHandler_Spec.
 
 #[global] Hint Unfold smc_data_create_unknown_spec: spec.
