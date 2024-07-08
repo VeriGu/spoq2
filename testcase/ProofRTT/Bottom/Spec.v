@@ -5,8 +5,6 @@ Require Import GlobalDefs.
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
-Parameter llvm_memset_p0i8_i64_spec_state_oracle : Ptr -> (Z -> (Z -> (bool -> (RData -> (option RData))))).
-
 Parameter memcpy_ns_read_spec_state_oracle : Ptr -> (Ptr -> (Z -> (RData -> (option (bool * RData))))).
 
 Parameter memcpy_ns_write_spec_state_oracle : Ptr -> (Ptr -> (Z -> (RData -> (option (bool * RData))))).
@@ -31,11 +29,27 @@ Section Bottom_Spec.
 
   Context `{int_ptr: IntPtrCast}.
 
-  Definition ptr_eqb (p1: Ptr) (p2: Ptr) : bool :=
-    (((p1.(pbase)) =s ((p2.(pbase)))) && (((p1.(poffset)) =? ((p2.(poffset)))))).
+  Definition status_ptr_spec (v_status: Z) (st: RData) : (option (Ptr * RData)) :=
+    (Some ((mkPtr "status" v_status), st)).
+
+  Definition ptr_status_spec (v_ptr: Ptr) (st: RData) : (option (Z * RData)) :=
+    if ((v_ptr.(pbase)) =s ("status"))
+    then (Some ((v_ptr.(poffset)), st))
+    else (Some (0, st)).
+
+  Definition ptr_is_err_spec (v_ptr: Ptr) (st: RData) : (option (bool * RData)) :=
+    if ((v_ptr.(pbase)) =s ("status"))
+    then (Some (true, st))
+    else (Some (false, st)).
+
+  Definition table_entry_to_phys_spec (v_entry1: Z) (st: RData) : (option (Z * RData)) :=
+    (Some ((v_entry1 & (281474976710655)), st)).
 
   Definition ptr_lt (p1: Ptr) (p2: Ptr) : bool :=
     ((p1.(poffset)) <? ((p2.(poffset)))).
+
+  Definition ptr_eqb (p1: Ptr) (p2: Ptr) : bool :=
+    (((p1.(pbase)) =s ((p2.(pbase)))) && (((p1.(poffset)) =? ((p2.(poffset)))))).
 
   Definition ptr_gt (p1: Ptr) (p2: Ptr) : bool :=
     ((p1.(poffset)) >? ((p2.(poffset)))).
@@ -45,13 +59,14 @@ Section Bottom_Spec.
     then (
       let ofs := (lock.(poffset)) in
       let gidx_l := (ofs / (ST_GRANULE_SIZE)) in
-      when st == ((query_oracle st));
-      let g := (((st.(share)).(granules)) @ gidx_l) in
+      when st1 == ((query_oracle st));
+      let g := (((st1.(share)).(granules)) @ gidx_l) in
       match ((g.(e_lock))) with
       | None =>
         let e := (EVT CPU_ID (ACQ gidx_l)) in
-        let new_granules := (((st.(share)).(granules)) # gidx_l == (g.[e_lock] :< (Some CPU_ID))) in
-        let new_st := (st.[share].[granules] :< new_granules) in
+        let new_granules := (((st1.(share)).(granules)) # gidx_l == (g.[e_lock] :< (Some CPU_ID))) in
+        let new_st := (st1.[share].[granules] :< new_granules) in
+        rely ((((((st.(share)).(granules)) @ gidx_l).(e_state)) = ((g.(e_state)))));
         (Some (new_st.[log] :< (e :: ((new_st.(log))))))
       | (Some cid) => None
       end)
@@ -74,19 +89,41 @@ Section Bottom_Spec.
     None.
 
   Definition llvm_memcpy_p0i8_p0i8_i64_spec (v_dest: Ptr) (v_src: Ptr) (sz: Z) (is_volatile: bool) (st: RData) : (option RData) :=
-    if (((v_dest.(pbase)) =s ("sort_granules_stack")) && (((v_src.(pbase)) =s ("find_lock_two_granules_stack"))))
+    if (sz =? (24))
     then (
-      let _src_0 := (((st.(stack)).(find_lock_two_granules_stack)) @ (v_src.(poffset))) in
-      let _src_1 := (((st.(stack)).(find_lock_two_granules_stack)) @ ((v_src.(poffset)) + (8))) in
-      let _src_2 := (((st.(stack)).(find_lock_two_granules_stack)) @ ((v_src.(poffset)) + (16))) in
-      let _dest_0 := (((st.(stack)).(sort_granules_stack)) # 0 == _src_0) in
-      let _dest_1 := (_dest_0 # 8 == _src_1) in
-      let _dest_2 := (_dest_1 # 16 == _src_2) in
-      (Some (st.[stack].[sort_granules_stack] :< _dest_2)))
-    else (Some st).
+      when v0, st == ((load_RData 8 v_src st));
+      when v1, st == ((load_RData 8 (ptr_offset v_src 8) st));
+      when v2, st == ((load_RData 8 (ptr_offset v_src 16) st));
+      when st == ((store_RData 8 v_dest v0 st));
+      when st == ((store_RData 8 (ptr_offset v_dest 8) v1 st));
+      when st == ((store_RData 8 (ptr_offset v_dest 16) v2 st));
+      (Some st))
+    else (
+      if (sz =? (32))
+      then (
+        if (((v_dest.(pbase)) =s ("stack_s2_ctx")) && (((v_src.(pbase)) =s ("slot_rd"))))
+        then (Some (st.[stack].[stack_s2_ctx] :< (((((st.(share)).(granule_data)) @ (((st.(share)).(slots)) @ SLOT_RD)).(g_rd)).(e_rd_s2_ctx))))
+        else None)
+      else (
+        if (sz =? (40))
+        then (
+          when v0, st == ((load_RData 8 v_src st));
+          when v1, st == ((load_RData 8 (ptr_offset v_src 8) st));
+          when v2, st == ((load_RData 8 (ptr_offset v_src 16) st));
+          when v3, st == ((load_RData 8 (ptr_offset v_src 24) st));
+          when v4, st == ((load_RData 8 (ptr_offset v_src 32) st));
+          when st == ((store_RData 8 v_dest v0 st));
+          when st == ((store_RData 8 (ptr_offset v_dest 8) v1 st));
+          when st == ((store_RData 8 (ptr_offset v_dest 16) v2 st));
+          when st == ((store_RData 8 (ptr_offset v_dest 24) v3 st));
+          when st == ((store_RData 8 (ptr_offset v_dest 32) v4 st));
+          (Some st))
+        else None)).
 
   Definition llvm_memset_p0i8_i64_spec (v_0: Ptr) (arg1: Z) (arg2: Z) (arg3: bool) (st: RData) : (option RData) :=
-    (llvm_memset_p0i8_i64_spec_state_oracle v_0 arg1 arg2 arg3 st).
+    if ((v_0.(pbase)) =s ("stack_g_tbls"))
+    then (Some (st.[stack].[stack_g_tbls] :< (ZMap.init 0)))
+    else (Some st).
 
   Definition memcpy_ns_read_spec (v_dest: Ptr) (v_src: Ptr) (v_conv: Z) (st: RData) : (option (bool * RData)) :=
     rely (((v_src.(pbase)) = ("slot_ns")));
@@ -111,43 +148,29 @@ Section Bottom_Spec.
         let g := (((st.(share)).(granules)) @ g_idx) in
         when cid == ((g.(e_lock)));
         (Some (v_s, (st.[share].[granule_data] :< (((st.(share)).(granule_data)) # g_idx == (g_data.[g_norm] :< zero_granule_data_normal))))))
-      else (Some (v_s, st))).
+      else (
+        if ((v_s.(pbase)) =s ("slot_rec"))
+        then (
+          let g_idx := (((st.(share)).(slots)) @ SLOT_REC) in
+          let g_data := (((st.(share)).(granule_data)) @ g_idx) in
+          let g := (((st.(share)).(granules)) @ g_idx) in
+          when cid == ((g.(e_lock)));
+          (Some (v_s, (st.[share].[granule_data] :< (((st.(share)).(granule_data)) # g_idx == (g_data.[g_rec] :< empty_rec))))))
+        else (
+          if ((v_s.(pbase)) =s ("slot_rd"))
+          then (
+            let g_idx := (((st.(share)).(slots)) @ SLOT_RD) in
+            let g_data := (((st.(share)).(granule_data)) @ g_idx) in
+            let g := (((st.(share)).(granules)) @ g_idx) in
+            when cid == ((g.(e_lock)));
+            (Some (v_s, (st.[share].[granule_data] :< (((st.(share)).(granule_data)) # g_idx == (g_data.[g_rd] :< empty_rd))))))
+          else (Some (v_s, st))))).
 
   Definition memcpy_spec (v_dst: Ptr) (v_src: Ptr) (v_len: Z) (st: RData) : (option (Ptr * RData)) :=
     (Some (v_dst, st)).
 
   Definition xlat_unmap_memory_page_spec (v_table: Ptr) (v_va: Z) (st: RData) : (option (Z * RData)) :=
-    let v_ptr := (int_to_ptr v_va) in
-    if ((v_ptr.(pbase)) =s ("slot_ns"))
-    then (Some (0, (st.[share].[slots] :< (((st.(share)).(slots)) # SLOT_NS == (- 1)))))
-    else (
-      if ((v_ptr.(pbase)) =s ("slot_delegated"))
-      then (Some (0, (st.[share].[slots] :< (((st.(share)).(slots)) # SLOT_DELEGATED == (- 1)))))
-      else (
-        if ((v_ptr.(pbase)) =s ("slot_rd"))
-        then (Some (0, (st.[share].[slots] :< (((st.(share)).(slots)) # SLOT_RD == (- 1)))))
-        else (
-          if ((v_ptr.(pbase)) =s ("slot_rec"))
-          then (Some (0, (st.[share].[slots] :< (((st.(share)).(slots)) # SLOT_REC == (- 1)))))
-          else (
-            if ((v_ptr.(pbase)) =s ("slot_rec2"))
-            then (Some (0, (st.[share].[slots] :< (((st.(share)).(slots)) # SLOT_REC2 == (- 1)))))
-            else (
-              if ((v_ptr.(pbase)) =s ("slot_rec_target"))
-              then (Some (0, (st.[share].[slots] :< (((st.(share)).(slots)) # SLOT_REC_TARGET == (- 1)))))
-              else (
-                if ((v_ptr.(pbase)) =s ("slot_rec_aux0"))
-                then (Some (0, (st.[share].[slots] :< (((st.(share)).(slots)) # SLOT_REC_AUX0 == (- 1)))))
-                else (
-                  if ((v_ptr.(pbase)) =s ("slot_rtt"))
-                  then (Some (0, (st.[share].[slots] :< (((st.(share)).(slots)) # SLOT_RTT == (- 1)))))
-                  else (
-                    if ((v_ptr.(pbase)) =s ("slot_rtt2"))
-                    then (Some (0, (st.[share].[slots] :< (((st.(share)).(slots)) # SLOT_RTT2 == (- 1)))))
-                    else (
-                      if ((v_ptr.(pbase)) =s ("slot_rsi_call"))
-                      then (Some (0, (st.[share].[slots] :< (((st.(share)).(slots)) # SLOT_RSI_CALL == (- 1)))))
-                      else None))))))))).
+    (Some (0, st)).
 
   Definition xlat_map_memory_page_with_attrs_spec (v_table: Ptr) (v_va: Z) (v_pa: Z) (v_attrs: Z) (st: RData) : (option (Z * RData)) :=
     let v_ptr := (int_to_ptr v_va) in
@@ -1116,6 +1139,9 @@ Section Bottom_Spec.
   Definition attest_realm_token_sign_spec (v_me: Ptr) (v_completed_token: Ptr) (st: RData) : (option (Z * RData)) :=
     (Some (0, st)).
 
+  Definition save_input_parameters_spec (v_rec: Ptr) (st: RData) : (option RData) :=
+    (Some st).
+
   Definition attest_realm_token_create_spec (v_algo: Z) (v_measurement: Ptr) (v_num_measurement: Z) (v_prv: Ptr) (v_ctx: Ptr) (v_realm_token_buf: Ptr) (st: RData) : (option (Z * RData)) :=
     (Some (0, st)).
 
@@ -1176,9 +1202,6 @@ Section Bottom_Spec.
   Definition simd_init_spec (st: RData) : (option RData) :=
     (Some st).
 
-  Definition find_lock_rd_granules_spec (v_rd_addr: Z) (v_g_rd: Ptr) (v_4: Z) (v_5: Z) (v_g_rtt_base: Ptr) (st: RData) : (option (bool * RData)) :=
-    (Some (true, st)).
-
   Definition complete_rsi_host_call_spec (v_rec: Ptr) (v_rec_entry: Ptr) (st: RData) : (option (list Z * RData)) :=
     (Some ((1 :: ((0 :: (nil)))), st)).
 
@@ -1211,8 +1234,12 @@ Section Bottom_Spec.
 
 End Bottom_Spec.
 
-#[global] Hint Unfold ptr_eqb: spec.
+#[global] Hint Unfold status_ptr_spec: spec.
+#[global] Hint Unfold ptr_status_spec: spec.
+#[global] Hint Unfold ptr_is_err_spec: spec.
+#[global] Hint Unfold table_entry_to_phys_spec: spec.
 #[global] Hint Unfold ptr_lt: spec.
+#[global] Hint Unfold ptr_eqb: spec.
 #[global] Hint Unfold ptr_gt: spec.
 #[global] Hint Unfold spinlock_acquire_spec: spec.
 #[global] Hint Unfold spinlock_release_spec: spec.
@@ -1527,6 +1554,7 @@ End Bottom_Spec.
 #[global] Hint Unfold attest_get_platform_token_spec: spec.
 #[global] Hint Unfold attest_cca_token_create_spec: spec.
 #[global] Hint Unfold attest_realm_token_sign_spec: spec.
+#[global] Hint Unfold save_input_parameters_spec: spec.
 #[global] Hint Unfold attest_realm_token_create_spec: spec.
 #[global] Hint Unfold attestation_heap_reinit_pe_spec: spec.
 #[global] Hint Unfold attestation_heap_ctx_assign_pe_spec: spec.
@@ -1547,7 +1575,6 @@ End Bottom_Spec.
 #[global] Hint Unfold report_unexpected_spec: spec.
 #[global] Hint Unfold fatal_abort_spec: spec.
 #[global] Hint Unfold simd_init_spec: spec.
-#[global] Hint Unfold find_lock_rd_granules_spec: spec.
 #[global] Hint Unfold complete_rsi_host_call_spec: spec.
 #[global] Hint Unfold complete_host_call_spec: spec.
 #[global] Hint Unfold handle_realm_trap_spec: spec.

@@ -208,25 +208,25 @@ Section GranuleInfo_Spec.
       end
     end.
 
-  Definition find_lock_granules_spec (v_granules: Ptr) (v_n: Z) (st: RData) : (option (bool * RData)) :=
-    rely (((v_granules.(pbase)) = ("find_lock_two_granules_stack")));
-    match ((find_lock_granules_loop0 (z_to_nat 2) false false false v_granules 0 (lens 1328 st))) with
-    | (Some (__return__, __retval__, __break__, v_granules_0, v_i_144, st_3)) =>
-      rely (((v_granules_0.(pbase)) = ("find_lock_two_granules_stack")));
-      if __return__
-      then (Some (__retval__, st_3))
-      else (
-        if (v_i_144 >? (0))
-        then (
-          rely ((((((st_3.(stack)).(find_lock_two_granules_stack)) @ ((v_granules_0.(poffset)) + (((40 * ((v_i_144 + ((- 1))))) + (24))))) - (STACK_VIRT)) < (0)));
-          rely ((((((st_3.(stack)).(find_lock_two_granules_stack)) @ ((v_granules_0.(poffset)) + (((40 * ((v_i_144 + ((- 1))))) + (24))))) - (GRANULES_BASE)) >= (0)));
-          when cid == (
-              ((((st_3.(share)).(granules)) @
-                (((((st_3.(stack)).(find_lock_two_granules_stack)) @ ((v_granules_0.(poffset)) + (((40 * ((v_i_144 + ((- 1))))) + (24))))) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
-          (Some (false, (lens 1331 st_3))))
-        else (Some (false, st_3)))
-    | None => None
-    end.
+  (* Definition find_lock_granules_spec (v_granules: Ptr) (v_n: Z) (st: RData) : (option (bool * RData)) := *)
+  (*   rely (((v_granules.(pbase)) = ("find_lock_two_granules_stack"))); *)
+  (*   match ((find_lock_granules_loop0 (z_to_nat 2) false false false v_granules 0 (lens 1328 st))) with *)
+  (*   | (Some (__return__, __retval__, __break__, v_granules_0, v_i_144, st_3)) => *)
+  (*     rely (((v_granules_0.(pbase)) = ("find_lock_two_granules_stack"))); *)
+  (*     if __return__ *)
+  (*     then (Some (__retval__, st_3)) *)
+  (*     else ( *)
+  (*       if (v_i_144 >? (0)) *)
+  (*       then ( *)
+  (*         rely ((((((st_3.(stack)).(find_lock_two_granules_stack)) @ ((v_granules_0.(poffset)) + (((40 * ((v_i_144 + ((- 1))))) + (24))))) - (STACK_VIRT)) < (0))); *)
+  (*         rely ((((((st_3.(stack)).(find_lock_two_granules_stack)) @ ((v_granules_0.(poffset)) + (((40 * ((v_i_144 + ((- 1))))) + (24))))) - (GRANULES_BASE)) >= (0))); *)
+  (*         when cid == ( *)
+  (*             ((((st_3.(share)).(granules)) @ *)
+  (*               (((((st_3.(stack)).(find_lock_two_granules_stack)) @ ((v_granules_0.(poffset)) + (((40 * ((v_i_144 + ((- 1))))) + (24))))) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock))); *)
+  (*         (Some (false, (lens 1331 st_3)))) *)
+  (*       else (Some (false, st_3))) *)
+  (*   | None => None *)
+  (*   end. *)
 
 End GranuleInfo_Spec.
 
@@ -237,4 +237,4 @@ End GranuleInfo_Spec.
 #[global] Hint Unfold granule_unlock_transition_spec: spec.
 Opaque find_lock_granules_loop197.
 Opaque find_lock_granules_loop0.
-#[global] Hint Unfold find_lock_granules_spec: spec.
+(* #[global] Hint Unfold find_lock_granules_spec: spec. *)
