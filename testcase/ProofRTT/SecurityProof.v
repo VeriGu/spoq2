@@ -34,6 +34,8 @@ Parameter PTE_IS_TABLE: Z -> bool.
 Parameter gidx_to_table_pte : Z -> Z.
 Parameter pte_to_gidx: Z -> Z.
 
+Axiom zero_granule_state: forall sh, (sh.(granules) @ 0).(e_state) = -1.
+
 Lemma gidx_to_table_pte_is_table:
   forall gidx, PTE_IS_TABLE (gidx_to_table_pte gidx) = true.
 Admitted.
@@ -53,7 +55,7 @@ Fixpoint walk_rtt_level (n: nat) (sh: Shared) (lvl: Z) (rd: Z) (gfn: Z) (pte: Z)
     match walk_rtt_level n' sh lvl rd gfn pte with
     | (lvl', pte') =>
       let rtt_idx' := pte_to_gidx pte' in
-      if (PTE_IS_TABLE pte') && ((sh.(granules) @ rtt_idx').(e_state) =? GRANULE_STATE_RTT) then
+      if ((sh.(granules) @ rtt_idx').(e_state) =? GRANULE_STATE_RTT) then
         let pte'' := walk_one_step sh lvl' gfn rtt_idx' in
         (lvl' + 1, pte'')
       else
@@ -79,6 +81,7 @@ Definition walk_star (sh: Shared) (rd: Z) (gfn: Z) (rtt_idx: Z) : Prop :=
     walk_rtt_level N sh 0 rd gfn (gidx_to_table_pte (rd_rtt sh rd)) = (lvl, pte)
     /\ rtt_idx = pte_to_gidx pte.
 
+
 Lemma walk_star_prop:
   forall sh rd gfn rtt_idx (Hwalk_star: walk_star sh rd gfn rtt_idx),
     (rtt_idx = rd_rtt sh rd) \/
@@ -99,6 +102,29 @@ Proof.
     + apply IHN. auto.
 Qed.
 
+Lemma walk_rtt_level_split:
+  forall m,
+  forall n sh lvl rd gfn pte lvl' pte' (Hwalk: walk_rtt_level n sh lvl rd gfn pte = (lvl', pte')),
+    walk_rtt_level (m + n) sh lvl rd gfn pte = walk_rtt_level m sh lvl' rd gfn pte'.
+Proof.
+  induction m.
+  simpl. intros. assumption.
+  simpl. intros.
+  erewrite IHm.
+  2: apply Hwalk. reflexivity.
+Qed.
+
+Lemma invalid_start_walk_invalid:
+  forall N sh lvl rd gidx pte (Hinvalid: pte_to_gidx pte = 0),
+    walk_rtt_level N sh lvl rd gidx pte = (lvl, pte).
+Proof.
+  induction N.
+  simpl; intros. reflexivity.
+  intros. simpl. rewrite IHN. autounfold with spec.
+  rewrite Hinvalid. rewrite zero_granule_state.
+  destruct_if. lia. reflexivity. assumption.
+Qed.
+
 Definition walk_reverse (sh: Shared) : Prop :=
   exists (rev: Z -> (Z * Z)),
   forall rd gfn rtt_idx
@@ -109,12 +135,6 @@ Definition walk_reverse (sh: Shared) : Prop :=
                     /\ (rtt_idx <> rd_rtt sh rd ->
                        ((sh.(granules) @ par_idx).(e_state) = GRANULE_STATE_RTT
                         /\ pte_to_gidx ((sh.(granule_data) @ par_idx).(g_norm) @ ofs) = rtt_idx))).
-
-Definition walk_rd_unique (sh: Shared): Prop :=
-  forall rd1 gfn1 rd2 gfn2 rtt_idx
-    (Hwalk: walk_star sh rd1 gfn1 rtt_idx)
-    (Hwalk: walk_star sh rd2 gfn2 rtt_idx),
-    rd1 = rd2.
 
 Lemma walk_rtt_level_unreachable_same:
   forall sh rd gfn Brtt (Hunreachable: forall rtt, Brtt rtt = true -> ~ walk_star sh rd gfn rtt),
@@ -146,22 +166,15 @@ Qed.
 Lemma walk_unreachable_same:
   forall sh rd gfn Brtt (Hunreachable: forall rtt, Brtt rtt = true -> ~ walk_star sh rd gfn rtt),
   forall sh'
-    (Hsame1: sh'.(granules) = sh.(granules))
-    (Hsame2: forall rd, g_rd (sh'.(granule_data) @ rd) = g_rd (sh.(granule_data) @ rd))
-    (Hsame3: forall rtt, Brtt rtt = false -> (sh'.(granule_data) @ rtt).(g_norm) = (sh.(granule_data) @ rtt).(g_norm)),
-  walk_rtt sh' rd gfn = walk_rtt sh rd gfn.
+         (Hsame1: sh'.(granules) = sh.(granules))
+         (Hsame2: forall rd, g_rd (sh'.(granule_data) @ rd) = g_rd (sh.(granule_data) @ rd))
+         (Hsame3: forall rtt, Brtt rtt = false -> (sh'.(granule_data) @ rtt).(g_norm) = (sh.(granule_data) @ rtt).(g_norm)),
+    walk_rtt sh' rd gfn = walk_rtt sh rd gfn.
 Proof.
   intros. unfold walk_rtt.
   erewrite walk_rtt_level_unreachable_same; try eassumption.
   reflexivity.
 Qed.
-
-Lemma walk_star_continue:
-  forall sh rd gfn rtt (Hwalk_star: walk_star sh rd gfn rtt),
-  exists lvl pte,
-    walk_rtt_level 4 sh 0 rd gfn (rd_rtt sh rd) 0 =
-      walk_rtt_level (Z.to_nat (4 - lvl)) sh lvl rd gfn rtt pte.
-Admitted.
 
 Definition rd_rtt_reverse (sh: Shared) : Prop :=
   exists (rev: Z -> Z),
@@ -272,19 +285,13 @@ Definition gpt_false_ns (sh: Shared) :=
 Parameter zero_granule: GranuleDataNormal.
 
 Definition delegated_zero (sh: Shared) :=
-  forall gidx (Hdel: (sh.(granules) @ gidx).(e_state) = GRANULE_STATE_DELEAGATE),
+  forall gidx (Hdel: (sh.(granules) @ gidx).(e_state) = GRANULE_STATE_DELEGATED),
     sh.(granule_data) @ gidx = zero_granule.
 
 Definition rtt_map_data (sh: Shared) :=
   forall rd_gidx (Hrd: (sh.(granules) @ rd_gidx).(e_state) = GRANULE_STATE_RD)
     ipa_gidx data_gidx (Hwalk: walk_rtt sh rd_gidx ipa_gidx = Some data_gidx),
     (sh.(granules) @ data_gidx).(e_state) = GRANULE_STATE_DATA.
-
-Definition rtt_reverse (sh: Shared) :=
-  exists data_to_rd,
-    forall rd_gidx (Hrd: (sh.(granules) @ rd_gidx).(e_state) = GRANULE_STATE_RD)
-      ipa_gidx data_gidx (Hwalk: walk_rtt sh rd_gidx ipa_gidx = Some data_gidx),
-      data_to_rd data_gidx = (rd_gidx, ipa_gidx).
 
 Definition rec_rd_prop (sh: Shared) :=
   forall gidx (Hrec: (sh.(granules) @ gidx).(e_state) = GRANULE_STATE_REC),
@@ -299,7 +306,6 @@ Record SharedInv (sh: Shared) : Prop :=
     rtt_map_data_inv: rtt_map_data sh;
     walk_reverse_inv: walk_reverse sh;
     rd_rtt_reverse_inv: rd_rtt_reverse sh;
-    zero_granule_inv: (sh.(granules) @ 0).(e_state) = -1
   }.
 
 Record SharedInvImply (sh: Shared) : Prop :=
@@ -313,6 +319,7 @@ Record SharedInvImply (sh: Shared) : Prop :=
       (Hwalk: walk_rtt sh rd_gidx ipa_gidx = Some data_gidx)
       (Hwalk': walk_rtt sh rd_gidx' ipa_gidx' = Some data_gidx'),
       data_gidx <> data_gidx';
+
     diff_ipa_diff_data:
     forall rd_gidx rd_gidx'
       (Hrd: (sh.(granules) @ rd_gidx).(e_state) = GRANULE_STATE_RD)
@@ -322,8 +329,80 @@ Record SharedInvImply (sh: Shared) : Prop :=
       (Hwalk: walk_rtt sh rd_gidx ipa_gidx = Some data_gidx)
       (Hwalk': walk_rtt sh rd_gidx' ipa_gidx' = Some data_gidx'),
       data_gidx <> data_gidx';
-    rtt_reverse_inv: rtt_reverse sh;
-    walk_rd_unique_inv: walk_rd_unique sh;
+
+    rtt_reverse_inv:
+    exists data_to_rd,
+    forall rd_gidx (Hrd: (sh.(granules) @ rd_gidx).(e_state) = GRANULE_STATE_RD)
+      ipa_gidx data_gidx (Hwalk: walk_rtt sh rd_gidx ipa_gidx = Some data_gidx),
+      data_to_rd data_gidx = (rd_gidx, ipa_gidx);
+
+    walk_rd_unique_inv:
+    forall rd1 gfn1 rd2 gfn2 rtt_idx
+      (Hwalk: walk_star sh rd1 gfn1 rtt_idx)
+      (Hwalk: walk_star sh rd2 gfn2 rtt_idx),
+      rd1 = rd2;
+
+    update_entry_child_unreachable:
+    forall rd gfn rtt
+      (Hwalk1: walk_star sh rd gfn rtt)
+      (Htable1: (sh.(granules) @ rtt).(e_state) = GRANULE_STATE_RTT)
+      idx rtt2
+      (Hchild: pte_to_gidx ((sh.(granule_data) @ rtt).(g_norm) @ idx) = rtt2)
+      new_entry (Hne: PTE_IS_VALID new_entry = false \/ pte_to_gidx new_entry <> rtt2),
+      forall rd' gfn',
+        ~ walk_star (sh.[granule_data] :<
+                       (sh.(granule_data) # rtt ==
+                          ((sh.(granule_data) @ rtt).[g_norm] :<
+                            (((sh.(granule_data) @ rtt).(g_norm)) # idx == new_entry))))
+          rd' gfn' rtt2;
+
+    child_unreachable_update_entry_same:
+    forall rd gfn rtt
+      (Hwalk1: walk_star sh rd gfn rtt)
+      (Htable1: (sh.(granules) @ rtt).(e_state) = GRANULE_STATE_RTT)
+      idx rtt2
+      (Hchild: pte_to_gidx ((sh.(granule_data) @ rtt).(g_norm) @ idx) = rtt2),
+    forall rd' gfn' (Hunreachable: ~ walk_star sh rd' gfn' rtt2),
+    forall new_entry N,
+      let sh' :=
+        (sh.[granule_data] :<
+           (sh.(granule_data) # rtt ==
+              ((sh.(granule_data) @ rtt).[g_norm] :<
+                 (((sh.(granule_data) @ rtt).(g_norm)) # idx == new_entry))))
+      in
+      walk_rtt_level N sh' 0 rd' gfn' (gidx_to_table_pte (rd_rtt sh' rd')) =
+        walk_rtt_level N sh 0 rd' gfn' (gidx_to_table_pte (rd_rtt sh rd'));
+
+    modify_leaf_same:
+    forall N rd gfn lvl pte (Hwalk: walk_rtt_level N sh 0 rd gfn (gidx_to_table_pte (rd_rtt sh rd)) = (lvl, pte))
+      (Htable: (sh.(granules) @ (pte_to_gidx pte)).(e_state) = GRANULE_STATE_RTT),
+    forall new_table,
+      let sh' :=
+        (sh.[granule_data] :<
+           (sh.(granule_data) # (pte_to_gidx pte) == ((sh.(granule_data) @ (pte_to_gidx pte)).[g_norm] :< new_table)))
+      in
+      walk_rtt_level N sh' 0 rd gfn (gidx_to_table_pte (rd_rtt sh' rd)) = (lvl, pte);
+
+    walk_star_continue:
+    forall rd gfn rtt
+      (Hwalk1: walk_star sh rd gfn rtt)
+      (Htable1: (sh.(granules) @ rtt).(e_state) = GRANULE_STATE_RTT),
+    exists N,
+      walk_rtt_level 4 sh 0 rd gfn (gidx_to_table_pte (rd_rtt sh rd)) =
+        walk_rtt_level (S N) sh (3 - Z.of_nat N) rd gfn (gidx_to_table_pte rtt);
+
+    walk_same_parent_same:
+    forall rd gfn rtt
+      (Hwalk1: walk_star sh rd gfn rtt)
+      (Htable1: (sh.(granules) @ rtt).(e_state) = GRANULE_STATE_RTT)
+      idx rtt2
+      (Hchild: pte_to_gidx ((sh.(granule_data) @ rtt).(g_norm) @ idx) = rtt2)
+      (Htable2: (sh.(granules) @ rtt2).(e_state) = GRANULE_STATE_RTT)
+      rd' gfn'
+      (Hwalk': walk_star sh rd' gfn' rtt2),
+    exists N,
+      walk_rtt_level N sh 0 rd' gfn' (gidx_to_table_pte (rd_rtt sh rd')) = (Z.of_nat N, gidx_to_table_pte rtt) /\
+        gfn_to_rtt_offs gfn' (Z.of_nat N) = idx /\ Z.of_nat N < 4;
   }.
 
 Lemma shared_inv_implies:
@@ -374,7 +453,6 @@ Record id_local (sec_rdata: RData) (norm_rdata: RData) : Prop :=
     id_repl: norm_rdata.(repl) = sec_rdata.(repl);
     id_priv: norm_rdata.(priv) = sec_rdata.(priv);
     id_stack: norm_rdata.(stack) = sec_rdata.(stack);
-    id_func_sp: norm_rdata.(func_sp) = sec_rdata.(func_sp)
   }.
 
 Lemma id_local_preserve_change_share:
@@ -407,7 +485,6 @@ Ltac rewrite_id :=
   | [H: id_local ?sd ?nd |- context[?nd.(repl)] ] => rewrite (id_repl sd nd H)
   | [H: id_local ?sd ?nd |- context[?nd.(priv)] ] => rewrite (id_priv sd nd H)
   | [H: id_local ?sd ?nd |- context[?nd.(stack)] ] => rewrite (id_stack sd nd H)
-  | [H: id_local ?sd ?nd |- context[?nd.(func_sp)] ] => rewrite (id_func_sp sd nd H)
   | [H1: id_local ?sd ?nd, H2: context[?nd.(log)] |- _] => rewrite (id_log sd nd H1) in H2
   | [H1: id_local ?sd ?nd, H2: context[?nd.(oracle)] |- _] => rewrite (id_oracle sd nd H1) in H2
   | [H1: id_share ?sd ?nd, H2: context[?nd.(glk)] |- _] => rewrite (id_glk sd nd H1) in H2
@@ -427,7 +504,6 @@ Ltac rewrite_id :=
   | [H1: id_local ?sd ?nd, H2: context[?nd.(repl)] |- _] => rewrite (id_repl sd nd H1) in H2
   | [H1: id_local ?sd ?nd, H2: context[?nd.(priv)] |- _] => rewrite (id_priv sd nd H1) in H2
   | [H1: id_local ?sd ?nd, H2: context[?nd.(stack)] |- _] => rewrite (id_stack sd nd H1) in H2
-  | [H1: id_local ?sd ?nd, H2: context[?nd.(func_sp)] |- _] => rewrite (id_func_sp sd nd H1) in H2
   end.
 
 Record relate (sec_rdata: RData) (sec_st: SecState) (norm_rdata: RData) : Prop :=
@@ -507,10 +583,16 @@ Definition smc_rtt_fold_3 (v_s2_ctx: Ptr) (v_map_addr: Z) (v_wi: Ptr) (v_call15:
     rely ((((st_34.(share)).(slots)) @ SLOT_RTT) = ((st_34.(stack)).(stack_wi)).(e_g_llt)); (* MANUALLY ADDED *)
     rely (exists rd gfn lvl pte pte',  (* MANUALLY ADDED *)
           ((st_34.(share).(granules) @ rd).(e_state) = GRANULE_STATE_RD)
-          /\ walk_rtt_level (Z.to_nat lvl) (st_34.(share)) 0 rd gfn (rd_rtt (st_34.(share)) rd) 0 =
-              (lvl, (((st_34.(stack)).(stack_wi)).(e_g_llt)), pte)
+          /\ walk_rtt_level (Z.to_nat lvl) (st_34.(share)) 0 rd gfn (gidx_to_table_pte (rd_rtt (st_34.(share)) rd)) =
+              (lvl, pte)
+          /\ (((st_34.(stack)).(stack_wi)).(e_g_llt)) = pte_to_gidx pte
           /\ gfn_to_rtt_offs gfn lvl = 8 * (((st_34.(stack)).(stack_wi)).(e_index))
-          /\ walk_one_step (st_34.(share)) lvl gfn (((st_34.(stack)).(stack_wi)).(e_g_llt)) = ((((st_34.(share)).(slots)) @ SLOT_RTT2), pte'));
+          /\ walk_one_step (st_34.(share)) lvl gfn (((st_34.(stack)).(stack_wi)).(e_g_llt)) = pte'
+          /\ ((st_34.(share)).(slots)) @ SLOT_RTT2 = pte_to_gidx pte');
+    rely (PTE_IS_VALID v_call44 = false); (* MANUALLY ADDED *)
+    rely (pte_to_gidx v_call44 = 0); (* MANUALLY ADDED *)
+    rely (forall idx, pte_to_gidx ((st_34.(share).(granule_data) @ (((st_34.(share)).(slots)) @ SLOT_RTT2)).(g_norm) @ idx) = 0); (* MANUALLY ADDED *)
+    rely (forall idx, PTE_IS_VALID ((st_34.(share).(granule_data) @ (((st_34.(share)).(slots)) @ SLOT_RTT2)).(g_norm) @ idx) = false); (* MANUALLY ADDED *)
     (Some (
       0  ,
       (((lens 106 st_34).[share].[granule_data] :<
@@ -556,11 +638,11 @@ Proof.
   intros. pose proof Hrel as D. destruct D.
   unfold smc_rtt_fold_3 in *; autounfold with sem in *.
   repeat simpl_hyp Hsec. repeat simpl_hyp Hnorm. inv Hnorm.
-  destruct e11 as (? & ? & ? & ? & ? & ? & ? & ? & ?).
+  destruct e11 as (? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ?).
   clear C19.
-  Frewrite. simpl_hyp Hsec. inv Hsec.
+  Frewrite. inv Hsec.
   extract_prop. repeat match goal with | [H: prop _ = _ |- _ ] => clear H end.
-  bool_rel. simpl_some. clear_hyp.
+  bool_rel. simpl_some. clear_hyp. subst.
   split.
   - reflexivity.
   - constructor.
@@ -569,64 +651,82 @@ Proof.
       inv relate_sec_data0.
       rewrite_id. frewrite. subst.
       intros. rewrite lens_same in Hrd. repeat rewrite_id.
-      remember ((e_g_llt (stack_wi (stack sec_d)))) as rtt_idx. symmetry in Heqrtt_idx.
-      remember ((slots (share sec_d)) @ SLOT_RTT2) as rtt2_idx. symmetry in Heqrtt2_idx.
+      remember (pte_to_gidx x2) as rtt_idx. symmetry in Heqrtt_idx.
+      remember (pte_to_gidx (walk_one_step (share sec_d) x1 x0 rtt_idx)) as rtt2_idx. symmetry in Heqrtt2_idx.
+      rewrite Z.add_0_l in *.
       remember (8 * e_index (stack_wi (stack sec_d))) as e_idx. symmetry in Heqe_idx.
-      remember (poffset call15) as call15_ofs. symmetry in Heqcall15_ofs.
-      remember (call15_ofs + e_idx) as g_sec_idx. symmetry in Heqg_sec_idx.
-      remember ((granule_data (share sec_d))) as granule_data_sec. symmetry in Heqgranule_data_sec.
-      repeat rewrite lens_same in Hwalk.
+      repeat rewrite lens_same in *.
       match type of Hwalk with
       | walk_rtt ?d ?rd ?addr = _ =>
           assert(Hwalk_eq: walk_rtt d rd addr = walk_rtt (share sec_d) rd addr)
       end.
       {
         assert_gso. lia. rewrite (ZMap.gso _ _ Hneq) in *.
-        repeat (rewrite walk_rtt_same_set_slot in *).
-        rewrite Z.add_0_l in *. simpl in *.
+        repeat (rewrite walk_rtt_same_set_slot in * ).
         rename x1 into lvl0.
         rename x into rd0.
         rename x0 into gfn0.
         rename x2 into pte0.
-        rename x3 into pte1.
-        inversion Hinv_sec.
-        unfold walk_one_step in *. inversion e18.
-        remember (addr_to_gidx vaddr) as gfn. symmetry in Heqgfn.
         assert(Hwalk0: walk_star (share sec_d) rd0 gfn0 rtt_idx).
-        { unfold walk_star. repeat eexists. eassumption. }
+        { unfold walk_star. repeat eexists. eassumption. lia. }
         assert(Hwalk1: walk_star (share sec_d) rd0 gfn0 rtt2_idx).
         { unfold walk_star.
           eexists. eexists. exists (S (Z.to_nat lvl0)).
-          simpl. rewrite e16. rewrite e6. simpl_bool_eq.
-          rewrite H0. reflexivity. }
-        unfold walk_reverse in *. destruct walk_reverse_inv0 as (rev & Hrev).
-        exploit Hrev.
-        eapply Hwalk0. assumption. erewrite H0.
-        red; intros. autounfold with spec in *. frewrite. lia.
-        intros.
-        destruct (prop (walk_star (share sec_d) rd_gidx gfn rtt_idx)).
-        - exploit walk_rd_unique_inv. eapply shared_inv_implies. eapply Hinv_sec.
-          eapply w. eapply Hwalk0. intros. rewrite H2 in *.
-          assert(Hwalk_none: walk_rtt (share sec_d) rd0 gfn = None).
-          { unfold walk_rtt. apply walk_star_continue in w.
-            destruct w as (lvl' & pte' & Hcont).
-            rewrite Hcont.
-
-
-
-
-        - destruct (prop (walk_star (share sec_d) rd_gidx gfn rtt2_idx)).
-
-
-
-            
-
-            eapply walk_star_iff in w0.
-
-
-
-          admit.
-                 }
+          simpl. rewrite e22. clear e13. repeat grewrite. simpl_bool_eq.
+          split. reflexivity. auto. }
+        erewrite walk_unreachable_same with
+          (sh:= (share sec_d).[granule_data] :<
+                  (((granule_data (share sec_d)) # rtt_idx ==
+                      (((granule_data (share sec_d)) @ rtt_idx).[g_norm]
+                       :< ((g_norm (granule_data (share sec_d)) @ rtt_idx) # e_idx ==
+                             call44))))) at 1.
+        + destruct (prop (walk_star (share sec_d) rd_gidx (addr_to_gidx vaddr) rtt2_idx)).
+          * exploit walk_same_parent_same.
+            2: eapply Hwalk0. all: try eassumption.
+            apply shared_inv_implies. assumption.
+            intros (? & w1 & i1 & Hx).
+            exploit modify_leaf_same.
+            2: eapply w1.
+            apply shared_inv_implies. assumption. rewrite gidx_to_pte_to_gidx. assumption.
+            simpl. intro T.
+            exploit (walk_rtt_level_split (Z.to_nat (4 - Z.of_nat x))).
+            eapply T. replace ((Z.to_nat (4 - Z.of_nat x)) + x)%nat with 4%nat by lia.
+            intros W1. rewrite gidx_to_pte_to_gidx in W1.
+            exploit walk_star_continue. 2: apply w.
+            apply shared_inv_implies. assumption. assumption.
+            intros (? & W2).
+            unfold walk_rtt.
+            rewrite W2. erewrite W1.
+            replace (Z.to_nat (4 - Z.of_nat x)) with ((Z.to_nat (3 - Z.of_nat x)) + 1)%nat by lia.
+            erewrite walk_rtt_level_split.
+            Focus 2. simpl. rewrite gidx_to_pte_to_gidx. grewrite. simpl_bool_eq.
+            unfold walk_one_step. simpl. rewrite ZMap.gss. simpl. grewrite. rewrite ZMap.gss. reflexivity.
+            erewrite invalid_start_walk_invalid at 1; try assumption.
+            grewrite. symmetry.
+            replace (S x0) with (x0 + 1)%nat by lia.
+            erewrite walk_rtt_level_split.
+            Focus 2. simpl. rewrite gidx_to_pte_to_gidx. grewrite. simpl_bool_eq.
+            unfold walk_one_step. reflexivity.
+            erewrite invalid_start_walk_invalid; try assumption.
+            rewrite Prop0. reflexivity.
+            apply e14.
+          * unfold walk_rtt.
+            erewrite child_unreachable_update_entry_same;
+              try eassumption.
+            reflexivity.
+            apply shared_inv_implies. assumption.
+            subst. unfold walk_one_step. grewrite. reflexivity.
+        + instantiate (1:= fun r => r =? rtt2_idx).
+          simpl. intros. bool_rel. rewrite H in *. clear H.
+          eapply update_entry_child_unreachable.
+          apply shared_inv_implies. assumption.
+          eassumption. assumption.
+          subst. unfold walk_one_step. grewrite. reflexivity.
+          auto.
+        + simpl. reflexivity.
+        + simpl. intros. repeat (destruct_zmap; simpl); reflexivity.
+        + simpl. intros. bool_rel. rewrite ZMap.gso. reflexivity. lia.
+      }
       rewrite Hwalk_eq in Hwalk.
       pose proof (mem_rel0 rd_gidx Hrd vaddr data_gidx Hwalk) as mem_rel.
       simpl in mem_rel.
@@ -652,9 +752,6 @@ Proof.
       constructor; simpl; repeat rewrite lens_same; rewrite_id; try reflexivity.
     }
 Qed.
-
-
-
 
 
 Lemma realm_access_mem_inv:
