@@ -6,6 +6,8 @@ Require Import SMCHandler.Spec.
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
+Local Opaque Z.add Z.mul Z.div Z.sub Z.land Z.lor Z.lxor Z.shiftl Z.shiftr Z.quot Z.rem Z.testbit Z.setbit Z.clearbit xorb List.nth.
+
 (************************************************************************************)
 
 Record SecureRealmState :=
@@ -27,38 +29,143 @@ Parameter addr_to_gidx: Z -> Z.
 Parameter gfn_to_rtt_offs: Z -> Z -> Z.
 Parameter gfn_to_pte_offs: Z -> Z -> Z.
 Parameter ADDR_MASK: Z.
-Parameter PTE_VALID: Z.
+Parameter PTE_IS_VALID: Z -> bool.
+Parameter PTE_IS_TABLE: Z -> bool.
+Parameter gidx_to_table_pte : Z -> Z.
+Parameter pte_to_gidx: Z -> Z.
+
+Lemma gidx_to_table_pte_is_table:
+  forall gidx, PTE_IS_TABLE (gidx_to_table_pte gidx) = true.
+Admitted.
+
+Lemma gidx_to_pte_to_gidx:
+  forall gidx, pte_to_gidx (gidx_to_table_pte gidx) = gidx.
+Admitted.
 
 Definition walk_one_step sh lvl gfn rtt_idx :=
   let offs := gfn_to_rtt_offs gfn lvl in
-  let pte := (sh.(granule_data) @ rtt_idx).(g_norm) @ offs in
-  let addr := pte & ADDR_MASK in
-  let gidx := addr_to_gidx addr in
-  (gidx, pte).
+  (sh.(granule_data) @ rtt_idx).(g_norm) @ offs.
 
-Fixpoint walk_rtt_level (n: nat) (sh: Shared) (lvl: Z) (rd: Z) (gfn: Z) (rtt_idx: Z) (pte: Z) :=
+Fixpoint walk_rtt_level (n: nat) (sh: Shared) (lvl: Z) (rd: Z) (gfn: Z) (pte: Z) :=
   match n with
-  | O => (lvl, rtt_idx, pte)
+  | O => (lvl, pte)
   | S n' =>
-    match walk_rtt_level n' sh lvl rd gfn rtt_idx pte with
-    | (lvl', rtt_idx', pte') =>
-      if ((pte & PTE_VALID) =? PTE_VALID) && ((sh.(granules) @ rtt_idx').(e_state) =? GRANULE_STATE_RTT) then
-        let (gidx, pte') := walk_one_step sh lvl' gfn rtt_idx' in
-        (lvl' + 1, gidx, pte')
+    match walk_rtt_level n' sh lvl rd gfn pte with
+    | (lvl', pte') =>
+      let rtt_idx' := pte_to_gidx pte' in
+      if (PTE_IS_TABLE pte') && ((sh.(granules) @ rtt_idx').(e_state) =? GRANULE_STATE_RTT) then
+        let pte'' := walk_one_step sh lvl' gfn rtt_idx' in
+        (lvl' + 1, pte'')
       else
-        (lvl', rtt_idx', pte')
+        (lvl', pte')
     end
   end.
 
 Definition rd_rtt sh rd := (sh.(granule_data) @ rd).(g_rd).(e_rd_s2_ctx).(e_rls2ctx_g_rtt).
 
 Definition walk_rtt sh rd gfn :=
-  let rtt_idx := rd_rtt sh rd in
-  match walk_rtt_level 4%nat sh 0 rd gfn rtt_idx 0 with
-  | (lvl', idx', pte') =>
-    if (pte' & PTE_VALID) <>? PTE_VALID then None
-    else Some (idx' + gfn_to_pte_offs lvl' gfn)
+  let rtt_pte := gidx_to_table_pte (rd_rtt sh rd) in
+  match walk_rtt_level 4%nat sh 0 rd gfn rtt_pte with
+  | (lvl', pte') =>
+    if PTE_IS_VALID pte' then
+      let idx' := pte_to_gidx pte' in
+      Some (idx' + gfn_to_pte_offs lvl' gfn)
+    else
+      None
   end.
+
+Definition walk_star (sh: Shared) (rd: Z) (gfn: Z) (rtt_idx: Z) : Prop :=
+  exists lvl pte N,
+    walk_rtt_level N sh 0 rd gfn (gidx_to_table_pte (rd_rtt sh rd)) = (lvl, pte)
+    /\ rtt_idx = pte_to_gidx pte.
+
+Lemma walk_star_prop:
+  forall sh rd gfn rtt_idx (Hwalk_star: walk_star sh rd gfn rtt_idx),
+    (rtt_idx = rd_rtt sh rd) \/
+      exists rtt_idx0 offs0,
+        walk_star sh rd gfn rtt_idx0
+        /\ (sh.(granules) @ rtt_idx0).(e_state) = GRANULE_STATE_RTT
+        /\ (rtt_idx = pte_to_gidx ((sh.(granule_data) @ rtt_idx0).(g_norm) @ offs0)).
+Proof.
+  intros.
+  unfold walk_star in Hwalk_star.
+  destruct Hwalk_star as (lvl & pte & N & Hwalk).
+  induction N.
+  - simpl in Hwalk. destruct Hwalk as (Hw1 & Hw2). inv Hw1.
+    left. rewrite gidx_to_pte_to_gidx. reflexivity.
+  - simpl in Hwalk. repeat simpl_hyp Hwalk; inv Hwalk.
+    + right. repeat eexists. eapply C. bool_rel_all. assumption.
+      inv H. reflexivity.
+    + apply IHN. auto.
+Qed.
+
+Definition walk_reverse (sh: Shared) : Prop :=
+  exists (rev: Z -> (Z * Z)),
+  forall rd gfn rtt_idx
+    (Hwalk: walk_star sh rd gfn rtt_idx)
+    (Hrtt: (sh.(granules) @ rtt_idx).(e_state) = GRANULE_STATE_RTT),
+    forall par_idx ofs, rev rtt_idx = (par_idx, ofs) ->
+                   ((rtt_idx = rd_rtt sh rd -> par_idx = rd /\ ofs = 0)
+                    /\ (rtt_idx <> rd_rtt sh rd ->
+                       ((sh.(granules) @ par_idx).(e_state) = GRANULE_STATE_RTT
+                        /\ pte_to_gidx ((sh.(granule_data) @ par_idx).(g_norm) @ ofs) = rtt_idx))).
+
+Definition walk_rd_unique (sh: Shared): Prop :=
+  forall rd1 gfn1 rd2 gfn2 rtt_idx
+    (Hwalk: walk_star sh rd1 gfn1 rtt_idx)
+    (Hwalk: walk_star sh rd2 gfn2 rtt_idx),
+    rd1 = rd2.
+
+Lemma walk_rtt_level_unreachable_same:
+  forall sh rd gfn Brtt (Hunreachable: forall rtt, Brtt rtt = true -> ~ walk_star sh rd gfn rtt),
+  forall sh'
+    (Hsame1: sh'.(granules) = sh.(granules))
+    (Hsame2: forall rd, g_rd (sh'.(granule_data) @ rd) = g_rd (sh.(granule_data) @ rd))
+    (Hsame3: forall rtt, Brtt rtt = false -> (sh'.(granule_data) @ rtt).(g_norm) = (sh.(granule_data) @ rtt).(g_norm)),
+  forall N, walk_rtt_level N sh' 0 rd gfn (gidx_to_table_pte (rd_rtt sh' rd))
+       = walk_rtt_level N sh 0 rd gfn (gidx_to_table_pte (rd_rtt sh rd)).
+Proof.
+  simpl. intros until N.
+  induction N.
+  - simpl.
+    unfold rd_rtt. simpl.
+    rewrite Hsame2. reflexivity.
+  - simpl. rewrite IHN.
+    destruct (walk_rtt_level N sh 0 rd gfn (gidx_to_table_pte (rd_rtt sh rd))) eqn:Hwalk.
+    rewrite Hsame1.
+    destruct_if.
+    unfold walk_one_step.
+    destruct (Brtt (pte_to_gidx z0)) eqn:HB.
+    + exploit Hunreachable. eassumption.
+      unfold walk_star.
+      repeat eexists. eassumption. contradiction.
+    + rewrite Hsame3. reflexivity. assumption.
+    + reflexivity.
+Qed.
+
+Lemma walk_unreachable_same:
+  forall sh rd gfn Brtt (Hunreachable: forall rtt, Brtt rtt = true -> ~ walk_star sh rd gfn rtt),
+  forall sh'
+    (Hsame1: sh'.(granules) = sh.(granules))
+    (Hsame2: forall rd, g_rd (sh'.(granule_data) @ rd) = g_rd (sh.(granule_data) @ rd))
+    (Hsame3: forall rtt, Brtt rtt = false -> (sh'.(granule_data) @ rtt).(g_norm) = (sh.(granule_data) @ rtt).(g_norm)),
+  walk_rtt sh' rd gfn = walk_rtt sh rd gfn.
+Proof.
+  intros. unfold walk_rtt.
+  erewrite walk_rtt_level_unreachable_same; try eassumption.
+  reflexivity.
+Qed.
+
+Lemma walk_star_continue:
+  forall sh rd gfn rtt (Hwalk_star: walk_star sh rd gfn rtt),
+  exists lvl pte,
+    walk_rtt_level 4 sh 0 rd gfn (rd_rtt sh rd) 0 =
+      walk_rtt_level (Z.to_nat (4 - lvl)) sh lvl rd gfn rtt pte.
+Admitted.
+
+Definition rd_rtt_reverse (sh: Shared) : Prop :=
+  exists (rev: Z -> Z),
+  forall rd rtt_idx (Hrtt: rd_rtt sh rd = rtt_idx), rev rtt_idx = rd.
 
 Lemma walk_rtt_same_set_slot:
   forall sh sl rd ipa, walk_rtt (sh.[slots] :< sl) rd ipa = walk_rtt sh rd ipa.
@@ -190,7 +297,9 @@ Record SharedInv (sh: Shared) : Prop :=
     gpt_false_ns_inv: gpt_false_ns sh;
     delegated_zero_inv: delegated_zero sh;
     rtt_map_data_inv: rtt_map_data sh;
-    rtt_reverse_inv: rtt_reverse sh
+    walk_reverse_inv: walk_reverse sh;
+    rd_rtt_reverse_inv: rd_rtt_reverse sh;
+    zero_granule_inv: (sh.(granules) @ 0).(e_state) = -1
   }.
 
 Record SharedInvImply (sh: Shared) : Prop :=
@@ -213,6 +322,8 @@ Record SharedInvImply (sh: Shared) : Prop :=
       (Hwalk: walk_rtt sh rd_gidx ipa_gidx = Some data_gidx)
       (Hwalk': walk_rtt sh rd_gidx' ipa_gidx' = Some data_gidx'),
       data_gidx <> data_gidx';
+    rtt_reverse_inv: rtt_reverse sh;
+    walk_rd_unique_inv: walk_rd_unique sh;
   }.
 
 Lemma shared_inv_implies:
@@ -237,33 +348,33 @@ Record relate_secure (sec_rdata: RData) (sec_st: SecState) (norm_rdata: RData) :
 
 Record id_share (sec_share: Shared) (norm_share: Shared) : Prop :=
   {
-    id_gpt: sec_share.(gpt) = norm_share.(gpt);
-    id_glk: sec_share.(glk) = norm_share.(glk);
-    id_slots: sec_share.(slots) = norm_share.(slots);
-    id_granules: sec_share.(granules) = norm_share.(granules);
-    id_gd_g_idx: forall i, (sec_share.(granule_data) @ i).(gd_g_idx) = (norm_share.(granule_data) @ i).(gd_g_idx);
-    id_g_rd: forall i, (sec_share.(granule_data) @ i).(g_rd) = (norm_share.(granule_data) @ i).(g_rd);
-    id_g_rec: forall i, (sec_share.(granule_data) @ i).(g_rec) = (norm_share.(granule_data) @ i).(g_rec);
-    id_g_aux_pmu_state: forall i, (sec_share.(granule_data) @ i).(g_aux_pmu_state) = (norm_share.(granule_data) @ i).(g_aux_pmu_state);
-    id_g_aux_simd_state: forall i, (sec_share.(granule_data) @ i).(g_aux_simd_state) = (norm_share.(granule_data) @ i).(g_aux_simd_state);
-    id_rec_gidx: forall i, (sec_share.(granule_data) @ i).(rec_gidx) = (norm_share.(granule_data) @ i).(rec_gidx);
+    id_gpt: norm_share.(gpt) = sec_share.(gpt);
+    id_glk: norm_share.(glk) = sec_share.(glk);
+    id_slots: norm_share.(slots) = sec_share.(slots);
+    id_granules: norm_share.(granules) = sec_share.(granules);
+    id_gd_g_idx: forall i, (norm_share.(granule_data) @ i).(gd_g_idx) = (sec_share.(granule_data) @ i).(gd_g_idx);
+    id_g_rd: forall i, (norm_share.(granule_data) @ i).(g_rd) = (sec_share.(granule_data) @ i).(g_rd);
+    id_g_rec: forall i, (norm_share.(granule_data) @ i).(g_rec) = (sec_share.(granule_data) @ i).(g_rec);
+    id_g_aux_pmu_state: forall i, (norm_share.(granule_data) @ i).(g_aux_pmu_state) = (sec_share.(granule_data) @ i).(g_aux_pmu_state);
+    id_g_aux_simd_state: forall i, (norm_share.(granule_data) @ i).(g_aux_simd_state) = (sec_share.(granule_data) @ i).(g_aux_simd_state);
+    id_rec_gidx: forall i, (norm_share.(granule_data) @ i).(rec_gidx) = (sec_share.(granule_data) @ i).(rec_gidx);
     id_g_norm:
-      forall i (Hnd: (sec_share.(granules) @ i).(e_state) <> GRANULE_STATE_DATA),
-        (sec_share.(granule_data) @ i).(g_norm) = (norm_share.(granule_data) @ i).(g_norm);
-    id_gv_g_sve_max_vq: sec_share.(gv_g_sve_max_vq) = norm_share.(gv_g_sve_max_vq);
-    id_gv_g_ns_simd: sec_share.(gv_g_ns_simd) = norm_share.(gv_g_ns_simd);
-    id_gv_g_cpu_simd_type: sec_share.(gv_g_cpu_simd_type) = norm_share.(gv_g_cpu_simd_type);
-    id_gv_vmids: sec_share.(gv_vmids) = norm_share.(gv_vmids);
+      forall i (Hnd: (norm_share.(granules) @ i).(e_state) <> GRANULE_STATE_DATA),
+        (norm_share.(granule_data) @ i).(g_norm) = (sec_share.(granule_data) @ i).(g_norm);
+    id_gv_g_sve_max_vq: norm_share.(gv_g_sve_max_vq) = sec_share.(gv_g_sve_max_vq);
+    id_gv_g_ns_simd: norm_share.(gv_g_ns_simd) = sec_share.(gv_g_ns_simd);
+    id_gv_g_cpu_simd_type: norm_share.(gv_g_cpu_simd_type) = sec_share.(gv_g_cpu_simd_type);
+    id_gv_vmids: norm_share.(gv_vmids) = sec_share.(gv_vmids);
   }.
 
 Record id_local (sec_rdata: RData) (norm_rdata: RData) : Prop :=
   {
-    id_log: sec_rdata.(log) = norm_rdata.(log);
-    id_oracle: sec_rdata.(oracle) = norm_rdata.(oracle);
-    id_repl: sec_rdata.(repl) = norm_rdata.(repl);
-    id_priv: sec_rdata.(priv) = norm_rdata.(priv);
-    id_stack: sec_rdata.(stack) = norm_rdata.(stack);
-    id_func_sp: sec_rdata.(func_sp) = norm_rdata.(func_sp)
+    id_log: norm_rdata.(log) = sec_rdata.(log);
+    id_oracle: norm_rdata.(oracle) = sec_rdata.(oracle);
+    id_repl: norm_rdata.(repl) = sec_rdata.(repl);
+    id_priv: norm_rdata.(priv) = sec_rdata.(priv);
+    id_stack: norm_rdata.(stack) = sec_rdata.(stack);
+    id_func_sp: norm_rdata.(func_sp) = sec_rdata.(func_sp)
   }.
 
 Lemma id_local_preserve_change_share:
@@ -277,46 +388,46 @@ Qed.
 Ltac rewrite_id :=
   match goal with
   | [H: id_local (?sd.[share]:<?ss) (?nd.[share]:<?ns) |- _] => apply id_local_preserve_change_share in H
-  | [H: id_local ?sd ?nd |- context[?sd.(log)] ] => rewrite (id_log sd nd H)
-  | [H: id_local ?sd ?nd |- context[?sd.(oracle)] ] => rewrite (id_oracle sd nd H)
-  | [H: id_share ?sd ?nd |- context[?sd.(glk)] ] => rewrite (id_glk sd nd H)
-  | [H: id_share ?sd ?nd |- context[?sd.(gpt)] ] => rewrite (id_gpt sd nd H)
-  | [H: id_share ?sd ?nd |- context[?sd.(slots)] ] => rewrite (id_slots sd nd H)
-  | [H: id_share ?sd ?nd |- context[?sd.(granules)] ] => rewrite (id_granules sd nd H)
-  | [H: id_share ?sd ?nd |- context[(?sd.(granule_data) @ ?i).(gd_g_idx)] ] => rewrite (id_gd_g_idx sd nd H i)
-  | [H: id_share ?sd ?nd |- context[(?sd.(granule_data) @ ?i).(g_rd)] ] => rewrite (id_g_rd sd nd H i)
-  | [H: id_share ?sd ?nd |- context[(?sd.(granule_data) @ ?i).(g_rec)] ] => rewrite (id_g_rec sd nd H i)
-  | [H: id_share ?sd ?nd |- context[(?sd.(granule_data) @ ?i).(g_aux_pmu_state)] ] => rewrite (id_g_aux_pmu_state sd nd H i)
-  | [H: id_share ?sd ?nd |- context[(?sd.(granule_data) @ ?i).(g_aux_simd_state)] ] => rewrite (id_g_aux_simd_state sd nd H i)
-  | [H: id_share ?sd ?nd |- context[(?sd.(granule_data) @ ?i).(rec_gidx)] ] => rewrite (id_rec_gidx sd nd H i)
-  | [H: id_share ?sd ?nd |- context[?sd.(gv_g_sve_max_vq)] ] => rewrite (id_gv_g_sve_max_vq sd nd H)
-  | [H: id_share ?sd ?nd |- context[?sd.(gv_g_ns_simd)] ] => rewrite (id_gv_g_ns_simd sd nd H)
-  | [H: id_share ?sd ?nd |- context[?sd.(gv_g_cpu_simd_type)] ] => rewrite (id_gv_g_cpu_simd_type sd nd H)
-  | [H: id_share ?sd ?nd |- context[?sd.(gv_vmids)] ] => rewrite (id_gv_vmids sd nd H)
-  | [H: id_local ?sd ?nd |- context[?sd.(repl)] ] => rewrite (id_repl sd nd H)
-  | [H: id_local ?sd ?nd |- context[?sd.(priv)] ] => rewrite (id_priv sd nd H)
-  | [H: id_local ?sd ?nd |- context[?sd.(stack)] ] => rewrite (id_stack sd nd H)
-  | [H: id_local ?sd ?nd |- context[?sd.(func_sp)] ] => rewrite (id_func_sp sd nd H)
-  | [H1: id_local ?sd ?nd, H2: context[?sd.(log)] |- _] => rewrite (id_log sd nd H1) in H2
-  | [H1: id_local ?sd ?nd, H2: context[?sd.(oracle)] |- _] => rewrite (id_oracle sd nd H1) in H2
-  | [H1: id_share ?sd ?nd, H2: context[?sd.(glk)] |- _] => rewrite (id_glk sd nd H1) in H2
-  | [H1: id_share ?sd ?nd, H2: context[?sd.(gpt)] |- _] => rewrite (id_gpt sd nd H1) in H2
-  | [H1: id_share ?sd ?nd, H2: context[?sd.(slots)] |- _] => rewrite (id_slots sd nd H1) in H2
-  | [H1: id_share ?sd ?nd, H2: context[?sd.(granules)] |- _] => rewrite (id_granules sd nd H1) in H2
-  | [H1: id_share ?sd ?nd, H2: context[(?sd.(granule_data) @ ?i).(gd_g_idx)] |- _] => rewrite (id_gd_g_idx sd nd H1 i) in H2
-  | [H1: id_share ?sd ?nd, H2: context[(?sd.(granule_data) @ ?i).(g_rd)] |- _] => rewrite (id_g_rd sd nd H1 i) in H2
-  | [H1: id_share ?sd ?nd, H2: context[(?sd.(granule_data) @ ?i).(g_rec)] |- _] => rewrite (id_g_rec sd nd H1 i) in H2
-  | [H1: id_share ?sd ?nd, H2: context[(?sd.(granule_data) @ ?i).(g_aux_pmu_state)] |- _] => rewrite (id_g_aux_pmu_state sd nd H1 i) in H2
-  | [H1: id_share ?sd ?nd, H2: context[(?sd.(granule_data) @ ?i).(g_aux_simd_state)] |- _] => rewrite (id_g_aux_simd_state sd nd H1 i) in H2
-  | [H1: id_share ?sd ?nd, H2: context[(?sd.(granule_data) @ ?i).(rec_gidx)] |- _] => rewrite (id_rec_gidx sd nd H1 i) in H2
-  | [H1: id_share ?sd ?nd, H2: context[?sd.(gv_g_sve_max_vq)] |- _] => rewrite (id_gv_g_sve_max_vq sd nd H1) in H2
-  | [H1: id_share ?sd ?nd, H2: context[?sd.(gv_g_ns_simd)] |- _] => rewrite (id_gv_g_ns_simd sd nd H1) in H2
-  | [H1: id_share ?sd ?nd, H2: context[?sd.(gv_g_cpu_simd_type)] |- _] => rewrite (id_gv_g_cpu_simd_type sd nd H1) in H2
-  | [H1: id_share ?sd ?nd, H2: context[?sd.(gv_vmids)] |- _] => rewrite (id_gv_vmids sd nd H1) in H2
-  | [H1: id_local ?sd ?nd, H2: context[?sd.(repl)] |- _] => rewrite (id_repl sd nd H1) in H2
-  | [H1: id_local ?sd ?nd, H2: context[?sd.(priv)] |- _] => rewrite (id_priv sd nd H1) in H2
-  | [H1: id_local ?sd ?nd, H2: context[?sd.(stack)] |- _] => rewrite (id_stack sd nd H1) in H2
-  | [H1: id_local ?sd ?nd, H2: context[?sd.(func_sp)] |- _] => rewrite (id_func_sp sd nd H1) in H2
+  | [H: id_local ?sd ?nd |- context[?nd.(log)] ] => rewrite (id_log sd nd H)
+  | [H: id_local ?sd ?nd |- context[?nd.(oracle)] ] => rewrite (id_oracle sd nd H)
+  | [H: id_share ?sd ?nd |- context[?nd.(glk)] ] => rewrite (id_glk sd nd H)
+  | [H: id_share ?sd ?nd |- context[?nd.(gpt)] ] => rewrite (id_gpt sd nd H)
+  | [H: id_share ?sd ?nd |- context[?nd.(slots)] ] => rewrite (id_slots sd nd H)
+  | [H: id_share ?sd ?nd |- context[?nd.(granules)] ] => rewrite (id_granules sd nd H)
+  | [H: id_share ?sd ?nd |- context[(?nd.(granule_data) @ ?i).(gd_g_idx)] ] => rewrite (id_gd_g_idx sd nd H i)
+  | [H: id_share ?sd ?nd |- context[(?nd.(granule_data) @ ?i).(g_rd)] ] => rewrite (id_g_rd sd nd H i)
+  | [H: id_share ?sd ?nd |- context[(?nd.(granule_data) @ ?i).(g_rec)] ] => rewrite (id_g_rec sd nd H i)
+  | [H: id_share ?sd ?nd |- context[(?nd.(granule_data) @ ?i).(g_aux_pmu_state)] ] => rewrite (id_g_aux_pmu_state sd nd H i)
+  | [H: id_share ?sd ?nd |- context[(?nd.(granule_data) @ ?i).(g_aux_simd_state)] ] => rewrite (id_g_aux_simd_state sd nd H i)
+  | [H: id_share ?sd ?nd |- context[(?nd.(granule_data) @ ?i).(rec_gidx)] ] => rewrite (id_rec_gidx sd nd H i)
+  | [H: id_share ?sd ?nd |- context[?nd.(gv_g_sve_max_vq)] ] => rewrite (id_gv_g_sve_max_vq sd nd H)
+  | [H: id_share ?sd ?nd |- context[?nd.(gv_g_ns_simd)] ] => rewrite (id_gv_g_ns_simd sd nd H)
+  | [H: id_share ?sd ?nd |- context[?nd.(gv_g_cpu_simd_type)] ] => rewrite (id_gv_g_cpu_simd_type sd nd H)
+  | [H: id_share ?sd ?nd |- context[?nd.(gv_vmids)] ] => rewrite (id_gv_vmids sd nd H)
+  | [H: id_local ?sd ?nd |- context[?nd.(repl)] ] => rewrite (id_repl sd nd H)
+  | [H: id_local ?sd ?nd |- context[?nd.(priv)] ] => rewrite (id_priv sd nd H)
+  | [H: id_local ?sd ?nd |- context[?nd.(stack)] ] => rewrite (id_stack sd nd H)
+  | [H: id_local ?sd ?nd |- context[?nd.(func_sp)] ] => rewrite (id_func_sp sd nd H)
+  | [H1: id_local ?sd ?nd, H2: context[?nd.(log)] |- _] => rewrite (id_log sd nd H1) in H2
+  | [H1: id_local ?sd ?nd, H2: context[?nd.(oracle)] |- _] => rewrite (id_oracle sd nd H1) in H2
+  | [H1: id_share ?sd ?nd, H2: context[?nd.(glk)] |- _] => rewrite (id_glk sd nd H1) in H2
+  | [H1: id_share ?sd ?nd, H2: context[?nd.(gpt)] |- _] => rewrite (id_gpt sd nd H1) in H2
+  | [H1: id_share ?sd ?nd, H2: context[?nd.(slots)] |- _] => rewrite (id_slots sd nd H1) in H2
+  | [H1: id_share ?sd ?nd, H2: context[?nd.(granules)] |- _] => rewrite (id_granules sd nd H1) in H2
+  | [H1: id_share ?sd ?nd, H2: context[(?nd.(granule_data) @ ?i).(gd_g_idx)] |- _] => rewrite (id_gd_g_idx sd nd H1 i) in H2
+  | [H1: id_share ?sd ?nd, H2: context[(?nd.(granule_data) @ ?i).(g_rd)] |- _] => rewrite (id_g_rd sd nd H1 i) in H2
+  | [H1: id_share ?sd ?nd, H2: context[(?nd.(granule_data) @ ?i).(g_rec)] |- _] => rewrite (id_g_rec sd nd H1 i) in H2
+  | [H1: id_share ?sd ?nd, H2: context[(?nd.(granule_data) @ ?i).(g_aux_pmu_state)] |- _] => rewrite (id_g_aux_pmu_state sd nd H1 i) in H2
+  | [H1: id_share ?sd ?nd, H2: context[(?nd.(granule_data) @ ?i).(g_aux_simd_state)] |- _] => rewrite (id_g_aux_simd_state sd nd H1 i) in H2
+  | [H1: id_share ?sd ?nd, H2: context[(?nd.(granule_data) @ ?i).(rec_gidx)] |- _] => rewrite (id_rec_gidx sd nd H1 i) in H2
+  | [H1: id_share ?sd ?nd, H2: context[?nd.(gv_g_sve_max_vq)] |- _] => rewrite (id_gv_g_sve_max_vq sd nd H1) in H2
+  | [H1: id_share ?sd ?nd, H2: context[?nd.(gv_g_ns_simd)] |- _] => rewrite (id_gv_g_ns_simd sd nd H1) in H2
+  | [H1: id_share ?sd ?nd, H2: context[?nd.(gv_g_cpu_simd_type)] |- _] => rewrite (id_gv_g_cpu_simd_type sd nd H1) in H2
+  | [H1: id_share ?sd ?nd, H2: context[?nd.(gv_vmids)] |- _] => rewrite (id_gv_vmids sd nd H1) in H2
+  | [H1: id_local ?sd ?nd, H2: context[?nd.(repl)] |- _] => rewrite (id_repl sd nd H1) in H2
+  | [H1: id_local ?sd ?nd, H2: context[?nd.(priv)] |- _] => rewrite (id_priv sd nd H1) in H2
+  | [H1: id_local ?sd ?nd, H2: context[?nd.(stack)] |- _] => rewrite (id_stack sd nd H1) in H2
+  | [H1: id_local ?sd ?nd, H2: context[?nd.(func_sp)] |- _] => rewrite (id_func_sp sd nd H1) in H2
   end.
 
 Record relate (sec_rdata: RData) (sec_st: SecState) (norm_rdata: RData) : Prop :=
@@ -343,8 +454,8 @@ Axiom oracle_rel:
     (Hrepl_norm: repl norm_d (oracle norm_d (log norm_d)) (norm_d.(share)) = Some norm_sh')
     sec_st
     (Hrelate: relate sec_d sec_st norm_d)
-    (Hinv: SharedInv norm_d.(share)),
-    relate (sec_d.[share] :< sec_sh') sec_st (norm_d.[share] :< norm_sh') /\ SharedInv norm_sh'.
+    (Hinv: SharedInv sec_d.(share)),
+    relate (sec_d.[share] :< sec_sh') sec_st (norm_d.[share] :< norm_sh') /\ SharedInv sec_sh'.
 
 Ltac ext_repl Rsec Rnorm :=
   match type of Rsec with
@@ -357,12 +468,11 @@ Ltac ext_repl Rsec Rnorm :=
 
 Ltac Frewrite := repeat (repeat rewrite_id; frewrite).
 
-
 Lemma smc_rtt_fold_3_inv:
-  forall s2_ctx map_addr wi call15 call34 call44 call33 norm_d_init norm_d ret_n norm_d'
-    (Hspec: smc_rtt_fold_3 s2_ctx map_addr wi call15 call34 call44 call33 norm_d_init norm_d = Some (ret_n, norm_d'))
-    (Hinv: SharedInv norm_d.(share)),
-    SharedInv norm_d'.(share).
+  forall s2_ctx map_addr wi call15 call34 call44 call33 sec_d_init sec_d ret_n sec_d'
+    (Hspec: smc_rtt_fold_3 s2_ctx map_addr wi call15 call34 call44 call33 sec_d_init sec_d = Some (ret_n, sec_d'))
+    (Hinv: SharedInv sec_d.(share)),
+    SharedInv sec_d'.(share).
 Admitted.
 
 Lemma granule_data_slots_update_permu:
@@ -439,7 +549,8 @@ Lemma smc_rtt_fold_3_secure:
     s2_ctx map_addr wi call15 call34 call44 call33 norm_d_init ret_n ret_s sec_d' norm_d'
     (Hnorm: smc_rtt_fold_3 s2_ctx map_addr wi call15 call34 call44 call33 norm_d_init norm_d = Some (ret_n, norm_d'))
     (Hsec: smc_rtt_fold_3 s2_ctx map_addr wi call15 call34 call44 call33 norm_d_init sec_d = Some (ret_s, sec_d'))
-    (Hinv: SharedInv (norm_d.(share))),
+    (Hinv_sec: SharedInv (sec_d.(share)))
+    (Hinv_norm: SharedInv (norm_d.(share))),
     ret_s = ret_n /\ relate sec_d' sec_st norm_d'.
 Proof.
   intros. pose proof Hrel as D. destruct D.
@@ -448,38 +559,78 @@ Proof.
   destruct e11 as (? & ? & ? & ? & ? & ? & ? & ? & ?).
   clear C19.
   Frewrite. simpl_hyp Hsec. inv Hsec.
-  extract_prop.
+  extract_prop. repeat match goal with | [H: prop _ = _ |- _ ] => clear H end.
+  bool_rel. simpl_some. clear_hyp.
   split.
   - reflexivity.
   - constructor.
     {
       constructor; simpl.
       inv relate_sec_data0.
-      rewrite_id.
-      remember ((e_g_llt (stack_wi (stack norm_d)))) as rtt_idx. symmetry in Heqrtt_idx.
+      rewrite_id. frewrite. subst.
+      intros. rewrite lens_same in Hrd. repeat rewrite_id.
+      remember ((e_g_llt (stack_wi (stack sec_d)))) as rtt_idx. symmetry in Heqrtt_idx.
       remember ((slots (share sec_d)) @ SLOT_RTT2) as rtt2_idx. symmetry in Heqrtt2_idx.
-      remember (match e_index (stack_wi (stack norm_d)) with | 0 => 0  | Z.pos y' => Z.pos y'~0~0~0 | Z.neg y' => Z.neg y'~0~0~0 end) as e_idx.
+      remember (8 * e_index (stack_wi (stack sec_d))) as e_idx. symmetry in Heqe_idx.
       remember (poffset call15) as call15_ofs. symmetry in Heqcall15_ofs.
-      remember (call15_ofs + e_idx) as g_norm_idx. symmetry in Heqg_norm_idx.
+      remember (call15_ofs + e_idx) as g_sec_idx. symmetry in Heqg_sec_idx.
       remember ((granule_data (share sec_d))) as granule_data_sec. symmetry in Heqgranule_data_sec.
-      intros.
-      rewrite lens_same in Hrd. repeat rewrite_id.
       repeat rewrite lens_same in Hwalk.
       match type of Hwalk with
       | walk_rtt ?d ?rd ?addr = _ =>
-        assert(Hwalk_eq: walk_rtt d rd addr = walk_rtt (share sec_d) rd addr)
+          assert(Hwalk_eq: walk_rtt d rd addr = walk_rtt (share sec_d) rd addr)
       end.
       {
-        rewrite Heqrtt2_idx.
-        assert_gso. lia. rewrite (ZMap.gso _ _ Hneq).
-        rewrite walk_rtt_same_set_slot.
+        assert_gso. lia. rewrite (ZMap.gso _ _ Hneq) in *.
+        repeat (rewrite walk_rtt_same_set_slot in *).
+        rewrite Z.add_0_l in *. simpl in *.
+        rename x1 into lvl0.
+        rename x into rd0.
+        rename x0 into gfn0.
+        rename x2 into pte0.
+        rename x3 into pte1.
+        inversion Hinv_sec.
+        unfold walk_one_step in *. inversion e18.
+        remember (addr_to_gidx vaddr) as gfn. symmetry in Heqgfn.
+        assert(Hwalk0: walk_star (share sec_d) rd0 gfn0 rtt_idx).
+        { unfold walk_star. repeat eexists. eassumption. }
+        assert(Hwalk1: walk_star (share sec_d) rd0 gfn0 rtt2_idx).
+        { unfold walk_star.
+          eexists. eexists. exists (S (Z.to_nat lvl0)).
+          simpl. rewrite e16. rewrite e6. simpl_bool_eq.
+          rewrite H0. reflexivity. }
+        unfold walk_reverse in *. destruct walk_reverse_inv0 as (rev & Hrev).
+        exploit Hrev.
+        eapply Hwalk0. assumption. erewrite H0.
+        red; intros. autounfold with spec in *. frewrite. lia.
+        intros.
+        destruct (prop (walk_star (share sec_d) rd_gidx gfn rtt_idx)).
+        - exploit walk_rd_unique_inv. eapply shared_inv_implies. eapply Hinv_sec.
+          eapply w. eapply Hwalk0. intros. rewrite H2 in *.
+          assert(Hwalk_none: walk_rtt (share sec_d) rd0 gfn = None).
+          { unfold walk_rtt. apply walk_star_continue in w.
+            destruct w as (lvl' & pte' & Hcont).
+            rewrite Hcont.
 
-        admit.
-      }
+
+
+
+        - destruct (prop (walk_star (share sec_d) rd_gidx gfn rtt2_idx)).
+
+
+
+            
+
+            eapply walk_star_iff in w0.
+
+
+
+          admit.
+                 }
       rewrite Hwalk_eq in Hwalk.
       pose proof (mem_rel0 rd_gidx Hrd vaddr data_gidx Hwalk) as mem_rel.
       simpl in mem_rel.
-      inv Hinv. unfold rtt_map_data in *.
+      inv Hinv_norm. unfold rtt_map_data in *. repeat rewrite_id.
       erewrite relate_walk_rtt_same in *; try eassumption.
       pose proof (rtt_map_data_inv0 rd_gidx Hrd (addr_to_gidx vaddr) data_gidx Hwalk) as Hdata.
       autounfold with spec in *.
