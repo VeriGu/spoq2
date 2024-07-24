@@ -93,3 +93,13 @@ ValidateAddr/Spec.v
 ValidateTable/Layer.v
 ValidateTable/RefineRel.v
 ValidateTable/Spec.v
+SecurityProof/SecurityDefs.v
+SecurityProof/SecurityLemma.v
+SecurityProof/GranuleDelegateInv.v
+SecurityProof/GranuleDelegateSec.v
+SecurityProof/GranuleUndelegateInv.v  
+SecurityProof/GranuleUndelegateSec.v
+SecurityProof/RTTFoldInv.v            
+SecurityProof/RTTFoldSec.v
+SecurityProof/RealmAccessMemInv.v
+SecurityProof/RealmAccessMemSec.v
