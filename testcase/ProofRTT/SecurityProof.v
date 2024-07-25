@@ -703,6 +703,62 @@ Ltac rewrite_lens :=
   | [H: context[gpt (share (lens ?v ?st)) ] |- _] => rewrite (lens_gpt_same lens_field_same_prop st v) in H
   end.
 
+Lemma smc_rec_destroy_secure:
+forall v_rd_addr norm_d sec_d norm_d' sec_d' sec_st ret_n ret_s (Hrel: relate sec_d sec_st norm_d)
+         (Hnorm: smc_rec_destroy_spec v_rd_addr norm_d = Some (ret_n, norm_d'))
+         (Hsec: smc_rec_destroy_spec v_rd_addr sec_d = Some (ret_s, sec_d'))
+         (Hinv_sec: SharedInv (sec_d.(share)))
+         (Hinv_norm: SharedInv (norm_d.(share))),
+     ret_s = ret_n /\ relate sec_d' sec_st norm_d'.
+Proof.
+  intros. pose proof Hrel as D. destruct D.
+  unfold smc_rec_destroy_spec in *; autounfold with sem in *.
+  repeat simpl_hyp Hsec. repeat simpl_hyp Hnorm. inv Hnorm. inv Hsec.
+  -split. reflexivity. split; auto.
+  -autounfold with sem in *.
+   Frewrite. repeat simpl_hyp Hnorm. inv Hsec. inv Hnorm.
+   split. auto.
+   {
+     constructor.
+     +constructor. simpl in *. intros. inv relate_sec_data0.
+      rewrite (walk_rtt_same (share (lens 34 sec_d))) in Hwalk.
+      rewrite walk_rtt_lens_same in Hwalk.
+      rewrite e_state_lens_same in Hrd.
+      exploit mem_rel0.
+      apply  Hrd. apply Hwalk. simpl.
+      intros. simpl_hyp H.
+      *assert_gso. {
+         inv Hinv_norm. unfold rtt_map_data in *. autounfold with spec in *.
+         Frewrite. erewrite relate_walk_rtt_same in Hwalk; try eassumption. exploit rtt_map_data_inv0. apply Hrd.
+         apply Hwalk.
+         intros. red.  intro T. inv T. lia.
+       }
+       rewrite (ZMap.gso _ _ Hneq). assumption.
+      *destruct_zmap. simpl in *. subst. assumption. assumption.
+      *simpl in *. intros. rewrite lens_same in *. Frewrite.
+       destruct_zmap. simpl. reflexivity. reflexivity.
+     +simpl in *. repeat rewrite lens_same. Frewrite. simpl.
+      constructor; intros; simpl in *.
+      all: (repeat rewrite lens_same in *; simpl in *; Frewrite; try reflexivity).
+      all: (destruct_zmap; simpl; Frewrite; try reflexivity).
+       autounfold with spec in *.
+        eapply (id_g_norm _ _ relate_share0). autounfold with spec in *.
+        Frewrite. auto.
+         eapply (id_g_norm _ _ relate_share0). autounfold with spec in *.
+         Frewrite. auto.
+     +simpl. repeat rewrite lens_same. Frewrite. simpl.
+      constructor; intros; simpl in *; repeat rewrite lens_same; Frewrite; reflexivity.
+   }
+   inv Hsec. inv Hnorm. rewrite lens_same in *. Frewrite. inv C10.
+  -autounfold with sem in *. repeat simpl_hyp Hnorm. inv Hsec. inv Hnorm.
+   repeat rewrite lens_same in *. Frewrite. lia.
+   inv Hsec. inv Hnorm. split. reflexivity. repeat rewrite lens_same.
+   apply Hrel.
+  -autounfold with sem in *. repeat simpl_hyp Hnorm. inv Hsec. inv Hnorm.
+   split. reflexivity. apply Hrel.
+Qed.
+
+
 Lemma smc_realm_destroy_secure:
    forall v_rd_addr norm_d sec_d norm_d' sec_d' sec_st ret_n ret_s (Hrel: relate sec_d sec_st norm_d)
          (Hnorm: smc_realm_destroy_spec v_rd_addr norm_d = Some (ret_n, norm_d'))
