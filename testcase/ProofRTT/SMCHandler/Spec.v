@@ -4015,7 +4015,7 @@ Fixpoint s2tt_init_valid_ns_loop738 (_N_: nat) (__return__: bool) (v_call: Z) (v
             then (
               (Some (
                 1  ,
-                (((lens 110 st).[log] :<
+                (((lens 86 st).[log] :<
                   ((EVT CPU_ID (REL (v_rd_addr / (GRANULE_SIZE)) ((((lens 28 st).(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))))) ::
                     (((EVT CPU_ID (ACQ (v_rd_addr / (GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share].[slots] :<
                   (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))))
@@ -4038,8 +4038,8 @@ Fixpoint s2tt_init_valid_ns_loop738 (_N_: nat) (__return__: bool) (v_call: Z) (v
                     v_map_addr
                     v_ulevel
                     (mkPtr "stack_wi" 0)
-                    ((((lens 112 st).[log] :<
-                      ((EVT CPU_ID (REL (v_rd_addr / (GRANULE_SIZE)) ((((lens 114 st).(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))))) ::
+                    ((((lens 88 st).[log] :<
+                      ((EVT CPU_ID (REL (v_rd_addr / (GRANULE_SIZE)) ((((lens 90 st).(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))))) ::
                         (((EVT
                           CPU_ID
                           (ACQ ((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE)))) ::
@@ -4047,149 +4047,149 @@ Fixpoint s2tt_init_valid_ns_loop738 (_N_: nat) (__return__: bool) (v_call: Z) (v
                             (((EVT CPU_ID (ACQ (v_rd_addr / (GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share].[slots] :<
                       (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))).[stack].[stack_s2_ctx] :<
                       (((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)))));
-              if (((((st.(stack)).(stack_wi)).(e_last_level)) - (v_ulevel)) =? (0))
+              if (((((st_15.(stack)).(stack_wi)).(e_last_level)) - (v_ulevel)) =? (0))
               then (
                 rely (
-                  ((((((st.(stack)).(stack_wi)).(e_g_llt)) > (0)) /\ ((((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
-                    ((((((st.(stack)).(stack_wi)).(e_g_llt)) - (18446744073705226240)) < (0)))));
-                rely ((((((st.(stack)).(stack_wi)).(e_g_llt)) mod (16)) = (0)));
+                  ((((((st_15.(stack)).(stack_wi)).(e_g_llt)) > (0)) /\ ((((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+                    ((((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (18446744073705226240)) < (0)))));
+                rely ((((((st_15.(stack)).(stack_wi)).(e_g_llt)) mod (16)) = (0)));
+                when cid == (((((st_15.(share)).(granules)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(e_lock)));
                 when ret_1 == (
                     (s2tte_has_hipas_spec'
-                      (((((st.(share)).(granule_data)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st.(stack)).(stack_wi)).(e_index)))))
+                      (((((st_15.(share)).(granule_data)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_15.(stack)).(stack_wi)).(e_index)))))
                       0));
                 if ret_1
                 then (
                   if (v_ulevel =? (3))
                   then (
-                    if (((((((lens 28 st).(share)).(granules)) @ (1152921504605528063 + (((((st.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_refcount)) + (1)) <? (0))
+                    rely ((("granules" = ("granules")) /\ ((((18446744073688449016 + ((((st_15.(stack)).(stack_wi)).(e_g_llt)))) mod (ST_GRANULE_SIZE)) = (8)))));
+                    when cid_1 == (((((st_15.(share)).(granules)) @ (1152921504605528063 + (((((st_15.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_lock)));
+                    if ((((((st_15.(share)).(granules)) @ (1152921504605528063 + (((((st_15.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_refcount)) + (1)) <? (0))
                     then None
                     else (
-                      if ((((((st.(share)).(granules)) @ (1152921504605528063 + (((((st.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_state)) - (GRANULE_STATE_REC)) =? (0))
+                      if ((((((st_15.(share)).(granules)) @ (1152921504605528063 + (((((st_15.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_state)) - (GRANULE_STATE_REC)) =? (0))
                       then (
                         (Some (
                           0  ,
-                          (((((lens 116 st).[log] :<
+                          ((((lens 65 st_15).[log] :<
                             ((EVT
                               CPU_ID
                               (REL
-                                (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
-                                ((((lens 118 st).(share)).(granules)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
+                                (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
+                                ((((lens 49 st_15).(share)).(granules)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
                               (((EVT
                                 CPU_ID
                                 (REC_REF
-                                  (1152921504605528063 + (((((st.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))
-                                  ((((((lens 28 st).(share)).(granules)) @ (1152921504605528063 + (((((st.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_refcount)) + (1)))) ::
-                                (((EVT CPU_ID (ACQ (v_rd_addr / (GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))).[share].[granule_data] :<
-                            (((st.(share)).(granule_data)) #
-                              (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)) ==
-                              ((((st.(share)).(granule_data)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).[g_norm] :<
-                                (((((st.(share)).(granule_data)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) #
-                                  (8 * ((((st.(stack)).(stack_wi)).(e_index)))) ==
+                                  (1152921504605528063 + (((((st_15.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))
+                                  (((((st_15.(share)).(granules)) @ (1152921504605528063 + (((((st_15.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_refcount)) + (1)))) ::
+                                ((st_15.(log))))))).[share].[granule_data] :<
+                            (((st_15.(share)).(granule_data)) #
+                              (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)) ==
+                              ((((st_15.(share)).(granule_data)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).[g_norm] :<
+                                (((((st_15.(share)).(granule_data)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) #
+                                  (8 * ((((st_15.(stack)).(stack_wi)).(e_index)))) ==
                                   (v_s2tte |' (54043195528446979)))))).[share].[slots] :<
-                            ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RTT == (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)))).[stack].[stack_s2_ctx] :<
-                            (((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)))
+                            (((st_15.(share)).(slots)) # SLOT_RTT == (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))
                         )))
                       else (
                         (Some (
                           0  ,
-                          (((((lens 120 st).[log] :<
+                          ((((lens 67 st_15).[log] :<
                             ((EVT
                               CPU_ID
                               (REL
-                                (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
-                                ((((lens 122 st).(share)).(granules)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
-                              (((EVT CPU_ID (ACQ (v_rd_addr / (GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share].[granule_data] :<
-                            (((st.(share)).(granule_data)) #
-                              (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)) ==
-                              ((((st.(share)).(granule_data)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).[g_norm] :<
-                                (((((st.(share)).(granule_data)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) #
-                                  (8 * ((((st.(stack)).(stack_wi)).(e_index)))) ==
+                                (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
+                                ((((lens 52 st_15).(share)).(granules)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
+                              ((st_15.(log))))).[share].[granule_data] :<
+                            (((st_15.(share)).(granule_data)) #
+                              (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)) ==
+                              ((((st_15.(share)).(granule_data)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).[g_norm] :<
+                                (((((st_15.(share)).(granule_data)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) #
+                                  (8 * ((((st_15.(stack)).(stack_wi)).(e_index)))) ==
                                   (v_s2tte |' (54043195528446979)))))).[share].[slots] :<
-                            ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RTT == (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)))).[stack].[stack_s2_ctx] :<
-                            (((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)))
+                            (((st_15.(share)).(slots)) # SLOT_RTT == (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))
                         )))))
                   else (
-                    if (((((((lens 28 st).(share)).(granules)) @ (1152921504605528063 + (((((st.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_refcount)) + (1)) <? (0))
+                    rely ((("granules" = ("granules")) /\ ((((18446744073688449016 + ((((st_15.(stack)).(stack_wi)).(e_g_llt)))) mod (ST_GRANULE_SIZE)) = (8)))));
+                    when cid_1 == (((((st_15.(share)).(granules)) @ (1152921504605528063 + (((((st_15.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_lock)));
+                    if ((((((st_15.(share)).(granules)) @ (1152921504605528063 + (((((st_15.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_refcount)) + (1)) <? (0))
                     then None
                     else (
-                      if ((((((st.(share)).(granules)) @ (1152921504605528063 + (((((st.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_state)) - (GRANULE_STATE_REC)) =? (0))
+                      if ((((((st_15.(share)).(granules)) @ (1152921504605528063 + (((((st_15.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_state)) - (GRANULE_STATE_REC)) =? (0))
                       then (
                         (Some (
                           0  ,
-                          (((((lens 124 st).[log] :<
+                          ((((lens 69 st_15).[log] :<
                             ((EVT
                               CPU_ID
                               (REL
-                                (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
-                                ((((lens 126 st).(share)).(granules)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
+                                (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
+                                ((((lens 55 st_15).(share)).(granules)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
                               (((EVT
                                 CPU_ID
                                 (REC_REF
-                                  (1152921504605528063 + (((((st.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))
-                                  ((((((lens 28 st).(share)).(granules)) @ (1152921504605528063 + (((((st.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_refcount)) + (1)))) ::
-                                (((EVT CPU_ID (ACQ (v_rd_addr / (GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))).[share].[granule_data] :<
-                            (((st.(share)).(granule_data)) #
-                              (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)) ==
-                              ((((st.(share)).(granule_data)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).[g_norm] :<
-                                (((((st.(share)).(granule_data)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) #
-                                  (8 * ((((st.(stack)).(stack_wi)).(e_index)))) ==
+                                  (1152921504605528063 + (((((st_15.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))
+                                  (((((st_15.(share)).(granules)) @ (1152921504605528063 + (((((st_15.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_refcount)) + (1)))) ::
+                                ((st_15.(log))))))).[share].[granule_data] :<
+                            (((st_15.(share)).(granule_data)) #
+                              (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)) ==
+                              ((((st_15.(share)).(granule_data)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).[g_norm] :<
+                                (((((st_15.(share)).(granule_data)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) #
+                                  (8 * ((((st_15.(stack)).(stack_wi)).(e_index)))) ==
                                   (v_s2tte |' (54043195528446977)))))).[share].[slots] :<
-                            ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RTT == (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)))).[stack].[stack_s2_ctx] :<
-                            (((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)))
+                            (((st_15.(share)).(slots)) # SLOT_RTT == (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))
                         )))
                       else (
                         (Some (
                           0  ,
-                          (((((lens 128 st).[log] :<
+                          ((((lens 71 st_15).[log] :<
                             ((EVT
                               CPU_ID
                               (REL
-                                (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
-                                ((((lens 130 st).(share)).(granules)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
-                              (((EVT CPU_ID (ACQ (v_rd_addr / (GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share].[granule_data] :<
-                            (((st.(share)).(granule_data)) #
-                              (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)) ==
-                              ((((st.(share)).(granule_data)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).[g_norm] :<
-                                (((((st.(share)).(granule_data)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) #
-                                  (8 * ((((st.(stack)).(stack_wi)).(e_index)))) ==
+                                (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
+                                ((((lens 58 st_15).(share)).(granules)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
+                              ((st_15.(log))))).[share].[granule_data] :<
+                            (((st_15.(share)).(granule_data)) #
+                              (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)) ==
+                              ((((st_15.(share)).(granule_data)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).[g_norm] :<
+                                (((((st_15.(share)).(granule_data)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) #
+                                  (8 * ((((st_15.(stack)).(stack_wi)).(e_index)))) ==
                                   (v_s2tte |' (54043195528446977)))))).[share].[slots] :<
-                            ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RTT == (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)))).[stack].[stack_s2_ctx] :<
-                            (((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)))
+                            (((st_15.(share)).(slots)) # SLOT_RTT == (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))
                         ))))))
                 else (
+                  when cid_0 == (((((st_15.(share)).(granules)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
                   (Some (
                     (((((v_ulevel << (32)) + (4)) >> (24)) & (4294967040)) |' ((((v_ulevel << (32)) + (4)) & (4294967295))))  ,
-                    ((((lens 132 st).[log] :<
+                    (((lens 72 st_15).[log] :<
                       ((EVT
                         CPU_ID
                         (REL
-                          (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
-                          ((((lens 28 st).(share)).(granules)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
-                        (((EVT CPU_ID (ACQ (v_rd_addr / (GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share].[slots] :<
-                      ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RTT == (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)))).[stack].[stack_s2_ctx] :<
-                      (((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)))
+                          (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
+                          (((st_15.(share)).(granules)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
+                        ((st_15.(log))))).[share].[slots] :<
+                      (((st_15.(share)).(slots)) # SLOT_RTT == (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))
                   ))))
               else (
                 rely (
-                  ((((((st.(stack)).(stack_wi)).(e_g_llt)) > (0)) /\ ((((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
-                    ((((((st.(stack)).(stack_wi)).(e_g_llt)) - (18446744073705226240)) < (0)))));
+                  ((((((st_15.(stack)).(stack_wi)).(e_g_llt)) > (0)) /\ ((((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+                    ((((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (18446744073705226240)) < (0)))));
+                when cid == (((((st_15.(share)).(granules)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
                 (Some (
-                  ((((((((st.(stack)).(stack_wi)).(e_last_level)) << (32)) + (4)) >> (24)) & (4294967040)) |'
-                    (((((((st.(stack)).(stack_wi)).(e_last_level)) << (32)) + (4)) & (4294967295))))  ,
-                  ((((lens 134 st).[log] :<
+                  ((((((((st_15.(stack)).(stack_wi)).(e_last_level)) << (32)) + (4)) >> (24)) & (4294967040)) |'
+                    (((((((st_15.(stack)).(stack_wi)).(e_last_level)) << (32)) + (4)) & (4294967295))))  ,
+                  ((lens 38 st_15).[log] :<
                     ((EVT
                       CPU_ID
                       (REL
-                        (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
-                        ((((lens 28 st).(share)).(granules)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
-                      (((EVT CPU_ID (ACQ (v_rd_addr / (GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share].[slots] :<
-                    (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))).[stack].[stack_s2_ctx] :<
-                    (((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)))
+                        (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
+                        (((st_15.(share)).(granules)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
+                      ((st_15.(log)))))
                 )))))
           else (
             (Some (
               1  ,
-              (((lens 167 st).[log] :<
+              (((lens 109 st).[log] :<
                 ((EVT CPU_ID (REL (v_rd_addr / (GRANULE_SIZE)) ((((lens 28 st).(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))))) ::
                   (((EVT CPU_ID (ACQ (v_rd_addr / (GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share].[slots] :<
                 (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))))
@@ -4237,8 +4237,8 @@ Fixpoint s2tt_init_valid_ns_loop738 (_N_: nat) (__return__: bool) (v_call: Z) (v
                 v_map_addr
                 v_ulevel
                 (mkPtr "stack_wi" 0)
-                ((((lens 146 st).[log] :<
-                  ((EVT CPU_ID (REL (v_rd_addr / (GRANULE_SIZE)) ((((lens 148 st).(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))))) ::
+                ((((lens 100 st).[log] :<
+                  ((EVT CPU_ID (REL (v_rd_addr / (GRANULE_SIZE)) ((((lens 102 st).(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))))) ::
                     (((EVT
                       CPU_ID
                       (ACQ ((((((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)).(e_rls2ctx_g_rtt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE)))) ::
@@ -4246,100 +4246,100 @@ Fixpoint s2tt_init_valid_ns_loop738 (_N_: nat) (__return__: bool) (v_call: Z) (v
                         (((EVT CPU_ID (ACQ (v_rd_addr / (GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share].[slots] :<
                   (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))).[stack].[stack_s2_ctx] :<
                   (((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)))));
-          if (((((st.(stack)).(stack_wi)).(e_last_level)) - (v_ulevel)) =? (0))
+          if (((((st_15.(stack)).(stack_wi)).(e_last_level)) - (v_ulevel)) =? (0))
           then (
             rely (
-              ((((((st.(stack)).(stack_wi)).(e_g_llt)) > (0)) /\ ((((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
-                ((((((st.(stack)).(stack_wi)).(e_g_llt)) - (18446744073705226240)) < (0)))));
-            rely ((((((st.(stack)).(stack_wi)).(e_g_llt)) mod (16)) = (0)));
+              ((((((st_15.(stack)).(stack_wi)).(e_g_llt)) > (0)) /\ ((((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+                ((((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (18446744073705226240)) < (0)))));
+            rely ((((((st_15.(stack)).(stack_wi)).(e_g_llt)) mod (16)) = (0)));
+            when cid == (((((st_15.(share)).(granules)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(e_lock)));
             when ret_0 == (
                 (s2tte_check_spec'
-                  (((((st.(share)).(granule_data)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st.(stack)).(stack_wi)).(e_index)))))
+                  (((((st_15.(share)).(granule_data)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) @ (8 * ((((st_15.(stack)).(stack_wi)).(e_index)))))
                   v_ulevel
                   36028797018963968));
             if ret_0
             then (
-              if (((((((lens 28 st).(share)).(granules)) @ (1152921504605528063 + (((((st.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_refcount)) + ((- 1))) <? (0))
+              rely ((("granules" = ("granules")) /\ ((((18446744073688449016 + ((((st_15.(stack)).(stack_wi)).(e_g_llt)))) mod (ST_GRANULE_SIZE)) = (8)))));
+              when cid_0 == (((((st_15.(share)).(granules)) @ (1152921504605528063 + (((((st_15.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_lock)));
+              if ((((((st_15.(share)).(granules)) @ (1152921504605528063 + (((((st_15.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_refcount)) + ((- 1))) <? (0))
               then None
               else (
-                if ((((((st.(share)).(granules)) @ (1152921504605528063 + (((((st.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_state)) - (GRANULE_STATE_REC)) =? (0))
+                if ((((((st_15.(share)).(granules)) @ (1152921504605528063 + (((((st_15.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_state)) - (GRANULE_STATE_REC)) =? (0))
                 then (
                   (Some (
                     0  ,
-                    (((((lens 162 st).[log] :<
+                    ((((lens 104 st_15).[log] :<
                       ((EVT
                         CPU_ID
                         (REL
-                          (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
-                          ((((lens 152 st).(share)).(granules)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
+                          (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
+                          ((((lens 78 st_15).(share)).(granules)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
                         (((EVT
                           CPU_ID
                           (REC_REF
-                            (1152921504605528063 + (((((st.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))
-                            ((((((lens 28 st).(share)).(granules)) @ (1152921504605528063 + (((((st.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_refcount)) + ((- 1))))) ::
-                          (((EVT CPU_ID (ACQ (v_rd_addr / (GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))).[share].[granule_data] :<
-                      (((st.(share)).(granule_data)) #
-                        (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)) ==
-                        ((((st.(share)).(granule_data)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).[g_norm] :<
-                          (((((st.(share)).(granule_data)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) #
-                            (8 * ((((st.(stack)).(stack_wi)).(e_index)))) ==
+                            (1152921504605528063 + (((((st_15.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))
+                            (((((st_15.(share)).(granules)) @ (1152921504605528063 + (((((st_15.(stack)).(stack_wi)).(e_g_llt)) / (ST_GRANULE_SIZE))))).(e_refcount)) + ((- 1))))) ::
+                          ((st_15.(log))))))).[share].[granule_data] :<
+                      (((st_15.(share)).(granule_data)) #
+                        (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)) ==
+                        ((((st_15.(share)).(granule_data)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).[g_norm] :<
+                          (((((st_15.(share)).(granule_data)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) #
+                            (8 * ((((st_15.(stack)).(stack_wi)).(e_index)))) ==
                             0)))).[share].[slots] :<
-                      ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RTT == (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)))).[stack].[stack_s2_ctx] :<
-                      (((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)))
+                      (((st_15.(share)).(slots)) # SLOT_RTT == (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))
                   )))
                 else (
                   (Some (
                     0  ,
-                    (((((lens 164 st).[log] :<
+                    ((((lens 106 st_15).[log] :<
                       ((EVT
                         CPU_ID
                         (REL
-                          (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
-                          ((((lens 157 st).(share)).(granules)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
-                        (((EVT CPU_ID (ACQ (v_rd_addr / (GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share].[granule_data] :<
-                      (((st.(share)).(granule_data)) #
-                        (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)) ==
-                        ((((st.(share)).(granule_data)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).[g_norm] :<
-                          (((((st.(share)).(granule_data)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) #
-                            (8 * ((((st.(stack)).(stack_wi)).(e_index)))) ==
+                          (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
+                          ((((lens 79 st_15).(share)).(granules)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
+                        ((st_15.(log))))).[share].[granule_data] :<
+                      (((st_15.(share)).(granule_data)) #
+                        (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)) ==
+                        ((((st_15.(share)).(granule_data)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).[g_norm] :<
+                          (((((st_15.(share)).(granule_data)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))).(g_norm)) #
+                            (8 * ((((st_15.(stack)).(stack_wi)).(e_index)))) ==
                             0)))).[share].[slots] :<
-                      ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RTT == (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)))).[stack].[stack_s2_ctx] :<
-                      (((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)))
+                      (((st_15.(share)).(slots)) # SLOT_RTT == (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))
                   )))))
             else (
+              when cid_0 == (((((st_15.(share)).(granules)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
               (Some (
                 (((((v_ulevel << (32)) + (4)) >> (24)) & (4294967040)) |' ((((v_ulevel << (32)) + (4)) & (4294967295))))  ,
-                ((((lens 172 st).[log] :<
+                (((lens 98 st_15).[log] :<
                   ((EVT
                     CPU_ID
                     (REL
-                      (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
-                      ((((lens 28 st).(share)).(granules)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
-                    (((EVT CPU_ID (ACQ (v_rd_addr / (GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share].[slots] :<
-                  ((((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))) # SLOT_RTT == (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4)))).[stack].[stack_s2_ctx] :<
-                  (((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)))
+                      (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
+                      (((st_15.(share)).(granules)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
+                    ((st_15.(log))))).[share].[slots] :<
+                  (((st_15.(share)).(slots)) # SLOT_RTT == (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >> (4))))
               ))))
           else (
             rely (
-              ((((((st.(stack)).(stack_wi)).(e_g_llt)) > (0)) /\ ((((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
-                ((((((st.(stack)).(stack_wi)).(e_g_llt)) - (18446744073705226240)) < (0)))));
+              ((((((st_15.(stack)).(stack_wi)).(e_g_llt)) > (0)) /\ ((((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+                ((((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (18446744073705226240)) < (0)))));
+            when cid == (((((st_15.(share)).(granules)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))).(e_lock)));
             (Some (
-              ((((((((st.(stack)).(stack_wi)).(e_last_level)) << (32)) + (4)) >> (24)) & (4294967040)) |'
-                (((((((st.(stack)).(stack_wi)).(e_last_level)) << (32)) + (4)) & (4294967295))))  ,
-              ((((lens 174 st).[log] :<
+              ((((((((st_15.(stack)).(stack_wi)).(e_last_level)) << (32)) + (4)) >> (24)) & (4294967040)) |'
+                (((((((st_15.(stack)).(stack_wi)).(e_last_level)) << (32)) + (4)) & (4294967295))))  ,
+              ((lens 81 st_15).[log] :<
                 ((EVT
                   CPU_ID
                   (REL
-                    (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
-                    ((((lens 28 st).(share)).(granules)) @ (((((st.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
-                  (((EVT CPU_ID (ACQ (v_rd_addr / (GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share].[slots] :<
-                (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE)))).[stack].[stack_s2_ctx] :<
-                (((((st.(share)).(granule_data)) @ (v_rd_addr / (GRANULE_SIZE))).(g_rd)).(e_rd_s2_ctx)))
+                    (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))
+                    (((st_15.(share)).(granules)) @ (((((st_15.(stack)).(stack_wi)).(e_g_llt)) - (GRANULES_BASE)) / (ST_GRANULE_SIZE))))) ::
+                  ((st_15.(log)))))
             ))))
         else (
           (Some (
             1  ,
-            (((lens 176 st).[log] :<
+            (((lens 112 st).[log] :<
               ((EVT CPU_ID (REL (v_rd_addr / (GRANULE_SIZE)) ((((lens 28 st).(share)).(granules)) @ (v_rd_addr / (GRANULE_SIZE))))) ::
                 (((EVT CPU_ID (ACQ (v_rd_addr / (GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share].[slots] :<
               (((st.(share)).(slots)) # SLOT_RD == (v_rd_addr / (GRANULE_SIZE))))
