@@ -10905,7 +10905,7 @@ Definition smc_rtt_unmap_unprotected_spec (v_rd_addr: Z) (v_map_addr: Z) (v_ulev
       else (Some (1, (lens 9495 st)))))
   else (Some (1, (lens 9591 st))).
 
-Definition smc_rtt_map_unprotected_spec (v_rd_addr: Z) (v_map_addr: Z) (v_ulevel: Z) (v_s2tte: Z) (st: RData) : (option (Z * RData)) :=
+Definition smc_rtt_map_unprotected_spec_low (v_rd_addr: Z) (v_map_addr: Z) (v_ulevel: Z) (v_s2tte: Z) (st: RData) : (option (Z * RData)) :=
   if (
     (((Z.lxor
       ((((- 1) & (281474976710655)) & (((- 1) << (((((((v_ulevel * (18446744069414584320)) + (12884901888)) >> (32)) * (9)) + (12)) & (4294967295)))))) |' (988))

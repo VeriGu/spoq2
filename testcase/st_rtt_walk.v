@@ -6,7 +6,9 @@ Record s_rtt_walk :=
   }.
 
 Definition load_s_rtt_walk (sz: Z) (ofs: Z) (st: s_rtt_walk) : option Z :=
-  if (ofs =? 0) then Some (st.(e_g_llt)) else
+  if (ofs =? 0) then (
+    rely (int_is_granule st.(e_g_llt));
+    Some (st.(e_g_llt))) else
   if (ofs =? 8) then Some (st.(e_index)) else
   if (ofs =? 16) then Some (st.(e_last_level)) else
   None.

@@ -35,7 +35,7 @@ Definition map_unmap_ns_2_low
   when st_13 == ((granule_lock_spec (int_to_ptr v_2_tmp) 6 st_12));
   when st_14 == ((granule_unlock_spec v_call st_13));
   when st_15 == ((rtt_walk_lock_unlock_spec (int_to_ptr v_2_tmp) v_call6_1 v_call7_1 v_map_addr v_level v_wi st_14));
-  load_RData 8 (ptr_offset v_wi 16) st_11.
+  load_RData 8 (ptr_offset v_wi 16) st_15.
 
 Definition map_unmap_ns_4_low
   (v_host_s2tte: Z)
@@ -208,8 +208,11 @@ Definition map_unmap_ns_7_low
 
 Definition map_unmap_ns_spec_low (v_rd_addr: Z) (v_map_addr: Z) (v_level: Z) (v_host_s2tte: Z) (v_op: Z) (st: RData) : (option (Z * RData)) :=
   when st_0 == ((new_frame "map_unmap_ns" st));
-  when v_wi, st_1 == ((alloc_stack "map_unmap_ns" 24 8 st_0));
-  when v_s2_ctx, st_2 == ((alloc_stack "map_unmap_ns" 32 8 st_1));
+  (* when v_wi, st_1 == ((alloc_stack "map_unmap_ns" 24 8 st_0)); *)
+  (* when v_s2_ctx, st_2 == ((alloc_stack "map_unmap_ns" 32 8 st_1)); *)
+  let v_wi := (mkPtr "stack_wi" 0) in
+  let v_s2_ctx := (mkPtr "stack_s2_ctx" 0) in
+  let st_2 := st_0 in
   when v_call, st_3 == ((find_lock_granule_spec v_rd_addr 2 st_2));
   if (ptr_eqb v_call (mkPtr "null" 0))
   then (

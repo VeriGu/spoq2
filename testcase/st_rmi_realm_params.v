@@ -1,9 +1,3 @@
-Record u_anon_7 :=
- mku_anon_7 {
-    e_union_anon_7_0 : Z;
-    e_union_anon_7_1 : (ZMap.t Z)
-  }.
-
 Record u_anon_0_95 :=
  mku_anon_0_95 {
     e_union_anon_0_95_0 : (ZMap.t Z)
@@ -35,20 +29,6 @@ Record s_rmi_realm_params :=
     e_rmi_realm_params_2 : u_anon_1_96;
     e_rmi_realm_params_3 : u_anon_2_98
   }.
-
-Definition load_u_anon_7 (sz: Z) (ofs: Z) (st: u_anon_7) : option Z :=
-  if (ofs =? 0) then Some (st.(e_union_anon_7_0)) else
-  if (ofs >=? 1) && (ofs <? 249) then (
-    let idx := (ofs - 1) / 1 in
-    Some (st.(e_union_anon_7_1) @ idx)) else
-  None.
-
-Definition store_u_anon_7 (sz: Z) (ofs: Z) (v: Z) (st: u_anon_7) : option u_anon_7 :=
-  if (ofs =? 0) then Some (st.[e_union_anon_7_0] :< v) else
-  if (ofs >=? 1) && (ofs <? 249) then (
-    let idx := (ofs - 1) / 1 in
-    Some (st.[e_union_anon_7_1] :< (st.(e_union_anon_7_1) # idx == v))) else
-  None.
 
 Definition load_u_anon_0_95 (sz: Z) (ofs: Z) (st: u_anon_0_95) : option Z :=
   if (ofs >=? 0) && (ofs <? 768) then (
