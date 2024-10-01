@@ -926,10 +926,11 @@ void Project::finalize_project()
 
 #endif
 
-    extern unsigned long z3_unknowns, z3_checks;
+    extern unsigned long z3_unknowns, z3_checks, z3_cache_hits;
     extern std::chrono::duration<double> z3_accumulative_time;
 
     LOG_INFO << "Z3 unknowns: " << z3_unknowns << "/" << z3_checks << std::endl;
+    LOG_INFO << "Z3 cache hits: " << z3_cache_hits << "/" << z3_checks << std::endl;
     LOG_INFO << "Z3 accumulative time: " << z3_accumulative_time.count() << " (s)";
 
 }

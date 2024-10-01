@@ -215,7 +215,7 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
     //     }
     // }
 
-    auto res = z3_check(state, c->get_z3_value(), 2000);
+    auto res = z3_check(state, c->get_z3_value(), 50);
 
     if (res == Z3Result::Unknown) {
         //std::cout << "simple_if_by_z3: unknown condition: " << orig_cond << std::endl;
@@ -845,14 +845,6 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
 
     unordered_map<unsigned, std::pair<z3::expr, SpecNode*>> subexprs;
     collect_exprs(spec, subexprs);
-    // bool debug = false;
-    // if (orig_spec_str == "(((v_granules_0.(poffset)) + (8)) / (40))") {
-    //     debug = true;
-    //     std::cout << "simple_expr_by_z3: " << orig_spec_str << std::endl;
-    //     // for (auto s = subexprs.begin(); s != subexprs.end(); ++s) {
-    //     //     std::cout << "simple_expr_by_z3: " << " " << string(*s->second.second) << std::endl;
-    //     // }
-    // }
     if ((spec->get_type() == Int::INT || spec->get_type() == Bool::BOOL)
          && length_of_exp(spec) <= 20) {
         auto _expr = reconstruct_expr(exp_val->get_z3_value(), subexprs, state);

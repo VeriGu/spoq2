@@ -585,8 +585,8 @@ static void search_field_path(Project *proj, string name, string parent, vector<
 static vector<vector<FieldPath>> interest_path;
 //static const std::set<string> interest_list = {"e_lock", "e_refcount", "log"};
 //static const std::set<string> interest_list = {"gpt", "g_norm", "e_state", "g_rec", "slots", "granule_data", "e_lock"}; // delegate/undelegate
-static const std::set<string> interest_list = {"gpt", "g_norm", "e_state", "slots", "granule_data", "stack"}; // RTT
-//static const std::set<string> interest_list = {"pcpu_gpregs"};
+//static const std::set<string> interest_list = {"gpt", "g_norm", "e_state", "slots", "granule_data", "stack", "log"}; // RTT
+static const std::set<string> interest_list = {"pcpu_gpregs", "e_regs"}; // CPU
 static const std::set<string> indifferent_list = {"g_aux_simd_state", "g_rec", "g_rd"}; // RTT
 
 //static const std::set<string> interest_list = {};
@@ -1831,6 +1831,16 @@ rule_ret_t rule_simple_record_get_set(Project *proj, SpecNode *spec) {
     return std::make_pair(rec_apply(spec, f, false), changed);
 }
 
+static bool is_const_zero(SpecNode *node) {
+    if (auto m = instance_of(node, IntConst)) {
+        return std::get<unsigned long>(m->value) == 0;
+    } else if (auto m = instance_of(node, Const)) {
+        return holds_alternative<unsigned long>(m->value) && std::get<unsigned long>(m->value) == 0;
+    }
+
+    return false;
+}
+
 rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec) {
     bool expr_is_changed = false;
 
@@ -1865,8 +1875,19 @@ rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec) {
                     elems2->push_back(unique_ptr<SpecNode>(right));
 
                     return new Expr(ops, unique_ptr<vector<unique_ptr<SpecNode>>>(elems2), node->get_type());
-                } else if ((ops == op::ADD || ops == op::MINUS) && m->elems->size() == 2 &&
-                           (!is_instance(m->elems->at(0).get(), IntConst) || !is_instance(m->elems->at(1).get(), IntConst))) {
+                } else if (ops == op::ADD && is_const_zero(m->elems->at(0).get())) {
+                    expr_is_changed = true;
+                    return m->elems->at(1).release();
+                } else if (ops == op::ADD && is_const_zero(m->elems->at(1).get())) {
+                    expr_is_changed = true;
+                    return m->elems->at(0).release();
+                } else if (ops == op::MINUS && m->elems->size() == 2 && is_const_zero(m->elems->at(1).get())) {
+                    expr_is_changed = true;
+                    return m->elems->at(0).release();
+                } else if ((ops == op::ADD || ops == op::MINUS) &&
+                            m->elems->size() == 2 &&
+                            (!is_instance(m->elems->at(0).get(), IntConst) ||
+                             !is_instance(m->elems->at(1).get(), IntConst))) {
                     auto factor = 1;
                     for (auto i : PRIM_NUMS) {
                         while (1) {
@@ -2062,6 +2083,8 @@ bool spec_is_pure(Project *proj, SpecNode *spec, bool &has_if) {
 }
 
 bool spec_needs_state(Project *proj, SpecNode *spec) {
+    //std::cout << "spec_needs_state: " << string(*spec) << std::endl;
+    // TODO: We need to deal with the case where the spec is a function call
     if (auto e = instance_of(spec, Expr)) {
         if (auto op = std::get_if<Expr::ops>(&e->op)) {
             if (*op == Expr::RecordGet)
@@ -2093,7 +2116,9 @@ bool spec_needs_state(Project *proj, SpecNode *spec) {
         return spec_needs_state(proj, i->then_body.get()) || spec_needs_state(proj, i->else_body.get());
     } else if (auto r = instance_of(spec, RelyAnno)) {
         return spec_needs_state(proj, r->prop.get()) || spec_needs_state(proj, r->body.get());
-    }
+    } /* else if (auto s = instance_of(spec, Symbol)) {
+        return s->text.find("st") == 0;
+    } */
 
     return false;
 }

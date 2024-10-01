@@ -60,12 +60,22 @@ enum class Z3Result {
     False,
     Unknown
 };
+/*
+simple_if_by_z3 timeout 2000:
+18:14:35 [INF]: Z3 unknowns: 7651/11677
+18:14:35 [INF]: Z3 cache hits: 1330/11677
+18:14:35 [INF]: Z3 accumulative time: 671.194 (s)
+build/spoq testcase/proof_debug_of.v  683.27s user 2.70s system 100% cpu 11:25.72 total
+*/
 
-// timeout 1000: Z3 unknowns: 4384
-// timeout 100: Z3 unknowns: 4385, Z3 accumulative time: 99.2414 (s)
-// timeout 50: Z3 unknowns: 4384, Z3 accumulative time: 58.9793 (s)
-// timeout 25: Z3 unknowns: 4384
-// timeout 13: Z3 unknowns: 4391, Z3 accumulative time: 30.1244 (s)
+/*
+simple_if_by_z3 timeout 50:
+18:35:13 [INF]: Z3 unknowns: 7199/11227
+18:35:13 [INF]: Z3 cache hits: 1780/11227
+18:35:13 [INF]: Z3 accumulative time: 304.648 (s)
+build/spoq testcase/proof_debug_of.v  316.46s user 1.86s system 100% cpu 5:18.22 total
+*/
+
 #define Z3_TIMEOUT 50
 Z3Result z3_check(std::shared_ptr<EvalState> state, z3::expr cond, int timeout=Z3_TIMEOUT);
 Z3Result z3_check(shared_ptr<EvalState> state, int timeout=Z3_TIMEOUT);
