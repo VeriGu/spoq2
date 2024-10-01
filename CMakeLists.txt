@@ -133,7 +133,7 @@ target_compile_options(parser PRIVATE -O3 -UDEBUG)
 #    add_definitions(-DMT_TRANSFORM=${MT_TRANSFORM})
 #endif()
 
-add_definitions(-DMT_TRANSFORM=0)
+#add_definitions(-DMT_TRANSFORM=0)
 
 # List all source files explicitly
 set(SOURCES
