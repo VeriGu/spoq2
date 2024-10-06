@@ -1,70 +1,69 @@
-#include <gen_project.h>
-#include <filesystem>
 #include <boost/filesystem.hpp>
+#include <filesystem>
+#include <gen_project.h>
 
 namespace fs = std::filesystem;
 
-namespace autov {
-void generate_proj(Project *p) {
-  string proj_name = p->name;
-  string proj_dir = p->base;
+namespace autov
+{
+void generate_proj(Project *p)
+{
+    string proj_name = p->name;
+    string proj_dir = p->base;
 
-  LOG_DEBUG << "create project directory";
-  if(!fs::exists(proj_dir)) {
-    fs::create_directory(proj_dir);
-  }
+    LOG_DEBUG << "create project directory";
+    if (!fs::exists(proj_dir)) {
+        fs::create_directory(proj_dir);
+    }
 
-  vector<string> files;
-  unique_ptr<vector<string>> data = autov::generate_data(p);
-  unique_ptr<vector<string>> code = autov::generate_code(p);
-  unique_ptr<vector<string>> low_spec = autov::generate_low_spec(p);
-  unique_ptr<vector<string>> low_proof = autov::generate_low_proof(p);
-  unique_ptr<vector<string>> high_spec = autov::generate_high_spec(p);
-  unique_ptr<vector<string>> high_proof = autov::generate_high_proof(p);
-  unique_ptr<vector<string>> layer = autov::generate_layer(p);
+    vector<string> files;
+    unique_ptr<vector<string>> data = autov::generate_data(p);
+    unique_ptr<vector<string>> code = autov::generate_code(p);
+    unique_ptr<vector<string>> low_spec = autov::generate_low_spec(p);
+    unique_ptr<vector<string>> low_proof = autov::generate_low_proof(p);
+    unique_ptr<vector<string>> high_spec = autov::generate_high_spec(p);
+    unique_ptr<vector<string>> high_proof = autov::generate_high_proof(p);
+    unique_ptr<vector<string>> layer = autov::generate_layer(p);
 
+    files.insert(files.begin(), data->begin(), data->end());
+    files.insert(files.begin(), code->begin(), code->end());
+    files.insert(files.begin(), low_spec->begin(), low_spec->end());
+    files.insert(files.begin(), low_proof->begin(), low_proof->end());
+    files.insert(files.begin(), high_spec->begin(), high_spec->end());
+    files.insert(files.begin(), high_proof->begin(), high_proof->end());
+    files.insert(files.begin(), layer->begin(), layer->end());
 
-  files.insert(files.begin(), data->begin(), data->end());
-  files.insert(files.begin(), code->begin(), code->end());
-  files.insert(files.begin(), low_spec->begin(), low_spec->end());
-  files.insert(files.begin(), low_proof->begin(), low_proof->end());
-  files.insert(files.begin(), high_spec->begin(), high_spec->end());
-  files.insert(files.begin(), high_proof->begin(), high_proof->end());
-  files.insert(files.begin(), layer->begin(), layer->end());
+    std::ofstream fout(proj_dir + "/CommonDeps.v");
+    for (string dep : {"LayerSem.Libs.Coqlib", "LayerSem.Libs.CommonLib", "LayerSem.Libs.Maps", "LayerSem.Libs.SMap",
+                       "LayerSem.Libs.Notations", "LayerSem.IR", "LayerSem.IRSem", "LayerSem.Asm.AsmInsn",
+                       "LayerSem.Asm.AsmSem", "LayerSem.LayerRefine", "LayerSem.PrimSem"}) {
+        fout << "Require Export " << dep << ".\n";
+    }
 
-  std::ofstream fout(proj_dir + "/CommonDeps.v");
-  for(string dep : {"LayerSem.Libs.Coqlib", "LayerSem.Libs.CommonLib", "LayerSem.Libs.Maps",
-                "LayerSem.Libs.SMap", "LayerSem.Libs.Notations",
-                "LayerSem.IR", "LayerSem.IRSem", "LayerSem.Asm.AsmInsn", 
-                "LayerSem.Asm.AsmSem", "LayerSem.LayerRefine", "LayerSem.PrimSem"}) {
-      fout << "Require Export " << dep << ".\n";
-  }
+    fout.close();
 
-  fout.close();
+    files.push_back("./CommonDeps.v");
 
+    boost::filesystem::path dir(p->base);
+    boost::filesystem::path file("_CoqProject");
+    std::ofstream mkfile((dir / file).string());
+    mkfile << "-R . " << proj_name << "\n\n";
 
-  files.push_back("./CommonDeps.v");
+    sort(files.begin(), files.end());
 
-  boost::filesystem::path dir(p->base);
-  boost::filesystem::path file("_CoqProject");
-  std::ofstream mkfile((dir / file).string());
-  mkfile << "-R . " << proj_name << "\n\n";
-
-  sort(files.begin(), files.end());
-
-  for(auto f : files) {
+    for (auto f : files) {
 #define HIGH_SPEC_ONLY
 #ifdef HIGH_SPEC_ONLY
-  static int low_spec_len = string("LowSpec.v").length();
-  static int code_proof_len = string("CodeProof.v").length();
-  if (f.rfind("LowSpec.v", f.length() - low_spec_len) != std::string::npos ||
-      f.rfind("CodeProof.v", f.length() - code_proof_len) != std::string::npos) {
-    continue;
-  }
+        static int low_spec_len = string("LowSpec.v").length();
+        static int code_proof_len = string("CodeProof.v").length();
+        if (f.rfind("LowSpec.v", f.length() - low_spec_len) != std::string::npos ||
+            f.rfind("CodeProof.v", f.length() - code_proof_len) != std::string::npos) {
+            continue;
+        }
 #endif
-    mkfile << f << std::endl;
-  }
+        mkfile << f << std::endl;
+    }
 
-  mkfile.close();
+    mkfile.close();
 }
 }
