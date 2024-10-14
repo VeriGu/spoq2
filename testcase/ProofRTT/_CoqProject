@@ -101,5 +101,11 @@ SecurityProof/GranuleUndelegateInv.v
 SecurityProof/GranuleUndelegateSec.v
 SecurityProof/RTTFoldInv.v            
 SecurityProof/RTTFoldSec.v
+SecurityProof/RTTSetRipasInv.v
+SecurityProof/RTTSetRipasSec.v
+SecurityProof/RTTMapUnprotectedInv.v
+SecurityProof/RTTMapUnprotectedSec.v
+SecurityProof/RTTUnmapUnprotectedInv.v
+SecurityProof/RTTUnmapUnprotectedSec.v
 SecurityProof/RealmAccessMemInv.v
 SecurityProof/RealmAccessMemSec.v

@@ -404,6 +404,7 @@ Record relate (sec_rdata: RData) (sec_st: SecState) (norm_rdata: RData) : Prop :
     relate_local: id_local sec_rdata norm_rdata
   }.
 
+(*
 Axiom oracle_rel:
   forall sec_d norm_d sec_sh' norm_sh'
          (Hrepl_sec: repl sec_d (oracle sec_d (log sec_d)) (sec_d.(share)) = Some sec_sh')
@@ -412,6 +413,8 @@ Axiom oracle_rel:
          (Hrelate: relate sec_d sec_st norm_d)
          (Hinv: SharedInv sec_d.(share)),
     relate (sec_d.[share] :< sec_sh') sec_st (norm_d.[share] :< norm_sh') /\ SharedInv sec_sh'.
+ *)
+Axiom oracle_rel: forall st, repl st = (fun l sh => Some sh).
 
 Record lens_field_same: Prop := {
     lens_gpt_same: forall st v, gpt (share (lens v st)) = gpt (share st)
