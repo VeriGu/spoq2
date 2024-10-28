@@ -1,5 +1,6 @@
 {
     "files.associations": {
+        "*.cpp": "cpp",
         "algorithm": "cpp",
         "cctype": "cpp",
         "clocale": "cpp",
@@ -68,7 +69,9 @@
         "unordered_set": "cpp",
         "chrono": "cpp",
         "regex": "cpp",
-        "stack": "cpp"
+        "stack": "cpp",
+        "fstream": "cpp",
+        "iomanip": "cpp"
     },
     "cmake.configureOnOpen": true,
     "cmake.configureSettings": {
@@ -87,5 +90,6 @@
         "**/low_test": true,
         "**/Spec/Parser/antlr4": true,
         "**/Spec/Parser/.antlr": true,
-    }
+    },
+    "C_Cpp.formatting": "default"
 }

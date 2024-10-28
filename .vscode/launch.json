@@ -37,5 +37,32 @@
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "CMake: build debug"
         },
+        {
+            "name": "(lldb) Launch Spoq example",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["examples/proof.v"], // Any command-line arguments
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "Debug ANTLR4 grammar",
+            "type": "antlr-debug",
+            "request": "launch",
+            "input": "${workspaceFolder}/testcase/debug_antlr.v",
+            "grammar": "${workspaceFolder}/src/AutoV/Spec/Parser/Spec.g4",
+            "printParseTree": true,
+            "visualParseTree": true
+        },
+        {
+            "name": "(lldb) JSON2Coq",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/json2coq", // Path to your CMake target executable
+            "args": ["testcase/rmm-opt.linked.ir2json.json"], // Any command-line arguments
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "CMake: build debug"
+        },
     ]
 }
