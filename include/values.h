@@ -178,12 +178,17 @@ public:
     virtual shared_ptr<SpecValue> declare(string name, int nid);
 };
 
+class Expr;
 class Arg {
 public:
     string name;
-    shared_ptr<SpecType> type;
+    shared_ptr<SpecType> type = nullptr;
+    unique_ptr<Expr> expr = nullptr;
     Arg() = default;
     Arg(string name, shared_ptr<SpecType> type) : name(name), type(type) {}
+    Arg(string name, unique_ptr<Expr> expr) : name(name) {
+        this->expr = std::move(expr);
+    }
 
     shared_ptr<Arg> getptr() {
         return shared_ptr<Arg>(this);
@@ -198,8 +203,10 @@ public:
     }
 
     operator string() const {
-        return "(" + name + ": " + string(*type) + ")";
+        return to_string();
     }
+
+    std::string to_string() const;
 };
 
 class Struct : public SpecType {

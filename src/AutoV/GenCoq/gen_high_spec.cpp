@@ -123,6 +123,10 @@ unique_ptr<vector<string>> generate_high_spec(Project *proj)
     }
 
     for (auto const &L : proj->layers) {
+        if (L->dummy) {
+            continue;
+        }
+
         if (!fs::exists((dir / boost::filesystem::path(L->name)).string())) {
             fs::create_directory((dir / boost::filesystem::path(L->name)).string());
         }

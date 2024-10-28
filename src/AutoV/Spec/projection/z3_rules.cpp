@@ -918,12 +918,15 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
 
 unordered_map<size_t, bool> converged_spec;
 unordered_map<size_t, string> spec_hash_collisions;
+unsigned long z3_global_hash_hit = 0;
+unsigned long z3_global_hash_total = 0;
 #define Z3_OPT_CACHE
 
 rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState> state)
 {
     rule_ret_t ret;
 #ifdef Z3_OPT_CACHE
+    z3_global_hash_total++;
     size_t spec_hash = boost::hash<string>()(string(*spec));
 
 
@@ -936,8 +939,10 @@ rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState
     }
 #endif
 
-    if (converged_spec.find(spec_hash) != converged_spec.end())
+    if (converged_spec.find(spec_hash) != converged_spec.end()) {
+        z3_global_hash_hit++;
         return std::make_pair(spec, false);
+    }
 #endif
 
     state = state->copy();

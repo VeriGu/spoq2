@@ -268,7 +268,7 @@ unique_ptr<vector<string>> generate_low_proof(Project *p)
     auto files = unique_ptr<vector<string>>(new vector<string>());
     int i = 0;
     for (auto const &L : p->layers) {
-        if (i == 0) {
+        if (i == 0 || L->dummy) {
             i++;
             continue;
         }

@@ -93,10 +93,11 @@ unique_ptr<vector<string>> generate_low_spec(Project *proj)
 
     int i = 0;
     for (auto const &L : proj->layers) {
-        if (i == 0) {
+        if (i == 0 || L->dummy) {
             i++;
             continue;
         }
+
         boost::filesystem::path dir(proj->base);
         boost::filesystem::path layer_name(L->name);
         if (!fs::exists((dir / L->name).string())) fs::create_directory((dir / L->name).string());

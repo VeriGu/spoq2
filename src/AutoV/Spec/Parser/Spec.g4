@@ -78,7 +78,9 @@ func_call: name expr+;
 
 forall_expr: FORALL var_anno+;
 exists_expr: EXISTS var_anno+;
-var_anno: '(' name ':' type ')';
+var_anno:
+	'(' name ':' type ')'
+	| '(' name ':' expr ')';
 
 let_stmt:
 	(LET name ':=' expr 'in' expr)
@@ -94,8 +96,8 @@ if_stmt: IF expr THEN expr ELSE expr;
 inductive_decl: INDUC name ':=' induct_arm+ '.';
 induct_arm: '|' name var_anno*;
 
-record_decl: RECORD name ':=' name '{' record_fields '}' '.';
-record_fields: (name ':' type) (';' name ':' type)*;
+record_decl: RECORD name var_anno* ':=' name '{' record_fields '}' '.';
+record_fields: (name ':' (type | expr)) (';' name ':' (type | expr))*;
 
 record_def_stmt: '{|' record_fields_def '|}';
 record_fields_def: (name ':=' name) (';' name ':=' name)*;

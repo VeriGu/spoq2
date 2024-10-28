@@ -266,6 +266,11 @@ unique_ptr<vector<string>> generate_layer(Project *proj)
     int i = 0;
     for (auto const &layer : proj->layers) {
         auto name = layer->name;
+
+        if (layer->dummy) {
+            continue;
+        }
+
         if (!fs::exists((dir / name).string())) {
             fs::create_directories((dir / name).string());
         }

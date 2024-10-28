@@ -34,7 +34,11 @@ antlrcpp::Any ProgramVisitor::visitSection_begin(SpecParser::Section_beginContex
     if (current_layer != nullptr) {
         throw std::runtime_error("Last layer " + current_layer->name + " not closed");
     } else {
-        current_layer = new Layer(ctx->name()->getText());
+        string name = ctx->name()->getText();
+        if (name == Project::INV_LAYER)
+            current_layer = new Layer(name, true);
+        else
+            current_layer = new Layer(name);
     }
     return std::any();
 }
@@ -72,7 +76,7 @@ antlrcpp::Any ProgramVisitor::visitStatement(SpecParser::StatementContext* ctx) 
     } else if (ctx->section_end()) {
         visitSection_end(ctx->section_end());
     } else {
-        throw std::runtime_error("Unknown statement");
+        throw std::runtime_error("Unknown statement: " + ctx->getText());
     }
 
     return std::any();
@@ -180,7 +184,7 @@ antlrcpp::Any ProgramVisitor::visitType(SpecParser::TypeContext* ctx) {
             throw std::runtime_error("Unknown type " + name);
         }
     } else {
-        throw std::runtime_error("Unknown type");
+        throw std::runtime_error("Unknown type " + ctx->getText());
     }
     return std::any();
 }
@@ -910,9 +914,15 @@ antlrcpp::Any ProgramVisitor::visitName(SpecParser::NameContext* ctx) {
 
 // Returns a shared_ptr<Arg>
 antlrcpp::Any ProgramVisitor::visitVar_anno(SpecParser::Var_annoContext* ctx) {
-    shared_ptr<SpecType> arg_type = any_cast<shared_ptr<SpecType>>(visitType(ctx->type()));
+    if (ctx->type()) {
+        shared_ptr<SpecType> arg_type = any_cast<shared_ptr<SpecType>>(visitType(ctx->type()));
+        return make_shared<Arg>(ctx->name()->getText(), arg_type);
+    } else if (ctx->expr()) {
+        auto s = any_cast<SpecNode *>(visitExpr(ctx->expr()));
+        auto expr = dynamic_cast<Expr *>(s);
 
-    return make_shared<Arg>(ctx->name()->getText(), arg_type);
+        return make_shared<Arg>(ctx->name()->getText(), unique_ptr<Expr>(expr));
+    }
 }
 
 void parse(Project *proj, const std::string& path) {

@@ -290,7 +290,7 @@ unique_ptr<vector<string>> generate_high_proof(Project *p)
 
     int i = 0;
     for (auto const &L : p->layers) {
-        if (i == 0) continue;
+        if (i == 0 || L->dummy) continue;
 
         boost::filesystem::path layer_name(L->name);
         if (!fs::exists((dir / layer_name).string())) {

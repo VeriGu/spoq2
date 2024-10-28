@@ -13,6 +13,86 @@ using std::string;
 
 const string base_file_dir = "testcase/";
 
+namespace autov {
+bool is_invariant_defs(autov::Project *proj, string const &name) {
+    return proj->symbols[name].loc == autov::loc_t("Invariants", "Spec", "");
+}
+
+void rec_analyze(SpecNode *spec, std::set<string> &fields) {
+    if (is_instance(spec, Symbol)) {
+        return ;
+    } else if (is_instance(spec, Const)) {
+        return ;
+    } else if (auto e = instance_of(spec, Expr)) {
+        if (auto op = std::get_if<Expr::ops>(&e->op)) {
+            if (*op == Expr::RecordSet) {
+                // elems[0]: record
+                // elems[1...n-1]: fields
+                // elems[n]: value
+                for (int i = 1; i < e->elems->size() - 1; i++) {
+                    auto f = e->elems->at(i).get();
+                    assert(is_instance(f, Symbol));
+                    //std::cout << "Field: " << static_cast<Symbol*>(f)->text << std::endl;
+                    fields.insert(static_cast<Symbol*>(f)->text);
+                }
+            } else if (*op == Expr::RecordGet) {
+                // elems[0]: record
+                // elems[1]: field
+                auto f = e->elems->at(1).get();
+                assert(is_instance(f, Symbol));
+                //std::cout << "Field: " << static_cast<Symbol*>(f)->text << std::endl;
+                fields.insert(static_cast<Symbol*>(f)->text);
+            }
+        } else if (auto op = std::get_if<unique_ptr<SpecNode>>(&e->op)) {
+            rec_analyze(op->get(), fields);
+        }
+
+        for (auto &elem : *e->elems) {
+            rec_analyze(elem.get(), fields);
+        }
+    } else if (auto m = instance_of(spec, Match)) {
+        rec_analyze(m->src.get(), fields);
+
+        for (auto &pm : *m->match_list) {
+            rec_analyze(pm->pattern.get(), fields);
+            rec_analyze(pm->body.get(), fields);
+        }
+    } else if (auto i = instance_of(spec, If)) {
+        rec_analyze(i->cond.get(), fields);
+        rec_analyze(i->then_body.get(), fields);
+        rec_analyze(i->else_body.get(), fields);
+    } else if (auto r = instance_of(spec, RelyAnno)) {
+        rec_analyze(r->prop.get(), fields);
+        rec_analyze(r->body.get(), fields);
+    } else if (auto f = instance_of(spec, ForallExists)) {
+        for (auto const &var: *f->vars) {
+            if (var->expr != nullptr) {
+                rec_analyze(var->expr.get(), fields);
+            }
+        }
+        rec_analyze(f->body.get(), fields);
+    }
+}
+
+void analyze_fields_access(Project *proj) {
+    for (auto const &def: proj->defs) {
+        if (!is_invariant_defs(proj, def.first)) {
+            continue;
+        }
+
+        //std::cout << "Analyzing " << def.first << std::endl;
+        std::set<string> fields;
+        std::cout << "Fields accessed in " << def.first << ": ";
+        rec_analyze(def.second->body.get(), fields);
+
+        for (auto const &f: fields) {
+            std::cout << f << ", ";
+        }
+        std::cout << std::endl;
+    }
+}
+}
+
 int main(int argc, char *argv[])
 {
     autov::log::init();
@@ -31,6 +111,10 @@ int main(int argc, char *argv[])
     std::unique_ptr<autov::Project> proj = std::make_unique<autov::Project>();
 
     autov::parser::parse(proj.get(), argv[1]);
+
+    // autov::analyze_fields_access(proj.get());
+
+    // return 0;
 
     proj->finalize_project();
 

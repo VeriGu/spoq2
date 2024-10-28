@@ -663,6 +663,13 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                     (*known)[var->name] = var->type;
                 }
 
+                for (const auto &var: *fe->vars) {
+                    if (var->type == SpecType::UNKNOWN_TYPE) {
+                        assert(var->expr != nullptr);
+                        stack.push_back(std::make_tuple(__LINE__, var->expr.get(), 0, known));
+                    }
+                }
+
                 fe->body->type = Prop::PROP;
 
                 stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known));

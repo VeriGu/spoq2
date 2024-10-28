@@ -71,6 +71,7 @@ public:
     static const string LAYER_PTR_LTB;
     static const string LAYER_PTR_GTB;
     static const string LAYER_DATA;
+    static const string INV_LAYER;
 
     string name;
     string base;

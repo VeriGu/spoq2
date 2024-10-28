@@ -1246,12 +1246,14 @@ public:
     string code; // Temp until we ported the IRModule class
     vector<string> passthrough;
     unordered_map<string, std::set<string>> prim_deps;
+    bool dummy = false;
 
     Layer() { throw std::invalid_argument("Layer must have a name, abs_data, ops, prims, and code"); }
     Layer(string name) : name(name) {}
     Layer(string name, unique_ptr<SpecType> abs_data, unordered_map<string, string> ops,
           vector<string> prims, string code, vector<string> passthrough) :
         name(name), abs_data(std::move(abs_data)), ops(std::move(ops)), prims(prims), code(code), passthrough(passthrough) {}
+    Layer(string name, bool dummy) : name(name), dummy(dummy) {}
 
     shared_ptr<IRLoader::IRModule> load_module();
 };

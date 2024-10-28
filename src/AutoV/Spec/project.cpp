@@ -47,14 +47,17 @@ const string Project::LAYER_PTR_EQB = "LAYER_PTR_EQB";
 const string Project::LAYER_PTR_LTB = "LAYER_PTR_LTB";
 const string Project::LAYER_PTR_GTB = "LAYER_PTR_GTB";
 const string Project::LAYER_DATA = "LAYER_DATA";
+const string Project::INV_LAYER = "Invariants";
 
 void Project::add_symbol(string name, SymbolKind kind, string info, shared_ptr<loc_t> loc)
 {
+    std::cout << "Adding symbol " << name << ", loc: " << std::get<0>(*loc) << ", " << std::get<1>(*loc) << ", " << std::get<2>(*loc) << std::endl;
     symbols[name] = SymbolInfo{kind, info, *loc, symbols.size()};
 }
 
 void Project::add_symbol(string name, SymbolKind kind, string info, shared_ptr<loc_t> loc, unsigned long order)
 {
+    std::cout << "Adding symbol " << name << ", loc: " << std::get<0>(*loc) << ", " << std::get<1>(*loc) << ", " << std::get<2>(*loc) << std::endl;
     symbols[name] = SymbolInfo{kind, info, *loc, order};
 }
 
@@ -926,11 +929,12 @@ void Project::finalize_project()
 
 #endif
 
-    extern unsigned long z3_unknowns, z3_checks, z3_cache_hits;
+    extern unsigned long z3_unknowns, z3_checks, z3_cache_hits, z3_global_hash_hit, z3_global_hash_total;
     extern std::chrono::duration<double> z3_accumulative_time;
 
     LOG_INFO << "Z3 unknowns: " << z3_unknowns << "/" << z3_checks << std::endl;
     LOG_INFO << "Z3 cache hits: " << z3_cache_hits << "/" << z3_checks << std::endl;
+    LOG_INFO << "Z3 global hash hit: " << z3_global_hash_hit << "/" << z3_global_hash_total << std::endl;
     LOG_INFO << "Z3 accumulative time: " << z3_accumulative_time.count() << " (s)";
 
 }

@@ -477,6 +477,7 @@ public:
     NameContext *name();
     TypeContext *type();
     antlr4::tree::TerminalNode *RP();
+    ExprContext *expr();
 
 
     virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
@@ -637,6 +638,8 @@ public:
     std::vector<NameContext *> name();
     NameContext* name(size_t i);
     Record_fieldsContext *record_fields();
+    std::vector<Var_annoContext *> var_anno();
+    Var_annoContext* var_anno(size_t i);
 
 
     virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
@@ -653,6 +656,8 @@ public:
     NameContext* name(size_t i);
     std::vector<TypeContext *> type();
     TypeContext* type(size_t i);
+    std::vector<ExprContext *> expr();
+    ExprContext* expr(size_t i);
 
 
     virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
