@@ -1,0 +1,18 @@
+BasedOnStyle: LLVM
+UseTab: Never
+IndentWidth: 4
+TabWidth: 4
+AllowShortIfStatementsOnASingleLine: true
+IndentCaseLabels: false
+ColumnLimit: 120
+AccessModifierOffset: -4
+NamespaceIndentation: None
+FixNamespaceComments: false
+# Custom brace style
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterClass: false
+  AfterControlStatement: false  # No line break after 'if', 'for', 'while', etc.
+  AfterFunction: true           # Line break after function definitions
+  AfterNamespace: true
+  AfterStruct: false
