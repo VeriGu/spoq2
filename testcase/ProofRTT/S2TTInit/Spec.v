@@ -3,6 +3,7 @@ Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import S2TTCreate.Spec.
 Require Import S2TTEOps.Spec.
+Require Import S2TTEPA.Spec.
 
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
@@ -250,13 +251,11 @@ Section S2TTInit_Spec.
     | None => None
     end.
 
-(*
-  Lemma s2tt_init_assigned_empty_ret_assigned_empty:
-    forall pa level ret,
-      s2tte_create_assigned_empty_spec pa level = Some ret -> ret = pa |' 4.
-  Proof.
-    Admitted.
- *)
+  (* Lemma s2tt_init_assigned_empty_ret_assigned_empty: *)
+  (*   forall pa level ret, *)
+  (*     s2tte_create_assigned_empty_spec pa level = Some ret -> ret = pa |' 4. *)
+  (* Proof. *)
+  (*   Admitted. *)
 
   Fixpoint s2tt_init_assigned_empty_loop700 (_N_: nat) (__return__: bool) (v_call: Z) (v_indvars_iv: Z) (v_level: Z) (v_pa_addr_05: Z) (v_s2tt: Ptr) (st: RData) : (option (bool * Z * Z * Z * Z * Ptr * RData)) :=
     match (_N_) with

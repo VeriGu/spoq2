@@ -1,5 +1,6 @@
 -R . RMMProof.ProofRTT
 
+./SecurityProof.v
 ./CommonDeps.v
 Bottom/Layer.v
 Bottom/Spec.v

@@ -10,6 +10,7 @@ Hint CacheSpec.
 (* Hint OnlyTrans smc_data_destroy. *)
 (* Hint OnlyTrans smc_rtt_set_ripas. *)
 (* Hint OnlyTrans smc_rtt_create. *)
+Hint OnlyTrans init_common_sysregs.
 (* Hint OnlyTrans smc_rtt_set_ripas. *)
 (* Hint OnlyTrans smc_rtt_init_ripas. *)
 (* Hint OnlyTrans smc_rtt_map_unprotected. *)
@@ -25,14 +26,6 @@ Hint CacheSpec.
 (* Hint OnlyTrans arch_feat_get_pa_width. *)
 (* Hint OnlyTrans smc_rtt_read_entry. *)
 (* Hint OnlyTrans smc_rec_enter. *)
-
-Hint OnlyTrans complete_sysreg_emulation.
-Hint OnlyTrans complete_set_ripas.
-Hint OnlyTrans complete_sea_insertion.
-Hint OnlyTrans gic_validate_state.
-Hint OnlyTrans gic_copy_state_from_ns.
-Hint OnlyTrans gic_copy_state_to_ns.
-Hint OnlyTrans reset_last_run_info.
 
   (* ┌─────────┐                    *)
   (* │invalid  │                    *)
@@ -2662,6 +2655,7 @@ Section RDState.
       "get_rd_rec_count_unlocked" ::
       "set_rd_rec_count" ::
       nil.
+
   Hint InitRely get_rd_state_locked (v_rd.(pbase) = "slot_rd" /\ v_rd.(poffset) = 0).
   Hint InitRely get_rd_state_unlocked (v_rd.(pbase) = "slot_rd" /\ v_rd.(poffset) = 0).
   Hint InitRely set_rd_state (v_rd.(pbase) = "slot_rd" /\ v_rd.(poffset) = 0).
@@ -3123,35 +3117,35 @@ Section InitRegs.
   Hint InitRely init_common_sysregs (v_rd.(poffset) = 0).
 
 
-  Definition init_rec_sysregs_spec (v_rec: Ptr) (v_mpidr: Z) (st: RData) : option RData :=
-    rely (v_rec.(pbase) = "slot_rec");
-    rely (v_rec.(poffset) = 0);
-    let ofs := v_rec.(poffset) in
-    let g_idx := st.(share).(slots) @ SLOT_REC in
-    let g_data := st.(share).(granule_data) @ g_idx in
-    let g := st.(share).(granules) @ g_idx in
-    match g.(e_lock) with
-    | Some cid =>
-        let new_gdata := g_data.[g_rec].[e_sysregs] :< sysregs_init in
-        Some (st.[share].[granule_data] :< (st.(share).(granule_data) # g_idx == new_gdata))
-    | None => None
-    end.
+  (* Definition init_rec_sysregs_spec (v_rec: Ptr) (v_mpidr: Z) (st: RData) : option RData := *)
+  (*   rely (v_rec.(pbase) = "slot_rec"); *)
+  (*   rely (v_rec.(poffset) = 0); *)
+  (*   let ofs := v_rec.(poffset) in *)
+  (*   let g_idx := st.(share).(slots) @ SLOT_REC in *)
+  (*   let g_data := st.(share).(granule_data) @ g_idx in *)
+  (*   let g := st.(share).(granules) @ g_idx in *)
+  (*   match g.(e_lock) with *)
+  (*   | Some cid => *)
+  (*       let new_gdata := g_data.[g_rec].[e_sysregs] :< sysregs_init in *)
+  (*       Some (st.[share].[granule_data] :< (st.(share).(granule_data) # g_idx == new_gdata)) *)
+  (*   | None => None *)
+  (*   end. *)
 
-  Definition init_common_sysregs_spec (v_rec: Ptr) (v_rd: Ptr) (st: RData) : option RData :=
-    rely (v_rec.(pbase) = "slot_rec");
-    rely (v_rec.(poffset) = 0);
-    rely (v_rd.(pbase) = "slot_rd");
-    rely (v_rd.(poffset) = 0);
-    let ofs := v_rec.(poffset) in
-    let g_idx := st.(share).(slots) @ SLOT_REC in
-    let g_data := st.(share).(granule_data) @ g_idx in
-    let g := st.(share).(granules) @ g_idx in
-    match g.(e_lock) with
-    | Some cid =>
-        let new_gdata := g_data.[g_rec].[e_common_sysregs] :< common_sysregs_init in
-        Some (st.[share].[granule_data] :< (st.(share).(granule_data) # g_idx == new_gdata))
-    | None => None
-    end.
+  (* Definition init_common_sysregs_spec (v_rec: Ptr) (v_rd: Ptr) (st: RData) : option RData := *)
+  (*   rely (v_rec.(pbase) = "slot_rec"); *)
+  (*   rely (v_rec.(poffset) = 0); *)
+  (*   rely (v_rd.(pbase) = "slot_rd"); *)
+  (*   rely (v_rd.(poffset) = 0); *)
+  (*   let ofs := v_rec.(poffset) in *)
+  (*   let g_idx := st.(share).(slots) @ SLOT_REC in *)
+  (*   let g_data := st.(share).(granule_data) @ g_idx in *)
+  (*   let g := st.(share).(granules) @ g_idx in *)
+  (*   match g.(e_lock) with *)
+  (*   | Some cid => *)
+  (*       let new_gdata := g_data.[g_rec].[e_common_sysregs] :< common_sysregs_init in *)
+  (*       Some (st.[share].[granule_data] :< (st.(share).(granule_data) # g_idx == new_gdata)) *)
+  (*   | None => None *)
+  (*   end. *)
 
 End InitRegs.
 
@@ -3178,6 +3172,7 @@ Section InitRec.
   Hint InitRely init_rec_regs (v_rec.(pbase) = "slot_rec").
   Hint InitRely init_rec_regs (v_rec.(poffset) = 0).
   Hint InitRely init_rec_regs (v_rec_params.(pbase) = "stack_realm_params").
+  Hint InitRely init_rec_regs (v_rec_params.(poffset) = 0).
 
   Hint NoTrans free_rec_aux_granules_spec.
   Hint NoTrans free_rec_aux_granules_loop176.
@@ -3185,27 +3180,27 @@ Section InitRec.
 
   Definition free_rec_aux_granules_spec (v_rec_aux: Ptr) (v_cnt: Z) (v_scrub: bool) (st: RData) : (option RData) := Some st.
 
-  Definition init_rec_regs_spec_low (v_rec: Ptr) (v_rec_params: Ptr) (v_rd: Ptr) (st: RData) : (option RData) :=
-    rely (v_rec.(pbase) = "slot_rec");
-    rely (v_rec.(poffset) = 0);
-    rely (v_rec_params.(pbase) = "stack_realm_params");
-    let ofs := v_rec.(poffset) in
-    let g_idx := st.(share).(slots) @ SLOT_REC in
-    let g_data := st.(share).(granule_data) @ g_idx in
-    let g := st.(share).(granules) @ g_idx in
-    match g.(e_lock) with
-    | Some cid =>
-        let g_rec := g_data.(g_rec) in
-        let g_rec_0 := g_rec.[e_regs] :< rec_regs_init in
-        let g_rec_1 := g_rec_0.[e_pc] :< rec_pc_init in
-        let g_rec_2 := g_rec_1.[e_pstate] :< rec_pstate_init in
-        let new_gdata := g_data.[g_rec] :< g_rec_2 in
-        let st_0 := (st.[share].[granule_data] :< (st.(share).(granule_data) # g_idx == new_gdata)) in
-        when st_1 == init_rec_sysregs_spec v_rec rec_params_mpidr st_0;
-        when st_2 == init_common_sysregs_spec v_rec v_rd st_1;
-        Some st_2
-    | None => None
-    end.
+  (* Definition init_rec_regs_spec_low (v_rec: Ptr) (v_rec_params: Ptr) (v_rd: Ptr) (st: RData) : (option RData) := *)
+  (*   rely (v_rec.(pbase) = "slot_rec"); *)
+  (*   rely (v_rec.(poffset) = 0); *)
+  (*   rely (v_rec_params.(pbase) = "stack_realm_params"); *)
+  (*   let ofs := v_rec.(poffset) in *)
+  (*   let g_idx := st.(share).(slots) @ SLOT_REC in *)
+  (*   let g_data := st.(share).(granule_data) @ g_idx in *)
+  (*   let g := st.(share).(granules) @ g_idx in *)
+  (*   match g.(e_lock) with *)
+  (*   | Some cid => *)
+  (*       let g_rec := g_data.(g_rec) in *)
+  (*       let g_rec_0 := g_rec.[e_regs] :< rec_regs_init in *)
+  (*       let g_rec_1 := g_rec_0.[e_pc] :< rec_pc_init in *)
+  (*       let g_rec_2 := g_rec_1.[e_pstate] :< rec_pstate_init in *)
+  (*       let new_gdata := g_data.[g_rec] :< g_rec_2 in *)
+  (*       let st_0 := (st.[share].[granule_data] :< (st.(share).(granule_data) # g_idx == new_gdata)) in *)
+  (*       when st_1 == init_rec_sysregs_spec v_rec rec_params_mpidr st_0; *)
+  (*       when st_2 == init_common_sysregs_spec v_rec v_rd st_1; *)
+  (*       Some st_2 *)
+  (*   | None => None *)
+  (*   end. *)
 
 End InitRec.
 
@@ -3731,7 +3726,8 @@ Section RecEnterHandler.
   Definition LAYER_PTR_GTB : string := "ptr_gtb".
   Definition LAYER_PTR_LTB : string := "ptr_ltb".
   Definition LAYER_PRIMS : list string :=
-      "complete_sysreg_emulation" ::
+    "complete_sysreg_emulation" ::
+      "complete_mmio_emulation" ::
       "complete_set_ripas" ::
       "complete_sea_insertion" ::
       "gic_validate_state" ::
@@ -3740,6 +3736,11 @@ Section RecEnterHandler.
       "reset_last_run_info" ::
       (* "rec_run_loop" :: *)
       nil.
+
+  Hint InitRely complete_mmio_emulation (v_rec.(pbase) = "slot_rec").
+  Hint InitRely complete_mmio_emulation (v_rec.(poffset) = 0).
+  Hint InitRely complete_mmio_emulation (v_rec_entry.(pbase) = "stack_rmi_rec_run").
+  Hint InitRely complete_mmio_emulation (v_rec_entry.(poffset) = 0).
 
   (* Hint NoTrans complete_sysreg_emulation_spec. *)
   Hint InitRely complete_sysreg_emulation (v_rec.(pbase) = "slot_rec").
@@ -3850,7 +3851,7 @@ Section SMCHandler.
       "smc_rec_destroy" ::
       "smc_realm_destroy" ::
       "smc_rtt_read_entry" ::
-      (* "smc_rec_enter" :: *)
+      "smc_rec_enter" ::
         nil.
 
   Hint NoUnfold smc_rtt_create_0.
@@ -3902,9 +3903,91 @@ Section SMCHandler.
   Hint InitRely smc_rtt_read_entry (v_ret.(poffset) = 0).
 
 
-  Hint NoTrans smc_rec_enter_spec.
+  (* Hint NoTrans smc_rec_enter_spec. *)
   Include "SMCHandlerLow.v".
 
   (* Conditional Spec *)
   (* Rely projection *)
 End SMCHandler.
+
+(*********************************************************)
+Section Invariants.
+  Definition walk_one_step (sh: Shared) (lvl: Z) (gfn: Z) (rtt_idx: Z) : Z :=
+    let offs := gfn_to_rtt_offs gfn lvl in
+      (sh.(granule_data) @ rtt_idx).(g_norm) @ offs.
+
+  Fixpoint walk_rtt_level (n: nat) (sh: Shared) (lvl: Z) (rd: Z) (gfn: Z) (pte: Z) : : nat -> (Shared -> (Z -> (Z -> (Z -> (Z -> ((Z * Z))))))) :=
+    match n with
+    | O => (lvl, pte)
+    | S n' =>
+        match walk_rtt_level n' sh lvl rd gfn pte with
+        | (lvl', pte') =>
+            let rtt_idx' := pte_to_gidx pte' in
+            if ((sh.(granules) @ rtt_idx').(e_state) =? GRANULE_STATE_RTT) then
+              let pte'' := walk_one_step sh lvl' gfn rtt_idx' in
+              (lvl' + 1, pte'')
+            else
+              (lvl', pte')
+        end
+            end.
+Parameter gfn_to_rtt_offs: Z -> (Z -> (Z)).
+Parameter gfn_to_pte_offs: Z -> (Z -> (Z)).
+Parameter ADDR_MASK: Z.
+Parameter PTE_IS_VALID: Z -> (bool).
+Parameter PTE_IS_TABLE: Z -> (bool).
+Parameter gidx_to_table_pte : Z -> (Z).
+Parameter pte_to_gidx: Z -> (Z).
+Parameter PTE_PERM: Z -> (Z).
+
+
+Definition rd_rtt (sh: Shared) (rd: Z) : Z := (sh.(granule_data) @ rd).(g_rd).(e_rd_s2_ctx).(e_rls2ctx_g_rtt).
+
+Definition walk_star (sh: Shared) (rd: Z) (gfn: Z) (rtt_idx: Z) : Prop :=
+  exists (lvl: Z) (pte: Z) (N: nat),
+    (walk_rtt_level N sh 0 rd gfn (gidx_to_table_pte (rd_rtt sh rd)) = (lvl, pte)
+     /\ rtt_idx = pte_to_gidx pte).
+
+Definition walk_reverse (sh: Shared) : Prop :=
+  exists (rev: Z -> ((Z * Z))),
+  (forall (rd: Z) (gfn: Z) (rtt_idx: Z)
+         (Hwalk: walk_star sh rd gfn rtt_idx)
+         (Hrtt: (sh.(granules) @ rtt_idx).(e_state) = GRANULE_STATE_RTT),
+      (forall (par_idx: Z) (ofs: Z), (rev rtt_idx = (par_idx, ofs) ->
+                      ((rtt_idx = rd_rtt sh rd -> par_idx = rd /\ ofs = 0)
+                       /\ (rtt_idx <> rd_rtt sh rd ->
+                           ((sh.(granules) @ par_idx).(e_state) = GRANULE_STATE_RTT
+                            /\ pte_to_gidx ((sh.(granule_data) @ par_idx).(g_norm) @ ofs) = rtt_idx)))))).
+
+Definition pte_table_equiv (pte: Z) (table: ZMap.t Z) : Prop :=
+  PTE_IS_TABLE pte = false /\
+    forall (idx: Z),
+      (if pte_to_gidx pte =? 0 then
+        pte_to_gidx (table @ idx) = 0
+      else
+        PTE_PERM pte = PTE_PERM (table @ idx) /\  pte_to_gidx (table @ idx) = pte_to_gidx pte + idx).
+
+Definition rd_rtt_reverse (sh: Shared) : Prop :=
+  exists (rev: Z -> (Z)),
+  (forall (rd: Z) (rtt_idx: Z) (Hrtt: rd_rtt sh rd = rtt_idx), (rev rtt_idx = rd)).
+
+Definition gpt_false_ns (sh: Shared) : Prop :=
+  forall (gidx: Z), (sh.(gpt) @ gidx = false -> (sh.(granules) @ gidx).(e_state) = GRANULE_STATE_NS).
+
+Parameter zero_granule: GranuleDataNormal.
+
+Definition delegated_zero (sh: Shared) : Prop :=
+  forall (gidx: Z) (Hdel: (sh.(granules) @ gidx).(e_state) = GRANULE_STATE_DELEGATED),
+    (sh.(granule_data) @ gidx = zero_granule).
+
+Definition rtt_map_data (sh: Shared) : Prop :=
+  forall (rd_gidx: Z) (Hrd: (sh.(granules) @ rd_gidx).(e_state) = GRANULE_STATE_RD)
+         (ipa_gidx: Z) (data_gidx: Z) (Hwalk: walk_rtt sh rd_gidx ipa_gidx = Some data_gidx),
+    ((sh.(granules) @ data_gidx).(e_state) = GRANULE_STATE_DATA).
+
+Definition rec_rd_prop (sh: Shared) : Prop :=
+  forall (gidx: Z) (Hrec: (sh.(granules) @ gidx).(e_state) = GRANULE_STATE_REC),
+    (let rd_gidx := (sh.(granule_data) @ gidx).(g_rec).(e_realm_info).(e_g_rd) in
+     (sh.(granules) @ rd_gidx).(e_state) = GRANULE_STATE_RD).
+
+End Invariants.
+(*********************************************************)

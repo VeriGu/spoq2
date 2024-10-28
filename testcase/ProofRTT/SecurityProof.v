@@ -1022,7 +1022,7 @@ Proof.
   - reflexivity.
   - constructor.
     {
-      constructor; simpl.
+      constructor. simpl.
       inv relate_sec_data0.
       rewrite_id. frewrite. subst.
       intros. rewrite lens_same in Hrd. repeat rewrite_id.
