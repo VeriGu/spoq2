@@ -905,6 +905,12 @@ static rule_ret_t rule_construct_loop(string &n, nodes_t &nodes, edges_t &edges,
         RULE_RETURN_FALSE(n);
     }
 
+    /* corner case: the to-be-solved loop node should always have backwards. 
+        In other words, construct_loop follows the control-flow order. */
+    if (backwards[n]->size() == 0) {
+        RULE_RETURN_FALSE(n);
+    }
+
     lineno = nodes[backwards[n]->back()->from]->last_inst->lineno;
 
     auto loop_body = make_unique<vector<unique_ptr<IRInst>>>();
