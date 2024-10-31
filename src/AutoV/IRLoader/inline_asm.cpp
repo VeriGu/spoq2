@@ -139,27 +139,30 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
         vars.insert(vars.begin(), "out");
     }
 
+    /* TODO: a more general format matching pattern. */
     for (size_t i = 0; i < vars.size(); ++i) {
         std::ostringstream old1, old2, old3, newStr;
         old1 << "$" << i;
         old2 << "${" << i << ":x}";
         old3 << "${" << i << ":w}";
-        newStr << "%" << i;
 
         size_t pos = 0;
         while ((pos = asm_text.find(old1.str(), pos)) != std::string::npos) {
+            newStr << "%" << i;
             asm_text.replace(pos, old1.str().length(), newStr.str());
             pos += newStr.str().length();
         }
 
         pos = 0;
         while ((pos = asm_text.find(old2.str(), pos)) != std::string::npos) {
+            newStr << "%" << "x" << i;
             asm_text.replace(pos, old2.str().length(), newStr.str());
             pos += newStr.str().length();
         }
 
         pos = 0;
         while ((pos = asm_text.find(old3.str(), pos)) != std::string::npos) {
+            newStr << "%" << "w"  << i;
             asm_text.replace(pos, old3.str().length(), newStr.str());
             pos += newStr.str().length();
         }
@@ -355,8 +358,10 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
         }
     }
 
-    // if (std::filesystem::exists(fname + ".c"))
-        // std::system(("rm " + fname + ".c").c_str());
+    if (!failed) {
+        if (std::filesystem::exists(fname + ".c"))
+            std::system(("rm " + fname + ".c").c_str());
+    }
     if (std::filesystem::exists(fname + ".o"))
         std::system(("rm " + fname + ".o").c_str());
     if (std::filesystem::exists(fname + "_objdump"))
