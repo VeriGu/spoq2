@@ -358,10 +358,8 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
         }
     }
 
-    if (!failed) {
-        if (std::filesystem::exists(fname + ".c"))
-            std::system(("rm " + fname + ".c").c_str());
-    }
+    if (std::filesystem::exists(fname + ".c"))
+        std::system(("rm " + fname + ".c").c_str());
     if (std::filesystem::exists(fname + ".o"))
         std::system(("rm " + fname + ".o").c_str());
     if (std::filesystem::exists(fname + "_objdump"))
