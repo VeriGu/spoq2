@@ -818,7 +818,7 @@ static rule_ret_t rule_destruct_inner_scc(int scc, nodes_t &nodes, edges_t &edge
 
 // This function seems never to be called
 static rule_ret_t rule_duplicate_scc(int scc, nodes_t nodes, edges_t edges, backwards_t backwards) {
-#if 0
+#if 1
     auto P_set = std::set<string>();
     string S = "";
     vector<string> scc_nodes;
