@@ -191,32 +191,45 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
 
     vector<string> out_cons, in_cons, out_reg_cons;
     string out_cons_text, in_cons_text, cons_text;
-    int out_cons_cnt = 0, in_cons_cnt = 0;
+    int out_cons_as_reg_cnt = 0, out_cons_as_arg_cnt = 0, in_cons_cnt = 0;
     const static std::regex r("[rwx](\\d)");
+
+    /* both out-/in-oprand consumes args (in0/in1/...)
+        record the next to-be-consumed arg N */
+    int args_curr = 0; 
 
     for (auto &c : cons) {
         std::smatch x;
         std::regex_search(c, x, r);
 
         if (c[0] == '=') {
-            if (!x.empty()) {
-                std::string cc;
-                for (char ch : c) {
-                    if (std::string("{}=0123456789").find(ch) == std::string::npos) {
-                        cc += ch;
+            if (c.size() > 2 && c[1] == '*') {
+                /* out-constraint write to address of arg, consume 1 arg */
+                out_cons_as_arg_cnt += 1;
+                out_cons.push_back("=" + c.substr(2));
+                out_cons_text += "\"=" + c.substr(2) + "\" (*in" + std::to_string(args_curr) + "),";
+                args_curr += 1;
+            } else {
+                /* ut-constraint write to reg, does not consume args */
+                if (!x.empty()) {
+                    std::string cc;
+                    for (char ch : c) {
+                        if (std::string("{}=0123456789").find(ch) == std::string::npos) {
+                            cc += ch;
+                        }
                     }
+                    out_cons.push_back(cc);
+                    out_reg_cons.push_back(x[0]);
+                } else {
+                    out_cons.push_back(c.substr(1));
                 }
-                out_cons.push_back(cc);
-                out_reg_cons.push_back(x[0]);
-            } else {
-                out_cons.push_back(c.substr(1));
+                if (ret_st != "") {
+                    out_cons_text += "\"" + c + "\" (out.out" + std::to_string(out_cons_as_reg_cnt) + "),";
+                } else {
+                    out_cons_text += "\"" + c + "\" (out),";
+                }
+                out_cons_as_reg_cnt += 1;
             }
-            if (ret_st != "") {
-                out_cons_text += "\"" + c + "\" (out.out" + std::to_string(out_cons_cnt) + "),";
-            } else {
-                out_cons_text += "\"" + c + "\" (out),";
-            }
-            out_cons_cnt += 1;
         } else if (c[0] == '~') {
             continue;
         } else {
@@ -228,12 +241,13 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
             } else {
                 in_cons.push_back(c);
             }
-            in_cons_text += "\"" + c + "\" (in" + std::to_string(in_cons_cnt) + "),";
+            in_cons_text += "\"" + c + "\" (in" + std::to_string(args_curr) + "),";
             in_cons_cnt += 1;
+            args_curr += 1;
         }
     }
 
-    if (in_cons_cnt != arglist.size()) {
+    if (in_cons_cnt + out_cons_as_arg_cnt != arglist.size()) {
         throw std::runtime_error("Inline asm constraints does not match arguments(maybe unsupported constraint?)");
     }
 
@@ -288,7 +302,7 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
 
     bool failed = false;
 
-    std::system((aarch64_gcc + " -O2 -c " + fname + ".c 2> /dev/null").c_str());
+    std::system((aarch64_gcc + " -O2 -c " + cross_compile_param + fname + ".c 2> /dev/null").c_str());
     std::system((aarch64_objd + " -d " + fname + ".o > " + fname + "_objdump  2> /dev/null").c_str());
 
     if (std::filesystem::exists(fname + "_objdump")) {
@@ -341,8 +355,8 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
         }
     }
 
-    if (std::filesystem::exists(fname + ".c"))
-        std::system(("rm " + fname + ".c").c_str());
+    // if (std::filesystem::exists(fname + ".c"))
+        // std::system(("rm " + fname + ".c").c_str());
     if (std::filesystem::exists(fname + ".o"))
         std::system(("rm " + fname + ".o").c_str());
     if (std::filesystem::exists(fname + "_objdump"))

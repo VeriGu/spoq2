@@ -7,6 +7,7 @@
 namespace autov::IRLoader {
 using std::string;
 
+static string cross_compile_param = " -march=armv8.4-a ";
 class IASM {
 public:
     string fname;
