@@ -255,7 +255,10 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
     }
 
     // XXX: We don't support return a struct yet
-    assert(holds_alternative<string>(parsed_rettype));
+    // assert(holds_alternative<string>(parsed_rettype));
+    if (!holds_alternative<string>(parsed_rettype)) {
+        throw std::runtime_error("[parse_inline_asm] Unsupported return type: struct");
+    }
     auto str_rettype = std::get<string>(parsed_rettype);
 
     // Strip the last comma
