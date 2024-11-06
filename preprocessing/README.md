@@ -1,0 +1,27 @@
+# Usage
+
+## Build
+
+For each pass in this directory, link the llvm-14.0.0. For example:
+
+```
+link -s /path/to/llvm/14 cleaner/llvm
+```
+
+Then, compile each pass.
+
+## Get IR and its JSON version
+
+Under any directory, run `get-ir.sh /path/to/the/container/project/root` will 
+- compile the container project if necessary (no `rmm.linked.bc` file found)
+- run opt.sh for preprocessing passes that may change the IR: cleaner, mymergefunc, remove-opt-none, and O1 passes.
+- run IR2Json to generate the JSON version of IR (if IR2Json exists)
+
+For example, under the `rcsm-rmm/verification` directory, run `veriframe/preprocessing/get-ir.sh ..`.
+
+## Run passes separately
+
+Alternatively, one can run `opt.sh` command separately to run all passes at one click.
+
+``opt.sh /path/to/input.ll /path/to/output.ll``
+
