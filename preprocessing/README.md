@@ -30,3 +30,17 @@ Alternatively, one can run `opt.sh` command separately to run all passes at one 
 Under any directory, run `extract-info.sh /path/to/IR`. 
 
 Two files will be generated under the current working directory. The datatype file (ready for `gen-layer.py`) and the machine file (requiring manual modifications).
+
+## Generate layer config
+
+Under any directory, run 
+
+``python3 gen-layer.py /path/to/json/version/ir /path/to/top/bottom/config [list of file]``
+
+For example. to generate a config for the container, run
+
+``python3 gen-layer.py rmm-opt.linked.ir2json.json top-bottom.json coq/datatype.pure.v coq/machine.pure.v``
+
+under the rcsm-rmm/verification directory.
+
+(See rcsm-rmm/verification/README.md for a step-by-step guide to generate layer config for the container.)
