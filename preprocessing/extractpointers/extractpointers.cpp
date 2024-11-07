@@ -1,4 +1,5 @@
 #include "llvm/IR/Type.h"
+#include "llvm/IR/Value.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
@@ -379,6 +380,26 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
   result += "    }.\n";
   stack_load_rdata = load_result;
   fout << result << "\n(*\n" << load_result << "\n*)\n";
+  std::string hint_result = "";
+  for (auto& F : M) {
+    auto func = &F;
+    for (auto ti : stack_list[func]) {
+      auto ai = llvm::dyn_cast<llvm::AllocaInst>(ti);
+      std::string name;
+      if (!ai->getName().empty())
+        name = ai->getName().str();
+      else {
+        llvm::raw_string_ostream os(name);
+        ti->printAsOperand(os, false, &M);
+        name.erase(0, 1);
+      }
+      name = "v_" + name;
+      hint_result = hint_result + "Hint StackVar " + func->getName().str() + " " + name + " "
+                   + getStackIdentifier(ai->getAllocatedType(), alloca_id[ti])
+                   + ".\n";
+    }
+  }
+  fout << "\n" << hint_result << "\n";
 }
 
 void ExtractPointersPass::generate(llvm::Module& M) {

@@ -213,6 +213,17 @@ void Project::add_command(unique_ptr<Expr> cmd) {
 
             if (string(*s) == "true")
                 this->cmds.NoHighSpec = true;
+        } else if (op_str == "StackVar") {
+            assert(cmd->elems->size() == 3 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) 
+                   && dynamic_cast<Symbol *>(cmd->elems->at(1).get())
+                   && dynamic_cast<Symbol *>(cmd->elems->at(2).get()) );
+
+            auto f = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            auto local_var = dynamic_cast<Symbol *>(cmd->elems->at(1).get());
+            auto stack_var = dynamic_cast<Symbol *>(cmd->elems->at(2).get());
+            // in function `f`, the allocated local_var should point to the st.(stack).(stack_var)
+            this->cmds.StackMap[f->text][local_var->text]  = stack_var->text;
+            LOG_INFO << "STACKVAR:" << f->text << ":" << local_var->text << "->" << stack_var->text << "\n";
         } else {
             LOG_WARNING << "Unknown command " << op_str;
         }

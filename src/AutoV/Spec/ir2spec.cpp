@@ -713,6 +713,9 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         assert(false);
       }
     } else if(auto f = dynamic_cast<IRLoader::IAlloc*>(inst.get())) {
+        // TODO: let the allocated var (f) points to st.(stack).(map_result)
+        LOG_DEBUG << "STACKVAR: var" << f->assign << "should point to" 
+            << proj->cmds.StackMap[fname][f->assign] << "\n";
         if(auto typ = dynamic_cast<IRLoader::TPtr*>(f->typ.get())) {
             auto children = new vector<unique_ptr<SpecNode>>();
             children->push_back(unique_ptr<SpecNode>(_name(f->assign, types.get())));
