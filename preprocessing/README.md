@@ -25,3 +25,8 @@ Alternatively, one can run `opt.sh` command separately to run all passes at one 
 
 ``opt.sh /path/to/input.ll /path/to/output.ll``
 
+## Get generated datatypes and machine model
+
+Under any directory, run `extract-info.sh /path/to/IR`. 
+
+Two files will be generated under the current working directory. The datatype file (ready for `gen-layer.py`) and the machine file (requiring manual modifications).
