@@ -208,21 +208,6 @@ Section Semantics.
     | Rwzr => SZ32
     end.
 
-  Definition sizeof_gpreg (reg: gpreg) :=
-    match reg with
-    | Rx0 sz | Rx1 sz | Rx2 sz | Rx3 sz
-    | Rx4 sz | Rx5 sz | Rx6 sz | Rx7 sz
-    | Rx8 sz | Rx9 sz | Rx10 sz | Rx11 sz
-    | Rx12 sz | Rx13 sz | Rx14 sz
-    | Rx15 sz | Rx16 sz | Rx17 sz
-    | Rx18 sz | Rx19 sz | Rx20 sz
-    | Rx21 sz | Rx22 sz | Rx23 sz
-    | Rx24 sz | Rx25 sz | Rx26 sz
-    | Rx27 sz | Rx28 sz | Rx29 sz
-    | Rx30 sz => sz
-    | Rxzr => SZ64
-    end.
-
   Definition exec_insn (insn: asm_instruction) (pc: Ptr) (st: state) : option (Ptr * state) :=
     match insn with
     | Iadd (RegOp dst) src1 src2 =>
@@ -301,8 +286,7 @@ Section Semantics.
         end
       | _, _ => None
       end
-    | Ildr dst op sym
-    | Ildaxr dst op sym =>
+    | Ildr dst op sym =>
       let sz := (match sizeof_gpreg dst with SZ32 => 4 | SZ64 => 8 end) in
       match sym, op with
       | Some (base, offs), None =>
@@ -335,18 +319,6 @@ Section Semantics.
       when v, st == eval_op op st;
       when st' == set_reg sys v st;
       Some (next_instr pc, st')
-    | Istr src memop
-    | Istlr src memop =>
-      when v == get_reg src st;
-      let sz := (match sizeof_gpreg src with SZ32 => 4 | SZ64 => 8 end) in
-      when st' == store_mem_op memop sz (v :: nil) st;
-      Some (next_instr pc, st')
-    | Istxr w src memop =>
-      when v == get_reg src st;
-      let sz := (match sizeof_gpreg src with SZ32 => 4 | SZ64 => 8 end) in
-      when st' == store_mem_op memop sz (v :: nil) st;
-      when st'' == set_reg w 0 st';
-      Some (next_instr pc, st'')
     | Istp src1 src2 memop =>
       when v1 == get_reg src1 st;
       when v2 == get_reg src2 st;
@@ -362,7 +334,7 @@ Section Semantics.
     | Iret =>
       when ret_pc == get_reg (Rx30 SZ64) st;
       Some (int_to_ptr ret_pc, st)
-    | _ => Some (next_instr pc, st)
+    | _ => None
     end.
 
   (* | Ibfm reg1 reg2 imms immr => next_instr2 pc (exec_bfm reg1 reg2 imms immr st) *)
