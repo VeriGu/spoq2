@@ -1,5 +1,4 @@
 Require Import Coqlib.
-Require Import Maps.
 Require Import SMap.
 Require Import Notations.
 Require Import AsmInsn.
@@ -181,6 +180,32 @@ Section Semantics.
       | Some (i, st), (ASR n) => Some (Z.shiftr i n, st)
       | _, _ => None
       end
+    end.
+
+  Definition sizeof_gpreg (reg: gpreg) :=
+    match reg with
+    | Rx0 sz | Rx1 sz | Rx2 sz | Rx3 sz
+    | Rx4 sz | Rx5 sz | Rx6 sz | Rx7 sz
+    | Rx8 sz | Rx9 sz | Rx10 sz | Rx11 sz
+    | Rx12 sz | Rx13 sz | Rx14 sz
+    | Rx15 sz | Rx16 sz | Rx17 sz
+    | Rx18 sz | Rx19 sz | Rx20 sz
+    | Rx21 sz | Rx22 sz | Rx23 sz
+    | Rx24 sz | Rx25 sz | Rx26 sz
+    | Rx27 sz | Rx28 sz | Rx29 sz
+    | Rx30 sz 
+    | Rw0 sz | Rw1 sz | Rw2 sz | Rw3 sz
+    | Rw4 sz | Rw5 sz | Rw6 sz | Rw7 sz
+    | Rw8 sz | Rw9 sz | Rw10 sz | Rw11 sz
+    | Rw12 sz | Rw13 sz | Rw14 sz
+    | Rw15 sz | Rw16 sz | Rw17 sz
+    | Rw18 sz | Rw19 sz | Rw20 sz
+    | Rw21 sz | Rw22 sz | Rw23 sz
+    | Rw24 sz | Rw25 sz | Rw26 sz
+    | Rw27 sz | Rw28 sz | Rw29 sz
+    | Rw30 sz => sz
+    | Rxzr => SZ64
+    | Rwzr => SZ32
     end.
 
   Definition sizeof_gpreg (reg: gpreg) :=
