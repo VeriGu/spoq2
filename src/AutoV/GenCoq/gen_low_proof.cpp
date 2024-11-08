@@ -75,7 +75,7 @@ void gen_low_proof_func(Project *p, int i, string fname, string path)
             out << "  Hint Unfold " + d + ":spec.\n";
             continue;
         }
-        out << "  Local Opacque " + d + ".\n";
+        out << "  Local Opaque " + d + ".\n";
     }
 
     vector<string> vars;
