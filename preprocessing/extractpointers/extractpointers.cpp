@@ -144,10 +144,12 @@ const std::string ExtractPointersPass::debug_intrinsics[] = {"llvm.dbg", "printh
 
 std::string ExtractPointersPass::getStructTypeIdentifier(llvm::StructType* sty) {
   std::string name;
-  if(isUnion(sty)) 
+  if(isUnion(sty)) {
     name = "u_" + sty->getName().str().substr(6);
-  else
+  }
+  else {
     name = "s_" + sty->getName().str().substr(7);
+  }
   std::replace(name.begin(), name.end(), '.', '_');
   std::replace(name.begin(), name.end(), ':', '_');
   return name;
@@ -260,6 +262,17 @@ std::map<llvm::Type*, int> ExtractPointersPass::dfsStack(
 }
 
 bool ExtractPointersPass::checkPassedInst(llvm::Instruction* inst) {
+  // TODO: for now, put all allocated variable in the stack
+  if (auto ai = llvm::dyn_cast<llvm::AllocaInst>(inst)) {
+    if (auto sty = llvm::dyn_cast<llvm::StructType>(ai->getAllocatedType())) {
+      if (sty->getName().empty()) { // except %.sroa.3 in @sort_granules
+        llvm::errs() << *sty << "\n";
+        return 0;
+      }
+    }
+  }
+  return 1; 
+  /* ******************************************** */
   int passed = 0;
   for (auto it = inst->user_begin(); it != inst->user_end(); ++it) {
     auto user = *it;
