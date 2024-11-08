@@ -713,22 +713,29 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         assert(false);
       }
     } else if(auto f = dynamic_cast<IRLoader::IAlloc*>(inst.get())) {
-        // TODO: let the allocated var (f) points to st.(stack).(map_result)
-        LOG_DEBUG << "STACKVAR: var" << f->assign << "should point to" 
-            << proj->cmds.StackMap[fname][f->assign] << "\n";
         if(auto typ = dynamic_cast<IRLoader::TPtr*>(f->typ.get())) {
-            auto children = new vector<unique_ptr<SpecNode>>();
-            children->push_back(unique_ptr<SpecNode>(_name(f->assign, types.get())));
-            children->push_back(unique_ptr<SpecNode>(_st(abs_data)));
+            SpecNode* stmt;
+            auto stack_var = proj->cmds.StackMap[fname][f->assign]; // read stack from this
+            if ( stack_var.empty() ) { // no stack_var is found.
+                auto children = new vector<unique_ptr<SpecNode>>();
+                children->push_back(unique_ptr<SpecNode>(_name(f->assign, types.get())));
+                children->push_back(unique_ptr<SpecNode>(_st(abs_data)));
 
-            auto subexprs = new vector<unique_ptr<SpecNode>>();
-            subexprs->push_back(unique_ptr<SpecNode>(new StringConst(fname)));
-            subexprs->push_back(unique_ptr<SpecNode>(new IntConst(load_store_typ(typ->subtype.get()))));
-            subexprs->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, f->align, relies)));
-            subexprs->push_back(unique_ptr<SpecNode>(_st(abs_data)));
-            auto stmt = _When(_Tuple(children),
-                              new Expr(Layer->ops["alloc"], unique_ptr<vector<unique_ptr<SpecNode>>>(subexprs)),
-                              remain_spec);
+                auto subexprs = new vector<unique_ptr<SpecNode>>();
+                subexprs->push_back(unique_ptr<SpecNode>(new StringConst(fname)));
+                subexprs->push_back(unique_ptr<SpecNode>(new IntConst(load_store_typ(typ->subtype.get()))));
+                subexprs->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, f->align, relies)));
+                subexprs->push_back(unique_ptr<SpecNode>(_st(abs_data)));
+                stmt = _When(_Tuple(children),
+                            new Expr(Layer->ops["alloc"], unique_ptr<vector<unique_ptr<SpecNode>>>(subexprs)),
+                            remain_spec);
+            } else { // a stack_var is found.
+                auto vec = make_unique<vector<unique_ptr<SpecNode>>>();
+                vec->push_back(make_unique<StringConst>(stack_var));
+                vec->push_back(make_unique<IntConst>(0));
+                auto mkptr = new Expr("mkPtr", std::move(vec));
+                stmt = _Let(f->assign, mkptr, remain_spec);
+            }
             for(auto &p : *relies)
                 stmt = new Rely(std::move(p) , unique_ptr<SpecNode>(stmt));
 
