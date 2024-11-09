@@ -293,12 +293,25 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
         auto body = fe->body->deep_copy().release();
         auto vars = new vector<shared_ptr<Arg>>(*fe->vars.get());
 
+        auto free = std::set<string>();
+        free_vars(proj, body, free);
+
         for(auto arg : *vars) {
-            prev_symbols.insert(arg->name);
+            free.erase(arg->name);
         }
 
+        std::set<string> ps;
+            std::set_union(free.begin(), free.end(), prev_symbols.begin(), prev_symbols.end(),
+                   std::inserter(ps, ps.end()));
+
         for (auto &v : *vars) {
-            auto new_name = pick_new_name(v->name, prev_symbols);
+            auto temp =  std::set<string>(ps);
+            for(auto sym : *vars) {
+                if(v->name != sym->name){
+                    temp.insert(sym->name);
+                }
+            }
+            auto new_name = pick_new_name(v->name, temp);
 
             if (v->name != new_name) {
                 auto new_symbol = new Symbol(new_name, SpecType::UNKNOWN_TYPE);
@@ -308,7 +321,7 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
                 changed |= succ;
                 delete new_symbol;
             }
-            prev.insert(new_name);
+            ps.insert(new_name);
         }
 
         if (is_instance(fe, Forall)) {
