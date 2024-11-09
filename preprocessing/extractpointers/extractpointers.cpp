@@ -489,7 +489,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
       "      Some(st.(share).(globals).(" + getGVIdentifier(&globalVar) + "), st)) else\n";
 
       g_store_result += 
-      "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar) + "\") then (\n" \
+      "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
       "      Some(st.[share].[globals].[" + getGVIdentifier(&globalVar) + "] :< v)) else\n";
     }
     else if (auto sty = llvm::dyn_cast<llvm::StructType>(vty)) {
@@ -500,7 +500,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
       "      Some(ret, st)) else\n";
 
       g_store_result += 
-      "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar) + "\") then (\n" \
+      "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
       "      when ret == store_" + getStructTypeIdentifier(sty) + " sz p.(poffset) v st.(share).(globals).(" \
       + getGVIdentifier(&globalVar) + ");\n" \
       "      Some(st.[share].[globals].[" + getGVIdentifier(&globalVar) + "] :< ret)) else\n";
@@ -516,7 +516,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
         "      Some(ptr, st)) else\n";
 
         g_store_result += 
-        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar) + "\") then (\n" \
+        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
         "      let idx := p.(poffset) / " + std::to_string(element_size) + " in \n"\
         "      let ptr := (st.(share).(globals).(" + getGVIdentifier(&globalVar) + ") # idx == v) in\n"\
         "      Some(st.[share].[globals].[" +  getGVIdentifier(&globalVar) + "] :< ptr)) else\n";
@@ -530,7 +530,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
         "       Some(ret, st)) else\n";
 
         g_store_result += 
-        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar) + "\") then (\n" \
+        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
         "       let idx := p.(poffset) / " + std::to_string(element_size) + " in\n" \
         "       let elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
         "       when ret == store_"+ getStructTypeIdentifier(sty) +" sz elem_ofs v (st.(share).(globals).(" \
