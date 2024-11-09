@@ -187,7 +187,7 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
             }
         }, e->op);
     } else if (auto m = instance_of(spec, Match)) {
-        LOG_DEBUG << "debugging spec:" << string(*spec);
+        // LOG_DEBUG << "debugging spec:" << string(*spec);
         auto src = eliminiate_ambiguity(proj, m->src.release(), prev_symbols, changed);
         auto matches = make_unique<vector<unique_ptr<PatternMatch>>>();
         for (auto &pm : *m->match_list) {
@@ -2195,9 +2195,9 @@ bool spec_needs_state(Project *proj, SpecNode *spec) {
         return spec_needs_state(proj, i->then_body.get()) || spec_needs_state(proj, i->else_body.get());
     } else if (auto r = instance_of(spec, RelyAnno)) {
         return spec_needs_state(proj, r->prop.get()) || spec_needs_state(proj, r->body.get());
-    } /* else if (auto s = instance_of(spec, Symbol)) {
+    } else if (auto s = instance_of(spec, Symbol)) {
         return s->text.find("st") == 0;
-    } */
+    }
 
     return false;
 }
