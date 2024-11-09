@@ -132,8 +132,38 @@ static string pick_new_name(string sym, std::set<string> &prev) {
     return new_sym;
 }
 
+void free_vars(Project *proj, SpecNode *spec, std::set<string> &free) {
+    if(auto s = instance_of(spec, Symbol)) {
+        free.insert(s->text);
+    }else if (auto m = instance_of(spec, Match)) {
+        for (auto &pm : *m->match_list) {
+            free_vars(proj, pm->body.get(), free);
+            std::set<string> symbols;
+            std::function<void(SpecNode*)> collect_symbols = [&](SpecNode *pattern) {
+                if (auto s = instance_of(pattern, Symbol))
+                    symbols.insert(s->text);
+                else if (auto e = instance_of(pattern, Expr)) {
+                    for (auto &elem : *e->elems)
+                        collect_symbols(elem.get());
+                }
+            };
+            for(auto sym : symbols) {
+                free.erase(sym);
+            }
+        }
+    } else if (auto fe = instance_of(spec, ForallExists)) {
+        auto body = fe->body->deep_copy().release();
+        auto vars = new vector<shared_ptr<Arg>>(*fe->vars.get());
+        free_vars(proj, body, free);
+        for(auto arg : *vars) {
+            free.erase(arg->name);
+        }
+
+    }
+}
 /*
-[spec] is freed if substitution is successful
+[spec] is freed if substitution is successful, implementing capture-avoiding subsititutions,
+that requires a rename variables does not occurs in (FV(body) - original_names) U FV(expression to substitute(src))
 */
 SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &prev_symbols, bool &changed) {
     if (auto e = instance_of(spec, Expr)) {
@@ -157,9 +187,9 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
             }
         }, e->op);
     } else if (auto m = instance_of(spec, Match)) {
+        LOG_DEBUG << "debugging spec:" << string(*spec);
         auto src = eliminiate_ambiguity(proj, m->src.release(), prev_symbols, changed);
         auto matches = make_unique<vector<unique_ptr<PatternMatch>>>();
-
         for (auto &pm : *m->match_list) {
             std::set<string> symbols;
             std::function<void(SpecNode*)> collect_symbols = [&](SpecNode *pattern) {
@@ -171,27 +201,55 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
                 }
             };
             collect_symbols(pm->pattern.get());
+            
             auto prev = std::set<string>(prev_symbols);
             auto _prev = std::set<string>(prev_symbols);
             auto pattern = pm->pattern->deep_copy().release();
             auto body = pm->body->deep_copy().release();
 
+        
+            std::set<string> body_free;
+            free_vars(proj, body, body_free);
+            for (auto &sym : symbols) {
+                body_free.erase(sym);   
+            }
+            
+            std::set<string> ps;
+            std::set_union(body_free.begin(), body_free.end(), _prev.begin(), _prev.end(),
+                   std::inserter(ps, ps.end()));
+
+            std::set<string> ps2 = std::set<string>(ps);
+
+            //select new names for patterns, and add to previous symbols
             for (auto &sym : symbols) {
                 if (sym == "_")
                     continue;
                 if (!proj->is_known_symbol(sym)) {
-                    auto new_sym = pick_new_name(sym, _prev);
-                    _prev.insert(new_sym);
+                    std::set<string> temp = std::set<string>(ps);
+                    for(auto osym: symbols) {
+                        if(sym != osym) {
+                            temp.insert(osym);
+                        }
+                    }
+                    auto new_sym = pick_new_name(sym, ps);
+                    ps.insert(new_sym);
                 }
             }
-            body = eliminiate_ambiguity(proj, body, _prev, changed);
+            body = eliminiate_ambiguity(proj, body, ps, changed);
 
             for (auto &sym : symbols) {
                 if (sym == "_")
                     continue;
                 if (!proj->is_known_symbol(sym)) {
-                    auto new_sym = pick_new_name(sym, prev);
-                    prev.insert(new_sym);
+                    std::set<string> temp = std::set<string>(ps2);
+                    for(auto osym: symbols) {
+                        if(sym != osym) {
+                            temp.insert(osym);
+                        }
+                    }
+                    auto new_sym = pick_new_name(sym, temp);
+                    LOG_DEBUG << "sym: " << sym << ",new_sym: " << new_sym;
+                    ps2.insert(new_sym);
                     if (sym != new_sym) {
                         auto new_symbol = new Symbol(new_sym, SpecType::UNKNOWN_TYPE);
                         bool succ = false;
@@ -204,6 +262,8 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
                     }
                 }
             }
+
+            //body = eliminiate_ambiguity(proj, body, prev, changed);
 
             matches->push_back(make_unique<PatternMatch>(unique_ptr<SpecNode>(pattern), unique_ptr<SpecNode>(body)));
         }
@@ -232,6 +292,10 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
         auto prev = std::set<string>(prev_symbols);
         auto body = fe->body->deep_copy().release();
         auto vars = new vector<shared_ptr<Arg>>(*fe->vars.get());
+
+        for(auto arg : *vars) {
+            prev_symbols.insert(arg->name);
+        }
 
         for (auto &v : *vars) {
             auto new_name = pick_new_name(v->name, prev_symbols);
@@ -522,8 +586,10 @@ rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec) {
 
                     auto pattern_list = make_unique<vector<unique_ptr<SpecNode>>>();
 
-                    for (auto &arg: *define->args)
+                    for (auto &arg: *define->args) {
+                        LOG_DEBUG << "debug arg name: " + arg->name;
                         pattern_list->push_back(make_unique<Symbol>(arg->name, arg->type));
+                    }
 
                     auto pattern = make_unique<Expr>(Expr::Tuple, std::move(pattern_list), tuple_type);
                     auto pm_list = make_unique<vector<unique_ptr<PatternMatch>>>();
