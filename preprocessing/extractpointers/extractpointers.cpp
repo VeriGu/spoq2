@@ -266,7 +266,6 @@ bool ExtractPointersPass::checkPassedInst(llvm::Instruction* inst) {
   if (auto ai = llvm::dyn_cast<llvm::AllocaInst>(inst)) {
     if (auto sty = llvm::dyn_cast<llvm::StructType>(ai->getAllocatedType())) {
       if (sty->getName().empty()) { // except %.sroa.3 in @sort_granules
-        llvm::errs() << *sty << "\n";
         return 0;
       }
     }
@@ -455,12 +454,12 @@ void ExtractPointersPass::generate(llvm::Module& M) {
     g_result += "      " + getGVIdentifier(&globalVar) + ": " + generateField(globalVar.getValueType()) + ";\n";
     if (vty->isIntegerTy() || vty->isPointerTy()) {
       g_load_result += 
-      "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar) + "\") then (\n" \
+      "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
       "      Some(st.(share).(globals).(" + getGVIdentifier(&globalVar) + "), st)) else\n";
     }
     else if (auto sty = llvm::dyn_cast<llvm::StructType>(vty)) {
       g_load_result += 
-      "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar) + "\") then (\n" \
+      "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
       "      when ret == load_" + getStructTypeIdentifier(sty) + " sz p.(poffset) st.(share).(globals).(" \
       + getGVIdentifier(&globalVar) + ");\n" \
       "      Some(ret, st)) else\n";
@@ -470,13 +469,13 @@ void ExtractPointersPass::generate(llvm::Module& M) {
       int element_size = dl->getTypeAllocSize(ety);
       if (ety->isIntegerTy() || ety->isPointerTy()) {
         g_load_result += 
-        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar) + "\") then (\n" \
+        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
         "      let idx := p.(poffset) / " + std::to_string(element_size) + " in \n"\
         "      let ptr := st.(share).(globals).(" + getGVIdentifier(&globalVar) + ") @ idx in\n"\
         "      Some(ptr, st)) else\n";
       } else if (auto sty = llvm::dyn_cast<llvm::StructType>(ety)) {
         g_load_result += 
-        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar) + "\") then (\n" \
+        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
         "       let idx := p.(poffset) / " + std::to_string(element_size) + " in\n" \
         "       let elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
         "       when ret == load_"+ getStructTypeIdentifier(sty) +" sz elem_ofs (st.(share).(globals).(" \
