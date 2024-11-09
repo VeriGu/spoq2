@@ -48,6 +48,7 @@ class ExtractPointersPass : public llvm::ModulePass {
   std::string getStructTypeIdentifier(llvm::StructType*);
 
   std::string stack_load_rdata;
+  std::string stack_store_rdata;
 
   int type_id = 0;
   std::map<llvm::Type*, std::string> unique_type_name;
@@ -348,6 +349,7 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
   std::string result = "Record STACK :=\n"\
   " mkSTACK {\n";
   std::string load_result = "";
+  std::string store_result = "";
 
   int sum = 0;
   for (auto &x : sn) {
@@ -358,6 +360,10 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
         load_result += 
         "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
         "      Some(st.(stack).(" + getStackIdentifier(x.first, num) + "), st)) else\n";
+
+        store_result += 
+        "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
+        "      Some(st.[stack].[" + getStackIdentifier(x.first, num) + "] :< v)) else\n";
       }
       else if (auto sty = llvm::dyn_cast<llvm::StructType>(x.first)) {
         load_result += 
@@ -365,6 +371,12 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
         "      when ret == load_" + getStructTypeIdentifier(sty) + " sz p.(poffset) st.(stack).(" \
         + getStackIdentifier(x.first, num) + ");\n" \
         "      Some(ret, st)) else\n";
+
+        store_result += 
+        "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
+        "      when ret == store_" + getStructTypeIdentifier(sty) + " sz p.(poffset) v st.(stack).(" \
+        + getStackIdentifier(x.first, num) + ");\n" \
+        "      Some(st.[stack].[" + getStackIdentifier(x.first, num) + "] :< ret)) else\n";
       }
       else if (auto aty = llvm::dyn_cast<llvm::ArrayType>(x.first)) {
         auto ety = aty->getElementType();
@@ -375,6 +387,12 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
           "      let idx := p.(poffset) / " + std::to_string(element_size) + " in \n"\
           "      let ptr := st.(stack).(" + getStackIdentifier(x.first, num) + ") @ idx in\n"\
           "      Some(ptr, st)) else\n";
+
+          store_result += 
+          "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
+          "      let idx := p.(poffset) / " + std::to_string(element_size) + " in \n"\
+          "      let ptr := (st.(stack).(" + getStackIdentifier(x.first, num) + ") # idx == v) in\n"\
+          "      Some(st.[stack].[" +  getStackIdentifier(x.first, num) + "] :< ptr)) else\n";
         } else if (auto sty = llvm::dyn_cast<llvm::StructType>(ety)) {
           load_result += 
           "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
@@ -383,6 +401,14 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
           "       when ret == load_"+ getStructTypeIdentifier(sty) +" sz elem_ofs (st.(stack).(" \
           + getStackIdentifier(x.first, num) + ") @ idx);\n " \
           "       Some(ret, st)) else\n";
+
+          store_result += 
+          "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
+          "       let idx := p.(poffset) / " + std::to_string(element_size) + " in\n" \
+          "       let elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
+          "       when ret == store_"+ getStructTypeIdentifier(sty) +" sz elem_ofs v (st.(stack).(" \
+          + getStackIdentifier(x.first, num) + ") @ idx);\n " \
+          "       Some(st.[stack].[" + getStackIdentifier(x.first, num) + "] :< (st.(stack).(" + getStackIdentifier(x.first, num) + ") # idx == ret))) else\n";
         }
       } else {
         // llvm::errs() << "Cannot handle." << "\n";
@@ -391,7 +417,11 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
   }
   result += "    }.\n";
   stack_load_rdata = load_result;
+  stack_store_rdata = store_result;
+
   fout << result << "\n(*\n" << load_result << "\n*)\n";
+  fout << "\n(*\n" << store_result << "\n*)\n";
+
   std::string hint_result = "";
   for (auto& F : M) {
     auto func = &F;
@@ -433,6 +463,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
   int page_count = 0;
   std::vector<llvm::GlobalVariable*> fail_gv;
   std::string g_load_result = "";
+  std::string g_store_result = "";
   std::string g_result = "Record GLOBALS :=\n" \
                          "  mkGLOBALS {\n";
   for (llvm::GlobalVariable& globalVar : M.globals()) {
@@ -456,6 +487,10 @@ void ExtractPointersPass::generate(llvm::Module& M) {
       g_load_result += 
       "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
       "      Some(st.(share).(globals).(" + getGVIdentifier(&globalVar) + "), st)) else\n";
+
+      g_store_result += 
+      "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar) + "\") then (\n" \
+      "      Some(st.[share].[globals].[" + getGVIdentifier(&globalVar) + "] :< v)) else\n";
     }
     else if (auto sty = llvm::dyn_cast<llvm::StructType>(vty)) {
       g_load_result += 
@@ -463,6 +498,12 @@ void ExtractPointersPass::generate(llvm::Module& M) {
       "      when ret == load_" + getStructTypeIdentifier(sty) + " sz p.(poffset) st.(share).(globals).(" \
       + getGVIdentifier(&globalVar) + ");\n" \
       "      Some(ret, st)) else\n";
+
+      g_store_result += 
+      "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar) + "\") then (\n" \
+      "      when ret == store_" + getStructTypeIdentifier(sty) + " sz p.(poffset) v st.(share).(globals).(" \
+      + getGVIdentifier(&globalVar) + ");\n" \
+      "      Some(st.[share].[globals].[" + getGVIdentifier(&globalVar) + "] :< ret)) else\n";
     }
     else if (auto aty = llvm::dyn_cast<llvm::ArrayType>(vty)) {
       auto ety = aty->getElementType();
@@ -473,14 +514,28 @@ void ExtractPointersPass::generate(llvm::Module& M) {
         "      let idx := p.(poffset) / " + std::to_string(element_size) + " in \n"\
         "      let ptr := st.(share).(globals).(" + getGVIdentifier(&globalVar) + ") @ idx in\n"\
         "      Some(ptr, st)) else\n";
+
+        g_store_result += 
+        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar) + "\") then (\n" \
+        "      let idx := p.(poffset) / " + std::to_string(element_size) + " in \n"\
+        "      let ptr := (st.(share).(globals).(" + getGVIdentifier(&globalVar) + ") # idx == v) in\n"\
+        "      Some(st.[share].[globals].[" +  getGVIdentifier(&globalVar) + "] :< ptr)) else\n";
       } else if (auto sty = llvm::dyn_cast<llvm::StructType>(ety)) {
         g_load_result += 
         "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
         "       let idx := p.(poffset) / " + std::to_string(element_size) + " in\n" \
         "       let elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
-        "       when ret == load_"+ getStructTypeIdentifier(sty) +" sz elem_ofs (st.(share).(globals).(" \
+        "       when ret == store_"+ getStructTypeIdentifier(sty) +" sz elem_ofs (st.(share).(globals).(" \
         + getGVIdentifier(&globalVar) + ") @ idx);\n " \
         "       Some(ret, st)) else\n";
+
+        g_store_result += 
+        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar) + "\") then (\n" \
+        "       let idx := p.(poffset) / " + std::to_string(element_size) + " in\n" \
+        "       let elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
+        "       when ret == store_"+ getStructTypeIdentifier(sty) +" sz elem_ofs v (st.(share).(globals).(" \
+        + getGVIdentifier(&globalVar) + ") @ idx);\n " \
+        "       Some(st.[share].[globals].[" + getGVIdentifier(&globalVar) + "] :< " + "(st.(share).(globals).(" + getGVIdentifier(&globalVar) + ") # idx == ret) )) else\n";
       }
     } else {
       // llvm::errs() << "Cannot handle." << "\n";
@@ -488,6 +543,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
   }
   g_result += "    }.\n";
   fout << g_result << "\n(*\n" << g_load_result << "\n*)\n";
+  fout << "\n(*\n" << g_store_result << "\n*)\n";
 
   // llvm::errs() << "page: " << page_count << " " << "base:" << base << "\n";
 
