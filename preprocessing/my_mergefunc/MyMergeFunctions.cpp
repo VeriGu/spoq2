@@ -123,6 +123,7 @@
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/MergeFunctions.h"
 #include "llvm/Transforms/Utils/FunctionComparator.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
@@ -487,6 +488,14 @@ bool MergeFunctions::runOnModule(Module &M) {
   FNodesInTree.clear();
   GlobalNumbers.clear();
 
+  for (Function &F : M) {
+    if (F.isDeclaration() || F.hasAvailableExternallyLinkage())
+      continue;
+
+    if (EliminateUnreachableBlocks(F)) {
+      Changed = true;
+    }
+  }
   LLVM_DEBUG(errs() << "(my merge func) ====================================== " << NumFunctionsMerged << " functions merged. =========================================\n");
   return Changed;
 }
