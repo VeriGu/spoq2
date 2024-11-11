@@ -337,7 +337,7 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
             auto new_name = pick_new_name(v->name, temp);
 
             if (v->name != new_name) {
-                auto new_symbol = new Symbol(new_name, SpecType::UNKNOWN_TYPE);
+                auto new_symbol = new Symbol(new_name, v->type);
                 bool succ = false;
 
                 body = subst(body, v->name, new_symbol, succ);
