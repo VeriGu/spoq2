@@ -92,7 +92,7 @@ std::string ExtractBasicsPass::generateStoreZMapField(std::string obj, int offse
     result += "    when ret == store_" + getStructTypeIdentifier(sty) + " sz elem_ofs v (" + obj + ".(" + field + ") @ idx);\n";
     result += "    Some (" + obj + ".[" + field + "] :< (st.(" + field +") # idx == ret))) else ";
   } else {
-    result += "    None. (* nested vector not supported *)";
+    result += "    None. (* nested vector not supported *) ) else ";
   }
   return result;
 }

@@ -73,7 +73,7 @@ public:
     }
 
     void set_type(shared_ptr<SpecType> type) {
-        if (this->has_type() && this->type != type && type != SpecType::UNKNOWN_TYPE) {
+        if (this->has_type() && this->type->name != type->name && type != SpecType::UNKNOWN_TYPE) {
             LOG_ERROR << "Overwriting type " << string(*this->type) << " with " << string(*type);
             throw std::invalid_argument("Overwriting type " + string(*this->type) + " with " + string(*type));
         }
