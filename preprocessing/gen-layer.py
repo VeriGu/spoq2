@@ -386,6 +386,21 @@ class Generator:
     return layer, layer_map
   
 
+  def dot_underscore_covert(self, f_list: list):
+    rv = []
+    for b in f_list:
+      if b in self.funcs:
+        rv.append(b)
+        continue
+      inserted = False
+      for t in self.funcs:
+        if b.replace("_", ".") == t.replace("_", "."):
+          rv.append(t)
+          inserted = True
+          break
+      if not inserted:
+        rv.append(b)  
+    return rv
   
   def compute_config(self, top = None, bottom = None, name = "default-config"):
     config = Config()
@@ -398,6 +413,8 @@ class Generator:
       _bottom = _bottom + list(filter(lambda f : self.is_printf_intrinsic(f), self.funcs.keys())) 
       # put external function in the bottom
       _bottom = _bottom + list(filter(lambda f : self.is_external_function(f), self.funcs.keys()) )
+    _top = self.dot_underscore_covert(_top)
+    _bottom = self.dot_underscore_covert(_bottom)
     config.set_top(_top)
     config.set_bottom(_bottom)
     config.reachable = self.compute_reachable(config.top, config.bottom)
