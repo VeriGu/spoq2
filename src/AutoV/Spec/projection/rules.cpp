@@ -207,7 +207,7 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
         //LOG_DEBUG << "debugging spec:" << string(*spec);
         auto src = eliminiate_ambiguity(proj, m->src.release(), prev_symbols, changed);
         std::set<string> src_free;
-        //free_vars(proj, src, src_free);
+        free_vars(proj, src, src_free);
         auto matches = make_unique<vector<unique_ptr<PatternMatch>>>();
         for (auto &pm : *m->match_list) {
             std::unordered_map<string, shared_ptr<SpecType>> symbols;

@@ -666,6 +666,7 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
     for (int i = 0; i < low_specs->size(); i++) {
         auto &low_def = (*low_specs)[i];
         auto low_name = low_def->name;
+        //LOG_DEBUG << "low_name:" << low_name;
         auto high_name = name_map[low_name];
 
         // If the high spec is provided, skip
@@ -718,7 +719,7 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         bool no_trans = proj->cmds.NoHighSpec || proj->cmds.NoTrans.find(name_map[low_name]) != proj->cmds.NoTrans.end();
 
         if (!no_trans) {
-            spec_transformer(proj, high_def, layer_id, layer_id);
+            spec_transformer(proj, high_def, layer_id, !is_instance(low_def, Fixpoint));
             std::cout << "Transformed: " << std::endl << string(*high_def) << std::endl;
         } else {
             LOG_INFO << "No transformation for " << high_name;
