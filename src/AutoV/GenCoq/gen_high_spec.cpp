@@ -1,6 +1,8 @@
 #include <boost/filesystem.hpp>
 #include <filesystem>
 #include <gen_high_spec.h>
+#include <map>
+#include <queue>
 
 namespace fs = std::filesystem;
 
@@ -18,6 +20,7 @@ void gen_specs(Project *proj, loc_t loc, string out_path, string cache_out = "")
 
     vector<string> syms;
     for (auto const &[s, v] : proj->symbols) {
+        std::cout << "symbol:" << s << "\n";
         if (v.loc == loc) {
             syms.push_back(s);
         }
@@ -31,13 +34,30 @@ void gen_specs(Project *proj, loc_t loc, string out_path, string cache_out = "")
 
     if (std::get<0>(loc) != "GlobalDefs") deps.insert("GlobalDefs");
 
+    std::queue<string> q;
+    std::map<string, int> checked;
     for (auto s : syms) {
-        if (proj->deps.find(s) == proj->deps.end()) continue;
+        q.push(s);
+        checked[s] = 1;
+    }
+
+    while (!q.empty()) {
+        auto s = q.front();
+        q.pop();
+        if (proj->deps.find(s) == proj->deps.end()) {
+            auto def = proj->defs.find(s);
+            if( def == proj->defs.end() || def->second == nullptr ) continue;
+            proj->deps[s] = proj->calc_dependencies((def->second)->body.get());
+        }
 
         for (auto d : proj->deps[s]) {
             if (proj->symbols[d].loc == loc) continue;
             if (proj->symbols[d].loc == loc_t("", "", "")) continue;
 
+            if (!checked[d]) { 
+                q.push(d);
+                checked[d] = 1;
+            }
             string l = "";
             l += std::get<0>(proj->symbols[d].loc);
             if (std::get<1>(proj->symbols[d].loc) != "") l += ("." + std::get<1>(proj->symbols[d].loc));
