@@ -57,7 +57,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold)
     LOG_INFO << "Transforming " << def->name << ", unfold: " << unfold;
     // std::cout << string(*def) << std::endl;
 
-    bool debug = unfold && (def->name.rfind("", 0) == 0);
+    bool debug = (def->name.rfind("s2tt_init_unassigned_spec", 0) == 0);
     auto known = std::set<string>();
     auto fname = def->name;
 
@@ -125,7 +125,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold)
 
                     new_spec = eliminiate_ambiguity(proj, new_spec, prev_symbols, __changed);
                     changed |= __changed;
-#if 0
+#if 1
                     if (__changed && debug)
                         std::cout << "(unfold) " << def->name << " new_spec: \n=========================\n"
                             << string(*new_spec) << "\n==============================" << std::endl;
@@ -155,7 +155,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold)
 
                 new_spec = new_spec1;
 
-#if 0
+#if 1
                 if (__changed && debug)
                     std::cout << "(group2) " << def->name << " new_spec " << rule_names[rule] << ": \n=========================\n"
                         << string(*new_spec) << "\n==============================" << std::endl;
@@ -171,7 +171,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold)
             if (__changed && debug)
                 std::cout << def->name << " new_spec simplify_expr" << ": \n=========================\n"
                     << string(*new_spec) << "\n==============================" << std::endl;
-#if 0
+#if 1
             if (__changed && debug)
                 std::cout << "(simplify_expr) " << def->name << " new_spec "<< ": \n=========================\n"
                             << string(*new_spec) << "\n==============================" << std::endl;
@@ -230,7 +230,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold)
             auto conds = std::make_shared<vector<z3::expr>>();
             for (auto arg : *def->args)
                 (*vars)[arg->name] = arg->type->declare(arg->name, 0);
-#if 0
+#if 1
             if (debug)
                 std::cout << "Before Z3 " << def->name << ": \n=========================\n"
                     << string(*new_spec) << "\n==============================" << std::endl;

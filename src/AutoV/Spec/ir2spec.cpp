@@ -561,7 +561,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
                     child->push_back(Layer->abs_data);
                     wrapper_ret = new Option(make_shared<Tuple>(shared_ptr<vector<shared_ptr<SpecType>>>(child)));
                 }
-                auto wrapper_body = new Symbol("None");
+                auto wrapper_body = new Expr(Expr::ops::None, make_unique<vector<unique_ptr<SpecNode>>>());
                 auto wrapper_args = new vector<shared_ptr<Arg>>();
                 wrapper_args->push_back(shared_ptr<Arg>(new Arg("func_ptr", Struct::Ptr)));
                 int i = 0;
@@ -857,7 +857,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
 
         if(proj->defs.find(loop_spec_name) == proj->defs.end()) {
             if(f->body->size() == 1 && (*f->body)[0]->output->size() == 1 && *(*(*f->body)[0]->output).begin() == "__continue__") {
-                return new Symbol("None");
+                return new Expr(Expr::ops::None, make_unique<vector<unique_ptr<SpecNode>>>());
             } else {
                 auto iteration_body = ir_insts_to_spec(proj, Layer, fname, f->body.get(), defs, f->loop_args.get(), true, false, suffix, 0);
                 string low = "_low";
@@ -951,7 +951,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
 
         if (std::find(f->output->begin(), f->output->end(), "__break__") != f->output->end()) {
             remain_spec = new If(unique_ptr<SpecNode>(_name("__break__", types.get())),
-                                 unique_ptr<SpecNode>(remain_spec), unique_ptr<SpecNode>(new Symbol("None")));
+                                 unique_ptr<SpecNode>(remain_spec), unique_ptr<SpecNode>(new Expr(Expr::ops::None, make_unique<vector<unique_ptr<SpecNode>>>())));
         }
 
         if (std::find(f->output->begin(), f->output->end(), "__return__") != f->output->end()) {

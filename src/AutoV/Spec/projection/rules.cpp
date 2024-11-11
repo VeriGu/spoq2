@@ -72,22 +72,26 @@ static SpecNode* subst(SpecNode *spec, string name, SpecNode *value, bool &succ)
             }
         }
         auto new_match = new Match(unique_ptr<SpecNode>(src), std::move(matches));
+        new_match->type = m->type;
         delete m;
         return new_match;
     } else if (auto r = instance_of(spec, Rely)) {
         auto new_rely = new Rely(unique_ptr<SpecNode>(subst(r->prop.release(), name, value, succ)),
                                  unique_ptr<SpecNode>(subst(r->body.release(), name, value, succ)));
+        new_rely->type = r->type;
         delete r;
         return new_rely;
     } else if (auto r = instance_of(spec, Anno)) {
         auto new_anno = new Anno(unique_ptr<SpecNode>(subst(r->prop.release(), name, value, succ)),
                                  unique_ptr<SpecNode>(subst(r->body.release(), name, value, succ)));
+        new_anno->type = r->type;
         delete r;
         return new_anno;
     } else if (auto i = instance_of(spec, If)) {
         auto new_if = new If(unique_ptr<SpecNode>(subst(i->cond.release(), name, value, succ)),
                              unique_ptr<SpecNode>(subst(i->then_body.release(), name, value, succ)),
                              unique_ptr<SpecNode>(subst(i->else_body.release(), name, value, succ)));
+        new_if->type = i->type;
         delete i;
         return new_if;
     } else if (auto fe = instance_of(spec, Forall)) {
@@ -95,6 +99,7 @@ static SpecNode* subst(SpecNode *spec, string name, SpecNode *value, bool &succ)
 
         auto new_forall = new Forall(unique_ptr<vector<shared_ptr<Arg>>>(vars),
                                      unique_ptr<SpecNode>(subst(fe->body.release(), name, value, succ)));
+        new_forall->type = fe->type;
         delete fe;
         return new_forall;
     } else if (auto fe = instance_of(spec, Exists)) {
@@ -102,6 +107,7 @@ static SpecNode* subst(SpecNode *spec, string name, SpecNode *value, bool &succ)
 
         auto new_exists = new Exists(unique_ptr<vector<shared_ptr<Arg>>>(vars),
                                      unique_ptr<SpecNode>(subst(fe->body.release(), name, value, succ)));
+        new_exists->type = fe->type;
         delete fe;
         return new_exists;
     } else if (is_instance(spec, Const)) {
@@ -159,6 +165,17 @@ void free_vars(Project *proj, SpecNode *spec, std::set<string> &free) {
             free.erase(arg->name);
         }
 
+    } else if(auto e = instance_of(spec, Expr)) {
+        for(int i = 0; i < e->elems->size(); i++) {
+            free_vars(proj, e->elems->at(i).get(), free);
+        }
+    } else if(auto r = instance_of(spec, RelyAnno)) {
+        free_vars(proj, r->prop.get(), free);
+        free_vars(proj, r->body.get(), free);
+    } else if(auto e = instance_of(spec, If)) {
+        free_vars(proj, e->cond.get(), free);
+        free_vars(proj, e->then_body.get(), free);
+        free_vars(proj, e->else_body.get(), free);
     }
 }
 /*
@@ -187,14 +204,16 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
             }
         }, e->op);
     } else if (auto m = instance_of(spec, Match)) {
-        // LOG_DEBUG << "debugging spec:" << string(*spec);
+        //LOG_DEBUG << "debugging spec:" << string(*spec);
         auto src = eliminiate_ambiguity(proj, m->src.release(), prev_symbols, changed);
+        std::set<string> src_free;
+        //free_vars(proj, src, src_free);
         auto matches = make_unique<vector<unique_ptr<PatternMatch>>>();
         for (auto &pm : *m->match_list) {
-            std::set<string> symbols;
+            std::unordered_map<string, shared_ptr<SpecType>> symbols;
             std::function<void(SpecNode*)> collect_symbols = [&](SpecNode *pattern) {
                 if (auto s = instance_of(pattern, Symbol))
-                    symbols.insert(s->text);
+                    symbols[s->text] = s->get_type();
                 else if (auto e = instance_of(pattern, Expr)) {
                     for (auto &elem : *e->elems)
                         collect_symbols(elem.get());
@@ -207,10 +226,9 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
             auto pattern = pm->pattern->deep_copy().release();
             auto body = pm->body->deep_copy().release();
 
-        
             std::set<string> body_free;
             free_vars(proj, body, body_free);
-            for (auto &sym : symbols) {
+            for (auto [sym,_] : symbols) {
                 body_free.erase(sym);   
             }
             
@@ -218,40 +236,45 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
             std::set_union(body_free.begin(), body_free.end(), _prev.begin(), _prev.end(),
                    std::inserter(ps, ps.end()));
 
-            std::set<string> ps2 = std::set<string>(ps);
+            std::set<string> magic_variables;
+            std::set_union(ps.begin(), ps.end(), src_free.begin(), src_free.end(),
+                   std::inserter(magic_variables, magic_variables.end()));
+            
+
+            std::set<string> ps2 = std::set<string>(magic_variables);
 
             //select new names for patterns, and add to previous symbols
-            for (auto &sym : symbols) {
+            for (auto [sym,_] : symbols) {
                 if (sym == "_")
                     continue;
                 if (!proj->is_known_symbol(sym)) {
-                    std::set<string> temp = std::set<string>(ps);
-                    for(auto osym: symbols) {
-                        if(sym != osym) {
-                            temp.insert(osym);
-                        }
-                    }
-                    auto new_sym = pick_new_name(sym, ps);
-                    ps.insert(new_sym);
-                }
-            }
-            body = eliminiate_ambiguity(proj, body, ps, changed);
-
-            for (auto &sym : symbols) {
-                if (sym == "_")
-                    continue;
-                if (!proj->is_known_symbol(sym)) {
-                    std::set<string> temp = std::set<string>(ps2);
-                    for(auto osym: symbols) {
+                    std::set<string> temp = std::set<string>(magic_variables);
+                    for(auto [osym,_]: symbols) {
                         if(sym != osym) {
                             temp.insert(osym);
                         }
                     }
                     auto new_sym = pick_new_name(sym, temp);
-                    LOG_DEBUG << "sym: " << sym << ",new_sym: " << new_sym;
+                    magic_variables.insert(new_sym);
+                }
+            }
+            body = eliminiate_ambiguity(proj, body, magic_variables, changed);
+
+            for (auto [sym,typ] : symbols) {
+                if (sym == "_")
+                    continue;
+                if (!proj->is_known_symbol(sym)) {
+                    std::set<string> temp = std::set<string>(ps2);
+                    for(auto [osym,_]: symbols) {
+                        if(sym != osym) {
+                            temp.insert(osym);
+                        }
+                    }
+                    auto new_sym = pick_new_name(sym, temp);
+                    //LOG_DEBUG << "sym: " << sym << ",new_sym: " << new_sym;
                     ps2.insert(new_sym);
                     if (sym != new_sym) {
-                        auto new_symbol = new Symbol(new_sym, SpecType::UNKNOWN_TYPE);
+                        auto new_symbol = new Symbol(new_sym, typ);
                         bool succ = false;
 
                         pattern = subst(pattern, sym, new_symbol, succ);
@@ -1522,7 +1545,7 @@ rule_ret_t rule_eliminate_when(Project *proj, SpecNode *spec) {
                 std::function<SpecNode*(unique_ptr<SpecNode> &)> subst_when = [&] (unique_ptr<SpecNode> &node) -> SpecNode* {
                     if(auto m = instance_of(node.get(), Symbol)) {
                         if(m->text == "None") {
-                            auto new_sym = new Symbol("None", when_body->get_type());
+                            auto new_sym = new Expr(Expr::ops::None, make_unique<vector<unique_ptr<SpecNode>>>(), when_body->get_type());
                             return new_sym;
                         } else {
                             return nullptr;
