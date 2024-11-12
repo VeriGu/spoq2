@@ -242,7 +242,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold)
 
             new_spec = __spec;
 
-            if (debug)
+            if (debug && def->name == "__find_next_level_idx_spec")
                 std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
                     << string(*new_spec) << "\n==============================\n";
 
