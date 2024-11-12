@@ -476,7 +476,7 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
         auto typ = spec->get_type();
         delete spec;
         if (only_none) {
-            return std::make_pair(new Expr(Expr::ops::None, make_unique<vector<unique_ptr<SpecNode>>>(), typ), changed);
+            return std::make_pair(new Symbol("None", typ), changed);
         } else {
             auto ret = new Match(unique_ptr<SpecNode>(src_ret.first), std::move(match_list));
             return std::make_pair(ret, changed);

@@ -11,7 +11,7 @@ SpecNode* _When(SpecNode* pat, SpecNode* val, SpecNode* body) {
     auto somepat = new vector<unique_ptr<SpecNode>>();
     somepat->push_back(unique_ptr<SpecNode>(pat));
     PatternMatch *some = new PatternMatch(make_unique<Expr>(Expr::ops::Some, unique_ptr<vector<unique_ptr<SpecNode>>>(somepat)), unique_ptr<SpecNode>(body));
-    PatternMatch *none = new PatternMatch(make_unique<Expr>(Expr::ops::None, make_unique<vector<unique_ptr<SpecNode>>>()), unique_ptr<SpecNode>(new Expr(Expr::ops::None, make_unique<vector<unique_ptr<SpecNode>>>())));
+    PatternMatch *none = new PatternMatch(make_unique<Expr>(Expr::ops::None, make_unique<vector<unique_ptr<SpecNode>>>()), unique_ptr<SpecNode>(new Symbol("None")));
 
     auto pats = new vector<unique_ptr<PatternMatch>>();
     pats->push_back(unique_ptr<PatternMatch>(some));
