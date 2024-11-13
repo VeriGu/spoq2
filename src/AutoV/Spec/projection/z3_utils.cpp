@@ -251,9 +251,7 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
 }
 
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
-    //LOG_DEBUG << "z3_eval: " << string(*val) << std::endl;
-    //LOG_DEBUG << "type: " << string(*val->type);
-    
+    //std::cout << "z3_eval: " << string(*val) << std::endl;
 
     if (val->cached_eval) return val->cached_eval;
 

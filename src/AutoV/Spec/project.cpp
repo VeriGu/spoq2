@@ -189,6 +189,21 @@ void Project::add_command(unique_ptr<Expr> cmd) {
 
             cmd->elems->at(1).release();
             this->cmds.InitRely[s->text].push_back(unique_ptr<Expr>(expr));
+        } else if (op_str == "PostEnsure") {
+            assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) && 
+                   dynamic_cast<Expr *>(cmd->elems->at(1).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            auto expr = dynamic_cast<Expr *>(cmd->elems->at(1).get());
+            /* The symbol in config might be mismatched with that in generated spec. 
+                We need a symbol matching/renaming because we cannot require users to manually match it */
+            
+            /* We also assume the ensure statement takes no other variables other than return value. 
+                e.g. v_0.(pbase) = "granule" 
+                instead of : v_0.(poffset) = v_n + x_n */
+            cmd->elems->at(1).release();
+            this->cmds.PostEnsure[s->text].push_back(unique_ptr<Expr>(expr));
+            
+            LOG_INFO << "Adding PostEnsure: " << s->text << " " << string(*expr) << "\n";
         } else if (op_str == "AddDep") {
             assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) &&
                    dynamic_cast<Symbol *>(cmd->elems->at(1).get()));

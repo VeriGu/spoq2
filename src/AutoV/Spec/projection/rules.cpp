@@ -1691,7 +1691,7 @@ rule_ret_t rule_eliminate_when(Project *proj, SpecNode *spec) {
                 std::function<SpecNode*(unique_ptr<SpecNode> &)> subst_when = [&] (unique_ptr<SpecNode> &node) -> SpecNode* {
                     if(auto m = instance_of(node.get(), Symbol)) {
                         if(m->text == "None") {
-                            auto new_sym = new Expr(Expr::ops::None, make_unique<vector<unique_ptr<SpecNode>>>(), when_body->get_type());
+                            auto new_sym = new Symbol("None", when_body->get_type());
                             return new_sym;
                         } else {
                             return nullptr;

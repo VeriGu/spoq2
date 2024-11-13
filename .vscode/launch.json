@@ -20,6 +20,15 @@
             "preLaunchTask": "CMake: build debug"
         },
         {
+            "name": "(lldb) Launch Spoq rcsm",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["testcase/proof_rcsm.v"], // Any command-line arguments
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
             "name": "(lldb) Launch Spoq proof_sekvm",
             "type": "lldb",
             "request": "launch",

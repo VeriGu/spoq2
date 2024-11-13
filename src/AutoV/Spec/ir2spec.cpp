@@ -60,6 +60,21 @@ long load_store_typ(IRType *typ);
 
 unique_ptr<vector<unique_ptr<SpecNode>>> check_fun_ptr(Layer *l, vector<unique_ptr<IRInst>> *insts);
 
+void subst_expression(SpecNode *spec, string oldname, string newname) {
+    if (auto s = instance_of(spec, Symbol)) {
+        if (s->text != oldname)
+            return;
+        s->text = newname;
+    } else if (auto e = instance_of(spec, Expr)) {
+        for (auto &elem : *e->elems)
+            subst_expression(elem.get(), oldname, newname);
+    } else if (is_instance(spec, Const)) {
+        // pass
+    } else {
+        throw std::runtime_error("Unknown spec type for subst_expression" + string(*spec));
+    }
+}
+
 shared_ptr<SpecType> ir_type_to_spec(IRType *typ)
 {
     if (dynamic_cast<TInt *>(typ)) {
@@ -484,7 +499,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
     auto remain_spec = ir_insts_to_spec(proj, Layer, fname, body, defs, args, in_loop, final_return, suffix, start + 1);
 
 
-    if(auto f = dynamic_cast<IAssign*>(inst.get())){
+    if(auto f = dynamic_cast<IAssign*>(inst.get())) {
       auto stmt = _Let(f->assign, ir_value_to_spec(Layer, f->val.get(), relies), remain_spec);
       for(auto &p : *relies) {
         stmt = new Rely(std::move(p), unique_ptr<SpecNode>(stmt));
@@ -522,37 +537,58 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         }
 
         return stmt;
-    } else if(auto f = dynamic_cast<IRLoader::ICall*>(inst.get())) {
-      if(auto v = dynamic_cast<IRLoader::VGlobal*>(f->func.get())) {
-        auto func = v->name;
+    } else if (auto f = dynamic_cast<IRLoader::ICall*>(inst.get())) {
+        const string POST_ENSURE_VARIABLE = "ret_0";
+        if (auto v = dynamic_cast<IRLoader::VGlobal*>(f->func.get())) {
+            auto func = v->name;
 
-        auto args = new vector<unique_ptr<SpecNode>>();
-        for (auto & a : *f->args) {
-          args->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, a.get(), relies)));
-        }
+            auto args = new vector<unique_ptr<SpecNode>>();
+            for (auto & a : *f->args) {
+                args->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, a.get(), relies)));
+            }
 
-        args->push_back(unique_ptr<SpecNode>(_st(abs_data)));
+            args->push_back(unique_ptr<SpecNode>(_st(abs_data)));
 
-        SpecNode* ret;
-        if (dynamic_cast<IRLoader::TVoid*>(f->typ.get())) {
-          ret = _st(abs_data);
-        } else {
-          auto children = new vector<unique_ptr<SpecNode>>();
-          children->push_back(unique_ptr<SpecNode>(_name(f->assign, types.get())));
-          children->push_back(unique_ptr<SpecNode>(_st(abs_data)));
-          ret = _Tuple(children);
-        }
-        auto stmt = _When(ret, new Expr(func + "_spec",
-                                        unique_ptr<vector<unique_ptr<SpecNode>>>(args)), remain_spec);
-        for(auto &p : *relies) {
-          stmt = new Rely(std::move(p) , unique_ptr<SpecNode>(stmt));
-        }
+            SpecNode* ret;
+            if (dynamic_cast<IRLoader::TVoid*>(f->typ.get())) {
+                ret = _st(abs_data);
+            } else {
+                auto children = new vector<unique_ptr<SpecNode>>();
+                children->push_back(unique_ptr<SpecNode>(_name(f->assign, types.get())));
+                children->push_back(unique_ptr<SpecNode>(_st(abs_data)));
+                ret = _Tuple(children);
+            }
 
-        return stmt;
-      } else if(dynamic_cast<IRLoader::VInlineAsm*>(f->func.get()) == nullptr) {
+            // LOG_INFO << "function: " << func << std::endl;
+            // LOG_INFO << "return expr: " << string(*ret) << std::endl;
+
+            auto post_spec = remain_spec;
+            if (proj->cmds.PostEnsure.find(func) != proj->cmds.PostEnsure.end()) {
+                auto ret_st = _st(abs_data);
+                for (auto & prop : proj->cmds.PostEnsure[func]) {
+                    auto p = prop->deep_copy();
+                    // LOG_INFO << "[before subst] post-ensure prop: " << string(*p) << std::endl;
+                    // LOG_INFO << "[before subst] post-ensure f->assign: " << f->assign << std::endl;
+                    if (!dynamic_cast<IRLoader::TVoid*>(f->typ.get())) {
+                        subst_expression(p.get(), POST_ENSURE_VARIABLE, f->assign);
+                    }
+                    // LOG_INFO << "[subst] post-ensure prop: " << string(*p) << std::endl;
+                    post_spec = new Rely(p->deep_copy(), unique_ptr<SpecNode>(post_spec));
+                }
+            }
+            auto stmt = _When(ret, new Expr(func + "_spec",
+                                            unique_ptr<vector<unique_ptr<SpecNode>>>(args)), post_spec);
+            // LOG_INFO << "[append] post-ensure prop: " << string(*stmt) << std::endl;
+            for(auto &p : *relies) {
+                stmt = new Rely(std::move(p) , unique_ptr<SpecNode>(stmt));
+            }
+            
+            return stmt;
+        } else if (dynamic_cast<IRLoader::VInlineAsm*>(f->func.get()) == nullptr) {
+            /* TODO: post ensure on inline assembly */
             auto wrapped_name = fname + "_funptr_wrap" + std::to_string(f->lineno);
             SpecType* wrapper_ret;
-            if(proj->defs.find(wrapped_name) == proj->defs.end()) {
+            if (proj->defs.find(wrapped_name) == proj->defs.end()) {
                 if(dynamic_cast<IRLoader::TVoid*>(f->typ.get())) {
                     wrapper_ret = new Option(Layer->abs_data);
                 } else {
@@ -561,7 +597,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
                     child->push_back(Layer->abs_data);
                     wrapper_ret = new Option(make_shared<Tuple>(shared_ptr<vector<shared_ptr<SpecType>>>(child)));
                 }
-                auto wrapper_body = new Expr(Expr::ops::None, make_unique<vector<unique_ptr<SpecNode>>>());
+                auto wrapper_body = new Symbol("None");
                 auto wrapper_args = new vector<shared_ptr<Arg>>();
                 wrapper_args->push_back(shared_ptr<Arg>(new Arg("func_ptr", Struct::Ptr)));
                 int i = 0;
@@ -792,7 +828,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
             stmt = new Rely(std::move(p) , unique_ptr<SpecNode>(stmt));
         }
         return stmt;
-    }  else if(auto f = dynamic_cast<IRLoader::ILoop*>(inst.get())) {
+    } else if(auto f = dynamic_cast<IRLoader::ILoop*>(inst.get())) {
         auto func_ptrs = check_fun_ptr(Layer, f->body.get());
 
         auto fptrs = vector<string>();
@@ -857,7 +893,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
 
         if(proj->defs.find(loop_spec_name) == proj->defs.end()) {
             if(f->body->size() == 1 && (*f->body)[0]->output->size() == 1 && *(*(*f->body)[0]->output).begin() == "__continue__") {
-                return new Expr(Expr::ops::None, make_unique<vector<unique_ptr<SpecNode>>>());
+                return new Symbol("None");
             } else {
                 auto iteration_body = ir_insts_to_spec(proj, Layer, fname, f->body.get(), defs, f->loop_args.get(), true, false, suffix, 0);
                 string low = "_low";
@@ -951,7 +987,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
 
         if (std::find(f->output->begin(), f->output->end(), "__break__") != f->output->end()) {
             remain_spec = new If(unique_ptr<SpecNode>(_name("__break__", types.get())),
-                                 unique_ptr<SpecNode>(remain_spec), unique_ptr<SpecNode>(new Expr(Expr::ops::None, make_unique<vector<unique_ptr<SpecNode>>>())));
+                                 unique_ptr<SpecNode>(remain_spec), unique_ptr<SpecNode>(new Symbol("None")));
         }
 
         if (std::find(f->output->begin(), f->output->end(), "__return__") != f->output->end()) {
@@ -987,7 +1023,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
 
 
         return new Rely(unique_ptr<SpecNode>(prop), unique_ptr<SpecNode>(spec));
-    }  else if(auto f = dynamic_cast<IRLoader::IInsertValue*>(inst.get())) {
+    } else if(auto f = dynamic_cast<IRLoader::IInsertValue*>(inst.get())) {
       //PASS
     } else {
         LOG_DEBUG << "Instruction not supported converting to SpecNode\n";
