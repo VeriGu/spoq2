@@ -254,6 +254,25 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold)
             break;
     }
 
+//only apply the conditional spec at last layer.
+//hiding last layer after all it's done.
+while(true) {
+        //this should only be performed in last layer, it is useless to use it beforehand
+        if(unfold && layer_id == proj->layers.size() - 1) {
+                do {
+                    auto before = string(*def);
+                    rule_conditional_spec(proj, def);
+                    
+                    if (debug) {
+                        std::cout << "(conditional) before: " << def->name << " new_spec: \n=========================\n"
+                            << before << "\n==============================" << std::endl;
+                        std::cout << "(conditional) " << def->name << " new_spec: \n=========================\n"
+                            << string(*def) << "\n==============================" << std::endl;
+                    }
+                } while (false);
+        }
+}
+
     bool has_if = false;
 
     if (unfold && spec_is_pure(proj, def->body.get(), has_if)) {

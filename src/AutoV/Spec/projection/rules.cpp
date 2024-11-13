@@ -6,7 +6,7 @@
 #include <cassert>
 #include <utility>
 #include <rules.h>
-
+#include <z3_rules.h>
 namespace autov {
 /*
 recursively subst [name] with [value] in [spec] until [name] is assigned by a value using Match in [spec]
@@ -136,6 +136,50 @@ static string pick_new_name(string sym, std::set<string> &prev) {
             new_sym = sym + "_0";
     }
     return new_sym;
+}
+
+void free_vars_map(Project *proj, SpecNode *spec, std::set<string> &free, std::map<string, Symbol*> &map) {
+    if(auto s = instance_of(spec, Symbol)) {
+        free.insert(s->text);
+        map[s->text] = s;
+    }else if (auto m = instance_of(spec, Match)) {
+        for (auto &pm : *m->match_list) {
+            free_vars_map(proj, pm->body.get(), free, map);
+            std::set<string> symbols;
+            std::function<void(SpecNode*)> collect_symbols = [&](SpecNode *pattern) {
+                if (auto s = instance_of(pattern, Symbol))
+                    symbols.insert(s->text);
+                else if (auto e = instance_of(pattern, Expr)) {
+                    for (auto &elem : *e->elems)
+                        collect_symbols(elem.get());
+                }
+            };
+            for(auto sym : symbols) {
+                free.erase(sym);
+                map.erase(sym);
+            }
+        }
+    } else if (auto fe = instance_of(spec, ForallExists)) {
+        auto body = fe->body->deep_copy().release();
+        auto vars = new vector<shared_ptr<Arg>>(*fe->vars.get());
+        free_vars_map(proj, body, free, map);
+        for(auto arg : *vars) {
+            free.erase(arg->name);
+            map.erase(arg->name);
+        }
+
+    } else if(auto e = instance_of(spec, Expr)) {
+        for(int i = 0; i < e->elems->size(); i++) {
+            free_vars_map(proj, e->elems->at(i).get(), free, map);
+        }
+    } else if(auto r = instance_of(spec, RelyAnno)) {
+        free_vars_map(proj, r->prop.get(), free, map);
+        free_vars_map(proj, r->body.get(), free, map);
+    } else if(auto e = instance_of(spec, If)) {
+        free_vars_map(proj, e->cond.get(), free, map);
+        free_vars_map(proj, e->then_body.get(), free, map);
+        free_vars_map(proj, e->else_body.get(), free, map);
+    }
 }
 
 void free_vars(Project *proj, SpecNode *spec, std::set<string> &free) {
@@ -1305,6 +1349,108 @@ rule_ret_t rule_eliminate_if(Project *proj, SpecNode *spec) {
     };
 
     return std::make_pair(rec_apply(spec, f, false), changed);
+}
+
+unsigned long number_of_conditionals(Project* proj, SpecNode * spec) {
+    auto num_of_conds = 0;
+    std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
+        if(auto ifnode = instance_of(node, If)) {
+            num_of_conds += 1;
+        }
+        return node;
+    };
+    rec_apply(spec,f);
+}
+
+void rule_conditional_spec(Project* proj, Definition *def) {
+    /* 
+    first determine the number of branches and the size of the node,
+    if the size is larger than 500, the number of branches is larger than 10 -> Let's split!
+    */
+    bool changed = false;
+    auto num_of_conds = number_of_conditionals(proj, def->body.get());
+        LOG_DEBUG << "length:" + std::to_string(def->body->length);
+        LOG_DEBUG << "length:" + std::to_string(num_of_conds);
+    if(def->body->length < 500 || num_of_conds < 10) {
+        return;       
+    }
+    std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
+        if(auto ifnode = instance_of(node, If)) {
+            auto cond = ifnode->cond.get();
+            auto conde =  instance_of(cond, Expr);
+
+            auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+            elems->push_back(conde->deep_copy());
+            auto negcond = new Expr(Expr::ops::NOT, std::move(elems));
+            auto then_node = ifnode->then_body.release();
+            auto else_node = ifnode->else_body.release();
+
+            auto free_then = set<string>();
+            auto free_then_map = std::map<string, Symbol*>();
+            free_vars_map(proj, then_node, free_then, free_then_map);
+
+            auto free_else = set<string>();
+            auto free_else_map = std::map<string, Symbol*>();
+            free_vars_map(proj, else_node, free_else, free_else_map);
+
+            auto new_expr_then = new Rely(conde->deep_copy(), unique_ptr<SpecNode>(then_node));
+            auto new_expr_else = new Rely(unique_ptr<SpecNode>(negcond), unique_ptr<SpecNode>(else_node));
+            
+            //pick new name
+            auto name = def->name;
+
+            std::function<string(string)> pick_new_name = [&](string name) -> string {
+                int counter = 1;
+                auto new_name = name + std::to_string(counter);
+                while(proj->defs.find(name) != proj->defs.end()) {
+                    counter += 1;
+                    new_name = name + std::to_string(counter);
+                }
+                return new_name;
+            };
+            
+            auto new_then_name = pick_new_name(name);
+            auto vec_arg_then = new vector<shared_ptr<Arg>>();
+            for(auto [name,sym] : free_then_map) {
+                vec_arg_then->push_back(make_shared<Arg>(name, sym->type));
+            }
+            auto new_def_then = new Definition(new_then_name, ifnode->type, unique_ptr<vector<shared_ptr<Arg>>>(vec_arg_then), unique_ptr<SpecNode>(new_expr_then));
+            LOG_DEBUG << "create conditional1: \n"+string(*new_def_then);
+
+            proj->add_definition(unique_ptr<Definition>(new_def_then), make_shared<loc_t>(proj->symbols[def->name].loc));
+            
+
+            auto new_else_name = pick_new_name(name);
+            auto vec_arg_else = new vector<shared_ptr<Arg>>();
+            for(auto [name,sym] : free_else_map) {
+                vec_arg_else->push_back(make_shared<Arg>(name, sym->type));
+            }
+            auto new_def_else = new Definition(new_else_name, ifnode->type, unique_ptr<vector<shared_ptr<Arg>>>(vec_arg_else), unique_ptr<SpecNode>(new_expr_else));
+            LOG_DEBUG << "create conditional2: \n"+string(*new_def_else);
+            proj->add_definition(unique_ptr<Definition>(new_def_else), shared_ptr<loc_t>(&proj->symbols[def->name].loc));
+
+
+            auto vec_sym_then = new vector<unique_ptr<SpecNode>>();
+            for(auto [name,sym] : free_then_map) {
+                vec_sym_then->push_back(make_unique<Symbol>(name, sym->type));
+            }
+            auto vec_sym_else = new vector<unique_ptr<SpecNode>>();
+            for(auto [name,sym] : free_else_map) {
+                vec_sym_else->push_back(make_unique<Symbol>(name, sym->type));
+            }
+            auto expr_then = new Expr(new_then_name, unique_ptr<vector<unique_ptr<SpecNode>>>(vec_sym_then));
+            auto expr_else = new Expr(new_else_name, unique_ptr<vector<unique_ptr<SpecNode>>>(vec_sym_else));
+            ifnode->then_body = unique_ptr<SpecNode>(expr_then);
+            ifnode->else_body = unique_ptr<SpecNode>(expr_else);
+            changed = true;
+
+            return ifnode;
+        }
+        return node;
+    };
+
+    auto changed_body = rec_apply(def->body.release(),f);
+    def->body = unique_ptr<SpecNode>(changed_body);
 }
 
 rule_ret_t rule_eliminate_let(Project *proj, SpecNode *spec) {

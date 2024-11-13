@@ -500,7 +500,7 @@ void collect_exprs(SpecNode* expr, unordered_map<unsigned, std::pair<z3::expr, S
     }
 }
 
-unsigned length_of_exp(SpecNode* e) {
+unsigned long length_of_exp(SpecNode* e) {
     if (auto sym = instance_of(e, Symbol)) return 1;
     if (auto con = instance_of(e, Const)) return 1;
     if (auto con = instance_of(e, IntConst)) return 1;
