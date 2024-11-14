@@ -516,8 +516,10 @@ unsigned long length_of_exp(SpecNode* e) {
     }
     if (auto exp = instance_of(e, Expr)) {
         unsigned l = 0;
-        for (auto elem = exp->elems->begin(); elem != exp->elems->end(); elem++) {
-            l += length_of_exp(elem->get());
+        if(exp->elems){
+            for (auto elem = exp->elems->begin(); elem != exp->elems->end(); elem++) {
+                l += length_of_exp(elem->get());
+            }
         }
         return l;
     }
