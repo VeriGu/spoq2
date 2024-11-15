@@ -77,6 +77,7 @@ std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
                     IASM asm_inst;
                     try {
                         asm_inst = parse_inline_asm(fname, asm_text, rettype, args, constraints);
+                        iasm_count += 1;
                     } catch (const std::exception& e) {
                         failed += 1;
                         std::cout << e.what() << std::endl;
@@ -122,10 +123,7 @@ std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
                                 fname = "iasm_set_" + reg;
                             } else {
                                 fname = "iasm_" + std::to_string(iasm_count) + "_" + inst[0];
-                                iasm_count += 1;
                             }
-                        } else {
-                            iasm_count += 1;
                         }
                         string coq = replace(asm_inst.coq, old_name, fname);
                         mod->asm_procs->insert({fname, make_shared<AsmProcedure>(fname, asm_inst.iasm, objd, coq)});
@@ -142,13 +140,11 @@ std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
                             call_inst->func = make_unique<VGlobal>(call_inst->typ, inline_asms[asm_key].fname);
                             string coq_def = synthesize_coq_def(inline_asms[asm_key].fname, rettype, args);
                             std::cout << coq_def;
-                            iasm_count += 1;
                         } else {
                             mod->asm_procs->insert({fname, make_shared<AsmProcedure>(fname, asm_inst.iasm, "", "")});
                             call_inst->func = make_unique<VGlobal>(call_inst->typ, fname);
                             string coq_def = synthesize_coq_def(fname, rettype, args);
                             std::cout << coq_def;
-                            iasm_count += 1;
                         }
                     }
                 }

@@ -73,7 +73,7 @@ public:
     }
 
     void set_type(shared_ptr<SpecType> type) {
-        if (this->has_type() && this->type != type && type != SpecType::UNKNOWN_TYPE) {
+        if (this->has_type() && this->type->name != type->name && type != SpecType::UNKNOWN_TYPE) {
             LOG_ERROR << "Overwriting type " << string(*this->type) << " with " << string(*type);
             throw std::invalid_argument("Overwriting type " + string(*this->type) + " with " + string(*type));
         }
@@ -718,8 +718,9 @@ public:
         vec->push_back(std::move(pattern));
 
         unique_ptr<Expr> some = make_unique<Expr>(Expr::Some, std::move(vec));
+        auto body_type = body->get_type();
         unique_ptr<PatternMatch> some_arm = make_unique<PatternMatch>(std::move(some), std::move(body));
-        unique_ptr<PatternMatch> none_arm = make_unique<PatternMatch>(make_unique<Expr>(Expr::None,  make_unique<vector<unique_ptr<SpecNode>>>()), make_unique<Symbol>("None"));
+        unique_ptr<PatternMatch> none_arm = make_unique<PatternMatch>(make_unique<Expr>(Expr::None,  make_unique<vector<unique_ptr<SpecNode>>>()), make_unique<Symbol>("None", body_type));
         unique_ptr<vector<unique_ptr<PatternMatch>>> match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
 
         match_list->push_back(std::move(some_arm));

@@ -124,6 +124,7 @@ public:
         bool NoUnfoldAll = false;
         bool NoHighSpec = false;
         std::map<string, vector<unique_ptr<SpecNode>>> InitRely;
+        std::map<string, vector<unique_ptr<SpecNode>>> PostEnsure;
         std::unordered_map<string, std::unordered_map<string, string>> StackMap;
     };
     cmds cmds;

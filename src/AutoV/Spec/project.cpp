@@ -189,6 +189,21 @@ void Project::add_command(unique_ptr<Expr> cmd) {
 
             cmd->elems->at(1).release();
             this->cmds.InitRely[s->text].push_back(unique_ptr<Expr>(expr));
+        } else if (op_str == "PostEnsure") {
+            assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) && 
+                   dynamic_cast<Expr *>(cmd->elems->at(1).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            auto expr = dynamic_cast<Expr *>(cmd->elems->at(1).get());
+            /* The symbol in config might be mismatched with that in generated spec. 
+                We need a symbol matching/renaming because we cannot require users to manually match it */
+            
+            /* We also assume the ensure statement takes no other variables other than return value. 
+                e.g. v_0.(pbase) = "granule" 
+                instead of : v_0.(poffset) = v_n + x_n */
+            cmd->elems->at(1).release();
+            this->cmds.PostEnsure[s->text].push_back(unique_ptr<Expr>(expr));
+            
+            LOG_INFO << "Adding PostEnsure: " << s->text << " " << string(*expr) << "\n";
         } else if (op_str == "AddDep") {
             assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) &&
                    dynamic_cast<Symbol *>(cmd->elems->at(1).get()));
@@ -438,7 +453,7 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
             } else
                 proj->add_definition(unique_ptr<Definition>(def), loc);
 
-            spec_transformer(proj, def, layer_id, false);
+            spec_transformer(proj, def, layer_id, false, true);
 
             if (def->name.rfind(suffix) == def->name.size() - suffix.size()) {
                 std::string high_name = def->name.substr(0, def->name.size() - suffix.size());
@@ -718,8 +733,10 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         // Transform the low spec to high spec
         bool no_trans = proj->cmds.NoHighSpec || proj->cmds.NoTrans.find(name_map[low_name]) != proj->cmds.NoTrans.end();
 
+        LOG_DEBUG << "NO HIGH SPEC" << proj->cmds.NoHighSpec;
+        
         if (!no_trans) {
-            spec_transformer(proj, high_def, layer_id, !is_instance(low_def, Fixpoint));
+            spec_transformer(proj, high_def, layer_id, !is_instance(low_def, Fixpoint), true);
             std::cout << "Transformed: " << std::endl << string(*high_def) << std::endl;
         } else {
             LOG_INFO << "No transformation for " << high_name;

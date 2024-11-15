@@ -53,11 +53,11 @@ extern unordered_map<size_t, Z3Result> Z3Cache;
 
 std::mutex Z3mtx;
 
-void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold) {
+void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold, bool low_spec) {
     LOG_INFO << "Transforming " << def->name << ", unfold: " << unfold;
     // std::cout << string(*def) << std::endl;
 
-    bool debug = unfold && (def->name.rfind("", 0) == 0);
+    bool debug = unfold && (def->name.rfind("smc_rtt_create_low", 0) == 0);
     auto known = std::set<string>();
     auto fname = def->name;
 
@@ -76,6 +76,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold)
         auto changed = false;
         auto new_spec1 = new_spec;
 
+        
         // Group 1
         while (true) {
             auto this_changed = false;
@@ -87,8 +88,8 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold)
                     auto __changed = false;
 
                     new_spec1 = eliminiate_ambiguity(proj, new_spec1, prev_symbols, __changed);
-                    //this_changed |= __changed;
-                    //changed |= __changed;
+                    this_changed |= __changed;
+                    changed |= __changed;
                 }
 
                 auto [__spec, __changed] = rule(proj, new_spec1);
@@ -124,7 +125,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold)
                     bool __changed = false;
 
                     new_spec = eliminiate_ambiguity(proj, new_spec, prev_symbols, __changed);
-                    //changed |= __changed;
+                    changed |= __changed;
 #if 1
                     if (__changed && debug)
                         std::cout << "(unfold) " << def->name << " new_spec: \n=========================\n"
@@ -144,8 +145,8 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold)
                     auto __changed = false;
 
                     new_spec1 = eliminiate_ambiguity(proj, new_spec1, prev_symbols, __changed);
-                    //this_changed |= __changed;
-                    //changed |= __changed;
+                    this_changed |= __changed;
+                    changed |= __changed;
                 }
 
                 auto [__spec, __changed] = rule(proj, new_spec1);
@@ -242,7 +243,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold)
 
             new_spec = __spec;
 
-            if (debug)
+            if (debug && def->name == "__find_next_level_idx_spec")
                 std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
                     << string(*new_spec) << "\n==============================\n";
 
@@ -253,6 +254,13 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold)
         if (!changed)
             break;
     }
+
+    #define CONDITION_SPEC
+    #ifdef CONDITION_SPEC
+    if(!instance_of(def, Fixpoint) && low_spec) {
+        rule_conditional_spec(proj, def);
+    }
+    #endif
 
     bool has_if = false;
 

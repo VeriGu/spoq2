@@ -476,7 +476,7 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
         auto typ = spec->get_type();
         delete spec;
         if (only_none) {
-            return std::make_pair(new Expr(Expr::ops::None, make_unique<vector<unique_ptr<SpecNode>>>(), typ), changed);
+            return std::make_pair(new Symbol("None", typ), changed);
         } else {
             auto ret = new Match(unique_ptr<SpecNode>(src_ret.first), std::move(match_list));
             return std::make_pair(ret, changed);
@@ -500,7 +500,7 @@ void collect_exprs(SpecNode* expr, unordered_map<unsigned, std::pair<z3::expr, S
     }
 }
 
-unsigned length_of_exp(SpecNode* e) {
+unsigned long length_of_exp(SpecNode* e) {
     if (auto sym = instance_of(e, Symbol)) return 1;
     if (auto con = instance_of(e, Const)) return 1;
     if (auto con = instance_of(e, IntConst)) return 1;
@@ -516,8 +516,10 @@ unsigned length_of_exp(SpecNode* e) {
     }
     if (auto exp = instance_of(e, Expr)) {
         unsigned l = 0;
-        for (auto elem = exp->elems->begin(); elem != exp->elems->end(); elem++) {
-            l += length_of_exp(elem->get());
+        if(exp->elems){
+            for (auto elem = exp->elems->begin(); elem != exp->elems->end(); elem++) {
+                l += length_of_exp(elem->get());
+            }
         }
         return l;
     }
