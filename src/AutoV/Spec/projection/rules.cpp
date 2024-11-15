@@ -675,7 +675,7 @@ rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec) {
                     auto pattern_list = make_unique<vector<unique_ptr<SpecNode>>>();
 
                     for (auto &arg: *define->args) {
-                        LOG_DEBUG << "debug arg name: " + arg->name;
+                        // LOG_DEBUG << "debug arg name: " + arg->name;
                         pattern_list->push_back(make_unique<Symbol>(arg->name, arg->type));
                     }
 

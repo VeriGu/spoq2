@@ -42,26 +42,26 @@ rule_ret_t merge_rely(Project* proj, SpecNode* spec, shared_ptr<EvalState> state
         // do nothing
     }
     else if (auto sym = instance_of(spec, Symbol)) {
-        state->vars->emplace(sym->text, sym->type->declare(sym->text, sym->nid));
+        (*state->vars)[sym->text] = sym->type->declare(sym->text, sym->nid);
     }
     else if (auto match = instance_of(spec, Match)) {
         for (auto pm = match->match_list->begin(); pm != match->match_list->end(); pm++) {
             if (auto sym = instance_of((*pm)->pattern.get(), Symbol)) {
-                state->vars->emplace(sym->text, sym->type->declare(sym->text, match->nid));
+                (*state->vars)[sym->text] = sym->type->declare(sym->text, match->nid);
             }
             else {
                 auto expr = instance_of((*pm)->pattern.get(), Expr);
                 if (!expr) throw std::runtime_error("Pattern match must be a symbol or an expression");
                 for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {
                     if (auto sym = instance_of(e->get(), Symbol)) {
-                        state->vars->emplace(sym->text, sym->type->declare(sym->text, match->nid));
+                        (*state->vars)[sym->text] = sym->type->declare(sym->text, match->nid);
                     }
                     else {
                         auto ee = instance_of(e->get(), Expr);
                         if (ee && is_instance(ee->type.get(), Tuple)) {
                             for (auto ele = ee->elems->begin(); ele != ee->elems->end(); ele++) {
                                 if (auto sym = instance_of(ele->get(), Symbol)) {
-                                    state->vars->emplace(sym->text, sym->type->declare(sym->text, match->nid));
+                                    (*state->vars)[sym->text] = sym->type->declare(sym->text, match->nid);
                                 }
                             }
                         }
@@ -323,7 +323,7 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
             state->conds->push_back(src->get_z3_value() == t->construct(sym->text, {})->get_z3_value());
         }
         else {
-            state->vars->emplace(sym->text, src);
+            ((*state->vars))[sym->text] = src;
         }
     } else if (auto con = instance_of(pat, Const)) {
         if (auto v = std::get_if<unsigned long>(&con->value))

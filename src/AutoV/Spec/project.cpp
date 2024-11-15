@@ -431,7 +431,7 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
                                             std::unordered_map<string, string> &name_map) {
     vector<Definition *> *low_specs = nullptr;
     string low_name = fname + "_spec_low";
-     auto &L = proj->layers[layer_id];
+    auto &L = proj->layers[layer_id];
 
     // =========================================================================
     // Generate/collect low specs
@@ -826,6 +826,25 @@ void Project::finalize_project()
 #ifndef MT_TRANSFORM
     for (int i = 1; i < this->layers.size(); i++) {
         auto &L = this->layers[i];
+        auto &prev_L = this->layers[i - 1];
+
+        // Previously, if we manually gave high specs (and low specs) but delayed having their type inference done (due to low-level generated spec calls), they would never be inferred.
+        // Now, before inferring the next layer, we check if there is a low/high spec in the previous layer that has not yet been inferred.
+        // FIXME: Note that, if we define something other than 'prim_spec' and 'prim_spec_low', the mechanism here WOULD STILL FAIL.
+        for (auto &p : prev_L->prims) {
+            auto p_low = p + "_spec_low";
+            auto p_high = p + "_spec";
+            if (this->defs.find(p_low) != this->defs.end()) {
+                if (this->defs[p_low]->deleyed_type_inference) {
+                    this->defs[p_low]->infer_type(*this);
+                }
+            }
+            if (this->defs.find(p_high) != this->defs.end()) {
+                if (this->defs[p_high]->deleyed_type_inference) {
+                    this->defs[p_high]->infer_type(*this);
+                }
+            }
+        }
 
         for (auto &p: L->prims) {
             if (this->code->functions->find(p) == this->code->functions->end() ||
