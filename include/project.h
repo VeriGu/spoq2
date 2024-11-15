@@ -92,6 +92,7 @@ public:
     vector<string> def_order;
     unordered_map<string, SymbolInfo> symbols;
 
+    std::set<string> skip_state_specs;
 
     class cmds {
     public:

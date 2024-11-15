@@ -181,7 +181,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                 break;
         }
 
-#define APPLY_LENS
+// #define APPLY_LENS
 #ifdef APPLY_LENS
         // lens
         while (true) {
@@ -308,6 +308,9 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
             }
 
             prime_rettype = new_option;
+
+            proj->skip_state_specs.insert(def->name);
+            proj->skip_state_specs.insert(name_prime);
         } else
             prime_rettype = def->rettype;
 
