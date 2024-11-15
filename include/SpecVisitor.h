@@ -98,7 +98,7 @@ public:
 
     virtual std::any visitBool(SpecParser::BoolContext *context) = 0;
 
-
+    virtual std::any visitGlobalAnno(SpecParser::Global_annoContext *ctx) = 0;
 };
 
 }  // namespace autov::parser

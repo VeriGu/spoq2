@@ -173,6 +173,10 @@ public:
     return visitChildren(ctx);
   }
 
+  virtual std::any visitGlobalAnno(SpecParser::Global_annoContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
 
 };
 

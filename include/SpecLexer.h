@@ -7,7 +7,6 @@
 #include "antlr4-runtime.h"
 
 
-namespace autov::parser {
 
 
 class  SpecLexer : public antlr4::Lexer {
@@ -17,17 +16,18 @@ public:
     T__7 = 8, T__8 = 9, T__9 = 10, T__10 = 11, T__11 = 12, T__12 = 13, T__13 = 14, 
     T__14 = 15, T__15 = 16, T__16 = 17, T__17 = 18, T__18 = 19, T__19 = 20, 
     T__20 = 21, T__21 = 22, T__22 = 23, T__23 = 24, T__24 = 25, T__25 = 26, 
-    MK = 27, INDUC = 28, RECORD = 29, FIXPOINT = 30, SECTION = 31, SECTION_END = 32, 
-    APPEND = 33, CONCAT = 34, ADD = 35, MINUS = 36, MULT = 37, DIV = 38, 
-    MOD = 39, LSHIFT = 40, RSHIFT = 41, BITAND = 42, BITOR = 43, BAND = 44, 
-    BOR = 45, BEQ = 46, BNE = 47, BGT = 48, BLT = 49, BGE = 50, BLE = 51, 
-    SEQ = 52, SNE = 53, GET = 54, SET = 55, NTH = 56, AND = 57, OR = 58, 
-    NOT = 59, BNOT = 60, IMPLIES = 61, IFONLYIF = 62, EQUAL = 63, NOT_EQUAL = 64, 
-    GT = 65, LT = 66, GTE = 67, LTE = 68, LP = 69, RP = 70, IF = 71, THEN = 72, 
-    LET = 73, ELSE = 74, PARAM = 75, DEF = 76, WHEN = 77, FORALL = 78, EXISTS = 79, 
-    MATCH = 80, RETURN = 81, WITH = 82, END = 83, RELY = 84, ANNO = 85, 
-    TRUE = 86, FALSE = 87, NUMBER = 88, STR = 89, ID = 90, COMMENT = 91, 
-    WS = 92
+    T__26 = 27, T__27 = 28, T__28 = 29, T__29 = 30, T__30 = 31, T__31 = 32, 
+    MK = 33, INDUC = 34, RECORD = 35, FIXPOINT = 36, SECTION = 37, SECTION_END = 38, 
+    APPEND = 39, CONCAT = 40, ADD = 41, MINUS = 42, MULT = 43, DIV = 44, 
+    MOD = 45, LSHIFT = 46, RSHIFT = 47, BITAND = 48, BITOR = 49, BAND = 50, 
+    BOR = 51, BEQ = 52, BNE = 53, BGT = 54, BLT = 55, BGE = 56, BLE = 57, 
+    SEQ = 58, SNE = 59, GET = 60, SET = 61, NTH = 62, AND = 63, OR = 64, 
+    NOT = 65, BNOT = 66, IMPLIES = 67, IFONLYIF = 68, EQUAL = 69, NOT_EQUAL = 70, 
+    GT = 71, LT = 72, GTE = 73, LTE = 74, LP = 75, RP = 76, IF = 77, THEN = 78, 
+    LET = 79, ELSE = 80, PARAM = 81, DEF = 82, WHEN = 83, FORALL = 84, EXISTS = 85, 
+    MATCH = 86, RETURN = 87, WITH = 88, END = 89, RELY = 90, ANNO = 91, 
+    TRUE = 92, FALSE = 93, NUMBER = 94, STR = 95, ID = 96, COMMENT = 97, 
+    WS = 98
   };
 
   explicit SpecLexer(antlr4::CharStream *input);
@@ -62,4 +62,3 @@ private:
 
 };
 
-}  // namespace autov::parser

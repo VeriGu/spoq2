@@ -75,11 +75,23 @@ antlrcpp::Any ProgramVisitor::visitStatement(SpecParser::StatementContext* ctx) 
         visitSection_begin(ctx->section_begin());
     } else if (ctx->section_end()) {
         visitSection_end(ctx->section_end());
-    } else {
+    } else if (ctx->global_anno()) {
+        visitGlobalAnno(ctx->global_anno());
+    } else{
         throw std::runtime_error("Unknown statement: " + ctx->getText());
     }
 
     return std::any();
+}
+
+antlrcpp::Any ProgramVisitor::visitGlobalAnno(SpecParser::Global_annoContext* ctx) {
+    std::string field = ctx->name()->getText();
+    
+    unsigned long base = std::stoul(ctx->anno_struct()->base->getText());
+    unsigned long size = std::stoul(ctx->anno_struct()->size->getText());
+    unsigned long num_elems = std::stoul(ctx->anno_struct()->max_elems->getText());
+    
+
 }
 
 antlrcpp::Any ProgramVisitor::visitInclude(SpecParser::IncludeContext* ctx) {

@@ -2,7 +2,7 @@ grammar Spec;
 
 program: statement* EOF;
 statement:
-	section_begin
+	  section_begin
 	| section_end
 	| typedef
 	| def
@@ -12,15 +12,20 @@ statement:
 	| inductive_decl
 	| record_decl
 	| include
-  | command;
+    | command
+	| global_anno
+	;
+
 typedef: (DEF name ':=' type '.');
 def: (DEF name var_anno* ':' type ':=' expr '.');
-invdef: (INVARIANT name var_anno* ':' type ':=' expr '.');
+invdef: ('INVARIANT' name var_anno* ':' type ':=' expr '.');
 decl: (PARAM name ':' type '.');
 fixpoint: (FIXPOINT name var_anno* ':' type ':=' expr '.');
 path: STR;
 include: 'Include' path '.';
 command: 'Hint' expr '.';
+global_anno : 'Anno' 'array' name '{' anno_struct '}' '.';
+anno_struct : 'base' ':' base=number ',' 'size' ':' size=number ',' 'max_elems' ':' max_elems=number '.';
 
 section_begin: SECTION name '.';
 section_end: SECTION_END name '.';
@@ -40,7 +45,7 @@ type:
 	| name;
 
 expr:
-	let_stmt
+	  let_stmt
 	| when_stmt
 	| match_stmt
 	| assert_stmt

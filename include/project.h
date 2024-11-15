@@ -44,6 +44,26 @@ public:
     unsigned long order;
 };
 
+struct PtrConstaint{
+    unsigned long base;
+    unsigned long size;
+    unsigned long max_elems;
+};
+
+class GlobalPtrConstraint {
+public:
+    //a map from state field to its base, size, max_elems 
+
+    //to access a granule, we need its index to be correct
+    //granule @ index.
+
+    //anno array granules {base: GRANULE_BASE, size: SIZE, max_elems: MAX_ELEMs}
+    //then any addr that access to st.granules can satisfy the constaint: 
+    //(v < GRANULES_BASE + max_elems * size)
+
+    unordered_map<string, PtrConstaint> contraintmap;
+};
+
 class Project {
 public:
     static const string LOC_DATATYPES;
