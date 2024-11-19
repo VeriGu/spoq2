@@ -130,6 +130,13 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     // std::cout << "-----------------Z3-----------------" << std::endl;
 
     if (not_res == z3::unsat) {
+        if (res == z3::unsat) {
+            string msg = "Pre-condition is False! Condition is:\n";
+            for (auto &c : *state->conds) {
+                msg += c.to_string() + "\n";
+            }
+            throw std::runtime_error(msg);
+        }
         Z3Cache[hash] = Z3Result::True;
         return Z3Result::True;
     } else if (res == z3::unsat) {

@@ -2408,44 +2408,66 @@ bool spec_is_pure(Project *proj, SpecNode *spec, bool &has_if) {
     return false;
 }
 
+/** spec_needs_state: st in spec can only appear in 
+    1. parameter of a function call: check whether the function skip state
+    2. Record get/set
+    3. return value (should not be counted as usage)
+*/
 bool spec_needs_state(Project *proj, SpecNode *spec) {
-    //std::cout << "spec_needs_state: " << string(*spec) << std::endl;
-    // TODO: We need to deal with the case where the spec is a function call
+    bool ret = false;
     if (auto e = instance_of(spec, Expr)) {
+        /* First we need to handle the return value case: it will return an expression := (Some (X, st)), 
+            which should not be countered in usage */
         if (auto op = std::get_if<Expr::ops>(&e->op)) {
-            if (*op == Expr::RecordGet)
-                return true;
-            else if (*op == Expr::RecordSet)
-                return true;
+            if (*op == Expr::Some) {
+                if (auto ee = instance_of(e->elems->at(0).get(), Expr)) {
+                    if (auto ee_op = std::get_if<Expr::ops>(&ee->op)) {
+                        if (*ee_op == Expr::Tuple) {
+                            // check X will not use st.
+                            for (auto r = ee->elems->begin() ; r != ee->elems->end() - 1; r++)
+                                if (spec_needs_state(proj, r->get()))
+                                    return true;
+                                    
+                            auto last_elem = ee->elems->back().get();
+                            if (auto s = instance_of(last_elem, Symbol))
+                                if (s->text == "st")
+                                    return false;
+                        }
+                    }
+                }
+            }
         } else if (auto op = std::get_if<unique_ptr<SpecNode>>(&e->op)) {
             if (spec_needs_state(proj, op->get()))
                 return true;
+        } else if (auto op = std::get_if<string>(&e->op)) {
+            if (proj->defs.find(*op) != proj->defs.end())
+                if (proj->skip_state_specs.find(*op) != proj->skip_state_specs.end())
+                    return false;  // We have known the function skip states, so skip checking the parameters
         }
 
-        for (auto &elem : *e->elems) {
+        for (auto &elem : *e->elems)
             if (spec_needs_state(proj, elem.get()))
                 return true;
-        }
 
-        return false;
     } else if (auto m = instance_of(spec, Match)) {
         if (spec_needs_state(proj, m->src.get()))
             return true;
 
-        for (auto &pm : *m->match_list) {
+        for (auto &pm : *m->match_list)
             if (spec_needs_state(proj, pm->body.get()))
                 return true;
-        }
-
-        return false;
     } else if (auto i = instance_of(spec, If)) {
-        return spec_needs_state(proj, i->then_body.get()) || spec_needs_state(proj, i->else_body.get());
+        return spec_needs_state(proj, i->cond.get()) || spec_needs_state(proj, i->then_body.get()) || spec_needs_state(proj, i->else_body.get());
     } else if (auto r = instance_of(spec, RelyAnno)) {
         return spec_needs_state(proj, r->prop.get()) || spec_needs_state(proj, r->body.get());
     } else if (auto s = instance_of(spec, Symbol)) {
+        /* st within return value will not reach this branch  */
         return s->text.find("st") == 0;
+    } else if (auto s = instance_of(spec, Const)) {
+        // pass
+    } else {
+        throw std::runtime_error("spec_needs_state: unexpected node (maybe forall / pattern match?): " + string(*spec));
     }
-
     return false;
 }
 

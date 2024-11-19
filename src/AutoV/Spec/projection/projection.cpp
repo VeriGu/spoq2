@@ -181,7 +181,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                 break;
         }
 
-#define APPLY_LENS
+// #define APPLY_LENS
 #ifdef APPLY_LENS
         // lens
         while (true) {
@@ -282,6 +282,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
         for (int i = 0; i < def->args->size() - skip_state; i++)
             arg_prime->push_back(def->args->at(i));
 
+        auto tuple_elems_type = make_shared<vector<shared_ptr<SpecType>>>();
         shared_ptr<SpecType> prime_rettype;
         if (skip_state) {
             spec_remove_state(proj, def->body.get());
@@ -293,6 +294,8 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
             assert(is_instance(_ret_tuple, Tuple));
 
             auto ret_tuple = static_cast<Tuple *>(_ret_tuple);
+            for (int i = 0; i < ret_tuple->types->size(); i++) 
+                tuple_elems_type->push_back(ret_tuple->types->at(i));
 
             shared_ptr<Option> new_option;
             if (ret_tuple->types->size() > 2) {
@@ -308,9 +311,17 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
             }
 
             prime_rettype = new_option;
-        } else
-            prime_rettype = def->rettype;
 
+            proj->skip_state_specs.insert(def->name);
+            proj->skip_state_specs.insert(name_prime);
+        } else {
+            auto _ret_tuple = static_cast<Option *>(def->rettype.get())->elem_type.get();
+            auto ret_tuple = static_cast<Tuple *>(_ret_tuple);
+            for (int i = 0; i < ret_tuple->types->size(); i++) 
+                tuple_elems_type->push_back(ret_tuple->types->at(i));
+
+            prime_rettype = def->rettype;
+        }
         auto def_prime = make_unique<Definition>(name_prime, prime_rettype, std::move(arg_prime), std::move(def->body));
 
         auto &L = proj->layers[layer_id];
@@ -330,20 +341,20 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
         if (!skip_state) {
             auto res_tuple = new vector<unique_ptr<SpecNode>>();
 
-            res_tuple->push_back(make_unique<Symbol>("ret"));
-            res_tuple->push_back(make_unique<Symbol>("st'"));
+            res_tuple->push_back(make_unique<Symbol>("ret",  tuple_elems_type->at(0)));
+            res_tuple->push_back(make_unique<Symbol>("st'", tuple_elems_type->at(1)));
 
             res = _Tuple(res_tuple);
         } else {
-            res = new Symbol("ret");
+            res = new Symbol("ret", tuple_elems_type->at(0));
         }
 
         //auto res = _Tuple(res_tuple);
 
         auto ret_tuple = new vector<unique_ptr<SpecNode>>();
 
-        ret_tuple->push_back(make_unique<Symbol>("ret"));
-        ret_tuple->push_back(make_unique<Symbol>("st"));
+        ret_tuple->push_back(make_unique<Symbol>("ret", tuple_elems_type->at(0)));
+        ret_tuple->push_back(make_unique<Symbol>("st", tuple_elems_type->at(1)));
 
         auto ret = _Some(_Tuple(ret_tuple));
 
