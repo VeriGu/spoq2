@@ -675,7 +675,7 @@ rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec) {
                     auto pattern_list = make_unique<vector<unique_ptr<SpecNode>>>();
 
                     for (auto &arg: *define->args) {
-                        LOG_DEBUG << "debug arg name: " + arg->name;
+                        //LOG_DEBUG << "debug arg name: " + arg->name;
                         pattern_list->push_back(make_unique<Symbol>(arg->name, arg->type));
                     }
 
@@ -1359,6 +1359,24 @@ rule_ret_t rule_eliminate_if(Project *proj, SpecNode *spec) {
     return std::make_pair(rec_apply(spec, f, false), changed);
 }
 
+unsigned long number_of_conditionals_inside(Project* proj, SpecNode * spec) {
+    auto num_of_conds = 0;
+    
+    if(auto ifnode = instance_of(spec, If)) {
+            num_of_conds += 1;
+            num_of_conds += number_of_conditionals_inside(proj, ifnode->then_body.get());
+            num_of_conds += number_of_conditionals_inside(proj, ifnode->else_body.get());
+    } else if(auto e = instance_of(spec, RelyAnno)) {
+        num_of_conds += number_of_conditionals_inside(proj, e->body.get());
+    } else if(auto m = instance_of(spec, Match)){
+        num_of_conds = number_of_conditionals_inside(proj, m->src.get());
+        for(auto &pm : *m->match_list) {
+            num_of_conds += number_of_conditionals_inside(proj, pm->body.get());
+        }
+    }
+    return num_of_conds;
+}
+
 unsigned long number_of_conditionals(Project* proj, SpecNode * spec) {
     auto num_of_conds = 0;
     
@@ -1411,11 +1429,16 @@ std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, D
     std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
         if(auto ifnode = instance_of(node, If)) {
             //auto num_cond = number_of_conditionals(proj, node);
-            auto length = length_of_exp(ifnode);
+            auto length = length_of_exp(ifnode->then_body.get());
+            auto num_conds = number_of_conditionals_inside(proj, ifnode->then_body.get());
             LOG_DEBUG << "length: " << std::to_string(length);
+            LOG_DEBUG << "then conds inside: " << std::to_string(num_conds);
             LOG_DEBUG << "expr: " << string(*node);
-            if(length < 300) {
+            if(length < 30) {
                  return ifnode;
+            }
+            if(num_conds != 0) {
+                return ifnode;
             }
             
             auto cond = ifnode->cond.get();
@@ -1443,15 +1466,19 @@ std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, D
             
             //pick new name
             auto name = def->name;
-
+            string suffix = "_spec_low";
             std::function<string(string)> pick_new_name = [&](string name) -> string {
-                int counter = 1;
-                auto new_name = name + std::to_string(counter);
-                while(proj->defs.find(new_name) != proj->defs.end()) {
-                    counter += 1;
-                    new_name = name + std::to_string(counter);
+                string prefix = name;
+                if (name.rfind(suffix) == name.size() - suffix.size()) {
+                    prefix = name.substr(0, name.size() - suffix.size());
                 }
-                return new_name;
+                int counter = 0;
+                auto new_name = prefix + "_" + std::to_string(counter);
+                while(proj->defs.find(new_name + "_low") != proj->defs.end()) {
+                    counter += 1;
+                    new_name = prefix + "_" + std::to_string(counter);
+                }
+                return new_name + "_low";
             };
             
             auto new_then_name = pick_new_name(name);

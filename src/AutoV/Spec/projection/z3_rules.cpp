@@ -533,7 +533,7 @@ unsigned long length_of_exp(SpecNode* e) {
         }
         return l;
     }
-    if (auto r = instance_of(e, Rely)) {
+    if (auto r = instance_of(e, RelyAnno)) {
         return length_of_exp(r->prop.get()) + length_of_exp(r->body.get());
     }
     if (auto i = instance_of(e, If)) {
