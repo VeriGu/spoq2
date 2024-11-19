@@ -77,12 +77,21 @@ antlrcpp::Any ProgramVisitor::visitStatement(SpecParser::StatementContext* ctx) 
         visitSection_end(ctx->section_end());
     } else if (ctx->global_anno()) {
         visitGlobalAnno(ctx->global_anno());
-    } else{
+    } else if (ctx->loop_inv()){
+        visitLoop_inv(ctx->loop_inv());
+    } else {
         throw std::runtime_error("Unknown statement: " + ctx->getText());
     }
 
     return std::any();
 }
+
+
+antlrcpp::Any ProgramVisitor::visitLoop_inv(SpecParser::Loop_invContext* ctx) {
+    SpecNode* expr = any_cast<SpecNode*>(visitExpr(ctx->expr()));
+    
+}
+
 
 antlrcpp::Any ProgramVisitor::visitGlobalAnno(SpecParser::Global_annoContext* ctx) {
     std::string field = ctx->name()->getText();

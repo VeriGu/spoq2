@@ -250,6 +250,113 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
     throw std::runtime_error("Unknown pattern(" + std::to_string(__LINE__) + "): " + string(*pat));
 }
 
+//check the loop invariant is inductive or not
+//the loop should be self-contained and have no function calls.
+//inv(st) /\ st' = loop_body(st) -> inv(st')
+bool check_loop_inv(Project* proj, Definition *loop, Expr* inv) {
+    assert(instance_of(loop, Fixpoint));
+    auto body = loop->body.get();
+    auto args = loop->args.get();
+    auto m = instance_of(body, Match);
+
+    //get the loop body
+    auto loop_body = m->match_list->back()->body.get();
+    auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+    auto conds = std::make_shared<vector<z3::expr>>();
+
+    //declare loop arguments
+    for (auto arg : *loop->args) {
+        (*vars)[arg->name] = arg->type->declare(arg->name, 0);
+        (*vars)[arg->name] = arg->type->declare(arg->name + "'", 0);
+    }
+    //evaluate_inv_before
+    auto inval_before = z3_eval(proj, inv, make_shared<EvalState>(vars, conds));
+    //evaluate_loop_body
+    auto loop_body_val = z3_eval(proj, inv, make_shared<EvalState>(
+        make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*vars), 
+        std::make_shared<vector<z3::expr>>(*conds)));
+
+    auto rettype = loop->body->type;
+    auto ret = instance_of(rettype.get(), Option);
+    auto elems_type = ret->elem_type;
+    auto tuple_type = instance_of(elems_type.get(), Tuple);
+    auto tuple_elem_type = tuple_type->types;
+
+    auto tuple_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+    for(int i = 1; i < args->size();i++) {
+        tuple_elems->push_back(make_unique<Symbol>(args->at(i)->name + "'", tuple_elem_type->at(i-1)));
+    }
+    auto body_expr = new Expr(Expr::Tuple, std::move(tuple_elems), elems_type);
+    auto option_elem = make_unique<vector<unique_ptr<SpecNode>>>();
+    option_elem->push_back(unique_ptr<SpecNode>(body_expr));
+    auto full_expr = new Expr(Expr::Some, std::move(option_elem), rettype); 
+    auto full_val = z3_eval(proj, full_expr, 
+    make_shared<EvalState>(
+        make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*vars), 
+        make_shared<vector<z3::expr>>(*conds)));
+
+
+    //evaluate inv after
+    auto inv_after = z3_eval(proj, inv, make_shared<EvalState>(
+        make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*vars), 
+        make_shared<vector<z3::expr>>(*conds)));
+
+    //final expression, inv(a,b,c...) /\ spec(a,b,c) = a',b'c' => inv(a',b',c').
+    auto vc = z3::implies(inval_before->get_z3_value() && full_val == loop_body_val, inv_after->get_z3_value());
+
+    Z3Solver.push();
+    Z3Solver.add(!vc);
+    auto res = Z3Solver.check();
+    Z3Solver.pop();
+
+    return res == z3::unsat;
+}
+
+
+// //{P} Spec(a,b,c) = a',b',c' {Q}
+// bool vc_gen(Project* proj, Definition* def, Expr* pre, Expr* post) {
+
+// }
+
+bool z3_check_invariant(Project* proj, Definition *def, unique_ptr<vector<Definition*>> invs) {
+    auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+    auto conds = std::make_shared<vector<z3::expr>>();
+    for (auto arg : *def->args) {
+        (*vars)[arg->name] = arg->type->declare(arg->name, 0);
+    }
+
+    auto val = z3_eval(proj, def->body.get(), make_shared<EvalState>(vars, conds));
+    auto rettype = def->body->type;
+    //should be Some (x1,x2,x3.....st);
+    auto ret = instance_of(rettype.get(), Option);
+    auto elems_type = ret->elem_type;
+    auto tuple_type = instance_of(elems_type.get(), Tuple);
+    auto tuple_elem_type = tuple_type->types;
+
+    for(auto typ: *tuple_elem_type) {
+
+    }
+
+    shared_ptr<BoolValue> invariant = nullptr;
+    for(auto inv : *invs) {
+        auto inv_vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+        auto inv_conds = std::make_shared<vector<z3::expr>>();
+        auto st_name = def->args->back()->name;
+        (*inv_vars)[st_name] = def->args->back()->type->declare(st_name, 0);
+
+        auto inval = z3_eval(proj, inv->body.get(), make_shared<EvalState>(inv_vars, inv_conds));
+        if(invariant == nullptr) {
+            invariant = static_pointer_cast<BoolValue>(inval);
+        } else {
+            invariant = invariant->andb(static_pointer_cast<BoolValue>(inval));
+        }
+    }
+
+    //TODO: Add
+
+    return false;
+}
+
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
     //std::cout << "z3_eval: " << string(*val) << std::endl;
 

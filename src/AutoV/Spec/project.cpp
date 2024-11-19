@@ -6,7 +6,7 @@
 #include <rules.h>
 #include <projection.h>
 #include <chrono>
-
+#include <z3_rules.h>
 //#define MT_TRANSFORM
 #ifdef MT_TRANSFORM
 #include <unistd.h>
@@ -14,7 +14,6 @@
 #include <cstring>
 #include <parser.h>
 #include <ext/stdio_filebuf.h>
-
 #define READ_END 0
 #define WRITE_END 1
 
@@ -159,6 +158,11 @@ void Project::update_definition_body(Definition *def) {
 
 void Project::add_layer(std::unique_ptr<Layer> layer) {
     layers.push_back(std::move(layer));
+}
+
+
+void Project::add_loop_inv(string name, unique_ptr<Expr> inv) {
+    loop_invs[name] = std::move(inv);
 }
 
 void Project::add_command(unique_ptr<Expr> cmd) {
@@ -733,7 +737,7 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         // Transform the low spec to high spec
         bool no_trans = proj->cmds.NoHighSpec || proj->cmds.NoTrans.find(name_map[low_name]) != proj->cmds.NoTrans.end();
 
-        LOG_DEBUG << "NO HIGH SPEC" << proj->cmds.NoHighSpec;
+        LOG_DEBUG << "NO HIGH SPEC:" << proj->cmds.NoHighSpec;
         
         if (!no_trans) {
             spec_transformer(proj, high_def, layer_id, !is_instance(low_def, Fixpoint), true);
@@ -757,6 +761,21 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         // TODO: prim_spec is not passed back to the main process
         high_specs.push_back(high_def);
 #endif
+    }
+
+    //check loop invariant
+    if(proj->cmds.CheckLoopInv) {
+        //check all the loops that have invariants provided.
+        for(auto &[string,inv] : proj->loop_invs) {
+            if(proj->defs.find(string) != proj->defs.end()){
+                auto def = proj->defs[string].get();
+                if(check_loop_inv(proj, def, inv.get())) {
+                    LOG_DEBUG << "loop invariant: " << string << "is inductive";
+                }
+            } else {
+                LOG_ERROR << "no loop named:" << string;
+            }
+        }
     }
 
 #ifndef MT_TRANSFORM

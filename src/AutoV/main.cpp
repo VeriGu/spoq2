@@ -103,15 +103,31 @@ int main(int argc, char *argv[])
     LOG_WARNING << "Hello world!";
     LOG_ERROR << "Hello world!";
 
-    if (argc != 2) {
+    if (argc < 2) {
         LOG_ERROR << "Usage: " << argv[0] << " <file>";
         return 1;
     }
 
+    string filename = argv[1];
+    bool check_inv = false;
+    bool check_loop_inv = false;
+
+    if(argc > 2) {
+        for(int i = 2; i < argc; i++) {
+            string arg = argv[i];
+            if(arg == "--check_loop_inv") {
+                check_loop_inv = true;
+            } else if(arg == "--check_sys_inv") {
+                check_inv = true;
+            }
+        }
+    }
+
     std::unique_ptr<autov::Project> proj = std::make_unique<autov::Project>();
-
-    autov::parser::parse(proj.get(), argv[1]);
-
+    
+    autov::parser::parse(proj.get(), filename);
+    proj->cmds.CheckInv = check_inv;
+    proj->cmds.CheckLoopInv = check_loop_inv;
     // autov::analyze_fields_access(proj.get());
 
     // return 0;

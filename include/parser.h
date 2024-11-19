@@ -97,6 +97,8 @@ public:
     
     antlrcpp::Any visitGlobalAnno(SpecParser::Global_annoContext* ctx) override;
 
+    antlrcpp::Any visitLoop_inv(SpecParser::Loop_invContext* ctx) override;
+
 protected:
     // utility functions that can be used by subclasses
     Expr::binops parse_binop(const antlr4::Token *binop);

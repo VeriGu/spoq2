@@ -14,6 +14,7 @@ statement:
 	| include
     | command
 	| global_anno
+	| loop_inv
 	;
 
 typedef: (DEF name ':=' type '.');
@@ -26,6 +27,7 @@ include: 'Include' path '.';
 command: 'Hint' expr '.';
 global_anno : 'Anno' 'array' name '{' anno_struct '}' '.';
 anno_struct : 'base' ':' base=number ',' 'size' ':' size=number ',' 'max_elems' ':' max_elems=number '.';
+loop_inv : 'Loop_inv' expr '.';
 
 section_begin: SECTION name '.';
 section_end: SECTION_END name '.';

@@ -59,7 +59,7 @@ public:
 
     //anno array granules {base: GRANULE_BASE, size: SIZE, max_elems: MAX_ELEMs}
     //then any addr that access to st.granules can satisfy the constaint: 
-    //(v < GRANULES_BASE + max_elems * size)
+    //(v > 0 /\ v>=granule_base /\ v < GRANULES_BASE + max_elems * size)
 
     unordered_map<string, PtrConstaint> contraintmap;
 };
@@ -111,6 +111,7 @@ public:
     unordered_map<string, unique_ptr<Definition>> defs;
     vector<string> def_order;
     unordered_map<string, SymbolInfo> symbols;
+    unordered_map<string, unique_ptr<Expr>> loop_invs;
 
 
     class cmds {
@@ -123,6 +124,8 @@ public:
         std::unordered_map<string, vector<string>> AddDep;
         bool NoUnfoldAll = false;
         bool NoHighSpec = false;
+        bool CheckInv = false;
+        bool CheckLoopInv = false;
         std::map<string, vector<unique_ptr<SpecNode>>> InitRely;
         std::map<string, vector<unique_ptr<SpecNode>>> PostEnsure;
         std::unordered_map<string, std::unordered_map<string, string>> StackMap;
@@ -158,6 +161,8 @@ public:
 
     void add_command(unique_ptr<Expr> cmd);
     void add_command(unique_ptr<Expr> cmd, unique_ptr<Layer> layer);
+
+    void add_loop_inv(string name, unique_ptr<Expr> cmd);
 
     bool is_ind_constr(string name);
     bool is_struct_constr(string name);
