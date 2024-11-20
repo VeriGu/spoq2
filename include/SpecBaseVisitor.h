@@ -7,7 +7,7 @@
 #include "antlr4-runtime.h"
 #include "SpecVisitor.h"
 
-
+namespace autov::parser {
 /**
  * This class provides an empty implementation of SpecVisitor, which can be
  * extended to create a visitor which only needs to handle a subset of the available methods.
@@ -189,4 +189,6 @@ public:
 
 
 };
+
+}
 

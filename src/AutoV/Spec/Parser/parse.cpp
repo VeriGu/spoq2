@@ -76,7 +76,7 @@ antlrcpp::Any ProgramVisitor::visitStatement(SpecParser::StatementContext* ctx) 
     } else if (ctx->section_end()) {
         visitSection_end(ctx->section_end());
     } else if (ctx->global_anno()) {
-        visitGlobalAnno(ctx->global_anno());
+        visitGlobal_anno(ctx->global_anno());
     } else if (ctx->loop_inv()){
         visitLoop_inv(ctx->loop_inv());
     } else {
@@ -92,15 +92,22 @@ antlrcpp::Any ProgramVisitor::visitLoop_inv(SpecParser::Loop_invContext* ctx) {
     
 }
 
+antlrcpp::Any ProgramVisitor::visitAnno_struct(SpecParser::Anno_structContext* ctx){
 
-antlrcpp::Any ProgramVisitor::visitGlobalAnno(SpecParser::Global_annoContext* ctx) {
+}
+
+antlrcpp::Any ProgramVisitor::visitInvdef(SpecParser::InvdefContext* ctx){
+
+}
+
+
+antlrcpp::Any ProgramVisitor::visitGlobal_anno(SpecParser::Global_annoContext* ctx) {
     std::string field = ctx->name()->getText();
     
     unsigned long base = std::stoul(ctx->anno_struct()->base->getText());
     unsigned long size = std::stoul(ctx->anno_struct()->size->getText());
     unsigned long num_elems = std::stoul(ctx->anno_struct()->max_elems->getText());
     
-
 }
 
 antlrcpp::Any ProgramVisitor::visitInclude(SpecParser::IncludeContext* ctx) {

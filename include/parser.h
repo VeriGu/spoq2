@@ -95,9 +95,13 @@ public:
 
     antlrcpp::Any visitVar_anno(SpecParser::Var_annoContext* ctx) override;
     
-    antlrcpp::Any visitGlobalAnno(SpecParser::Global_annoContext* ctx) override;
+    antlrcpp::Any visitGlobal_anno(SpecParser::Global_annoContext* ctx) override;
 
     antlrcpp::Any visitLoop_inv(SpecParser::Loop_invContext* ctx) override;
+
+    antlrcpp::Any visitAnno_struct(SpecParser::Anno_structContext* ctx) override;
+
+    antlrcpp::Any visitInvdef(SpecParser::InvdefContext* ctx) override;
 
 protected:
     // utility functions that can be used by subclasses
