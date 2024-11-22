@@ -13,6 +13,7 @@
 #include <z3_rules.h>
 #include <utils.h>
 #include <chrono>
+#include "z3_pcache.hpp"
 
 
 namespace autov
@@ -32,6 +33,38 @@ using std::sort;
 
 z3::solver Z3Solver = z3::solver(z3ctx);
 z3::params Z3Params = z3::params(z3ctx);
+
+
+// #define Z3_PCACHE
+#ifdef Z3_PCACHE
+SMTHashMapCache pcache("smt_cache.txt");
+inline z3::check_result cache_to_check_result(int l) {
+    if (l == 1) return z3::sat;
+    else if (l == 0) return z3::unsat;
+    return z3::unknown;
+}
+z3::check_result z3_pcache_check() { 
+    auto stmt = Z3Solver.to_smt2();
+    auto p = pcache.get(stmt);
+    if(p.first != -1) return cache_to_check_result(p.first); 
+    auto res = Z3Solver.check();
+    pcache.put(stmt, res);
+    return res;
+}
+
+z3::check_result z3_pcache_check(z3::expr_vector const &assumptions) {
+    auto stmt = Z3Solver.to_smt2();
+    unsigned n = assumptions.size();
+    for (unsigned i = 0; i < n; i++) {
+        stmt = stmt + "[" + assumptions[i].to_string() + "]";
+    }
+    auto p = pcache.get(stmt);
+    if(p.first != -1) return cache_to_check_result(p.first);
+    auto res = Z3Solver.check(assumptions);
+    pcache.put(stmt, res);
+    return res;
+}
+#endif
 
 unordered_map<size_t, Z3Result> Z3Cache;
 
@@ -83,7 +116,6 @@ std::chrono::duration<double> z3_accumulative_time = std::chrono::duration<doubl
 
 // Defautl value of timeout is 50
 Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
-    timeout = 50;
     auto start = std::chrono::high_resolution_clock::now();
     auto hash = hash_z3_state(state, cond, timeout);
     if (Z3Cache.find(hash) != Z3Cache.end()) {
@@ -104,7 +136,11 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     }
     Z3Solver.push();
     Z3Solver.add(cond);
+#ifdef Z3_PCACHE
+    auto res = z3_pcache_check();
+#else
     auto res = Z3Solver.check();
+#endif
     Z3Solver.pop();
 
 
@@ -112,7 +148,11 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     //Z3Solver.add(!cond);
     z3::expr_vector not_cond_vec(z3ctx);
     not_cond_vec.push_back(!cond);
+#ifdef Z3_PCACHE
+    auto not_res = z3_pcache_check(not_cond_vec);
+#else
     auto not_res = Z3Solver.check(not_cond_vec);
+#endif
     Z3Solver.pop();
 
     Z3Solver.pop();
@@ -150,7 +190,6 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
 }
 
 Z3Result z3_check(shared_ptr<EvalState> state, int timeout) {
-    timeout = 50;
     auto start = std::chrono::high_resolution_clock::now();
     auto hash = hash_z3_state(state, timeout);
     if (Z3Cache.find(hash) != Z3Cache.end()) {
@@ -170,7 +209,11 @@ Z3Result z3_check(shared_ptr<EvalState> state, int timeout) {
         Z3Solver.add(c);
     }
     Z3Solver.push();
+#ifdef Z3_PCACHE
+    auto res = z3_pcache_check();
+#else
     auto res = Z3Solver.check();
+#endif
     Z3Solver.pop();
 
     Z3Solver.pop();
