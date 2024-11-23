@@ -161,8 +161,17 @@ void Project::add_layer(std::unique_ptr<Layer> layer) {
 }
 
 
-void Project::add_loop_inv(string name, unique_ptr<Expr> inv) {
-    loop_invs[name] = std::move(inv);
+void Project::add_loop_inv(unique_ptr<Expr> inv) {
+    if (std::holds_alternative<string>(inv->op)) {
+        string name = std::get<string>(inv->op);
+         LOG_DEBUG << "Add Loop inv name" + name;
+         LOG_DEBUG << "Add Loop Inv:" + string(*inv);
+        SpecNode* invelem = inv->elems->at(0).release();
+        Expr* invexpr = instance_of(invelem, Expr);
+        loop_invs[name] = unique_ptr<Expr>(invexpr);
+    } else {
+        LOG_WARNING << "Illegal Invariant format" << string(*inv);
+    }
 }
 
 void Project::add_command(unique_ptr<Expr> cmd) {
@@ -763,20 +772,6 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
 #endif
     }
 
-    //check loop invariant
-    if(proj->cmds.CheckLoopInv) {
-        //check all the loops that have invariants provided.
-        for(auto &[string,inv] : proj->loop_invs) {
-            if(proj->defs.find(string) != proj->defs.end()){
-                auto def = proj->defs[string].get();
-                if(check_loop_inv(proj, def, inv.get())) {
-                    LOG_DEBUG << "loop invariant: " << string << "is inductive";
-                }
-            } else {
-                LOG_ERROR << "no loop named:" << string;
-            }
-        }
-    }
 
 #ifndef MT_TRANSFORM
     return std::make_tuple(fname, low_specs, nullptr);
@@ -843,7 +838,10 @@ void Project::finalize_project()
     filter_only_trans(this);
 
 #ifndef MT_TRANSFORM
-    for (int i = 1; i < this->layers.size(); i++) {
+    for (int i = 0; i < this->layers.size(); i++) {
+        if(this->layers[i]->name == "Bottom"){
+            continue;
+        }
         auto &L = this->layers[i];
 
         for (auto &p: L->prims) {
@@ -853,6 +851,29 @@ void Project::finalize_project()
 
             auto [fname, low_specs, high_specs] = infer_spec_task(this, i, p);
         }
+    }
+
+    //check loop invariant
+    if(cmds.CheckLoopInv) {
+        //check all the loops that have invariants provided.
+        for(auto &[string,inv] : loop_invs) {
+            if(defs.find(string) != defs.end()){
+                auto def = defs[string].get();
+                if(is_instance(def, Fixpoint) && check_loop_inv(this, def, inv.get())) {
+                    LOG_DEBUG << "loop invariant: " << string << " is inductive :)";
+                } else {
+                    LOG_ERROR << "loop invariant: " << string << "is not inductive! :(";
+                }
+            } else {
+                LOG_ERROR << "no loop named:" << string;
+            }
+        }
+    }
+
+
+    //check system invariant
+    if(cmds.CheckInv) {
+        
     }
 #else
     std::set<string> transformed;

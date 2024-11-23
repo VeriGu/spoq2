@@ -116,6 +116,7 @@ int main(int argc, char *argv[])
         for(int i = 2; i < argc; i++) {
             string arg = argv[i];
             if(arg == "--check_loop_inv") {
+                LOG_DEBUG << "Check Loop Inv!";
                 check_loop_inv = true;
             } else if(arg == "--check_sys_inv") {
                 check_inv = true;

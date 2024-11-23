@@ -142,7 +142,6 @@ public:
     void add_symbol(string symbol, SymbolKind kind, string info, shared_ptr<loc_t> loc);
     void add_symbol(string symbol, SymbolKind kind, string info, shared_ptr<loc_t> loc, unsigned long order);
     void update_symbol_loc(string symbol, shared_ptr<loc_t> loc);
-
     void add_struct(shared_ptr<Struct> s, shared_ptr<loc_t> loc);
     void add_struct(shared_ptr<Struct> s);
 
@@ -162,7 +161,7 @@ public:
     void add_command(unique_ptr<Expr> cmd);
     void add_command(unique_ptr<Expr> cmd, unique_ptr<Layer> layer);
 
-    void add_loop_inv(string name, unique_ptr<Expr> cmd);
+    void add_loop_inv(unique_ptr<Expr> cmd);
 
     bool is_ind_constr(string name);
     bool is_struct_constr(string name);

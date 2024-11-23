@@ -19,7 +19,7 @@ static unsigned long get_mono_lens_id() {
 using rule_ret_t = std::pair<SpecNode *, bool>;
 SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &prev_symbols, bool &changed);
 rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec);
-
+SpecNode* subst(SpecNode *spec, string name, SpecNode *value, bool &succ);
 rule_ret_t rule_simple_record_get_set(Project *proj, SpecNode *spec);
 rule_ret_t rule_keep_fields_of_interest(Project *proj, SpecNode *spec, string fname);
 rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec);

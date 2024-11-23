@@ -89,15 +89,17 @@ antlrcpp::Any ProgramVisitor::visitStatement(SpecParser::StatementContext* ctx) 
 
 antlrcpp::Any ProgramVisitor::visitLoop_inv(SpecParser::Loop_invContext* ctx) {
     SpecNode* expr = any_cast<SpecNode*>(visitExpr(ctx->expr()));
-    
+    Expr* exp = dynamic_cast<Expr*>(expr);
+    proj.add_loop_inv(std::move(unique_ptr<Expr>(exp)));
+    return std::any();
 }
 
 antlrcpp::Any ProgramVisitor::visitAnno_struct(SpecParser::Anno_structContext* ctx){
-
+    return std::any();
 }
 
 antlrcpp::Any ProgramVisitor::visitInvdef(SpecParser::InvdefContext* ctx){
-
+    return std::any();
 }
 
 

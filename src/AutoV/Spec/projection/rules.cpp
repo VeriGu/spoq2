@@ -16,7 +16,7 @@ subst(let x := x + 1 in x, "x", 1) => let x := 1 + 1 in x
 [spec] is freed is subsitution is successful
 [value] is freed by the caller
 */
-static SpecNode* subst(SpecNode *spec, string name, SpecNode *value, bool &succ) {
+SpecNode* subst(SpecNode *spec, string name, SpecNode *value, bool &succ) {
     if (auto s = instance_of(spec, Symbol)) {
         if (s->text != name)
             return spec;
