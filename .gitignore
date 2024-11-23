@@ -14,3 +14,4 @@ AsmGen/asmgen.native
 *.conf
 *.d
 *.v~
+llvm
