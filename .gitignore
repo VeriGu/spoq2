@@ -16,3 +16,4 @@ AsmGen/asmgen.native
 *.v~
 *.o
 *.so
+llvm
