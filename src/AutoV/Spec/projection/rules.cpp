@@ -1394,9 +1394,21 @@ unsigned long number_of_conditionals(Project* proj, SpecNode * spec) {
                     return num_of_conds;
 
                 auto define = proj->defs[*op].get();
-
                 if (is_instance(define, Fixpoint))
                     return num_of_conds;
+
+
+                for(auto &[k, op] : proj->layers[0]->ops) {
+                    if(op == define->name) {                    
+                        return num_of_conds;
+                    }
+                }
+
+                // for(auto it = proj->layers[0]->prims.begin(); it != proj->layers[0]->prims.end(); it++) {
+                //     if(define->name == *it) {
+                //         return num_of_conds;
+                //     }
+                // }
                 
                 int n = number_of_conditionals(proj, define->body.get());
                 num_of_conds += n;
@@ -1412,7 +1424,7 @@ unsigned long number_of_conditionals(Project* proj, SpecNode * spec) {
     return num_of_conds;
 }
 
-std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, Definition *def) {
+std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, Definition *def, vector<Definition*>* low_spec) {
     /* 
     first determine the number of branches and the size of the node,
     if the size is larger than 500, the number of branches is larger than 10 -> Let's split!
@@ -1423,23 +1435,43 @@ std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, D
     def->length = length;
     //LOG_DEBUG << "length:" + std::to_string(def->body->length);
     LOG_DEBUG << "num_of_conds:" << std::to_string(num_of_conds);
-    if(num_of_conds < 1000) {
+    if(num_of_conds < 240) {
         return std::make_pair(changed,std::make_pair("",""));       
     }
     std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
         if(auto ifnode = instance_of(node, If)) {
             //auto num_cond = number_of_conditionals(proj, node);
-            auto length = length_of_exp(ifnode->then_body.get());
-            auto num_conds = number_of_conditionals_inside(proj, ifnode->then_body.get());
-            LOG_DEBUG << "length: " << std::to_string(length);
-            LOG_DEBUG << "then conds inside: " << std::to_string(num_conds);
+            auto length_then = length_of_exp(ifnode->then_body.get());
+            auto num_then_conds = number_of_conditionals_inside(proj, ifnode->then_body.get());
+            auto total_then_conds = number_of_conditionals(proj, ifnode->then_body.get());
+
+            auto length_else = length_of_exp(ifnode->else_body.get());
+            auto num_else_conds = number_of_conditionals_inside(proj, ifnode->else_body.get());
+            auto total_else_conds = number_of_conditionals(proj, ifnode->else_body.get());
+            LOG_DEBUG << "length then: " << std::to_string(length_then);
+            LOG_DEBUG << "then conds: " << std::to_string(num_then_conds);
+            LOG_DEBUG << "total then conds: " << std::to_string(total_then_conds);
+            LOG_DEBUG << "length else: " << std::to_string(length_else);
+            LOG_DEBUG << "else conds: " << std::to_string(num_else_conds);
+            LOG_DEBUG << "total else conds: " << std::to_string(total_else_conds);
             LOG_DEBUG << "expr: " << string(*node);
-            if(length < 30) {
-                 return ifnode;
+            bool foldthen = true;
+            bool foldelse = true;
+            if(length_then < 45) {
+                foldthen = false;;
             }
-            if(num_conds != 0) {
-                return ifnode;
+            if(num_then_conds > 0 || total_then_conds < 2) {
+                foldthen = false;
             }
+            if(length_else < 45) {
+                 foldelse = false;;
+            }
+            if(num_else_conds > 0 || total_else_conds < 2) {
+                foldelse = false;
+            }
+            // if(num_conds != 0) {
+            //     return ifnode;
+            // }
             
             auto cond = ifnode->cond.get();
             // auto conde =  instance_of(cond, Expr);
@@ -1447,9 +1479,13 @@ std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, D
             auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
             elems->push_back(cond->deep_copy());
             elems->push_back(make_unique<BoolConst>(true));
+
+            auto neg_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+            neg_elems->push_back(cond->deep_copy());
+            neg_elems->push_back(make_unique<BoolConst>(true));
             //auto negcond = new Expr(Expr::ops::NOT, std::move(elems));
-            auto then_node = ifnode->then_body.release();
-            //auto else_node = ifnode->else_body.release();
+            auto then_node = ifnode->then_body.get();
+            auto else_node = ifnode->else_body.get();
 
             auto free_then = set<string>();
             auto free_then_map = std::map<string, Symbol*>();
@@ -1457,12 +1493,13 @@ std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, D
             free_vars_map(proj, cond, free_then, free_then_map);
             
         
-            // auto free_else = set<string>();
-            // auto free_else_map = std::map<string, Symbol*>();
-            // free_vars_map(proj, else_node, free_else, free_else_map);
+            auto free_else = set<string>();
+            auto free_else_map = std::map<string, Symbol*>();
+            free_vars_map(proj, else_node, free_else, free_else_map);
+            free_vars_map(proj, cond, free_else, free_else_map);
 
-            auto new_expr_then = new Rely(make_unique<Expr>(Expr::binops::EQUAL, std::move(elems), Prop::PROP), unique_ptr<SpecNode>(then_node));
-            //auto new_expr_else = new Rely(unique_ptr<SpecNode>(negcond), unique_ptr<SpecNode>(else_node));
+            // auto new_expr_then = new Rely(make_unique<Expr>(Expr::binops::EQUAL, std::move(elems), Prop::PROP), unique_ptr<SpecNode>(then_node));
+            // auto new_expr_else = new Rely(make_unique<Expr>(Expr::binops::NOT_EQUAL, std::move(neg_elems),Prop::PROP), unique_ptr<SpecNode>(else_node));
             
             //pick new name
             auto name = def->name;
@@ -1478,47 +1515,57 @@ std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, D
                     counter += 1;
                     new_name = prefix + "_" + std::to_string(counter);
                 }
-                return new_name + "_low";
+                return new_name;
             };
             
-            auto new_then_name = pick_new_name(name);
-            auto vec_arg_then = new vector<shared_ptr<Arg>>();
-            for(auto [name,sym] : free_then_map) {
-                if(!proj->is_known_symbol(name)) {
-                    vec_arg_then->push_back(make_shared<Arg>(name, sym->type));
-                }
-            }
-            auto new_def_then = new Definition(new_then_name, ifnode->type, unique_ptr<vector<shared_ptr<Arg>>>(vec_arg_then), unique_ptr<SpecNode>(new_expr_then));
-            LOG_DEBUG << "create conditional1: \n"+string(*new_def_then);
-
-            proj->add_definition(unique_ptr<Definition>(new_def_then), make_shared<loc_t>(proj->symbols[def->name].loc));
             
-
-            // auto new_else_name = pick_new_name(name);
-            // auto vec_arg_else = new vector<shared_ptr<Arg>>();
-            // for(auto [name,sym] : free_else_map) {
-            //     vec_arg_else->push_back(make_shared<Arg>(name, sym->type));
-            // }
-            // auto new_def_else = new Definition(new_else_name, ifnode->type, unique_ptr<vector<shared_ptr<Arg>>>(vec_arg_else), unique_ptr<SpecNode>(new_expr_else));
-            // LOG_DEBUG << "create conditional2: \n"+string(*new_def_else);
-            // proj->add_definition(unique_ptr<Definition>(new_def_else), shared_ptr<loc_t>(&proj->symbols[def->name].loc));
-
-
-            auto vec_sym_then = new vector<unique_ptr<SpecNode>>();
-            for(auto [name,sym] : free_then_map) {
-                if(!proj->is_known_symbol(name)) {
-                    vec_sym_then->push_back(make_unique<Symbol>(name, sym->type));
+            //auto expr_then = new Expr(new_then_name, unique_ptr<vector<unique_ptr<SpecNode>>>(vec_sym_then));
+            if(foldthen){
+                auto new_then_name = pick_new_name(name);
+                auto vec_arg_then = new vector<shared_ptr<Arg>>();
+                for(auto [name,sym] : free_then_map) {
+                    if(!proj->is_known_symbol(name)) {
+                        vec_arg_then->push_back(make_shared<Arg>(name, sym->type));
+                    }
                 }
-            }
-            // auto vec_sym_else = new vector<unique_ptr<SpecNode>>();
-            // for(auto [name,sym] : free_else_map) {
-            //     vec_sym_else->push_back(make_unique<Symbol>(name, sym->type));
-            // }
-            auto expr_then = new Expr(new_then_name, unique_ptr<vector<unique_ptr<SpecNode>>>(vec_sym_then));
-            LOG_DEBUG << "new definition: " << string(*expr_then);
-            //auto expr_else = new Expr(new_else_name, unique_ptr<vector<unique_ptr<SpecNode>>>(vec_sym_else));
-            ifnode->then_body = unique_ptr<SpecNode>(expr_then);
-            //ifnode->else_body = unique_ptr<SpecNode>(expr_else);
+                auto vec_sym_then = new vector<unique_ptr<SpecNode>>();
+                for(auto [name,sym] : free_then_map) {
+                    if(!proj->is_known_symbol(name)) {
+                        vec_sym_then->push_back(make_unique<Symbol>(name, sym->type));
+                    }
+                }
+                auto new_expr_then = new Rely(make_unique<Expr>(Expr::binops::EQUAL, std::move(elems), Prop::PROP), std::move(ifnode->then_body));
+                auto new_def_then = new Definition(new_then_name + "_low", ifnode->type, unique_ptr<vector<shared_ptr<Arg>>>(vec_arg_then), unique_ptr<SpecNode>(new_expr_then));
+                auto expr_then = new Expr(new_then_name, unique_ptr<vector<unique_ptr<SpecNode>>>(vec_sym_then));
+                LOG_DEBUG << "create conditional1: \n"+string(*new_def_then);
+                proj->add_definition(unique_ptr<Definition>(new_def_then), make_shared<loc_t>(proj->symbols[def->name].loc));
+                low_spec->push_back(new_def_then);
+                proj->symbols[def->name].order = proj->symbols[new_then_name + "_low"].order + 1;
+                ifnode->then_body = unique_ptr<SpecNode>(expr_then);
+            } 
+            if(foldelse) {
+                auto new_else_name = pick_new_name(name);
+                auto vec_arg_else = new vector<shared_ptr<Arg>>();
+                for(auto [name,sym] : free_else_map) {
+                    if(!proj->is_known_symbol(name)) {
+                        vec_arg_else->push_back(make_shared<Arg>(name, sym->type));
+                    }
+                }
+                auto vec_sym_else = new vector<unique_ptr<SpecNode>>();
+                for(auto [name,sym] : free_else_map) {
+                    if(!proj->is_known_symbol(name)) {
+                        vec_sym_else->push_back(make_unique<Symbol>(name, sym->type));
+                    }
+                }
+                auto new_expr_else = new Rely(make_unique<Expr>(Expr::binops::NOT_EQUAL, std::move(neg_elems),Prop::PROP), std::move(ifnode->else_body));
+                auto expr_else = new Expr(new_else_name, unique_ptr<vector<unique_ptr<SpecNode>>>(vec_sym_else));
+                auto new_def_else = new Definition(new_else_name + "_low", ifnode->type, unique_ptr<vector<shared_ptr<Arg>>>(vec_arg_else), unique_ptr<SpecNode>(new_expr_else));
+                LOG_DEBUG << "create conditional2: \n"+string(*new_def_else);
+                proj->add_definition(unique_ptr<Definition>(new_def_else), make_shared<loc_t>(proj->symbols[def->name].loc));
+                low_spec->push_back(new_def_else);
+                proj->symbols[def->name].order = proj->symbols[new_else_name + "_low"].order + 1;
+                ifnode->else_body = unique_ptr<SpecNode>(expr_else);
+            } 
             changed = true;
 
             return ifnode;

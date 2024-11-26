@@ -137,6 +137,8 @@ void Project::add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc) 
         def_order.push_back(name);
 
     defs[name] = std::move(def);
+
+    LOG_DEBUG << "name: " << defs[name]->name;
     this->add_symbol(defs[name]->name, SymbolKind::Def, "", loc);
 
     LOG_DEBUG << "Adding definition " << name;
@@ -440,7 +442,7 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
         // Generate low spec if not provided
         string suffix = "_low";
         low_specs = ir_to_spec(proj, fname, L.get(), suffix);
-
+        auto subs_defs_low = new vector<Definition*>();
         for (auto &def: *low_specs) {
             LOG_INFO << "Generate low definition " << def->name << ", Fixpoint: " << is_instance(def, Fixpoint) << std::endl;
             std::cout << string(*def) << std::endl;
@@ -453,7 +455,27 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
             } else
                 proj->add_definition(unique_ptr<Definition>(def), loc);
 
+
             spec_transformer(proj, def, layer_id, false, true);
+
+            #define CONDITION_SPEC
+            #ifdef CONDITION_SPEC
+            auto subs_defs = new vector<Definition*>();
+            if(!is_instance(def, Fixpoint)) {
+                rule_conditional_spec(proj, def, subs_defs);
+            }
+            #endif
+
+            for(auto sub_def : * subs_defs) {
+                proj->symbols[def->name].order = proj->symbols[sub_def->name].order + 1;
+                auto sub_name = sub_def->name;
+                LOG_DEBUG << "sub_name: " << sub_name;
+                auto high_name = sub_name.substr(0, sub_name.size() - 4);
+                subs_defs_low->push_back(sub_def);
+                //proj->add_definition(unique_ptr<Definition>(sub_def), loc);
+                //proj->update_symbol_loc(sub_name, make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
+                name_map[sub_name] = high_name;
+            }
 
             if (def->name.rfind(suffix) == def->name.size() - suffix.size()) {
                 std::string high_name = def->name.substr(0, def->name.size() - suffix.size());
@@ -462,6 +484,9 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
 
             if (is_instance(def, Fixpoint))
                 have_loop = true;
+        }
+        for(auto sub : *subs_defs_low) {
+            low_specs->push_back(sub);
         }
     } else {
         // Otherwise, the loop/sub/low spec is provided.
@@ -681,7 +706,7 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
     for (int i = 0; i < low_specs->size(); i++) {
         auto &low_def = (*low_specs)[i];
         auto low_name = low_def->name;
-        //LOG_DEBUG << "low_name:" << low_name;
+        LOG_DEBUG << "low_name:" << low_name;
         auto high_name = name_map[low_name];
 
         // If the high spec is provided, skip

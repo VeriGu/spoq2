@@ -255,13 +255,6 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
             break;
     }
 
-    #define CONDITION_SPEC
-    #ifdef CONDITION_SPEC
-    if(!instance_of(def, Fixpoint) && low_spec) {
-        rule_conditional_spec(proj, def);
-    }
-    #endif
-
     bool has_if = false;
 
     if (unfold && spec_is_pure(proj, def->body.get(), has_if)) {

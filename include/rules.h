@@ -35,7 +35,7 @@ rule_ret_t rule_subst_match_src_with_content(Project *proj, SpecNode *spec);
 rule_ret_t rule_simple_builtin_functions(Project* proj, SpecNode *spec);
 rule_ret_t rule_eliminate_when(Project *proj, SpecNode *spec);
 rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec);
-std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, Definition *spec);
+std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, Definition *spec, vector<Definition*>* low_specs);
 rule_ret_t replace_spec_name(Project *proj, SpecNode *spec, unordered_map<string, string> &name_map);
 
 bool spec_is_pure(Project *proj, SpecNode *spec, bool &has_if);
