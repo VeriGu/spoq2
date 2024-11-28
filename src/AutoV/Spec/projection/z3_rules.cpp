@@ -153,7 +153,7 @@ rule_ret_t simple_rely_by_z3(Project* proj, RelyAnno* spec, shared_ptr<EvalState
         return std::make_pair(nullptr, changed);
     }
     auto c = z3_eval(proj, cond, state);
-    auto res = z3_check(state, c->get_z3_value(), 50);
+    auto res = z3_check(state, c->get_z3_value());
 
     if (res == Z3Result::Unknown) {
         state->conds->push_back(c->get_z3_value());
@@ -215,7 +215,7 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
     //     }
     // }
 
-    auto res = z3_check(state, c->get_z3_value(), 50);
+    auto res = z3_check(state, c->get_z3_value());
 
     if (res == Z3Result::Unknown) {
         //std::cout << "simple_if_by_z3: unknown condition: " << orig_cond << std::endl;
