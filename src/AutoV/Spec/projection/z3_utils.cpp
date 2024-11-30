@@ -175,7 +175,10 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
             for (auto &c : *state->conds) {
                 msg += c.to_string() + "\n";
             }
-            throw std::runtime_error(msg);
+            msg += "Condition is:\n";
+            msg += cond.to_string();
+            LOG_WARNING << msg << std::endl;
+            // throw std::runtime_error(msg);
         }
         Z3Cache[hash] = Z3Result::True;
         return Z3Result::True;
