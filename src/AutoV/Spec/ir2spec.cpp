@@ -1047,6 +1047,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         return new Rely(unique_ptr<SpecNode>(prop), unique_ptr<SpecNode>(spec));
     } else if(auto f = dynamic_cast<IRLoader::IInsertValue*>(inst.get())) {
       //PASS
+        LOG_DEBUG << "Unsupport IInsertValue " << inst->to_coq() << "\n";
     } else {
         LOG_DEBUG << "Instruction not supported converting to SpecNode\n";
         LOG_DEBUG << inst->to_coq();
