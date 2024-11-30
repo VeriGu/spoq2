@@ -373,9 +373,12 @@ bool check_loop_inv(Project* proj, Definition *loop, Expr* inv) {
 
 
 //{P} Spec(a,b,c) = a',b',c' {Q}
-bool vc_gen(Project* proj, Definition* def, Expr* pre, Expr* post) {
+// P(a,b,c..st) /\ Spec(a,b,c) = a',b',c' -> Q(a',b',c'....st').
+//if we meet a fixpoint, checking that P -> I /\ I is inductive(C /\ I -> I) /\ (not C /\ I -> Q). 
+bool vc_gen(Project* proj, Definition* def, Expr* pre) {
 
 }
+
 
 bool z3_check_invariant(Project* proj, Definition *def, unique_ptr<vector<Definition*>> invs) {
     auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
@@ -417,8 +420,9 @@ bool z3_check_invariant(Project* proj, Definition *def, unique_ptr<vector<Defini
 }
 
 
-shared_ptr<SpecValue> z3_eval_for_inv(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
-    if (val->cached_eval) return val->cached_eval;
+
+shared_ptr<SpecValue> vc_gen(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<z3::expr>* vcs) {
+    //if (val->cached_eval) return val->cached_eval;
 
     auto _cache = [&](shared_ptr<SpecValue> return_val) {
         val->set_z3_eval(return_val);
@@ -605,9 +609,17 @@ shared_ptr<SpecValue> z3_eval_for_inv(Project* proj, SpecNode* val, shared_ptr<E
             } else if (info.kind == SymbolKind::Def) {
                 auto df = proj->defs[sym].get();
                 if(instance_of(df, Fixpoint)) {
-
+                    //add the assert that current conditions implies invariant of the loop.
+                    if(proj->loop_invs.find(df->name) != proj->loop_invs.end()) {
+                        auto inv = proj->loop_invs[df->name].get();
+                        
+                    } else {
+                        LOG_ERROR << "does not have a loop invariant: " << df->name;
+                    }
+                    return _cache(df->absf()->call(elems));
                 } else {
-                    return _cache(z3_eval_for_inv(proj, df->body.get(), state));
+                    auto df = proj->defs[sym].get();
+                    return _cache(df->absf()->call(elems));
                 }
                 return _cache(df->absf()->call(elems));
             } else if (info.kind == SymbolKind::Decl) {
