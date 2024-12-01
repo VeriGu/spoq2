@@ -157,6 +157,11 @@ void gen_low_proof_func(Project *p, int i, string fname, string path)
 
 void gen_low_proof_proc(Project *p, int i, string fname, string path)
 {
+    // avoid segmentation fault
+    if (p->defs.find(p->name + "spec_low") == p->defs.end()) { 
+        LOG_ERROR << "missing defs in gen_low_proof_proc: " << p->name << "\n";
+        return; 
+    }
     auto layer = p->layers[i]->name;
     auto base_layer = p->layers[i - 1]->name;
     auto proc = (*p->code->asm_procs)[fname];

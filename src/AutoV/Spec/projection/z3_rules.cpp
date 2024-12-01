@@ -153,7 +153,7 @@ rule_ret_t simple_rely_by_z3(Project* proj, RelyAnno* spec, shared_ptr<EvalState
         return std::make_pair(nullptr, changed);
     }
     auto c = z3_eval(proj, cond, state);
-    auto res = z3_check(state, c->get_z3_value(), 50);
+    auto res = z3_check(state, c->get_z3_value());
 
     if (res == Z3Result::Unknown) {
         state->conds->push_back(c->get_z3_value());
@@ -215,7 +215,7 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
     //     }
     // }
 
-    auto res = z3_check(state, c->get_z3_value(), 50);
+    auto res = z3_check(state, c->get_z3_value());
 
     if (res == Z3Result::Unknown) {
         //std::cout << "simple_if_by_z3: unknown condition: " << orig_cond << std::endl;
@@ -585,25 +585,36 @@ static SpecNode* reconstruct_expr(z3::expr z3_val,
             } else
                 return new IntConst(z3_val.get_numeral_int64());
         } else {
+            /** 
+             * When simplifying the arithmetic operation, spoq may introduce implicit conversion from u64 to s64 in term transposition,
+             * These terms should not be simplified to IntConst, but should be converted to constraints by z3.
+             *  by Ganxiang Yang, Nov 29, 2024 */
             uint64_t __v;
             if (!z3_val.is_numeral_u64(__v)) {
-                z3_val = (-z3_val).simplify();
-                //std::cout << "neg z3_val: " << z3_val << std::endl;
+                LOG_WARNING << "Large integer greater than 2^64 - 1 / Implicit conversion from u64 to s64: " << z3_val.to_string() << std::endl;
+                return nullptr;
             }
-            // Large integer greater than 2^64 - 1
-            if (!z3_val.is_numeral_u64(__v)) {
-                // throw std::runtime_error("Large integer greater than 2^64 - 1: " + z3_val.to_string());
-                // return nullptr;
-                //std::cout << "z3_val (greater than 2^64 - 1): " << z3_val << std::endl;
-                auto bv_expr = z3::to_expr(z3_val.ctx(), Z3_mk_int2bv(z3_val.ctx(), 64, z3_val));
 
-                // std::cout << "bv_expr: " << bv_expr.simplify() << std::endl;
-                // std::cout << "bv_expr: " << Z3_get_numeral_string(z3_val.ctx(), bv_expr.simplify()) << std::endl;
-                uint64_t v = std::stoull(Z3_get_numeral_string(z3_val.ctx(), bv_expr.simplify()));
+            // if (!z3_val.is_numeral_u64(__v)) {
+            //     z3_val = (-z3_val).simplify();
+            //     //std::cout << "neg z3_val: " << z3_val << std::endl;
+            // }
+            // // Large integer greater than 2^64 - 1
+            // if (!z3_val.is_numeral_u64(__v)) {
+            //     //std::cout << "z3_val (greater than 2^64 - 1): " << z3_val << std::endl;
+            //     auto bv_expr = z3::to_expr(z3_val.ctx(), Z3_mk_int2bv(z3_val.ctx(), 64, z3_val));
+
+            //     // std::cout << "bv_expr: " << bv_expr.simplify() << std::endl;
+            //     // std::cout << "bv_expr: " << Z3_get_numeral_string(z3_val.ctx(), bv_expr.simplify()) << std::endl;
+            //     uint64_t v = std::stoull(Z3_get_numeral_string(z3_val.ctx(), bv_expr.simplify()));
+
+            //     //std::cout << "new IntConst: " << v << std::endl;
+            //     return new IntConst(v);
+            // }
 
                 //std::cout << "new IntConst: " << v << std::endl;
-                return new IntConst(v);
-            }
+                // return new IntConst(v);
+            // }
             long v = z3_val.get_numeral_uint64();
             if (v > -100 && v < 0) {
                 auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();

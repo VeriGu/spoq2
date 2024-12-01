@@ -2449,6 +2449,8 @@ bool spec_is_pure(Project *proj, SpecNode *spec, bool &has_if) {
         return spec_is_pure(proj, r->body.get(), has_if);
     } else if (auto s = instance_of(spec, Symbol)) {
         return s->text == "st" || s->text == "None";
+    } else if (auto c = instance_of(spec, Const)) {
+        return true;
     }
 
     throw std::runtime_error("spec_is_pure: unexpected node: " + string(*spec));
