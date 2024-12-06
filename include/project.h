@@ -111,9 +111,8 @@ public:
     unordered_map<string, unique_ptr<Definition>> defs;
     vector<string> def_order;
     unordered_map<string, SymbolInfo> symbols;
-    unordered_map<string, unique_ptr<Expr>> loop_invs;
-
-
+    unordered_map<string, vector<unique_ptr<Expr>>> loop_invs;
+    
     class cmds {
     public:
         std::set<string> Unfold;

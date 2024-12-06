@@ -749,7 +749,7 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         LOG_DEBUG << "NO HIGH SPEC:" << proj->cmds.NoHighSpec;
         
         if (!no_trans) {
-            spec_transformer(proj, high_def, layer_id, !is_instance(low_def, Fixpoint), true);
+            spec_transformer(proj, high_def, layer_id, layer_id, true);
             std::cout << "Transformed: " << std::endl << string(*high_def) << std::endl;
         } else {
             LOG_INFO << "No transformation for " << high_name;
