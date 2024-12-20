@@ -168,7 +168,7 @@ void Project::add_loop_inv(unique_ptr<Expr> inv) {
          LOG_DEBUG << "Add Loop Inv:" + string(*inv);
         SpecNode* invelem = inv->elems->at(0).release();
         Expr* invexpr = instance_of(invelem, Expr);
-        loop_invs[name] = unique_ptr<Expr>(invexpr);
+        loop_invs[name].push_back(unique_ptr<Expr>(invexpr));
     } else {
         LOG_WARNING << "Illegal Invariant format" << string(*inv);
     }
@@ -859,7 +859,7 @@ void Project::finalize_project()
         for(auto &[string,inv] : loop_invs) {
             if(defs.find(string) != defs.end()){
                 auto def = defs[string].get();
-                if(is_instance(def, Fixpoint) && check_loop_inv(this, def, inv.get())) {
+                if(is_instance(def, Fixpoint) && check_loop_inv(this, def)) {
                     LOG_DEBUG << "loop invariant: " << string << " is inductive :)";
                 } else {
                     LOG_ERROR << "loop invariant: " << string << "is not inductive! :(";
