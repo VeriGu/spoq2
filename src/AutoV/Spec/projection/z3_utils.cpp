@@ -252,6 +252,63 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
 }
 
 
+//inv have only free variable st.
+//state in inv and body can only be "st".
+//forall v1,v2,... vk st, inv(st) /\ prim_body(v1,v2,...st) = (v1',v2'..st') -> inv(st')
+bool check_invariant(Project* proj, Definition* prim, Expr* inv) {
+    auto body = prim->body.get();
+    auto args = prim->args.get();
+
+    auto var = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+    auto conds = std::make_shared<vector<z3::expr>>();
+
+    for (auto arg : *args) {
+        (*var)[arg->name] = arg->type->declare(arg->name, 0); //current
+    }
+
+    //body have to be Some.
+    auto eqelems = new vector<unique_ptr<SpecNode>>();
+    eqelems->push_back(unique_ptr<SpecNode>(body));
+    auto varelems = new vector<unique_ptr<SpecNode>>();
+    for(auto arg : *args) {
+        varelems->push_back(unique_ptr<SpecNode>(new Symbol(arg->name + "'")));
+    }
+    eqelems->push_back(unique_ptr<SpecNode>(new Expr(Expr::ops::Some, unique_ptr<vector<unique_ptr<SpecNode>>>(varelems))));
+    auto equa = new Expr(Expr::binops::EQUAL, unique_ptr<vector<unique_ptr<SpecNode>>>(eqelems));
+
+    //the body and the inv share the same free variables.
+    auto body_val = z3_eval(proj, equa, make_shared<EvalState>(
+        
+        make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var),
+        make_shared<vector<z3::expr>>(*conds)));
+
+    auto inv_before_val = z3_eval(proj, inv, make_shared<EvalState>(
+        make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var), 
+        make_shared<vector<z3::expr>>(*conds)));
+
+    
+    //substitute the st to st' in inv.
+    SpecNode* after_inv = inv;
+    bool succ = false;
+    auto new_st = new Symbol("st'");
+    after_inv = subst(after_inv, "st", new Symbol("st'"), succ);
+    delete new_st; //since new_st is caller freed.
+    
+    auto inv_after_val = z3_eval(proj, inv, make_shared<EvalState>(
+        
+        make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var),
+        make_shared<vector<z3::expr>>(*conds)));
+    
+    
+    auto state = make_shared<EvalState>(
+        make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var), make_shared<vector<z3::expr>>(*conds));
+    auto res = z3_check(state, z3::implies(body_val->get_z3_value() && inv_before_val->get_z3_value(), inv_after_val->get_z3_value()), 200);
+    if(res == Z3Result::Unknown) {
+        LOG_DEBUG << "solver return unknown when checking invariant for " << prim->name;
+    }
+    return res == Z3Result::True;
+}
+
 
 //check the loop invariant is inductive or not
 //the loop should be self-contained and have no function calls.
@@ -362,7 +419,8 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     
 
     //final expression, inv(a,b,c...) /\ spec(a,b,c) = a',b'c' => inv(a',b',c').
-    //termination proof: ranking function(a,b,c) decreases every iteratiton.
+    //TODO: termination proof: ranking function(a,b,c) decreases every iteratiton.
+
     //auto n_invariant = Int::INT->declare("_N_",0)->get_z3_value() == (Int::INT->declare("_N_'",0)->get_z3_value() + 1);
     //auto n_invariant_base = Int::INT->declare("_N_",0)->get_z3_value() == (Int::INT->declare("_N_'",0)->get_z3_value());
     //auto n_eq0 = (_N_->get_z3_value() == 0);
@@ -1065,7 +1123,85 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                 return _cache(static_pointer_cast<Inductive>(val->get_type())->construct(sym, elems));
             } else if (info.kind == SymbolKind::Def) {
                 auto df = proj->defs[sym].get();
-                return _cache(df->absf()->call(elems));
+                if(auto loop = instance_of(df, Fixpoint)) {
+                    if(proj->loop_invs.find(df->name) != proj->loop_invs.end()) {
+                        auto& invs = proj->loop_invs[df->name];
+                        //auto preconds = proj->cmds.InitRely[df->name];
+                        auto var = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+                        auto conds = std::make_shared<vector<z3::expr>>();
+                        //declare loop arguments
+                        for (auto arg : *loop->args) {
+                            if (arg->name != "_N_") {
+                                (*var)[arg->name] = arg->type->declare(loop->name + "_" + arg->name, 0); //current
+                                (*var)[arg->name + "_old"] = arg->type->declare(loop->name + "_" + arg->name + "_old", 0); //initial
+                            }
+                        }
+                        
+                        //ret_x == f(a,b,c,d)
+                        //ret_x[0] = ret_x_0, ret_x[1] = ret_x_1....
+                        //inv[a/ret_x_1,.....] = true
+                        auto func_call = df->absf()->call(elems);
+                        auto ret = func_call->get_type()->declare("ret", val->nid);
+
+                        //ret_x = f(a,b,c,d)
+                        auto eqformula = ret->get_z3_value() == func_call->get_z3_value();
+            
+                        auto some = instance_of(ret.get(), IndValue);
+
+                        //ret_tuple
+                        auto rettuple = instance_of(some->get("value").get(), StructValue);
+                        
+                        auto rettype = loop->rettype;
+                        auto rettypesome = instance_of(rettype.get(), Option);
+                        auto tupletype = instance_of(rettypesome->elem_type.get(), Tuple);
+
+                        //after checks, we should assume that inv is hold after loop. i.e
+                        //assume _N_ == 0 and I (postcond)
+                        auto after_var = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+                        auto after_conds = std::make_shared<vector<z3::expr>>();
+                        
+                        ///aggregate all the invs together into one conjunctives
+                        SpecNode* aggreinv = new BoolConst(true);
+                        for(auto &inv : invs) {
+                            auto elems = new vector<unique_ptr<SpecNode>>();
+                            elems->push_back(unique_ptr<SpecNode>(aggreinv));
+                            elems->push_back(inv->deep_copy());
+                            aggreinv = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
+                        }
+
+                        SpecNode *before_inv = aggreinv;
+                        //subst invariant inv[ret_x[0]/a' ret_x[1]/b' ret_x[2]/c' ret_x[3]/d']
+                        for(auto arg : *loop->args) {
+                            if (arg->name != "_N_") {
+                                auto sym = new Symbol(loop->name + "_" + arg->name, arg->type);
+                                bool succ;
+                                before_inv = subst(before_inv->deep_copy().release(), arg->name, sym, succ);
+                                delete sym;
+                            }
+                        }
+                        auto vc = z3ctx.bool_val(true);
+                        auto invval = z3_eval(proj, before_inv, make_shared<EvalState>(var, conds));
+                        int i = 0;
+                        for(auto arg : *loop->args) {
+                            auto name = loop->name + "_" + arg->name;
+                            //instantiate variable to each element
+                            auto z3_eq_expr = elems.at(i)->get_z3_value() == (*var)[name]->get_z3_value();
+                            vc = vc && z3_eq_expr;
+                        }
+                        auto res = z3_check(state, vc && invval->get_z3_value(),200);
+                        if(res == Z3Result::False || res == Z3Result::Unknown) {
+                            LOG_ERROR << "Precondition can't infer loop invariant";
+                            return nullptr;
+                        }
+                    
+                        return _cache(func_call);
+                    } else {
+                        LOG_ERROR << "no loop invariant specified";
+                        return nullptr;
+                    }
+                } else {
+                    return _cache(df->absf()->call(elems));
+                }
             } else if (info.kind == SymbolKind::Decl) {
                 auto df = proj->decls[sym].get();
                 auto absf = static_pointer_cast<FuncValue>(df->absf());
