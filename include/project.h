@@ -125,6 +125,7 @@ public:
         bool NoHighSpec = false;
         bool CheckInv = false;
         bool CheckLoopInv = false;
+        std::set<string> invs;
         std::map<string, vector<unique_ptr<SpecNode>>> InitRely;
         std::map<string, vector<unique_ptr<SpecNode>>> PostEnsure;
         std::unordered_map<string, std::unordered_map<string, string>> StackMap;

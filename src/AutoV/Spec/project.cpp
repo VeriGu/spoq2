@@ -252,6 +252,11 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             // in function `f`, the allocated local_var should point to the st.(stack).(stack_var)
             this->cmds.StackMap[f->text][local_var->text]  = stack_var->text;
             LOG_INFO << "STACKVAR:" << f->text << ":" << local_var->text << "->" << stack_var->text << "\n";
+        } else if(op_str == "CheckInv"){
+            //Check a primitive's invariant
+            assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            this->cmds.invs.insert(s->text);
         } else {
             LOG_WARNING << "Unknown command " << op_str;
         }
