@@ -183,10 +183,7 @@ public:
     InvdefContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     NameContext *name();
-    TypeContext *type();
     ExprContext *expr();
-    std::vector<Var_annoContext *> var_anno();
-    Var_annoContext* var_anno(size_t i);
 
 
     virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;

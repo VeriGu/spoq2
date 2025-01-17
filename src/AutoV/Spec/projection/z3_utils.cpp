@@ -317,7 +317,7 @@ bool check_invariant(Project* proj, Definition* prim, Expr* inv) {
 //we need to analyze the loop condition C for the loop
 bool check_loop_inv(Project* proj, Definition *loop) {
     assert(proj->loop_invs.find(loop->name) != proj->loop_invs.end());
-    std::vector<unique_ptr<Expr>>& invs = proj->loop_invs[loop->name];
+    std::vector<unique_ptr<SpecNode>>& invs = proj->loop_invs[loop->name];
     assert(instance_of(loop, Fixpoint));
     auto body = loop->body.get();
     auto args = loop->args.get();

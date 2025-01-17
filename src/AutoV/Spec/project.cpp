@@ -48,6 +48,14 @@ const string Project::LAYER_PTR_GTB = "LAYER_PTR_GTB";
 const string Project::LAYER_DATA = "LAYER_DATA";
 const string Project::INV_LAYER = "Invariants";
 
+
+
+void Project::add_sys_inv(unique_ptr<SpecNode> inv) {
+    SpecNode* invelem = inv.release();
+    Expr* invexpr = instance_of(invelem, Expr);
+    sys_invs.push_back(unique_ptr<Expr>(invexpr));
+}
+
 void Project::add_symbol(string name, SymbolKind kind, string info, shared_ptr<loc_t> loc)
 {
     std::cout << "Adding symbol " << name << ", loc: " << std::get<0>(*loc) << ", " << std::get<1>(*loc) << ", " << std::get<2>(*loc) << std::endl;
@@ -167,8 +175,8 @@ void Project::add_loop_inv(unique_ptr<Expr> inv) {
          LOG_DEBUG << "Add Loop inv name" + name;
          LOG_DEBUG << "Add Loop Inv:" + string(*inv);
         SpecNode* invelem = inv->elems->at(0).release();
-        Expr* invexpr = instance_of(invelem, Expr);
-        loop_invs[name].push_back(unique_ptr<Expr>(invexpr));
+        //Expr* invexpr = instance_of(invelem, Expr);
+        loop_invs[name].push_back(unique_ptr<SpecNode>(invelem));
     } else {
         LOG_WARNING << "Illegal Invariant format" << string(*inv);
     }
@@ -878,7 +886,12 @@ void Project::finalize_project()
 
     //check system invariant
     if(cmds.CheckInv) {
-        
+        for(auto prim : cmds.invs) {
+            //only check inv for prims in cmds.invs
+            auto def = this->defs[prim].get();
+            
+            //check_invariant(this, def, inv);
+        }
     }
 #else
     std::set<string> transformed;

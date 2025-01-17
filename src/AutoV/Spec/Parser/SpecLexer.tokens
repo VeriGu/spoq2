@@ -100,7 +100,7 @@ WS=99
 ':='=1
 '.'=2
 ':'=3
-'INVARIANT'=4
+'Invariant'=4
 'Include'=5
 'Hint'=6
 'Anno'=7

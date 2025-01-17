@@ -99,6 +99,8 @@ antlrcpp::Any ProgramVisitor::visitAnno_struct(SpecParser::Anno_structContext* c
 }
 
 antlrcpp::Any ProgramVisitor::visitInvdef(SpecParser::InvdefContext* ctx){
+    SpecNode* expr = any_cast<SpecNode*>(visitExpr(ctx->expr()));
+    proj.add_sys_inv(std::move(unique_ptr<SpecNode>(expr)));
     return std::any();
 }
 

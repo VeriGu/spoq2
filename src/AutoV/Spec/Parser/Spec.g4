@@ -19,7 +19,7 @@ statement:
 
 typedef: (DEF name ':=' type '.');
 def: (DEF name var_anno* ':' type ':=' expr '.');
-invdef: ('INVARIANT' name var_anno* ':' type ':=' expr '.');
+invdef: ('Invariant' name ':=' expr '.');
 decl: (PARAM name ':' type '.');
 fixpoint: (FIXPOINT name var_anno* ':' type ':=' expr '.');
 path: STR;
