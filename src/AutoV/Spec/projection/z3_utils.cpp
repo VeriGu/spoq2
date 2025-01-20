@@ -255,7 +255,7 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
 //inv have only free variable st.
 //state in inv and body can only be "st".
 //forall v1,v2,... vk st, inv(st) /\ prim_body(v1,v2,...st) = (v1',v2'..st') -> inv(st')
-bool check_invariant(Project* proj, Definition* prim, Expr* inv) {
+bool check_invariant(Project* proj, Definition* prim, SpecNode* inv) {
     auto body = prim->body.get();
     auto args = prim->args.get();
 
@@ -302,6 +302,8 @@ bool check_invariant(Project* proj, Definition* prim, Expr* inv) {
     
     auto state = make_shared<EvalState>(
         make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var), make_shared<vector<z3::expr>>(*conds));
+
+    //TODO: state also needs to add instantiated loop invariants.
     auto res = z3_check(state, z3::implies(body_val->get_z3_value() && inv_before_val->get_z3_value(), inv_after_val->get_z3_value()), 200);
     if(res == Z3Result::Unknown) {
         LOG_DEBUG << "solver return unknown when checking invariant for " << prim->name;
@@ -314,7 +316,6 @@ bool check_invariant(Project* proj, Definition* prim, Expr* inv) {
 //the loop should be self-contained and have no function calls.
 //inv(st) /\ N = 0 /\ st' = base_case(st) -> inv(st') //actually this step is always true, not necessary to check
 //inv(st) /\ N > 0 /\ st' = loop_body(st) -> inv(st')
-//we need to analyze the loop condition C for the loop
 bool check_loop_inv(Project* proj, Definition *loop) {
     assert(proj->loop_invs.find(loop->name) != proj->loop_invs.end());
     std::vector<unique_ptr<SpecNode>>& invs = proj->loop_invs[loop->name];
@@ -358,8 +359,9 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     for (auto arg : *args) {
         if (arg->name != "_N_") {
             (*var)[arg->name] = arg->type->declare(arg->name, 0); //current
-        } else if(arg->name == "st") {
-            (*var)[arg->name] = arg->type->declare(arg->name, 0); //current
+        }
+        if(arg->name == "st") {
+            //(*var)[arg->name] = arg->type->declare(arg->name, 0); //current
             (*var)[arg->name + "_old"] = arg->type->declare(arg->name + "_old", 0); //initial
         }
     }
@@ -389,9 +391,17 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     option_elem->push_back(unique_ptr<SpecNode>(body_expr));
     auto full_expr = new Expr(Expr::Some, std::move(option_elem), rettype); 
     LOG_DEBUG << "expr:" << string(*full_expr);
+
+    auto full_val_var = make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var);
+    
+
+    for (auto arg : *args) {
+        (*full_val_var)[arg->name + "'"] = arg->type->declare(arg->name + "'", 0);
+    }
+    
     auto full_val = z3_eval(proj, full_expr, 
     make_shared<EvalState>(
-        make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var), 
+        full_val_var, 
         make_shared<vector<z3::expr>>(*conds)));
 
     SpecNode* after_inv = inv;
@@ -400,8 +410,9 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     for (auto arg : *args) {
         if (arg->name != "_N_") {
             (*after_var)[arg->name + "'"] = arg->type->declare(arg->name + "'", 0); //initial
-        } else if(arg->name == "st") {
-            (*after_var)[arg->name + "'"] = arg->type->declare(arg->name + "'", 0); 
+        } 
+        if(arg->name == "st") {
+            //(*after_var)[arg->name + "'"] = arg->type->declare(arg->name + "'", 0); 
             (*after_var)[arg->name + "_old"] = arg->type->declare(arg->name + "_old", 0);
         }
     }
@@ -1197,7 +1208,8 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                         return _cache(func_call);
                     } else {
                         LOG_ERROR << "no loop invariant specified";
-                        return nullptr;
+                        //In this case, we merely treat it as a unintepreted function.
+                        return _cache(df->absf()->call(elems));
                     }
                 } else {
                     return _cache(df->absf()->call(elems));

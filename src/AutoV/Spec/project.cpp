@@ -872,6 +872,7 @@ void Project::finalize_project()
         for(auto &[string,inv] : loop_invs) {
             if(defs.find(string) != defs.end()){
                 auto def = defs[string].get();
+                LOG_DEBUG << "Checking Loop Invariant: " << def->name;
                 if(is_instance(def, Fixpoint) && check_loop_inv(this, def)) {
                     LOG_DEBUG << "loop invariant: " << string << " is inductive :)";
                 } else {
@@ -886,12 +887,21 @@ void Project::finalize_project()
 
     //check system invariant
     if(cmds.CheckInv) {
+        auto &invs = this->sys_invs;
+        SpecNode* conjoined = new BoolConst(true);
+        for(auto &inv: invs) {
+            auto elems = new vector<unique_ptr<SpecNode>>();
+            elems->push_back(unique_ptr<SpecNode>(conjoined));
+            elems->push_back(std::move(inv));
+            conjoined = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems));
+        }
         for(auto prim : cmds.invs) {
             //only check inv for prims in cmds.invs
             auto def = this->defs[prim].get();
-            
-            //check_invariant(this, def, inv);
+            SpecNode* conjoined = new BoolConst(true);
+            check_invariant(this, def, conjoined);
         }
+        delete conjoined;
     }
 #else
     std::set<string> transformed;

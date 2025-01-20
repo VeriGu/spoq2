@@ -79,7 +79,10 @@ antlrcpp::Any ProgramVisitor::visitStatement(SpecParser::StatementContext* ctx) 
         visitGlobal_anno(ctx->global_anno());
     } else if (ctx->loop_inv()){
         visitLoop_inv(ctx->loop_inv());
-    } else {
+    } else if (ctx->invdef()){
+        visitInvdef(ctx->invdef());
+    }
+    else {
         throw std::runtime_error("Unknown statement: " + ctx->getText());
     }
 
