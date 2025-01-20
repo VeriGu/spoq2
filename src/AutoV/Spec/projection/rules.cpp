@@ -740,8 +740,9 @@ static vector<vector<FieldPath>> interest_path;
 //static const std::set<string> interest_list = {"e_lock", "e_refcount", "log"};
 //static const std::set<string> interest_list = {"gpt", "g_norm", "e_state", "g_rec", "slots", "granule_data", "e_lock"}; // delegate/undelegate
 //static const std::set<string> interest_list = {"gpt", "g_norm", "e_state", "slots", "granule_data", "stack", "log"}; // RTT
-static const std::set<string> interest_list = {"pcpu_gpregs", "e_regs"}; // CPU
-static const std::set<string> indifferent_list = {"g_aux_simd_state", "g_rec", "g_rd"}; // RTT
+//static const std::set<string> interest_list = {"pcpu_gpregs", "e_regs"}; // CPU
+//static const std::set<string> indifferent_list = {"g_aux_simd_state", "g_rec", "g_rd"}; // RTT
+static const std::set<string> interest_list = {"halt"}; // DRF
 
 //static const std::set<string> interest_list = {};
 static void collect_interest_path(Project *proj) {

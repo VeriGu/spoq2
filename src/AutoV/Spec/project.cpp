@@ -458,13 +458,13 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
 
             spec_transformer(proj, def, layer_id, false, true);
 
-            #define CONDITION_SPEC
-            #ifdef CONDITION_SPEC
+//#define CONDITION_SPEC
+#ifdef CONDITION_SPEC
             auto subs_defs = new vector<Definition*>();
             if(!is_instance(def, Fixpoint)) {
                 rule_conditional_spec(proj, def, subs_defs);
             }
-            #endif
+
 
             for(auto sub_def : * subs_defs) {
                 proj->symbols[def->name].order = proj->symbols[sub_def->name].order + 1;
@@ -476,6 +476,7 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
                 //proj->update_symbol_loc(sub_name, make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
                 name_map[sub_name] = high_name;
             }
+#endif
 
             if (def->name.rfind(suffix) == def->name.size() - suffix.size()) {
                 std::string high_name = def->name.substr(0, def->name.size() - suffix.size());

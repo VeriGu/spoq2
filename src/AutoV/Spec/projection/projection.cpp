@@ -76,7 +76,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
         auto changed = false;
         auto new_spec1 = new_spec;
 
-        
+
         // Group 1
         while (true) {
             auto this_changed = false;
@@ -99,7 +99,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
 
                 new_spec = new_spec1;
 
-#if 0
+#if 1
                 if (__changed && debug)
                     std::cout << "(group1) " << def->name << " new_spec " << rule_names[rule] << ": \n=========================\n"
                         << string(*new_spec) << "\n==============================" << std::endl;
@@ -181,7 +181,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                 break;
         }
 
-// #define APPLY_LENS
+#define APPLY_LENS
 #ifdef APPLY_LENS
         // lens
         while (true) {

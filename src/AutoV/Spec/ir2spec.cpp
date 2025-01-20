@@ -604,13 +604,14 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
             for(auto &p : *relies) {
                 stmt = new Rely(std::move(p) , unique_ptr<SpecNode>(stmt));
             }
-            
+
             return stmt;
         } else if (dynamic_cast<IRLoader::VInlineAsm*>(f->func.get()) == nullptr) {
             /* TODO: post ensure on inline assembly */
             auto wrapped_name = fname + "_funptr_wrap" + std::to_string(f->lineno);
             SpecType* wrapper_ret;
             if (proj->defs.find(wrapped_name) == proj->defs.end()) {
+                LOG_WARNING << "Unable to find function pointer wrapper for " << wrapped_name << std::endl;
                 if(dynamic_cast<IRLoader::TVoid*>(f->typ.get())) {
                     wrapper_ret = new Option(Layer->abs_data);
                 } else {
