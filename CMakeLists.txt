@@ -27,7 +27,7 @@ include_directories(include)
 # ------------------------------------------------------------------------------
 # Boost
 # ------------------------------------------------------------------------------
-find_package(Boost REQUIRED COMPONENTS log)
+find_package(Boost REQUIRED COMPONENTS log program_options)
 if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
 endif()

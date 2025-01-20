@@ -4,6 +4,7 @@
 #include <project.h>
 #include <shortcuts.h>
 #include <mutex>
+#include <cmd.h>
 namespace autov {
 
 extern unordered_map<unsigned long, bool> converged_spec;
@@ -181,49 +182,49 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                 break;
         }
 
-#define APPLY_LENS
-#ifdef APPLY_LENS
-        // lens
-        while (true) {
-            auto this_changed = false;
-            new_spec1 = new_spec;
+        if (OPTS.lens) {
+            // lens
+            while (true) {
+                auto this_changed = false;
+                new_spec1 = new_spec;
 
-            do {
-                auto before = string(*new_spec1);
+                do {
+                    auto before = string(*new_spec1);
 
-                auto [__spec, __changed] = rule_keep_fields_of_interest(proj, new_spec1, def->name);
-                new_spec1 = __spec;
-                this_changed |= __changed;
-                changed |= __changed;
+                    auto [__spec, __changed] = rule_keep_fields_of_interest(proj, new_spec1, def->name);
+                    new_spec1 = __spec;
+                    this_changed |= __changed;
+                    changed |= __changed;
 
-                if (__changed && debug) {
-                    std::cout << "(indifferent) before: " << def->name << " new_spec: \n=========================\n"
-                        << before << "\n==============================" << std::endl;
-                    std::cout << "(indifferent) " << def->name << " new_spec: \n=========================\n"
-                        << string(*new_spec1) << "\n==============================" << std::endl;
-                }
-            } while (false);
+                    if (__changed && debug) {
+                        std::cout << "(indifferent) before: " << def->name << " new_spec: \n=========================\n"
+                            << before << "\n==============================" << std::endl;
+                        std::cout << "(indifferent) " << def->name << " new_spec: \n=========================\n"
+                            << string(*new_spec1) << "\n==============================" << std::endl;
+                    }
+                } while (false);
 
-            do {
-                auto before = string(*new_spec1);
-                auto [__spec, __changed] = rule_simplify_lens(proj, new_spec1);
-                new_spec1 = __spec;
-                this_changed |= __changed;
-                changed |= __changed;
+                do {
+                    auto before = string(*new_spec1);
+                    auto [__spec, __changed] = rule_simplify_lens(proj, new_spec1);
+                    new_spec1 = __spec;
+                    this_changed |= __changed;
+                    changed |= __changed;
 
-                if (__changed && debug) {
-                    std::cout << "(simple indifferent) before: " << def->name << " new_spec: \n=========================\n"
-                        << before << "\n==============================" << std::endl;
-                    std::cout << "(simple indifferent) " << def->name << " new_spec: \n=========================\n"
-                        << string(*new_spec1) << "\n==============================" << std::endl;
-                }
-            } while (false);
+                    if (__changed && debug) {
+                        std::cout << "(simple indifferent) before: " << def->name << " new_spec: \n=========================\n"
+                            << before << "\n==============================" << std::endl;
+                        std::cout << "(simple indifferent) " << def->name << " new_spec: \n=========================\n"
+                            << string(*new_spec1) << "\n==============================" << std::endl;
+                    }
+                } while (false);
 
-            new_spec = new_spec1;
-            if (!this_changed)
-                break;
+                new_spec = new_spec1;
+                if (!this_changed)
+                    break;
+            }
         }
-#endif
+
 
         // Z3
         //if (unfold) {

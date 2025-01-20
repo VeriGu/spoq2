@@ -6,6 +6,7 @@
 #include <rules.h>
 #include <projection.h>
 #include <chrono>
+#include <cmd.h>
 
 //#define MT_TRANSFORM
 #ifdef MT_TRANSFORM
@@ -458,25 +459,26 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
 
             spec_transformer(proj, def, layer_id, false, true);
 
-//#define CONDITION_SPEC
-#ifdef CONDITION_SPEC
-            auto subs_defs = new vector<Definition*>();
-            if(!is_instance(def, Fixpoint)) {
-                rule_conditional_spec(proj, def, subs_defs);
-            }
+
+            if (OPTS.conditional_spec) {
+                auto subs_defs = new vector<Definition*>();
+                if(!is_instance(def, Fixpoint)) {
+                    rule_conditional_spec(proj, def, subs_defs);
+                }
 
 
-            for(auto sub_def : * subs_defs) {
-                proj->symbols[def->name].order = proj->symbols[sub_def->name].order + 1;
-                auto sub_name = sub_def->name;
-                LOG_DEBUG << "sub_name: " << sub_name;
-                auto high_name = sub_name.substr(0, sub_name.size() - 4);
-                subs_defs_low->push_back(sub_def);
-                //proj->add_definition(unique_ptr<Definition>(sub_def), loc);
-                //proj->update_symbol_loc(sub_name, make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
-                name_map[sub_name] = high_name;
+                for(auto sub_def : * subs_defs) {
+                    proj->symbols[def->name].order = proj->symbols[sub_def->name].order + 1;
+                    auto sub_name = sub_def->name;
+                    LOG_DEBUG << "sub_name: " << sub_name;
+                    auto high_name = sub_name.substr(0, sub_name.size() - 4);
+                    subs_defs_low->push_back(sub_def);
+                    //proj->add_definition(unique_ptr<Definition>(sub_def), loc);
+                    //proj->update_symbol_loc(sub_name, make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
+                    name_map[sub_name] = high_name;
+                }
             }
-#endif
+
 
             if (def->name.rfind(suffix) == def->name.size() - suffix.size()) {
                 std::string high_name = def->name.substr(0, def->name.size() - suffix.size());
