@@ -1144,7 +1144,9 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                         for (auto arg : *loop->args) {
                             if (arg->name != "_N_") {
                                 (*var)[arg->name] = arg->type->declare(loop->name + "_" + arg->name, 0); //current
-                                (*var)[arg->name + "_old"] = arg->type->declare(loop->name + "_" + arg->name + "_old", 0); //initial
+                            }
+                            if(arg->name == "st") {
+                                (*var)[arg->name + "_old"] = arg->type->declare(loop->name + "_" + arg->name + "_old", 0); 
                             }
                         }
                         
@@ -1152,24 +1154,24 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                         //ret_x[0] = ret_x_0, ret_x[1] = ret_x_1....
                         //inv[a/ret_x_1,.....] = true
                         auto func_call = df->absf()->call(elems);
-                        auto ret = func_call->get_type()->declare("ret", val->nid);
+                        // auto ret = func_call->get_type()->declare("ret", val->nid);
 
-                        //ret_x = f(a,b,c,d)
-                        auto eqformula = ret->get_z3_value() == func_call->get_z3_value();
+                        // //ret_x = f(a,b,c,d)
+                        // auto eqformula = ret->get_z3_value() == func_call->get_z3_value();
             
-                        auto some = instance_of(ret.get(), IndValue);
+                        // auto some = instance_of(ret.get(), IndValue);
 
-                        //ret_tuple
-                        auto rettuple = instance_of(some->get("value").get(), StructValue);
+                        // //ret_tuple
+                        // auto rettuple = instance_of(some->get("value").get(), StructValue);
                         
-                        auto rettype = loop->rettype;
-                        auto rettypesome = instance_of(rettype.get(), Option);
-                        auto tupletype = instance_of(rettypesome->elem_type.get(), Tuple);
+                        // auto rettype = loop->rettype;
+                        // auto rettypesome = instance_of(rettype.get(), Option);
+                        // auto tupletype = instance_of(rettypesome->elem_type.get(), Tuple);
 
-                        //after checks, we should assume that inv is hold after loop. i.e
-                        //assume _N_ == 0 and I (postcond)
-                        auto after_var = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
-                        auto after_conds = std::make_shared<vector<z3::expr>>();
+                        // //after checks, we should assume that inv is hold after loop. i.e
+                        // //assume _N_ == 0 and I (postcond)
+                        // auto after_var = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+                        // auto after_conds  = std::make_shared<vector<z3::expr>>();
                         
                         ///aggregate all the invs together into one conjunctives
                         SpecNode* aggreinv = new BoolConst(true);
@@ -1182,29 +1184,32 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
 
                         SpecNode *before_inv = aggreinv;
                         //subst invariant inv[ret_x[0]/a' ret_x[1]/b' ret_x[2]/c' ret_x[3]/d']
+
                         for(auto arg : *loop->args) {
-                            if (arg->name != "_N_") {
-                                auto sym = new Symbol(loop->name + "_" + arg->name, arg->type);
-                                bool succ;
-                                before_inv = subst(before_inv->deep_copy().release(), arg->name, sym, succ);
-                                delete sym;
-                            }
+                            // if (arg->name != "_N_") {
+                            auto sym = new Symbol(loop->name + "_" + arg->name, arg->type);
+                            bool succ;
+                            before_inv = subst(before_inv->deep_copy().release(), arg->name, sym, succ);
+                            delete sym;
+                            // }
                         }
                         auto vc = z3ctx.bool_val(true);
                         auto invval = z3_eval(proj, before_inv, make_shared<EvalState>(var, conds));
                         int i = 0;
                         for(auto arg : *loop->args) {
-                            auto name = loop->name + "_" + arg->name;
+                            auto name = arg->name;
                             //instantiate variable to each element
                             auto z3_eq_expr = elems.at(i)->get_z3_value() == (*var)[name]->get_z3_value();
                             vc = vc && z3_eq_expr;
+                            i++;
                         }
+                        vc = vc && (*var)["st_old"]->get_z3_value() == elems.back()->get_z3_value();
                         auto res = z3_check(state, vc && invval->get_z3_value(),200);
                         if(res == Z3Result::False || res == Z3Result::Unknown) {
                             LOG_ERROR << "Precondition can't infer loop invariant";
                             return nullptr;
                         }
-                    
+
                         return _cache(func_call);
                     } else {
                         LOG_ERROR << "no loop invariant specified";
