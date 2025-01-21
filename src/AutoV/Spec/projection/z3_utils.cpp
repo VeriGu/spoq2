@@ -463,6 +463,59 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     return res == z3::unsat;
 }
 
+//extract useful patterns in invariants to be triggers that when encountered, will instantiate the invariant.
+//the quantifiers are integers in RMM.
+//forall i, (st...granules @ i).(a) = b.
+void extract_patterns_field(SpecNode* spec, set<string>& fields, set<string>& quantifiers) {
+    if(auto expr = instance_of(spec, Expr)) {
+        if(op_eq(expr->op, Expr::ops::GET)) {
+            auto zmap = expr->elems->at(0).get();
+            if(auto zmapexpr = instance_of(zmap, Expr)) {
+                auto rec = instance_of(zmapexpr->elems->at(0).get(), Expr);
+                auto index = instance_of(zmapexpr->elems->back().get(), Symbol);
+                //the indices are quantified
+                if(quantifiers.find(index->text) != quantifiers.end()) {
+                    if(op_eq(zmapexpr->op, Expr::RecordGet)) {
+                        //st.(a).(b) @ i
+                        auto fieldnode = rec->elems->back().get();
+                        auto fieldsym = instance_of(fieldnode, Symbol);
+                        fields.insert(fieldsym->text);
+                    } else if(op_eq(rec->op, Expr::RecordSet)) {
+                        //(st.[a].[b] <: c) @ i
+                        auto fieldnode = (rec->elems->end() - 1)->get();
+                        auto fieldsym = instance_of(fieldnode, Symbol);
+                        fields.insert(fieldsym->text);
+                    }
+                }
+            }
+            extract_patterns_field(expr->elems->at(0).get(), fields, quantifiers);
+        } else {
+            for(auto &elem : *expr->elems) {
+                extract_patterns_field(elem.get(), fields, quantifiers);
+            }
+        }
+    } else if(auto expr = instance_of(spec, If)) {
+        extract_patterns_field(expr->cond.get(), fields, quantifiers);
+        extract_patterns_field(expr->then_body.get(), fields, quantifiers);
+        extract_patterns_field(expr->else_body.get(), fields, quantifiers);
+    } else if(auto expr = instance_of(spec, RelyAnno)) {
+        extract_patterns_field(expr->prop.get(), fields, quantifiers);
+        extract_patterns_field(expr->body.get(), fields, quantifiers);
+    } else if(auto expr = instance_of(spec, Match)) {
+        extract_patterns_field(expr->src.get(), fields, quantifiers);
+        for(auto &pm : *expr->match_list) {
+            extract_patterns_field(pm->body.get(), fields, quantifiers);
+        }
+    } else if(auto expr = instance_of(spec, Symbol)) {
+        //do nothing
+    }
+}
+
+void pattern_matching(SpecNode* pattern, SpecNode* spec) {
+    
+}
+
+
 //formulate all the loop invariant to the exprs as
 //forall v1,v2,...vk,v1',v2'...vk', loop_spec(n, v1....vk,st) = Some (n', v1',v2',v3'....vk',st') -> invariant(v1',v2',....vk'，st',st)
 SpecNode* formulate_loop_invariant(Project* proj, string fname) {
@@ -767,11 +820,12 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
                         auto invval = z3_eval(proj, before_inv, make_shared<EvalState>(var, conds));
                         int i = 0;
                         for(auto arg : *loop->args) {
-                            auto name = loop->name + "_" + arg->name;
+                            auto name = arg->name;
                             //instantiate variable to each element
                             auto z3_eq_expr = elems.at(i)->get_z3_value() == (*var)[name]->get_z3_value();
                             vc = vc && z3_eq_expr;
                         }
+                        vc = vc && (*var)["st_old"]->get_z3_value() == elems.back()->get_z3_value();
                         auto res = z3_check(state, vc && invval->get_z3_value(),200);
                         if(res == Z3Result::False || res == Z3Result::Unknown) {
                             LOG_ERROR << "Precondition can't infer loop invariant";
