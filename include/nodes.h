@@ -34,6 +34,11 @@ class SpecNode {
 public:
     static unsigned long id; // Initialized in nodes.cpp
 
+    bool depend_on_interested_read = false;
+    bool depend_on_interested_write = false;
+    bool is_interested_read = false;
+    bool is_interested_write = false;
+    bool depends_on_state_read = false;
     shared_ptr<SpecType> type;
     unsigned long nid;
     int length;
