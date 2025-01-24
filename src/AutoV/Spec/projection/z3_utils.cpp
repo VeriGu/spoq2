@@ -883,10 +883,14 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
             unordered_map<string, shared_ptr<SpecValue>> vars;
             unordered_map<string, shared_ptr<SpecValue>> assigns;
             auto pat = resolve_pattern(proj, val, (*pm)->pattern.get(), src, vars, assigns);
-            auto cond = pat->get_z3_value() == src->get_z3_value();
-            for (auto v = vars.begin(); v != vars.end(); v++) {
-                cond = z3::exists(v->second->get_z3_value(), cond);
+            z3::expr cond = z3ctx.bool_val(true);
+            for (auto asgn : assigns) {
+                auto asgn_val = asgn.second->get_z3_value();
+                auto asgn_sym = vars[asgn.first]->get_z3_value();
+                cond = (asgn_val == asgn_sym);
+                cond = z3::exists(asgn_sym, cond);
             }
+
             auto z3_res = z3_check(state, cond);
             if (z3_res == Z3Result::False) {
                 continue;
@@ -899,7 +903,18 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
                 match_val = z3_eval(proj, (*pm)->body.get(), new_state);
             } else {
                 auto then_val = z3_eval(proj, (*pm)->body.get(), new_state);
-                match_val = match_val->get_type()->from_z3_value(z3::ite(cond, then_val->get_z3_value(), match_val->get_z3_value()));
+                /** Optimization: instantiate Exists: 
+                 *      Original: (vars: v = src), if ((Exists v' (v' = src)) then Prop(v') else True)
+                 *      --> v is the evidence of (Exists...)
+                 *      --> (Exists v' (v' = src)) == True
+                 *      --> Instantiate v' by v
+                 *  * It's always sufficient to jsut have Prop(v) for proof!
+                 */
+                if (match_val->get_z3_value().is_true()) {
+                    match_val = then_val;
+                } else {
+                    match_val = match_val->get_type()->from_z3_value(z3::ite(cond, then_val->get_z3_value(), match_val->get_z3_value()));
+                }
             }
         }
         if (match_val == nullptr) {
