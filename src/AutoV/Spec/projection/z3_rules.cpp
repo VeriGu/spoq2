@@ -105,7 +105,7 @@ rule_ret_t merge_rely(Project* proj, SpecNode* spec, shared_ptr<EvalState> state
                 tmp_conds->insert(tmp_conds->end(), conds.begin() + i + 1, conds.end());
                 auto res = z3_check(make_shared<EvalState>(state->vars, tmp_conds), cond->get_z3_value());
 
-                if (res == Z3Result::Unknown) {
+                if (res == Z3Result::Unknown || res == Z3Result::Sat) {
                     auto new_conds = new vector<unique_ptr<SpecNode>>();
                     new_conds->push_back(unique_ptr<SpecNode>(rely1->prop.release()));
                     new_conds->push_back(unique_ptr<SpecNode>(rely2->prop.release()));
@@ -118,7 +118,7 @@ rule_ret_t merge_rely(Project* proj, SpecNode* spec, shared_ptr<EvalState> state
                     rely1->body.reset(rely2->body.release());
                     delete rely2;
                 }
-                else {
+                else if(res == Z3Result::False) {
                     rely1->prop.reset(new Expr("false", make_unique<vector<unique_ptr<SpecNode>>>(), Prop::PROP));
                     rely1->body.reset(rely2->body.release());
                     delete rely2;
@@ -155,7 +155,7 @@ rule_ret_t simple_rely_by_z3(Project* proj, RelyAnno* spec, shared_ptr<EvalState
     auto c = z3_eval(proj, cond, state);
     auto res = z3_check(state, c->get_z3_value(), 50);
 
-    if (res == Z3Result::Unknown) {
+    if (res == Z3Result::Unknown || res == Z3Result::Sat) {
         state->conds->push_back(c->get_z3_value());
         auto ret = rule_simple_by_z3(proj, spec->body.release(), state);
         state->conds->pop_back(); // newly added. Old code might have bug here
@@ -217,7 +217,7 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
 
     auto res = z3_check(state, c->get_z3_value(), 50);
 
-    if (res == Z3Result::Unknown) {
+    if (res == Z3Result::Unknown || res == Z3Result::Sat) {
         //std::cout << "simple_if_by_z3: unknown condition: " << orig_cond << std::endl;
         auto unknown_value = c->get_z3_value();
         //auto then_state = state->copy();
@@ -846,25 +846,25 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
     auto exp_val = z3_eval(proj, spec, state);
 
     unordered_map<unsigned, std::pair<z3::expr, SpecNode*>> subexprs;
-    collect_exprs(spec, subexprs);
-    if ((spec->get_type() == Int::INT || spec->get_type() == Bool::BOOL)
-         && length_of_exp(spec) <= 20) {
-        auto _expr = reconstruct_expr(exp_val->get_z3_value(), subexprs, state);
-        unique_ptr<SpecNode> expr;
-        if (_expr) {
-            expr = _expr->deep_copy();
-        }
+    //collect_exprs(spec, subexprs);
+    // if ((spec->get_type() == Int::INT || spec->get_type() == Bool::BOOL)
+    //      && length_of_exp(spec) <= 20) {
+    //     auto _expr = reconstruct_expr(exp_val->get_z3_value(), subexprs, state);
+    //     unique_ptr<SpecNode> expr;
+    //     if (_expr) {
+    //         expr = _expr->deep_copy();
+    //     }
 
-        for (auto s = subexprs.begin(); s != subexprs.end(); ++s)
-            if (s->second.second != _expr) {
-                delete s->second.second;
-            }
+    //     for (auto s = subexprs.begin(); s != subexprs.end(); ++s)
+    //         if (s->second.second != _expr) {
+    //             delete s->second.second;
+    //         }
 
-        if (expr && length_of_exp(expr.get()) < length_of_exp(spec)) {
-            delete spec;
-            return std::make_pair(expr.release(), true);
-        }
-    }
+    //     if (expr && length_of_exp(expr.get()) < length_of_exp(spec)) {
+    //         delete spec;
+    //         return std::make_pair(expr.release(), true);
+    //     }
+    // }
 
     auto elem0 = instance_of(spec->elems->at(0).get(), Expr);
 
@@ -884,11 +884,6 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
             (z3_check(state, a->get_z3_value() % d->get_z3_value() == 0) == Z3Result::True ||
              z3_check(state, b->get_z3_value() % d->get_z3_value() == 0) == Z3Result::True)) {
 
-            // if (debug) {
-            //     std::cout << "a: " << a->get_z3_value() << std::endl;
-            //     std::cout << "b: " << b->get_z3_value() << std::endl;
-            //     std::cout << "d: " << d->get_z3_value() << std::endl;
-            // }
             auto elems1 = make_unique<vector<unique_ptr<SpecNode>>>();
             elems1->push_back(std::move(ea));
             elems1->push_back(ed->deep_copy());

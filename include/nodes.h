@@ -986,15 +986,15 @@ public:
     }
 
     unique_ptr<SpecNode> deep_copy() const {
-        throw std::invalid_argument("Forall cannot be deep copied");
-        // unique_ptr<SpecNode> new_body = this->body->deep_copy();
-        // unique_ptr<vector<shared_ptr<Arg>>> new_vars = make_unique<vector<shared_ptr<Arg>>>();
+        // throw std::invalid_argument("Forall cannot be deep copied");
+        unique_ptr<SpecNode> new_body = this->body->deep_copy();
+        unique_ptr<vector<shared_ptr<Arg>>> new_vars = make_unique<vector<shared_ptr<Arg>>>();
 
-        // for (auto it = vars->begin(); it != vars->end(); it++) {
-        //     new_vars->push_back(make_shared<Arg>((*it)->name, (*it)->type));
-        // }
+        for (auto it = vars->begin(); it != vars->end(); it++) {
+            new_vars->push_back(make_shared<Arg>((*it)->name, (*it)->type));
+        }
 
-        // return make_unique<Forall>(std::move(new_vars), std::move(new_body));
+        return make_unique<Forall>(std::move(new_vars), std::move(new_body));
     }
     void deep_copy(unique_ptr<SpecNode> &p) const {
         throw std::invalid_argument("Forall cannot be deep copied");

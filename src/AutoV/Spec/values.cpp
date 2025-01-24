@@ -264,7 +264,7 @@ std::shared_ptr<SpecValue> StructValue::get(string key) {
         }
 
         if(!found)
-            throw std::runtime_error("Field not found");
+            throw std::runtime_error("Field not found:" + field);
 
         auto elem_typ = s->elems_map[field];
         z3::sort z3type = s->get_z3_type();

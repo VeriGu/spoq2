@@ -52,8 +52,8 @@ const string Project::INV_LAYER = "Invariants";
 
 void Project::add_sys_inv(unique_ptr<SpecNode> inv) {
     SpecNode* invelem = inv.release();
-    Expr* invexpr = instance_of(invelem, Expr);
-    sys_invs.push_back(unique_ptr<Expr>(invexpr));
+    //Expr* invexpr = instance_of(invelem, Expr);
+    sys_invs.push_back(unique_ptr<SpecNode>(invelem));
 }
 
 void Project::add_symbol(string name, SymbolKind kind, string info, shared_ptr<loc_t> loc)
@@ -892,16 +892,17 @@ void Project::finalize_project()
         for(auto &inv: invs) {
             auto elems = new vector<unique_ptr<SpecNode>>();
             elems->push_back(unique_ptr<SpecNode>(conjoined));
-            elems->push_back(std::move(inv));
+            elems->push_back(inv->deep_copy());
             conjoined = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems));
         }
         for(auto prim : cmds.invs) {
             //only check inv for prims in cmds.invs
+            LOG_DEBUG << "Checking Invariant: " << prim;
             auto def = this->defs[prim].get();
-            SpecNode* conjoined = new BoolConst(true);
-            check_invariant(this, def, conjoined);
+            if(check_invariant(this, def, conjoined)) {
+                LOG_DEBUG << "Invariant Valid :) :" << prim;
+            };
         }
-        delete conjoined;
     }
 #else
     std::set<string> transformed;

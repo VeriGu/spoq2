@@ -1167,6 +1167,10 @@ rule_ret_t rule_simplify_dependent_value(Project *proj, SpecNode *spec, bool deb
         return std::make_pair(spec, ifchange);
     }
     auto fields_depend_on_interested_field = make_unique<std::unordered_set<string>>();
+    for(auto field : interest_list) {
+        fields_depend_on_interested_field->insert(field);
+    }
+
     depend_on_state_read(proj, spec);
     mark_interested_read(proj, spec, fields_depend_on_interested_field.get(), debug);
     if(debug) {

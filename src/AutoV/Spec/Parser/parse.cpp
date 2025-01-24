@@ -990,4 +990,19 @@ void parse(Project *proj, const std::string& path, Layer *current_layer) {
     std::cout << "Done parsing " << path << std::endl;
 }
 
+void parseExpr(Project* proj, const std::string& path) {
+    std::ifstream stream(path);
+    antlr4::ANTLRInputStream input(stream);
+    SpecLexer lexer(&input);
+    antlr4::CommonTokenStream tokens(&lexer);
+    SpecParser parser(&tokens);
+    antlr4::tree::ParseTree* tree = parser.expr();
+    ProgramVisitor visitor(*proj, path);
+
+
+    std::cout << "Parsing Expr " << path << std::endl;
+    visitor.visit(tree);
+    std::cout << "Done parsing Expr " << path << std::endl;
+}
+
 } // namespace autov::parser

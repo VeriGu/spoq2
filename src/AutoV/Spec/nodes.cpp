@@ -177,6 +177,9 @@ const string Expr::to_string() const {
         }
     } else {
         string op_str = holds_alternative<string>(op) ? std::get<string>(op) : string(*std::get<unique_ptr<SpecNode>>(op));
+        if (op_str == "lens_v") {
+            return "(lens_v " + string(*type) + " " + string(*elems->at(0)) + ")"; 
+        }
         string str = "(" + op_str;
 
         if (elems->size()) {
