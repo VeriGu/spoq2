@@ -470,7 +470,18 @@ static SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f
                       unique_ptr<SpecNode>(rec_apply(i->then_body.release(), f, apply_anno)),
                       unique_ptr<SpecNode>(rec_apply(i->else_body.release(), f, apply_anno))));
     } else if (auto fe = instance_of(spec, Forall)) {
-        return f(new Forall(make_unique<vector<shared_ptr<Arg>>>(*fe->vars),
+        auto vars = make_unique<vector<shared_ptr<Arg>>>();
+        for (auto &v : *fe->vars) {
+            if (v->expr) {
+                // apply f to the hypos
+                if (auto e = instance_of(rec_apply(v->expr.release(), f, apply_anno), Expr)) {
+                    v->expr = unique_ptr<Expr>(e);
+                }
+            }
+            vars->push_back(v);
+        }
+        fe->vars.release();
+        return f(new Forall(make_unique<vector<shared_ptr<Arg>>>((*vars)),
                           unique_ptr<SpecNode>(rec_apply(fe->body.release(), f, apply_anno))));
     } else if (auto fe = instance_of(spec, Exists)) {
         return f(new Exists(make_unique<vector<shared_ptr<Arg>>>(*fe->vars),

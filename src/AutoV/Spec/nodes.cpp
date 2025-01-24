@@ -815,7 +815,7 @@ const string Forall::to_string() const {
     string body = string(*(this->body));
     string vars = join_elems_space(*this->vars);
 
-    return "(forall " + vars + ", " + body;
+    return "(forall " + vars + ", " + body + ")";
 }
 
 void Forall::infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
