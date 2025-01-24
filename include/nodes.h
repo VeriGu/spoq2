@@ -986,26 +986,34 @@ public:
     }
 
     unique_ptr<SpecNode> deep_copy() const {
-        throw std::invalid_argument("Forall cannot be deep copied");
-        // unique_ptr<SpecNode> new_body = this->body->deep_copy();
-        // unique_ptr<vector<shared_ptr<Arg>>> new_vars = make_unique<vector<shared_ptr<Arg>>>();
+        // throw std::invalid_argument("Forall cannot be deep copied");
+        unique_ptr<SpecNode> new_body = this->body->deep_copy();
+        unique_ptr<vector<shared_ptr<Arg>>> new_vars = make_unique<vector<shared_ptr<Arg>>>();
 
-        // for (auto it = vars->begin(); it != vars->end(); it++) {
-        //     new_vars->push_back(make_shared<Arg>((*it)->name, (*it)->type));
-        // }
+        for (auto it = vars->begin(); it != vars->end(); it++) {
+            auto new_arg = make_shared<Arg>((*it)->name, (*it)->type);
+            if ((*it)->expr) {
+                new_arg->expr = (*it)->expr->deep_copy_down();
+            }
+            new_vars->push_back(std::move(new_arg));
+        }
 
-        // return make_unique<Forall>(std::move(new_vars), std::move(new_body));
+        return make_unique<Forall>(std::move(new_vars), std::move(new_body));
     }
     void deep_copy(unique_ptr<SpecNode> &p) const {
-        throw std::invalid_argument("Forall cannot be deep copied");
-        // unique_ptr<SpecNode> new_body = this->body->deep_copy();
-        // unique_ptr<vector<shared_ptr<Arg>>> new_vars = make_unique<vector<shared_ptr<Arg>>>();
+        // throw std::invalid_argument("Forall cannot be deep copied");
+        unique_ptr<SpecNode> new_body = this->body->deep_copy();
+        unique_ptr<vector<shared_ptr<Arg>>> new_vars = make_unique<vector<shared_ptr<Arg>>>();
 
-        // for (auto it = vars->begin(); it != vars->end(); it++) {
-        //     new_vars->push_back(make_shared<Arg>((*it)->name, (*it)->type));
-        // }
+        for (auto it = vars->begin(); it != vars->end(); it++) {
+            auto new_arg = make_shared<Arg>((*it)->name, (*it)->type);
+            if ((*it)->expr) {
+                new_arg->expr = (*it)->expr->deep_copy_down();
+            }
+            new_vars->push_back(std::move(new_arg));
+        }
 
-        // p = make_unique<Forall>(std::move(new_vars), std::move(new_body));
+        p = make_unique<Forall>(std::move(new_vars), std::move(new_body));
     }
 
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
