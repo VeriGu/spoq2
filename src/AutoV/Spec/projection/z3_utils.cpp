@@ -82,6 +82,7 @@ unsigned long z3_checks = 0;
 unsigned long z3_cache_hits = 0;
 std::chrono::duration<double> z3_accumulative_time = std::chrono::duration<double>::zero();
 
+
 // Defautl value of timeout is 50
 Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout, z3::model* ce) {
     auto start = std::chrono::high_resolution_clock::now();
@@ -102,6 +103,10 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout, z3::m
     for (auto &c : *state->conds) {
         Z3Solver.add(c);
     }
+    Z3Solver.push();
+    Z3Solver.add(cond);
+    auto res = Z3Solver.check();
+    Z3Solver.pop();
 
 
     Z3Solver.push();
@@ -109,45 +114,40 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout, z3::m
     z3::expr_vector not_cond_vec(z3ctx);
     not_cond_vec.push_back(!cond);
     auto not_res = Z3Solver.check(not_cond_vec);
-    
+    Z3Solver.pop();
+
+    Z3Solver.pop();
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
     // std::cout << "-----------------Z3-----------------" << std::endl;
-    // std::cout << "hash: " << hash << std::endl;
-    // std::cout << "z3 check cond: " << cond << ", hash: " << cond.hash() << std::endl;
+    // std::cout << "z3 check conditions: \n----------------------------------\n";
     // for (auto &c : *state->conds) {
-    //     std::cout << "z3 check state conds: " << c << std::endl;
+    //     std::cout << c << std::endl;
+    //     std::cout << "----------------------------------" << std::endl;
     // }
+    // std::cout << "z3 check goal: " << cond << std::endl;
     // std::cout << "z3 check res: " << res << std::endl;
     // std::cout << "z3 check not_res: " << not_res << std::endl;
     // std::cout << "-----------------Z3-----------------" << std::endl;
 
     if (not_res == z3::unsat) {
-        Z3Solver.pop();
-        Z3Solver.pop();
+        if (res == z3::unsat) {
+            string msg = "Pre-condition is False! Condition is:\n";
+            for (auto &c : *state->conds) {
+                msg += c.to_string() + "\n";
+            }
+            msg += "Condition is:\n";
+            msg += cond.to_string();
+            LOG_WARNING << msg << std::endl;
+            // throw std::runtime_error(msg);
+        }
         Z3Cache[hash] = Z3Result::True;
         return Z3Result::True;
-    } else if (not_res == z3::sat) {
-        //obtained the counter example
-        auto model = Z3Solver.get_model();
-        
-        Z3Solver.pop();
-
-        Z3Solver.push();
-        Z3Solver.add(cond);
-        auto res = Z3Solver.check();
-        Z3Solver.pop();
-
-        Z3Solver.pop();
-        if(res == z3::unsat) {
-            Z3Cache[hash] = Z3Result::False;
-            return Z3Result::False;
-        }
-        return Z3Result::Sat;
+    } else if (res == z3::unsat) {
+        Z3Cache[hash] = Z3Result::False;
+        return Z3Result::False;
     } else {
-        Z3Solver.pop();
-        Z3Solver.pop();
         Z3Cache[hash] = Z3Result::Unknown;
         z3_unknowns++;
         return Z3Result::Unknown;
@@ -641,69 +641,69 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
 
         if (op_eq(expr->op, Expr::None))
             states.push_back(std::make_pair(_cache(static_pointer_cast<Inductive>(val->get_type())->construct("None", {})),state));
-        if (op_eq(expr->op, Expr::binops::ADD))
+        else if (op_eq(expr->op, Expr::binops::ADD))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, Expr::binops::MINUS)) {
+        else if (op_eq(expr->op, Expr::binops::MINUS)) {
             if (expr->elems->size() == 2)
-                  states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->sub(static_pointer_cast<IntValue>(elems[1]))), state));
+                states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->sub(static_pointer_cast<IntValue>(elems[1]))), state));
             else
-                  states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->neg()), state));
+                states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->neg()), state));
         }
-        if (op_eq(expr->op, Expr::binops::MULT))
+        else if (op_eq(expr->op, Expr::binops::MULT))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->mul(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, Expr::binops::DIV))
+        else if (op_eq(expr->op, Expr::binops::DIV))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->div(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, Expr::binops::MOD))
+        else if (op_eq(expr->op, Expr::binops::MOD))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->mod(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, Expr::binops::LSHIFT))
+        else if (op_eq(expr->op, Expr::binops::LSHIFT))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->shiftl(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, Expr::binops::RSHIFT))
+        else if (op_eq(expr->op, Expr::binops::RSHIFT))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->shiftr(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, Expr::binops::BITAND))
+        else if (op_eq(expr->op, Expr::binops::BITAND))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->land(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, Expr::binops::BITOR))
+        else if (op_eq(expr->op, Expr::binops::BITOR))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->lor(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, "Z.lxor"))
+        else if (op_eq(expr->op, "Z.lxor"))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->lxor(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, "Z.lnot"))
+        else if (op_eq(expr->op, "Z.lnot"))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->lnot()), state));
-        if (op_eq(expr->op, "Z.testbit"))
+        else if (op_eq(expr->op, "Z.testbit"))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->testbit(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, "Z.setbit"))
+        else if (op_eq(expr->op, "Z.setbit"))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->setbit(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, "Z.clearbit"))
+        else if (op_eq(expr->op, "Z.clearbit"))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->clearbit(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, "Z.xorb"))
+        else if (op_eq(expr->op, "Z.xorb"))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->xorb(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, Expr::binops::EQUAL))
+        else if (op_eq(expr->op, Expr::binops::EQUAL))
             states.push_back(std::make_pair(_cache(Prop::PROP->from_z3_value((elems[0]->get_z3_value() == elems[1]->get_z3_value()).simplify())), state));
-        if (op_eq(expr->op, Expr::binops::BEQ))
+        else if (op_eq(expr->op, Expr::binops::BEQ))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->eq(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, Expr::binops::SEQ))
+        else if (op_eq(expr->op, Expr::binops::SEQ))
             states.push_back(std::make_pair(_cache(static_pointer_cast<StringValue>(elems[0])->eq(static_pointer_cast<StringValue>(elems[1]))), state));
-        if (op_eq(expr->op, Expr::binops::NOT_EQUAL))
+        else if (op_eq(expr->op, Expr::binops::NOT_EQUAL))
             states.push_back(std::make_pair(_cache(Prop::PROP->from_z3_value(elems[0]->get_z3_value() != elems[1]->get_z3_value())), state));
-        if (op_eq(expr->op, Expr::binops::BNE))
+        else if (op_eq(expr->op, Expr::binops::BNE))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->ne(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, Expr::binops::SNE))
+        else if (op_eq(expr->op, Expr::binops::SNE))
             states.push_back(std::make_pair(_cache(static_pointer_cast<StringValue>(elems[0])->ne(static_pointer_cast<StringValue>(elems[1]))), state));
-        if (op_eq(expr->op, Expr::binops::GT) || op_eq(expr->op, Expr::binops::BGT))
+        else if (op_eq(expr->op, Expr::binops::GT) || op_eq(expr->op, Expr::binops::BGT))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->gt(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, Expr::binops::GTE) || op_eq(expr->op, Expr::binops::BGE))
+        else if (op_eq(expr->op, Expr::binops::GTE) || op_eq(expr->op, Expr::binops::BGE))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->ge(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, Expr::binops::LT) || op_eq(expr->op, Expr::binops::BLT))
+        else if (op_eq(expr->op, Expr::binops::LT) || op_eq(expr->op, Expr::binops::BLT))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->lt(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, Expr::binops::LTE) || op_eq(expr->op, Expr::binops::BLE))
+        else if (op_eq(expr->op, Expr::binops::LTE) || op_eq(expr->op, Expr::binops::BLE))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->le(static_pointer_cast<IntValue>(elems[1]))), state));
-        if (op_eq(expr->op, Expr::ops::NOT) || op_eq(expr->op, Expr::ops::BNOT))
+        else if (op_eq(expr->op, Expr::ops::NOT) || op_eq(expr->op, Expr::ops::BNOT))
             states.push_back(std::make_pair(_cache(static_pointer_cast<BoolValue>(elems[0])->negb()), state));
-        if (op_eq(expr->op, Expr::binops::AND) || op_eq(expr->op, Expr::binops::BAND))
+        else if (op_eq(expr->op, Expr::binops::AND) || op_eq(expr->op, Expr::binops::BAND))
             states.push_back(std::make_pair(_cache(static_pointer_cast<BoolValue>(elems[0])->andb(static_pointer_cast<BoolValue>(elems[1]))), state));
-        if (op_eq(expr->op, Expr::binops::OR) || op_eq(expr->op, Expr::binops::BOR))
+        else if (op_eq(expr->op, Expr::binops::OR) || op_eq(expr->op, Expr::binops::BOR))
             states.push_back(std::make_pair(_cache(static_pointer_cast<BoolValue>(elems[0])->orb(static_pointer_cast<BoolValue>(elems[1]))), state));
-        if (op_eq(expr->op, "xorb"))
+        else if (op_eq(expr->op, "xorb"))
             states.push_back(std::make_pair(_cache(static_pointer_cast<BoolValue>(elems[0])->xorb(static_pointer_cast<BoolValue>(elems[1]))), state));
-        if (op_eq(expr->op, Expr::binops::IMPLIES))
+        else if (op_eq(expr->op, Expr::binops::IMPLIES))
             states.push_back(std::make_pair(_cache(static_pointer_cast<BoolValue>(elems[0])->implies(static_pointer_cast<BoolValue>(elems[1]))), state));
         else if (op_eq(expr->op, Expr::GET)) {
             if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
@@ -873,9 +873,10 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
             auto op = z3_eval(proj, std::get<unique_ptr<SpecNode>>(expr->op).get(), state);
             if (auto func = dynamic_pointer_cast<FuncValue>(op))
                 states.push_back(std::make_pair(_cache(func->call(elems)), state));
+        } else {
+            throw std::runtime_error("Unknown expression: " + string(*expr));
         }
 
-        throw std::runtime_error("Unknown expression: " + string(*expr));
     } else if (auto match = instance_of(val, Match)) {
         auto src = z3_eval(proj, match->src.get(), state);
         shared_ptr<SpecValue> match_val = nullptr;
@@ -954,9 +955,7 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
         for(auto s: retstates) {
             states.push_back(s);
         }
-    }
-    else if (auto iff = instance_of(val, If))
-    {
+    } else if (auto iff = instance_of(val, If)) {
         vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>> condret;
         symbolic(proj, iff->cond.get(), state, condret);
         vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>> retstates;
@@ -991,9 +990,7 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
         for(auto s: retstates) {
             states.push_back(s);
         }
-    }
-    else if (auto forall = instance_of(val, Forall))
-    {
+    } else if (auto forall = instance_of(val, Forall)) {
         z3::expr_vector vars(z3ctx);
         for (auto v = forall->vars->begin(); v != forall->vars->end(); v++)
         {
@@ -1008,9 +1005,7 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
             auto body = retstate.first;
             states.push_back(std::make_pair(_cache(make_shared<BoolValue>(z3::forall(vars, body->value))),st));
         }
-    }
-    else if (auto exsts = instance_of(val, Exists))
-    {
+    } else if (auto exsts = instance_of(val, Exists)) {
         z3::expr_vector vars(z3ctx);
         for (auto v = exsts->vars->begin(); v != exsts->vars->end(); v++)
         {
@@ -1026,9 +1021,10 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
             auto body = retstate.first;
             states.push_back(std::make_pair(_cache(make_shared<BoolValue>(z3::exists(vars, body->value))), state));
         }
+    } else {
+        throw std::runtime_error("Unknown node type: " + string(*val));
     }
 
-    throw std::runtime_error("Unknown node type: " + string(*val));
 
 }
 
@@ -1036,7 +1032,7 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
 //needs to find a way to distinguish when to split state using symbolic and when not by directly using ite node of z3.
 //ite is like a state merging.
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
-    //std::cout << "z3_eval: " << string(*val) << std::endl;
+    // std::cout << "z3_eval: " << string(*val) << std::endl;
 
     if (val->cached_eval) return val->cached_eval;
 
