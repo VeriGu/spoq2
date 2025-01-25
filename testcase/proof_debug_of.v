@@ -30,8 +30,10 @@ Hint OnlyTrans arch_feat_get_pa_width.
 Hint OnlyTrans smc_rtt_read_entry.
 Hint OnlyTrans smc_rec_enter. *)
 
-Hint OnlyTrans smc_realm_activate.
-Hint CheckInv smc_realm_activate_spec.
+(* Hint OnlyTrans smc_realm_activate.
+Hint CheckInv smc_realm_activate_spec. *)
+Hint OnlyTrans smc_rec_destroy.
+Hint CheckInv smc_rec_destroy_spec.
 
   (* ┌─────────┐                    *)
   (* │invalid  │                    *)
@@ -1875,7 +1877,7 @@ Section Bottom.
       match g.(e_lock) with
       | Some cid =>
           Some (v_s, st.[share].[granule_data] :<
-                  (st.(share).(granule_data) # g_idx == (g_data.[g_rec] :< empty_rec)))
+                  (st.(share).(granule_data) # g_idx == ((g_data.[g_rec] :< empty_rec).[g_norm] :< zero_granule_data_normal)))
       | None => None
       end
     else if ((v_s.(pbase) =s "slot_rd")) then
@@ -1885,7 +1887,7 @@ Section Bottom.
       match g.(e_lock) with
       | Some cid =>
           Some (v_s, st.[share].[granule_data] :<
-                  (st.(share).(granule_data) # g_idx == (g_data.[g_rd] :< empty_rd)))
+                  (st.(share).(granule_data) # g_idx == ((g_data.[g_rd] :< empty_rd).[g_norm] :< zero_granule_data_normal)))
       | None => None
       end
     else Some (v_s, st).
@@ -4216,6 +4218,193 @@ Section SMCHandler.
 
   (* Conditional Spec *)
   (* Rely projection *)
+  Definition smc_rec_destroy_spec (v_rec_addr: Z) (st: RData) : (option (Z * RData)) :=
+    if ((v_rec_addr & (4095)) =? (0))
+    then (
+      if ((v_rec_addr / (GRANULE_SIZE)) >? (1048575))
+      then (Some (1, st))
+      else (
+        rely ((((0 - ((v_rec_addr / (GRANULE_SIZE)))) <= (0)) /\ (((v_rec_addr / (GRANULE_SIZE)) < (1048576)))));
+        rely (((((((st.(share)).(granules)) @ ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).(e_state)) - (3)) = (0)));
+        when sh == (Some (st.(share)));
+        match ((((sh.(granules)) @ ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).(e_lock))) with
+        | None =>
+          rely (
+            ((((((st.(share)).(granules)) @ ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).(e_state)) -
+              ((((sh.(granules)) @ ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).(e_state)))) =
+              (0)));
+          if ((((sh.(granules)) @ ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).(e_refcount)) =? (0))
+          then (
+            rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+            rely (
+              ((((((((sh.(granule_data)) @
+                (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC)).(g_rec)).(e_realm_info)).(e_g_rd)) >
+                (0)) /\
+                ((((((((sh.(granule_data)) @
+                  (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC)).(g_rec)).(e_realm_info)).(e_g_rd)) -
+                  (GRANULES_BASE)) >=
+                  (0)))) /\
+                ((((((((sh.(granule_data)) @
+                  (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC)).(g_rec)).(e_realm_info)).(e_g_rd)) -
+                  ((GRANULES_BASE + ((RMM_MAX_GRANULES * (ST_GRANULE_SIZE)))))) <
+                  (0)))));
+            rely (
+              (("granules" = ("granules")) /\
+                (((((((((sh.(granule_data)) @
+                  (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC)).(g_rec)).(e_realm_info)).(e_g_rd)) -
+                  (GRANULES_BASE)) mod
+                  (ST_GRANULE_SIZE)) =
+                  (0)))));
+            when cid == (
+                ((((sh.(granules)) #
+                  ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE)) ==
+                  ((((sh.(granules)) @ ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).[e_lock] :< None).[e_state] :< 1)) @
+                  ((((((((sh.(granule_data)) @
+                    (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC)).(g_rec)).(e_realm_info)).(e_g_rd)) -
+                    (GRANULES_BASE)) /
+                    (ST_GRANULE_SIZE)) +
+                    ((8 / (ST_GRANULE_SIZE))))).(e_lock)));
+            if (
+              ((((((sh.(granules)) #
+                ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE)) ==
+                ((((sh.(granules)) @ ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).[e_lock] :< None).[e_state] :< 1)) @
+                ((((((((sh.(granule_data)) @
+                  (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC)).(g_rec)).(e_realm_info)).(e_g_rd)) -
+                  (GRANULES_BASE)) /
+                  (ST_GRANULE_SIZE)) +
+                  ((8 / (ST_GRANULE_SIZE))))).(e_refcount)) +
+                ((- 1))) <?
+                (0)))
+            then None
+            else (
+              if (
+                ((((((((((sh.(granule_data)) @
+                  (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC)).(g_rec)).(e_realm_info)).(e_g_rd)) -
+                  (GRANULES_BASE)) +
+                  (8)) mod
+                  (ST_GRANULE_SIZE)) =?
+                  (8)) &&
+                  ((((((sh.(granules)) @
+                    ((((((((sh.(granule_data)) @
+                      (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC)).(g_rec)).(e_realm_info)).(e_g_rd)) -
+                      (GRANULES_BASE)) /
+                      (ST_GRANULE_SIZE)) +
+                      ((8 / (ST_GRANULE_SIZE))))).(e_state)) -
+                    (GRANULE_STATE_REC)) =?
+                    (0)))))
+              then (
+                (Some (
+                  0  ,
+                  ((st.[log] :<
+                    ((EVT
+                      CPU_ID
+                      (REC_REF
+                        ((((((((sh.(granule_data)) @
+                          (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC)).(g_rec)).(e_realm_info)).(e_g_rd)) -
+                          (GRANULES_BASE)) /
+                          (ST_GRANULE_SIZE)) +
+                          ((8 / (ST_GRANULE_SIZE))))
+                        ((((sh.(granules)) @
+                          ((((((((sh.(granule_data)) @
+                            (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC)).(g_rec)).(e_realm_info)).(e_g_rd)) -
+                            (GRANULES_BASE)) /
+                            (ST_GRANULE_SIZE)) +
+                            ((8 / (ST_GRANULE_SIZE))))).(e_refcount)) +
+                          ((- 1))))) ::
+                      (((EVT
+                        CPU_ID
+                        (REL
+                          ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))
+                          ((((sh.(granules)) @ ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).[e_lock] :< (Some CPU_ID)).[e_state] :< 1))) ::
+                        (((EVT CPU_ID (ACQ ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))).[share] :<
+                    (((sh.[granule_data] :<
+                      ((sh.(granule_data)) #
+                        (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC) ==
+                        ((((sh.(granule_data)) @
+                          (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC)).[g_norm] :<
+                          zero_granule_data_normal).[g_rec] :<
+                          empty_rec))).[granules] :<
+                      (((sh.(granules)) #
+                        ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE)) ==
+                        ((((sh.(granules)) @ ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).[e_lock] :< None).[e_state] :< 1)) #
+                        ((((((((sh.(granule_data)) @
+                          (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC)).(g_rec)).(e_realm_info)).(e_g_rd)) -
+                          (GRANULES_BASE)) /
+                          (ST_GRANULE_SIZE)) +
+                          ((8 / (ST_GRANULE_SIZE)))) ==
+                        (((sh.(granules)) @
+                          ((((((((sh.(granule_data)) @
+                            (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC)).(g_rec)).(e_realm_info)).(e_g_rd)) -
+                            (GRANULES_BASE)) /
+                            (ST_GRANULE_SIZE)) +
+                            ((8 / (ST_GRANULE_SIZE))))).[e_refcount] :<
+                          ((((sh.(granules)) @
+                            ((((((((sh.(granule_data)) @
+                              (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC)).(g_rec)).(e_realm_info)).(e_g_rd)) -
+                              (GRANULES_BASE)) /
+                              (ST_GRANULE_SIZE)) +
+                              ((8 / (ST_GRANULE_SIZE))))).(e_refcount)) +
+                            ((- 1)))))).[slots] :<
+                      ((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE)))))
+                )))
+              else (
+                (Some (
+                  0  ,
+                  ((st.[log] :<
+                    ((EVT
+                      CPU_ID
+                      (REL
+                        ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))
+                        ((((sh.(granules)) @ ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).[e_lock] :< (Some CPU_ID)).[e_state] :< 1))) ::
+                      (((EVT CPU_ID (ACQ ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
+                    (((sh.[granule_data] :<
+                      ((sh.(granule_data)) #
+                        (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC) ==
+                        ((((sh.(granule_data)) @
+                          (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC)).[g_norm] :<
+                          zero_granule_data_normal).[g_rec] :<
+                          empty_rec))).[granules] :<
+                      (((sh.(granules)) #
+                        ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE)) ==
+                        ((((sh.(granules)) @ ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).[e_lock] :< None).[e_state] :< 1)) #
+                        ((((((((sh.(granule_data)) @
+                          (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC)).(g_rec)).(e_realm_info)).(e_g_rd)) -
+                          (GRANULES_BASE)) /
+                          (ST_GRANULE_SIZE)) +
+                          ((8 / (ST_GRANULE_SIZE)))) ==
+                        (((sh.(granules)) @
+                          ((((((((sh.(granule_data)) @
+                            (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC)).(g_rec)).(e_realm_info)).(e_g_rd)) -
+                            (GRANULES_BASE)) /
+                            (ST_GRANULE_SIZE)) +
+                            ((8 / (ST_GRANULE_SIZE))))).[e_refcount] :<
+                          ((((sh.(granules)) @
+                            ((((((((sh.(granule_data)) @
+                              (((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_REC)).(g_rec)).(e_realm_info)).(e_g_rd)) -
+                              (GRANULES_BASE)) /
+                              (ST_GRANULE_SIZE)) +
+                              ((8 / (ST_GRANULE_SIZE))))).(e_refcount)) +
+                            ((- 1)))))).[slots] :<
+                      ((sh.(slots)) # SLOT_REC == (((((GRANULES_BASE + ((16 * ((v_rec_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE)))))
+                )))))
+          else (
+            (Some (
+              5  ,
+              ((st.[log] :<
+                ((EVT
+                  CPU_ID
+                  (REL
+                    ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))
+                    (((sh.(granules)) @ ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).[e_lock] :< (Some CPU_ID)))) ::
+                  (((EVT CPU_ID (ACQ ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
+                (sh.[granules] :<
+                  ((sh.(granules)) #
+                    ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE)) ==
+                    (((sh.(granules)) @ ((16 * ((v_rec_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).[e_lock] :< None))))
+            )))
+        | (Some cid) => None
+        end))
+    else (Some (1, st)).
 End SMCHandler.
 
 
@@ -4236,7 +4425,7 @@ End SMCHandler.
             else
               (lvl', pte')
         end
-            end.
+      end.
 Parameter gfn_to_rtt_offs: Z -> (Z -> (Z)).
 Parameter gfn_to_pte_offs: Z -> (Z -> (Z)).
 Parameter ADDR_MASK: Z.
@@ -4280,15 +4469,20 @@ Definition rd_rtt_reverse (sh: Shared) : Prop :=
 (* Invariant gpt_false_ns :=
   forall (gidx: Z), (st.(share).(gpt) @ gidx = false -> (st.(share).(granules) @ gidx).(e_state) = GRANULE_STATE_NS). *)
 
-Parameter zero_granule: GranuleDataNormal.
+(* Parameter zero_granule: GranuleDataNormal. *)
 
 
 (*trigger: granules, granules_data update *)
+(* Invariant delegated_zero :=
+  forall (gidx: Z),
+    (((st.(share).(granules) @ gidx).(e_state) = GRANULE_STATE_DELEGATED) ->
+    (st.(share).(granule_data) @ gidx = zero_granule)). *)
+
 Invariant delegated_zero :=
   forall (gidx: Z),
     (((st.(share).(granules) @ gidx).(e_state) = GRANULE_STATE_DELEGATED) ->
-    (st.(share).(granule_data) @ gidx = zero_granule)).
-
+    ((st.(share).(granule_data) @ gidx).(g_rec) = empty_rec) /\
+     (st.(share).(granule_data) @ gidx).(g_norm) = zero_granule_data_normal).
 
 (* Observation: *)
 (* the quantifier variables should be annotated with bounds *)
