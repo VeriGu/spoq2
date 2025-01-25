@@ -7,6 +7,7 @@
 #include <projection.h>
 #include <chrono>
 #include <z3_rules.h>
+#include <symbolic.h>
 //#define MT_TRANSFORM
 #ifdef MT_TRANSFORM
 #include <unistd.h>
@@ -897,9 +898,13 @@ void Project::finalize_project()
         }
         for(auto prim : cmds.invs) {
             //only check inv for prims in cmds.invs
-            LOG_DEBUG << "Checking Invariant: " << prim;
+            // LOG_DEBUG << "Checking Invariant: " << prim;
             auto def = this->defs[prim].get();
-            if(check_invariant(this, def, conjoined)) {
+            // fast symbolic proof
+            auto invariant = conjoined->deep_copy().release();
+            check_inv_by_path(this, def, invariant);
+            /* META Inv Proof */
+            if (check_invariant(this, def, conjoined)) {
                 LOG_DEBUG << "Invariant Valid :) :" << prim;
             };
         }

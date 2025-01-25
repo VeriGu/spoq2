@@ -212,6 +212,8 @@ private:
             return "\"" + std::get<string>(this->value) + "\"";
         } else if (dynamic_cast<Bool *>(this->type.get()) != nullptr) {
             return std::get<bool>(this->value) ? "true" : "false";
+        } else if (this->type == Prop::PROP) {
+            return std::get<bool>(this->value) ? "true" : "false";
         } else {
             throw std::invalid_argument("Const must have invalid type: " + string(*this->type));
         }

@@ -82,8 +82,10 @@ Z3Result z3_check(std::shared_ptr<EvalState> state, z3::expr cond, int timeout=Z
 Z3Result z3_check(shared_ptr<EvalState> state, int timeout=Z3_TIMEOUT);
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state);
 rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState> state);
+void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<SpecValue> src, shared_ptr<EvalState> state);
 bool check_loop_inv(Project* proj, Definition *loop);
 bool check_invariant(Project* proj, Definition* prim, SpecNode* inv);
+void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>>& states);
 unsigned long length_of_exp(SpecNode* spec);
 static inline bool op_eq(std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string>& val,
                   std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string> op) {

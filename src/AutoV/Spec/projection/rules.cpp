@@ -420,7 +420,7 @@ recursively apply [f] to all nodes in [spec]
 [f] must be a function from SpecNode to SpecNode
 e.g. SpecNode(child_1, child_2, ...) => f(SpecNode(f(child_1), f(child_2), ..))
 */
-static SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f, bool apply_anno = true) {
+SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f, bool apply_anno = true) {
     if (is_instance(spec, Symbol))
         return f(spec);
     else if(is_instance(spec, Const))

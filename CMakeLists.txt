@@ -150,6 +150,7 @@ set(SOURCES
     src/AutoV/Spec/projection/projection.cpp
     src/AutoV/Spec/projection/z3_rules.cpp
     src/AutoV/Spec/projection/z3_utils.cpp
+    src/AutoV/Spec/projection/symbolic.cpp
     src/AutoV/GenCoq/gen_code.cpp
     src/AutoV/GenCoq/gen_data.cpp
     src/AutoV/GenCoq/gen_high_proof.cpp

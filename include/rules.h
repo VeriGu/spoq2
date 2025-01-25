@@ -15,6 +15,7 @@ extern unsigned long mono_lens_id;
 static unsigned long get_mono_lens_id() {
     return mono_lens_id++;
 }
+SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f, bool apply_anno);
 
 using rule_ret_t = std::pair<SpecNode *, bool>;
 SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &prev_symbols, bool &changed);
