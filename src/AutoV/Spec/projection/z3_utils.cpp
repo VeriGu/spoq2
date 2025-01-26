@@ -84,7 +84,7 @@ std::chrono::duration<double> z3_accumulative_time = std::chrono::duration<doubl
 
 
 // Defautl value of timeout is 50
-Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout, z3::model* ce) {
+Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     auto start = std::chrono::high_resolution_clock::now();
     auto hash = hash_z3_state(state, cond, timeout);
     if (Z3Cache.find(hash) != Z3Cache.end()) {
@@ -196,6 +196,70 @@ Z3Result z3_check(shared_ptr<EvalState> state, int timeout) {
         return Z3Result::Unknown;
     }
 }
+
+//only check unsat for !@cond, return True if unsat, SAT if sat.
+//will not return False since will not check invalidity.
+//@model will get assigned to the return model.
+Z3Result z3_check_unsat(shared_ptr<EvalState> state, z3::expr cond, z3::model& ce, int timeout) {
+    auto start = std::chrono::high_resolution_clock::now();
+    auto hash = hash_z3_state(state, cond, timeout);
+    if (Z3Cache.find(hash) != Z3Cache.end()) {
+        z3_cache_hits++;
+        return Z3Cache[hash];
+    }
+
+    z3_checks++;
+
+    Z3Params.set("timeout", (unsigned int)timeout);
+
+    Z3Solver.set(Z3Params);
+
+    Z3Solver.push();
+
+    for (auto &c : *state->conds) {
+        Z3Solver.add(c);
+    }
+
+
+    Z3Solver.push();
+    //Z3Solver.add(!cond);
+    z3::expr_vector not_cond_vec(z3ctx);
+    not_cond_vec.push_back(!cond);
+    auto not_res = Z3Solver.check(not_cond_vec);
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+
+    // std::cout << "-----------------Z3-----------------" << std::endl;
+    // std::cout << "hash: " << hash << std::endl;
+    // std::cout << "z3 check cond: " << cond << ", hash: " << cond.hash() << std::endl;
+    // for (auto &c : *state->conds) {
+    //     std::cout << "z3 check state conds: " << c << std::endl;
+    // }
+    // std::cout << "z3 check res: " << res << std::endl;
+    // std::cout << "z3 check not_res: " << not_res << std::endl;
+    // std::cout << "-----------------Z3-----------------" << std::endl;
+
+    if (not_res == z3::unsat) {
+        Z3Solver.pop();
+        Z3Solver.pop();
+        Z3Cache[hash] = Z3Result::True;
+        return Z3Result::True;
+    } else if (not_res == z3::sat) {
+        //obtained the counter example
+        ce = Z3Solver.get_model();
+        Z3Solver.pop();
+        Z3Solver.pop();
+        return Z3Result::Sat;
+    } else {
+        Z3Solver.pop();
+        Z3Solver.pop();
+        Z3Cache[hash] = Z3Result::Unknown;
+        z3_unknowns++;
+        return Z3Result::Unknown;
+    }
+}
+
 
 shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pat, shared_ptr<SpecValue> src,
                                       unordered_map<string, shared_ptr<SpecValue>> &vars,
@@ -324,11 +388,13 @@ bool check_invariant(Project* proj, Definition* prim, SpecNode* inv) {
     auto vc = z3::implies(body_val->get_z3_value() && inv_before_val->get_z3_value(), inv_after_val->get_z3_value());
     LOG_DEBUG << "Verification Condition: " << vc;
     //TODO: state also needs to add instantiated loop invariants.
-    auto res = z3_check(state, vc, 20000);
+    z3::model model(z3ctx);
+    auto res = z3_check_unsat(state, vc, model, 20000);
     if(res == Z3Result::Unknown) {
         LOG_DEBUG << "solver return unknown when checking invariant for " << prim->name;
     } else if(res == Z3Result::Sat) {
         LOG_DEBUG << "solver return sat when checking invariant for " << prim->name;
+        LOG_DEBUG << model;
     }
     return res == Z3Result::True;
 }
