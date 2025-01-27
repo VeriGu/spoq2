@@ -902,7 +902,9 @@ void Project::finalize_project()
             auto def = this->defs[prim].get();
             // fast symbolic proof
             auto invariant = conjoined->deep_copy().release();
-            check_inv_by_path(this, def, invariant);
+            if (check_inv_by_path(this, def, invariant)) {
+                LOG_DEBUG << "Invariant Valid :D :" << prim;
+            }
             /* META Inv Proof */
             if (check_invariant(this, def, conjoined)) {
                 LOG_DEBUG << "Invariant Valid :) :" << prim;

@@ -11,6 +11,6 @@
 #include <z3_rules.h>
 
 namespace autov {
-void check_inv_by_path(Project *proj, Definition *def, SpecNode *inv);
+bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv);
 
 }

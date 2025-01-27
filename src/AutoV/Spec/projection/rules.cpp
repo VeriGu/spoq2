@@ -1682,6 +1682,11 @@ rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec) {
                             }
                         }
                     }
+                } else {
+                    /** Abstracted Data: (lens id st) -> st */
+                    auto new_ee = std::move(e->elems->at(1)).release();
+                    delete e;
+                    return new_ee;
                 }
             } else if (auto op = std::get_if<Expr::ops>(&e->op)) {
                 if (*op == Expr::RecordGet) {

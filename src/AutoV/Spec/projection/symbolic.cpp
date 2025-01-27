@@ -33,10 +33,10 @@ SpecNode *instantiate_prop(SpecNode *spec, SpecNode *instance_st, string st = "s
 // 	return "st";
 // }
 
-/** TODO: 
- * 		FIXME: clean state for duplicated vars / overwrite vars instead of emplace()
+/** prove_by_traverse:
+ * 		works on specs without abstract functions (unfolded high-level specs)
  * */
-void prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<EvalState> state) {
+bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<EvalState> state) {
     if (auto e = instance_of(spec, Expr)) {
         if (auto e_op = std::get_if<Expr::ops>(&e->op)) {
             if (*e_op == Expr::Some) {
@@ -54,16 +54,19 @@ void prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 					auto c = z3_eval(proj, p, state);
 					auto z3_ret = z3_check(state, c->get_z3_value(), 2000);
 
-					std::cout << "----------------------------------" << std::endl;
-					std::cout << "prove_by_traverse: Final State\n" << string(*ret_st) << std::endl;
-					std::cout << "prove_by_traverse: Goal Query\n" << c->get_z3_value() << std::endl;
-					std::cout << "----------------------------------" << std::endl;
+					// std::cout << "----------------------------------" << std::endl;
+					// std::cout << "prove_by_traverse: Final State\n" << string(*ret_st) << std::endl;
+					// std::cout << "prove_by_traverse: Goal Query\n" << c->get_z3_value() << std::endl;
+					// std::cout << "----------------------------------" << std::endl;
 					if (z3_ret == Z3Result::False) {
-						LOG_WARNING << "[prove_by_traverse] Invariant is violated for state\n" << string(*ret_st) << std::endl;
+						// LOG_WARNING << "[prove_by_traverse] Invariant is violated for state\n" << string(*ret_st) << std::endl;
+						return false;
 					} else if (z3_ret == Z3Result::Unknown) {
-						LOG_WARNING << "[prove_by_traverse] Invariant is unknown for state\n" << string(*ret_st) << std::endl;
+						// LOG_WARNING << "[prove_by_traverse] Invariant is unknown for state\n" << string(*ret_st) << std::endl;
+						return false;
 					} else {
-						LOG_INFO << "[prove_by_traverse] Invariant is proved for state\n" << string(*ret_st) << std::endl;
+						// LOG_INFO << "[prove_by_traverse] Invariant is proved for state\n" << string(*ret_st) << std::endl;
+						return true;
 					}
                 }
             }
@@ -75,7 +78,9 @@ void prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 		for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 			auto new_state = state->copy();
 			resolve_pattern(proj, m, (*pm)->pattern.get(), src, new_state);
-			prove_by_traverse(proj, (*pm)->body.get(), inv, new_state);
+			if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state)) {
+				return false;
+			}
 		}
     } else if (auto i = instance_of(spec, If)) {
 		// push cond
@@ -84,23 +89,45 @@ void prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 		auto false_state = state->copy();
 		true_state->conds->push_back(c->get_z3_value());
 		false_state->conds->push_back(!c->get_z3_value());
-        prove_by_traverse(proj, i->then_body.get(), inv, true_state);
-        prove_by_traverse(proj, i->else_body.get(), inv, false_state);
+		if (!prove_by_traverse(proj, i->then_body.get(), inv, true_state) || 
+			!prove_by_traverse(proj, i->else_body.get(), inv, false_state)) {
+			return false;
+		}
     } else if (auto r = instance_of(spec, Rely)) {
 		// push cond
 		auto c = z3_eval(proj, r->prop.get(), state);
 		state->conds->push_back(c->get_z3_value());
-        prove_by_traverse(proj, r->body.get(), inv, state);
+        return prove_by_traverse(proj, r->body.get(), inv, state);
     } else {
+		// pass
+		return true;
+	}
+	return true;
+}
+
+/** decompose:
+ * 		works on specs with abstract call, lensified 
+ */
+void decompose(Project *proj, SpecNode *spec, shared_ptr<EvalState> state) {
+	if (auto e = instance_of(spec, Expr)) {
+
+	} else if (auto m = instance_of(spec, Match)) {
+
+	} else if (auto i = instance_of(spec, If)) {
+
+	} else if (auto r = instance_of(spec, Rely)) {
+
+	} else {
 		// pass
 	}
 }
+
 /** check_inv_by_path: 
  * 1. Push initial invariant 
  * 2. Traverse the spec, push control point constriants
  * 3. Arrive return point, push return value constraints, check
  * */ 
-void check_inv_by_path(Project *proj, Definition *def, SpecNode *inv) {
+bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv) {
 	auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
 	auto conds = std::make_shared<vector<z3::expr>>();
 	for (auto arg : *def->args) {
@@ -108,13 +135,15 @@ void check_inv_by_path(Project *proj, Definition *def, SpecNode *inv) {
 	}
 	auto state = std::make_shared<EvalState>(vars, conds);
 
+	/** TODO: optimize: no need to generate inv z3 epxr for duplicated times */
 	auto c = z3_eval(proj, inv, state);
 	state->conds->push_back(c->get_z3_value());
 	std::cout << "inv body: " << string(*inv) << std::endl;
 	std::cout << "inv value: " << c->get_z3_value() << std::endl;
 		
 	/** TODO: substitute spec_transformer with a spec_walker that detects proved specs that no need for unfolding */
-	prove_by_traverse(proj, def->body.get(), inv, state);
+	bool ret = prove_by_traverse(proj, def->body.get(), inv, state);
+	return ret;
 }
 
 }

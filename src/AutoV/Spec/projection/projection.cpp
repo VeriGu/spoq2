@@ -264,6 +264,9 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
 
     bool has_if = false;
 
+    // #define PRIME_SPEC
+    #ifdef PRIME_SPEC
+
     if (unfold && spec_is_pure(proj, def->body.get(), has_if)) {
         if (!has_if)
             return;
@@ -353,6 +356,8 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
 
         proj->cmds.NoUnfold.insert(name_prime);
     }
+    #endif
+
 }
 
 } // namespace autov
