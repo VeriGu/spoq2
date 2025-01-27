@@ -1330,6 +1330,32 @@ rule_ret_t rule_eliminate_if(Project *proj, SpecNode *spec) {
                     changed = true;
                     return new_node;
                 }
+            } else if (auto cond = instance_of(i->cond.get(), Expr)) {
+                if (auto op = std::get_if<Expr::binops>(&cond->op)) {
+                    if (*op == Expr::SEQ) {
+                        if (auto l = instance_of(cond->elems->at(0).get(), Const)) {
+                            if (auto r = instance_of(cond->elems->at(1).get(), Const)) {
+                                if (auto l_str = std::get_if<string>(&l->value)) {
+                                    if (auto r_str = std::get_if<string>(&r->value)) {
+                                        if (*l_str == *r_str) {
+                                            auto new_node = i->then_body.release();
+
+                                            delete i;
+                                            changed = true;
+                                            return new_node;
+                                        } else {
+                                            auto new_node = i->else_body.release();
+
+                                            delete i;
+                                            changed = true;
+                                            return new_node;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             if (*i->then_body == *i->else_body) {

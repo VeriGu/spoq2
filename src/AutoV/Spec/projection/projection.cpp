@@ -32,6 +32,7 @@ static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group2 = {
     rule_eliminate_match_simple,
     rule_move_if_out_expr,
     rule_simple_record_get_set,
+    rule_eliminate_if,
 };
 
 static unordered_map<rule_ret_t(*)(Project *, SpecNode *), string> rule_names = {
@@ -56,9 +57,9 @@ std::mutex Z3mtx;
 
 void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold, bool low_spec) {
     LOG_INFO << "Transforming " << def->name << ", unfold: " << unfold;
-    // std::cout << string(*def) << std::endl;
 
-    bool debug = unfold && (def->name.rfind("smc_rtt_create", 0) == 0);
+
+    bool debug = unfold && (def->name.rfind("smc_realm_destroy", 0) == 0);
     auto known = std::set<string>();
     auto fname = def->name;
 
@@ -66,8 +67,10 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
         known.insert(arg->name);
     }
 
-    if (debug)
+    if (debug) {
         std::cout << "debug" << std::endl;
+        std::cout << string(*def) << std::endl;
+    }
 
     converged_spec.clear();
 
