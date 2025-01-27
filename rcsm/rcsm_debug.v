@@ -1,10 +1,8 @@
 Definition PROJ_NAME: string := "working".
-Definition PROJ_BASE: string := "coq/working1".
+Definition PROJ_BASE: string := "coq/working2".
 
 Parameter CPU_ID: Z.
 (* Hint OnlyTrans g_mapped_addr. *)
-Hint OnlyTrans __table_is_uniform_block.
-
 (* Hint NoHighSpec true. *)
 (* Hint OnlyTrans vmid_free. *)
   (* PHYSICAL MEMORY under N1SDP                 *)
@@ -878,7 +876,7 @@ Definition load_s_realm_params (sz: Z) (ofs:Z)  (st: s_realm_params) : option Z 
   if (ofs =? 40) then Some (st.(e_s2_starting_level_s_realm_params)) else
   if (ofs =? 48) then Some (st.(e_num_s2_sl_rtts)) else
   if (ofs =? 52) then Some (st.(e_vmid_s_realm_params)) else
-  if (ofs =? 56) then Some (st.(e_is_rc)) else
+  if (ofs =? 56) then rely (st.(e_is_rc) = 1); Some (st.(e_is_rc)) else
   None.
 
 Definition store_s_realm_params (sz: Z) (ofs:Z) (v:Z)  (st: s_realm_params) : option s_realm_params := 
@@ -1518,7 +1516,7 @@ Definition load_s_rd (sz: Z) (ofs:Z)  (st: s_rd) : option Z :=
     let idx := (ofs - 184) / 32 in
     let elem_ofs := (ofs - 184) mod 32 in
     load_s_measurement sz elem_ofs (st.(e_measurement) @ idx)) else
-  if (ofs =? 408) then Some (st.(e_is_rc_s_rd)) else
+  if (ofs =? 408) then rely (st.(e_is_rc_s_rd) = 1); Some (st.(e_is_rc_s_rd)) else
   None.
 
 Definition store_s_rd (sz: Z) (ofs:Z) (v:Z)  (st: s_rd) : option s_rd := 
@@ -2132,13 +2130,13 @@ Definition query_oracle (st: RData) : option RData :=
 Definition load_r_granule_data (ofs: Z) (st: r_granule_data) : option Z :=
   if (st.(g_granule_state) =? GRANULE_STATE_DATA) then (
     Some (st.(g_norm) @ ofs)
-  ) else 
+  ) else
   if (st.(g_granule_state) =? GRANULE_STATE_REC) then (
     (load_s_rec 8 ofs (st.(g_rec)))
-  ) else 
+  ) else
   if (st.(g_granule_state) =? GRANULE_STATE_RD) then (
     (load_s_rd 8 ofs (st.(g_rd)))
-  ) else ( 
+  ) else (
     (* None *)
     (* for other cases, we use norm_data *)
     Some (st.(g_norm) @ ofs)
@@ -2718,12 +2716,24 @@ Section Bottom.
     "rec_run_loop" :: 
     "pico_rec_enter" ::
     "invalidate_block" ::
+    "measurement_start" ::
+    "buffer_map" ::
     nil.
+
+  Definition buffer_map_spec (v_0: Z) (v_1: Z) (v_2: bool) (st: RData) : (option (Ptr * RData)) :=
+    rely (
+        (((((v_1 - (MEM0_PHYS)) >= (0)) /\ (((v_1 - (4294967296)) < (0)))) /\ (((v_1 & (549755813888)) = (0)))) (* \/ *)
+           (* (((((v_1 - (MEM1_PHYS)) >= (0)) /\ (((v_1 - (556198264832)) < (0)))) /\ (((v_1 & (549755813888)) = (1)))))  *)));
+    (* if ((v_1 & (549755813888)) =? (0)) *)
+    (* then *) rely ((st.(share).(granule_data) @ (((-2147483648) + v_1) / 4096)).(g_granule_state) = v_0); (Some ((mkPtr "granule_data" ((-2147483648) + (v_1))), st))
+    (* else (Some (st, (mkPtr "granule_data" ((-549755813888) + (v_1))))) *).
+
   Definition attest_get_platform_token_spec (st: RData) : option (Z * RData) := Some (0, st).
   Definition __sca_read64_spec (ptr: Ptr) (st: RData) : option (Z * RData) := load_RData 64 ptr st.
   Definition __sca_read64_acquire_spec (ptr: Ptr) (st: RData) : option (Z * RData) := load_RData 64 ptr st.
   Definition __sca_write64_spec (ptr: Ptr) (val: Z) (st: RData) : option RData := store_RData 64 ptr val st.
   Definition __sca_write64_release_spec (v_state1: Ptr) (v_state: Z) (st: RData) : option RData := store_RData 64 v_state1 v_state st.
+  Definition measurement_start_spec (v: Ptr) (st: RData) : option RData := Some st.
 
  (* TODO *)
   Definition invalidate_block_spec (ctx: Ptr) (v_addr: Z) (st: RData) : (option RData) :=
@@ -3311,15 +3321,16 @@ Section Layer1.
   Definition LAYER_PTR_LTB : string := "ptr_ltb".
   Definition LAYER_PRIMS: list string :=
     "granule_addr" ::
-    "buffer_map" ::
+    "buffer_map" :: (* move to bottom since we want to specify the granule state of the mapped granule.*)
     nil.
-  
+
   Hint InitRely granule_addr (v_0.(pbase) = "granules" /\ ((v_0.(poffset)) mod 16 = 0) /\ v_0.(poffset) >= 0).
-  Hint InitRely buffer_map ( 
+  Hint InitRely buffer_map (
     ((v_1 >= MEM0_PHYS /\ v_1 < MEM0_PHYS + MEM0_SIZE)  /\ (v_1 & (549755813888) = 0 ))
-    \/ ((v_1 >= MEM1_PHYS /\ v_1 < MEM1_PHYS + MEM1_SIZE) /\ (v_1 & (549755813888) = 1 )) ). 
+    (* \/ ((v_1 >= MEM1_PHYS /\ v_1 < MEM1_PHYS + MEM1_SIZE) /\ (v_1 & (549755813888) = 1 )) *) ).
     (* for bit operation *)
   Hint PostEnsure buffer_map (ret_0.(pbase) = "granule_data" /\ ret_0.(poffset) >= 0).
+  Hint Unfold granule_addr_spec'.
   (* Hint PostEnsure buffer_map ((ret_1.(share).(granule_data) @ (v_12.(poffset) / 4096)).(g_granule_state) = GRANULE_STATE_DATA); *)
 End Layer1.
 
@@ -3347,7 +3358,7 @@ Section Layer2.
     nil.
 
   Hint InitRely granule_map ((v_0.(pbase) = "granules" /\ ((v_0.(poffset)) mod 16 = 0) /\ v_0.(poffset) >= 0) /\ v_1 >= 0 /\ v_1 <= 24).
-  Hint InitRely addr_to_idx ((v_0 >= MEM0_PHYS /\ v_0 < MEM0_PHYS + MEM0_SIZE) \/ (v_0 >= MEM1_PHYS /\ v_0 < MEM1_PHYS + MEM1_SIZE)). 
+  Hint InitRely addr_to_idx ((v_0 >= MEM0_PHYS /\ v_0 < MEM0_PHYS + MEM0_SIZE) (* \/ (v_0 >= MEM1_PHYS /\ v_0 < MEM1_PHYS + MEM1_SIZE) *)).
   Hint InitRely granule_from_idx (v_0 < NR_GRANULES /\ v_0 >= 0).
   Hint InitRely granule_get_state ((v_0.(pbase) = "granules" /\ ((v_0.(poffset)) mod 16 = 0) /\ v_0.(poffset) >= 0)).
   Hint InitRely __tte_read (v_0.(pbase) = "granule_data" /\ v_0.(poffset) >= 0).
@@ -3451,7 +3462,7 @@ Section Layer3.
     let mem0_id := ((v_0 + (-MEM0_PHYS)) >> (12)) in
     Some ((mem0_id * 16), st).
 
-  Hint InitRely addr_to_granule ((v_0 >= MEM0_PHYS /\ v_0 < MEM0_PHYS + MEM0_SIZE) \/ (v_0 >= MEM1_PHYS /\ v_0 < MEM1_PHYS + MEM1_SIZE)). 
+  Hint InitRely addr_to_granule ((v_0 >= MEM0_PHYS /\ v_0 < MEM0_PHYS + MEM0_SIZE) (* \/ (v_0 >= MEM1_PHYS /\ v_0 < MEM1_PHYS + MEM1_SIZE)*)).
 
   Definition granule_try_lock_spec' (v_0: Ptr) (v_1: Z) (st: RData) : (option (bool * RData)) :=
     rely (((((v_0.(pbase)) = ("granules")) /\ ((((v_0.(poffset)) mod (16)) = (0)))) /\ (((v_0.(poffset)) >= (0)))));
@@ -3506,7 +3517,7 @@ Section Layer4.
 
 
   Hint PostEnsure find_granule (ret_0.(pbase) = "granules" \/ ret_0.(pbase) = "null").
-  Hint InitRely find_granule (((v_0 >= MEM0_PHYS /\ v_0 < MEM0_PHYS + MEM0_SIZE) \/ (v_0 >= MEM1_PHYS /\ v_0 < MEM1_PHYS + MEM1_SIZE)) /\ (v_0 & 4095 = 0)). 
+  Hint InitRely find_granule (((v_0 >= MEM0_PHYS /\ v_0 < MEM0_PHYS + MEM0_SIZE) (* \/ (v_0 >= MEM1_PHYS /\ v_0 < MEM1_PHYS + MEM1_SIZE) *)) /\ (v_0 & 4095 = 0)).
   Hint Unfold find_granule_spec'.
 
 End Layer4.
@@ -3564,7 +3575,7 @@ Section Layer5.
 
   Hint InitRely atomic_granule_get ((v_0.(pbase) = "granules" /\ ((v_0.(poffset)) mod 16 = 0) /\ v_0.(poffset) >= 0 )).
   Hint InitRely atomic_granule_put (v_0.(pbase) = "granules" /\ (v_0.(poffset) mod 16 = 0) /\ v_0.(poffset) >= 0 ).
-  Hint InitRely granule_pa_to_va ((v_0 >= MEM0_PHYS /\ v_0 < MEM0_PHYS + MEM0_SIZE) \/ (v_0 >= MEM1_PHYS /\ v_0 < MEM1_PHYS + MEM1_SIZE)). 
+  Hint InitRely granule_pa_to_va ((v_0 >= MEM0_PHYS /\ v_0 < MEM0_PHYS + MEM0_SIZE) (* \/ (v_0 >= MEM1_PHYS /\ v_0 < MEM1_PHYS + MEM1_SIZE) *)).
   Hint InitRely set_rd_state ((v_0).(pbase) = "granule_data").
   Hint InitRely set_rd_state ((st.(share).(granule_data) @ (v_0.(poffset) / 4096)).(g_granule_state) = GRANULE_STATE_RD).
 
@@ -3580,7 +3591,7 @@ Section Layer5.
   (* TODO: we need post-condition hint support on spoq to simplify __find_lock_next_level! *)
   Hint InitRely __find_lock_next_level (v_0.(pbase) = "granules" /\ (v_0.(poffset) mod 16 = 0) /\ v_0.(poffset) >= 0). 
 
-  Hint InitRely find_lock_granule (((v_0 >= MEM0_PHYS /\ v_0 < MEM0_PHYS + MEM0_SIZE) \/ (v_0 >= MEM1_PHYS /\ v_0 < MEM1_PHYS + MEM1_SIZE))
+  Hint InitRely find_lock_granule (((v_0 >= MEM0_PHYS /\ v_0 < MEM0_PHYS + MEM0_SIZE) (* \/ (v_0 >= MEM1_PHYS /\ v_0 < MEM1_PHYS + MEM1_SIZE) *))
                        /\ (v_0 & 4095 = 0)).
   Hint PostEnsure find_lock_granule (ret_0.(pbase) = "granules"  \/ ret_0.(pbase) = "null").
   Hint PostEnsure find_lock_granule ((ret_0.(poffset) mod 16 = 0) /\ (ret_0.(poffset) >= 0)).
@@ -3598,19 +3609,19 @@ Section Layer5.
 
   Definition find_lock_granule_spec' (v_0: Z) (v_1: Z) (st: RData) : (option (Ptr * RData)) :=
     rely (
-      (((((v_0 - (MEM0_PHYS)) >= (0)) /\ (((v_0 - (4294967296)) < (0)))) \/ ((((v_0 - (MEM1_PHYS)) >= (0)) /\ (((v_0 - (556198264832)) < (0)))))) /\
+      (((((v_0 - (MEM0_PHYS)) >= (0)) /\ (((v_0 - (4294967296)) < (0)))) (* \/ ((((v_0 - (MEM1_PHYS)) >= (0)) /\ (((v_0 - (556198264832)) < (0))))) *)) /\
         (((v_0 & (4095)) = (0)))));
-    if ((v_0 - (MEM1_PHYS)) >=? (0))
-    then (
+    (* if ((v_0 - (MEM1_PHYS)) >=? (0)) *)
+    (* then ( *)
       when ret, st' == ((granule_try_lock_spec' (mkPtr "granules" (((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16))) v_1 st));
       if ret
       then (Some ((mkPtr "granules" (((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16))), st))
-      else (Some ((mkPtr "null" 0), st)))
-    else (
-      when ret, st' == ((granule_try_lock_spec' (mkPtr "granules" (((v_0 + ((- MEM0_PHYS))) >> (12)) * (16))) v_1 st));
-      if ret
-      then (Some ((mkPtr "granules" (((v_0 + ((- MEM0_PHYS))) >> (12)) * (16))), st))
-      else (Some ((mkPtr "null" 0), st))).
+      else (Some ((mkPtr "null" 0), st))(* ) *)
+    (* else ( *)
+    (*   when ret, st' == ((granule_try_lock_spec' (mkPtr "granules" (((v_0 + ((- MEM0_PHYS))) >> (12)) * (16))) v_1 st)); *)
+    (*   if ret *)
+    (*   then (Some ((mkPtr "granules" (((v_0 + ((- MEM0_PHYS))) >> (12)) * (16))), st)) *)
+    (*   else (Some ((mkPtr "null" 0), st))) *).
 End Layer5.  
   
 Section Layer6.
@@ -4179,8 +4190,8 @@ Section Layer7.
   Hint InitRely rtt_create_internal (v_0.(pbase) = "granules" /\ (v_0.(poffset) mod 16 = 0) /\ v_0.(poffset) >= 0).
 
   Hint InitRely granule_unlock_transition ((v_0.(pbase) = "granules" /\ ((v_0.(poffset)) mod 16 = 0) /\ v_0.(poffset) >= 0) /\ v_1 >= 0 /\ v_1 <= 6).
-  Hint InitRely smc_granule_ns_to_any (((v_1 >= MEM0_PHYS /\ v_1 < MEM0_PHYS + MEM0_SIZE) \/ (v_1 >= MEM1_PHYS /\ v_1 < MEM1_PHYS + MEM1_SIZE)) /\ (v_1 & 4095 = 0)).
-  Hint InitRely smc_granule_any_to_ns (((v_0 >= MEM0_PHYS /\ v_0 < MEM0_PHYS + MEM0_SIZE) \/ (v_0 >= MEM1_PHYS /\ v_0 < MEM1_PHYS + MEM1_SIZE)) /\ (v_0 & 4095 = 0)).
+  Hint InitRely smc_granule_ns_to_any (((v_1 >= MEM0_PHYS /\ v_1 < MEM0_PHYS + MEM0_SIZE) (* \/ (v_1 >= MEM1_PHYS /\ v_1 < MEM1_PHYS + MEM1_SIZE) *)) /\ (v_1 & 4095 = 0)).
+  Hint InitRely smc_granule_any_to_ns (((v_0 >= MEM0_PHYS /\ v_0 < MEM0_PHYS + MEM0_SIZE) (* \/ (v_0 >= MEM1_PHYS /\ v_0 < MEM1_PHYS + MEM1_SIZE) *)) /\ (v_0 & 4095 = 0)).
   Hint InitRely get_sysreg_write_value (v_0.(pbase) = "granule_data" /\ v_0.(poffset) >= 0 /\ (v_0.(poffset) mod 4096 = 0)).
   
   Hint InitRely psci_cpu_off (v_0.(pbase) = "stack_s_psci_result" /\ v_0.(poffset) = 0).
@@ -5255,7 +5266,7 @@ Section Layer8.
   Hint InitRely update_ripas ((st.(share).(granule_data) @ (v_0.(poffset) / 4096)).(g_granule_state) = GRANULE_STATE_DATA).
 
 
-  Hint InitRely set_tte_ns ((v_0 >= MEM1_PHYS /\ v_0 < MEM1_PHYS + MEM1_SIZE) \/ (v_0 >= MEM0_PHYS /\ v_0 < MEM0_SIZE)).
+  Hint InitRely set_tte_ns ((v_0 >= MEM1_PHYS (* /\ v_0 < MEM1_PHYS + MEM1_SIZE *)) \/ (v_0 >= MEM0_PHYS /\ v_0 < MEM0_SIZE)).
   Hint InitRely granule_memzero (v_0.(pbase) = "granules" /\ ((v_0.(poffset)) mod 16 = 0) /\ v_0.(poffset) >= 0).
 
   Hint InitRely virt_to_phys (v_2.(pbase) = "stack_type_3").
@@ -6219,6 +6230,7 @@ Section Layer10.
     "bitmap_test_and_set" ::
     "validate_rmm_feature_register_0_value" ::
     "s2_inconsistent_sl" ::
+    "s2tte_is_valid_ns" ::
     nil.
 
   Definition restore_sysreg_state_spec (v_0: Ptr) (st: RData) : (option RData) :=
@@ -6383,7 +6395,6 @@ Section Layer11.
     "validate_data_create" ::
     "s2tte_create_valid" ::
     (* "report_unexpected" :: *)
-    "s2tte_is_valid_ns" ::
     "s2tte_create_valid_ns" ::
     (* "invalidate_block" :: *)
     "s2tte_is_destroyed" ::
@@ -6399,7 +6410,7 @@ Section Layer11.
     (* "mbedtls_sha256_init" :: *)
     nil.
 
-	
+  Hint PostEnsure validate_ipa_bits_and_sl (ret_0 = 0).
   Hint InitRely requested_ipa_bits (v_0.(pbase) = "stack_s_realm_params" /\ v_0.(poffset) = 0).
   Hint InitRely invalidate_page (v_0.(pbase) = "stack_s_realm_s2_context" /\ v_0.(poffset) = 0).
   Hint InitRely addr_block_intersects_par (v_0.(pbase) = "granule_data" /\ (v_0.(poffset) >= 0) /\ ((v_0.(poffset) mod 4096) = 0)).
@@ -6430,6 +6441,23 @@ Section Layer11.
   Definition __table_is_uniform_block_funptr_wrap907 (func_ptr: Ptr) (arg0: Z) (st: RData) : (option (bool * RData)) :=
     if func_ptr.(pbase) =s "s2tte_is_unassigned" then s2tte_is_unassigned_spec arg0 st
     else if func_ptr.(pbase) =s "s2tte_is_destroyed" then s2tte_is_destroyed_spec arg0 st
+    else None.
+
+  Definition __table_is_uniform_block_loop904_rank (v_0: Ptr) (v_1: Z) (v_2: Ptr) : Z := 512 - v_1.
+
+  Definition __table_maps_block_loop946_rank (v_0: Ptr) (v_1: Z) (v_10: Z) (v_5: Z) (v__02223: Z) (v_2: Ptr) : Z :=
+    0.
+
+  Definition __table_maps_block_funptr_wrap954 (func_ptr: Ptr) (arg0: Z) (arg1: Z) (st: RData) : (option (bool * RData)) :=
+    if func_ptr.(pbase) =s "s2tte_is_assigned" then s2tte_is_assigned_spec arg0 arg1 st
+    else if func_ptr.(pbase) =s "s2tte_is_valid" then s2tte_is_valid_spec arg0 arg1 st
+    else if func_ptr.(pbase) =s "s2tte_is_valid_ns" then s2tte_is_valid_ns_spec arg0 arg1 st
+    else None.
+
+  Definition __table_maps_block_funptr_wrap942 (func_ptr: Ptr) (arg0: Z) (arg1: Z) (st: RData) : (option (bool * RData)) :=
+    if func_ptr.(pbase) =s "s2tte_is_assigned" then s2tte_is_assigned_spec arg0 arg1 st
+    else if func_ptr.(pbase) =s "s2tte_is_valid" then s2tte_is_valid_spec arg0 arg1 st
+    else if func_ptr.(pbase) =s "s2tte_is_valid_ns" then s2tte_is_valid_ns_spec arg0 arg1 st
     else None.
 
 End Layer11.
@@ -6510,6 +6538,12 @@ Section Layer12.
     "set_rd_rec_count" ::
     nil.
 
+  Hint Unfold ptr_status_spec'.
+  Hint Unfold status_ptr_spec'.
+  Hint Unfold ptr_is_err_spec'.
+
+  Definition find_lock_transition_rtts_loop209_rank (v_0: Z) (v_indvars_iv: Z) (v_wide_trip_count: Z) : Z :=
+    v_wide_trip_count - v_indvars_iv.
 
   Definition data_create_0_low (st_0: RData) (st_17: RData) (v_0: Z) (v_39: Ptr) (v_57: Z) (v__sroa_028_0_copyload_tmp: Z) (v__sroa_4_0_copyload: Z) : (option (Z * RData)) :=
     rely (((v_57 =? (0)) = (true)));
@@ -6917,7 +6951,12 @@ Section Layer12.
 End Layer12.
 
 (* Hint OnlyTrans smc_rtt_create. *)
+(* Hint OnlyTrans s2tte_is_assigned. *)
 (* Hint OnlyTrans smc_rtt_fold. *)
+(* Hint OnlyTrans s2tte_is_valid_ns. *)
+(* Hint OnlyTrans smc_realm_create. *)
+Hint OnlyTrans smc_realm_destroy.
+(* Hint OnlyTrans smc_realm_activate. *)
 
 Section Layer13.
   Definition LAYER_DATA := RData.
@@ -6939,7 +6978,7 @@ Section Layer13.
     (* "mbedtls_memory_buffer_alloc_verify" :: *)
     (* "handle_icc_el1_sysreg_trap" :: *)
     (* "buffer_alloc_free" :: *)
-    (* "smc_realm_destroy" :: *)
+    "smc_realm_destroy" ::
     "stage1_tlbi_va" ::
     (* "smc_bench_ns_fake_unmap_notlbi" :: *)
     (* "measurement_update" :: *)
@@ -6984,7 +7023,7 @@ Section Layer13.
     "smc_rtt_read_entry" ::
     "smc_rtt_unmap_protected" ::
     (* "smc_bench_ns_map_unmap" :: *)
-    (* "smc_realm_create" :: *)
+    "smc_realm_create" ::
     (* "mbedtls_memory_buffer_alloc_free" :: *)
     nil.
 
