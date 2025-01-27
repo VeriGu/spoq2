@@ -81,7 +81,7 @@ build/spoq testcase/proof_debug_of.v  316.46s user 1.86s system 100% cpu 5:18.22
 Z3Result z3_check(std::shared_ptr<EvalState> state, z3::expr cond, int timeout=Z3_TIMEOUT);
 Z3Result z3_check(shared_ptr<EvalState> state, int timeout=Z3_TIMEOUT);
 Z3Result z3_check_unsat(std::shared_ptr<EvalState> state, z3::expr cond, z3::model& model, int timeout=Z3_TIMEOUT);
-shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state);
+shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state, set<string>* used_loop=nullptr);
 rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState> state);
 void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<SpecValue> src, shared_ptr<EvalState> state);
 bool check_loop_inv(Project* proj, Definition *loop);

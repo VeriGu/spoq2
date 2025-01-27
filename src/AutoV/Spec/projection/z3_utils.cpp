@@ -14,6 +14,7 @@
 #include <utils.h>
 #include <chrono>
 #include <rules.h>
+#include <parser.h>
 
 
 namespace autov
@@ -328,7 +329,7 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
 
 //inv have only free variable st.
 //state in inv and body can only be "st".
-//forall v1,v2,... vk st, inv(st) /\ prim_body(v1,v2,...st) = (v1',v2'..st') -> inv(st')
+//forall v1,v2,... vk st, inv(st) /\ prim_body(v1,v2,...st) = Some (v1',v2'..st') -> inv(st')
 bool check_invariant(Project* proj, Definition* prim, SpecNode* inv) {
     auto body = prim->body.get();
     auto args = prim->args.get();
@@ -604,41 +605,46 @@ void pattern_matching(SpecNode* pattern, SpecNode* spec) {
 }
 
 
-//formulate all the loop invariant to the exprs as
-//forall v1,v2,...vk,v1',v2'...vk', loop_spec(n, v1....vk,st) = Some (n', v1',v2',v3'....vk',st') -> invariant(v1',v2',....vk'，st',st)
-SpecNode* formulate_loop_invariant(Project* proj, string fname) {
+//formulate loop invariant post condition
+//loop_spec(n, v1....vk,st) = Some (v1',v2',v3'....vk',st') -> loop_cond /\ invariant(v1',v2',....vk'，st',st)
+SpecNode* formulate_loop_invariant(Project* proj, string fname, unique_ptr<vector<unique_ptr<SpecNode>>> args) {
     auto &invs = proj->loop_invs[fname];
     auto def = proj->defs[fname].get();
+    assert(instance_of(def, Fixpoint));
     unique_ptr<vector<shared_ptr<Arg>>> vars = make_unique<vector<shared_ptr<Arg>>>();
 
+    int i = 0;
     for(auto arg : *def->args) {
-        vars->push_back(make_shared<Arg>(arg->name, arg->type));
+        if(i != 0)
         vars->push_back(make_shared<Arg>(arg->name + "'", arg->type));
     }
     
 
     auto lhselems = make_unique<vector<unique_ptr<SpecNode>>>();
-    for(auto arg: *def->args) {
-        lhselems->push_back(make_unique<Symbol>(arg->name));
+    for(auto &arg: *args) {
+        lhselems->push_back(std::move(arg));
     }
 
 
     auto lhsbody = new Expr(fname, std::move(lhselems));
 
     auto rhselems = make_unique<vector<unique_ptr<SpecNode>>>();
-    int i = 0;
+    auto tupleelems = make_unique<vector<unique_ptr<SpecNode>>>();
+    i = 0;
     for(auto arg: *def->args) {
         if(i != 0)
-            rhselems->push_back(make_unique<Symbol>(arg->name + "'"));
+            tupleelems->push_back(make_unique<Symbol>(arg->name + "'"));
         i++;
     }
 
-    auto rhsbody = new Expr(Expr::ops::Some, std::move(rhselems));
+    auto rhstuple = new Expr(Expr::ops::Tuple, std::move(tupleelems), instance_of(def->body->type.get(), Option)->elem_type);      
+    rhselems->push_back(unique_ptr<SpecNode>(rhstuple));                                                            
+    auto rhsbody = new Expr(Expr::ops::Some, std::move(rhselems), def->body->type);
 
     auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
     elems->push_back(unique_ptr<SpecNode>(lhsbody));
     elems->push_back(unique_ptr<SpecNode>(rhsbody));
-    auto eqbody = new Expr(Expr::binops::EQUAL, std::move(elems));
+    auto eqbody = new Expr(Expr::binops::EQUAL, std::move(elems), Bool::BOOL);
 
 
     SpecNode* aggreinv = new BoolConst(true);
@@ -649,10 +655,18 @@ SpecNode* formulate_loop_invariant(Project* proj, string fname) {
         aggreinv = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
     }
 
+
+    auto loop_cond = autov::parser::parseExpr(proj,"__break__ = true");
+    loop_cond->type = Bool::BOOL;
+    auto andelems = new vector<unique_ptr<SpecNode>>();
+    andelems->push_back(unique_ptr<SpecNode>(aggreinv));
+    andelems->push_back(unique_ptr<SpecNode>(loop_cond));
+    auto loop_condAndInv = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(andelems), Bool::BOOL);
+
     auto bodyelems = new vector<unique_ptr<SpecNode>>();
     bodyelems->push_back(unique_ptr<SpecNode>(eqbody));
     bodyelems->push_back(unique_ptr<SpecNode>(aggreinv));
-    auto expr = new Forall(std::move(vars), make_unique<Expr>(Expr::binops::IMPLIES, unique_ptr<vector<unique_ptr<SpecNode>>>(bodyelems)));
+    auto expr = new Expr(Expr::binops::IMPLIES, unique_ptr<vector<unique_ptr<SpecNode>>>(bodyelems), Bool::BOOL);
 
 
     return expr;
@@ -1097,7 +1111,7 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
 
 //needs to find a way to distinguish when to split state using symbolic and when not by directly using ite node of z3.
 //ite is like a state merging.
-shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
+shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state, set<string>* used_loops) {
     // std::cout << "z3_eval: " << string(*val) << std::endl;
 
     if (val->cached_eval) return val->cached_eval;
@@ -1288,6 +1302,9 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             } else if (info.kind == SymbolKind::Def) {
                 auto df = proj->defs[sym].get();
                 if(auto loop = instance_of(df, Fixpoint)) {
+                    if(used_loops) {
+                        used_loops->insert(loop->name);
+                    }
                     if(proj->loop_invs.find(df->name) != proj->loop_invs.end()) {
                         auto& invs = proj->loop_invs[df->name];
                         //auto preconds = proj->cmds.InitRely[df->name];

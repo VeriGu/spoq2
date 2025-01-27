@@ -110,7 +110,7 @@ protected:
 
 void parse(Project *proj, const std::string& path, Layer *current_layer);
 void parse(Project *proj, const std::string& path);
-
+SpecNode* parseExpr(Project* proj, string expr_str);
 
 class LightProgramVisitor : public ProgramVisitor {
 public:
