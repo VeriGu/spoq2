@@ -904,28 +904,13 @@ public:
     }
 
     unique_ptr<SpecNode> deep_copy() const {
-        // deep copy cond, then_body, and else_body
-        unique_ptr<SpecNode> new_cond; // = unique_ptr<Expr>(this->cond->deep_copy().release());
-        unique_ptr<SpecNode> new_then_body; // = unique_ptr<Expr>(this->then_body->deep_copy().release());
-        unique_ptr<SpecNode> new_else_body; // = unique_ptr<Expr>(this->else_body->deep_copy().release());
-
-        this->cond->deep_copy(new_cond);
-        this->then_body->deep_copy(new_then_body);
-        this->else_body->deep_copy(new_else_body);
-
-        return make_unique<If>(std::move(new_cond), std::move(new_then_body), std::move(new_else_body));
+        unique_ptr<SpecNode> ret;
+        deep_copy_impl(ret);
+        return ret;
     }
 
     void deep_copy(unique_ptr<SpecNode> &p) const {
-        unique_ptr<SpecNode> new_cond;
-        unique_ptr<SpecNode> new_then_body;
-        unique_ptr<SpecNode> new_else_body;
-
-        this->cond->deep_copy(new_cond);
-        this->then_body->deep_copy(new_then_body);
-        this->else_body->deep_copy(new_else_body);
-
-        p = make_unique<If>(std::move(new_cond), std::move(new_then_body), std::move(new_else_body));
+        deep_copy_impl(p);
     }
 
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
@@ -936,6 +921,18 @@ private:
 
     int calc_length() const{
         return then_body->length + else_body->length + cond->length;
+    }
+
+    void deep_copy_impl(unique_ptr<SpecNode> &p) const {
+        unique_ptr<SpecNode> new_cond;
+        unique_ptr<SpecNode> new_then_body;
+        unique_ptr<SpecNode> new_else_body;
+
+        this->cond->deep_copy(new_cond);
+        this->then_body->deep_copy(new_then_body);
+        this->else_body->deep_copy(new_else_body);
+
+        p = make_unique<If>(std::move(new_cond), std::move(new_then_body), std::move(new_else_body));
     }
 };
 

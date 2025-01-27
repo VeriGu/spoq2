@@ -650,6 +650,12 @@ rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec) {
                 // std::cout << "Unfold definition: " << string(*define) << std::endl;
                 // std::cout << "======================================" << std::endl;
 
+                std::cout << "Unfold definition: " << define->name << std::endl;
+                if (define->deleyed_type_inference) {
+                    define->infer_type(*proj);
+                    define->deleyed_type_inference = false;
+                }
+
                 auto body = define->body->deep_copy();
                 assert(e->elems->size() == define->args->size());
 

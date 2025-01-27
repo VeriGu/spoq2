@@ -120,7 +120,6 @@ void Project::add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc, 
     defs[name] = std::move(def);
     this->add_symbol(defs[name]->name, SymbolKind::Def, "", loc, order);
 
-
     LOG_DEBUG << "Adding definition " << name;
     try {
         def_->infer_type(*this);
@@ -727,8 +726,10 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
                 continue;
             }
         }
-        if (low_def->deleyed_type_inference)
+        if (low_def->deleyed_type_inference) {
             low_def->infer_type(*proj);
+            low_def->deleyed_type_inference = false;
+        }
         // High spec begins from the low spec
         unique_ptr<SpecNode> high_body = low_def->body->deep_copy();
 
