@@ -43,4 +43,6 @@ rule_ret_t replace_spec_name(Project *proj, SpecNode *spec, unordered_map<string
 bool spec_is_pure(Project *proj, SpecNode *spec, bool &has_if);
 bool spec_needs_state(Project *proj, SpecNode *spec);
 void spec_remove_state(Project *proj, SpecNode *spec);
+
+void get_vars_from_pattern(Project *proj, SpecNode *pattern, std::set<string> &vars);
 } // namespace autov
