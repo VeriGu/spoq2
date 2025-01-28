@@ -420,7 +420,7 @@ recursively apply [f] to all nodes in [spec]
 [f] must be a function from SpecNode to SpecNode
 e.g. SpecNode(child_1, child_2, ...) => f(SpecNode(f(child_1), f(child_2), ..))
 */
-static SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f, bool apply_anno = true) {
+SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f, bool apply_anno = true) {
     if (is_instance(spec, Symbol))
         return f(spec);
     else if(is_instance(spec, Const))
@@ -470,7 +470,18 @@ static SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f
                       unique_ptr<SpecNode>(rec_apply(i->then_body.release(), f, apply_anno)),
                       unique_ptr<SpecNode>(rec_apply(i->else_body.release(), f, apply_anno))));
     } else if (auto fe = instance_of(spec, Forall)) {
-        return f(new Forall(make_unique<vector<shared_ptr<Arg>>>(*fe->vars),
+        auto vars = make_unique<vector<shared_ptr<Arg>>>();
+        for (auto &v : *fe->vars) {
+            if (v->expr) {
+                // apply f to the hypos
+                if (auto e = instance_of(rec_apply(v->expr.release(), f, apply_anno), Expr)) {
+                    v->expr = unique_ptr<Expr>(e);
+                }
+            }
+            vars->push_back(v);
+        }
+        fe->vars.release();
+        return f(new Forall(make_unique<vector<shared_ptr<Arg>>>((*vars)),
                           unique_ptr<SpecNode>(rec_apply(fe->body.release(), f, apply_anno))));
     } else if (auto fe = instance_of(spec, Exists)) {
         return f(new Exists(make_unique<vector<shared_ptr<Arg>>>(*fe->vars),
@@ -479,7 +490,7 @@ static SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f
         throw std::runtime_error("Unknown SpecNode " + string(*spec));
 }
 
-static void get_vars_from_pattern(Project *proj, SpecNode *pattern, std::set<string> &vars) {
+void get_vars_from_pattern(Project *proj, SpecNode *pattern, std::set<string> &vars) {
     if (auto s = instance_of(pattern, Symbol)) {
         if (!proj->is_known_symbol(s->text) && pattern->get_type() != SpecType::UNKNOWN_TYPE)
             vars.insert(s->text);
@@ -748,7 +759,8 @@ static vector<vector<FieldPath>> interest_path;
 //static const std::set<string> interest_list = {"gpt", "g_norm", "e_state", "slots", "granule_data", "stack", "log"}; // RTT
 //static const std::set<string> interest_list = {"pcpu_gpregs", "e_regs"}; // CPU
 //static const std::set<string> indifferent_list = {"g_aux_simd_state", "g_rec", "g_rd"}; // RTT
-static const std::set<string> interest_list = {"halt"}; // DRF
+// static const std::set<string> interest_list = {"halt"}; // DRF
+static const std::set<string> interest_list = {"e_state_s_granule", "e_state_s_rd", "g_granule_state", "g_granules", "g_norm", "granule_data"}; // DRF
 
 //static const std::set<string> interest_list = {};
 static void collect_interest_path(Project *proj) {
@@ -1012,6 +1024,11 @@ rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec) {
                             }
                         }
                     }
+                } else {
+                    /** Abstracted Data: (lens id st) -> st */
+                    auto new_ee = std::move(e->elems->at(1)).release();
+                    delete e;
+                    return new_ee;
                 }
             } else if (auto op = std::get_if<Expr::ops>(&e->op)) {
                 if (*op == Expr::RecordGet) {
