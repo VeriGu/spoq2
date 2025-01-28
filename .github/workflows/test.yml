@@ -3,10 +3,10 @@ name: Run container spec
 on:
   push:
     branches:
-      - xupeng_wip 
+      - container
   pull_request:
     branches:
-      - xupeng_wip
+      - container
   workflow_dispatch: 
 
 jobs:
@@ -15,7 +15,7 @@ jobs:
     steps:
      - uses: actions/checkout@v4
        with:
-         ref: xupeng_wip
+         ref: container
      - name: Install OPAM
        uses: ocaml/setup-ocaml@v3
        with:
