@@ -2,7 +2,7 @@ Definition PROJ_NAME: string := "working".
 Definition PROJ_BASE: string := "coq/working".
 
 Parameter CPU_ID: Z.
-Hint OnlyTrans smc_realm_activate.
+Hint OnlyTrans rsi_rtt_destroy.
 (* Hint NoHighSpec true. *)
 (* Hint OnlyTrans vmid_free. *)
   (* PHYSICAL MEMORY under N1SDP                 *)
@@ -2116,7 +2116,9 @@ Record RData :=
 
       (* accessed by load/store Rdata *)
       share: Shared;
-      stack: STACK
+      stack: STACK;
+
+      halt: bool
     }.
 
 Definition query_oracle (st: RData) : option RData :=
@@ -4157,6 +4159,593 @@ Section Layer7.
   
   Hint InitRely rtt_create_internal (v_0.(pbase) = "granules" /\ (v_0.(poffset) mod 16 = 0) /\ v_0.(poffset) >= 0).
 
+  Definition s2tte_create_ripas_spec' (v_0: Z) : (option Z) :=
+    if (v_0 =? (0))
+    then (Some 0)
+    else (Some 64).
+
+  Definition s2tte_get_ripas_spec' (v_0: Z) : (option Z) :=
+    if ((v_0 & (64)) =? (0))
+    then (Some 0)
+    else (Some 1).
+    
+  Hint NoTrans rtt_create_internal_spec.
+  Hint NoTrans rtt_create_internal_spec_low.
+  
+  Definition rtt_create_internal_spec_low (v_0: Ptr) (v_1: Z) (v_2: Z) (v_3: Z) (v_4: Z) (st: RData) : (option (Z * RData)) :=
+  rely (((((v_0.(pbase)) = ("granules")) /\ ((((v_0.(poffset)) mod (16)) = (0)))) /\ (((v_0.(poffset)) >= (0)))));
+  rely (
+    (((((v_1 - (MEM0_PHYS)) >= (0)) /\ (((v_1 - (4294967296)) < (0)))) \/ ((((v_1 - (MEM1_PHYS)) >= (0)) /\ (((v_1 - (556198264832)) < (0)))))) /\
+      (((v_1 & (4095)) = (0)))));
+  match (((((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val))) with
+  | None =>
+    rely (
+      (((((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) -
+        ((((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)))) =
+        (0)));
+    if (((((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) - (1)) =? (0))
+    then (
+      when st_3 == (
+          (rtt_walk_lock_unlock_spec
+            (mkPtr "stack_s_rtt_walk" 0)
+            v_0
+            0
+            64
+            v_2
+            v_3
+            ((st.[log] :< ((EVT CPU_ID (ACQ ((v_1 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))).[share] :<
+              ((st.(share)).[globals].[g_granules] :<
+                ((((st.(share)).(globals)).(g_granules)) #
+                  ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                  (((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))))));
+      rely ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >=? (0)));
+      rely ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (MEM0_VIRT)) <? (0)));
+      if (((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) - ((v_3 + ((- 1))))) =? (0))
+      then (
+        rely (
+          ((((("granules" = ("granules")) /\ ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) mod (16)) = (0)))) /\
+            ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+            ((6 >= (0)))) /\
+            ((6 <= (24)))));
+        when ret == ((granule_addr_spec' (mkPtr "granules" ((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)))));
+        when ret_0 == ((buffer_map_spec' 6 ret false));
+        when v_25, st_n == ((__tte_read_spec (mkPtr (ret_0.(pbase)) ((ret_0.(poffset)) + ((8 * ((((st.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk))))))) st));
+        when ret_1 == ((granule_addr_spec' (mkPtr "granules" (((v_1 + ((- MEM0_PHYS))) >> (12)) * (16)))));
+        when ret_2 == ((buffer_map_spec' 1 ret_1 false));
+        if ((v_25 & (63)) =? (0))
+        then (
+          when ret_3 == ((s2tte_get_ripas_spec' v_25));
+          when ret_4 == ((s2tte_create_ripas_spec' ret_3));
+          match (
+            match ((s2tt_init_unassigned_loop759_0 (z_to_nat 0) false ret_2 ret_4 0 st)) with
+            | (Some (__break__, v_8, v_7, v_index_0, st_1)) => (Some (true, 0, st_1))
+            | None => None
+            end
+          ) with
+          | (Some (__return__, v_bc_resume_val, st_1)) =>
+            if __return__
+            then (
+              rely ((((ret_0.(pbase)) = ("granule_data")) /\ ((((ret_0.(poffset)) + ((8 * ((((st.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)))))) >= (0)))));
+              when cid == (
+                  ((((((((st.(share)).(globals)).(g_granules)) #
+                    (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                      ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                        (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                    ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                    ((((((st.(share)).(globals)).(g_granules)) #
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                        ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                          (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                      5)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val)));
+              when cid_0 == (
+                  (((((((((st.(share)).(globals)).(g_granules)) #
+                    (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                      ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                        (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                    ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                    ((((((st.(share)).(globals)).(g_granules)) #
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                        ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                          (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                      5)) #
+                    (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                    (((((((st.(share)).(globals)).(g_granules)) #
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                        ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                          (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                      ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                      ((((((st.(share)).(globals)).(g_granules)) #
+                        (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                        (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                          ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                            (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                        5)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                      None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val)));
+              (Some (
+                0  ,
+                (((st.[log] :<
+                  ((EVT
+                    CPU_ID
+                    (REL
+                      ((v_1 + ((- MEM0_PHYS))) >> (12))
+                      (((((((st.(share)).(globals)).(g_granules)) #
+                        (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                        (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                          ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                            (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                        ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                        ((((((st.(share)).(globals)).(g_granules)) #
+                          (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                          (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                            ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                              (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                          5)) #
+                        (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                        (((((((st.(share)).(globals)).(g_granules)) #
+                          (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                          (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                            ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                              (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                          ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                          ((((((st.(share)).(globals)).(g_granules)) #
+                            (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                            (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                              ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                                (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                            5)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                          None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))))) ::
+                    (((EVT
+                      CPU_ID
+                      (REL
+                        (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))
+                        ((((((st.(share)).(globals)).(g_granules)) #
+                          (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                          (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                            ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                              (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                          ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                          ((((((st.(share)).(globals)).(g_granules)) #
+                            (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                            (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                              ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                                (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                            5)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))))) ::
+                      ((st.(log))))))).[share].[globals].[g_granules] :<
+                  (((((((st.(share)).(globals)).(g_granules)) #
+                    (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                      ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                        (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                    ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                    ((((((st.(share)).(globals)).(g_granules)) #
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                        ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                          (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                      5)) #
+                    (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                    (((((((st.(share)).(globals)).(g_granules)) #
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                        ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                          (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                      ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                      ((((((st.(share)).(globals)).(g_granules)) #
+                        (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                        (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                          ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                            (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                        5)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                      None)) #
+                    ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                    ((((((((st.(share)).(globals)).(g_granules)) #
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                        ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                          (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                      ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                      ((((((st.(share)).(globals)).(g_granules)) #
+                        (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                        (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                          ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                            (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                        5)) #
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                      (((((((st.(share)).(globals)).(g_granules)) #
+                        (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                        (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                          ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                            (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                        ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                        ((((((st.(share)).(globals)).(g_granules)) #
+                          (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                          (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                            ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                              (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                          5)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                        None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :<
+                      None))).[share].[granule_data] :<
+                  (((st.(share)).(granule_data)) #
+                    (((ret_0.(poffset)) + ((8 * ((((st.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)))))) / (4096)) ==
+                    (((((st.(share)).(granule_data)) @ (((ret_0.(poffset)) + ((8 * ((((st.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)))))) / (4096))).[g_norm] :<
+                      (((((st.(share)).(granule_data)) @ (((ret_0.(poffset)) + ((8 * ((((st.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)))))) / (4096))).(g_norm)) #
+                        (((ret_0.(poffset)) + ((8 * ((((st.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)))))) mod (4096)) ==
+                        (v_1 |' (3)))).[g_granule_state] :< 5)))
+              )))
+            else (
+              match ((s2tt_init_unassigned_loop759 (z_to_nat 0) false ret_2 ret_4 v_bc_resume_val st)) with
+              | (Some (__break__, v_8, v_7, v_indvars_iv_0, st_2)) =>
+                rely ((((ret_0.(pbase)) = ("granule_data")) /\ ((((ret_0.(poffset)) + ((8 * ((((st.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)))))) >= (0)))));
+                when cid == (
+                    ((((((((st.(share)).(globals)).(g_granules)) #
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                        ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                          (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                      ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                      ((((((st.(share)).(globals)).(g_granules)) #
+                        (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                        (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                          ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                            (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                        5)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val)));
+                when cid_0 == (
+                    (((((((((st.(share)).(globals)).(g_granules)) #
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                        ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                          (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                      ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                      ((((((st.(share)).(globals)).(g_granules)) #
+                        (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                        (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                          ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                            (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                        5)) #
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                      (((((((st.(share)).(globals)).(g_granules)) #
+                        (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                        (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                          ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                            (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                        ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                        ((((((st.(share)).(globals)).(g_granules)) #
+                          (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                          (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                            ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                              (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                          5)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                        None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val)));
+                (Some (
+                  0  ,
+                  (((st.[log] :<
+                    ((EVT
+                      CPU_ID
+                      (REL
+                        ((v_1 + ((- MEM0_PHYS))) >> (12))
+                        (((((((st.(share)).(globals)).(g_granules)) #
+                          (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                          (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                            ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                              (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                          ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                          ((((((st.(share)).(globals)).(g_granules)) #
+                            (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                            (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                              ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                                (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                            5)) #
+                          (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                          (((((((st.(share)).(globals)).(g_granules)) #
+                            (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                            (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                              ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                                (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                            ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                            ((((((st.(share)).(globals)).(g_granules)) #
+                              (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                              (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                                ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                                  (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                              5)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))))) ::
+                      (((EVT
+                        CPU_ID
+                        (REL
+                          (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))
+                          ((((((st.(share)).(globals)).(g_granules)) #
+                            (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                            (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                              ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                                (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                            ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                            ((((((st.(share)).(globals)).(g_granules)) #
+                              (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                              (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                                ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                                  (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                              5)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))))) ::
+                        ((st.(log))))))).[share].[globals].[g_granules] :<
+                    (((((((st.(share)).(globals)).(g_granules)) #
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                        ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                          (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                      ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                      ((((((st.(share)).(globals)).(g_granules)) #
+                        (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                        (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                          ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                            (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                        5)) #
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                      (((((((st.(share)).(globals)).(g_granules)) #
+                        (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                        (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                          ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                            (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                        ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                        ((((((st.(share)).(globals)).(g_granules)) #
+                          (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                          (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                            ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                              (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                          5)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                        None)) #
+                      ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                      ((((((((st.(share)).(globals)).(g_granules)) #
+                        (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                        (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                          ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                            (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                        ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                        ((((((st.(share)).(globals)).(g_granules)) #
+                          (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                          (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                            ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                              (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                          5)) #
+                        (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                        (((((((st.(share)).(globals)).(g_granules)) #
+                          (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                          (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                            ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                              (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                          ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                          ((((((st.(share)).(globals)).(g_granules)) #
+                            (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                            (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_ref] :<
+                              ((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                                (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :<
+                            5)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                          None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :<
+                        None))).[share].[granule_data] :<
+                    (((st.(share)).(granule_data)) #
+                      (((ret_0.(poffset)) + ((8 * ((((st.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)))))) / (4096)) ==
+                      (((((st.(share)).(granule_data)) @ (((ret_0.(poffset)) + ((8 * ((((st.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)))))) / (4096))).[g_norm] :<
+                        (((((st.(share)).(granule_data)) @ (((ret_0.(poffset)) + ((8 * ((((st.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)))))) / (4096))).(g_norm)) #
+                          (((ret_0.(poffset)) + ((8 * ((((st.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)))))) mod (4096)) ==
+                          (v_1 |' (3)))).[g_granule_state] :< 5)
+                          ))
+                ))
+              | None => None
+              end)
+          | None => None
+          end)
+        else (
+          if (((v_3 + ((- 1))) <? (3)) && (((v_25 & (3)) =? (3))))
+          then (
+            when cid == (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val)));
+            when cid_0 == (
+                (((((((st.(share)).(globals)).(g_granules)) #
+                  (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                  (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val)));
+            (Some (
+              9  ,
+              ((st.[log] :<
+                ((EVT
+                  CPU_ID
+                  (REL
+                    ((v_1 + ((- MEM0_PHYS))) >> (12))
+                    (((((st.(share)).(globals)).(g_granules)) #
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))))) ::
+                  (((EVT
+                    CPU_ID
+                    (REL
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))
+                      ((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))))) ::
+                    ((st.(log))))))).[share].[globals].[g_granules] :<
+                (((((st.(share)).(globals)).(g_granules)) #
+                  (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                  (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)) #
+                  ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                  ((((((st.(share)).(globals)).(g_granules)) #
+                    (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :<
+                    None)))
+            )))
+          else (
+            rely ((((ret_0.(pbase)) = ("granule_data")) /\ ((((ret_0.(poffset)) + ((8 * ((((st.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)))))) >= (0)))));
+            when cid == (
+                (((((((st.(share)).(globals)).(g_granules)) #
+                  ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                  (((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :< 5)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val)));
+            when cid_0 == (
+                ((((((((st.(share)).(globals)).(g_granules)) #
+                  ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                  (((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :< 5)) #
+                  (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                  ((((((st.(share)).(globals)).(g_granules)) #
+                    ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :< 5)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                    None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val)));
+            (Some (
+              0  ,
+              (((st.[log] :<
+                ((EVT
+                  CPU_ID
+                  (REL
+                    ((v_1 + ((- MEM0_PHYS))) >> (12))
+                    ((((((st.(share)).(globals)).(g_granules)) #
+                      ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :< 5)) #
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                      ((((((st.(share)).(globals)).(g_granules)) #
+                        ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                        (((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :< 5)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                        None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))))) ::
+                  (((EVT
+                    CPU_ID
+                    (REL
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))
+                      (((((st.(share)).(globals)).(g_granules)) #
+                        ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                        (((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :< 5)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))))) ::
+                    ((st.(log))))))).[share].[globals].[g_granules] :<
+                ((((((st.(share)).(globals)).(g_granules)) #
+                  ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                  (((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :< 5)) #
+                  (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                  ((((((st.(share)).(globals)).(g_granules)) #
+                    ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :< 5)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                    None)) #
+                  ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                  (((((((st.(share)).(globals)).(g_granules)) #
+                    ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :< 5)) #
+                    (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                    ((((((st.(share)).(globals)).(g_granules)) #
+                      ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_state_s_granule] :< 5)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                      None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :<
+                    None))).[share].[granule_data] :<
+                (((st.(share)).(granule_data)) #
+                  (((ret_0.(poffset)) + ((8 * ((((st.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)))))) / (4096)) ==
+                   (((((st.(share)).(granule_data)) @ (((ret_0.(poffset)) + ((8 * ((((st.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)))))) / (4096))).[g_norm] :<
+                    (((((st.(share)).(granule_data)) @ (((ret_0.(poffset)) + ((8 * ((((st.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)))))) / (4096))).(g_norm)) #
+                      (((ret_0.(poffset)) + ((8 * ((((st.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)))))) mod (4096)) ==
+                      (v_1 |' (3))) ).[g_granule_state] :< 5)))
+            )))))
+      else (
+        if (v_4 =? (0))
+        then (
+          when cid == (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val)));
+          when cid_0 == (
+              (((((((st.(share)).(globals)).(g_granules)) #
+                (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val)));
+          (Some (
+            ((((((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8)) >> (24)) & (4294967040)) |'
+              ((((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8))))  ,
+            ((st.[log] :<
+              ((EVT
+                CPU_ID
+                (REL
+                  ((v_1 + ((- MEM0_PHYS))) >> (12))
+                  (((((st.(share)).(globals)).(g_granules)) #
+                    (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))))) ::
+                (((EVT
+                  CPU_ID
+                  (REL
+                    (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))
+                    ((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))))) ::
+                  ((st.(log))))))).[share].[globals].[g_granules] :<
+              (((((st.(share)).(globals)).(g_granules)) #
+                (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)) #
+                ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                ((((((st.(share)).(globals)).(g_granules)) #
+                  (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                  (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :<
+                  None)))
+          )))
+        else (
+          if (((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) - (v_3)) =? (0))
+          then (
+            when cid == (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val)));
+            when cid_0 == (
+                (((((((st.(share)).(globals)).(g_granules)) #
+                  (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                  (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val)));
+            (Some (
+              5299989959177  ,
+              ((st.[log] :<
+                ((EVT
+                  CPU_ID
+                  (REL
+                    ((v_1 + ((- MEM0_PHYS))) >> (12))
+                    (((((st.(share)).(globals)).(g_granules)) #
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))))) ::
+                  (((EVT
+                    CPU_ID
+                    (REL
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))
+                      ((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))))) ::
+                    ((st.(log))))))).[share].[globals].[g_granules] :<
+                (((((st.(share)).(globals)).(g_granules)) #
+                  (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                  (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)) #
+                  ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                  ((((((st.(share)).(globals)).(g_granules)) #
+                    (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :<
+                    None)))
+            )))
+          else (
+            when cid == (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val)));
+            when cid_0 == (
+                (((((((st.(share)).(globals)).(g_granules)) #
+                  (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                  (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val)));
+            (Some (
+              ((((((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8)) >> (24)) & (4294967040)) |'
+                ((((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8))))  ,
+              ((st.[log] :<
+                ((EVT
+                  CPU_ID
+                  (REL
+                    ((v_1 + ((- MEM0_PHYS))) >> (12))
+                    (((((st.(share)).(globals)).(g_granules)) #
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))))) ::
+                  (((EVT
+                    CPU_ID
+                    (REL
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))
+                      ((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))))) ::
+                    ((st.(log))))))).[share].[globals].[g_granules] :<
+                (((((st.(share)).(globals)).(g_granules)) #
+                  (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                  (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)) #
+                  ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                  ((((((st.(share)).(globals)).(g_granules)) #
+                    (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :<
+                    None)))
+            ))))))
+    else (
+      (Some (
+        4294967553  ,
+        ((st.[log] :<
+          ((EVT CPU_ID (REL ((v_1 + ((- MEM0_PHYS))) >> (12)) (((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
+            (((EVT CPU_ID (ACQ ((v_1 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
+          ((st.(share)).[globals].[g_granules] :<
+            ((((st.(share)).(globals)).(g_granules)) #
+              ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+              (((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None))))
+      )))
+  | (Some cid) => None
+  end.
+
   Hint InitRely granule_unlock_transition ((v_0.(pbase) = "granules" /\ ((v_0.(poffset)) mod 16 = 0) /\ v_0.(poffset) >= 0) /\ v_1 >= 0 /\ v_1 <= 6).
   Hint InitRely smc_granule_ns_to_any (((v_1 >= MEM0_PHYS /\ v_1 < MEM0_PHYS + MEM0_SIZE) \/ (v_1 >= MEM1_PHYS /\ v_1 < MEM1_PHYS + MEM1_SIZE)) /\ (v_1 & 4095 = 0)).
   Hint InitRely smc_granule_any_to_ns (((v_0 >= MEM0_PHYS /\ v_0 < MEM0_PHYS + MEM0_SIZE) \/ (v_0 >= MEM1_PHYS /\ v_0 < MEM1_PHYS + MEM1_SIZE)) /\ (v_0 & 4095 = 0)).
@@ -4205,8 +4794,8 @@ Section Layer7.
   Hint InitRely data_create_internal (v_4.(pbase) = "granule_data" /\ (v_4.(poffset) mod 4096 = 0) /\ v_4.(poffset) >= 0).
   Hint InitRely data_create_internal ((st.(share).(granule_data) @ (v_4.(poffset) / 4096)).(g_granule_state) = GRANULE_STATE_REC).
 
-  Hint NoTrans rtt_create_internal_spec.
-  Hint NoUnfold rtt_create_internal_spec.
+  (* Hint NoTrans rtt_create_internal_spec. *)
+  (* Hint NoUnfold rtt_create_internal_spec. *)
   Hint NoTrans data_create_internal_spec.
   Hint NoUnfold data_create_internal_spec.
   (* Modify generated low spec, add abstract PA_TO_VA *)
@@ -4525,166 +5114,6 @@ Section Layer7.
     when v_19, st_11 == ((find_lock_granules_spec (ptr_offset (mkPtr "stack_type_6" 0) 0) 2 st_9));
     when st_12 == ((free_stack "find_lock_two_granules" st_0 st_11));
     (Some (v_19, st_12)). *)
-
-  Definition rtt_create_internal_spec_low (v_0: Ptr) (v_1: Z) (v_2: Z) (v_3: Z) (v_4: Z) (st: RData) : (option (Z * RData)) :=
-  when st == ((new_frame "rtt_create_internal" st));
-  let init_st := st in
-  rely (((((v_0.(pbase)) = ("granules")) /\ ((((v_0.(poffset)) mod (16)) = (0)))) /\ (((v_0.(poffset)) >= (0)))));
-  let v_6 := (mkPtr "stack_s_rtt_walk" 0) in
-  when v_7, st == ((find_lock_granule_spec v_1 1 st));
-  rely (((((v_7.(poffset)) mod (16)) = (0)) /\ (((v_7.(poffset)) >= (0)))));
-  rely ((((v_7.(pbase)) = ("granules")) \/ (((v_7.(pbase)) = ("null")))));
-  let v__not := (ptr_eqb v_7 (mkPtr "null" 0)) in
-  match (
-    let __retval__ := 0 in
-    let __return__ := false in
-    if v__not
-    then (
-      when v_9, st == ((pack_return_code_spec 1 1 st));
-      let v_10 := v_9 in
-      let v__0 := v_10 in
-      let __return__ := true in
-      let __retval__ := v__0 in
-      (Some (__return__, __retval__, st)))
-    else (Some (__return__, __retval__, st))
-  ) with
-  | (Some (__return__, __retval__, st)) =>
-    if __return__
-    then (
-      when st == ((free_stack "rtt_create_internal" init_st st));
-      (Some (__retval__, st)))
-    else (
-      when st == ((rtt_walk_lock_unlock_spec v_6 v_0 0 64 v_2 v_3 st));
-
-      let v__sroa_0_0__sroa_idx := (ptr_offset v_6 ((24 * (0)) + ((0 + (0))))) in
-      when v__sroa_0_0_copyload_tmp, st == ((load_RData 8 v__sroa_0_0__sroa_idx st));
-      let v__sroa_0_0_copyload := (int_to_ptr v__sroa_0_0_copyload_tmp) in
-      let v__sroa_6_0__sroa_idx16 := (ptr_offset v_6 ((24 * (0)) + ((16 + (0))))) in
-      when v__sroa_6_0_copyload, st == ((load_RData 8 v__sroa_6_0__sroa_idx16 st));
-      let v_12 := (v_3 + ((- 1))) in
-      let v__not42 := (v__sroa_6_0_copyload =? (v_12)) in
-      match (
-        if v__not42
-        then (Some (__return__, __retval__, st))
-        else (
-          let v__not43 := (v_4 =? (0)) in
-          match (
-            if v__not43
-            then (Some (__return__, __retval__, st))
-            else (
-              let v_15 := (v__sroa_6_0_copyload =? (v_3)) in
-              match (
-                if v_15
-                then (
-                  when v_17, st == ((pack_return_code_spec 9 1234 st));
-                  let v__1 := v_17 in
-                  when st == ((granule_unlock_spec v__sroa_0_0_copyload st));
-                  when st == ((granule_unlock_spec v_7 st));
-                  let v_39 := v__1 in
-                  let v__0 := v_39 in
-                  let __return__ := true in
-                  let __retval__ := v__0 in
-                  (Some (__return__, __retval__, st)))
-                else (Some (__return__, __retval__, st))
-              ) with
-              | (Some (__return__, __retval__, st)) =>
-                if __return__
-                then (Some (__return__, __retval__, st))
-                else (Some (__return__, __retval__, st))
-              | None => None
-              end)
-          ) with
-          | (Some (__return__, __retval__, st)) =>
-            if __return__
-            then (Some (__return__, __retval__, st))
-            else (
-              let v_19 := v__sroa_6_0_copyload in
-              when v_20, st == ((pack_return_code_spec 8 v_19 st));
-              let v__1 := v_20 in
-              when st == ((granule_unlock_spec v__sroa_0_0_copyload st));
-              when st == ((granule_unlock_spec v_7 st));
-              let v_39 := v__1 in
-              let v__0 := v_39 in
-              let __return__ := true in
-              let __retval__ := v__0 in
-              (Some (__return__, __retval__, st)))
-          | None => None
-          end)
-      ) with
-      | (Some (__return__, __retval__, st)) =>
-        if __return__
-        then (
-          when st == ((free_stack "rtt_create_internal" init_st st));
-          (Some (__retval__, st)))
-        else (
-          let v__sroa_4_0__sroa_idx14 := (ptr_offset v_6 ((24 * (0)) + ((8 + (0))))) in
-          when v__sroa_4_0_copyload, st == ((load_RData 8 v__sroa_4_0__sroa_idx14 st));
-          when v_22, st == ((granule_map_spec v__sroa_0_0_copyload 6 st));
-          let v_23 := v_22 in
-          let v_24 := (ptr_offset v_23 ((8 * (v__sroa_4_0_copyload)) + (0))) in
-          when v_25, st == ((__tte_read_spec v_24 st));
-          when v_26, st == ((granule_map_spec v_7 1 st));
-          when v_27, st == ((s2tte_is_unassigned_spec v_25 st));
-          match (
-            if v_27
-            then (
-              let v_29 := v_26 in
-              when v_30, st == ((s2tte_get_ripas_spec v_25 st));
-              when st == ((s2tt_init_unassigned_spec v_29 v_30 st));
-              when st == ((__granule_get_spec v__sroa_0_0_copyload st));
-              (Some (__return__, __retval__, st)))
-            else (
-              when v_32, st == ((s2tte_is_table_spec v_25 v_12 st));
-              match (
-                if v_32
-                then (
-                  when v_34, st == ((pack_return_code_spec 9 0 st));
-                  let v__037 := v_34 in
-                  let v__1 := v__037 in
-                  when st == ((granule_unlock_spec v__sroa_0_0_copyload st));
-                  when st == ((granule_unlock_spec v_7 st));
-                  let v_39 := v__1 in
-                  let v__0 := v_39 in
-                  let __return__ := true in
-                  let __retval__ := v__0 in
-                  (Some (__return__, __retval__, st)))
-                else (Some (__return__, __retval__, st))
-              ) with
-              | (Some (__return__, __retval__, st)) =>
-                if __return__
-                then (Some (__return__, __retval__, st))
-                else (Some (__return__, __retval__, st))
-              | None => None
-              end)
-          ) with
-          | (Some (__return__, __retval__, st)) =>
-            if __return__
-            then (
-              when st == ((free_stack "rtt_create_internal" init_st st));
-              (Some (__retval__, st)))
-            else (
-              when st == ((granule_set_state_spec v_7 5 st));
-              when v_36, st == ((s2tte_create_table_spec v_1 v_12 st));
-              when st == ((iasm_8_spec st));
-              when st == ((stage1_tlbi_all_spec st));
-              when st == ((__tte_write_spec v_24 v_36 st));
-              when st == ((iasm_8_spec st));
-              when st == ((iasm_12_isb_spec st));
-              let v__037 := 0 in
-              let v__1 := v__037 in
-              when st == ((granule_unlock_spec v__sroa_0_0_copyload st));
-              when st == ((granule_unlock_spec v_7 st));
-              let v_39 := v__1 in
-              let v__0 := v_39 in
-              let __return__ := true in
-              let __retval__ := v__0 in
-              when st == ((free_stack "rtt_create_internal" init_st st));
-              (Some (__retval__, st)))
-          | None => None
-          end)
-      | None => None
-      end)
-  | None => None
   end.
 
   (*
@@ -5521,6 +5950,608 @@ Section Layer9.
   Hint InitRely gic_restore_state ((v_0.(pbase) = "default_gicstate" /\ v_0.(poffset) = 0) \/
                                    ((st.(share).(granule_data) @ (v_0.(poffset) / 4096)).(g_granule_state) = GRANULE_STATE_REC)).
 
+Definition rsi_rtt_create_spec_low (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Z) (st: RData) : (option (Z * RData)) :=
+  if ((v_1 & (1)) =? (0))
+  then (
+    rely (
+      (((((v_1 - (MEM0_PHYS)) >= (0)) /\ (((v_1 - (4294967296)) < (0)))) \/ ((((v_1 - (MEM1_PHYS)) >= (0)) /\ (((v_1 - (556198264832)) < (0)))))) /\
+        (((v_1 & (4095)) = (0)))));
+      match (((((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val))) with
+      | None =>
+        rely (
+          (((((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) -
+            ((((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)))) =
+            (0)));
+        if (((((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) - (5)) =? (0))
+        then (
+          when v_23, st_1 == (
+              (rtt_create_internal_spec
+                (mkPtr "granules" (((v_1 + ((- MEM0_PHYS))) >> (12)) * (16)))
+                v_0
+                v_2
+                v_3
+                0
+                ((st.[log] :< ((EVT CPU_ID (ACQ ((v_1 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))).[share] :<
+                  ((st.(share)).[globals].[g_granules] :<
+                    ((((st.(share)).(globals)).(g_granules)) #
+                      ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))))));
+          (Some (((v_23 << (32)) >> (32)), ((st.[log] :< ((EVT CPU_ID (ACQ ((v_1 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))).[share] :<
+                  ((st.(share)).[globals].[g_granules] :<
+                    ((((st.(share)).(globals)).(g_granules)) #
+                      ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))))))
+        else (
+          (Some (
+            4294967553  ,
+            ((st.[log] :<
+              ((EVT CPU_ID (REL ((v_1 + ((- MEM0_PHYS))) >> (12)) (((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
+                (((EVT CPU_ID (ACQ ((v_1 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
+              ((st.(share)).[globals].[g_granules] :<
+                ((((st.(share)).(globals)).(g_granules)) #
+                  ((v_1 + ((- MEM0_PHYS))) >> (12)) ==
+                  (((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None))))
+          )))
+      | (Some cid) => None
+      end)
+  else (
+    rely (
+      ((((((v_1 & ((- 2))) - (MEM0_PHYS)) >= (0)) /\ ((((v_1 & ((- 2))) - (4294967296)) < (0)))) \/
+        (((((v_1 & ((- 2))) - (MEM1_PHYS)) >= (0)) /\ ((((v_1 & ((- 2))) - (556198264832)) < (0)))))) /\
+        ((((v_1 & ((- 2))) & (4095)) = (0)))));
+      match (((((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val))) with
+      | None =>
+        rely (
+          (((((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) -
+            ((((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)))) =
+            (0)));
+        if (((((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) - (3)) =? (0))
+        then (
+          when ret == ((granule_addr_spec' (mkPtr "granules" ((((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) * (16)))));
+          when ret_0 == ((buffer_map_spec' 3 ret false));
+          rely (((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_REC)) = (0)));
+          rely (((((ret_0.(pbase)) = ("granule_data")) /\ (((ret_0.(poffset)) >= (0)))) /\ ((((ret_0.(poffset)) mod (4096)) = (0)))));
+          rely (
+            (((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) >=? (0)) /\
+              (((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (MEM0_VIRT)) <? (0)))));
+          match (((((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val))) with
+          | None =>
+            rely (
+              ((((((((st.(share)).(globals)).(g_granules)) #
+                (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).(e_state_s_granule)) -
+                ((((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).(e_state_s_granule)))) =
+                (0)));
+            rely (
+              ((("granules" = ("granules")) /\ (((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) mod (16)) = (0)))) /\
+                (((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) >= (0)))));
+            if (
+              (((((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).(e_state_s_granule)) -
+                (5)) =?
+                (0)))
+            then (
+              when v_8, st_2 == (
+                  (rtt_create_internal_spec
+                    (mkPtr "granules" (((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)))
+                    v_0
+                    v_2
+                    v_3
+                    1
+                    ((st.[log] :<
+                      ((EVT CPU_ID (ACQ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)))) ::
+                        ((((st.(oracle)) ((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                          (((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))).[share] :<
+                      ((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).[globals].[g_granules] :<
+                        ((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) #
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            (Some CPU_ID)))))));
+              (Some (
+                ((((v_8 << (32)) >> (32)) << (32)) >> (32))  ,
+                (((((st.[log] :<
+                      ((EVT
+                        CPU_ID
+                        (REL
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            (Some CPU_ID)))) ::
+                        (((EVT CPU_ID (ACQ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)))) ::
+                          ((((st.(oracle)) ((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                            (((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share] :<
+                      ((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).[globals].[g_granules] :<
+                        ((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) #
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            None))))).[log] :<
+                  ((EVT CPU_ID (REL (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) (((((((st.[log] :<
+                      ((EVT
+                        CPU_ID
+                        (REL
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            (Some CPU_ID)))) ::
+                        (((EVT CPU_ID (ACQ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)))) ::
+                          ((((st.(oracle)) ((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                            (((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share] :<
+                      ((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).[globals].[g_granules] :<
+                        ((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) #
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            None))))).(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))))) ::
+                    (((((st.[log] :<
+                      ((EVT
+                        CPU_ID
+                        (REL
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            (Some CPU_ID)))) ::
+                        (((EVT CPU_ID (ACQ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)))) ::
+                          ((((st.(oracle)) ((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                            (((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share] :<
+                      ((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).[globals].[g_granules] :<
+                        ((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) #
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            None))))).(log))))).[share].[globals].[g_granules] :<
+                  (((((((st.[log] :<
+                      ((EVT
+                        CPU_ID
+                        (REL
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            (Some CPU_ID)))) ::
+                        (((EVT CPU_ID (ACQ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)))) ::
+                          ((((st.(oracle)) ((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                            (((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share] :<
+                      ((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).[globals].[g_granules] :<
+                        ((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) #
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            None))))).(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    ((((((((st.[log] :<
+                      ((EVT
+                        CPU_ID
+                        (REL
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            (Some CPU_ID)))) ::
+                        (((EVT CPU_ID (ACQ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)))) ::
+                          ((((st.(oracle)) ((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                            (((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share] :<
+                      ((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).[globals].[g_granules] :<
+                        ((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) #
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            None))))).(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None)))
+              )))
+            else (
+              when v_8, st_2 == (
+                  (rtt_create_internal_spec
+                    (mkPtr "granules" (((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)))
+                    v_0
+                    v_2
+                    v_3
+                    1
+                    ((st.[log] :<
+                      ((EVT
+                        CPU_ID
+                        (REL
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            (Some CPU_ID)))) ::
+                        (((EVT CPU_ID (ACQ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)))) ::
+                          ((((st.(oracle)) ((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                            (((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share] :<
+                      ((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).[globals].[g_granules] :<
+                        ((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) #
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            None))))));
+              (Some (
+                ((((v_8 << (32)) >> (32)) << (32)) >> (32))  ,
+                (((((st.[log] :<
+                      ((EVT
+                        CPU_ID
+                        (REL
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            (Some CPU_ID)))) ::
+                        (((EVT CPU_ID (ACQ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)))) ::
+                          ((((st.(oracle)) ((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                            (((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share] :<
+                      ((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).[globals].[g_granules] :<
+                        ((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) #
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            None))))).[log] :<
+                  ((EVT CPU_ID (REL (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) (((((((st.[log] :<
+                      ((EVT
+                        CPU_ID
+                        (REL
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            (Some CPU_ID)))) ::
+                        (((EVT CPU_ID (ACQ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)))) ::
+                          ((((st.(oracle)) ((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                            (((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share] :<
+                      ((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).[globals].[g_granules] :<
+                        ((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) #
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            None))))).(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))))) ::
+                    (((((st.[log] :<
+                      ((EVT
+                        CPU_ID
+                        (REL
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            (Some CPU_ID)))) ::
+                        (((EVT CPU_ID (ACQ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)))) ::
+                          ((((st.(oracle)) ((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                            (((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share] :<
+                      ((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).[globals].[g_granules] :<
+                        ((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) #
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            None))))).(log))))).[share].[globals].[g_granules] :<
+                  (((((((st.[log] :<
+                      ((EVT
+                        CPU_ID
+                        (REL
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            (Some CPU_ID)))) ::
+                        (((EVT CPU_ID (ACQ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)))) ::
+                          ((((st.(oracle)) ((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                            (((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share] :<
+                      ((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).[globals].[g_granules] :<
+                        ((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) #
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            None))))).(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    ((((((((st.[log] :<
+                      ((EVT
+                        CPU_ID
+                        (REL
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            (Some CPU_ID)))) ::
+                        (((EVT CPU_ID (ACQ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)))) ::
+                          ((((st.(oracle)) ((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                            (((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share] :<
+                      ((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).[globals].[g_granules] :<
+                        ((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) #
+                          ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                          (((((((st.(share)).[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                            None))))).(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None)))
+              )))
+          | (Some cid) => None
+          end)
+        else (
+          (Some (
+            8589935105  ,
+            ((st.[log] :<
+              ((EVT
+                CPU_ID
+                (REL
+                  (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))
+                  (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
+                (((EVT CPU_ID (ACQ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
+              ((st.(share)).[globals].[g_granules] :<
+                ((((st.(share)).(globals)).(g_granules)) #
+                  (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                  (((((st.(share)).(globals)).(g_granules)) @ (((v_1 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None))))
+          )))
+      | (Some cid) => None
+      end).
+  Hint NoUnfold data_create_internal_spec.
+  Definition rsi_data_map_extra_spec_low (v_0: Z) (v_1: Z) (v_2: Z) (st: RData) : (option (Z * RData)) :=
+  rely (
+    (((((((v_2 & (281474976710655)) & (((- 1) << (12)))) - (MEM0_PHYS)) >= (0)) /\ (((((v_2 & (281474976710655)) & (((- 1) << (12)))) - (4294967296)) < (0)))) \/
+      ((((((v_2 & (281474976710655)) & (((- 1) << (12)))) - (MEM1_PHYS)) >= (0)) /\ (((((v_2 & (281474976710655)) & (((- 1) << (12)))) - (556198264832)) < (0)))))) /\
+      (((((v_2 & (281474976710655)) & (((- 1) << (12)))) & (4095)) = (0)))));
+    match (((((((st.(share)).(globals)).(g_granules)) @ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val))) with
+    | None =>
+      rely (
+        ((((((((st.(share))).(globals)).(g_granules)) @ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) -
+          ((((((st.(share)).(globals)).(g_granules)) @ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)))) =
+          (0)));
+      if (((((((st.(share)).(globals)).(g_granules)) @ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) - (4)) =? (0))
+      then (
+        rely (
+          (((((v_0 - (MEM0_PHYS)) >= (0)) /\ (((v_0 - (4294967296)) < (0)))) \/ ((((v_0 - (MEM1_PHYS)) >= (0)) /\ (((v_0 - (556198264832)) < (0)))))) /\
+            (((v_0 & (4095)) = (0)))));
+        if ((v_0 - (MEM1_PHYS)) >=? (0))
+        then (
+          match (((((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_lock)).(e_val))) with
+          | None =>
+            rely (
+              ((((((((st.(share)).(globals)).(g_granules)) #
+                ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12)) ==
+                (((((st.(share)).(globals)).(g_granules)) @ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)) -
+                ((((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)))) =
+                (0)));
+            if (((((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)) - (5)) =? (0))
+            then (
+              rely (((0 = (0)) /\ (((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) >= (0)))));
+              when v_16, st_3 == (
+                  (data_create_internal_spec
+                    v_2
+                    (mkPtr "granules" (((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)))
+                    v_1
+                    (mkPtr "null" 0)
+                    (mkPtr "null" 0)
+                    0
+                    ((st.[log] :<
+                      ((EVT CPU_ID (ACQ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)))) ::
+                        ((((st.(oracle))
+                          ((EVT CPU_ID (ACQ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                          (((EVT CPU_ID (ACQ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))).[share] :<
+                      ((st.(share)).[globals].[g_granules] :<
+                        ((((st.(share)).(globals)).(g_granules)) #
+                          ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)) ==
+                          (((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< (Some CPU_ID)))))));
+              when cid == (((((((st.(share)).(globals)).(g_granules)) @ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val)));
+              (Some (
+                ((v_16 << (32)) >> (32))  ,
+                ((st.[log] :<
+                  ((EVT
+                    CPU_ID
+                    (REL
+                      ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12))
+                      ((((st.(share)).(globals)).(g_granules)) @ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12))))) ::
+                    ((st.(log))))).[share].[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None)))
+              )))
+            else (
+              (Some (
+                8589935105  ,
+                ((st.[log] :<
+                  ((EVT
+                    CPU_ID
+                    (REL
+                      ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))
+                      (((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
+                    (((EVT CPU_ID (ACQ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)))) ::
+                      ((((st.(oracle))
+                        ((EVT CPU_ID (ACQ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                        (((EVT CPU_ID (ACQ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share] :<
+                  ((st.(share)).[globals].[g_granules] :<
+                    ((((st.(share)).(globals)).(g_granules)) #
+                      ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< None))))
+              )))
+          | (Some cid) => None
+          end)
+        else (
+          match (((((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val))) with
+          | None =>
+            rely (
+              ((((((((st.(share)).(globals)).(g_granules)) #
+                ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12)) ==
+                (((((st.(share)).(globals)).(g_granules)) @ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) -
+                ((((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)))) =
+                (0)));
+            if (((((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) - (5)) =? (0))
+            then (
+              when v_16, st_3 == (
+                  (data_create_internal_spec
+                    v_2
+                    (mkPtr "granules" (((v_0 + ((- MEM0_PHYS))) >> (12)) * (16)))
+                    v_1
+                    (mkPtr "null" 0)
+                    (mkPtr "null" 0)
+                    0
+                    ((st.[log] :<
+                      ((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) ::
+                        ((((st.(oracle))
+                          ((EVT CPU_ID (ACQ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                          (((EVT CPU_ID (ACQ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))).[share] :<
+                      ((st.(share)).[globals].[g_granules] :<
+                        ((((st.(share)).(globals)).(g_granules)) #
+                          ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
+                          (((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))))));
+              when cid == (((((((st.(share)).(globals)).(g_granules)) @ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val)));
+              (Some (
+                ((v_16 << (32)) >> (32))  ,
+                ((st.[log] :<
+                  ((EVT
+                    CPU_ID
+                    (REL
+                      ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12))
+                      ((((st.(share)).(globals)).(g_granules)) @ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12))))) ::
+                    ((st.(log))))).[share].[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None)))
+              )))
+            else (
+              (Some (
+                8589935105  ,
+                ((st.[log] :<
+                  ((EVT CPU_ID (REL ((v_0 + ((- MEM0_PHYS))) >> (12)) (((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
+                    (((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) ::
+                      ((((st.(oracle))
+                        ((EVT CPU_ID (ACQ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                        (((EVT CPU_ID (ACQ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share] :<
+                  ((st.(share)).[globals].[g_granules] :<
+                    ((((st.(share)).(globals)).(g_granules)) #
+                      ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None))))
+              )))
+          | (Some cid) => None
+          end))
+      else (
+        (Some (
+          12884902657  ,
+          ((st.[log] :<
+            ((EVT
+              CPU_ID
+              (REL
+                ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12))
+                (((((st.(share)).(globals)).(g_granules)) @ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
+              (((EVT CPU_ID (ACQ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
+            ((st.(share)).[globals].[g_granules] :<
+              ((((st.(share)).(globals)).(g_granules)) #
+                ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12)) ==
+                (((((st.(share)).(globals)).(g_granules)) @ ((((v_2 & (281474976710655)) & (((- 1) << (12)))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None))))
+        )))
+    | (Some cid) => None
+    end.
 
   Definition gic_restore_state_loop214_rank (v_0: Ptr) (v_indvars_iv: Z) : Z := 4 - v_indvars_iv.
   Definition gic_restore_state_loop219_rank (v_0: Ptr) (v_indvars_iv: Z) : Z := 15 - v_indvars_iv.
@@ -5595,7 +6626,495 @@ Section Layer9.
     when st_20 == ((free_stack "rsi_rtt_set_ripas" st_0 st_19));
     (Some (0, st_20)).
   
+  Hint NoUnfold rtt_walk_lock_unlock_spec.
   Definition rsi_rtt_set_ripas_spec_low (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Z) (st: RData) : (option (Z * RData)) :=
+    if (v_3 >? (1))
+    then (Some (1, st))
+    else (
+      if ((v_0 & (1)) =? (0))
+      then (
+        rely (
+          (((((v_0 - (MEM0_PHYS)) >= (0)) /\ (((v_0 - (4294967296)) < (0)))) \/ ((((v_0 - (MEM1_PHYS)) >= (0)) /\ (((v_0 - (556198264832)) < (0)))))) /\
+            (((v_0 & (4095)) = (0)))));
+        if ((v_0 - (MEM1_PHYS)) >=? (0))
+        then (
+          match (((((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_lock)).(e_val))) with
+          | None =>
+            rely (
+              (((((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)) -
+                ((((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)))) =
+                (0)));
+            if (((((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)) - (5)) =? (0))
+            then (
+              when st_3 == (
+                  (rtt_walk_lock_unlock_spec
+                    (mkPtr "stack_s_rtt_walk" 0)
+                    (mkPtr "granules" (((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)))
+                    0
+                    64
+                    v_1
+                    v_2
+                    ((st.[log] :< ((EVT CPU_ID (ACQ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))).[share] :<
+                      ((st.(share)).[globals].[g_granules] :<
+                        ((((st.(share)).(globals)).(g_granules)) #
+                          ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)) ==
+                          (((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< (Some CPU_ID)))))));
+              rely ((((st.(share)).(granule_data)) = (((st.(share)).(granule_data)))));
+              rely ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >=? (0)));
+              rely ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (MEM0_VIRT)) <? (0)));
+              if (((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) - (v_2)) =? (0))
+              then (
+                rely (
+                  ((((("granules" = ("granules")) /\ ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) mod (16)) = (0)))) /\
+                    ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+                    ((6 >= (0)))) /\
+                    ((6 <= (24)))));
+                None)
+              else (
+                when cid == (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val)));
+                (Some (
+                  ((((((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8)) >> (24)) & (4294967040)) |'
+                    ((((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8))))  ,
+                  ((st.[log] :<
+                    ((EVT
+                      CPU_ID
+                      (REL
+                        (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))
+                        ((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))))) ::
+                      ((st.(log))))).[share].[globals].[g_granules] :<
+                    ((((st.(share)).(globals)).(g_granules)) #
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)))
+                ))))
+            else (
+              (Some (
+                4294967553  ,
+                ((st.[log] :<
+                  ((EVT
+                    CPU_ID
+                    (REL
+                      ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))
+                      (((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
+                    (((EVT CPU_ID (ACQ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
+                  ((st.(share)).[globals].[g_granules] :<
+                    ((((st.(share)).(globals)).(g_granules)) #
+                      ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< None))))
+              )))
+          | (Some cid) => None
+          end)
+        else (
+          match (((((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val))) with
+          | None =>
+            rely (
+              (((((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) -
+                ((((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)))) =
+                (0)));
+            if (((((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) - (5)) =? (0))
+            then (
+              when st_3 == (
+                  (rtt_walk_lock_unlock_spec
+                    (mkPtr "stack_s_rtt_walk" 0)
+                    (mkPtr "granules" (((v_0 + ((- MEM0_PHYS))) >> (12)) * (16)))
+                    0
+                    64
+                    v_1
+                    v_2
+                    ((st.[log] :< ((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))).[share] :<
+                      ((st.(share)).[globals].[g_granules] :<
+                        ((((st.(share)).(globals)).(g_granules)) #
+                          ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
+                          (((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))))));
+              rely ((((st.(share)).(granule_data)) = (((st.(share)).(granule_data)))));
+              rely ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >=? (0)));
+              rely ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (MEM0_VIRT)) <? (0)));
+              if (((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) - (v_2)) =? (0))
+              then (
+                rely (
+                  ((((("granules" = ("granules")) /\ ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) mod (16)) = (0)))) /\
+                    ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+                    ((6 >= (0)))) /\
+                    ((6 <= (24)))));
+                None)
+              else (
+                when cid == (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val)));
+                (Some (
+                  ((((((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8)) >> (24)) & (4294967040)) |'
+                    ((((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8))))  ,
+                  ((st.[log] :<
+                    ((EVT
+                      CPU_ID
+                      (REL
+                        (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))
+                        ((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))))) ::
+                      ((st.(log))))).[share].[globals].[g_granules] :<
+                    ((((st.(share)).(globals)).(g_granules)) #
+                      (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)))
+                ))))
+            else (
+              (Some (
+                4294967553  ,
+                ((st.[log] :<
+                  ((EVT CPU_ID (REL ((v_0 + ((- MEM0_PHYS))) >> (12)) (((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
+                    (((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
+                  ((st.(share)).[globals].[g_granules] :<
+                    ((((st.(share)).(globals)).(g_granules)) #
+                      ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None))))
+              )))
+          | (Some cid) => None
+          end))
+      else (
+        rely (
+          ((((((v_0 & ((- 2))) - (MEM0_PHYS)) >= (0)) /\ ((((v_0 & ((- 2))) - (4294967296)) < (0)))) \/
+            (((((v_0 & ((- 2))) - (MEM1_PHYS)) >= (0)) /\ ((((v_0 & ((- 2))) - (556198264832)) < (0)))))) /\
+            ((((v_0 & ((- 2))) & (4095)) = (0)))));
+        if (((v_0 & ((- 2))) - (MEM1_PHYS)) >=? (0))
+        then (
+          match (((((((st.(share)).(globals)).(g_granules)) @ (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_lock)).(e_val))) with
+          | None =>
+            rely (
+              (((((((st.(share)).(globals)).(g_granules)) @ (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)) -
+                ((((((st.(share)).(globals)).(g_granules)) @ (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)))) =
+                (0)));
+            if (((((((st.(share)).(globals)).(g_granules)) @ (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)) - (3)) =? (0))
+            then (
+              when ret == ((granule_addr_spec' (mkPtr "granules" ((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)))));
+              when ret_0 == ((buffer_map_spec' 3 ret false));
+              rely (((((ret_0.(pbase)) = ("granule_data")) /\ ((((ret_0.(poffset)) mod (4096)) = (0)))) /\ (((ret_0.(poffset)) >= (0)))));
+              rely (((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_REC)) = (0)));
+              rely (
+                (((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) >=? (0)) /\
+                  (((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (MEM0_VIRT)) <? (0)))));
+              match (((((((st.(share)).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val))) with
+              | None =>
+                rely (
+                  ((((((((st.(share)).(globals)).(g_granules)) #
+                    (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< (Some CPU_ID))) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).(e_state_s_granule)) -
+                    ((((((st.(share)).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).(e_state_s_granule)))) =
+                    (0)));
+                rely (
+                  ((("granules" = ("granules")) /\ (((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) mod (16)) = (0)))) /\
+                    (((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) >= (0)))));
+                if (
+                  (((((((st.(share)).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).(e_state_s_granule)) -
+                    (5)) =?
+                    (0)))
+                then (
+                  when cid == (((((((st.(share)).(globals)).(g_granules)) @ (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_lock)).(e_val)));
+                  when st_7 == (
+                      (rtt_walk_lock_unlock_spec
+                        (mkPtr "stack_s_rtt_walk" 0)
+                        (mkPtr "granules" (((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)))
+                        0
+                        64
+                        v_1
+                        v_2
+                        ((st.[log] :<
+                          ((EVT
+                            CPU_ID
+                            (REL
+                              (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))
+                              ((((st.(share)).(globals)).(g_granules)) @ (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))))) ::
+                            (((EVT CPU_ID (ACQ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)))) ::
+                              ((((st.(oracle)) ((EVT CPU_ID (ACQ (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                                (((EVT CPU_ID (ACQ (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share] :<
+                          ((st.(share)).[globals].[g_granules] :<
+                            (((((st.(share)).(globals)).(g_granules)) #
+                              ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                              (((((st.(share)).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                                (Some CPU_ID))) #
+                              (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)) ==
+                              (((((st.(share)).(globals)).(g_granules)) @ (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< None))))));
+                  rely ((((st.(share)).(granule_data)) = (((st.(share)).(granule_data)))));
+                  rely ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >=? (0)));
+                  rely ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (MEM0_VIRT)) <? (0)));
+                  if (((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) - (v_2)) =? (0))
+                  then (
+                    rely (
+                      ((((("granules" = ("granules")) /\ ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) mod (16)) = (0)))) /\
+                        ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+                        ((6 >= (0)))) /\
+                        ((6 <= (24)))));
+                    None)
+                  else (
+                    when cid_0 == (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val)));
+                    (Some (
+                      ((((((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8)) >> (24)) & (4294967040)) |'
+                        ((((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8))))  ,
+                      ((st.[log] :<
+                        ((EVT
+                          CPU_ID
+                          (REL
+                            (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))
+                            ((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))))) ::
+                          ((st.(log))))).[share].[globals].[g_granules] :<
+                        ((((st.(share)).(globals)).(g_granules)) #
+                          (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                          (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)))
+                    ))))
+                else (
+                  when cid == (
+                      (((((((st.(share)).(globals)).(g_granules)) #
+                        ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                        (((((st.(share)).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                          None)) @ (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_lock)).(e_val)));
+                  when st_7 == (
+                      (rtt_walk_lock_unlock_spec
+                        (mkPtr "stack_s_rtt_walk" 0)
+                        (mkPtr "granules" (((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)))
+                        0
+                        64
+                        v_1
+                        v_2
+                        ((st.[log] :<
+                          ((EVT
+                            CPU_ID
+                            (REL
+                              (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))
+                              (((((st.(share)).(globals)).(g_granules)) #
+                                ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                                (((((st.(share)).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                                  None)) @ (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))))) ::
+                            (((EVT
+                              CPU_ID
+                              (REL
+                                ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))
+                                (((((st.(share)).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                                  (Some CPU_ID)))) ::
+                              (((EVT CPU_ID (ACQ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)))) ::
+                                ((((st.(oracle)) ((EVT CPU_ID (ACQ (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                                  (((EVT CPU_ID (ACQ (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))))).[share] :<
+                          ((st.(share)).[globals].[g_granules] :<
+                            (((((st.(share)).(globals)).(g_granules)) #
+                              ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                              (((((st.(share)).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                                None)) #
+                              (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)) ==
+                              ((((((st.(share)).(globals)).(g_granules)) #
+                                ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                                (((((st.(share)).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                                  None)) @ (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :<
+                                None))))));
+                  rely ((((st.(share)).(granule_data)) = (((st.(share)).(granule_data)))));
+                  rely ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >=? (0)));
+                  rely ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (MEM0_VIRT)) <? (0)));
+                  if (((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) - (v_2)) =? (0))
+                  then (
+                    rely (
+                      ((((("granules" = ("granules")) /\ ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) mod (16)) = (0)))) /\
+                        ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+                        ((6 >= (0)))) /\
+                        ((6 <= (24)))));
+                    None)
+                  else (
+                    when cid_0 == (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val)));
+                    (Some (
+                      ((((((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8)) >> (24)) & (4294967040)) |'
+                        ((((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8))))  ,
+                      ((st.[log] :<
+                        ((EVT
+                          CPU_ID
+                          (REL
+                            (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))
+                            ((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))))) ::
+                          ((st.(log))))).[share].[globals].[g_granules] :<
+                        ((((st.(share)).(globals)).(g_granules)) #
+                          (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                          (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)))
+                    ))))
+              | (Some cid) => None
+              end)
+            else (
+              (Some (
+                4294967553  ,
+                ((st.[log] :<
+                  ((EVT
+                    CPU_ID
+                    (REL
+                      (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))
+                      (((((st.(share)).(globals)).(g_granules)) @ (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
+                    (((EVT CPU_ID (ACQ (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
+                  ((st.(share)).[globals].[g_granules] :<
+                    ((((st.(share)).(globals)).(g_granules)) #
+                      (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ (((((v_0 & ((- 2))) + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< None))))
+              )))
+          | (Some cid) => None
+          end)
+        else (
+          match (((((((st.(share)).(globals)).(g_granules)) @ (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val))) with
+          | None =>
+            rely (
+              (((((((st.(share)).(globals)).(g_granules)) @ (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) -
+                ((((((st.(share)).(globals)).(g_granules)) @ (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)))) =
+                (0)));
+            if (((((((st.(share)).(globals)).(g_granules)) @ (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) - (3)) =? (0))
+            then (
+              when ret == ((granule_addr_spec' (mkPtr "granules" ((((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) * (16)))));
+              when ret_0 == ((buffer_map_spec' 3 ret false));
+              rely (((((ret_0.(pbase)) = ("granule_data")) /\ ((((ret_0.(poffset)) mod (4096)) = (0)))) /\ (((ret_0.(poffset)) >= (0)))));
+              rely (((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_REC)) = (0)));
+              rely (
+                (((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) >=? (0)) /\
+                  (((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (MEM0_VIRT)) <? (0)))));
+              match (((((((st.(share)).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val))) with
+              | None =>
+                rely (
+                  ((((((((st.(share)).(globals)).(g_granules)) #
+                    (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).(e_state_s_granule)) -
+                    ((((((st.(share)).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).(e_state_s_granule)))) =
+                    (0)));
+                rely (
+                  ((("granules" = ("granules")) /\ (((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) mod (16)) = (0)))) /\
+                    (((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) >= (0)))));
+                if (
+                  (((((((st.(share)).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).(e_state_s_granule)) -
+                    (5)) =?
+                    (0)))
+                then (
+                  when cid == (((((((st.(share)).(globals)).(g_granules)) @ (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val)));
+                  when st_7 == (
+                      (rtt_walk_lock_unlock_spec
+                        (mkPtr "stack_s_rtt_walk" 0)
+                        (mkPtr "granules" (((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)))
+                        0
+                        64
+                        v_1
+                        v_2
+                        ((st.[log] :<
+                          ((EVT CPU_ID (REL (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ((((st.(share)).(globals)).(g_granules)) @ (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12))))) ::
+                            (((EVT CPU_ID (ACQ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)))) ::
+                              ((((st.(oracle)) ((EVT CPU_ID (ACQ (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                                (((EVT CPU_ID (ACQ (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share] :<
+                          ((st.(share)).[globals].[g_granules] :<
+                            (((((st.(share)).(globals)).(g_granules)) #
+                              ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                              (((((st.(share)).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                                (Some CPU_ID))) #
+                              (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                              (((((st.(share)).(globals)).(g_granules)) @ (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None))))));
+                  rely ((((st.(share)).(granule_data)) = (((st.(share)).(granule_data)))));
+                  rely ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >=? (0)));
+                  rely ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (MEM0_VIRT)) <? (0)));
+                  if (((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) - (v_2)) =? (0))
+                  then (
+                    rely (
+                      ((((("granules" = ("granules")) /\ ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) mod (16)) = (0)))) /\
+                        ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+                        ((6 >= (0)))) /\
+                        ((6 <= (24)))));
+                    None)
+                  else (
+                    when cid_0 == (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val)));
+                    (Some (
+                      ((((((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8)) >> (24)) & (4294967040)) |'
+                        ((((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8))))  ,
+                      ((st.[log] :<
+                        ((EVT
+                          CPU_ID
+                          (REL
+                            (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))
+                            ((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))))) ::
+                          ((st.(log))))).[share].[globals].[g_granules] :<
+                        ((((st.(share)).(globals)).(g_granules)) #
+                          (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                          (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)))
+                    ))))
+                else (
+                  when cid == (
+                      (((((((st.(share)).(globals)).(g_granules)) #
+                        ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                        (((((st.(share)).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                          None)) @ (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val)));
+                  when st_7 == (
+                      (rtt_walk_lock_unlock_spec
+                        (mkPtr "stack_s_rtt_walk" 0)
+                        (mkPtr "granules" (((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)))
+                        0
+                        64
+                        v_1
+                        v_2
+                        ((st.[log] :<
+                          ((EVT
+                            CPU_ID
+                            (REL
+                              (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12))
+                              (((((st.(share)).(globals)).(g_granules)) #
+                                ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                                (((((st.(share)).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                                  None)) @ (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12))))) ::
+                            (((EVT
+                              CPU_ID
+                              (REL
+                                ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))
+                                (((((st.(share)).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                                  (Some CPU_ID)))) ::
+                              (((EVT CPU_ID (ACQ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)))) ::
+                                ((((st.(oracle)) ((EVT CPU_ID (ACQ (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
+                                  (((EVT CPU_ID (ACQ (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))))).[share] :<
+                          ((st.(share)).[globals].[g_granules] :<
+                            (((((st.(share)).(globals)).(g_granules)) #
+                              ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                              (((((st.(share)).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                                None)) #
+                              (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                              ((((((st.(share)).(globals)).(g_granules)) #
+                                ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16)) ==
+                                (((((st.(share)).(globals)).(g_granules)) @ ((((((((st.(share)).(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rec)).(e_s1_ctx)).(e_g_ttbr1)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :<
+                                  None)) @ (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :<
+                                None))))));
+                  rely ((((st.(share)).(granule_data)) = (((st.(share)).(granule_data)))));
+                  rely ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >=? (0)));
+                  rely ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (MEM0_VIRT)) <? (0)));
+                  if (((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) - (v_2)) =? (0))
+                  then (
+                    rely (
+                      ((((("granules" = ("granules")) /\ ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) mod (16)) = (0)))) /\
+                        ((((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+                        ((6 >= (0)))) /\
+                        ((6 <= (24)))));
+                    None)
+                  else (
+                    when cid_0 == (((((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val)));
+                    (Some (
+                      ((((((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8)) >> (24)) & (4294967040)) |'
+                        ((((((st.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8))))  ,
+                      ((st.[log] :<
+                        ((EVT
+                          CPU_ID
+                          (REL
+                            (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))
+                            ((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))))) ::
+                          ((st.(log))))).[share].[globals].[g_granules] :<
+                        ((((st.(share)).(globals)).(g_granules)) #
+                          (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16)) ==
+                          (((((st.(share)).(globals)).(g_granules)) @ (((((st.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).[e_lock].[e_val] :< None)))
+                    ))))
+              | (Some cid) => None
+              end)
+            else (
+              (Some (
+                4294967553  ,
+                ((st.[log] :<
+                  ((EVT
+                    CPU_ID
+                    (REL
+                      (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12))
+                      (((((st.(share)).(globals)).(g_granules)) @ (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
+                    (((EVT CPU_ID (ACQ (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
+                  ((st.(share)).[globals].[g_granules] :<
+                    ((((st.(share)).(globals)).(g_granules)) #
+                      (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12)) ==
+                      (((((st.(share)).(globals)).(g_granules)) @ (((v_0 & ((- 2))) + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None))))
+              )))
+          | (Some cid) => None
+          end))).
+
+  (* Definition rsi_rtt_set_ripas_spec_low (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Z) (st: RData) : (option (Z * RData)) :=
     when st_0 == ((new_frame "rsi_rtt_set_ripas" st));
     if (v_3 >? (1))
     then (
@@ -5675,94 +7194,10 @@ Section Layer9.
             when v_31, st_10 == ((pack_return_code_spec 8 v__sroa_5_0_copyload st_9));
             when st_11 == ((granule_unlock_spec (int_to_ptr v__sroa_0_0_copyload_tmp) st_10));
             when st_12 == ((free_stack "rsi_rtt_set_ripas" st_0 st_11));
-            (Some (v_31, st_12)))))).
+            (Some (v_31, st_12)))))). *)
 
   Definition rsi_data_destroy_spec_low (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
     when st_0 == ((new_frame "rsi_data_destroy" st));
-    if ((v_0 & (1)) =? (0))
-    then (
-      when v_17, st_1 == ((find_lock_granule_spec v_0 5 st_0));
-      rely (((((v_17.(poffset)) mod (16)) = (0)) /\ (((v_17.(poffset)) >= (0)))));
-      rely ((((v_17.(pbase)) = ("granules")) \/ (((v_17.(pbase)) = ("null")))));
-      if (ptr_eqb v_17 (mkPtr "null" 0))
-      then (
-        when v_19, st_2 == ((pack_return_code_spec 1 1 st_1));
-        when st_4 == ((free_stack "rsi_data_destroy" st_0 st_2));
-        (Some (v_19, st_4)))
-      else (
-        when st_3 == ((rtt_walk_lock_unlock_spec (mkPtr "stack_s_rtt_walk" 0) v_17 0 64 v_1 3 st_1));
-        when v__sroa_0_0_copyload_tmp, st_4 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 0) st_3));
-        rely(v__sroa_0_0_copyload_tmp >= GRANULES_BASE /\ v__sroa_0_0_copyload_tmp < GRANULES_BASE + NR_GRANULES * 16);
-        when v__sroa_6_0_copyload, st_5 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 16) st_4));
-        if (v__sroa_6_0_copyload =? (3))
-        then (
-          when v__sroa_4_0_copyload, st_7 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 8) st_5));
-          rely(v__sroa_4_0_copyload < 512 /\ v__sroa_4_0_copyload >= 0);
-          when v_26, st_8 == ((granule_map_spec (int_to_ptr v__sroa_0_0_copyload_tmp) 6 st_7));
-          when v_29, st_9 == ((__tte_read_spec (ptr_offset v_26 (8 * (v__sroa_4_0_copyload))) st_8));
-          when v_30, st_10 == ((s1tte_is_valid_spec v_29 3 st_9));
-          if v_30
-          then (
-            when v_36, st_12 == ((s2tte_pa_spec v_29 3 st_10));
-            when st_13 == ((__tte_write_spec (ptr_offset v_26 (8 * (v__sroa_4_0_copyload))) 8 st_12));
-            when st_14 == ((iasm_8_spec st_13));
-            when st_15 == ((stage1_tlbi_all_spec st_14));
-            when st_16 == ((__granule_put_spec (int_to_ptr v__sroa_0_0_copyload_tmp) st_15));
-            when v_42, st_17 == ((find_lock_granule_spec v_36 4 st_16));
-            rely (((((v_42.(poffset)) mod (16)) = (0)) /\ (((v_42.(poffset)) >= (0)))));
-            rely ((((v_42.(pbase)) = ("granules")) \/ (((v_42.(pbase)) = ("null")))));
-            when st_18 == ((__granule_put_spec v_42 st_17));
-            when v_43, st_19 == ((g_refcount_spec v_42 st_18));
-            if (v_43 =? (0))
-            then (
-              when st_20 == ((granule_memzero_spec v_42 0 st_19));
-              when st_21 == ((granule_unlock_transition_spec v_42 1 st_20));
-              when st_23 == ((granule_unlock_spec (int_to_ptr v__sroa_0_0_copyload_tmp) st_21));
-              when st_24 == ((free_stack "rsi_data_destroy" st_0 st_23));
-              (Some (0, st_24)))
-            else (
-              when st_20 == ((granule_unlock_spec v_42 st_19));
-              when st_22 == ((granule_unlock_spec (int_to_ptr v__sroa_0_0_copyload_tmp) st_20));
-              when st_23 == ((free_stack "rsi_data_destroy" st_0 st_22));
-              (Some (0, st_23))))
-          else (
-            when v_32, st_11 == ((s2tte_is_assigned_spec v_29 3 st_10));
-            if v_32
-            then (
-              when v_36, st_13 == ((s2tte_pa_spec v_29 3 st_11));
-              when v_39, st_14 == ((s2tte_create_unassigned_spec 0 st_13));
-              when st_15 == ((__tte_write_spec (ptr_offset v_26 (8 * (v__sroa_4_0_copyload))) v_39 st_14));
-              when st_16 == ((iasm_8_spec st_15));
-              when st_17 == ((stage1_tlbi_all_spec st_16));
-              when st_18 == ((__granule_put_spec (int_to_ptr v__sroa_0_0_copyload_tmp) st_17));
-              when v_42, st_19 == ((find_lock_granule_spec v_36 4 st_18));
-              rely (((((v_42.(poffset)) mod (16)) = (0)) /\ (((v_42.(poffset)) >= (0)))));
-              rely ((((v_42.(pbase)) = ("granules")) \/ (((v_42.(pbase)) = ("null")))));
-              when st_20 == ((__granule_put_spec v_42 st_19));
-              when v_43, st_21 == ((g_refcount_spec v_42 st_20));
-              if (v_43 =? (0))
-              then (
-                when st_22 == ((granule_memzero_spec v_42 0 st_21));
-                when st_23 == ((granule_unlock_transition_spec v_42 1 st_22));
-                when st_24 == ((granule_unlock_spec (int_to_ptr v__sroa_0_0_copyload_tmp) st_23));
-                when st_25 == ((free_stack "rsi_data_destroy" st_0 st_24));
-                (Some (0, st_25)))
-              else (
-                when st_22 == ((granule_unlock_spec v_42 st_21));
-                when st_23 == ((granule_unlock_spec (int_to_ptr v__sroa_0_0_copyload_tmp) st_22));
-                when st_24 == ((free_stack "rsi_data_destroy" st_0 st_23));
-                (Some (0, st_24))))
-            else (
-              when v_34, st_12 == ((pack_return_code_spec 9 0 st_11));
-              when st_13 == ((granule_unlock_spec (int_to_ptr v__sroa_0_0_copyload_tmp) st_12));
-              when st_15 == ((free_stack "rsi_data_destroy" st_0 st_13));
-              (Some (v_34, st_15)))))
-        else (
-          when v_24, st_6 == ((pack_return_code_spec 8 v__sroa_6_0_copyload st_5));
-          when st_7 == ((granule_unlock_spec (int_to_ptr v__sroa_0_0_copyload_tmp) st_6));
-          when st_9 == ((free_stack "rsi_data_destroy" st_0 st_7));
-          (Some (v_24, st_9)))))
-    else (
       when v_7, st_1 == ((find_lock_granule_spec (v_0 & ((18446744073709551614))) 3 st_0));
       rely (((((v_7.(poffset)) mod (16)) = (0)) /\ (((v_7.(poffset)) >= (0)))));
       rely ((((v_7.(pbase)) = ("granules")) \/ (((v_7.(pbase)) = ("null")))));
@@ -5860,7 +7295,7 @@ Section Layer9.
           when st_11 == ((granule_unlock_spec (int_to_ptr v__sroa_0_0_copyload_tmp) st_10));
           when st_12 == ((free_stack "rsi_data_destroy" st_0 st_11));
           (Some (v_24, st_12)))
-      )).
+      ).
 
   Definition smc_rtt_create_spec_low (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Z) (st: RData) : (option (Z * RData)) :=
     when st_0 == ((new_frame "smc_rtt_create" st));
@@ -6937,7 +8372,7 @@ Section Layer13.
     (* "memcmp" :: *)
     "smc_rtt_fold" ::
     (* "memmove" :: *)
-    (* "smc_system_interface_version" :: *)
+    "smc_system_interface_version" ::
     "smc_rtt_create" ::
     "smc_rtt_map_protected" ::
     (* "rmm_init" :: *)
@@ -7570,7 +9005,7 @@ Section Layer13.
             ((st.[log] :<
               ((EVT CPU_ID (REL ((v_0 + ((- MEM0_PHYS))) >> (12)) ((((st.(share).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
                 (((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
-              ((st.[share].[globals].[g_granules] :<
+              (((st.(share)).[globals].[g_granules] :<
                 (((st.(share).(globals)).(g_granules)) #
                   ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
                   ((((st.(share).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None))).[granule_data] :<
@@ -7585,7 +9020,7 @@ Section Layer13.
             ((st.[log] :<
               ((EVT CPU_ID (REL ((v_0 + ((- MEM0_PHYS))) >> (12)) ((((st.(share).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
                 (((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
-              (st.[share].[globals].[g_granules] :<
+              ((st.(share)).[globals].[g_granules] :<
                 (((st.(share).(globals)).(g_granules)) #
                   ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
                   ((((st.(share).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None))))
@@ -7596,7 +9031,7 @@ Section Layer13.
           ((st.[log] :<
             ((EVT CPU_ID (REL ((v_0 + ((- MEM0_PHYS))) >> (12)) ((((st.(share).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
               (((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
-            (st.[share].[globals].[g_granules] :<
+            ((st.(share)).[globals].[g_granules] :<
               (((st.(share).(globals)).(g_granules)) #
                 ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
                 ((((st.(share).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None))))
