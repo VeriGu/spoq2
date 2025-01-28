@@ -8,7 +8,6 @@
 #include <fstream>
 #include <cstdlib>
 #include <gen_project.h>
-#include <invariant.h>
 #include <cmd.h>
 
 namespace po = boost::program_options;

@@ -7,6 +7,8 @@
 #include <projection.h>
 #include <chrono>
 #include <cmd.h>
+#include <symbolic.h>
+#include <invariant.h>
 
 //#define MT_TRANSFORM
 #ifdef MT_TRANSFORM
@@ -769,6 +771,20 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
             std::cout << "Transformed: " << std::endl << string(*high_def) << std::endl;
         } else {
             LOG_INFO << "No transformation for " << high_name;
+
+        }
+        if (high_name == "smc_realm_activate_spec") {
+            for (auto const &inv: proj->defs) {
+                if (!is_invariant_defs(proj, inv.first)) {
+                    continue;
+                }
+                analyze_invariant_fields(proj, inv.second->body.get(), "invariant");
+                analyze_cone_of_influence(proj, high_name, high_def);
+                std::cout << "Invariant: " << string(*inv.second->body.get()) << std::endl;
+                if (check_inv_by_path(proj, high_def, inv.second->body.get())) {
+                    std::cout << "Invariant: " << inv.first << " is verified for " << high_name << std::endl;
+                }
+            }
         }
 
 #ifndef MT_TRANSFORM

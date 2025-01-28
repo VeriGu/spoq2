@@ -304,7 +304,6 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
 }
 
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
-    //std::cout << "z3_eval: " << string(*val) << std::endl;
 
     if (val->cached_eval) return val->cached_eval;
 
@@ -585,14 +584,27 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
     else if (auto forall = instance_of(val, Forall))
     {
         z3::expr_vector vars(z3ctx);
+        std::vector<z3::expr> hypos;
         for (auto v = forall->vars->begin(); v != forall->vars->end(); v++)
         {
-            auto var = (*v)->type->declare((*v)->name, val->nid);
-            state->vars->emplace((*v)->name, var);
-            vars.push_back(var->get_z3_value());
+            if ((*v)->type) {
+                auto var = (*v)->type->declare((*v)->name, val->nid);
+                state->vars->emplace((*v)->name, var);
+                vars.push_back(var->get_z3_value());
+            } else {
+                // bounded variable v is prop, push into state
+                auto prop = z3_eval(proj, (*v)->expr.get(), state);
+                hypos.push_back(prop->get_z3_value());
+            }
         }
         auto body = z3_eval(proj, forall->body.get(), state);
-        return _cache(make_shared<BoolValue>(z3::forall(vars, body->value)));
+        auto p = body->get_z3_value();
+
+        for (const auto &h : hypos) {
+            p = z3::implies(h, p);
+        }
+        return _cache(make_shared<BoolValue>(z3::forall(vars, p)));
+        // return _cache(make_shared<BoolValue>(z3::forall(vars, body->value)));
     }
     else if (auto exsts = instance_of(val, Exists))
     {
@@ -610,5 +622,4 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
     throw std::runtime_error("Unknown node type: " + string(*val));
 
 }
-
 } // namespace autov
