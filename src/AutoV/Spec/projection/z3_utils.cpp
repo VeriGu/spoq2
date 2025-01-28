@@ -339,17 +339,28 @@ bool check_invariant(Project* proj, Definition* prim, SpecNode* inv) {
 
     for (auto arg : *args) {
         (*var)[arg->name] = arg->type->declare(arg->name, 0); //current
-        (*var)[arg->name + "'"] = arg->type->declare(arg->name + "'", 0); //after
     }
 
     //body have to be Some.
     auto eqelems = new vector<unique_ptr<SpecNode>>();
     eqelems->push_back(unique_ptr<SpecNode>(body));
     auto varelems = new vector<unique_ptr<SpecNode>>();
-    for(auto arg : *args) {
-        varelems->push_back(unique_ptr<SpecNode>(new Symbol(arg->name + "'")));
+    auto rettype = instance_of(prim->rettype.get(), Option);
+    auto rettupletype = instance_of(rettype->elem_type.get(), Tuple);
+    auto tmpname = "__tmp__";
+    int i = 0;
+    for(auto elemtype : *rettupletype->types) {
+        if(i != rettupletype->types->size() - 1) {
+            (*var)[tmpname + i] = elemtype->declare(tmpname + i, 0); //after
+            varelems->push_back(unique_ptr<SpecNode>(new Symbol(tmpname + i, elemtype)));
+        } else {
+            (*var)["st'"] = elemtype->declare("st'", 0); //after
+            varelems->push_back(unique_ptr<SpecNode>(new Symbol("st'", elemtype)));
+        }
+        i++;
     }
     auto tupletype = instance_of(body->type.get(), Option)->elem_type;
+
     auto tuple = new Expr(Expr::ops::Tuple, unique_ptr<vector<unique_ptr<SpecNode>>>(varelems), tupletype);
     auto someelems = new vector<unique_ptr<SpecNode>>();
     someelems->push_back(unique_ptr<SpecNode>(tuple));
