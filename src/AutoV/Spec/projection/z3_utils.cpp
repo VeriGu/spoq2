@@ -358,10 +358,10 @@ bool check_invariant(Project* proj, Definition* prim, SpecNode* inv) {
     auto equa = new Expr(Expr::binops::EQUAL, unique_ptr<vector<unique_ptr<SpecNode>>>(eqelems));
 
     //the body and the inv share the same free variables.
+    
     auto body_val = z3_eval(proj, equa, make_shared<EvalState>(
-        
         make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var),
-        make_shared<vector<z3::expr>>(*conds)));
+        make_shared<vector<z3::expr>>(*conds)), true);
     
     LOG_DEBUG << "Printing the Invariant: " << string(*inv);
     auto inv_before_val = z3_eval(proj, inv, make_shared<EvalState>(
@@ -386,9 +386,11 @@ bool check_invariant(Project* proj, Definition* prim, SpecNode* inv) {
     auto state = make_shared<EvalState>(
         make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var), make_shared<vector<z3::expr>>(*conds));
     
+    
+
     auto vc = z3::implies(body_val->get_z3_value() && inv_before_val->get_z3_value(), inv_after_val->get_z3_value());
     LOG_DEBUG << "Verification Condition: " << vc;
-    //TODO: state also needs to add instantiated loop invariants.
+    
     z3::model model(z3ctx);
     auto res = z3_check_unsat(state, vc, model, 20000);
     if(res == Z3Result::Unknown) {
@@ -1111,7 +1113,7 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
 
 //needs to find a way to distinguish when to split state using symbolic and when not by directly using ite node of z3.
 //ite is like a state merging.
-shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state, set<string>* used_loops) {
+shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state, bool add_loop_post) {
     // std::cout << "z3_eval: " << string(*val) << std::endl;
 
     if (val->cached_eval) return val->cached_eval;
@@ -1302,9 +1304,6 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             } else if (info.kind == SymbolKind::Def) {
                 auto df = proj->defs[sym].get();
                 if(auto loop = instance_of(df, Fixpoint)) {
-                    if(used_loops) {
-                        used_loops->insert(loop->name);
-                    }
                     if(proj->loop_invs.find(df->name) != proj->loop_invs.end()) {
                         auto& invs = proj->loop_invs[df->name];
                         //auto preconds = proj->cmds.InitRely[df->name];
@@ -1379,10 +1378,18 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                             LOG_ERROR << "Precondition can't infer loop invariant";
                             return nullptr;
                         }
-
+                        LOG_INFO << "[Checking Loop Invariant] Precondition implies invariant";
+                        //add loop post condition
+                        if(add_loop_post) {
+                            auto fname = df->name;
+                            auto loop_post_cond = formulate_loop_invariant(proj, fname, std::move(expr->elems));
+                            auto loop_post_val = z3_eval(proj, loop_post_cond, state);
+                            LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << string(*loop_post_cond);
+                            state->conds->push_back(loop_post_val->get_z3_value());
+                        }
                         return _cache(func_call);
                     } else {
-                        LOG_ERROR << "no loop invariant specified";
+                        LOG_ERROR << "[Checking Loop Invariant] no loop invariant specified";
                         //In this case, we merely treat it as a unintepreted function.
                         return _cache(df->absf()->call(elems));
                     }

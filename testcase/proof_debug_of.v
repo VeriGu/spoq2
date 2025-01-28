@@ -32,8 +32,12 @@ Hint OnlyTrans smc_rec_enter. *)
 
 (* Hint OnlyTrans smc_realm_activate.
 Hint CheckInv smc_realm_activate_spec. *)
-Hint OnlyTrans smc_rec_destroy.
-Hint CheckInv smc_rec_destroy_spec.
+(* Hint OnlyTrans smc_rec_destroy. *)
+(* Hint CheckInv smc_rec_destroy_spec. *)
+(* Hint OnlyTrans smc_granule_delegate. *)
+(* Hint CheckInv smc_granule_delegate_spec. *)
+(* Hint OnlyTrans smc_granule_undelegate. *)
+(* Hint CheckInv smc_granule_undelegate_spec. *)
 
   (* ┌─────────┐                    *)
   (* │invalid  │                    *)
@@ -1847,50 +1851,30 @@ Section Bottom.
   Parameter memcpy_ns_write_spec_state_oracle : Ptr -> (Ptr -> (Z -> (RData -> (option (bool * RData))))).
   Definition memcpy_ns_write_spec (v_dest: Ptr) (v_3: Ptr) (v_conv: Z) (st: RData) : option (bool * RData) :=
     memcpy_ns_write_spec_state_oracle v_dest v_3 v_conv st.
+
   Definition memset_spec (v_s: Ptr) (c: Z) (n: Z) (st: RData) : option (Ptr * RData) :=
-    if ((v_s.(pbase) =s "slot_delegated")) then
-      let g_idx := st.(share).(slots) @ SLOT_DELEGATED in
-      let g_data := st.(share).(granule_data) @ g_idx in
-      let g := st.(share).(granules) @ g_idx in
-      match g.(e_lock) with
-      | Some cid =>
-          Some (v_s, st.[share].[granule_data] :<
-                  (st.(share).(granule_data) # g_idx == (g_data.[g_norm] :<
-                                                           zero_granule_data_normal)))
-      | None => None
-      end
-    else if ((v_s.(pbase) =s "slot_rtt2")) then (
-      let g_idx := st.(share).(slots) @ SLOT_RTT2 in
-      let g_data := st.(share).(granule_data) @ g_idx in
-      let g := st.(share).(granules) @ g_idx in
-      match g.(e_lock) with
-      | Some cid =>
-          Some (v_s, st.[share].[granule_data] :<
-                  (st.(share).(granule_data) # g_idx == (g_data.[g_norm] :<
-                                                           zero_granule_data_normal)))
-      | None => None
-      end)
+    let g_idx := 
+    (if ((v_s.(pbase) =s "slot_delegated")) then
+      Some (st.(share).(slots) @ SLOT_DELEGATED)
+    else if ((v_s.(pbase) =s "slot_rtt2")) then
+      Some (st.(share).(slots) @ SLOT_RTT2)
     else if ((v_s.(pbase) =s "slot_rec")) then
-      let g_idx := st.(share).(slots) @ SLOT_REC in
-      let g_data := st.(share).(granule_data) @ g_idx in
-      let g := st.(share).(granules) @ g_idx in
-      match g.(e_lock) with
-      | Some cid =>
-          Some (v_s, st.[share].[granule_data] :<
-                  (st.(share).(granule_data) # g_idx == ((g_data.[g_rec] :< empty_rec).[g_norm] :< zero_granule_data_normal)))
-      | None => None
-      end
+      Some (st.(share).(slots) @ SLOT_REC)
     else if ((v_s.(pbase) =s "slot_rd")) then
-      let g_idx := st.(share).(slots) @ SLOT_RD in
-      let g_data := st.(share).(granule_data) @ g_idx in
-      let g := st.(share).(granules) @ g_idx in
-      match g.(e_lock) with
-      | Some cid =>
-          Some (v_s, st.[share].[granule_data] :<
-                  (st.(share).(granule_data) # g_idx == ((g_data.[g_rd] :< empty_rd).[g_norm] :< zero_granule_data_normal)))
-      | None => None
-      end
-    else Some (v_s, st).
+      Some (st.(share).(slots) @ SLOT_RD) else None) in
+    match g_idx with
+    | None => Some (v_s, st)
+    | Some idx =>
+      let g_data := st.(share).(granule_data) @ idx in
+      let g := st.(share).(granules) @ idx in
+        match g.(e_lock) with
+        | Some cid =>
+            Some (v_s, st.[share].[granule_data] :<
+                    (st.(share).(granule_data) # idx == (((g_data.[g_rec] :< empty_rec).[g_norm] :< zero_granule_data_normal).[g_rd] :< empty_rd)))
+        | None => None
+        end.
+    end.
+
   Definition memcpy_spec (v_dst: Ptr) (v_src: Ptr) (v_len: Z) (st: RData) : option (Ptr * RData) := Some (v_dst, st).
   (* xlat *)
   Definition xlat_unmap_memory_page_spec (v_table: Ptr) (v_va: Z) (st: RData) : option (Z * RData) := Some (0, st).
@@ -4405,6 +4389,81 @@ Section SMCHandler.
         | (Some cid) => None
         end))
     else (Some (1, st)).
+
+Definition smc_granule_delegate_spec (v_addr: Z) (st: RData) : (option (Z * RData)) :=
+    if ((v_addr & (4095)) =? (0))
+    then (
+      if ((v_addr / (GRANULE_SIZE)) >? (1048575))
+      then (Some (1, st))
+      else (
+        rely ((((0 - ((v_addr / (GRANULE_SIZE)))) <= (0)) /\ (((v_addr / (GRANULE_SIZE)) < (1048576)))));
+        rely ((((((st.(share)).(granules)) @ ((16 * ((v_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).(e_state)) = (0)));
+        when sh == (Some st.(share));
+        match ((((sh.(granules)) @ ((16 * ((v_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).(e_lock))) with
+        | None =>
+          rely (
+            ((((((st.(share)).(granules)) @ ((16 * ((v_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).(e_state)) -
+              ((((sh.(granules)) @ ((16 * ((v_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).(e_state)))) =
+              (0)));
+          rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+          (Some (
+            0  ,
+            ((st.[log] :<
+              ((EVT
+                CPU_ID
+                (REL
+                  ((16 * ((v_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))
+                  ((((sh.(granules)) @ ((16 * ((v_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).[e_lock] :< (Some CPU_ID)).[e_state] :< 1))) ::
+                (((EVT CPU_ID (ACQ ((16 * ((v_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
+              ((((sh.[gpt] :< ((sh.(gpt)) # (v_addr / (GRANULE_SIZE)) == true)).[granule_data] :<
+                ((sh.(granule_data)) #
+                  (((sh.(slots)) # SLOT_DELEGATED == (((((GRANULES_BASE + ((16 * ((v_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_DELEGATED) ==
+                  (((((sh.(granule_data)) @
+                    (((sh.(slots)) # SLOT_DELEGATED == (((((GRANULES_BASE + ((16 * ((v_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE))) @ SLOT_DELEGATED)).[g_norm] :<
+                    zero_granule_data_normal).[g_rd] :<
+                    empty_rd).[g_rec] :<
+                    empty_rec))).[granules] :<
+                ((sh.(granules)) #
+                  ((16 * ((v_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE)) ==
+                  ((((sh.(granules)) @ ((16 * ((v_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).[e_lock] :< None).[e_state] :< 1))).[slots] :<
+                ((sh.(slots)) # SLOT_DELEGATED == (((((GRANULES_BASE + ((16 * ((v_addr / (GRANULE_SIZE)))))) - (GRANULES_BASE)) >> (4)) * (GRANULE_SIZE)) / (GRANULE_SIZE)))))
+          ))
+        | (Some cid) => None
+        end))
+    else (Some (1, st)).
+
+Definition smc_granule_undelegate_spec (v_addr: Z) (st: RData) : (option (Z * RData)) :=
+    if ((v_addr & (4095)) =? (0))
+    then (
+      if ((v_addr / (GRANULE_SIZE)) >? (1048575))
+      then (Some (1, st))
+      else (
+        rely ((((0 - ((v_addr / (GRANULE_SIZE)))) <= (0)) /\ (((v_addr / (GRANULE_SIZE)) < (1048576)))));
+        rely (((((((st.(share)).(granules)) @ ((16 * ((v_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).(e_state)) - (1)) = (0)));
+        when sh == Some (st.(share));
+        match ((((sh.(granules)) @ ((16 * ((v_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).(e_lock))) with
+        | None =>
+          rely (
+            ((((((st.(share)).(granules)) @ ((16 * ((v_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).(e_state)) -
+              ((((sh.(granules)) @ ((16 * ((v_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).(e_state)))) =
+              (0)));
+          (Some (
+            0  ,
+            ((st.[log] :<
+              ((EVT
+                CPU_ID
+                (REL
+                  ((16 * ((v_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))
+                  ((((sh.(granules)) @ ((16 * ((v_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).[e_lock] :< (Some CPU_ID)).[e_state] :< 0))) ::
+                (((EVT CPU_ID (ACQ ((16 * ((v_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
+              ((sh.[gpt] :< ((sh.(gpt)) # (v_addr / (GRANULE_SIZE)) == false)).[granules] :<
+                ((sh.(granules)) #
+                  ((16 * ((v_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE)) ==
+                  ((((sh.(granules)) @ ((16 * ((v_addr / (GRANULE_SIZE)))) / (ST_GRANULE_SIZE))).[e_lock] :< None).[e_state] :< 0))))
+          ))
+        | (Some cid) => None
+        end))
+    else (Some (1, st)).
 End SMCHandler.
 
 
@@ -4466,6 +4525,8 @@ Definition rd_rtt_reverse (sh: Shared) : Prop :=
   exists (rev: Z -> (Z)),
   (forall (rd: Z) (rtt_idx: Z) (Hrtt: rd_rtt sh rd = rtt_idx), (rev rtt_idx = rd)).
 
+
+
 (* Invariant gpt_false_ns :=
   forall (gidx: Z), (st.(share).(gpt) @ gidx = false -> (st.(share).(granules) @ gidx).(e_state) = GRANULE_STATE_NS). *)
 
@@ -4473,10 +4534,6 @@ Definition rd_rtt_reverse (sh: Shared) : Prop :=
 
 
 (*trigger: granules, granules_data update *)
-(* Invariant delegated_zero :=
-  forall (gidx: Z),
-    (((st.(share).(granules) @ gidx).(e_state) = GRANULE_STATE_DELEGATED) ->
-    (st.(share).(granule_data) @ gidx = zero_granule)). *)
 
 Invariant delegated_zero :=
   forall (gidx: Z),
@@ -4497,7 +4554,6 @@ Invariant delegated_zero :=
 (* triggers: granules update *)
 (* Invariant rec_rd_prop  :=
   forall (gidx: Z),
-    (st.(share).(granules) @ gidx).(e_state) = GRANULE_STATE_REC ->
-    (let rd_gidx := ((st).(share).(granule_data) @ gidx).(g_rec).(e_realm_info).(e_g_rd) in
-     ((st).(share).(granules) @ rd_gidx).(e_state) = GRANULE_STATE_RD). *)
+    ((st.(share).(granules) @ gidx).(e_state) = GRANULE_STATE_REC ->
+     ((st).(share).(granules) @ ((st).(share).(granule_data) @ gidx).(g_rec).(e_realm_info).(e_g_rd)).(e_state) = GRANULE_STATE_RD). *)
 
