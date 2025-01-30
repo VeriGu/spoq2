@@ -347,16 +347,45 @@ SpecNode *instantiate_prop(SpecNode *spec, SpecNode *instance_st, string st = "s
 	return rec_apply(spec, f, false);
 }
 
-// string get_state_str(Project *proj, Definition *def) {
-// 	for (auto arg : *def->args) {
-// 		if (arg->type == proj->layers[0]->abs_data) {
-// 			return arg->name;
-// 		}
-// 	}
-// 	// default value
-// 	return "st";
-// }
+/** extract_st_from_pattern:
+ *      Return null if no such st exists 
+ *      Assume extracting value from Option type
+*/
+SpecNode *extract_st_from_pattern(Project *proj, SpecNode *pattern) {
+    if (auto sym = instance_of(pattern, Symbol)) {
+        if (!proj->is_ind_constr(sym->text)) {
+            if (sym->get_type() == proj->layers[0]->abs_data) {
+                return sym;
+            }
+        }
+    } else if (auto expr = instance_of(pattern, Expr)) {
+        if (op_eq(expr->op, Expr::Some)) {
+            return extract_st_from_pattern(proj, expr->elems->at(0).get());
+        } else if (op_eq(expr->op, Expr::Tuple)) {
+            for (int i = 0 ; i < expr->elems->size() ; i++) {
+                auto st = extract_st_from_pattern(proj, expr->elems->at(i).get());
+                if (st) {
+                    return st;
+                }
+            }
+        }
+    } 
+    return nullptr;
+}
 
+bool is_abst_transition(Project *proj, SpecNode *spec) {
+    if (auto expr = instance_of(spec, Expr)) {
+        if (std::holds_alternative<string>(expr->op)) {
+            auto sym = std::get<string>(expr->op);
+            auto info = proj->symbols[sym];
+            if (info.kind == SymbolKind::Def) {
+                return true;
+            }
+        }
+    }
+    return false;
+
+}
 /** prove_by_traverse:
  * 		works on specs without abstract functions (unfolded high-level specs)
  * */
@@ -398,10 +427,22 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
             }
         }
     } else if (auto m = instance_of(spec, Match)) {
+        /** introduce lemma when meet with abst func
+         * TODO: support loop invariant
+         */
+        bool do_abst_transition = is_abst_transition(proj, m->src.get()); 
         auto src = z3_eval(proj, m->src.get(), state);
 		for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 			auto new_state = state->copy();
-			resolve_pattern(proj, m, (*pm)->pattern.get(), src, new_state);
+            auto pat = (*pm)->pattern.get();
+            SpecNode *st_update = extract_st_from_pattern(proj, pat);
+			resolve_pattern(proj, m, pat, src, new_state);
+            if (st_update && do_abst_transition) {
+                auto p = instantiate_prop(inv->deep_copy().release(), st_update);
+                auto postcond = z3_eval(proj, p, new_state);
+                new_state->conds->push_back(postcond->get_z3_value());
+            }
+            /** TODO: add abst func to prove list */
 			if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state)) {
 				return false;
 			}
@@ -427,23 +468,6 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 		return true;
 	}
 	return true;
-}
-
-/** decompose:
- * 		works on specs with abstract call, lensified 
- */
-void decompose(Project *proj, SpecNode *spec, shared_ptr<EvalState> state) {
-	if (auto e = instance_of(spec, Expr)) {
-
-	} else if (auto m = instance_of(spec, Match)) {
-
-	} else if (auto i = instance_of(spec, If)) {
-
-	} else if (auto r = instance_of(spec, Rely)) {
-
-	} else {
-		// pass
-	}
 }
 
 /** check_inv_by_path: 
