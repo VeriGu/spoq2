@@ -377,6 +377,9 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 					// construct new invariants
 					auto p = instantiate_prop(inv->deep_copy().release(), ret_st);
 					auto c = z3_eval(proj, p, state);
+					for(auto &cond: *state->conds) {
+						LOG_DEBUG << "Cond:" << cond;
+					}
 					z3::model model(z3ctx);
 					auto z3_ret = z3_check_unsat(state, c->get_z3_value(), model, 2000);
 
@@ -385,13 +388,13 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 					// std::cout << "prove_by_traverse: Goal Query\n" << c->get_z3_value() << std::endl;
 					// std::cout << "----------------------------------" << std::endl;
 					if (z3_ret == Z3Result::Sat) {
-						// LOG_WARNING << "[prove_by_traverse] Invariant is violated for state\n" << string(*ret_st) << std::endl;
+						LOG_WARNING << "[prove_by_traverse] Invariant is violated for state\n" << string(*ret_st) << std::endl;
 						return false;
 					} else if (z3_ret == Z3Result::Unknown) {
 						// LOG_WARNING << "[prove_by_traverse] Invariant is unknown for state\n" << string(*ret_st) << std::endl;
 						return false;
 					} else {
-						// LOG_INFO << "[prove_by_traverse] Invariant is proved for state\n" << string(*ret_st) << std::endl;
+						LOG_INFO << "[prove_by_traverse] Invariant is proved for state\n" << string(*ret_st) << std::endl;
 						return true;
 					}
                 }
@@ -461,11 +464,20 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 						}
 						i++;
                     }
+
                     vc = vc && (*var)[loop->name + "_st_old"]->get_z3_value() == elems.back()->get_z3_value();
 					LOG_INFO << "[Checking Loop Invariant] eq formula" << vc;
 					LOG_INFO << "[Checking Loop Invariant] invariant" << invval->get_z3_value();
-                    auto res = z3_check(state, z3::implies(vc, invval->get_z3_value()),500);
+					for(auto &cond: *state->conds) {
+						LOG_DEBUG << "Cond:" << cond;
+					}
+					z3::model model(z3ctx);
+                    auto res = z3_check_unsat(state, z3::implies(vc, invval->get_z3_value()), model, 50000);
                     if(res == Z3Result::False || res == Z3Result::Unknown || res == Z3Result::Sat) {
+						if(res == Z3Result::Sat) {
+							LOG_ERROR << "Solver return SAT";
+							LOG_INFO << "model: " << model;
+						}
                         LOG_ERROR << "Precondition can't infer loop invariant";
                         return false;
                     }
@@ -479,9 +491,16 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                                 (*state->vars)[loop->name + "_" + arg->name + "'"] = arg->type->declare(loop->name + "_" + arg->name + "'", 0); //current
                         }
                     }
-					LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << string(*loop_post_cond);
+					//LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << string(*loop_post_cond);
                     auto loop_post_val = z3_eval(proj, loop_post_cond, state);
-                    state->conds->push_back(loop_post_val->get_z3_value());
+					auto post = loop_post_val->get_z3_value();
+					for(auto arg : *loop->args) {
+						if (arg->name != "_N_") {
+                            post = z3::forall((*state->vars)[loop->name + "_" + arg->name + "'"]->get_z3_value(), post);
+                        }
+					}
+					LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << post;
+                    state->conds->push_back(post);
 				}
 			}
 			}
@@ -491,7 +510,21 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 		std::cout << "Match src: (val)" << src->get_z3_value() << std::endl;
 		for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 			auto new_state = state->copy();
-			resolve_pattern(proj, m, (*pm)->pattern.get(), src, new_state);
+			unordered_map<string, shared_ptr<SpecValue>> vars;
+            unordered_map<string, shared_ptr<SpecValue>> assigns;
+			auto pat = resolve_pattern(proj, spec, (*pm)->pattern.get(), src, vars, assigns);
+            auto cond = pat->get_z3_value() == src->get_z3_value();
+            //exists v1,v2..., constructor v1 v2 ... = src.
+            for (auto v = vars.begin(); v != vars.end(); v++) {
+                cond = z3::exists(v->second->get_z3_value(), cond);
+            }
+
+			new_state->conds->push_back(cond);
+
+            for (auto v = assigns.begin(); v != assigns.end(); v++) {
+                (*new_state->vars)[v->first] = v->second;
+            }
+
 			if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state)) {
 				return false;
 			}

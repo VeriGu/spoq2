@@ -633,7 +633,7 @@ void pattern_matching(SpecNode* pattern, SpecNode* spec) {
 
 
 //formulate loop invariant post condition
-//loop_spec(n, v1....vk,st) = Some (v1',v2',v3'....vk',st') -> loop_cond /\ invariant(v1',v2',....vk'，st',st)
+//forall v1' v2'....loop_spec(n, v1....vk,st) = Some (v1',v2',v3'....vk',st') -> loop_cond /\ invariant(v1',v2',....vk'，st',st)
 SpecNode* formulate_loop_invariant(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args) {
     auto &invs = proj->loop_invs[fname];
     auto def = proj->defs[fname].get();
