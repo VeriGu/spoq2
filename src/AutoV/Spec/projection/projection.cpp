@@ -5,6 +5,7 @@
 #include <shortcuts.h>
 #include <mutex>
 #include <cmd.h>
+#include <symbolic.h>
 namespace autov {
 
 extern unordered_map<unsigned long, bool> converged_spec;
@@ -185,7 +186,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                 break;
         }
 
-        if (OPTS.lens) {
+        if (OPTS.lens && !is_invariant_defs(proj, def->name) && !is_lemma_defs(proj, def->name)) {
             // lens
             while (true) {
                 auto this_changed = false;
@@ -194,7 +195,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                 do {
                     auto before = string(*new_spec1);
 
-                    auto [__spec, __changed] = rule_keep_fields_of_interest(proj, new_spec1, def->name);
+                    auto [__spec, __changed] = rule_keep_fields_of_interest(proj, new_spec1);
                     new_spec1 = __spec;
                     this_changed |= __changed;
                     changed |= __changed;

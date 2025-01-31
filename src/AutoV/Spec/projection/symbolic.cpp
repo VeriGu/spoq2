@@ -188,16 +188,16 @@ void collect_immi_symbols_in(Project *proj, SpecNode *spec, const path_t &path, 
  *      - Add used (but not tracked) fields to coi, 
  *      - When propagate to symbol, add them to to-be-solved symbol set
  */
-void backward_propagation_on_expr(Project *proj, SpecNode *lvalue, std::set<field_t> &coi, std::set<string> &symbols) {
-    if (auto node = instance_of(lvalue, Expr)) {
-        if (auto op = std::get_if<Expr::ops>(&node->op)) {
+void backward_propagation_on_expr(Project *proj, SpecNode *node, std::set<field_t> &coi, std::set<string> &symbols) {
+    if (auto e = instance_of(node, Expr)) {
+        if (auto op = std::get_if<Expr::ops>(&e->op)) {
             if (*op == Expr::ops::RecordGet) {
                 // Update coi set
-                rec_analyze_used_fields(proj, node, coi);
+                rec_analyze_used_fields(proj, e, coi);
                 
             } else if (*op == Expr::ops::GET) {
-                for (int i = 0; i < node->elems->size(); i++) {
-                    backward_propagation_on_expr(proj, node->elems->at(i).get(), coi, symbols);
+                for (int i = 0; i < e->elems->size(); i++) {
+                    backward_propagation_on_expr(proj, e->elems->at(i).get(), coi, symbols);
                 }
             } else if (*op == Expr::ops::RecordSet) {
                 // WRITE operation: 
@@ -205,33 +205,36 @@ void backward_propagation_on_expr(Project *proj, SpecNode *lvalue, std::set<fiel
                 // expr.elem[1...n-2]: (sub)fields
                 // expr.elem[n-1]: value
                 field_t f = {};
-                for (int i = node->elems->size() - 2; i > 0; i--) {
-                    auto field = node->elems->at(i).get();
+                for (int i = e->elems->size() - 2; i > 0; i--) {
+                    auto field = e->elems->at(i).get();
                     if (auto s = instance_of(field, Symbol)) {
                         f.push_back(s->text);
                     }
                 }
                 if (has_subfield(coi, f)) {
-                    backward_propagation_on_expr(proj, node->elems->back().get(), coi, symbols);
+                    backward_propagation_on_expr(proj, e->elems->back().get(), coi, symbols);
                 }
-                backward_propagation_on_expr(proj, node->elems->at(0).get(), coi, symbols);
+                backward_propagation_on_expr(proj, e->elems->at(0).get(), coi, symbols);
             } else if (*op == Expr::ops::SET) {
-                for (int i = 0; i < node->elems->size(); i++) {
-                    backward_propagation_on_expr(proj, node->elems->at(i).get(), coi, symbols);
+                for (int i = 0; i < e->elems->size(); i++) {
+                    backward_propagation_on_expr(proj, e->elems->at(i).get(), coi, symbols);
                 }
             } 
         } else {
-            for (int i = 0; i < node->elems->size(); i++) {
-                backward_propagation_on_expr(proj, node->elems->at(i).get(), coi, symbols);
+            for (int i = 0; i < e->elems->size(); i++) {
+                backward_propagation_on_expr(proj, e->elems->at(i).get(), coi, symbols);
             }
         }
-    } else if (auto c = instance_of(lvalue, Const)) {
+    } else if (auto c = instance_of(node, Const)) {
         // pass
-    } else if (auto s = instance_of(lvalue, Symbol)) {
+    } else if (auto s = instance_of(node, Symbol)) {
         // add to to-be-solved symbol set
         symbols.insert(s->text);
+    } else if (auto m = instance_of(node, Match)) {
+        LOG_WARNING << "[backward_propagation_on_expr] Unexpected node caused by imcomplete spec_transformation rule: " << string(*m);
+        backward_propagation_on_expr(proj, m->src.get(), coi, symbols);
     } else {
-        throw std::runtime_error("[backward_propagation_on_expr] unknown node" + string(*lvalue));
+        throw std::runtime_error("[backward_propagation_on_expr] unknown node" + string(*node));
     }
 }
 
@@ -536,7 +539,7 @@ static void lensify_spec(Project *proj, Definition *def, std::set<string> &coi) 
  *  3. Prove inv path-by-path, recursively check abst function
  */
 void spec_prover(Project *proj, Definition *goal_def) {
-    if (goal_def->name == "smc_granule_undelegate_spec" || goal_def->name == "__find_lock_next_level_spec") {
+    if (goal_def->name == "rtt_create_internal_spec" || goal_def->name == "__find_lock_next_level_spec") {
         for (auto const &d: proj->defs) {
             if (!is_invariant_defs(proj, d.first)) {
                 continue;
