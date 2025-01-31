@@ -975,7 +975,12 @@ rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState
     } else if (auto forall = instance_of(spec, Forall)) {
         for (auto v : *forall->vars)
         {
-            state->vars->emplace(v->name, v->type->declare(v->name, forall->nid));
+            if (v->type) {
+                auto var = v->type->declare(v->name, forall->nid);
+                state->vars->emplace(v->name, var); 
+            } else {
+                assert(v->expr);
+            }
         }
         auto res = rule_simple_by_z3(proj, forall->body.release(), state);
         auto new_forall = new Forall(std::move(forall->vars), unique_ptr<SpecNode>(res.first));

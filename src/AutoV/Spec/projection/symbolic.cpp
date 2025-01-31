@@ -8,9 +8,18 @@
 #include <rules.h>
 #include <z3_rules.h>
 #include <symbolic.h>
+#include <variant>
 
 namespace autov
 {
+
+bool is_invariant_defs(Project *proj, const string &name) {
+    return proj->symbols[name].loc == autov::loc_t("Invariants", "Spec", "");
+}
+
+bool is_lemma_defs(Project *proj, const string &name) {
+    return proj->symbols[name].loc == autov::loc_t("Lemmas", "Spec", "");
+}
 
 void print_field(const field_t &f) {
     std::cout << "Field: ";
@@ -134,7 +143,7 @@ bool has_subfield(const std::set<field_t> &fields, const field_t &f) {
 /** collect_immi_symbols_in:
  *       compute each symbol's source expression of the given encoded path 
  * */
-void collect_immi_symbols_in(Project *proj, SpecNode *spec, const path_t &path, int idx, std::map<string, PropagationNode> &symbol_source) {
+void collect_immi_symbols_in(Project *proj, SpecNode *spec, const path_t &path, int idx, std::map<string, path_node_t> &symbol_source) {
     /** TODO: skip abst func */
     if (auto s = instance_of(spec, Symbol)) {
         // pass
@@ -229,7 +238,7 @@ void backward_propagation_on_expr(Project *proj, SpecNode *lvalue, std::set<fiel
 /** collect_init_nodes_in:
  *      Find all essential values (return values & branch values), collect their Paths
  */
-void collect_init_nodes_in(SpecNode *spec, path_t p, std::set<PropagationNode> &init_nodes) {
+void collect_init_nodes_in(SpecNode *spec, path_t p, std::set<path_node_t> &init_nodes) {
     if (auto e = instance_of(spec, Expr)) {
         if (auto op = std::get_if<Expr::ops>(&e->op)) {
             if (*op == Expr::Some) {
@@ -263,6 +272,11 @@ void collect_init_nodes_in(SpecNode *spec, path_t p, std::set<PropagationNode> &
     }
 }
 
+/* Collect accessed fields in invariants */
+inline void analyze_invariant_fields(Project *proj, SpecNode *inv, string name) {
+    rec_analyze_used_fields(proj, inv, proj->inv_fields[name]);
+}
+
 /** backward_propagation: 
  *  Step 1. Find propagation expression (e.g. return values)
  *  Step 2. From expression, (backward) infer needed values
@@ -273,7 +287,8 @@ void collect_init_nodes_in(SpecNode *spec, path_t p, std::set<PropagationNode> &
  * 
  *  Give an expression and a set of interested fields, backward propagate to all the dependent fields (its definition)
  */
-void analyze_cone_of_influence(Project *proj, string fname, Definition *def) {
+std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecNode *inv) {
+    std::set<string> coi_ret = {};
     auto args = def->args.get();
     auto spec = def->body.get();
     std::set<string> arg_symbols = {};
@@ -282,57 +297,53 @@ void analyze_cone_of_influence(Project *proj, string fname, Definition *def) {
     }
 
     // initial propagation set: return values
-    std::set<PropagationNode> nodes = {};
+    std::set<path_node_t> nodes = {};
     path_t p = {};
     collect_init_nodes_in(spec, p, nodes);
 
-    // We compute COI for each spec regarding each invariant
-    for (auto [inv, f] : proj->inv_fields) {
-        std::set<field_t> coi = f;
-        // Propagation (coi update) terminates when no new expression is propagated along the path
-        std::deque<PropagationNode> q(nodes.begin(), nodes.end());
-        while (!q.empty()) {
-            auto [expr, path] = q.front();
-            q.pop_front();
+    // initial propagation field: inv-related fields
+    string inv_name = "invariant";
+    analyze_invariant_fields(proj, inv, inv_name);
+    auto f = proj->inv_fields[inv_name];
+    std::set<field_t> coi_fields = f;
 
-            std::map<string, PropagationNode> immediate_symbols = {};
-            collect_immi_symbols_in(proj, spec, path, 0, immediate_symbols);
+    // Propagation (coi update) terminates when no new expression is propagated along the path
+    std::deque<path_node_t> q(nodes.begin(), nodes.end());
+    while (!q.empty()) {
+        auto [expr, path] = q.front();
+        q.pop_front();
 
-            std::set<string> symbols = {};
-            backward_propagation_on_expr(proj, expr, coi, symbols);
+        std::map<string, path_node_t> immediate_symbols = {};
+        collect_immi_symbols_in(proj, spec, path, 0, immediate_symbols);
 
-            for (const auto &s : symbols) {
-                if (arg_symbols.find(s) != arg_symbols.end()) {
-                    /** TODO: optimization: 
-                     *          if a field belongs to an input parameter, 
-                     *          then its access fields should not be added to coi set 
-                     */
-                    continue;
-                } else if (proj->symbols.find(s) != proj->symbols.end() || proj->is_ind_constr(s)) {
-                    continue;
-                } else if (immediate_symbols.find(s) != immediate_symbols.end()) {
-                    q.push_back(immediate_symbols[s]);
-                } else {
-                    throw std::runtime_error("Unexpected symbol: " + s);
-                }
-            }   
-        }
-        proj->cone_of_influence[fname][inv] = coi;
-        std::cout << "COI for " << inv << std::endl;
-        for (auto &c: coi) {
-            print_field(c);
-        }
+        std::set<string> symbols = {};
+        backward_propagation_on_expr(proj, expr, coi_fields, symbols);
+
+        for (const auto &s : symbols) {
+            if (arg_symbols.find(s) != arg_symbols.end()) {
+                /** TODO: optimization: 
+                 *          if a field belongs to an input parameter, 
+                 *          then its access fields should not be added to coi set 
+                 */
+                continue;
+            } else if (proj->symbols.find(s) != proj->symbols.end() || proj->is_ind_constr(s)) {
+                continue;
+            } else if (immediate_symbols.find(s) != immediate_symbols.end()) {
+                q.push_back(immediate_symbols[s]);
+            } else {
+                throw std::runtime_error("Unexpected symbol: " + s);
+            }
+        }   
     }
-}
-
-
-/* Collect accessed fields in invariants */
-void analyze_invariant_fields(Project *proj, SpecNode *inv, string name) {
-    rec_analyze_used_fields(proj, inv, proj->inv_fields[name]);
-    std::cout << "Fields accessed in " << name << ": ";
-    for (auto &f : proj->inv_fields[name]) {
-        print_field(f);
+    for (auto &c : coi_fields) {
+        coi_ret.insert(c.front());
+        proj->coi[def->name][inv_name].insert(c.front());
     }
+    std::cout << "COI for " << inv_name << std::endl;
+    for (auto &c: coi_fields) {
+        print_field(c);
+    }
+    return coi_ret;
 }
 
 SpecNode *instantiate_prop(SpecNode *spec, SpecNode *instance_st, string st = "st") {
@@ -347,49 +358,60 @@ SpecNode *instantiate_prop(SpecNode *spec, SpecNode *instance_st, string st = "s
 	return rec_apply(spec, f, false);
 }
 
-/** extract_st_from_pattern:
- *      Return null if no such st exists 
- *      Assume extracting value from Option type
-*/
-SpecNode *extract_st_from_pattern(Project *proj, SpecNode *pattern) {
-    if (auto sym = instance_of(pattern, Symbol)) {
+SpecNode *extract_st_from_expr(Project *proj, SpecNode *expr) {
+    std::cout << "extract_st_from_expr: " << string(*expr) << std::endl;
+    if (auto sym = instance_of(expr, Symbol)) {
         if (!proj->is_ind_constr(sym->text)) {
             if (sym->get_type() == proj->layers[0]->abs_data) {
                 return sym;
             }
         }
-    } else if (auto expr = instance_of(pattern, Expr)) {
-        if (op_eq(expr->op, Expr::Some)) {
-            return extract_st_from_pattern(proj, expr->elems->at(0).get());
-        } else if (op_eq(expr->op, Expr::Tuple)) {
-            for (int i = 0 ; i < expr->elems->size() ; i++) {
-                auto st = extract_st_from_pattern(proj, expr->elems->at(i).get());
+    } else if (auto e = instance_of(expr, Expr)) {
+        if (op_eq(e->op, Expr::Some)) {
+            return extract_st_from_expr(proj, e->elems->at(0).get());
+        } else if (op_eq(e->op, Expr::Tuple)) {
+            for (int i = 0 ; i < e->elems->size() ; i++) {
+                auto st = extract_st_from_expr(proj, e->elems->at(i).get());
                 if (st) {
                     return st;
                 }
+            }
+        } else if (std::holds_alternative<string>(e->op)) {
+            auto sym = std::get<string>(e->op);
+            auto info = proj->symbols[sym];
+            if (info.kind == SymbolKind::Def || info.kind == SymbolKind::Decl) {
+                auto last = e->elems->back().get();
+                return extract_st_from_expr(proj, last);
+            }
+        } else {
+            if (e->get_type() == proj->layers[0]->abs_data) {
+                return e;
             }
         }
     } 
     return nullptr;
 }
 
-bool is_abst_transition(Project *proj, SpecNode *spec) {
+using abst_t = std::variant<Definition*, Declaration *, std::nullptr_t>;
+abst_t abst_transition(Project *proj, SpecNode *spec) {
     if (auto expr = instance_of(spec, Expr)) {
         if (std::holds_alternative<string>(expr->op)) {
             auto sym = std::get<string>(expr->op);
             auto info = proj->symbols[sym];
             if (info.kind == SymbolKind::Def) {
-                return true;
+                return proj->defs[sym].get();
+            } else if (info.kind == SymbolKind::Decl) {
+                return proj->decls[sym].get();
             }
         }
     }
-    return false;
-
+    return nullptr;
 }
+
 /** prove_by_traverse:
- * 		works on specs without abstract functions (unfolded high-level specs)
+ * 		works on specs with abstract functions, symbolically check inv path-by-path
  * */
-bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<EvalState> state) {
+bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<EvalState> state, std::deque<Definition *> &deps) {
     if (auto e = instance_of(spec, Expr)) {
         if (auto e_op = std::get_if<Expr::ops>(&e->op)) {
             if (*e_op == Expr::Some) {
@@ -401,18 +423,16 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 							ret_st = ret_Some->elems->back()->deep_copy().release();
 						}
 					}
-                    std::cout << "Final State: " << string(*ret_st) << std::endl;
 					// Prove the return state maintains the invariant
 					// construct new invariants
 					auto p = instantiate_prop(inv->deep_copy().release(), ret_st);
-                    std::cout << "prove_by_traverse: Proving invariant for instantiate_prop\n" << string(*p) << std::endl;
 					auto c = z3_eval(proj, p, state);
 					auto z3_ret = z3_check(state, c->get_z3_value(), 2000);
 
-					// std::cout << "----------------------------------" << std::endl;
+					std::cout << "----------------------------------" << std::endl;
+                    std::cout << "prove_by_traverse: Proving invariant for instantiate_prop\n" << string(*p) << std::endl;
 					std::cout << "prove_by_traverse: Final State\n" << string(*ret_st) << std::endl;
-					std::cout << "prove_by_traverse: Goal Query\n" << c->get_z3_value() << std::endl;
-					// std::cout << "----------------------------------" << std::endl;
+					std::cout << "----------------------------------" << std::endl;
 					if (z3_ret == Z3Result::False) {
 						LOG_WARNING << "[prove_by_traverse] Invariant is violated for state\n" << string(*ret_st) << std::endl;
 						return false;
@@ -427,23 +447,37 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
             }
         }
     } else if (auto m = instance_of(spec, Match)) {
-        /** introduce lemma when meet with abst func
-         * TODO: support loop invariant
-         */
-        bool do_abst_transition = is_abst_transition(proj, m->src.get()); 
+        /** TODO: support loop invariant */
+        auto abst_spec = abst_transition(proj, m->src.get()); 
+        SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
+    
         auto src = z3_eval(proj, m->src.get(), state);
 		for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 			auto new_state = state->copy();
             auto pat = (*pm)->pattern.get();
-            SpecNode *st_update = extract_st_from_pattern(proj, pat);
 			resolve_pattern(proj, m, pat, src, new_state);
-            if (st_update && do_abst_transition) {
-                auto p = instantiate_prop(inv->deep_copy().release(), st_update);
-                auto postcond = z3_eval(proj, p, new_state);
-                new_state->conds->push_back(postcond->get_z3_value());
+
+            /** handle abstract functions, prove in separation */
+            if (!std::holds_alternative<std::nullptr_t>(abst_spec)) {            
+                SpecNode *st_ret = extract_st_from_expr(proj, pat);
+                if (st_input && st_ret) {
+                    auto p_input = instantiate_prop(inv->deep_copy().release(), st_input);
+                    auto precond = z3_eval(proj, p_input, new_state);
+                    auto z3_ret = z3_check(new_state, precond->get_z3_value(), 2000);
+                    if (z3_ret == Z3Result::False || z3_ret == Z3Result::Unknown) {
+                        LOG_WARNING << "[prove_by_traverse] Invariant is violated for pre-condition state\n" << string(*st_input) << std::endl;
+                        return false;
+                    }
+                    auto p_ret = instantiate_prop(inv->deep_copy().release(), st_ret);
+                    auto postcond = z3_eval(proj, p_ret, new_state);
+                    new_state->conds->push_back(postcond->get_z3_value());
+                    /** add abstract sub-spec to prove queue */
+                    if (std::holds_alternative<Definition *>(abst_spec)) {
+                        deps.push_back(std::get<Definition *>(abst_spec));
+                    }
+                }
             }
-            /** TODO: add abst func to prove list */
-			if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state)) {
+			if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, deps)) {
 				return false;
 			}
 		}
@@ -454,15 +488,15 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 		auto false_state = state->copy();
 		true_state->conds->push_back(c->get_z3_value());
 		false_state->conds->push_back(!c->get_z3_value());
-		if (!prove_by_traverse(proj, i->then_body.get(), inv, true_state) || 
-			!prove_by_traverse(proj, i->else_body.get(), inv, false_state)) {
+		if (!prove_by_traverse(proj, i->then_body.get(), inv, true_state, deps) || 
+			!prove_by_traverse(proj, i->else_body.get(), inv, false_state, deps)) {
 			return false;
 		}
     } else if (auto r = instance_of(spec, Rely)) {
 		// push cond
 		auto c = z3_eval(proj, r->prop.get(), state);
 		state->conds->push_back(c->get_z3_value());
-        return prove_by_traverse(proj, r->body.get(), inv, state);
+        return prove_by_traverse(proj, r->body.get(), inv, state, deps);
     } else {
 		// pass
 		return true;
@@ -470,28 +504,66 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 	return true;
 }
 
-/** check_inv_by_path: 
- * 1. Push initial invariant 
- * 2. Traverse the spec, push control point constriants
- * 3. Arrive return point, push return value constraints, check
- * */ 
-bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv) {
-	auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
-	auto conds = std::make_shared<vector<z3::expr>>();
-	for (auto arg : *def->args) {
-		(*vars)[arg->name] = arg->type->declare(arg->name, 0);
-	}
-	auto state = std::make_shared<EvalState>(vars, conds);
+/**
+ * spec_prover:
+ *  1. Prove invariants separately 
+ *  2. For each inv, compute its coi and apply projection
+ *  3. Prove inv path-by-path, recursively check abst function
+ */
+void spec_prover(Project *proj, Definition *def) {
+    if (def->name == "smc_granule_undelegate_spec" || def->name == "find_granule_spec") {
+        for (auto const &d: proj->defs) {
+            if (!is_invariant_defs(proj, d.first)) {
+                continue;
+            }
+            // Prove invariants separately
+            proj->verified_specs.clear();
+            auto inv = d.second->body.get();
+            std::cout << "Invariant: " << string(*inv) << std::endl;
 
-	/** TODO: optimize: no need to generate inv z3 epxr for duplicated times */
-	auto c = z3_eval(proj, inv, state);
-	state->conds->push_back(c->get_z3_value());
-	std::cout << "inv body: " << string(*inv) << std::endl;
-	std::cout << "inv value: " << c->get_z3_value() << std::endl;
-		
-	/** TODO: substitute spec_transformer with a spec_walker that detects proved specs that no need for unfolding */
-	bool ret = prove_by_traverse(proj, def->body.get(), inv, state);
-	return ret;
+            
+            std::deque<Definition *> q = {def};
+            while (!q.empty()) {
+                auto spec = q.front();
+                q.pop_front();
+                
+                if (proj->verified_specs.find(spec->name) != proj->verified_specs.end()) {
+                    std::cout << "Cache-hit! " << spec->name << std::endl;
+                    continue;
+                }
+                auto coi = analyze_cone_of_influence(proj, spec, inv);
+                set_interest_list(coi);
+                // apply lens to high spec
+
+                auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+	            auto conds = std::make_shared<vector<z3::expr>>();
+                for (auto arg : *spec->args) {
+                    (*vars)[arg->name] = arg->type->declare(arg->name, 0);
+                }
+                auto state = std::make_shared<EvalState>(vars, conds);
+                // invariant by induction
+                auto c = z3_eval(proj, inv, state);
+                state->conds->push_back(c->get_z3_value());
+
+                // lemmas, note that it only applies to the initial state (st), but that is enough for proving (for now)
+                for (auto const &lemma_def : proj->inv_lemmas[d.first]) {
+                    auto lemma = lemma_def->body.get();
+                    std::cout << "Lemma: " << string(*lemma) << std::endl;
+                    auto lemma_expr = z3_eval(proj, lemma, state);
+                    state->conds->push_back(lemma_expr->get_z3_value());
+                }
+	            
+                /** TODO: optimize: no need to generate inv z3 epxr for duplicated times */
+                /** TODO: feat: Lemma selection command */
+                if (prove_by_traverse(proj, spec->body.get(), inv, state, q)) {
+                    proj->verified_specs.insert(spec->name);
+                    LOG_INFO << "Invariant: " << d.first << " is verified for " << spec->name << std::endl;
+                } else {
+                    LOG_WARNING << "Invariant: " << d.first << " can not be verified for " << spec->name << std::endl;
+                }
+            }
+        }
+    }
 }
 
 }

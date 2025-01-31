@@ -10,9 +10,6 @@
 
 
 namespace autov {
-bool is_invariant_defs(autov::Project *proj, string const &name) {
-    return proj->symbols[name].loc == autov::loc_t("Invariants", "Spec", "");
-}
 
 void rec_analyze_leaf_fields(Project* proj, SpecNode* node, std::set<string> &fields, bool inside_RGet) {
     if (auto wa = instance_of(node, ForallExists)) {

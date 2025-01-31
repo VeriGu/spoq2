@@ -73,6 +73,7 @@ public:
     static const string LAYER_PTR_GTB;
     static const string LAYER_DATA;
     static const string INV_LAYER;
+    static const string LEMMA_LAYER;
 
     string name;
     string base;
@@ -96,9 +97,13 @@ public:
     std::set<string> skip_state_specs;
 
 
-    // cone_of_influence[spec_name][invariant_name] -> coi
-    unordered_map<string, std::unordered_map<string, std::set<field_t>>> cone_of_influence;
+    // coi[spec_name][invariant_name] -> coi
+    unordered_map<string, std::unordered_map<string, std::set<string>>> coi;
     unordered_map<string, std::set<field_t>> inv_fields;
+    std::set<string> lemmas;
+    unordered_map<string, std::set<Definition *>> inv_lemmas;
+    std::set<string> verified_specs;
+    
     class cmds {
     public:
         std::set<string> Unfold;

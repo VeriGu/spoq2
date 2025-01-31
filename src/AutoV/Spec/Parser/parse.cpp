@@ -35,7 +35,7 @@ antlrcpp::Any ProgramVisitor::visitSection_begin(SpecParser::Section_beginContex
         throw std::runtime_error("Last layer " + current_layer->name + " not closed");
     } else {
         string name = ctx->name()->getText();
-        if (name == Project::INV_LAYER)
+        if (name == Project::INV_LAYER || name == Project::LEMMA_LAYER)
             current_layer = new Layer(name, true);
         else
             current_layer = new Layer(name);

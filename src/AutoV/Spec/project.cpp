@@ -8,7 +8,6 @@
 #include <chrono>
 #include <cmd.h>
 #include <symbolic.h>
-#include <invariant.h>
 
 //#define MT_TRANSFORM
 #ifdef MT_TRANSFORM
@@ -51,6 +50,7 @@ const string Project::LAYER_PTR_LTB = "LAYER_PTR_LTB";
 const string Project::LAYER_PTR_GTB = "LAYER_PTR_GTB";
 const string Project::LAYER_DATA = "LAYER_DATA";
 const string Project::INV_LAYER = "Invariants";
+const string Project::LEMMA_LAYER = "Lemmas";
 
 void Project::add_symbol(string name, SymbolKind kind, string info, shared_ptr<loc_t> loc)
 {
@@ -773,19 +773,7 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
             LOG_INFO << "No transformation for " << high_name;
 
         }
-        if (high_name == "smc_realm_activate_spec") {
-            for (auto const &inv: proj->defs) {
-                if (!is_invariant_defs(proj, inv.first)) {
-                    continue;
-                }
-                analyze_invariant_fields(proj, inv.second->body.get(), "invariant");
-                analyze_cone_of_influence(proj, high_name, high_def);
-                std::cout << "Invariant: " << string(*inv.second->body.get()) << std::endl;
-                if (check_inv_by_path(proj, high_def, inv.second->body.get())) {
-                    std::cout << "Invariant: " << inv.first << " is verified for " << high_name << std::endl;
-                }
-            }
-        }
+        spec_prover(proj, high_def);
 
 #ifndef MT_TRANSFORM
         proj->deps[high_name] = proj->calc_dependencies(high_def->body.get());
@@ -819,6 +807,50 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
 
     return out;
 #endif
+}
+
+static void collect_lemmas(Project *proj) {
+    std::vector<string> invs;
+    for (auto const &def: proj->defs) {
+        if (is_invariant_defs(proj, def.first)) {
+            invs.push_back(def.first);
+            continue;
+        }
+        if (!is_lemma_defs(proj, def.first)) {
+            continue;
+        }
+        proj->lemmas.insert(def.first);
+        // Transform the lemma to unfolded 
+        auto lemma_def = def.second.get();
+        
+        Definition *pure_lemma = nullptr;
+        auto l_args = make_unique<vector<shared_ptr<Arg>>>();
+        for (auto &arg: *lemma_def->args)
+            l_args->push_back(arg);
+
+        if (is_instance(lemma_def, Fixpoint)) {
+            throw std::runtime_error("[collect_lemmas] Fixpoint lemma not supported for now\n");
+        } else {
+            pure_lemma = new Definition(lemma_def->name, lemma_def->rettype, std::move(l_args),
+                                      lemma_def->body->deep_copy());
+        }
+        std::cout << "Pure Lemma: " << string(*pure_lemma) << std::endl;
+        if (lemma_def->deleyed_type_inference) {
+            std::cout << "Pure Lemma (infer_type): " << string(*pure_lemma) << std::endl;
+            pure_lemma->infer_type(*proj);
+            lemma_def->deleyed_type_inference = false;
+        }
+        spec_transformer(proj, pure_lemma, 0, !is_instance(lemma_def, Fixpoint), true);
+        proj->defs[def.first].reset(pure_lemma);
+        std::cout << "Pure Lemma (spec_transformer): " << string(*(proj->defs[def.first])) << std::endl;
+
+    }
+    /** TODO: support lemma selection command */
+    for (auto const &inv: invs) {
+        for (auto const &l : proj->lemmas) {
+            proj->inv_lemmas[inv].insert(proj->defs[l].get());
+        }
+    }
 }
 
 void Project::finalize_project()
@@ -867,6 +899,7 @@ void Project::finalize_project()
     this->layers[0]->prims.assign(deps.begin(), deps.end());
 
     filter_only_trans(this);
+    collect_lemmas(this);
 
 #ifndef MT_TRANSFORM
     for (int i = 1; i < this->layers.size(); i++) {

@@ -2466,9 +2466,9 @@ rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec) {
 bool spec_is_pure(Project *proj, SpecNode *spec, bool &has_if) {
     if (auto e = instance_of(spec, Expr)) {
         if (auto op = std::get_if<Expr::ops>(&e->op)) {
-            if (*op == Expr::None)
+            if (*op == Expr::None) {
                 return true;
-            else if (*op == Expr::Some) {
+            } else if (*op == Expr::Some) {
                 if (auto ee = instance_of(e->elems->at(0).get(), Expr)) {
                     if (auto ee_op = std::get_if<Expr::ops>(&ee->op)) {
                         if (*ee_op == Expr::Tuple) {
@@ -2501,6 +2501,9 @@ bool spec_is_pure(Project *proj, SpecNode *spec, bool &has_if) {
         return s->text == "st" || s->text == "None";
     } else if (auto c = instance_of(spec, Const)) {
         return true;
+    } else if (auto fe = instance_of(spec, ForallExists)) {
+        // pass
+        return false;
     }
 
     throw std::runtime_error("spec_is_pure: unexpected node: " + string(*spec));
