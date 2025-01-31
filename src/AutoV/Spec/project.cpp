@@ -896,13 +896,19 @@ void Project::finalize_project()
             elems->push_back(inv->deep_copy());
             conjoined = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems));
         }
+        /** TODO: decompose invs */
+        analyze_invariant_fields(this, conjoined, "invariant");
         for(auto prim : cmds.invs) {
             //only check inv for prims in cmds.invs
             // LOG_DEBUG << "Checking Invariant: " << prim;
             auto def = this->defs[prim].get();
+            // compute coi and cache it
+            analyze_cone_of_influence(this, prim, def);
             // fast symbolic proof
             auto invariant = conjoined->deep_copy().release();
-            check_inv_by_path(this, def, invariant);
+            if (check_inv_by_path(this, def, invariant)) {
+                LOG_DEBUG << "Invariant Valid :D :" << prim;
+            }
             /* META Inv Proof */
             if (check_invariant(this, def, conjoined)) {
                 LOG_DEBUG << "Invariant Valid :) :" << prim;

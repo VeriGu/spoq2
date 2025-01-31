@@ -490,7 +490,7 @@ SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f, bool 
         throw std::runtime_error("Unknown SpecNode " + string(*spec));
 }
 
-static void get_vars_from_pattern(Project *proj, SpecNode *pattern, std::set<string> &vars) {
+void get_vars_from_pattern(Project *proj, SpecNode *pattern, std::set<string> &vars) {
     if (auto s = instance_of(pattern, Symbol)) {
         if (!proj->is_known_symbol(s->text) && pattern->get_type() != SpecType::UNKNOWN_TYPE)
             vars.insert(s->text);
@@ -1682,6 +1682,11 @@ rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec) {
                             }
                         }
                     }
+                } else {
+                    /** Abstracted Data: (lens id st) -> st */
+                    auto new_ee = std::move(e->elems->at(1)).release();
+                    delete e;
+                    return new_ee;
                 }
             } else if (auto op = std::get_if<Expr::ops>(&e->op)) {
                 if (*op == Expr::RecordGet) {

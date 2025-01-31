@@ -24,6 +24,7 @@ using std::holds_alternative;
 using IRLoader::IRModule;
 
 using loc_t = tuple<string, string, string>;
+using field_t = std::vector<std::string>;
 
 enum class SymbolKind {
     Struct,
@@ -114,6 +115,9 @@ public:
     unordered_map<string, vector<unique_ptr<SpecNode>>> loop_invs;
     vector<unique_ptr<SpecNode>> sys_invs;
     
+    // cone_of_influence[spec_name][invariant_name] -> coi
+    unordered_map<string, std::unordered_map<string, std::set<field_t>>> cone_of_influence;
+    unordered_map<string, std::set<field_t>> inv_fields;
     class cmds {
     public:
         std::set<string> Unfold;
