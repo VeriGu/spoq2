@@ -408,7 +408,10 @@ z3::sort Inductive::get_z3_type() {
                 sorts.push_back(arg->type->get_z3_type());
             accs.push_back(z3ctx.str_symbol(arg_name.c_str()));
         }
-        cs.add(z3ctx.str_symbol(constr->name.c_str()), z3ctx.str_symbol(this->name.c_str()),
+
+        auto recog_name = "is-" + constr->name;
+        
+        cs.add(z3ctx.str_symbol(constr->name.c_str()), z3ctx.str_symbol(recog_name.c_str()),
                                 accs.size(), accs.data(), sorts.data());
     }
 
@@ -455,6 +458,54 @@ shared_ptr<SpecValue> Inductive::construct(string constr, vector<shared_ptr<Spec
 
     throw std::runtime_error("Constructor not found");
 }
+
+
+int Inductive::get_constr_index(string constr) {
+        auto css = this->get_z3_type().constructors();
+
+        for (int i = 0; i < css.size(); i++) {
+            auto cs = css[i];
+            if (cs.name().str() == constr) {
+                return i;
+            }
+        }
+        throw std::runtime_error("Constructor not found");
+    };
+
+    z3::func_decl Inductive::get_constr(string constr) {
+        auto css = this->get_z3_type().constructors();
+
+        for (int i = 0; i < css.size(); i++) {
+            auto cs = css[i];
+            if (cs.name().str() == constr) {
+                return cs;
+            }
+        }
+        throw std::runtime_error("Constructor not found");
+    }
+
+    z3::func_decl Inductive::get_recognizer(string constr) {
+        auto css = this->get_z3_type().constructors();
+        for (int i = 0; i < css.size(); i++) {
+            auto cs = css[i];
+            if (cs.name().str() == constr) {
+                return this->get_z3_type().recognizers()[i];
+            }
+        }
+        throw std::runtime_error("Constructor not found");
+    }
+
+    z3::func_decl_vector Inductive::get_accessors(string constr) {
+        auto css = this->get_z3_type().constructors();
+
+        for (int i = 0; i < css.size(); i++) {
+            auto cs = css[i];
+            if (cs.name().str() == constr) {
+                return cs.accessors();
+            }
+        }
+        throw std::runtime_error("Constructor not found");
+    }
 
 // ----------------------------------------------------------------------------
 // Function
