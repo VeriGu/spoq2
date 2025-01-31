@@ -96,6 +96,11 @@ static SpecNode* subst(SpecNode *spec, string name, SpecNode *value, bool &succ)
         return new_if;
     } else if (auto fe = instance_of(spec, Forall)) {
         auto vars = new vector<shared_ptr<Arg>>(*fe->vars.get());
+        for (auto &v : *vars) {
+            if (v->expr) {
+                v->expr.reset(dynamic_cast<Expr*>(subst(v->expr.release(), name, value, succ)));
+            }
+        }
 
         auto new_forall = new Forall(unique_ptr<vector<shared_ptr<Arg>>>(vars),
                                      unique_ptr<SpecNode>(subst(fe->body.release(), name, value, succ)));
@@ -104,6 +109,11 @@ static SpecNode* subst(SpecNode *spec, string name, SpecNode *value, bool &succ)
         return new_forall;
     } else if (auto fe = instance_of(spec, Exists)) {
         auto vars = new vector<shared_ptr<Arg>>(*fe->vars.get());
+        for (auto &v : *vars) {
+            if (v->expr) {
+                v->expr.reset(dynamic_cast<Expr*>(subst(v->expr.release(), name, value, succ)));
+            }
+        }
 
         auto new_exists = new Exists(unique_ptr<vector<shared_ptr<Arg>>>(vars),
                                      unique_ptr<SpecNode>(subst(fe->body.release(), name, value, succ)));
@@ -397,6 +407,13 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
                 delete new_symbol;
             }
             ps.insert(new_name);
+        }
+
+        for (auto &v : *vars) {
+            if (v->expr) {
+                auto e = v->expr->deep_copy().release();
+                v->expr.reset(dynamic_cast<Expr*>(eliminiate_ambiguity(proj, e, ps, changed)));
+            }
         }
 
         if (is_instance(fe, Forall)) {
@@ -760,7 +777,7 @@ static vector<vector<FieldPath>> interest_path;
 //static const std::set<string> interest_list = {"pcpu_gpregs", "e_regs"}; // CPU
 //static const std::set<string> indifferent_list = {"g_aux_simd_state", "g_rec", "g_rd"}; // RTT
 // static const std::set<string> interest_list = {"halt"}; // DRF
-static const std::set<string> interest_list = {"e_state_s_granule", "e_state_s_rd", "g_granule_state", "g_granules", "g_norm", "granule_data"}; // DRF
+std::set<string> interest_list = {"e_state_s_granule", "e_state_s_rd", "g_granule_state", "g_granules", "g_norm", "granule_data"}; // DRF
 
 //static const std::set<string> interest_list = {};
 static void collect_interest_path(Project *proj) {
@@ -856,7 +873,7 @@ static bool rec_is_lens(SpecNode *spec) {
     return false;
 }
 
-rule_ret_t rule_keep_fields_of_interest(Project *proj, SpecNode *spec, string fname) {
+rule_ret_t rule_keep_fields_of_interest(Project *proj, SpecNode *spec) {
     bool changed = false;
     std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
         if (auto e = instance_of(node, Expr)) {

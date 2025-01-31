@@ -91,6 +91,8 @@ public:
         this->cached_eval = value;
     }
 
+    virtual void clear_z3_eval() = 0;
+
     virtual unique_ptr<SpecNode> deep_copy() const = 0;
     virtual void deep_copy(unique_ptr<SpecNode> &p) const = 0;
 
@@ -125,6 +127,10 @@ public:
 
     unique_ptr<SpecNode> deep_copy() const {
         return make_unique<Symbol>(this->text, this->type);
+    }
+
+    void clear_z3_eval() {
+        this->cached_eval = nullptr;
     }
 
     void deep_copy(unique_ptr<SpecNode> &p) const {
@@ -177,6 +183,10 @@ public:
 
     unique_ptr<SpecNode> deep_copy() const {
         return make_unique<Const>(this->value, this->type);
+    }
+
+    void clear_z3_eval() {
+        this->cached_eval = nullptr;
     }
 
     void deep_copy(unique_ptr<SpecNode> &p) const {
@@ -283,6 +293,13 @@ public:
 
     bool operator!=(const SpecNode& other) const {
         return !(*this == other);
+    }
+
+    void clear_z3_eval() {
+        this->cached_eval = nullptr;
+        for (auto it = fields->begin(); it != fields->end(); it++) {
+            it->second->clear_z3_eval();
+        }
     }
 
     unique_ptr<SpecNode> deep_copy() const {
@@ -424,6 +441,13 @@ public:
         p = deep_copy_down();
     }
 
+    void clear_z3_eval() {
+        this->cached_eval = nullptr;
+        for (auto it = elems->begin(); it != elems->end(); it++) {
+            it->get()->clear_z3_eval();
+        }
+    }
+
     unique_ptr<Expr> deep_copy_down() const {
         // deep copy elems
         unique_ptr<vector<unique_ptr<SpecNode>>> new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
@@ -515,6 +539,13 @@ public:
         return deep_copy_down();
     }
 
+
+    void clear_z3_eval() {
+        this->cached_eval = nullptr;
+        this->pattern->clear_z3_eval();
+        this->body->clear_z3_eval();
+    }
+
     void deep_copy(unique_ptr<SpecNode> &p) const {
         p = deep_copy_down();
     }
@@ -585,6 +616,14 @@ public:
 
     bool operator!=(const SpecNode& other) const {
         return !(*this == other);
+    }
+
+    void clear_z3_eval() {
+        this->cached_eval = nullptr;
+        this->src->clear_z3_eval();
+        for (auto it = match_list->begin(); it != match_list->end(); it++) {
+            it->get()->clear_z3_eval();
+        }
     }
 
     unique_ptr<SpecNode> deep_copy() const {
@@ -796,6 +835,12 @@ public:
         return !(*this == other);
     }
 
+    void clear_z3_eval() {
+        this->cached_eval = nullptr;
+        this->prop->clear_z3_eval();
+        this->body->clear_z3_eval();
+    }
+
     unique_ptr<SpecNode> deep_copy() const {
         // deep copy prop and body
         unique_ptr<SpecNode> new_prop = this->prop->deep_copy();
@@ -847,6 +892,12 @@ public:
 
     bool operator!=(const SpecNode& other) const {
         return !(*this == other);
+    }
+
+    void clear_z3_eval() {
+        this->cached_eval = nullptr;
+        this->prop->clear_z3_eval();
+        this->body->clear_z3_eval();
     }
 
     unique_ptr<SpecNode> deep_copy() const {
@@ -901,6 +952,13 @@ public:
 
     bool operator!=(const SpecNode& other) const {
         return !(*this == other);
+    }
+
+    void clear_z3_eval() {
+        this->cached_eval = nullptr;
+        this->cond->clear_z3_eval();
+        this->then_body->clear_z3_eval();
+        this->else_body->clear_z3_eval();
     }
 
     unique_ptr<SpecNode> deep_copy() const {
@@ -979,6 +1037,11 @@ public:
         return !(*this == other);
     }
 
+    void clear_z3_eval() {
+        this->cached_eval = nullptr;
+        this->body->clear_z3_eval();
+    }
+
     unique_ptr<SpecNode> deep_copy() const {
         // throw std::invalid_argument("Forall cannot be deep copied");
         unique_ptr<SpecNode> new_body = this->body->deep_copy();
@@ -1049,6 +1112,11 @@ public:
 
     bool operator!=(const SpecNode& other) const {
         return !(*this == other);
+    }
+
+    void clear_z3_eval() {
+        this->cached_eval = nullptr;
+        this->body->clear_z3_eval();
     }
 
     unique_ptr<SpecNode> deep_copy() const {

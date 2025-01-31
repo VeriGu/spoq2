@@ -12,6 +12,7 @@
 #include <values.h>
 #include <z3_rules.h>
 #include <utils.h>
+#include <rules.h>
 #include <chrono>
 #include "z3_pcache.hpp"
 
@@ -589,7 +590,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         {
             if ((*v)->type) {
                 auto var = (*v)->type->declare((*v)->name, val->nid);
-                state->vars->emplace((*v)->name, var);
+                (*state->vars)[(*v)->name] = var;
                 vars.push_back(var->get_z3_value());
             } else {
                 // bounded variable v is prop, push into state
@@ -597,6 +598,8 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                 hypos.push_back(prop->get_z3_value());
             }
         }
+        /** bounded variables may have a newer nid over cached z3 values, so we need to clear cached value first  */
+        forall->clear_z3_eval();
         auto body = z3_eval(proj, forall->body.get(), state);
         auto p = body->get_z3_value();
 
@@ -612,9 +615,10 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         for (auto v = exsts->vars->begin(); v != exsts->vars->end(); v++)
         {
             auto var = (*v)->type->declare((*v)->name, val->nid);
-            state->vars->emplace((*v)->name, var);
+            (*state->vars)[(*v)->name] = var;
             vars.push_back(var->get_z3_value());
         }
+        exsts->clear_z3_eval();
         auto body = z3_eval(proj, exsts->body.get(), state);
         return _cache(make_shared<BoolValue>(z3::exists(vars, body->value)));
     }

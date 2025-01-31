@@ -977,11 +977,12 @@ rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState
         {
             if (v->type) {
                 auto var = v->type->declare(v->name, forall->nid);
-                state->vars->emplace(v->name, var); 
+                (*state->vars)[v->name] = var;
             } else {
                 assert(v->expr);
             }
         }
+        forall->clear_z3_eval();
         auto res = rule_simple_by_z3(proj, forall->body.release(), state);
         auto new_forall = new Forall(std::move(forall->vars), unique_ptr<SpecNode>(res.first));
         delete spec;
@@ -989,8 +990,10 @@ rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState
     } else if (auto exists = instance_of(spec, Exists)) {
         for (auto v : *exists->vars)
         {
-            state->vars->emplace(v->name, v->type->declare(v->name, forall->nid));
+            assert(v->type);
+            (*state->vars)[v->name] = v->type->declare(v->name, exists->nid);
         }
+        exists->clear_z3_eval();
         auto res = rule_simple_by_z3(proj, exists->body.release(), state);
         auto new_exists = new Exists(std::move(exists->vars), unique_ptr<SpecNode>(res.first));
         delete spec;
