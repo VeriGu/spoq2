@@ -443,17 +443,6 @@ Definition data_create_internal_spec_abs (v_0_pte: abs_PTE_t) (v_1: Ptr) (v_2: Z
     when st_8 == ((granule_unlock_spec (rtt_ret.(e_2)) st_4));
     (Some ((pack_struct_return_code_para (make_return_code_para 8)), st_8))).
 
-Definition granule_unlock_transition_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option RData) :=
-  rely (((((v_0.(pbase)) = ("granules")) /\ ((((v_0.(poffset)) mod (16)) = (0)))) /\ (((v_0.(poffset)) >= (0)))));
-  when st_1 == (
-      (granule_unlock_spec
-        v_0
-        (st.[share].[globals].[g_granules] :<
-          ((((st.(share)).(globals)).(g_granules)) #
-            ((v_0.(poffset)) / (16)) ==
-            (((((st.(share)).(globals)).(g_granules)) @ ((v_0.(poffset)) / (16))).[e_state_s_granule] :< v_1)))));
-  (Some st_1).
-
 Definition data_create_internal_spec (v_0: Z) (v_1: Ptr) (v_2: Z) (v_3: Ptr) (v_4: Ptr) (v_5: Z) (st: RData) : (option (Z * RData)) :=
   None.
 

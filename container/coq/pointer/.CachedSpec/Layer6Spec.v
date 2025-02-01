@@ -110,13 +110,6 @@ Definition rtt_walk_lock_unlock_spec_abs (v_0: Ptr) (v_1: Ptr) (v_2: Z) (v_3: Z)
 Definition rtt_walk_lock_unlock_spec (v_0: Ptr) (v_1: Ptr) (v_2: Z) (v_3: Z) (v_4: Z) (v_5: Z) (st: RData) : (option RData) :=
   None.
 
-Definition granule_set_state_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option RData) :=
-  rely ((((v_0.(poffset)) mod (16)) = (0)));
-  (Some (st.[share].[globals].[g_granules] :<
-    ((((st.(share)).(globals)).(g_granules)) #
-      (((v_0.(poffset)) + (4)) / (16)) ==
-      (((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (4)) / (16))).[e_state_s_granule] :< v_1)))).
-
 Definition pack_return_code_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
   (Some ((pack_struct_return_code_para (make_return_code_para v_0)), st)).
 
