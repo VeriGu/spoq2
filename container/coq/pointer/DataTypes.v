@@ -923,6 +923,13 @@ Record abs_ret_rtt :=
 }.
 
 
+Record abs_ret_2ptr :=
+  mkabs_ret_2ptr {
+    e_1: Ptr;
+    e_2: Ptr;
+}.
+
+
 Definition update_s_buffer_alloc_ctx_e_buf(_a: s_buffer_alloc_ctx) _b :=
   mks_buffer_alloc_ctx _b (_a.(e_len)) (_a.(e_first)) (_a.(e_first_free)) (_a.(e_verify)).
 Notation "_a '.[e_buf]' ':<' _b" := (update_s_buffer_alloc_ctx_e_buf _a _b) (at level 1).
@@ -7318,6 +7325,14 @@ Definition update_abs_ret_rtt_e_3(_a: abs_ret_rtt) _b :=
   mkabs_ret_rtt (_a.(e_1)) (_a.(e_2)) _b.
 Notation "_a '.[e_3]' ':<' _b" := (update_abs_ret_rtt_e_3 _a _b) (at level 1).
 
+Definition update_abs_ret_2ptr_e_1(_a: abs_ret_2ptr) _b :=
+  mkabs_ret_2ptr _b (_a.(e_2)).
+Notation "_a '.[e_1]' ':<' _b" := (update_abs_ret_2ptr_e_1 _a _b) (at level 1).
+
+Definition update_abs_ret_2ptr_e_2(_a: abs_ret_2ptr) _b :=
+  mkabs_ret_2ptr (_a.(e_1)) _b.
+Notation "_a '.[e_2]' ':<' _b" := (update_abs_ret_2ptr_e_2 _a _b) (at level 1).
+
 Definition update_s_sysreg_state_e_gicstate_e_ich_ap0r(_a: s_sysreg_state) _b :=
   update_s_sysreg_state_e_gicstate _a ((_a.(e_gicstate)).[e_ich_ap0r] :< _b).
 Notation "_a '.[e_gicstate].[e_ich_ap0r]' ':<' _b" := (update_s_sysreg_state_e_gicstate_e_ich_ap0r _a _b) (at level 1).
@@ -12349,4 +12364,20 @@ Notation "_a '.[e_2].[pbase]' ':<' _b" := (update_abs_ret_rtt_e_2_pbase _a _b) (
 Definition update_abs_ret_rtt_e_2_poffset(_a: abs_ret_rtt) _b :=
   update_abs_ret_rtt_e_2 _a ((_a.(e_2)).[poffset] :< _b).
 Notation "_a '.[e_2].[poffset]' ':<' _b" := (update_abs_ret_rtt_e_2_poffset _a _b) (at level 1).
+
+Definition update_abs_ret_2ptr_e_1_pbase(_a: abs_ret_2ptr) _b :=
+  update_abs_ret_2ptr_e_1 _a ((_a.(e_1)).[pbase] :< _b).
+Notation "_a '.[e_1].[pbase]' ':<' _b" := (update_abs_ret_2ptr_e_1_pbase _a _b) (at level 1).
+
+Definition update_abs_ret_2ptr_e_1_poffset(_a: abs_ret_2ptr) _b :=
+  update_abs_ret_2ptr_e_1 _a ((_a.(e_1)).[poffset] :< _b).
+Notation "_a '.[e_1].[poffset]' ':<' _b" := (update_abs_ret_2ptr_e_1_poffset _a _b) (at level 1).
+
+Definition update_abs_ret_2ptr_e_2_pbase(_a: abs_ret_2ptr) _b :=
+  update_abs_ret_2ptr_e_2 _a ((_a.(e_2)).[pbase] :< _b).
+Notation "_a '.[e_2].[pbase]' ':<' _b" := (update_abs_ret_2ptr_e_2_pbase _a _b) (at level 1).
+
+Definition update_abs_ret_2ptr_e_2_poffset(_a: abs_ret_2ptr) _b :=
+  update_abs_ret_2ptr_e_2 _a ((_a.(e_2)).[poffset] :< _b).
+Notation "_a '.[e_2].[poffset]' ':<' _b" := (update_abs_ret_2ptr_e_2_poffset _a _b) (at level 1).
 

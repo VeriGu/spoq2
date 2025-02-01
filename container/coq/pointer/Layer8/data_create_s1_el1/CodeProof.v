@@ -2,24 +2,24 @@ Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
-Require Import Layer6.Layer.
-Require Import Layer7.granule_unlock_transition.LowSpec.
+Require Import Layer7.Layer.
+Require Import Layer8.data_create_s1_el1.LowSpec.
 Require Import Zwf.
 
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Opaque Z.add Z.mul Z.div Z.sub Z.land Z.lor Z.lxor Z.shiftl Z.shiftr Z.quot Z.rem Z.testbit Z.setbit Z.clearbit xorb List.nth.
 
-Section Layer7_granule_unlock_transition_CodeProof.
+Section Layer8_data_create_s1_el1_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
-    Lemma f_granule_unlock_transition_correct:
-      forall v_0 v_1 st st'
-             (Hspec: granule_unlock_transition_spec_low v_0 v_1 st = Some st'),
-        exec_func Layer6_layer code "granule_unlock_transition"
-                  [VPtr v_0; VInt v_1]
-                  st st' None.
+    Lemma f_data_create_s1_el1_correct:
+      forall v_0 v_1 v_2 v_3 st st' res
+             (Hspec: data_create_s1_el1_spec_low v_0 v_1 v_2 v_3 st = Some (res, st')),
+        exec_func Layer7_layer code "data_create_s1_el1"
+                  [VInt v_0; VInt v_1; VInt v_2; VPtr v_3]
+                  st st' (Some (VInt res)).
     Proof.
         intros; simpl_func Hspec; simpl in *;
           unshelve (eapply exec_func_call);
@@ -39,5 +39,5 @@ Section Layer7_granule_unlock_transition_CodeProof.
           end).
     Qed.
 
-End Layer7_granule_unlock_transition_CodeProof.
+End Layer8_data_create_s1_el1_CodeProof.
 

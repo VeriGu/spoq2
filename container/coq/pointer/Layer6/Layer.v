@@ -58,6 +58,7 @@ Section Layer6_Layer.
           :: ("granule_addr", prim granule_addr_spec)
           :: ("granule_lock", prim granule_lock_spec)
           :: ("granule_map", prim granule_map_spec)
+          :: ("granule_set_state", prim granule_set_state_spec)
           :: ("granule_try_lock", prim granule_try_lock_spec)
           :: ("granule_unlock", prim granule_unlock_spec)
           :: ("llvm_memset_p0i8_i64", prim llvm_memset_p0i8_i64_spec)

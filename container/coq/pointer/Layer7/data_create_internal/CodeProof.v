@@ -20,7 +20,24 @@ Section Layer7_data_create_internal_CodeProof.
         exec_func Layer6_layer code "data_create_internal"
                   [VInt v_0; VPtr v_1; VInt v_2; VPtr v_3; VPtr v_4; VInt v_5]
                   st st' (Some (VInt res)).
-Admitted.
+    Proof.
+        intros; simpl_func Hspec; simpl in *;
+          unshelve (eapply exec_func_call);
+         (lia ||
+          match goal with
+          | [ |- temp_env ] => shelve
+          | [ |- function ] => shelve
+          | [ |- function_body ] => shelve
+          | [ |- State _ ] => shelve
+          | _ => idtac
+          end);
+         unshelve (try reflexivity; try solve [repeat vcgen | (frewrite; repeat vcgen)]);
+         (lia ||
+          match goal with
+          | [ |- temp_env ] => shelve
+          | _ => idtac
+          end).
+    Qed.
 
 End Layer7_data_create_internal_CodeProof.
 

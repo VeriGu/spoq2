@@ -63,6 +63,7 @@ Section Layer7_Layer.
           :: ("granule_set_state", prim granule_set_state_spec)
           :: ("granule_try_lock", prim granule_try_lock_spec)
           :: ("granule_unlock", prim granule_unlock_spec)
+          :: ("granule_unlock_transition", prim granule_unlock_transition_spec)
           :: ("make_return_code", prim make_return_code_spec)
           :: ("masked_assign", prim masked_assign_spec)
           :: ("max_pa_size", prim max_pa_size_spec)

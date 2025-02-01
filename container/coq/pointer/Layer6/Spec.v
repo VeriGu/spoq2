@@ -59,20 +59,20 @@ Section Layer6_Spec.
   Definition s2tte_is_table_spec_abs (v_0: abs_PTE_t) (v_1: Z) (st: RData) : (option (bool * RData)) :=
     (Some (((v_1 <? (3)) && (((v_0.(meta_desc_type)) =? (3)))), st)).
 
-  Definition find_lock_two_granules_spec_abs (v_0: abs_PA_t) (v_1: Z) (v_2: Ptr) (v_3: abs_PA_t) (v_4: Z) (v_5: Ptr) (st: RData) : (option (Ptr * Ptr * RData)) :=
-    if ((v_0.(meta_granule_offset)) =? ((v_4.(meta_granule_offset))))
-    then (Some ((mkPtr "null" 0), (mkPtr "null" 0), st))
+  Definition find_lock_two_granules_spec_abs (v_0: abs_PA_t) (v_1: Z) (v_2: Ptr) (v_3: abs_PA_t) (v_4: Z) (v_5: Ptr) (st: RData) : (option (abs_ret_2ptr * RData)) :=
+    if ((v_0.(meta_granule_offset)) =? ((v_3.(meta_granule_offset))))
+    then (Some ((mkabs_ret_2ptr (mkPtr "null" 0) (mkPtr "null" 0)), st))
     else (
       when ret_0, st_0 == ((find_lock_granule_spec_abs v_0 v_1 st));
       if ((ret_0.(pbase)) =s ("null"))
-      then (Some ((mkPtr "null" 0), (mkPtr "null" 0), st_0))
+      then (Some ((mkabs_ret_2ptr (mkPtr "null" 0) (mkPtr "null" 0)), st_0))
       else (
         when ret_1, st_1 == ((find_lock_granule_spec_abs v_3 v_4 st_0));
         if ((ret_1.(pbase)) =s ("null"))
         then (
-          when st_2 == ((granule_unlock_spec v_3 st_1));
-          (Some ((mkPtr "null" 0), (mkPtr "null" 0), st_2)))
-        else (Some (ret_0, ret_1, st_1)))).
+          when st_2 == ((granule_unlock_spec ret_0 st_1));
+          (Some ((mkabs_ret_2ptr (mkPtr "null" 0) (mkPtr "null" 0)), st_2)))
+        else (Some ((mkabs_ret_2ptr ret_0 ret_1), st_1)))).
 
   Definition __tte_write_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option RData) :=
     None.
@@ -124,6 +124,13 @@ Section Layer6_Spec.
 
   Definition rtt_walk_lock_unlock_spec (v_0: Ptr) (v_1: Ptr) (v_2: Z) (v_3: Z) (v_4: Z) (v_5: Z) (st: RData) : (option RData) :=
     None.
+
+  Definition granule_set_state_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option RData) :=
+    rely ((((v_0.(poffset)) mod (16)) = (0)));
+    (Some (st.[share].[globals].[g_granules] :<
+      ((((st.(share)).(globals)).(g_granules)) #
+        (((v_0.(poffset)) + (4)) / (16)) ==
+        (((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (4)) / (16))).[e_state_s_granule] :< v_1)))).
 
   Definition pack_return_code_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
     (Some ((pack_struct_return_code_para (make_return_code_para v_0)), st)).
@@ -192,6 +199,7 @@ Opaque __tte_write_spec.
 #[global] Hint Unfold s2tt_init_unassigned_loop759_0_rank: spec.
 Opaque rtt_walk_lock_unlock_spec_abs.
 Opaque rtt_walk_lock_unlock_spec.
+#[global] Hint Unfold granule_set_state_spec: spec.
 #[global] Hint Unfold pack_return_code_spec: spec.
 #[global] Hint Unfold __granule_get_spec: spec.
 #[global] Hint Unfold s2tte_create_assigned_spec: spec.
