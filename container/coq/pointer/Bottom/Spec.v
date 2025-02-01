@@ -687,7 +687,7 @@ End Bottom_Spec.
 #[global] Hint Unfold iasm_get_sp_el1_spec: spec.
 #[global] Hint Unfold iasm_get_id_aa64mmfr0_el1_spec: spec.
 #[global] Hint Unfold memcpy_spec: spec.
-#[global] Hint Unfold memset_spec: spec.
+Opaque memset_spec.
 #[global] Hint Unfold ns_buffer_read_byte_spec: spec.
 #[global] Hint Unfold ns_buffer_write_byte_spec: spec.
 Opaque PA_TO_VA.

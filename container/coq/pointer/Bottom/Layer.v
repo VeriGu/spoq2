@@ -63,7 +63,6 @@ Section Bottom_Layer.
           :: ("atomic_add_64", prim atomic_add_64_spec)
           :: ("atomic_load_add_release_64", prim atomic_load_add_release_64_spec)
           :: ("attest_get_platform_token", prim attest_get_platform_token_spec)
-          :: ("data_create_internal", prim data_create_internal_spec)
           :: ("find_lock_two_granules", prim find_lock_two_granules_spec)
           :: ("get_tte", prim get_tte_spec)
           :: ("invalidate_block", prim invalidate_block_spec)

@@ -11,11 +11,9 @@ Section Layer6_s2tte_get_ripas_LowSpec.
   Context `{int_ptr: IntPtrCast}.
 
   Definition s2tte_get_ripas_spec_low (v_0: Z) (st: RData) : (option (Z * RData)) :=
-    when v__0, st_0 == (
-        if ((v_0 & (64)) =? (0))
-        then (Some (0, st))
-        else (Some (1, st)));
-    (Some (v__0, st_0)).
+    if ((v_0 & (64)) =? (0))
+    then (Some (0, st))
+    else (Some (1, st)).
 
 End Layer6_s2tte_get_ripas_LowSpec.
 

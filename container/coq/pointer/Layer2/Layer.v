@@ -51,7 +51,6 @@ Section Layer2_Layer.
           :: ("addr_level_mask", prim addr_level_mask_spec)
           :: ("addr_to_idx", prim addr_to_idx_spec)
           :: ("atomic_add_64", prim atomic_add_64_spec)
-          :: ("data_create_internal", prim data_create_internal_spec)
           :: ("find_lock_two_granules", prim find_lock_two_granules_spec)
           :: ("get_tte", prim get_tte_spec)
           :: ("granule_addr", prim granule_addr_spec)

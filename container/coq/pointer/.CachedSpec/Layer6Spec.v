@@ -13,6 +13,14 @@ Parameter uart0_phys_para : abs_PTE_t -> bool.
 Definition s2tte_create_assigned_spec_abs (v_0: abs_PA_t) (v_1: Z) (st: RData) : (option (abs_PTE_t * RData)) :=
   (Some ((mkabs_PTE_t v_0 0 0 1), st)).
 
+Definition s1tte_create_valid_spec_abs (v_0: abs_PA_t) (v_1: Z) (st: RData) : (option (abs_PTE_t * RData)) :=
+  if (v_1 =? (3))
+  then (Some ((mkabs_PTE_t v_0 0 0 3), st))
+  else (Some ((mkabs_PTE_t v_0 0 0 1), st)).
+
+Definition s1tte_pa_spec_abs (v_0: abs_PTE_t) (st: RData) : (option (abs_PA_t * RData)) :=
+  (Some ((v_0.(meta_PA)), st)).
+
 Definition s2tte_pa_spec_abs (v_0: abs_PTE_t) (v_1: Z) (st: RData) : (option (abs_PA_t * RData)) :=
   (Some ((v_0.(meta_PA)), st)).
 
@@ -99,16 +107,21 @@ Definition rtt_walk_lock_unlock_spec_abs (v_0: Ptr) (v_1: Ptr) (v_2: Z) (v_3: Z)
         when i, s == ((s2_addr_to_idx_spec v_4 2 st_6));
         (Some ((mkabs_ret_rtt 3 ret_3 i), s))))).
 
-Definition s2tte_pa_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
-  if ((v_1 <? (3)) && (((v_0 & (3)) =? (3))))
-  then (Some (((v_0 & (281474976710655)) & (((- 1) << (12)))), st))
-  else (Some (((v_0 & (281474976710655)) & (((- 1) << (((39 + (((- 9) * (v_1)))) & (4294967295)))))), st)).
-
 Definition rtt_walk_lock_unlock_spec (v_0: Ptr) (v_1: Ptr) (v_2: Z) (v_3: Z) (v_4: Z) (v_5: Z) (st: RData) : (option RData) :=
   None.
 
 Definition pack_return_code_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
   (Some ((pack_struct_return_code_para (make_return_code_para v_0)), st)).
+
+Definition __granule_get_spec (v_0: Ptr) (st: RData) : (option RData) :=
+  rely (((v_0.(pbase)) =s ("granules")));
+  rely (((((v_0.(poffset)) + (8)) mod (16)) = (8)));
+  (Some (st.[share].[globals].[g_granules] :<
+    ((((st.(share)).(globals)).(g_granules)) #
+      (((v_0.(poffset)) + (8)) / (16)) ==
+      (((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).[e_ref] :<
+        ((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+          (((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))))).
 
 Definition s2tte_create_assigned_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
   (Some ((v_0 |' (4)), st)).
@@ -116,6 +129,32 @@ Definition s2tte_create_assigned_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z
 Definition stage1_tlbi_all_spec (st: RData) : (option RData) :=
   (Some st).
 
+Definition s1tte_pa_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
+  (Some (((v_0 & (281474976710655)) & (((- 1) << (12)))), st)).
+
 Definition s2tte_is_unassigned_spec (v_0: Z) (st: RData) : (option (bool * RData)) :=
   (Some (((v_0 & (63)) =? (0)), st)).
+
+Definition s1tte_create_valid_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
+  if (v_1 =? (3))
+  then (Some ((v_0 |' (1795)), st))
+  else (Some ((v_0 |' (1793)), st)).
+
+Definition s2tte_get_ripas_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
+  if ((v_0 & (64)) =? (0))
+  then (Some (0, st))
+  else (Some (1, st)).
+
+Definition ns_buffer_unmap_spec (v_0: Z) (st: RData) : (option RData) :=
+  (Some st).
+
+Definition ns_buffer_read_spec (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Ptr) (st: RData) : (option (bool * RData)) :=
+  rely (((((v_1 - (MEM0_PHYS)) >= (0)) /\ (((v_1 - (4294967296)) < (0)))) \/ ((((v_1 - (MEM1_PHYS)) >= (0)) /\ (((v_1 - (556198264832)) < (0)))))));
+  if ((v_1 & (549755813888)) =? (0))
+  then (
+    when v_6, st_1 == ((memcpy_ns_read_spec v_3 (int_to_ptr (v_1 + (18446744004990074880))) v_2 st));
+    (Some (v_6, st_1)))
+  else (
+    when v_6, st_1 == ((memcpy_ns_read_spec v_3 (int_to_ptr (v_1 + (18446743457381744640))) v_2 st));
+    (Some (v_6, st_1))).
 

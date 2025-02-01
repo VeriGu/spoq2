@@ -12,7 +12,8 @@ Section Layer5_slot_to_va_LowSpec.
   Context `{int_ptr: IntPtrCast}.
 
   Definition slot_to_va_spec_low (v_0: Z) (st: RData) : (option (Ptr * RData)) :=
-    (Some ((mkPtr ((int_to_ptr 18446744071562067968).(pbase)) (((int_to_ptr 18446744071562067968).(poffset)) + ((1 * ((((CPU_ID * (9)) + (v_0)) << (12))))))), st)).
+    when v_2, st_0 == ((cpuid_spec st));
+    (Some ((ptr_offset (int_to_ptr 18446744071562067968) (1 * ((((v_2 * (9)) + (v_0)) << (12))))), st_0)).
 
 End Layer5_slot_to_va_LowSpec.
 

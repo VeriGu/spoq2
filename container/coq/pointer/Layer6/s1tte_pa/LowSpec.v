@@ -12,7 +12,8 @@ Section Layer6_s1tte_pa_LowSpec.
   Context `{int_ptr: IntPtrCast}.
 
   Definition s1tte_pa_spec_low (v_0: Z) (st: RData) : (option (Z * RData)) :=
-    (Some (((v_0 & (281474976710655)) & (((- 1) << (12)))), st)).
+    when v_2, st_0 == ((addr_level_mask_spec v_0 3 st));
+    (Some (v_2, st_0)).
 
 End Layer6_s1tte_pa_LowSpec.
 
