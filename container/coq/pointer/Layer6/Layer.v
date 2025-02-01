@@ -1,0 +1,77 @@
+Require Import Bottom.Spec.
+Require Import CommonDeps.
+Require Import DataTypes.
+Require Import GlobalDefs.
+Require Import Layer2.Spec.
+Require Import Layer4.Spec.
+Require Import Layer5.Spec.
+Require Import Layer6.Spec.
+
+Local Open Scope string_scope.
+Local Open Scope Z_scope.
+
+Parameter Layer6_init: RData.
+
+Section Layer6_Layer.
+
+  Context `{int_ptr: IntPtrCast}.
+
+  Definition Layer6_get_reg (reg: regset) (st: RData) : option Z := None.
+
+  Definition Layer6_set_reg (reg: regset) (val: Z) (st: RData) : option RData := None.
+
+  Definition Layer6_get_flag (f: flag) (st: RData) : bool := false.
+
+  Definition Layer6_set_flag (f: flag) (val: bool) (st: RData) : option RData := None.
+
+  Definition Layer6_layer :=
+    {|
+      State := RData;
+      Init := Layer6_init;
+      Load := load_RData;
+      Store := store_RData;
+      NewFrame := new_frame;
+      Alloca := alloc_stack;
+      Free := free_stack;
+      GetReg :=Layer6_get_reg;
+      SetReg := Layer6_set_reg;
+      GetFlag := Layer6_get_flag;
+      SetFlag := Layer6_set_flag;
+      Ptr2Int := ptr_to_int;
+      Int2Ptr := int_to_ptr;
+      PtrEqb := ptr_eqb;
+      PtrLtb := ptr_ltb;
+      PtrGtb := ptr_gtb;
+      PrimCall :=
+          ("__granule_get", prim __granule_get_spec)
+          :: ("__tte_read", prim __tte_read_spec)
+          :: ("__tte_write", prim __tte_write_spec)
+          :: ("addr_is_contained", prim addr_is_contained_spec)
+          :: ("data_create_internal", prim data_create_internal_spec)
+          :: ("find_granule", prim find_granule_spec)
+          :: ("find_lock_granule", prim find_lock_granule_spec)
+          :: ("find_lock_two_granules", prim find_lock_two_granules_spec)
+          :: ("get_tte", prim get_tte_spec)
+          :: ("granule_lock", prim granule_lock_spec)
+          :: ("granule_map", prim granule_map_spec)
+          :: ("granule_set_state", prim granule_set_state_spec)
+          :: ("granule_unlock", prim granule_unlock_spec)
+          :: ("llvm_memset_p0i8_i64", prim llvm_memset_p0i8_i64_spec)
+          :: ("memset", prim memset_spec)
+          :: ("monitor_call", prim monitor_call_spec)
+          :: ("pack_return_code", prim pack_return_code_spec)
+          :: ("rtt_walk_lock_unlock", prim rtt_walk_lock_unlock_spec)
+          :: ("s2tt_init_unassigned", prim s2tt_init_unassigned_spec)
+          :: ("s2tte_create_ripas", prim s2tte_create_ripas_spec)
+          :: ("s2tte_create_table", prim s2tte_create_table_spec)
+          :: ("s2tte_create_unassigned", prim s2tte_create_unassigned_spec)
+          :: ("s2tte_get_ripas", prim s2tte_get_ripas_spec)
+          :: ("s2tte_is_table", prim s2tte_is_table_spec)
+          :: ("s2tte_is_unassigned", prim s2tte_is_unassigned_spec)
+          :: ("smc_granule_any_to_ns", prim smc_granule_any_to_ns_spec)
+          :: ("smc_granule_ns_to_any", prim smc_granule_ns_to_any_spec)
+          :: ("stage1_tlbi_all", prim stage1_tlbi_all_spec)
+          :: nil
+    |}.
+
+End Layer6_Layer.
