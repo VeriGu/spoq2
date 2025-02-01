@@ -112,6 +112,9 @@ Section Layer5_Spec.
     then (Some ((int_to_ptr (v_0 + (18446744004990074880))), st))
     else (Some ((int_to_ptr (v_0 + (18446743457381744640))), st)).
 
+  Definition find_lock_granule_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Ptr * RData)) :=
+    None.
+
 End Layer5_Spec.
 
 #[global] Hint Unfold s2tte_create_unassigned_spec_abs: spec.
@@ -131,3 +134,4 @@ Opaque granule_unlock_spec.
 #[global] Hint Unfold atomic_granule_get_spec: spec.
 #[global] Hint Unfold slot_to_va_spec: spec.
 #[global] Hint Unfold granule_pa_to_va_spec: spec.
+#[global] Hint Unfold find_lock_granule_spec: spec.

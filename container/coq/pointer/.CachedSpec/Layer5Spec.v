@@ -97,3 +97,6 @@ Definition granule_pa_to_va_spec (v_0: Z) (st: RData) : (option (Ptr * RData)) :
   then (Some ((int_to_ptr (v_0 + (18446744004990074880))), st))
   else (Some ((int_to_ptr (v_0 + (18446743457381744640))), st)).
 
+Definition find_lock_granule_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Ptr * RData)) :=
+  None.
+

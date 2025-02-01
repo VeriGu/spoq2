@@ -39,7 +39,7 @@ Section Layer9_Layer.
       PtrLtb := ptr_ltb;
       PtrGtb := ptr_gtb;
       PrimCall :=
-          ("rsi_rtt_set_ripas", prim rsi_rtt_set_ripas_spec)
+          ("rsi_data_create_unknown_s1", prim rsi_data_create_unknown_s1_spec)
           :: nil
     |}.
 

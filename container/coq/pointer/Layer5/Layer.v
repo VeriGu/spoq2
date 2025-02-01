@@ -51,6 +51,7 @@ Section Layer5_Layer.
           :: ("addr_level_mask", prim addr_level_mask_spec)
           :: ("atomic_granule_get", prim atomic_granule_get_spec)
           :: ("find_granule", prim find_granule_spec)
+          :: ("find_lock_granule", prim find_lock_granule_spec)
           :: ("find_lock_two_granules", prim find_lock_two_granules_spec)
           :: ("get_tte", prim get_tte_spec)
           :: ("granule_addr", prim granule_addr_spec)

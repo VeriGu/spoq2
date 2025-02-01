@@ -335,9 +335,6 @@ Definition ns_buffer_read_spec_abs (v_0: Z) (v_1: abs_PA_t) (v_2: Z) (v_3: Ptr) 
   (Some (v_6, st_1)).
 
 Definition data_create_internal_spec_abs (v_0_pte: abs_PTE_t) (v_1: Ptr) (v_2: Z) (v_3: Ptr) (v_4: Ptr) (v_5: Z) (st: RData) : (option (Z * RData)) :=
-  rely (((((((st.(share)).(granule_data)) @ ((v_4.(poffset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_REC)) = (0)));
-  rely (((((v_4.(pbase)) = ("granule_data")) /\ ((((v_4.(poffset)) mod (4096)) = (0)))) /\ (((v_4.(poffset)) >= (0)))));
-  rely (((((v_3.(pbase)) = ("granules")) /\ ((((v_3.(poffset)) mod (16)) = (0)))) /\ (((v_3.(poffset)) >= (0)))));
   when rtt_ret, st_4 == ((rtt_walk_lock_unlock_spec_abs (mkPtr "stack_s_rtt_walk" 0) v_1 0 64 v_2 3 st));
   rely ((((st_4.(share)).(granule_data)) = (((st.(share)).(granule_data)))));
   if ((rtt_ret.(e_1)) =? (3))

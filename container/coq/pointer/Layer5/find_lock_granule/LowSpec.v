@@ -10,7 +10,7 @@ Section Layer5_find_lock_granule_LowSpec.
 
   Context `{int_ptr: IntPtrCast}.
 
-  Definition find_lock_granule_spec_low (v_0: abs_PA_t) (v_1: Z) (st: RData) : (option (Ptr * RData)) :=
+  Definition find_lock_granule_spec_low (v_0: Z) (v_1: Z) (st: RData) : (option (Ptr * RData)) :=
     None.
 
 End Layer5_find_lock_granule_LowSpec.
