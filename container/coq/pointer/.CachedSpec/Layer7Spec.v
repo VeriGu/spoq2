@@ -11,7 +11,7 @@ Definition s1tte_is_valid_spec_abs (v_0: abs_PTE_t) (v_1: Z) (st: RData) : (opti
     else (Some (false, st))).
 
 Definition s2tte_create_table_spec_abs (v_0: abs_PA_t) (v_1: Z) (st: RData) : (option (abs_PTE_t * RData)) :=
-  (Some ((mkabs_PTE_t v_0 3 0), st)).
+  (Some ((mkabs_PTE_t v_0 3 0 0), st)).
 
 Definition rtt_create_internal_spec_abs (v_0: Ptr) (v_1_abs: abs_PA_t) (v_2: Z) (v_3: Z) (v_4: Z) (st: RData) : (option (Z * RData)) :=
   when ret, st' == ((granule_try_lock_spec (mkPtr "granules" (v_1_abs.(meta_granule_offset))) 1 st));
@@ -55,7 +55,7 @@ Definition rtt_create_internal_spec_abs (v_0: Ptr) (v_1_abs: abs_PA_t) (v_2: Z) 
                   ((((st_10.(share)).(granule_data)) @ ((((ret_record.(e_2)).(poffset)) + ((8 * ((ret_record.(e_3)))))) / (4096))).[g_norm] :<
                     (((((st_10.(share)).(granule_data)) @ ((((ret_record.(e_2)).(poffset)) + ((8 * ((ret_record.(e_3)))))) / (4096))).(g_norm)) #
                       ((((ret_record.(e_2)).(poffset)) + ((8 * ((ret_record.(e_3)))))) mod (4096)) ==
-                      (test_PTE_Z (mkabs_PTE_t v_1_abs 3 0))))))));
+                      (test_PTE_Z (mkabs_PTE_t v_1_abs 3 0 0))))))));
         when st_17 == ((granule_unlock_spec (mkPtr "granules" (v_1_abs.(meta_granule_offset))) st_16));
         (Some (0, st_17)))
       else (
@@ -88,7 +88,7 @@ Definition rtt_create_internal_spec_abs (v_0: Ptr) (v_1_abs: abs_PA_t) (v_2: Z) 
                         ((((st_10.(share)).(granule_data)) @ ((((ret_record.(e_2)).(poffset)) + ((8 * ((ret_record.(e_3)))))) / (4096))).[g_norm] :<
                           (((((st_10.(share)).(granule_data)) @ ((((ret_record.(e_2)).(poffset)) + ((8 * ((ret_record.(e_3)))))) / (4096))).(g_norm)) #
                             ((((ret_record.(e_2)).(poffset)) + ((8 * ((ret_record.(e_3)))))) mod (4096)) ==
-                            (test_PTE_Z (mkabs_PTE_t v_1_abs 3 0))))))));
+                            (test_PTE_Z (mkabs_PTE_t v_1_abs 3 0 0))))))));
               when st_15 == ((granule_unlock_spec (mkPtr "granules" (v_1_abs.(meta_granule_offset))) st_14));
               (Some (0, st_15)))
           | None => None
@@ -107,7 +107,7 @@ Definition rtt_create_internal_spec_abs (v_0: Ptr) (v_1_abs: abs_PA_t) (v_2: Z) 
                     ((((st_4.(share)).(granule_data)) @ ((((ret_record.(e_2)).(poffset)) + ((8 * ((ret_record.(e_3)))))) / (4096))).[g_norm] :<
                       (((((st_4.(share)).(granule_data)) @ ((((ret_record.(e_2)).(poffset)) + ((8 * ((ret_record.(e_3)))))) / (4096))).(g_norm)) #
                         ((((ret_record.(e_2)).(poffset)) + ((8 * ((ret_record.(e_3)))))) mod (4096)) ==
-                        (test_PTE_Z (mkabs_PTE_t v_1_abs 3 0))))))));
+                        (test_PTE_Z (mkabs_PTE_t v_1_abs 3 0 0))))))));
           when st_15 == ((granule_unlock_spec (mkPtr "granules" (v_1_abs.(meta_granule_offset))) st_14));
           (Some (0, st_15)))))
     else (
@@ -176,7 +176,7 @@ Definition rtt_create_internal_spec_abs (v_0: Ptr) (v_1_abs: abs_PA_t) (v_2: Z) 
                           ((((st_11.(share)).(granule_data)) @ ((((ret_record.(e_2)).(poffset)) + ((8 * ((ret_record.(e_3)))))) / (4096))).[g_norm] :<
                             (((((st_11.(share)).(granule_data)) @ ((((ret_record.(e_2)).(poffset)) + ((8 * ((ret_record.(e_3)))))) / (4096))).(g_norm)) #
                               ((((ret_record.(e_2)).(poffset)) + ((8 * ((ret_record.(e_3)))))) mod (4096)) ==
-                              (test_PTE_Z (mkabs_PTE_t v_1_abs 3 0))))))));
+                              (test_PTE_Z (mkabs_PTE_t v_1_abs 3 0 0))))))));
                 when st_18 == ((granule_unlock_spec (mkPtr "granules" (v_1_abs.(meta_granule_offset))) st_17));
                 (Some (0, st_18)))
               else (
@@ -209,7 +209,7 @@ Definition rtt_create_internal_spec_abs (v_0: Ptr) (v_1_abs: abs_PA_t) (v_2: Z) 
                                 ((((st_11.(share)).(granule_data)) @ ((((ret_record.(e_2)).(poffset)) + ((8 * ((ret_record.(e_3)))))) / (4096))).[g_norm] :<
                                   (((((st_11.(share)).(granule_data)) @ ((((ret_record.(e_2)).(poffset)) + ((8 * ((ret_record.(e_3)))))) / (4096))).(g_norm)) #
                                     ((((ret_record.(e_2)).(poffset)) + ((8 * ((ret_record.(e_3)))))) mod (4096)) ==
-                                    (test_PTE_Z (mkabs_PTE_t v_1_abs 3 0))))))));
+                                    (test_PTE_Z (mkabs_PTE_t v_1_abs 3 0 0))))))));
                       when st_16 == ((granule_unlock_spec (mkPtr "granules" (v_1_abs.(meta_granule_offset))) st_15));
                       (Some (0, st_16)))
                   | None => None
@@ -228,7 +228,7 @@ Definition rtt_create_internal_spec_abs (v_0: Ptr) (v_1_abs: abs_PA_t) (v_2: Z) 
                             ((((st_5.(share)).(granule_data)) @ ((((ret_record.(e_2)).(poffset)) + ((8 * ((ret_record.(e_3)))))) / (4096))).[g_norm] :<
                               (((((st_5.(share)).(granule_data)) @ ((((ret_record.(e_2)).(poffset)) + ((8 * ((ret_record.(e_3)))))) / (4096))).(g_norm)) #
                                 ((((ret_record.(e_2)).(poffset)) + ((8 * ((ret_record.(e_3)))))) mod (4096)) ==
-                                (test_PTE_Z (mkabs_PTE_t v_1_abs 3 0))))))));
+                                (test_PTE_Z (mkabs_PTE_t v_1_abs 3 0 0))))))));
                   when st_16 == ((granule_unlock_spec (mkPtr "granules" (v_1_abs.(meta_granule_offset))) st_15));
                   (Some (0, st_16)))))
           | None => None
@@ -238,6 +238,12 @@ Definition rtt_create_internal_spec_abs (v_0: Ptr) (v_1_abs: abs_PA_t) (v_2: Z) 
           when st_8 == ((granule_unlock_spec (mkPtr "granules" (v_1_abs.(meta_granule_offset))) st_7));
           (Some ((pack_struct_return_code_para (make_return_code_para 8)), st_8))))))
   else (Some ((pack_struct_return_code_para (make_return_code_para 1)), st')).
+
+Definition set_pas_any_to_ns_spec (v_0: Z) (st: RData) : (option RData) :=
+  (Some st).
+
+Definition set_pas_ns_to_any_spec (v_0: Z) (st: RData) : (option RData) :=
+  (Some st).
 
 Definition smc_granule_ns_to_any_spec_abs (v_0: Z) (v_1_abs: abs_PA_t) (st: RData) : (option (Z * RData)) :=
   when st_1 == ((spinlock_acquire_spec (mkPtr "granules" (v_1_abs.(meta_granule_offset))) st));
@@ -326,9 +332,6 @@ Definition s1tte_is_valid_spec (v_0: Z) (v_1: Z) (st: RData) : (option (bool * R
     then (Some (true, st))
     else (Some (false, st))).
 
-Definition smc_granule_ns_to_any_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
-  None.
-
-Definition smc_granule_any_to_ns_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
-  None.
+Definition s2tte_is_assigned_spec (v_0: Z) (v_1: Z) (st: RData) : (option (bool * RData)) :=
+  (Some (((v_0 & (63)) =? (4)), st)).
 

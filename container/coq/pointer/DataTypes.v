@@ -911,6 +911,7 @@ Record abs_PTE_t :=
     meta_PA: abs_PA_t;
     meta_desc_type: Z;
     meta_ripas: Z;
+    meta_mem_attr: Z;
 }.
 
 
@@ -7290,16 +7291,20 @@ Definition update_abs_PA_t_meta_granule_offset(_a: abs_PA_t) _b :=
 Notation "_a '.[meta_granule_offset]' ':<' _b" := (update_abs_PA_t_meta_granule_offset _a _b) (at level 1).
 
 Definition update_abs_PTE_t_meta_PA(_a: abs_PTE_t) _b :=
-  mkabs_PTE_t _b (_a.(meta_desc_type)) (_a.(meta_ripas)).
+  mkabs_PTE_t _b (_a.(meta_desc_type)) (_a.(meta_ripas)) (_a.(meta_mem_attr)).
 Notation "_a '.[meta_PA]' ':<' _b" := (update_abs_PTE_t_meta_PA _a _b) (at level 1).
 
 Definition update_abs_PTE_t_meta_desc_type(_a: abs_PTE_t) _b :=
-  mkabs_PTE_t (_a.(meta_PA)) _b (_a.(meta_ripas)).
+  mkabs_PTE_t (_a.(meta_PA)) _b (_a.(meta_ripas)) (_a.(meta_mem_attr)).
 Notation "_a '.[meta_desc_type]' ':<' _b" := (update_abs_PTE_t_meta_desc_type _a _b) (at level 1).
 
 Definition update_abs_PTE_t_meta_ripas(_a: abs_PTE_t) _b :=
-  mkabs_PTE_t (_a.(meta_PA)) (_a.(meta_desc_type)) _b.
+  mkabs_PTE_t (_a.(meta_PA)) (_a.(meta_desc_type)) _b (_a.(meta_mem_attr)).
 Notation "_a '.[meta_ripas]' ':<' _b" := (update_abs_PTE_t_meta_ripas _a _b) (at level 1).
+
+Definition update_abs_PTE_t_meta_mem_attr(_a: abs_PTE_t) _b :=
+  mkabs_PTE_t (_a.(meta_PA)) (_a.(meta_desc_type)) (_a.(meta_ripas)) _b.
+Notation "_a '.[meta_mem_attr]' ':<' _b" := (update_abs_PTE_t_meta_mem_attr _a _b) (at level 1).
 
 Definition update_abs_ret_rtt_e_1(_a: abs_ret_rtt) _b :=
   mkabs_ret_rtt _b (_a.(e_2)) (_a.(e_3)).
