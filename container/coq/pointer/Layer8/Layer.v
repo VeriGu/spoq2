@@ -1,6 +1,14 @@
+Require Import Bottom.Spec.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
+Require Import Layer1.Spec.
+Require Import Layer2.Spec.
+Require Import Layer3.Spec.
+Require Import Layer4.Spec.
+Require Import Layer5.Spec.
+Require Import Layer6.Spec.
+Require Import Layer7.Spec.
 Require Import Layer8.Spec.
 
 Local Open Scope string_scope.
@@ -39,7 +47,44 @@ Section Layer8_Layer.
       PtrLtb := ptr_ltb;
       PtrGtb := ptr_gtb;
       PrimCall :=
-          ("rtt_create_s1_el1", prim rtt_create_s1_el1_spec)
+          ("__granule_put", prim __granule_put_spec)
+          :: ("__tte_read", prim __tte_read_spec)
+          :: ("__tte_write", prim __tte_write_spec)
+          :: ("addr_is_level_aligned", prim addr_is_level_aligned_spec)
+          :: ("data_create_internal", prim data_create_internal_spec)
+          :: ("find_granule", prim find_granule_spec)
+          :: ("find_lock_granule", prim find_lock_granule_spec)
+          :: ("g_refcount", prim g_refcount_spec)
+          :: ("granule_addr", prim granule_addr_spec)
+          :: ("granule_lock", prim granule_lock_spec)
+          :: ("granule_map", prim granule_map_spec)
+          :: ("granule_set_state", prim granule_set_state_spec)
+          :: ("granule_try_lock", prim granule_try_lock_spec)
+          :: ("granule_unlock", prim granule_unlock_spec)
+          :: ("granule_unlock_transition", prim granule_unlock_transition_spec)
+          :: ("make_return_code", prim make_return_code_spec)
+          :: ("masked_assign", prim masked_assign_spec)
+          :: ("max_pa_size", prim max_pa_size_spec)
+          :: ("ns_buffer_read_byte", prim ns_buffer_read_byte_spec)
+          :: ("ns_buffer_write_byte", prim ns_buffer_write_byte_spec)
+          :: ("pack_return_code", prim pack_return_code_spec)
+          :: ("realm_ipa_size", prim realm_ipa_size_spec)
+          :: ("rtt_create_internal", prim rtt_create_internal_spec)
+          :: ("rtt_create_s1_el1", prim rtt_create_s1_el1_spec)
+          :: ("rtt_walk_lock_unlock", prim rtt_walk_lock_unlock_spec)
+          :: ("s1addr_is_level_aligned", prim s1addr_is_level_aligned_spec)
+          :: ("s1tte_is_valid", prim s1tte_is_valid_spec)
+          :: ("s1tte_pa", prim s1tte_pa_spec)
+          :: ("s2tt_init_unassigned", prim s2tt_init_unassigned_spec)
+          :: ("s2tte_create_unassigned", prim s2tte_create_unassigned_spec)
+          :: ("s2tte_is_assigned", prim s2tte_is_assigned_spec)
+          :: ("s2tte_is_table", prim s2tte_is_table_spec)
+          :: ("s2tte_pa", prim s2tte_pa_spec)
+          :: ("set_tte_ns", prim set_tte_ns_spec)
+          :: ("stage1_tlbi_all", prim stage1_tlbi_all_spec)
+          :: ("write_ap0r", prim write_ap0r_spec)
+          :: ("write_ap1r", prim write_ap1r_spec)
+          :: ("write_lr", prim write_lr_spec)
           :: nil
     |}.
 

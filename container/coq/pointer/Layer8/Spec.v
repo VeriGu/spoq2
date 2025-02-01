@@ -17,6 +17,12 @@ Section Layer8_Spec.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Definition rtt_create_s1_el1_spec_abs (v_0: Ptr) (v_1: abs_PA_t) (v_2: Z) (v_3: Z) (st: RData) : (option (Z * RData)) :=
+    let ttbr := (rec_to_ttbr1_para v_0 st) in
+    when st_1 == ((granule_lock_spec ttbr 5 st));
+    when v_7, st_2 == ((rtt_create_internal_spec_abs ttbr v_1 v_2 v_3 1 st_1));
+    ((Some v_7), st_2).
+
   Definition rtt_create_s1_el1_spec (v_0: Ptr) (v_1: Z) (v_2: Z) (v_3: Z) (st: RData) : (option (Z * RData)) :=
     when st_1 == ((granule_lock_spec (rec_to_ttbr1_para v_0 st) 5 st));
     when v_7, st_2 == (
@@ -242,4 +248,5 @@ Section Layer8_Spec.
 
 End Layer8_Spec.
 
+#[global] Hint Unfold rtt_create_s1_el1_spec_abs: spec.
 #[global] Hint Unfold rtt_create_s1_el1_spec: spec.
