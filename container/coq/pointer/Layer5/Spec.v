@@ -21,6 +21,9 @@ Section Layer5_Spec.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Definition s2tte_create_unassigned_spec_abs (v_0: Z) (st: RData) : (option (abs_PTE_t * RData)) :=
+    (Some ((mkabs_PTE_t (mkabs_PA_t (- 1)) 0 v_0), st)).
+
   Definition llvm_memset_p0i8_i64_spec (v_0: Ptr) (arg1: Z) (arg2: Z) (arg3: bool) (st: RData) : (option RData) :=
     when st_0 == ((llvm_memset_p0i8_i64_spec_state_oracle v_0 arg1 arg2 arg3 st));
     rely ((((st_0.(share)).(granule_data)) = (((st.(share)).(granule_data)))));
@@ -63,27 +66,8 @@ Section Layer5_Spec.
     when st_2 == ((store_RData_granules 64 loc (v + (val)) st_1));
     (Some st_2).
 
-  Definition s2tte_is_table_spec (v_0: Z) (v_1: Z) (st: RData) : (option (bool * RData)) :=
-    (Some (((v_1 <? (3)) && (((v_0 & (3)) =? (3)))), st)).
-
   Definition granule_unlock_spec (v_0: Ptr) (st: RData) : (option RData) :=
-    when st_0 == (
-        if ((v_0.(pbase)) =s ("granules"))
-        then (
-          when cid == (((((((st.(share)).(globals)).(g_granules)) @ ((v_0.(poffset)) / (16))).(e_lock)).(e_val)));
-          (Some ((st.[log] :< ((EVT CPU_ID (REL ((v_0.(poffset)) / (16)) ((((st.(share)).(globals)).(g_granules)) @ ((v_0.(poffset)) / (16))))) :: ((st.(log))))).[share].[globals].[g_granules] :<
-            ((((st.(share)).(globals)).(g_granules)) #
-              ((v_0.(poffset)) / (16)) ==
-              (((((st.(share)).(globals)).(g_granules)) @ ((v_0.(poffset)) / (16))).[e_lock].[e_val] :< None)))))
-        else (
-          if ((v_0.(pbase)) =s ("vmid_lock"))
-          then (
-            when cid == (
-                if ((v_0.(poffset)) =? (0))
-                then ((((st.(share)).(globals)).(g_vmid_lock)).(e_val))
-                else None);
-            (Some ((st.[log] :< ((EVT CPU_ID (REL vmid_lock_idx vmid_lock_g)) :: ((st.(log))))).[share].[globals].[g_vmid_lock].[e_val] :< None)))
-          else None));
+    when st_0 == ((spinlock_release_spec (mkPtr (v_0.(pbase)) (v_0.(poffset))) st));
     (Some st_0).
 
   Definition s2_sl_addr_to_idx_spec (v_0: Z) (v_1: Z) (v_2: Z) (st: RData) : (option (Z * RData)) :=
@@ -110,66 +94,36 @@ Section Layer5_Spec.
     (Some ((make_return_code_para v_0), st)).
 
   Definition atomic_granule_get_spec (v_0: Ptr) (st: RData) : (option RData) :=
-    when st_0 == (
-        rely (((v_0.(pbase)) =s ("granules")));
-        rely (((((v_0.(poffset)) + (8)) mod (16)) = (8)));
-        when v, st_1 == (
-            when ret == (
-                if (((((v_0.(poffset)) + (8)) mod (16)) >=? (0)) && (((((v_0.(poffset)) + (8)) mod (16)) <? (4))))
-                then (
-                  if ((((v_0.(poffset)) + (8)) mod (16)) =? (0))
-                  then ((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_lock)).(e_val))
-                  else None)
-                else (
-                  if ((((v_0.(poffset)) + (8)) mod (16)) =? (4))
-                  then (Some (((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_state_s_granule)))
-                  else (
-                    if (((((v_0.(poffset)) + (8)) mod (16)) >=? (8)) && (((((v_0.(poffset)) + (8)) mod (16)) <? (16))))
-                    then (
-                      if (((((v_0.(poffset)) + (8)) mod (16)) - (8)) =? (0))
-                      then (Some ((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).(e_u_anon_3_0)))
-                      else None)
-                    else None)));
-            (Some (ret, st)));
-        when st_2 == (
-            when ret == (
-                if (((((v_0.(poffset)) + (8)) mod (16)) >=? (0)) && (((((v_0.(poffset)) + (8)) mod (16)) <? (4))))
-                then (
-                  when ret == (
-                      if ((((v_0.(poffset)) + (8)) mod (16)) =? (0))
-                      then (Some ((((((st_1.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_lock)).[e_val] :< (Some (v + (1)))))
-                      else None);
-                  (Some (((((st_1.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).[e_lock] :< ret)))
-                else (
-                  if ((((v_0.(poffset)) + (8)) mod (16)) =? (4))
-                  then (Some (((((st_1.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).[e_state_s_granule] :< (v + (1))))
-                  else (
-                    if (((((v_0.(poffset)) + (8)) mod (16)) >=? (8)) && (((((v_0.(poffset)) + (8)) mod (16)) <? (16))))
-                    then (
-                      when ret == (
-                          if (((((v_0.(poffset)) + (8)) mod (16)) - (8)) =? (0))
-                          then (Some ((((((st_1.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).[e_u_anon_3_0] :< (v + (1))))
-                          else None);
-                      (Some (((((st_1.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).[e_ref] :< ret)))
-                    else None)));
-            (Some (st_1.[share].[globals].[g_granules] :< ((((st_1.(share)).(globals)).(g_granules)) # (((v_0.(poffset)) + (8)) / (16)) == ret))));
-        (Some st_2));
-    (Some st_0).
+    rely (((v_0.(pbase)) =s ("granules")));
+    rely (((((v_0.(poffset)) + (8)) mod (16)) = (8)));
+    (Some (st.[share].[globals].[g_granules] :<
+      ((((st.(share)).(globals)).(g_granules)) #
+        (((v_0.(poffset)) + (8)) / (16)) ==
+        (((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).[e_ref] :<
+          ((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+            (((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))))).
+
+  Definition atomic_granule_put_spec (v_0: Ptr) (st: RData) : (option RData) :=
+    rely (((v_0.(pbase)) =s ("granules")));
+    rely (((((v_0.(poffset)) + (8)) mod (16)) = (8)));
+    (Some (st.[share].[globals].[g_granules] :<
+      ((((st.(share)).(globals)).(g_granules)) #
+        (((v_0.(poffset)) + (8)) / (16)) ==
+        (((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).[e_ref] :<
+          ((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+            (((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).(e_u_anon_3_0)) + ((- 1)))))))).
 
   Definition find_lock_granule_spec (v_0: abs_PA_t) (v_1: Z) (st: RData) : (option (Ptr * RData)) :=
     None.
 
   Definition s2tte_create_unassigned_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
-    when v_2, st_0 == (
-        when v__0, st_1 == (
-            if (v_0 =? (0))
-            then (Some (0, st))
-            else (Some (64, st)));
-        (Some (v__0, st_1)));
-    (Some (v_2, st_0)).
+    if (v_0 =? (0))
+    then (Some (0, st))
+    else (Some (64, st)).
 
 End Layer5_Spec.
 
+#[global] Hint Unfold s2tte_create_unassigned_spec_abs: spec.
 #[global] Hint Unfold llvm_memset_p0i8_i64_spec: spec.
 #[global] Hint Unfold memcpy_ns_write_spec: spec.
 #[global] Hint Unfold memcpy_ns_read_spec: spec.
@@ -178,12 +132,12 @@ End Layer5_Spec.
 #[global] Hint Unfold __find_lock_next_level_spec_low_abs: spec.
 #[global] Hint Unfold find_lock_granule_spec_abs: spec.
 #[global] Hint Unfold atomic_add_64: spec.
-#[global] Hint Unfold s2tte_is_table_spec: spec.
 Opaque granule_unlock_spec.
 #[global] Hint Unfold s2_sl_addr_to_idx_spec: spec.
 #[global] Hint Unfold __find_lock_next_level_spec: spec.
 #[global] Hint Unfold pack_struct_return_code_spec: spec.
 #[global] Hint Unfold make_return_code_spec: spec.
 #[global] Hint Unfold atomic_granule_get_spec: spec.
+#[global] Hint Unfold atomic_granule_put_spec: spec.
 #[global] Hint Unfold find_lock_granule_spec: spec.
 #[global] Hint Unfold s2tte_create_unassigned_spec: spec.

@@ -81,8 +81,6 @@ Section Bottom_Layer.
           :: ("run_realm", prim run_realm_spec)
           :: ("s1addr_is_level_aligned", prim s1addr_is_level_aligned_spec)
           :: ("set_tte_ns", prim set_tte_ns_spec)
-          :: ("smc_granule_any_to_ns", prim smc_granule_any_to_ns_spec)
-          :: ("smc_granule_ns_to_any", prim smc_granule_ns_to_any_spec)
           :: ("spinlock_acquire", prim spinlock_acquire_spec)
           :: ("spinlock_release", prim spinlock_release_spec)
           :: ("validate_gic_state", prim validate_gic_state_spec)

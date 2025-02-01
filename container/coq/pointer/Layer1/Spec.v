@@ -16,18 +16,14 @@ Section Layer1_Spec.
     (Some ((mkPtr "granule_data" (v_1.(meta_granule_offset))), st)).
 
   Definition granule_addr_spec (v_0: Ptr) (st: RData) : (option (Z * RData)) :=
-    when v__0, st_0 == (
-        if (((ptr_to_int v_0) - ((ptr_to_int (mkPtr "granules" 0)))) >? (8388592))
-        then (Some (((((ptr_to_int v_0) - ((ptr_to_int (mkPtr "granules" 0)))) * (256)) + (549755813888)), st))
-        else (Some (((((ptr_to_int v_0) - ((ptr_to_int (mkPtr "granules" 0)))) * (256)) + (2147483648)), st)));
-    (Some (v__0, st_0)).
+    if (((ptr_to_int v_0) - ((ptr_to_int (mkPtr "granules" 0)))) >? (8388592))
+    then (Some (((((ptr_to_int v_0) - ((ptr_to_int (mkPtr "granules" 0)))) * (256)) + (549755813888)), st))
+    else (Some (((((ptr_to_int v_0) - ((ptr_to_int (mkPtr "granules" 0)))) * (256)) + (2147483648)), st)).
 
   Definition buffer_map_spec (v_0: Z) (v_1: Z) (v_2: bool) (st: RData) : (option (Ptr * RData)) :=
-    when v__0_in, st_0 == (
-        if ((v_1 & (549755813888)) =? (0))
-        then (Some ((v_1 + (18446744004990074880)), st))
-        else (Some ((v_1 + (18446743457381744640)), st)));
-    (Some ((int_to_ptr v__0_in), st_0)).
+    if ((v_1 & (549755813888)) =? (0))
+    then (Some ((int_to_ptr (v_1 + (18446744004990074880))), st))
+    else (Some ((int_to_ptr (v_1 + (18446743457381744640))), st)).
 
 End Layer1_Spec.
 

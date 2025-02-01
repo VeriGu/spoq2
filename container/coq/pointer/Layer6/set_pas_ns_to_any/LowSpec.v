@@ -12,7 +12,7 @@ Section Layer6_set_pas_ns_to_any_LowSpec.
   Context `{int_ptr: IntPtrCast}.
 
   Definition set_pas_ns_to_any_spec_low (v_0: Z) (st: RData) : (option RData) :=
-    when v_2, st_0 == ((monitor_call_state_oracle 3288334592 v_0 0 0 0 0 0 st));
+    when v_2, st_0 == ((monitor_call_spec 3288334592 v_0 0 0 0 0 0 st));
     (Some st_0).
 
 End Layer6_set_pas_ns_to_any_LowSpec.

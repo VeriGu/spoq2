@@ -11,11 +11,9 @@ Section Layer4_s2tte_create_ripas_LowSpec.
   Context `{int_ptr: IntPtrCast}.
 
   Definition s2tte_create_ripas_spec_low (v_0: Z) (st: RData) : (option (Z * RData)) :=
-    when v__0, st_0 == (
-        if (v_0 =? (0))
-        then (Some (0, st))
-        else (Some (64, st)));
-    (Some (v__0, st_0)).
+    if (v_0 =? (0))
+    then (Some (0, st))
+    else (Some (64, st)).
 
 End Layer4_s2tte_create_ripas_LowSpec.
 

@@ -69,8 +69,6 @@ Section Layer2_Layer.
           :: ("realm_ipa_size", prim realm_ipa_size_spec)
           :: ("s1addr_is_level_aligned", prim s1addr_is_level_aligned_spec)
           :: ("set_tte_ns", prim set_tte_ns_spec)
-          :: ("smc_granule_any_to_ns", prim smc_granule_any_to_ns_spec)
-          :: ("smc_granule_ns_to_any", prim smc_granule_ns_to_any_spec)
           :: ("spinlock_acquire", prim spinlock_acquire_spec)
           :: ("spinlock_release", prim spinlock_release_spec)
           :: ("write_ap0r", prim write_ap0r_spec)

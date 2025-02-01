@@ -3,6 +3,7 @@ Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import Layer2.Spec.
 Require Import Layer3.Spec.
+Require Import Layer4.Spec.
 Require Import Layer5.Spec.
 Require Import Layer6.Spec.
 
@@ -254,89 +255,106 @@ Section Layer7_Spec.
             (Some ((pack_struct_return_code_para (make_return_code_para 8)), st_8))))))
     else (Some ((pack_struct_return_code_para (make_return_code_para 1)), st')).
 
-  Definition smc_granule_ns_to_any_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
-    when st_1 == ((spinlock_acquire_spec (mkPtr "granules" ((test_PA v_1).(meta_granule_offset))) st));
-    if ((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_1).(meta_granule_offset)) / (16))).(e_state_s_granule)) =? (0))
+  Definition smc_granule_ns_to_any_spec_abs (v_0: Z) (v_1_abs: abs_PA_t) (st: RData) : (option (Z * RData)) :=
+    when st_1 == ((spinlock_acquire_spec (mkPtr "granules" (v_1_abs.(meta_granule_offset))) st));
+    if ((((((st_1.(share)).(globals)).(g_granules)) @ ((v_1_abs.(meta_granule_offset)) / (16))).(e_state_s_granule)) =? (0))
     then (
-      rely ((((((test_PA v_1).(meta_granule_offset)) mod (16)) = (0)) /\ ((((test_PA v_1).(meta_granule_offset)) >= (0)))));
+      rely (((((v_1_abs.(meta_granule_offset)) mod (16)) = (0)) /\ (((v_1_abs.(meta_granule_offset)) >= (0)))));
       when st_6 == (
           (granule_unlock_spec
-            (mkPtr "granules" ((test_PA v_1).(meta_granule_offset)))
+            (mkPtr "granules" (v_1_abs.(meta_granule_offset)))
             (st_1.[share].[globals].[g_granules] :<
               ((((st_1.(share)).(globals)).(g_granules)) #
-                (((test_PA v_1).(meta_granule_offset)) / (16)) ==
-                ((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_1).(meta_granule_offset)) / (16))).[e_ref] :<
-                  ((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_1).(meta_granule_offset)) / (16))).(e_ref)).[e_u_anon_3_0] :<
-                    ((g_mapped_addr_set_para ((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_1).(meta_granule_offset)) / (16))).(e_ref)).(e_u_anon_3_0)) v_0) + (1)))).[e_state_s_granule] :<
+                ((v_1_abs.(meta_granule_offset)) / (16)) ==
+                ((((((st_1.(share)).(globals)).(g_granules)) @ ((v_1_abs.(meta_granule_offset)) / (16))).[e_ref] :<
+                  ((((((st_1.(share)).(globals)).(g_granules)) @ ((v_1_abs.(meta_granule_offset)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                    ((g_mapped_addr_set_para ((((((st_1.(share)).(globals)).(g_granules)) @ ((v_1_abs.(meta_granule_offset)) / (16))).(e_ref)).(e_u_anon_3_0)) v_0) + (1)))).[e_state_s_granule] :<
                   6)))));
       (Some (0, st_6)))
     else (
-      when st_2 == ((spinlock_release_spec (mkPtr "granules" ((test_PA v_1).(meta_granule_offset))) st_1));
-      when st_3 == ((spinlock_acquire_spec (mkPtr "granules" ((test_PA v_1).(meta_granule_offset))) st_2));
-      if (((((((st_3.(share)).(globals)).(g_granules)) @ (((test_PA v_1).(meta_granule_offset)) / (16))).(e_state_s_granule)) - (6)) =? (0))
+      when st_2 == ((spinlock_release_spec (mkPtr "granules" (v_1_abs.(meta_granule_offset))) st_1));
+      when st_3 == ((spinlock_acquire_spec (mkPtr "granules" (v_1_abs.(meta_granule_offset))) st_2));
+      if (((((((st_3.(share)).(globals)).(g_granules)) @ ((v_1_abs.(meta_granule_offset)) / (16))).(e_state_s_granule)) - (6)) =? (0))
       then (
-        rely ((((((test_PA v_1).(meta_granule_offset)) mod (16)) = (0)) /\ ((((test_PA v_1).(meta_granule_offset)) >= (0)))));
-        rely ((((((test_PA v_1).(meta_granule_offset)) + (8)) mod (16)) = (8)));
+        rely (((((v_1_abs.(meta_granule_offset)) mod (16)) = (0)) /\ (((v_1_abs.(meta_granule_offset)) >= (0)))));
+        rely (((((v_1_abs.(meta_granule_offset)) + (8)) mod (16)) = (8)));
         when st_4 == (
             (granule_unlock_spec
-              (mkPtr "granules" ((test_PA v_1).(meta_granule_offset)))
+              (mkPtr "granules" (v_1_abs.(meta_granule_offset)))
               (st_3.[share].[globals].[g_granules] :<
                 ((((st_3.(share)).(globals)).(g_granules)) #
-                  (((test_PA v_1).(meta_granule_offset)) / (16)) ==
-                  (((((st_3.(share)).(globals)).(g_granules)) @ (((test_PA v_1).(meta_granule_offset)) / (16))).[e_ref] :<
-                    ((((((st_3.(share)).(globals)).(g_granules)) @ (((test_PA v_1).(meta_granule_offset)) / (16))).(e_ref)).[e_u_anon_3_0] :<
-                      (((((((st_3.(share)).(globals)).(g_granules)) @ (((test_PA v_1).(meta_granule_offset)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))))));
+                  ((v_1_abs.(meta_granule_offset)) / (16)) ==
+                  (((((st_3.(share)).(globals)).(g_granules)) @ ((v_1_abs.(meta_granule_offset)) / (16))).[e_ref] :<
+                    ((((((st_3.(share)).(globals)).(g_granules)) @ ((v_1_abs.(meta_granule_offset)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                      (((((((st_3.(share)).(globals)).(g_granules)) @ ((v_1_abs.(meta_granule_offset)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))))));
         (Some (0, st_4)))
       else (
-        when st_4 == ((spinlock_release_spec (mkPtr "granules" ((test_PA v_1).(meta_granule_offset))) st_3));
+        when st_4 == ((spinlock_release_spec (mkPtr "granules" (v_1_abs.(meta_granule_offset))) st_3));
         (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_4)))).
 
-  Definition smc_granule_any_to_ns_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
-    when st_1 == ((spinlock_acquire_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st));
-    if (((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (16))).(e_state_s_granule)) - (6)) =? (0))
+  Definition smc_granule_any_to_ns_spec_abs (v_0_abs: abs_PA_t) (st: RData) : (option (Z * RData)) :=
+    when st_1 == ((spinlock_acquire_spec (mkPtr "granules" (v_0_abs.(meta_granule_offset))) st));
+    if (((((((st_1.(share)).(globals)).(g_granules)) @ ((v_0_abs.(meta_granule_offset)) / (16))).(e_state_s_granule)) - (6)) =? (0))
     then (
-      rely ((((((test_PA v_0).(meta_granule_offset)) mod (16)) = (0)) /\ ((((test_PA v_0).(meta_granule_offset)) >= (0)))));
+      rely (((((v_0_abs.(meta_granule_offset)) mod (16)) = (0)) /\ (((v_0_abs.(meta_granule_offset)) >= (0)))));
       if (
         ((g_refcount_para
-          (mkPtr "granules" ((test_PA v_0).(meta_granule_offset)))
+          (mkPtr "granules" (v_0_abs.(meta_granule_offset)))
           (st_1.[share].[globals].[g_granules] :<
             ((((st_1.(share)).(globals)).(g_granules)) #
-              (((test_PA v_0).(meta_granule_offset)) / (16)) ==
-              (((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (16))).[e_ref] :<
-                ((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (16))).(e_ref)).[e_u_anon_3_0] :<
-                  (((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (16))).(e_ref)).(e_u_anon_3_0)) + ((- 1)))))))) =?
+              ((v_0_abs.(meta_granule_offset)) / (16)) ==
+              (((((st_1.(share)).(globals)).(g_granules)) @ ((v_0_abs.(meta_granule_offset)) / (16))).[e_ref] :<
+                ((((((st_1.(share)).(globals)).(g_granules)) @ ((v_0_abs.(meta_granule_offset)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                  (((((((st_1.(share)).(globals)).(g_granules)) @ ((v_0_abs.(meta_granule_offset)) / (16))).(e_ref)).(e_u_anon_3_0)) + ((- 1)))))))) =?
           (0)))
       then (
         when st_7 == (
             (granule_unlock_spec
-              (mkPtr "granules" ((test_PA v_0).(meta_granule_offset)))
+              (mkPtr "granules" (v_0_abs.(meta_granule_offset)))
               (st_1.[share].[globals].[g_granules] :<
                 ((((st_1.(share)).(globals)).(g_granules)) #
-                  (((test_PA v_0).(meta_granule_offset)) / (16)) ==
-                  ((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (16))).[e_ref] :<
-                    ((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (16))).(e_ref)).[e_u_anon_3_0] :<
-                      (g_mapped_addr_set_para (((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (16))).(e_ref)).(e_u_anon_3_0)) + ((- 1))) 0))).[e_state_s_granule] :<
+                  ((v_0_abs.(meta_granule_offset)) / (16)) ==
+                  ((((((st_1.(share)).(globals)).(g_granules)) @ ((v_0_abs.(meta_granule_offset)) / (16))).[e_ref] :<
+                    ((((((st_1.(share)).(globals)).(g_granules)) @ ((v_0_abs.(meta_granule_offset)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                      (g_mapped_addr_set_para (((((((st_1.(share)).(globals)).(g_granules)) @ ((v_0_abs.(meta_granule_offset)) / (16))).(e_ref)).(e_u_anon_3_0)) + ((- 1))) 0))).[e_state_s_granule] :<
                     0)))));
         (Some (0, st_7)))
       else (
         when st_5 == (
             (granule_unlock_spec
-              (mkPtr "granules" ((test_PA v_0).(meta_granule_offset)))
+              (mkPtr "granules" (v_0_abs.(meta_granule_offset)))
               (st_1.[share].[globals].[g_granules] :<
                 ((((st_1.(share)).(globals)).(g_granules)) #
-                  (((test_PA v_0).(meta_granule_offset)) / (16)) ==
-                  (((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (16))).[e_ref] :<
-                    ((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (16))).(e_ref)).[e_u_anon_3_0] :<
-                      (g_mapped_addr_set_para (((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (16))).(e_ref)).(e_u_anon_3_0)) + ((- 1))) 0)))))));
+                  ((v_0_abs.(meta_granule_offset)) / (16)) ==
+                  (((((st_1.(share)).(globals)).(g_granules)) @ ((v_0_abs.(meta_granule_offset)) / (16))).[e_ref] :<
+                    ((((((st_1.(share)).(globals)).(g_granules)) @ ((v_0_abs.(meta_granule_offset)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                      (g_mapped_addr_set_para (((((((st_1.(share)).(globals)).(g_granules)) @ ((v_0_abs.(meta_granule_offset)) / (16))).(e_ref)).(e_u_anon_3_0)) + ((- 1))) 0)))))));
         (Some (0, st_5))))
     else (
-      when st_2 == ((spinlock_release_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_1));
+      when st_2 == ((spinlock_release_spec (mkPtr "granules" (v_0_abs.(meta_granule_offset))) st_1));
       (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_2))).
+
+  Definition s1tte_is_valid_spec (v_0: Z) (v_1: Z) (st: RData) : (option (bool * RData)) :=
+    if ((v_1 =? (3)) && (((v_0 & (3)) =? (3))))
+    then (Some (true, st))
+    else (
+      if ((v_1 <>? (3)) && (((v_0 & (3)) =? (1))))
+      then (Some (true, st))
+      else (Some (false, st))).
+
+  Definition smc_granule_ns_to_any_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
+    None.
+
+  Definition smc_granule_any_to_ns_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
+    None.
 
 End Layer7_Spec.
 
 #[global] Hint Unfold s1tte_is_valid_spec_abs: spec.
 #[global] Hint Unfold s2tte_create_table_spec_abs: spec.
 #[global] Hint Unfold rtt_create_internal_spec_abs: spec.
+#[global] Hint Unfold smc_granule_ns_to_any_spec_abs: spec.
+#[global] Hint Unfold smc_granule_any_to_ns_spec_abs: spec.
+#[global] Hint Unfold s1tte_is_valid_spec: spec.
 #[global] Hint Unfold smc_granule_ns_to_any_spec: spec.
 #[global] Hint Unfold smc_granule_any_to_ns_spec: spec.

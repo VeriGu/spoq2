@@ -72,8 +72,6 @@ Section Layer3_Layer.
           :: ("realm_ipa_size", prim realm_ipa_size_spec)
           :: ("s1addr_is_level_aligned", prim s1addr_is_level_aligned_spec)
           :: ("set_tte_ns", prim set_tte_ns_spec)
-          :: ("smc_granule_any_to_ns", prim smc_granule_any_to_ns_spec)
-          :: ("smc_granule_ns_to_any", prim smc_granule_ns_to_any_spec)
           :: ("spinlock_release", prim spinlock_release_spec)
           :: ("table_entry_to_phys", prim table_entry_to_phys_spec)
           :: ("write_ap0r", prim write_ap0r_spec)

@@ -3,7 +3,6 @@ Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import Layer5.Layer.
-Require Import Layer5.Spec.
 Require Import Layer6.__granule_put.LowSpec.
 Require Import Zwf.
 
@@ -15,7 +14,6 @@ Section Layer6___granule_put_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
-  Local Opaque atomic_granule_put_spec.
     Lemma f___granule_put_correct:
       forall v_0 st st'
              (Hspec: __granule_put_spec_low v_0 st = Some st'),

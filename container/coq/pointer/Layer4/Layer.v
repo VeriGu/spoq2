@@ -73,8 +73,6 @@ Section Layer4_Layer.
           :: ("s2_addr_to_idx", prim s2_addr_to_idx_spec)
           :: ("s2tte_create_ripas", prim s2tte_create_ripas_spec)
           :: ("set_tte_ns", prim set_tte_ns_spec)
-          :: ("smc_granule_any_to_ns", prim smc_granule_any_to_ns_spec)
-          :: ("smc_granule_ns_to_any", prim smc_granule_ns_to_any_spec)
           :: ("spinlock_release", prim spinlock_release_spec)
           :: ("write_ap0r", prim write_ap0r_spec)
           :: ("write_ap1r", prim write_ap1r_spec)

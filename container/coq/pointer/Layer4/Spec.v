@@ -31,15 +31,17 @@ Section Layer4_Spec.
     None.
 
   Definition granule_lock_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option RData) :=
-    when v_3, st_0 == ((granule_try_lock_spec v_0 v_1 st));
-    (Some st_0).
+    when st_1 == ((spinlock_acquire_spec (mkPtr (v_0.(pbase)) (v_0.(poffset))) st));
+    if (((((((st_1.(share)).(globals)).(g_granules)) @ ((v_0.(poffset)) / (16))).(e_state_s_granule)) - (v_1)) =? (0))
+    then (Some st_1)
+    else (
+      when st_2 == ((spinlock_release_spec (mkPtr (v_0.(pbase)) (v_0.(poffset))) st_1));
+      (Some st_2)).
 
   Definition s2tte_create_ripas_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
-    when v__0, st_0 == (
-        if (v_0 =? (0))
-        then (Some (0, st))
-        else (Some (64, st)));
-    (Some (v__0, st_0)).
+    if (v_0 =? (0))
+    then (Some (0, st))
+    else (Some (64, st)).
 
 End Layer4_Spec.
 
