@@ -102,7 +102,7 @@ public:
     unordered_map<string, std::set<field_t>> inv_fields;
     std::set<string> lemmas;
     unordered_map<string, std::set<Definition *>> inv_lemmas;
-    std::set<string> verified_specs;
+    unordered_map<string, bool> verified_specs;
     
     class cmds {
     public:

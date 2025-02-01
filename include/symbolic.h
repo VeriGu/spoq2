@@ -11,7 +11,7 @@
 #include <z3_rules.h>
 
 namespace autov {
-    #define Z3_VERIFY_TIMEOUT 2000
+    #define Z3_VERIFY_TIMEOUT 500
     // State field is composed of a list of accessed fields
     // leaf field: field_t[n-1] 
     typedef std::vector<std::string> field_t;

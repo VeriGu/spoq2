@@ -2,9 +2,10 @@ Definition PROJ_NAME: string := "working".
 Definition PROJ_BASE: string := "coq/working".
 
 Parameter CPU_ID: Z.
-Hint OnlyTrans rsi_rtt_destroy.
-(* Hint NoHighSpec true. *)
-(* Hint OnlyTrans vmid_free. *)
+Hint OnlyTrans smc_granule_delegate.
+(* Hint OnlyTrans __find_lock_next_level. *)
+(* Hint OnlyTrans test. *)
+Hint NoHighSpec true.
   (* PHYSICAL MEMORY under N1SDP                 *)
   (* ┌─────────┐                                 *)
   (* │         │                                 *)
@@ -2126,6 +2127,7 @@ Definition query_oracle (st: RData) : option RData :=
   when sh == st.(repl) lo (st.(share));
   Some ((st.[log] :< lo ++ st.(log)).[share] :< sh).
 (* FIX: add general load/store function of "granule_data" *)
+Hint NoUnfold query_oracle.
 
 Definition load_r_granule_data (ofs: Z) (st: r_granule_data) : option Z :=
   if (st.(g_granule_state) =? GRANULE_STATE_DATA) then (
@@ -3223,6 +3225,7 @@ Section Bottom.
     Some (v_dst, st).
   
   Parameter zero_granule_data: ZMap.t Z.
+  Parameter non_zero_granule_data: ZMap.t Z.
 
   Definition memset_spec (v_s: Ptr) (c: Z) (n: Z) (st: RData) : option (Ptr * RData) :=
     Some (v_s, st).
@@ -3466,6 +3469,7 @@ Section Layer4.
     "find_granule" ::
     "granule_lock" ::
     "s2tte_create_ripas" ::
+    "test" ::
     nil.
 
   (* todo: move them to other places *)
@@ -3476,16 +3480,52 @@ Section Layer4.
 
   Definition cpuid_spec (st: RData) : option (Z * RData) := Some (CPU_ID, st). (* TODO: CPUID *)
 
-  Definition find_granule_spec (v_0: Z) (st: RData) : (option (Ptr * RData)) :=
+  Definition find_granule_spec_low (v_0: Z) (st: RData) : (option (Ptr * RData)) :=
+    when st_1 == query_oracle st;
     if (v_0 >=? (MEM1_PHYS))
     then (
       let mem1_id := ((v_0 + (-MEM1_PHYS)) >> (12) + (524288)) in
       Some ((mkPtr "granules" (mem1_id * 16)), st)
     ) else (
       let mem0_id := ((v_0 + (-MEM0_PHYS)) >> (12)) in
-      Some ((mkPtr "granules" (mem0_id * 16)), st)
+      Some ((mkPtr "granules" (mem0_id * 16)), st_1)
     ).
   
+    (* spec for test *)
+  (* Definition find_granule_spec_low  (lock: Ptr) (st: RData) : option RData := 
+    if (lock.(pbase) =s "granules") then
+      let ofs := lock.(poffset) in
+      let gidx_l := ofs / 16 in
+      when vdd, st0 == query_oracle_v st;
+      when st1 == (query_oracle (st0.[share].[granule_data] :< 
+                                  (st0.(share).(granule_data) # vdd == 
+                                    ((st0.(share).(granule_data) @ vdd).[g_norm] :< zero_granule_data))));
+      let st2 := (st1.[share].[granule_data] :< 
+                      (st1.(share).(granule_data) # vdd == 
+                        ((st1.(share).(granule_data) @ vdd).[g_norm] :< zero_granule_data))) in
+      let g := (st2.(share).(globals).(g_granules) @ gidx_l) in
+      match g.(e_lock).(e_val) with
+      | None =>
+        let e := EVT CPU_ID (ACQ gidx_l) in
+        let new_granules := st2.(share).(globals).(g_granules) # gidx_l == (g.[e_lock].[e_val] :< (Some CPU_ID)) in
+        let new_st := st2.[share].[globals].[g_granules] :< new_granules in
+        rely ((st.(share).(globals).(g_granules) @ gidx_l).(e_state_s_granule) = g.(e_state_s_granule));
+        Some ((new_st.[log] :< (e :: new_st.(log))).[share].[granule_data] :< 
+                (new_st.(share).(granule_data) # vdd == 
+                  (((new_st.(share).(granule_data) @ vdd).[g_granule_state] :< GRANULE_STATE_DELEGATED))))
+      | Some cid => None
+      end
+    else if (lock.(pbase) =s "vmid_lock") then 
+      when st1 == query_oracle st;
+      match load_s_spinlock_t 8 lock.(poffset) st.(share).(globals).(g_vmid_lock) with 
+      | None => 
+        let e := EVT CPU_ID (ACQ vmid_lock_idx) in
+        let new_st := st1.[share].[globals].[g_vmid_lock].[e_val] :< (Some CPU_ID) in
+        Some (new_st.[log] :< (e :: new_st.(log)))
+      | Some cid => None
+      end
+    else None. *)
+
   Hint PostEnsure find_granule (ret_0.(pbase) = "granules" \/ ret_0.(pbase) = "null").
   Hint InitRely find_granule (((v_0 >= MEM0_PHYS /\ v_0 < MEM0_PHYS + MEM0_SIZE) \/ (v_0 >= MEM1_PHYS /\ v_0 < MEM1_PHYS + MEM1_SIZE)) /\ (v_0 & 4095 = 0)). 
   (* Hint Unfold find_granule_spec'. *)
@@ -5098,7 +5138,7 @@ Section Layer7.
     (* when st_10 == ((store_RData 8 (ptr_offset (mkPtr "stack_type_6" 0) 72) (ptr_to_int v_5) st_9)); *)
     when v_19, st_11 == ((find_lock_granules_spec (ptr_offset (mkPtr "stack_type_6" 0) 0) 2 st_9));
     when st_12 == ((free_stack "find_lock_two_granules" st_0 st_11));
-    (Some (v_19, st_12)).
+    (Some (v_19, st_12))
   (* Definition find_lock_two_granules_spec_low (v_0: Z) (v_1: Z) (v_2: Ptr) (v_3: Z) (v_4: Z) (v_5: Ptr) (st: RData) : (option (Z * RData)) :=
     when st_0 == ((new_frame "find_lock_two_granules" st));
     when st_1 == ((store_RData 4 (ptr_offset (mkPtr "stack_type_6" 0) 0) 0 st_0));
@@ -5937,6 +5977,208 @@ Section Layer9.
     "validate_map_addr" ::
     "rmm_feature_register_0_value" ::
     nil.
+
+  Definition smc_granule_delegate_spec_low (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
+    rely (
+      (((((v_0 - (MEM0_PHYS)) >= (0)) /\ (((v_0 - (4294967296)) < (0)))) \/ ((((v_0 - (MEM1_PHYS)) >= (0)) /\ (((v_0 - (556198264832)) < (0)))))) /\
+        (((v_0 & (4095)) = (0)))));
+    when st_1 == ((query_oracle st));
+    when st1 == ((query_oracle st_1));
+    match (((((((st1.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val))) with
+    | None =>
+      rely (
+        (((((((st_1.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) -
+          ((((((st1.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)))) =
+          (0)));
+      if ((((((st1.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) =? (0))
+      then (
+        when v_3, st_2 == (
+          (monitor_call_state_oracle
+            3288334592
+            v_0
+            0
+            0
+            0
+            0
+            0
+            (st1.[share].[globals].[g_granules] :<
+              ((((st1.(share)).(globals)).(g_granules)) #
+                ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
+                ((((((st1.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)).[e_state_s_granule] :< 1)))));
+        if ((v_0 & (549755813888)) =? (0))
+        then (
+          when v_8, st_3 == ((get_tte_spec (v_0 + (18446744004990074880)) st1));
+          when st2 == Some (st1.[share].[granule_data] :< ((st1.(share).(granule_data)) # ((v_8.(poffset)) / (4096)) == ((st1.(share).(granule_data) @ ((v_8.(poffset)) / (4096))).[g_granule_state] :< 1)));
+          rely ((st2.(share).(granule_data) @ (v_8.(poffset) / 4096)).(g_granule_state) = 0);
+          when v_9, st_4 == ((__tte_read_spec v_8 st_3));
+          rely ((((v_8.(pbase)) = ("granule_data")) /\ (((v_8.(poffset)) >= (0)))));
+          if (v_3 =? (0))
+          then (
+            when st_6 == Some (st2.[share].[granule_data] :<
+                    (((st2.(share)).(granule_data)) #
+                      ((v_8.(poffset)) / (4096)) ==
+                      (((((st2.(share)).(granule_data)) @ ((v_8.(poffset)) / (4096))).[g_norm] :< zero_granule_data))));
+            (Some (
+              0  ,
+              (st_6.[share].[globals].[g_granules] :<
+                ((((st_6.(share)).(globals)).(g_granules)) #
+                  ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
+                  (((((st_6.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None)))
+            )))
+          else (
+            (Some (
+              4294967553  ,
+              ((st2.[share].[globals].[g_granules] :<
+                ((((st2.(share)).(globals)).(g_granules)) #
+                  ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
+                  (((((st2.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None))).[share].[granule_data] :<
+                (((st2.(share)).(granule_data)) #
+                  ((v_8.(poffset)) / (4096)) ==
+                  ((((st2.(share)).(granule_data)) @ ((v_8.(poffset)) / (4096))).[g_norm] :<
+                    (((((st2.(share)).(granule_data)) @ ((v_8.(poffset)) / (4096))).(g_norm)) # ((v_8.(poffset)) mod (4096)) == (v_9 & ((- 33)))))))
+            ))))
+        else (
+          when v_8, st_3 == ((get_tte_spec (v_0 + (18446743457381744640)) st1));
+          when st2 == Some (st1.[share].[granule_data] :< ((st1.(share).(granule_data)) # ((v_8.(poffset)) / (4096)) == ((st1.(share).(granule_data) @ ((v_8.(poffset)) / (4096))).[g_granule_state] :< 1)));
+          rely ((st2.(share).(granule_data) @ (v_8.(poffset) / 4096)).(g_granule_state) = 0);
+          when v_9, st_4 == ((__tte_read_spec v_8 st_3));
+          rely ((((st_4.(share)).(granule_data)) = (((st_3.(share)).(granule_data)))));
+          rely ((((v_8.(pbase)) = ("granule_data")) /\ (((v_8.(poffset)) >= (0)))));
+          if (v_3 =? (0))
+          then (
+            when st_6 == Some (st2.[share].[granule_data] :<
+                    (((st2.(share)).(granule_data)) #
+                      ((v_8.(poffset)) / (4096)) ==
+                      (((((st2.(share)).(granule_data)) @ ((v_8.(poffset)) / (4096))).[g_norm] :< zero_granule_data))));
+            (Some (
+              0  ,
+              (st_6.[share].[globals].[g_granules] :<
+                ((((st_6.(share)).(globals)).(g_granules)) #
+                  ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
+                  (((((st_6.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None)))
+            )))
+          else (
+            (Some (
+              4294967553  ,
+              ((st2.[share].[globals].[g_granules] :<
+                ((((st2.(share)).(globals)).(g_granules)) #
+                  ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
+                  (((((st2.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None))).[share].[granule_data] :<
+                (((st2.(share)).(granule_data)) #
+                  ((v_8.(poffset)) / (4096)) ==
+                  ((((st2.(share)).(granule_data)) @ ((v_8.(poffset)) / (4096))).[g_norm] :<
+                    (((((st2.(share)).(granule_data)) @ ((v_8.(poffset)) / (4096))).(g_norm)) # ((v_8.(poffset)) mod (4096)) == (v_9 & ((- 33)))))))
+            )))))
+      else (
+        (Some (
+          4294967553  ,
+          (st1.[share].[globals].[g_granules] :<
+            ((((st1.(share)).(globals)).(g_granules)) #
+              ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
+              (((((st1.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None)))
+        )))
+    | (Some cid) => None
+    end.
+
+  Definition smc_granule_undelegate_spec_low (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
+    rely (
+      (((((v_0 - (MEM0_PHYS)) >= (0)) /\ (((v_0 - (4294967296)) < (0)))) \/ ((((v_0 - (MEM1_PHYS)) >= (0)) /\ (((v_0 - (556198264832)) < (0)))))) /\
+        (((v_0 & (4095)) = (0)))));
+    if ((v_0 - (MEM1_PHYS)) >=? (0))
+    then (
+      when sh == (((st.(repl)) ((st.(oracle)) (st.(log))) (st.(share))));
+      match (((((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_lock)).(e_val))) with
+      | None =>
+        if (((((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)) - (1)) =? (0))
+        then (
+          when v_3, st_1 == (
+              (monitor_call_state_oracle
+                3288334593
+                v_0
+                0
+                0
+                0
+                0
+                0
+                (st.[share].[globals].[g_granules] :<
+                  ((((st.(share)).(globals)).(g_granules)) #
+                    ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)) ==
+                    (((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< (Some CPU_ID))))));
+          if ((v_0 & (549755813888)) =? (0))
+          then (
+            when v_8, st_2 == (
+                (get_tte_spec
+                  (v_0 + (18446744004990074880))
+                  (st_1.[share].[globals].[g_granules] :<
+                    ((((st_1.(share)).(globals)).(g_granules)) #
+                      ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)) ==
+                      (((((st_1.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_state_s_granule] :< 0)))));
+            when v_9, st_3 == ((__tte_read_spec v_8 st_2));
+            rely ((((st.(share)).(granule_data)) = (((st_2.(share)).(granule_data)))));
+            rely ((((v_8.(pbase)) = ("granule_data")) /\ (((v_8.(poffset)) >= (0)))));
+            when cid == (((((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_lock)).(e_val)));
+            (Some (
+              0  ,
+              ((st.[share].[globals].[g_granules] :<
+                ((((st.(share)).(globals)).(g_granules)) #
+                  ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)) ==
+                  (((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< None))).[share].[granule_data] :<
+                (((st.(share)).(granule_data)) #
+                  ((v_8.(poffset)) / (4096)) ==
+                  (((((st.(share)).(granule_data)) @ ((v_8.(poffset)) / (4096))).[g_norm] :<
+                    (((((st.(share)).(granule_data)) @ ((v_8.(poffset)) / (4096))).(g_norm)) # ((v_8.(poffset)) mod (4096)) == (v_9 |' (32)))).[g_granule_state] :< 0)
+                    ))
+            )))
+          else (
+            when v_8, st_2 == (
+                (get_tte_spec
+                  (v_0 + (18446743457381744640))
+                  (st_1.[share].[globals].[g_granules] :<
+                    ((((st_1.(share)).(globals)).(g_granules)) #
+                      ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)) ==
+                      (((((st_1.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_state_s_granule] :< 0)))));
+            when v_9, st_3 == ((__tte_read_spec v_8 st_2));
+            rely ((((st.(share)).(granule_data)) = (((st_2.(share)).(granule_data)))));
+            rely ((((v_8.(pbase)) = ("granule_data")) /\ (((v_8.(poffset)) >= (0)))));
+            when cid == (((((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_lock)).(e_val)));
+            (Some (
+              0  ,
+              ((st.[share].[globals].[g_granules] :<
+                ((((st.(share)).(globals)).(g_granules)) #
+                  ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)) ==
+                  (((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< None))).[share].[granule_data] :<
+                (((st.(share)).(granule_data)) #
+                  ((v_8.(poffset)) / (4096)) ==
+                  (((((st.(share)).(granule_data)) @ ((v_8.(poffset)) / (4096))).[g_norm] :<
+                    (((((st.(share)).(granule_data)) @ ((v_8.(poffset)) / (4096))).(g_norm)) # ((v_8.(poffset)) mod (4096)) == (v_9 |' (32)))).[g_granule_state] :< 0)
+                    ))
+            ))))
+        else (
+          (Some (
+            4294967553  ,
+            (st.[share].[globals].[g_granules] :<
+              ((((st.(share)).(globals)).(g_granules)) #
+                ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)) ==
+                (((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< None)))
+          )))
+      | (Some cid) => None
+      end)
+    else (
+      when sh == (((st.(repl)) ((st.(oracle)) (st.(log))) (st.(share))));
+      match (((((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val))) with
+      | None =>
+        if (((((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) - (1)) =? (0))
+        then None
+        else (
+          (Some (
+            4294967553  ,
+            (st.[share].[globals].[g_granules] :<
+              ((((st.(share)).(globals)).(g_granules)) #
+                ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
+                (((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None)))
+          )))
+      | (Some cid) => None
+      end).
 
   Hint InitRely rsi_data_write (v_0.(pbase) = "stack_s_smc_result" /\ v_0.(poffset) = 0).
   Hint InitRely rsi_data_read (v_0.(pbase) = "stack_s_smc_result__1" /\ v_0.(poffset) = 0).
@@ -7479,8 +7721,167 @@ Definition rsi_rtt_create_spec_low (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Z) (st: RDat
         when st_4 == ((granule_unlock_spec v_12 st_3));
         when st_6 == ((free_stack "smc_rtt_create" st_0 st_4));
         (Some (((v_19 << (32)) >> (32)), st_6)))).
-
-  Definition rsi_rtt_destroy_spec_low (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Z) (st: RData) : (option (Z * RData)) :=
+(* 
+  Definition rsi_rtt_destroy_gpt_spec (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Z) (st: RData) : (option (Z * RData)) :=
+    rely (
+      (((((v_1 - (MEM0_PHYS)) >= (0)) /\ (((v_1 - (4294967296)) < (0)))) \/ ((((v_1 - (MEM1_PHYS)) >= (0)) /\ (((v_1 - (556198264832)) < (0)))))) /\
+        (((v_1 & (4095)) = (0)))));
+    if ((v_1 - (MEM1_PHYS)) >=? (0))
+    then (
+      match (((((((st.(share)).(globals)).(g_granules)) @ ((((v_1 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_lock)).(e_val))) with
+      | None =>
+        if (((((((st.(share)).(globals)).(g_granules)) @ ((((v_1 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)) - (5)) =? (0))
+        then (
+          when st_2 == Some(lens 4 st);
+          rely ((((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)));
+          rely ((((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (MEM0_VIRT)) < (0)));
+          if (((((st_2.(stack)).(stack_s_rtt_walk)).(e_last_level)) - ((v_3 + ((- 1))))) =? (0))
+          then (
+            rely (((((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)) /\ ((((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (155165824)) < (0)))));
+            rely (
+              ((((("granules" = ("granules")) /\ ((((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) mod (16)) = (0)))) /\
+                ((((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+                ((6 >= (0)))) /\
+                ((6 <= (24)))));
+            when ret == ((granule_addr_spec' (mkPtr "granules" ((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)))));
+            (* when ret_0 == ((buffer_map_spec' 6 ret false)); *)
+            (* rely ((((ret_0.(pbase)) = ("granule_data")) /\ (((ret_0.(poffset)) >= (0))))); *)
+            rely ((((((st_2.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)) < (512)) /\ (((((st_2.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)) >= (0)))));
+            when v_19, st_7 == Some(abs_tte, st_2);
+            (* ((__tte_read_spec (mkPtr (ret_0.(pbase)) ((ret_0.(poffset)) + ((8 * ((((st_2.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk))))))) st_2)); *)
+            if (((v_3 + ((- 1))) <? (3)) && (((v_19 & (3)) =? (3))))
+            then (
+              when ret_1 == ((s2tte_pa_spec' v_19 (v_3 + ((- 1)))));
+              if ((ret_1 - (v_0)) =? (0))
+              then (
+                rely (
+                  (((((v_0 - (MEM0_PHYS)) >= (0)) /\ (((v_0 - (4294967296)) < (0)))) \/ ((((v_0 - (MEM1_PHYS)) >= (0)) /\ (((v_0 - (556198264832)) < (0)))))) /\
+                    (((v_0 & (4095)) = (0)))));
+                if ((v_0 - (MEM1_PHYS)) >=? (0))
+                then (
+                  match (((((((st_7.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_lock)).(e_val))) with
+                  | None =>
+                    rely (((((((((st_7.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)) - (5)) =? (0)) = (true)));
+                    rely (((0 = (0)) /\ (((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) >= (0)))));
+                    if (((((((((lens 4 st_7).(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_ref)).(e_u_anon_3_0)) & (4095)) =? (0))
+                    then (
+                      (* when ret_2 == ((granule_addr_spec' (mkPtr "granules" (((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16))))); *)
+                      (* when ret_3 == ((buffer_map_spec' 7 ret_2 false)); *)
+                      (* rely ((((ret_3.(pbase)) = ("granule_data")) /\ (((ret_3.(poffset)) >= (0))))); *)
+                      (* when ret_4 == ((s2tte_create_ripas_spec' 1)); *)
+                      (Some (0, (lens 207 st_7))))
+                    else (Some (4, (lens 209 st_7)))
+                  | (Some cid) => None
+                  end)
+                else (
+                  match (((((((st_7.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val))) with
+                  | None =>
+                    rely (((((((((st_7.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) - (5)) =? (0)) = (true)));
+                    if (((((((((lens 4 st_7).(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_ref)).(e_u_anon_3_0)) & (4095)) =? (0))
+                    then (
+                      (* when ret_2 == ((granule_addr_spec' (mkPtr "granules" (((v_0 + ((- MEM0_PHYS))) >> (12)) * (16))))); *)
+                      (* when ret_3 == ((buffer_map_spec' 7 ret_2 false)); *)
+                      (* rely ((((ret_3.(pbase)) = ("granule_data")) /\ (((ret_3.(poffset)) >= (0))))); *)
+                      (* when ret_4 == ((s2tte_create_ripas_spec' 1)); *)
+                      (Some (0, (lens 215 st_7))))
+                    else (Some (4, (lens 217 st_7)))
+                  | (Some cid) => None
+                  end))
+              else (
+                (* when cid == (((((((st_7.(share)).(globals)).(g_granules)) @ (((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val))); *)
+                (Some (4294967553, (lens 17 st_7)))))
+            else (
+              (* when cid == (((((((st_7.(share)).(globals)).(g_granules)) @ (((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val))); *)
+              (Some (((((((v_3 + ((- 1))) << (32)) + (8)) >> (24)) & (4294967040)) |' ((((v_3 + ((- 1))) << (32)) + (8)))), (lens 17 st_7)))))
+          else (
+            (* when cid == (((((((st_2.(share)).(globals)).(g_granules)) @ (((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val))); *)
+            (Some (
+              ((((((((st_2.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8)) >> (24)) & (4294967040)) |'
+                ((((((st_2.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8))))  ,
+              (lens 17 st_2)
+            ))))
+        else (Some (8589935105, (lens 11 st)))
+      | (Some cid) => None
+      end)
+    else (
+      match (((((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val))) with
+      | None =>
+        if (((((((st.(share)).(globals)).(g_granules)) @ ((v_1 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) - (5)) =? (0))
+        then (
+          (* when st_2 == ((rtt_walk_lock_unlock_spec (mkPtr "stack_s_rtt_walk" 0) (mkPtr "granules" (((v_1 + ((- MEM0_PHYS))) >> (12)) * (16))) 0 64 v_2 (v_3 + ((- 1))) (lens 4 st))); *)
+          (* rely ((((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0))); *)
+          (* rely ((((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (MEM0_VIRT)) < (0))); *)
+          when st_2 == Some(lens 4 st);
+          if (((((st_2.(stack)).(stack_s_rtt_walk)).(e_last_level)) - ((v_3 + ((- 1))))) =? (0))
+          then (
+            rely (((((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)) /\ ((((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (155165824)) < (0)))));
+            rely (
+              ((((("granules" = ("granules")) /\ ((((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) mod (16)) = (0)))) /\
+                ((((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
+                ((6 >= (0)))) /\
+                ((6 <= (24)))));
+            (* when ret == ((granule_addr_spec' (mkPtr "granules" ((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE))))); *)
+            (* when ret_0 == ((buffer_map_spec' 6 ret false)); *)
+            (* rely ((((ret_0.(pbase)) = ("granule_data")) /\ (((ret_0.(poffset)) >= (0))))); *)
+            (* rely ((((((st_2.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)) < (512)) /\ (((((st_2.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk)) >= (0))))); *)
+            (* when v_19, st_7 == ((__tte_read_spec (mkPtr (ret_0.(pbase)) ((ret_0.(poffset)) + ((8 * ((((st_2.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk))))))) st_2)); *)
+            when v_19, st_7 == Some(abs_tte, st_2);
+            if (((v_3 + ((- 1))) <? (3)) && (((v_19 & (3)) =? (3))))
+            then (
+              when ret_1 == ((s2tte_pa_spec' v_19 (v_3 + ((- 1)))));
+              if ((ret_1 - (v_0)) =? (0))
+              then (
+                rely (
+                  (((((v_0 - (MEM0_PHYS)) >= (0)) /\ (((v_0 - (4294967296)) < (0)))) \/ ((((v_0 - (MEM1_PHYS)) >= (0)) /\ (((v_0 - (556198264832)) < (0)))))) /\
+                    (((v_0 & (4095)) = (0)))));
+                if ((v_0 - (MEM1_PHYS)) >=? (0))
+                then (
+                  match (((((((st_7.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_lock)).(e_val))) with
+                  | None =>
+                    rely (((((((((st_7.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)) - (5)) =? (0)) = (true)));
+                    rely (((0 = (0)) /\ (((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) >= (0)))));
+                    if (((((((((lens 4 st_7).(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_ref)).(e_u_anon_3_0)) & (4095)) =? (0))
+                    then (
+                      (* when ret_2 == ((granule_addr_spec' (mkPtr "granules" (((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16))))); *)
+                      (* when ret_3 == ((buffer_map_spec' 7 ret_2 false)); *)
+                      (* rely ((((ret_3.(pbase)) = ("granule_data")) /\ (((ret_3.(poffset)) >= (0))))); *)
+                      (* when ret_4 == ((s2tte_create_ripas_spec' 1)); *)
+                      (Some (0, (lens 223 st_7))))
+                    else (Some (4, (lens 225 st_7)))
+                  | (Some cid) => None
+                  end)
+                else (
+                  match (((((((st_7.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val))) with
+                  | None =>
+                    rely (((((((((st_7.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) - (5)) =? (0)) = (true)));
+                    if (((((((((lens 4 st_7).(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_ref)).(e_u_anon_3_0)) & (4095)) =? (0))
+                    then (
+                      (* when ret_2 == ((granule_addr_spec' (mkPtr "granules" (((v_0 + ((- MEM0_PHYS))) >> (12)) * (16))))); *)
+                      (* when ret_3 == ((buffer_map_spec' 7 ret_2 false)); *)
+                      (* rely ((((ret_3.(pbase)) = ("granule_data")) /\ (((ret_3.(poffset)) >= (0))))); *)
+                      (* when ret_4 == ((s2tte_create_ripas_spec' 1)); *)
+                      (Some (0, (lens 231 st_7))))
+                    else (Some (4, (lens 233 st_7)))
+                  | (Some cid) => None
+                  end))
+              else (
+                (* when cid == (((((((st_7.(share)).(globals)).(g_granules)) @ (((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val))); *)
+                (Some (4294967553, (lens 17 st_7)))))
+            else (
+              (* when cid == (((((((st_7.(share)).(globals)).(g_granules)) @ (((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val))); *)
+              (Some (((((((v_3 + ((- 1))) << (32)) + (8)) >> (24)) & (4294967040)) |' ((((v_3 + ((- 1))) << (32)) + (8)))), (lens 17 st_7)))))
+          else (
+            (* when cid == (((((((st_2.(share)).(globals)).(g_granules)) @ (((((st_2.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (16))).(e_lock)).(e_val))); *)
+            (Some (
+              ((((((((st_2.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8)) >> (24)) & (4294967040)) |'
+                ((((((st_2.(stack)).(stack_s_rtt_walk)).(e_last_level)) << (32)) + (8))))  ,
+              (lens 17 st_2)
+            ))))
+        else (Some (8589935105, (lens 11 st)))
+      | (Some cid) => None
+      end). *)
+            
+  (* Definition rsi_rtt_destroy_spec_low (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Z) (st: RData) : (option (Z * RData)) :=
     when st_0 == ((new_frame "rsi_rtt_destroy" st));
     when v_6, st_1 == ((find_lock_granule_spec v_1 5 st_0));
     rely (((((v_6.(poffset)) mod (16)) = (0)) /\ (((v_6.(poffset)) >= (0)))));
@@ -7551,7 +7952,7 @@ Definition rsi_rtt_create_spec_low (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Z) (st: RDat
         when v_14, st_5 == ((pack_return_code_spec 8 v__sroa_7_0_copyload st_4));
         when st_7 == ((granule_unlock_spec (int_to_ptr v__sroa_0_0_copyload_tmp) st_5));
         when st_9 == ((free_stack "rsi_rtt_destroy" st_0 st_7));
-        (Some (v_14, st_9)))).
+        (Some (v_14, st_9)))). *)
 
   Definition validate_map_addr_spec_low (v_0: Z) (v_1: Z) (v_2: Ptr) (st: RData) : (option (Z * RData)) :=
     rely (((((v_2.(pbase)) = ("granule_data")) /\ (((v_2.(poffset)) >= (0)))) /\ ((0 = ((v_2.(poffset)) mod (4096))))));
@@ -8128,7 +8529,7 @@ Section Layer12.
           then (Some ((mkPtr "granules" ((((v_0 & (18446744073709547520)) + ((- MEM1_PHYS))) >> (524300)) * (16))), st))
           else (Some ((mkPtr "null" 0), st))))
       else (
-        when v_12, st_1 == ((find_granule_spec (((v_0 + ((- 1))) + (v_1)) & (18446744073709547520)) st));
+        when v_12, st_1 == ((find_granule_spec_low (((v_0 + ((- 1))) + (v_1)) & (18446744073709547520)) st));
         rely ((((v_12.(pbase)) = ("granules")) \/ (((v_12.(pbase)) = ("null")))));
         if (ptr_eqb (mkPtr "granules" ((((v_0 & (18446744073709547520)) + ((- MEM0_PHYS))) >> (12)) * (16))) v_12)
         then (Some ((mkPtr "granules" ((((v_0 & (18446744073709547520)) + ((- MEM0_PHYS))) >> (12)) * (16))), st_1))
@@ -9041,11 +9442,28 @@ Section Layer13.
 End Layer13.
 
 
+Section Lemmas.
+  
+
+Definition query_oracle_security (st: RData) : Prop :=
+  match (st.(repl) (st.(oracle) (st.(log))) (st.(share))) with 
+  | Some sh => 
+      ((delegated_zero st) -> (delegated_zero ((st.[log] :< ((st.(oracle) (st.(log))) ++ st.(log))).[share] :< sh)))
+  end.
+
+End Lemmas.
+
 Section Invariants.
 
 Definition delegated_zero (st : RData) : Prop :=
   forall (gidx: Z) (Hdel: ((st.(share).(granule_data) @ gidx).(g_granule_state) = GRANULE_STATE_DELEGATED)),
     ((st.(share).(granule_data) @ gidx).(g_norm) = zero_granule_data).
+
+(* Definition gpt_false_ns (st: RData) : Prop := 
+  forall (gidx : Z) 
+  (Hgpt: ((st.(share).(gpt) @ gidx) = false)), 
+    (((st.(share).(globals).(g_granules) @ gidx).(e_state_s_granule) = GRANULE_STATE_NS) \/ 
+    ((st.(share).(globals).(g_granules) @ gidx).(e_state_s_granule) = GRANULE_STATE_ANY)). *)
 
 End Invariants.
 
