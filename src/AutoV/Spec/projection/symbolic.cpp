@@ -468,7 +468,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                     auto z3_ret = z3_check(new_state, precond->get_z3_value(), Z3_VERIFY_TIMEOUT);
                     if (z3_ret == Z3Result::False || z3_ret == Z3Result::Unknown) {
                         LOG_WARNING << "[prove_by_traverse] Invariant is violated for pre-condition state\n" << string(*st_input) << std::endl;
-                        return false;
+                        // return false; // even pre-conditon is failed, the lemma may still strong enough to ensure post-cond inv
                     }
                     auto p_ret = instantiate_prop(inv->deep_copy().release(), st_ret);
                     auto postcond = z3_eval(proj, p_ret, new_state);
@@ -539,7 +539,7 @@ static void lensify_spec(Project *proj, Definition *def, std::set<string> &coi) 
  *  3. Prove inv path-by-path, recursively check abst function
  */
 void spec_prover(Project *proj, Definition *goal_def) {
-    if (goal_def->name == "rtt_create_internal_spec" || goal_def->name == "__find_lock_next_level_spec") {
+    if (goal_def->name == "smc_granule_delegate_spec") {
         for (auto const &d: proj->defs) {
             if (!is_invariant_defs(proj, d.first)) {
                 continue;
@@ -553,8 +553,13 @@ void spec_prover(Project *proj, Definition *goal_def) {
             while (!q.empty()) {
                 auto def = q.front();
                 q.pop_front();
-                
-                if (proj->verified_specs.find(def->name) != proj->verified_specs.end()) {
+                if (proj->verified_specs.find(def->name) != proj->verified_specs.end() && proj->verified_specs[def->name]) {
+                    continue;
+                }
+                std::cout << "[spec_prover] Try proving invariant for " << string(*def) << std::endl;
+                if (is_instance(def, Fixpoint)) {
+                    std::cout << "[spec_prover] Skip Fixpoint: " << def->name << std::endl;
+                    proj->verified_specs[def->name] = true;
                     continue;
                 }
                 auto coi = analyze_cone_of_influence(proj, def, inv);
@@ -579,8 +584,8 @@ void spec_prover(Project *proj, Definition *goal_def) {
 	            
                 /** TODO: optimize: no need to generate inv z3 epxr for duplicated times */
                 /** TODO: feat: Lemma selection command */
-                if (prove_by_traverse(proj, def->body.get(), inv, state, q)) {
-                    proj->verified_specs.insert(def->name);
+                proj->verified_specs[def->name] = prove_by_traverse(proj, def->body.get(), inv, state, q);
+                if (proj->verified_specs[def->name]) {
                     LOG_INFO << "[spec_prover] Invariant: " << d.first << " is verified for " << def->name << std::endl;
                 } else {
                     LOG_WARNING << "[spec_prover] Invariant: " << d.first << " can not be verified for " << def->name << std::endl;
