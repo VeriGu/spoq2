@@ -107,14 +107,6 @@ Definition rtt_walk_lock_unlock_spec_abs (v_0: Ptr) (v_1: Ptr) (v_2: Z) (v_3: Z)
         when i, s == ((s2_addr_to_idx_spec v_4 2 st_6));
         (Some ((mkabs_ret_rtt 3 ret_3 i), s))))).
 
-Definition s2tte_pa_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
-  if ((v_1 <? (3)) && (((v_0 & (3)) =? (3))))
-  then (Some (((v_0 & (281474976710655)) & (((- 1) << (12)))), st))
-  else (Some (((v_0 & (281474976710655)) & (((- 1) << (((39 + (((- 9) * (v_1)))) & (4294967295)))))), st)).
-
-Definition rtt_walk_lock_unlock_spec (v_0: Ptr) (v_1: Ptr) (v_2: Z) (v_3: Z) (v_4: Z) (v_5: Z) (st: RData) : (option RData) :=
-  None.
-
 Definition granule_set_state_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option RData) :=
   rely ((((v_0.(poffset)) mod (16)) = (0)));
   (Some (st.[share].[globals].[g_granules] :<
@@ -124,21 +116,4 @@ Definition granule_set_state_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option RDat
 
 Definition pack_return_code_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
   (Some ((pack_struct_return_code_para (make_return_code_para v_0)), st)).
-
-Definition g_refcount_spec (v_0: Ptr) (st: RData) : (option (Z * RData)) :=
-  rely (((((v_0.(pbase)) = ("granules")) /\ ((((v_0.(poffset)) mod (16)) = (0)))) /\ (((v_0.(poffset)) >= (0)))));
-  when v_3, st_0 == ((load_RData 8 (mkPtr (v_0.(pbase)) ((v_0.(poffset)) + (8))) st));
-  (Some ((v_3 & (4095)), st_0)).
-
-Definition __granule_put_spec (v_0: Ptr) (st: RData) : (option RData) :=
-  rely (((((v_0.(pbase)) = ("granules")) /\ ((((v_0.(poffset)) mod (16)) = (0)))) /\ (((v_0.(poffset)) >= (0)))));
-  (Some (st.[share].[globals].[g_granules] :<
-    ((((st.(share)).(globals)).(g_granules)) #
-      ((v_0.(poffset)) / (16)) ==
-      (((((st.(share)).(globals)).(g_granules)) @ ((v_0.(poffset)) / (16))).[e_ref] :<
-        ((((((st.(share)).(globals)).(g_granules)) @ ((v_0.(poffset)) / (16))).(e_ref)).[e_u_anon_3_0] :<
-          (((((((st.(share)).(globals)).(g_granules)) @ ((v_0.(poffset)) / (16))).(e_ref)).(e_u_anon_3_0)) + ((- 1)))))))).
-
-Definition stage1_tlbi_all_spec (st: RData) : (option RData) :=
-  (Some st).
 

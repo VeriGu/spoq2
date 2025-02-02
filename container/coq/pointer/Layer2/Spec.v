@@ -26,9 +26,6 @@ Section Layer2_Spec.
       let mem0_id := ((v_0 + ((- MEM0_PHYS))) >> (12)) in
       (Some ((mem0_id * (16)), st))).
 
-  Definition addr_level_mask_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
-    (Some (((v_0 & (281474976710655)) & (((- 1) << (((39 + (((- 9) * (v_1)))) & (4294967295)))))), st)).
-
   Definition granule_from_idx_spec (v_0: Z) (st: RData) : (option (Ptr * RData)) :=
     rely ((((v_0 - (NR_GRANULES)) < (0)) /\ ((v_0 >= (0)))));
     (Some ((mkPtr "granules" (16 * (v_0))), st)).
@@ -46,7 +43,6 @@ End Layer2_Spec.
 #[global] Hint Unfold __tte_read_spec: spec.
 #[global] Hint Unfold abs__tte_read_spec: spec.
 #[global] Hint Unfold addr_to_idx_spec: spec.
-#[global] Hint Unfold addr_level_mask_spec: spec.
 #[global] Hint Unfold granule_from_idx_spec: spec.
 #[global] Hint Unfold granule_map_spec: spec.
 #[global] Hint Unfold granule_get_state_spec: spec.

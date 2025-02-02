@@ -79,18 +79,6 @@ Section Layer3_Spec.
   Definition table_entry_to_phys_spec_abs (v_0: abs_PTE_t) (st: RData) : (option (abs_PA_t * RData)) :=
     (Some ((v_0.(meta_PA)), st)).
 
-  Definition table_entry_to_phys_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
-    (Some (((v_0 & (281474976710655)) & (((- 1) << (12)))), st)).
-
-  Definition addr_to_granule_spec (v_0: Z) (st: RData) : (option (Ptr * RData)) :=
-    None.
-
-  Definition __table_get_entry_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option (Z * RData)) :=
-    None.
-
-  Definition entry_is_table_spec (v_0: Z) (st: RData) : (option (bool * RData)) :=
-    (Some (((v_0 & (3)) =? (3)), st)).
-
   Definition granule_try_lock_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option (bool * RData)) :=
     when st_0 == ((spinlock_acquire_spec (mkPtr (v_0.(pbase)) (v_0.(poffset))) st));
     if (((((((st_0.(share)).(globals)).(g_granules)) @ ((v_0.(poffset)) / (16))).(e_state_s_granule)) - (v_1)) =? (0))
@@ -108,8 +96,4 @@ Opaque spinlock_acquire_spec.
 #[global] Hint Unfold __table_get_entry_spec_abs: spec.
 #[global] Hint Unfold entry_is_table_spec_abs: spec.
 #[global] Hint Unfold table_entry_to_phys_spec_abs: spec.
-#[global] Hint Unfold table_entry_to_phys_spec: spec.
-#[global] Hint Unfold addr_to_granule_spec: spec.
-#[global] Hint Unfold __table_get_entry_spec: spec.
-#[global] Hint Unfold entry_is_table_spec: spec.
 #[global] Hint Unfold granule_try_lock_spec: spec.

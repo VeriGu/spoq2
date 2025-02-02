@@ -4,7 +4,6 @@ Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import Layer2.Spec.
 Require Import Layer3.Spec.
-Require Import Layer4.Spec.
 Require Import Layer5.Spec.
 Require Import Layer6.Spec.
 Require Import Layer7.Spec.
@@ -227,10 +226,6 @@ Section Layer8_Spec.
         when st_2 == ((spinlock_release_spec (mkPtr "granules" ((v_0_pte.(meta_PA)).(meta_granule_offset))) st_1));
         (Some ((pack_struct_return_code_para (make_return_code_para 3)), st_2)))).
 
-  Definition granule_memzero_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option RData) :=
-    when v_4, st_1 == ((memset_spec (mkPtr "granule_data" (v_0.(poffset))) 0 4096 st));
-    (Some st_1).
-
 End Layer8_Spec.
 
 #[global] Hint Unfold granule_memzero_mapped_spec: spec.
@@ -238,4 +233,3 @@ End Layer8_Spec.
 #[global] Hint Unfold rtt_create_s1_el1_spec_abs: spec.
 #[global] Hint Unfold data_create_s1_el1_0: spec.
 #[global] Hint Unfold data_create_s1_el1_spec_abs: spec.
-#[global] Hint Unfold granule_memzero_spec: spec.
