@@ -15,6 +15,7 @@
 #include <rules.h>
 #include <chrono>
 #include "z3_pcache.hpp"
+#include <profile.h>
 
 
 namespace autov
@@ -121,6 +122,11 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     auto hash = hash_z3_state(state, cond, timeout);
     if (Z3Cache.find(hash) != Z3Cache.end()) {
         z3_cache_hits++;
+        // std::cout << "-----------------Z3 (hit)-----------------" << std::endl;
+        // std::cout << "state hash: " << hash << std::endl;
+        // std::cout << "z3 check cond: " << cond << ", hash: " << cond.hash() << std::endl;
+        // // std::cout << "z3 check result: " << Z3Cache[hash] << std::endl;
+        // std::cout << "-----------------Z3-----------------" << std::endl;
         return Z3Cache[hash];
     }
 
@@ -161,11 +167,8 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
     // std::cout << "-----------------Z3-----------------" << std::endl;
-    // std::cout << "hash: " << hash << std::endl;
+    // std::cout << "state hash: " << hash << std::endl;
     // std::cout << "z3 check cond: " << cond << ", hash: " << cond.hash() << std::endl;
-    // for (auto &c : *state->conds) {
-    //     std::cout << "z3 check state conds: " << c << std::endl;
-    // }
     // std::cout << "z3 check res: " << res << std::endl;
     // std::cout << "z3 check not_res: " << not_res << std::endl;
     // std::cout << "-----------------Z3-----------------" << std::endl;
@@ -420,11 +423,19 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         else if (op_eq(expr->op, Expr::GET)) {
             if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
                 if (op_eq(e->op, Expr::SET)) {
+                    PROFILE_START(expr_eval_check);
+                    PROFILE_START(eval_check);
                     auto z3_res = z3_check(state, z3_eval(proj, e->elems->at(1).get(), state)->get_z3_value() == elems[1]->get_z3_value());
+                    PROFILE_END(eval_check);
+                    PROFILE_END(expr_eval_check);
                     if (z3_res == Z3Result::True) {
+                        profile_log_eval_expr_solved(string(*val));
                         return _cache(z3_eval(proj, e->elems->at(2).get(), state));
                     } else if (z3_res == Z3Result::False) {
+                        profile_log_eval_expr_solved(string(*val));
                         return _cache(static_pointer_cast<ZMapValue>(z3_eval(proj, e->elems->at(0).get(), state))->get(static_pointer_cast<IntValue>(elems[1])));
+                    } else {
+                        profile_log_eval_expr_unsolved(string(*val));
                     }
                 }
             }
@@ -433,9 +444,18 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         } else if (op_eq(expr->op, Expr::SET)) {
             if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
                 if (op_eq(e->op, Expr::SET)) {
+                    PROFILE_START(expr_eval_check);
+                    PROFILE_START(eval_check);
                     auto z3_res = z3_check(state, z3_eval(proj, e->elems->at(1).get(), state)->get_z3_value() == elems[1]->get_z3_value());
+                    PROFILE_END(eval_check);
+                    PROFILE_END(expr_eval_check);
                     if (z3_res == Z3Result::True) {
                         elems[0] = z3_eval(proj, e->elems->at(0).get(), state);
+                    }
+                    if (z3_res != Z3Result::Unknown) {
+                        profile_log_eval_expr_solved(string(*val));
+                    } else {
+                        profile_log_eval_expr_unsolved(string(*val));
                     }
                 }
             }
@@ -520,9 +540,19 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             for (auto v = vars.begin(); v != vars.end(); v++) {
                 cond = z3::exists(v->second->get_z3_value(), cond);
             }
+            // LOG_INFO << "[PROFILE]" << "z3_eval: z3_check: match stands: " << string(*val);
+            PROFILE_START(match_eval_check);
+            PROFILE_START(eval_check);
             auto z3_res = z3_check(state, cond);
+            PROFILE_END(eval_check);
+            PROFILE_END(match_eval_check);
             if (z3_res == Z3Result::False) {
+                profile_log_eval_match_solved(string(*(match->src.get())));
                 continue;
+            } else if (z3_res == Z3Result::True) {
+                profile_log_eval_match_solved(string(*(match->src.get())));
+            } else {
+                profile_log_eval_match_unsolved(string(*(match->src.get())));
             }
             auto new_state = state->copy();
             for (auto v = assigns.begin(); v != assigns.end(); v++) {
@@ -543,25 +573,40 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         }
     } else if (auto rely = instance_of(val, Rely)) {
         auto cond = z3_eval(proj, rely->prop.get(), state);
+        // LOG_INFO << "[PROFILE]" << "z3_eval: z3_check: rely stands: " << string(*val);
+        PROFILE_START(rely_eval_check);
+        PROFILE_START(eval_check);
         auto res = z3_check(state, cond->get_z3_value());
+        PROFILE_END(eval_check);
+        PROFILE_END(rely_eval_check);
+
         if (res == Z3Result::Unknown) {
+            profile_log_eval_rely_unsolved(string(*rely->prop.get()));
             auto body = z3_eval(proj, rely->body.get(), state);
             auto none = static_pointer_cast<Option>(val->get_type())->construct("None", {});
 
             auto z3_val = z3::ite(cond->get_z3_value(), body->get_z3_value(), none->get_z3_value());
             return _cache(rely->get_type()->from_z3_value(z3_val.simplify()));
         } else if (res == Z3Result::True) {
+            profile_log_eval_rely_solved(string(*rely->prop.get()));
             return _cache(z3_eval(proj, rely->body.get(), state));
         } else {
+            profile_log_eval_rely_solved(string(*rely->prop.get()));
             return _cache(static_pointer_cast<Option>(val->get_type())->construct("None", {}));
         }
     }
     else if (auto iff = instance_of(val, If))
     {
         auto c = z3_eval(proj, iff->cond.get(), state);
+        // LOG_INFO << "[PROFILE]" << "z3_eval: z3_check: if cond stands: " << string(*val);
+        PROFILE_START(if_eval_check);
+        PROFILE_START(eval_check);
         auto res = z3_check(state, c->get_z3_value());
+        PROFILE_END(eval_check);
+        PROFILE_END(if_eval_check);
         if (res == Z3Result::Unknown)
         {
+            profile_log_eval_if_unsolved(string(*iff->cond.get()));
             auto true_state = state->copy();
             true_state->conds->push_back(c->get_z3_value());
             auto True = z3_eval(proj, iff->then_body.get(), true_state);
@@ -573,11 +618,13 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         }
         else if (res == Z3Result::True)
         {
+            profile_log_eval_if_solved(string(*iff->cond.get()));
             state->conds->push_back(c->get_z3_value());
             return _cache(z3_eval(proj, iff->then_body.get(), state));
         }
         else
         {
+            profile_log_eval_if_solved(string(*iff->cond.get()));
             state->conds->push_back(!c->get_z3_value());
             return _cache(z3_eval(proj, iff->else_body.get(), state));
         }

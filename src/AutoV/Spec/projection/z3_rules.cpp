@@ -10,6 +10,7 @@
 #include <z3_rules.h>
 #include <vector>
 #include <boost/functional/hash.hpp>
+#include <profile.h>
 
 namespace autov
 {
@@ -88,7 +89,9 @@ rule_ret_t merge_rely(Project* proj, SpecNode* spec, shared_ptr<EvalState> state
         auto spec1 = rely;
         while (auto rely1 = dynamic_cast<Rely*>(spec1)) {
             if (auto rely2 = dynamic_cast<Rely*>(rely1->body.get())) {
+                PROFILE_START(z3_eval);
                 auto cond = z3_eval(proj, rely2->prop.get(), make_shared<EvalState>(state->vars));
+                PROFILE_END(z3_eval);
                 conds.push_back(cond->get_z3_value());
                 spec1 = rely2;
             }
@@ -98,7 +101,9 @@ rule_ret_t merge_rely(Project* proj, SpecNode* spec, shared_ptr<EvalState> state
         while (auto rely1 = dynamic_cast<Rely*>(rely)) {
             if (auto rely2 = dynamic_cast<Rely*>(rely1->body.get())) {
                 i += 1;
+                PROFILE_START(z3_eval);
                 auto cond = z3_eval(proj, rely1->prop.get(), make_shared<EvalState>(state->vars));
+                PROFILE_END(z3_eval);
 
                 auto tmp_conds = std::make_shared<vector<z3::expr>>();
                 tmp_conds->insert(tmp_conds->end(), conds.begin(), conds.begin() + i);
@@ -142,7 +147,7 @@ rule_ret_t remove_rely_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState
 
 rule_ret_t simple_rely_by_z3(Project* proj, RelyAnno* spec, shared_ptr<EvalState> state) {
     bool changed = false;
-    //auto orig_prop = string(*spec->prop);
+    auto orig_prop = string(*spec->prop);
     bool is_rely = is_instance(spec, Rely);
     auto ret = rule_simple_by_z3(proj, spec->prop.release(), state);
     changed |= ret.second;
@@ -152,10 +157,19 @@ rule_ret_t simple_rely_by_z3(Project* proj, RelyAnno* spec, shared_ptr<EvalState
         //throw std::runtime_error("Rely condition is false: " + orig_prop);
         return std::make_pair(nullptr, changed);
     }
+    PROFILE_START(z3_eval);
     auto c = z3_eval(proj, cond, state);
+    PROFILE_END(z3_eval);
+
+    // LOG_INFO << "[PROFILE]" << "simple_rely_by_z3: z3_check: " << string(*cond);
+    PROFILE_START(rely_rule_check);
+    PROFILE_START(z3_rule_check);
     auto res = z3_check(state, c->get_z3_value());
+    PROFILE_END(z3_rule_check);
+    PROFILE_END(rely_rule_check);
 
     if (res == Z3Result::Unknown) {
+        profile_log_rule_rely_unsolved(string(orig_prop));
         state->conds->push_back(c->get_z3_value());
         auto ret = rule_simple_by_z3(proj, spec->body.release(), state);
         state->conds->pop_back(); // newly added. Old code might have bug here
@@ -173,11 +187,13 @@ rule_ret_t simple_rely_by_z3(Project* proj, RelyAnno* spec, shared_ptr<EvalState
         else
             return std::make_pair(new Anno(unique_ptr<SpecNode>(cond), unique_ptr<SpecNode>(body)), changed);
     } else if (res == Z3Result::True) {
+        profile_log_rule_rely_solved(string(orig_prop));
         auto ret = rule_simple_by_z3(proj, spec->body.release(), state);
         delete cond;
         delete spec;
         return ret;
     } else {
+        profile_log_rule_rely_solved(string(orig_prop));
         delete cond;
         delete spec;
         //throw std::runtime_error("Rely condition is false2: " + orig_prop);
@@ -207,17 +223,24 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
 
     // if (debug)
     //     std::cout << "cond_ret: " << string(*cond_ret.first) << std::endl;
+    PROFILE_START(z3_eval);
     auto c = z3_eval(proj, cond_ret.first, state);
+    PROFILE_END(z3_eval);
     // if (debug) {
     //     std::cout << "simple_if_by_z3: c: " << c->get_z3_value().simplify() << ", hash: " << c->get_z3_value().hash() << std::endl;
     //     for (const auto &cond: *state->conds) {
     //         std::cout << "simple_if_by_z3: cond: " << cond.simplify() << std::endl;
     //     }
     // }
-
+    // LOG_INFO << "[PROFILE]" << "simple_if_by_z3: z3_check: " << orig_cond;
+    PROFILE_START(if_rule_check);
+    PROFILE_START(z3_rule_check);
     auto res = z3_check(state, c->get_z3_value());
+    PROFILE_END(z3_rule_check);
+    PROFILE_END(if_rule_check);
 
     if (res == Z3Result::Unknown) {
+        profile_log_rule_if_unsolved(string(orig_cond));
         //std::cout << "simple_if_by_z3: unknown condition: " << orig_cond << std::endl;
         auto unknown_value = c->get_z3_value();
         //auto then_state = state->copy();
@@ -297,12 +320,14 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
 
         return std::make_pair(new If(unique_ptr<SpecNode>(cond_ret.first), unique_ptr<SpecNode>(then_ret.first), unique_ptr<SpecNode>(else_ret.first)), changed);
     } else if (res == Z3Result::True) {
+        profile_log_rule_if_solved(string(orig_cond));
         //std::cout << "simple_if_by_z3: condition is true: " << orig_cond << std::endl;
         auto ret = rule_simple_by_z3(proj, spec->then_body.release(), state);
         delete cond_ret.first;
         delete spec;
         return std::make_pair(ret.first, true);
     } else {
+        profile_log_rule_if_solved(string(orig_cond));
         // std::cout << "simple_if_by_z3: condition is false: " << c->get_z3_value() << std::endl;
         // std::cout << "simple_if_by_z3: condition is false: " << orig_cond << std::endl;
         // for (const auto &cond: *state->conds) {
@@ -400,7 +425,9 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
         //throw std::runtime_error("Match source is false: " + orig_src);
         return std::make_pair(nullptr, true);
     }
+    PROFILE_START(z3_eval);
     auto src_val = z3_eval(proj, src_ret.first, state);
+    PROFILE_END(z3_eval);
     auto match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
 
     bool changed = src_ret.second;
@@ -413,10 +440,20 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
         // for (auto const &cond: *new_state->conds) {
         //     std::cout << "simple_match_by_z3: cond: " << cond << std::endl;
         // }
-        if (z3_check(new_state) == Z3Result::False) {
+        PROFILE_START(match_rule_check);
+        PROFILE_START(z3_rule_check);
+        auto check_ret = z3_check(new_state);
+        PROFILE_END(z3_rule_check);
+        PROFILE_END(match_rule_check);
+        if (check_ret == Z3Result::False) {
+            profile_log_rule_match_solved(string((orig_src)));
             changed = true;
             //std::cout << "pattern false" << std::endl;
             continue;
+        } else if (check_ret == Z3Result::True) {
+            profile_log_rule_match_solved(string(orig_src));
+        } else {
+            profile_log_rule_match_unsolved(string(orig_src));
         }
         //std::cout << "pattern true/unkown" << std::endl;
         auto body_ret = rule_simple_by_z3(proj, (*pm)->body.release(), new_state);
@@ -657,7 +694,20 @@ static SpecNode* reconstruct_expr(z3::expr z3_val,
                 continue;
 
             if (z3::eq(e_val.get_sort(), z3_val.get_sort())) {
-                if (z3_check(state, e_val == z3_val) == Z3Result::True) {
+                // LOG_INFO << "[PROFILE]" << "reconstruct: z3_check: equivalency check";
+                PROFILE_START(expr_rule_check);
+                PROFILE_START(z3_rule_check);
+                auto equiv_check_ret = z3_check(state, e_val == z3_val);
+                PROFILE_END(z3_rule_check);
+                PROFILE_END(expr_rule_check);
+
+                if (equiv_check_ret != Z3Result::Unknown) {
+                    profile_log_rule_expr_solved(string(*e_node));
+                } else {
+                    profile_log_rule_expr_unsolved(string(*e_node));
+                }
+
+                if (equiv_check_ret == Z3Result::True) {
                     candidates.push_back(e_node);
                 }
             }
@@ -790,9 +840,16 @@ SpecNode* reconstruct_zmap(Project* proj, SpecNode* spec, shared_ptr<EvalState> 
         !(*expr_op == Expr::GET && *elem0_op == Expr::SET))     // ZMap.gso
         return nullptr;
 
-
+    PROFILE_START(z3_eval);
     auto idx = z3_eval(proj, elem1, state);
-    auto z3_res = z3_check(state, z3_eval(proj, elem0->elems->at(1).get(), state)->get_z3_value() == idx->get_z3_value());
+    auto res = z3_eval(proj, elem0->elems->at(1).get(), state);
+    PROFILE_END(z3_eval);
+
+    PROFILE_START(expr_rule_check);
+    PROFILE_START(z3_rule_check);
+    auto z3_res = z3_check(state, res->get_z3_value() == idx->get_z3_value());
+    PROFILE_END(z3_rule_check);
+    PROFILE_END(expr_rule_check);
 
     if (z3_res == Z3Result::True) {
         if (*elem0_op == Expr::SET) {
@@ -836,7 +893,7 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
     bool changed = false;
     //auto orig_spec_str = string(*spec);
     Expr *orig_spec = spec;
-
+    string orin_spec_str = string(*spec);
     if (auto op = std::get_if<Expr::ops>(&spec->op)) {
         if (*op == Expr::None)
             return std::make_pair(spec, false);
@@ -854,7 +911,10 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
     }
     spec = new Expr(std::move(spec->op), std::move(elems), spec->get_type());
     delete orig_spec;
+
+    PROFILE_START(z3_eval);
     auto exp_val = z3_eval(proj, spec, state);
+    PROFILE_END(z3_eval);
 
     unordered_map<unsigned, std::pair<z3::expr, SpecNode*>> subexprs;
     collect_exprs(spec, subexprs);
@@ -885,16 +945,28 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
         auto ea = elem0->elems->at(0)->deep_copy();
         auto eb = elem0->elems->at(1)->deep_copy();
         auto ed = spec->elems->at(1)->deep_copy();
+        PROFILE_START(z3_eval);
         auto a = z3_eval(proj, ea.get(), state);
         auto b = z3_eval(proj, eb.get(), state);
         auto d = z3_eval(proj, ed.get(), state);
+        PROFILE_END(z3_eval);
 
-        if (z3_check(state, a->get_z3_value() >= 0) == Z3Result::True &&
+        PROFILE_START(expr_rule_check);
+        PROFILE_START(z3_rule_check);
+        auto expr_check_ret = (z3_check(state, a->get_z3_value() >= 0) == Z3Result::True &&
             z3_check(state, b->get_z3_value() >= 0) == Z3Result::True &&
             z3_check(state, d->get_z3_value() > 0) == Z3Result::True &&
             (z3_check(state, a->get_z3_value() % d->get_z3_value() == 0) == Z3Result::True ||
-             z3_check(state, b->get_z3_value() % d->get_z3_value() == 0) == Z3Result::True)) {
+             z3_check(state, b->get_z3_value() % d->get_z3_value() == 0) == Z3Result::True));
+        PROFILE_END(z3_rule_check);
+        PROFILE_END(expr_rule_check);
+        if (expr_check_ret) {
+            profile_log_rule_expr_solved(string(orin_spec_str));
+        } else {
+            profile_log_rule_expr_unsolved(string(orin_spec_str));
+        }
 
+        if (expr_check_ret) {
             // if (debug) {
             //     std::cout << "a: " << a->get_z3_value() << std::endl;
             //     std::cout << "b: " << b->get_z3_value() << std::endl;

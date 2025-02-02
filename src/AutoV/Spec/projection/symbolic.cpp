@@ -140,6 +140,16 @@ bool has_subfield(const std::set<field_t> &fields, const field_t &f) {
     return false;
 }
 
+void extract_vars_from_expr(Project *proj, SpecNode *pattern, std::set<string> &vars) {
+    if (auto s = instance_of(pattern, Symbol)) {
+        vars.insert(s->text);
+    } else if (auto e = instance_of(pattern, Expr)) {
+        if (auto *o = std::get_if<unique_ptr<SpecNode>>(&e->op))
+            extract_vars_from_expr(proj, o->get(), vars);
+        for (auto &elem : *e->elems)
+            extract_vars_from_expr(proj, elem.get(), vars);
+    }
+}
 /** collect_immi_symbols_in:
  *       compute each symbol's source expression of the given encoded path 
  * */
@@ -154,7 +164,7 @@ void collect_immi_symbols_in(Project *proj, SpecNode *spec, const path_t &path, 
         /** TODO: only apply to _When stmt */
         for (auto &pm : *m->match_list) {
             auto pm_vars = std::set<string>();
-            get_vars_from_pattern(proj, pm->pattern.get(), pm_vars);
+            extract_vars_from_expr(proj, pm->pattern.get(), pm_vars);
             for (auto &v : pm_vars) {
                 symbol_source[v].first = m->src.get();
                 if (idx >= path.size()) {
@@ -425,6 +435,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 							ret_st = ret_Some->elems->back()->deep_copy().release();
 						}
 					}
+                    std::cout << "prove_by_traverse: Final state Visiting: " << string(*spec) << std::endl;
 					// Prove the return state maintains the invariant
 					// construct new invariants
 					auto p = instantiate_prop(inv->deep_copy().release(), ret_st);
@@ -475,7 +486,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                     new_state->conds->push_back(postcond->get_z3_value());
                     /** add abstract sub-spec to prove queue */
                     if (std::holds_alternative<Definition *>(abst_spec)) {
-                        deps.push_back(std::get<Definition *>(abst_spec));
+                        // deps.push_back(std::get<Definition *>(abst_spec));
                     }
                 }
             }
@@ -539,7 +550,8 @@ static void lensify_spec(Project *proj, Definition *def, std::set<string> &coi) 
  *  3. Prove inv path-by-path, recursively check abst function
  */
 void spec_prover(Project *proj, Definition *goal_def) {
-    if (goal_def->name == "smc_granule_delegate_spec") {
+    if (goal_def->name == "rsi_rtt_set_ripas_spec") {
+        profile_clear_epoch();
         for (auto const &d: proj->defs) {
             if (!is_invariant_defs(proj, d.first)) {
                 continue;
@@ -554,6 +566,7 @@ void spec_prover(Project *proj, Definition *goal_def) {
                 auto def = q.front();
                 q.pop_front();
                 if (proj->verified_specs.find(def->name) != proj->verified_specs.end() && proj->verified_specs[def->name]) {
+                    LOG_INFO << "[spec_prover] Cache hit! Skip: " << def->name << std::endl;
                     continue;
                 }
                 std::cout << "[spec_prover] Try proving invariant for " << string(*def) << std::endl;

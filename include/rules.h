@@ -44,8 +44,6 @@ bool spec_is_pure(Project *proj, SpecNode *spec, bool &has_if);
 bool spec_needs_state(Project *proj, SpecNode *spec);
 void spec_remove_state(Project *proj, SpecNode *spec);
 
-void get_vars_from_pattern(Project *proj, SpecNode *pattern, std::set<string> &vars);
-
 inline void set_interest_list(const std::set<string> &coi) {
     interest_list.clear();
     interest_list.insert(coi.begin(), coi.end());

@@ -6,6 +6,7 @@
 #include <mutex>
 #include <cmd.h>
 #include <symbolic.h>
+#include <profile.h>
 namespace autov {
 
 extern unordered_map<unsigned long, bool> converged_spec;
@@ -241,14 +242,17 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                 std::cout << "Before Z3 " << def->name << ": \n=========================\n"
                     << string(*new_spec) << "\n==============================" << std::endl;
 #endif
+            profile_clear_epoch();
             auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec1, make_shared<EvalState>(vars, conds));
+            profile_update_epoch();
+
             Z3Cache.clear();
 
             changed |= __changed;
 
             new_spec = __spec;
 
-            if (debug && def->name == "__find_next_level_idx_spec")
+            // if (debug && def->name == "__find_next_level_idx_spec")
                 std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
                     << string(*new_spec) << "\n==============================\n";
 
