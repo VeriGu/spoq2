@@ -499,6 +499,39 @@ void profile_finalize() {
 		}
 	}
 
+	LOG_INFO << "[z3_eval] Solved IF branch: ";
+	for (i = 0 ; i < eval_stats.size(); i++) {
+		LOG_INFO << "Epoch " << i << std::endl;
+		for (auto &msg : eval_stats[i].solved_if_branch) {
+			std::cout << "\t\t" << msg << std::endl;
+			std::cout << "--------------" << std::endl;
+		}
+	}
+	LOG_INFO << "[z3_eval] Solved MATCH src: ";
+	for (i = 0 ; i < eval_stats.size(); i++) {
+		LOG_INFO << "Epoch " << i << std::endl;
+		for (auto &msg : eval_stats[i].solved_match_src) {
+			std::cout << "\t\t" << msg << std::endl;
+			std::cout << "--------------" << std::endl;
+		}
+	}
+	LOG_INFO << "[z3_eval] Solved RELY cond: ";
+	for (i = 0 ; i < eval_stats.size(); i++) {
+		LOG_INFO << "Epoch " << i << std::endl;
+		for (auto &msg : eval_stats[i].solved_rely_cond) {
+			std::cout << "\t\t" << msg << std::endl;
+			std::cout << "--------------" << std::endl;
+		}
+	}
+	LOG_INFO << "[z3_eval] Solved EXPR: ";
+	for (i = 0 ; i < eval_stats.size(); i++) {
+		LOG_INFO << "Epoch " << i << std::endl;
+		for (auto &msg : eval_stats[i].solved_expr) {
+			std::cout << "\t\t" << msg << std::endl;
+			std::cout << "--------------" << std::endl;
+		}
+	}
+
 	LOG_INFO << "[z3_rule] Unsolved IF branch: ";
 	for (i = 0 ; i < rule_stats.size(); i++) {
 		LOG_INFO << "Epoch " << i  << std::endl;
@@ -531,6 +564,41 @@ void profile_finalize() {
 			std::cout << "--------------" << std::endl;
 		}
 	}
+
+	LOG_INFO << "[z3_rule] Solved IF branch: ";
+	for (i = 0 ; i < rule_stats.size(); i++) {
+		LOG_INFO << "Epoch " << i << std::endl;
+		for (auto &msg : rule_stats[i].solved_if_branch) {
+			std::cout << "\t\t" << msg << std::endl;
+			std::cout << "--------------" << std::endl;
+		}
+	}
+	LOG_INFO << "[z3_rule] Solved MATCH src: ";
+	for (i = 0 ; i < rule_stats.size(); i++) {
+		LOG_INFO << "Epoch " << i << std::endl;
+		for (auto &msg : rule_stats[i].solved_match_src) {
+			std::cout << "\t\t" << msg << std::endl;
+			std::cout << "--------------" << std::endl;
+		}
+	}
+	LOG_INFO << "[z3_rule] Solved RELY cond: ";
+	for (i = 0 ; i < rule_stats.size(); i++) {
+		LOG_INFO << "Epoch " << i << std::endl;
+		for (auto &msg : rule_stats[i].solved_rely_cond) {
+			std::cout << "\t\t" << msg << std::endl;
+			std::cout << "--------------" << std::endl;
+		}
+	}
+
+	LOG_INFO << "[z3_rule] Solved EXPR: ";
+	for (i = 0 ; i < rule_stats.size(); i++) {
+		LOG_INFO << "Epoch " << i << std::endl;
+		for (auto &msg : rule_stats[i].solved_expr) {
+			std::cout << "\t\t" << msg << std::endl;
+			std::cout << "--------------" << std::endl;
+		}
+	}
+	
 }
 
 void profile_log_rule_if_solved(const string &msg) {

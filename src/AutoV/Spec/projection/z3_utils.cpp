@@ -16,6 +16,7 @@
 #include <chrono>
 #include "z3_pcache.hpp"
 #include <profile.h>
+#include <cmd.h>
 
 
 namespace autov
@@ -421,45 +422,48 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         if (op_eq(expr->op, Expr::binops::IMPLIES))
             return _cache(static_pointer_cast<BoolValue>(elems[0])->implies(static_pointer_cast<BoolValue>(elems[1])));
         else if (op_eq(expr->op, Expr::GET)) {
-            if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
-                if (op_eq(e->op, Expr::SET)) {
-                    PROFILE_START(expr_eval_check);
-                    PROFILE_START(eval_check);
-                    auto z3_res = z3_check(state, z3_eval(proj, e->elems->at(1).get(), state)->get_z3_value() == elems[1]->get_z3_value());
-                    PROFILE_END(eval_check);
-                    PROFILE_END(expr_eval_check);
-                    if (z3_res == Z3Result::True) {
-                        profile_log_eval_expr_solved(string(*val));
-                        return _cache(z3_eval(proj, e->elems->at(2).get(), state));
-                    } else if (z3_res == Z3Result::False) {
-                        profile_log_eval_expr_solved(string(*val));
-                        return _cache(static_pointer_cast<ZMapValue>(z3_eval(proj, e->elems->at(0).get(), state))->get(static_pointer_cast<IntValue>(elems[1])));
-                    } else {
-                        profile_log_eval_expr_unsolved(string(*val));
+            if (!__OPT_ON_ARITH) {
+                if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
+                    if (op_eq(e->op, Expr::SET)) {
+                        PROFILE_START(expr_eval_check);
+                        PROFILE_START(eval_check);
+                        auto z3_res = z3_check(state, z3_eval(proj, e->elems->at(1).get(), state)->get_z3_value() == elems[1]->get_z3_value());
+                        PROFILE_END(eval_check);
+                        PROFILE_END(expr_eval_check);
+                        if (z3_res == Z3Result::True) {
+                            profile_log_eval_expr_solved(string(*val));
+                            return _cache(z3_eval(proj, e->elems->at(2).get(), state));
+                        } else if (z3_res == Z3Result::False) {
+                            profile_log_eval_expr_solved(string(*val));
+                            return _cache(static_pointer_cast<ZMapValue>(z3_eval(proj, e->elems->at(0).get(), state))->get(static_pointer_cast<IntValue>(elems[1])));
+                        } else {
+                            profile_log_eval_expr_unsolved(string(*val));
+                        }
                     }
                 }
             }
             //std::cout << "expr: " << string(*expr) << std::endl;
             return _cache(static_pointer_cast<ZMapValue>(elems[0])->get(static_pointer_cast<IntValue>(elems[1])));
         } else if (op_eq(expr->op, Expr::SET)) {
-            if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
-                if (op_eq(e->op, Expr::SET)) {
-                    PROFILE_START(expr_eval_check);
-                    PROFILE_START(eval_check);
-                    auto z3_res = z3_check(state, z3_eval(proj, e->elems->at(1).get(), state)->get_z3_value() == elems[1]->get_z3_value());
-                    PROFILE_END(eval_check);
-                    PROFILE_END(expr_eval_check);
-                    if (z3_res == Z3Result::True) {
-                        elems[0] = z3_eval(proj, e->elems->at(0).get(), state);
-                    }
-                    if (z3_res != Z3Result::Unknown) {
-                        profile_log_eval_expr_solved(string(*val));
-                    } else {
-                        profile_log_eval_expr_unsolved(string(*val));
+            if (!__OPT_ON_ARITH) {
+                if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
+                    if (op_eq(e->op, Expr::SET)) {
+                        PROFILE_START(expr_eval_check);
+                        PROFILE_START(eval_check);
+                        auto z3_res = z3_check(state, z3_eval(proj, e->elems->at(1).get(), state)->get_z3_value() == elems[1]->get_z3_value());
+                        PROFILE_END(eval_check);
+                        PROFILE_END(expr_eval_check);
+                        if (z3_res == Z3Result::True) {
+                            elems[0] = z3_eval(proj, e->elems->at(0).get(), state);
+                        }
+                        if (z3_res != Z3Result::Unknown) {
+                            profile_log_eval_expr_solved(string(*val));
+                        } else {
+                            profile_log_eval_expr_unsolved(string(*val));
+                        }
                     }
                 }
             }
-
             return _cache(static_pointer_cast<ZMapValue>(elems[0])->set(static_pointer_cast<IntValue>(elems[1]), elems[2]));
         } else if (op_eq(expr->op, Expr::RecordGet)) {
             // expr.elem[0]: record
@@ -540,19 +544,21 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             for (auto v = vars.begin(); v != vars.end(); v++) {
                 cond = z3::exists(v->second->get_z3_value(), cond);
             }
-            // LOG_INFO << "[PROFILE]" << "z3_eval: z3_check: match stands: " << string(*val);
-            PROFILE_START(match_eval_check);
-            PROFILE_START(eval_check);
-            auto z3_res = z3_check(state, cond);
-            PROFILE_END(eval_check);
-            PROFILE_END(match_eval_check);
-            if (z3_res == Z3Result::False) {
-                profile_log_eval_match_solved(string(*(match->src.get())));
-                continue;
-            } else if (z3_res == Z3Result::True) {
-                profile_log_eval_match_solved(string(*(match->src.get())));
-            } else {
-                profile_log_eval_match_unsolved(string(*(match->src.get())));
+            if (!__OPT_ON_MATCH) {
+                // LOG_INFO << "[PROFILE]" << "z3_eval: z3_check: match stands: " << string(*val);
+                PROFILE_START(match_eval_check);
+                PROFILE_START(eval_check);
+                auto z3_res = z3_check(state, cond);
+                PROFILE_END(eval_check);
+                PROFILE_END(match_eval_check);
+                if (z3_res == Z3Result::False) {
+                    profile_log_eval_match_solved(string(*(match->src.get())));
+                    continue;
+                } else if (z3_res == Z3Result::True) {
+                    profile_log_eval_match_solved(string(*(match->src.get())));
+                } else {
+                    profile_log_eval_match_unsolved(string(*(match->src.get())));
+                }
             }
             auto new_state = state->copy();
             for (auto v = assigns.begin(); v != assigns.end(); v++) {
