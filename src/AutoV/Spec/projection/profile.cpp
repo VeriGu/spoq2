@@ -9,6 +9,7 @@
 namespace autov
 {
 
+static bool __PROFILE_ON = false;
 // Z3 profiling
 // z3_eval: (double)each z3_eval,
 // eval_check: (double)z3_check inside z3_eval
@@ -134,6 +135,7 @@ std::vector<profile_stat_t> eval_stats;
 
 void profile_clear()
 {
+	if (!__PROFILE_ON) return;
 	rule_stats.clear();
 	eval_stats.clear();
 
@@ -215,6 +217,8 @@ void profile_clear_epoch()
 }
 void profile_print()
 {
+	if (!__PROFILE_ON) return;
+
 	LOG_INFO << "=========== Meta Report ===========";
     LOG_INFO << "z3_eval accumulative time: " << z3_eval_accumulative_time_meta.count() << " (s)";
     LOG_INFO << "Z3 check in [z3_eval] accumulative time: " << eval_check_accumulative_time_meta.count() << " (s)";
@@ -326,6 +330,7 @@ void profile_print_epoch()
 }
 
 void profile_finalize() {
+	if (!__PROFILE_ON) return;
 
 	LOG_INFO << "=========== Rule Report ===========";
 	// LOG_INFO << "Rely rule check time:";
@@ -602,66 +607,82 @@ void profile_finalize() {
 }
 
 void profile_log_rule_if_solved(const string &msg) {
+	if (!__PROFILE_ON) return;
 	rule_stats.back().solved_if_branch.push_back(msg);
 }
 
 void profile_log_rule_match_solved(const string &msg) {
+	if (!__PROFILE_ON) return;
 	rule_stats.back().solved_match_src.push_back(msg);
 }
 
 void profile_log_rule_rely_solved(const string &msg) {
+	if (!__PROFILE_ON) return;
 	rule_stats.back().solved_rely_cond.push_back(msg);
 }
 
 void profile_log_rule_expr_solved(const string &msg) {
+	if (!__PROFILE_ON) return;
 	rule_stats.back().solved_expr.push_back(msg);
 }
 
 void profile_log_rule_if_unsolved(const string &msg) {
+	if (!__PROFILE_ON) return;
 	rule_stats.back().unsolved_if_branch.push_back(msg);
 }
 
 void profile_log_rule_match_unsolved(const string &msg) {
+	if (!__PROFILE_ON) return;
 	rule_stats.back().unsolved_match_src.push_back(msg);
 }
 
 void profile_log_rule_rely_unsolved(const string &msg) {
+	if (!__PROFILE_ON) return;
 	rule_stats.back().unsolved_rely_cond.push_back(msg);
 }
 
 void profile_log_rule_expr_unsolved(const string &msg) {
+	if (!__PROFILE_ON) return;
 	rule_stats.back().unsolved_expr.push_back(msg);
 }
 
 void profile_log_eval_if_solved(const string &msg) {
+	if (!__PROFILE_ON) return;
 	eval_stats.back().solved_if_branch.push_back(msg);
 }
 
 void profile_log_eval_match_solved(const string &msg) {
+	if (!__PROFILE_ON) return;
 	eval_stats.back().solved_match_src.push_back(msg);
 }
 
 void profile_log_eval_rely_solved(const string &msg) {
+	if (!__PROFILE_ON) return;
 	eval_stats.back().solved_rely_cond.push_back(msg);
 }
 
 void profile_log_eval_expr_solved(const string &msg) {
+	if (!__PROFILE_ON) return;
 	eval_stats.back().solved_expr.push_back(msg);
 }
 
 void profile_log_eval_if_unsolved(const string &msg) {
+	if (!__PROFILE_ON) return;
 	eval_stats.back().unsolved_if_branch.push_back(msg);
 }
 
 void profile_log_eval_match_unsolved(const string &msg) {
+	if (!__PROFILE_ON) return;
 	eval_stats.back().unsolved_match_src.push_back(msg);
 }
 
 void profile_log_eval_rely_unsolved(const string &msg) {
+	if (!__PROFILE_ON) return;
 	eval_stats.back().unsolved_rely_cond.push_back(msg);
 }
 
 void profile_log_eval_expr_unsolved(const string &msg) {
+	if (!__PROFILE_ON) return;
 	eval_stats.back().unsolved_expr.push_back(msg);
 }
 }
