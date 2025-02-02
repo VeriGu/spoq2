@@ -8,7 +8,6 @@ Require Import Layer3.Spec.
 Require Import Layer4.Spec.
 Require Import Layer5.Spec.
 Require Import Layer6.Spec.
-Require Import Layer7.Spec.
 Require Import Layer8.Spec.
 
 Local Open Scope string_scope.
@@ -52,13 +51,13 @@ Section Layer8_Layer.
           :: ("__tte_write", prim __tte_write_spec)
           :: ("addr_is_level_aligned", prim addr_is_level_aligned_spec)
           :: ("data_create_internal", prim data_create_internal_spec)
-          :: ("data_create_s1_el1", prim data_create_s1_el1_spec)
           :: ("find_granule", prim find_granule_spec)
           :: ("find_lock_granule", prim find_lock_granule_spec)
           :: ("g_refcount", prim g_refcount_spec)
           :: ("granule_addr", prim granule_addr_spec)
           :: ("granule_lock", prim granule_lock_spec)
           :: ("granule_map", prim granule_map_spec)
+          :: ("granule_memzero_mapped", prim granule_memzero_mapped_spec)
           :: ("granule_set_state", prim granule_set_state_spec)
           :: ("granule_try_lock", prim granule_try_lock_spec)
           :: ("granule_unlock", prim granule_unlock_spec)

@@ -51,6 +51,9 @@ Definition atomic_add_64 (loc: Ptr) (val: Z) (st: RData) : (option RData) :=
   when st_2 == ((store_RData_granules 64 loc (v + (val)) st_1));
   (Some st_2).
 
+Definition s2tte_is_table_spec (v_0: Z) (v_1: Z) (st: RData) : (option (bool * RData)) :=
+  (Some (((v_1 <? (3)) && (((v_0 & (3)) =? (3)))), st)).
+
 Definition granule_unlock_spec (v_0: Ptr) (st: RData) : (option RData) :=
   when st_0 == ((spinlock_release_spec (mkPtr (v_0.(pbase)) (v_0.(poffset))) st));
   (Some st_0).
@@ -78,7 +81,7 @@ Definition pack_struct_return_code_spec (v_0: Z) (st: RData) : (option (Z * RDat
 Definition make_return_code_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
   (Some ((make_return_code_para v_0), st)).
 
-Definition atomic_granule_get_spec (v_0: Ptr) (st: RData) : (option RData) :=
+Definition atomic_granule_put_spec (v_0: Ptr) (st: RData) : (option RData) :=
   rely (((v_0.(pbase)) =s ("granules")));
   rely (((((v_0.(poffset)) + (8)) mod (16)) = (8)));
   (Some (st.[share].[globals].[g_granules] :<
@@ -86,17 +89,13 @@ Definition atomic_granule_get_spec (v_0: Ptr) (st: RData) : (option RData) :=
       (((v_0.(poffset)) + (8)) / (16)) ==
       (((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).[e_ref] :<
         ((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).[e_u_anon_3_0] :<
-          (((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))))).
-
-Definition slot_to_va_spec (v_0: Z) (st: RData) : (option (Ptr * RData)) :=
-  (Some ((mkPtr ((int_to_ptr 18446744071562067968).(pbase)) (((int_to_ptr 18446744071562067968).(poffset)) + ((1 * ((((CPU_ID * (9)) + (v_0)) << (12))))))), st)).
-
-Definition granule_pa_to_va_spec (v_0: Z) (st: RData) : (option (Ptr * RData)) :=
-  rely (((((v_0 - (MEM0_PHYS)) >= (0)) /\ (((v_0 - (4294967296)) < (0)))) \/ ((((v_0 - (MEM1_PHYS)) >= (0)) /\ (((v_0 - (556198264832)) < (0)))))));
-  if ((v_0 & (549755813888)) =? (0))
-  then (Some ((int_to_ptr (v_0 + (18446744004990074880))), st))
-  else (Some ((int_to_ptr (v_0 + (18446743457381744640))), st)).
+          (((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).(e_u_anon_3_0)) + ((- 1)))))))).
 
 Definition find_lock_granule_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Ptr * RData)) :=
   None.
+
+Definition s2tte_create_unassigned_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
+  if (v_0 =? (0))
+  then (Some (0, st))
+  else (Some (64, st)).
 

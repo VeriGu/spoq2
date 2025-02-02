@@ -20,6 +20,10 @@ Section Layer8_Spec.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Definition granule_memzero_mapped_spec (v_0: Ptr) (st: RData) : (option RData) :=
+    when v_2, st_0 == ((memset_spec v_0 0 4096 st));
+    (Some st_0).
+
   Definition update_ripas_spec_abs (v_0: abs_PTE_t) (v_1: Z) (v_2: Z) (st: RData) : (option (bool * abs_PTE_t)) :=
     when v_5, st_1 == ((s2tte_is_table_spec_abs v_0 v_1 st));
     if v_5
@@ -223,13 +227,10 @@ Section Layer8_Spec.
         when st_2 == ((spinlock_release_spec (mkPtr "granules" ((v_0_pte.(meta_PA)).(meta_granule_offset))) st_1));
         (Some ((pack_struct_return_code_para (make_return_code_para 3)), st_2)))).
 
-  Definition data_create_s1_el1_spec (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Ptr) (st: RData) : (option (Z * RData)) :=
-    None.
-
 End Layer8_Spec.
 
+#[global] Hint Unfold granule_memzero_mapped_spec: spec.
 #[global] Hint Unfold update_ripas_spec_abs: spec.
 #[global] Hint Unfold rtt_create_s1_el1_spec_abs: spec.
 #[global] Hint Unfold data_create_s1_el1_0: spec.
 #[global] Hint Unfold data_create_s1_el1_spec_abs: spec.
-#[global] Hint Unfold data_create_s1_el1_spec: spec.

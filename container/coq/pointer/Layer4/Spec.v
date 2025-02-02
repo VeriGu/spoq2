@@ -38,6 +38,11 @@ Section Layer4_Spec.
       when st_2 == ((spinlock_release_spec (mkPtr (v_0.(pbase)) (v_0.(poffset))) st_1));
       (Some st_2)).
 
+  Definition s2tte_create_ripas_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
+    if (v_0 =? (0))
+    then (Some (0, st))
+    else (Some (64, st)).
+
 End Layer4_Spec.
 
 #[global] Hint Unfold cpuid_spec: spec.
@@ -46,3 +51,4 @@ End Layer4_Spec.
 #[global] Hint Unfold s2_addr_to_idx_spec: spec.
 #[global] Hint Unfold find_granule_spec: spec.
 Opaque granule_lock_spec.
+#[global] Hint Unfold s2tte_create_ripas_spec: spec.
