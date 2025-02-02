@@ -24,6 +24,9 @@ Section Layer5_Spec.
   Definition s2tte_create_unassigned_spec_abs (v_0: Z) (st: RData) : (option (abs_PTE_t * RData)) :=
     (Some ((mkabs_PTE_t (mkabs_PA_t (- 1)) 0 v_0 0), st)).
 
+  Definition s2tte_create_destroyed_abs  : abs_PTE_t :=
+    (mkabs_PTE_t (mkabs_PA_t (- 1)) 0 0 2).
+
   Definition llvm_memset_p0i8_i64_spec (v_0: Ptr) (arg1: Z) (arg2: Z) (arg3: bool) (st: RData) : (option RData) :=
     when st_0 == ((llvm_memset_p0i8_i64_spec_state_oracle v_0 arg1 arg2 arg3 st));
     rely ((((st_0.(share)).(granule_data)) = (((st.(share)).(granule_data)))));
@@ -117,6 +120,7 @@ Section Layer5_Spec.
 End Layer5_Spec.
 
 #[global] Hint Unfold s2tte_create_unassigned_spec_abs: spec.
+#[global] Hint Unfold s2tte_create_destroyed_abs: spec.
 #[global] Hint Unfold llvm_memset_p0i8_i64_spec: spec.
 #[global] Hint Unfold memcpy_ns_write_spec: spec.
 Opaque memcpy_ns_read_spec.

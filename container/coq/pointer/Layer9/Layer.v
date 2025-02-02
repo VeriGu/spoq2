@@ -39,7 +39,7 @@ Section Layer9_Layer.
       PtrLtb := ptr_ltb;
       PtrGtb := ptr_gtb;
       PrimCall :=
-          ("rsi_rtt_destroy", prim rsi_rtt_destroy_spec)
+          ("rsi_data_destroy", prim rsi_data_destroy_spec)
           :: nil
     |}.
 
