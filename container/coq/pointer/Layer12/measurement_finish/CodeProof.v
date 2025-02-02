@@ -2,7 +2,7 @@ Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
-Require Import Layer10.Layer.
+Require Import Layer11.Layer.
 Require Import Layer12.measurement_finish.LowSpec.
 Require Import Zwf.
 
@@ -17,7 +17,7 @@ Section Layer12_measurement_finish_CodeProof.
     Lemma f_measurement_finish_correct:
       forall v_0 v_1 st st'
              (Hspec: measurement_finish_spec_low v_0 v_1 st = Some st'),
-        exec_func Layer10_layer code "measurement_finish"
+        exec_func Layer11_layer code "measurement_finish"
                   [VPtr v_0; VPtr v_1]
                   st st' None.
     Proof.

@@ -1,4 +1,3 @@
-Require Import Bottom.Spec.
 Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
@@ -15,7 +14,6 @@ Section Layer8_granule_memzero_mapped_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
-  Local Opaque memset_spec.
     Lemma f_granule_memzero_mapped_correct:
       forall v_0 st st'
              (Hspec: granule_memzero_mapped_spec_low v_0 st = Some st'),

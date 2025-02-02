@@ -21,6 +21,12 @@ Section Layer5_Spec.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Definition granule_pa_to_va_spec' (v_0: Z) : (option Ptr) :=
+    rely (((((v_0 - (MEM0_PHYS)) >= (0)) /\ (((v_0 - (4294967296)) < (0)))) \/ ((((v_0 - (MEM1_PHYS)) >= (0)) /\ (((v_0 - (556198264832)) < (0)))))));
+    if ((v_0 & (549755813888)) =? (0))
+    then (Some (int_to_ptr (v_0 + (18446744004990074880))))
+    else (Some (int_to_ptr (v_0 + (18446743457381744640)))).
+
   Definition s2tte_create_unassigned_spec_abs (v_0: Z) (st: RData) : (option (abs_PTE_t * RData)) :=
     (Some ((mkabs_PTE_t (mkabs_PA_t (- 1)) 0 v_0 0), st)).
 
@@ -121,6 +127,16 @@ Section Layer5_Spec.
   Definition make_return_code_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
     (Some ((make_return_code_para v_0), st)).
 
+  Definition atomic_granule_get_spec (v_0: Ptr) (st: RData) : (option RData) :=
+    rely (((v_0.(pbase)) =s ("granules")));
+    rely (((((v_0.(poffset)) + (8)) mod (16)) = (8)));
+    (Some (st.[share].[globals].[g_granules] :<
+      ((((st.(share)).(globals)).(g_granules)) #
+        (((v_0.(poffset)) + (8)) / (16)) ==
+        (((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).[e_ref] :<
+          ((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+            (((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).(e_u_anon_3_0)) + (1))))))).
+
   Definition atomic_granule_put_spec (v_0: Ptr) (st: RData) : (option RData) :=
     rely (((v_0.(pbase)) =s ("granules")));
     rely (((((v_0.(poffset)) + (8)) mod (16)) = (8)));
@@ -131,16 +147,23 @@ Section Layer5_Spec.
           ((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).[e_u_anon_3_0] :<
             (((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).(e_u_anon_3_0)) + ((- 1)))))))).
 
+  Definition slot_to_va_spec (v_0: Z) (st: RData) : (option (Ptr * RData)) :=
+    (Some ((mkPtr ((int_to_ptr 18446744071562067968).(pbase)) (((int_to_ptr 18446744071562067968).(poffset)) + ((1 * ((((CPU_ID * (9)) + (v_0)) << (12))))))), st)).
+
+  Definition granule_pa_to_va_spec (v_0: Z) (st: RData) : (option (Ptr * RData)) :=
+    when ret == ((granule_pa_to_va_spec' v_0));
+    (Some (ret, st)).
+
   Definition find_lock_granule_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Ptr * RData)) :=
     None.
 
   Definition s2tte_create_unassigned_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
-    if (v_0 =? (0))
-    then (Some (0, st))
-    else (Some (64, st)).
+    when ret == ((s2tte_create_ripas_spec' v_0));
+    (Some (ret, st)).
 
 End Layer5_Spec.
 
+Opaque granule_pa_to_va_spec'.
 #[global] Hint Unfold s2tte_create_unassigned_spec_abs: spec.
 #[global] Hint Unfold s2tte_create_destroyed_abs: spec.
 #[global] Hint Unfold llvm_memset_p0i8_i64_spec: spec.
@@ -158,6 +181,9 @@ Opaque granule_unlock_spec.
 #[global] Hint Unfold set_rd_state_spec: spec.
 #[global] Hint Unfold pack_struct_return_code_spec: spec.
 #[global] Hint Unfold make_return_code_spec: spec.
+#[global] Hint Unfold atomic_granule_get_spec: spec.
 #[global] Hint Unfold atomic_granule_put_spec: spec.
+#[global] Hint Unfold slot_to_va_spec: spec.
+#[global] Hint Unfold granule_pa_to_va_spec: spec.
 #[global] Hint Unfold find_lock_granule_spec: spec.
 #[global] Hint Unfold s2tte_create_unassigned_spec: spec.

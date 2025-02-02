@@ -55,6 +55,7 @@ Section Layer4_Layer.
           :: ("addr_level_mask", prim addr_level_mask_spec)
           :: ("atomic_add_64", prim atomic_add_64_spec)
           :: ("atomic_load_add_release_64", prim atomic_load_add_release_64_spec)
+          :: ("cpuid", prim cpuid_spec)
           :: ("esr_is_write", prim esr_is_write_spec)
           :: ("find_granule", prim find_granule_spec)
           :: ("find_lock_two_granules", prim find_lock_two_granules_spec)

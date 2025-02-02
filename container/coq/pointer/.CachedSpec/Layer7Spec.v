@@ -4,6 +4,14 @@ Parameter g_refcount_para : Ptr -> (RData -> Z).
 
 Parameter rec_to_rd_para : Ptr -> (RData -> Ptr).
 
+Definition s1tte_is_valid_spec' (v_0: Z) (v_1: Z) : (option bool) :=
+  if ((v_1 =? (3)) && (((v_0 & (3)) =? (3))))
+  then (Some true)
+  else (
+    if ((v_1 <>? (3)) && (((v_0 & (3)) =? (1))))
+    then (Some true)
+    else (Some false)).
+
 Definition s1tte_is_valid_spec_abs (v_0: abs_PTE_t) (v_1: Z) (st: RData) : (option (bool * RData)) :=
   if ((v_1 =? (3)) && (((v_0.(meta_desc_type)) =? (3))))
   then (Some (true, st))
@@ -241,12 +249,6 @@ Definition rtt_create_internal_spec_abs (v_0: Ptr) (v_1_abs: abs_PA_t) (v_2: Z) 
           (Some ((pack_struct_return_code_para (make_return_code_para 8)), st_8))))))
   else (Some ((pack_struct_return_code_para (make_return_code_para 1)), st')).
 
-Definition set_pas_any_to_ns_spec (v_0: Z) (st: RData) : (option RData) :=
-  (Some st).
-
-Definition set_pas_ns_to_any_spec (v_0: Z) (st: RData) : (option RData) :=
-  (Some st).
-
 Definition smc_granule_ns_to_any_spec_abs (v_0: Z) (v_1_abs: abs_PA_t) (st: RData) : (option (Z * RData)) :=
   when st_1 == ((spinlock_acquire_spec (mkPtr "granules" (v_1_abs.(meta_granule_offset))) st));
   if ((((((st_1.(share)).(globals)).(g_granules)) @ ((v_1_abs.(meta_granule_offset)) / (16))).(e_state_s_granule)) =? (0))
@@ -444,12 +446,14 @@ Definition data_create_internal_spec_abs (v_0_pte: abs_PTE_t) (v_1: Ptr) (v_2: Z
     (Some ((pack_struct_return_code_para (make_return_code_para 8)), st_8))).
 
 Definition s1tte_is_valid_spec (v_0: Z) (v_1: Z) (st: RData) : (option (bool * RData)) :=
-  if ((v_1 =? (3)) && (((v_0 & (3)) =? (3))))
-  then (Some (true, st))
-  else (
-    if ((v_1 <>? (3)) && (((v_0 & (3)) =? (1))))
-    then (Some (true, st))
-    else (Some (false, st))).
+  when ret == ((s1tte_is_valid_spec' v_0 v_1));
+  (Some (ret, st)).
+
+Definition smc_granule_ns_to_any_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
+  None.
+
+Definition smc_granule_any_to_ns_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
+  None.
 
 Definition granule_unlock_transition_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option RData) :=
   rely (((((v_0.(pbase)) = ("granules")) /\ ((((v_0.(poffset)) mod (16)) = (0)))) /\ (((v_0.(poffset)) >= (0)))));
@@ -461,6 +465,12 @@ Definition granule_unlock_transition_spec (v_0: Ptr) (v_1: Z) (st: RData) : (opt
             ((v_0.(poffset)) / (16)) ==
             (((((st.(share)).(globals)).(g_granules)) @ ((v_0.(poffset)) / (16))).[e_state_s_granule] :< v_1)))));
   (Some st_1).
+
+Definition data_create_internal_spec (v_0: Z) (v_1: Ptr) (v_2: Z) (v_3: Ptr) (v_4: Ptr) (v_5: Z) (st: RData) : (option (Z * RData)) :=
+  None.
+
+Definition rtt_create_internal_spec (v_0: Ptr) (v_1: Z) (v_2: Z) (v_3: Z) (v_4: Z) (st: RData) : (option (Z * RData)) :=
+  None.
 
 Definition s2tte_is_assigned_spec (v_0: Z) (v_1: Z) (st: RData) : (option (bool * RData)) :=
   (Some (((v_0 & (63)) =? (4)), st)).

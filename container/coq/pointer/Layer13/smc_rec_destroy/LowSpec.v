@@ -11,19 +11,40 @@ Section Layer13_smc_rec_destroy_LowSpec.
   Context `{int_ptr: IntPtrCast}.
 
   Definition smc_rec_destroy_spec_low (v_0: Z) (st: RData) : (option (Z * RData)) :=
-    let v_0_pa := (test_PA v_0) in
-    when v_2, st_0 == ((find_lock_unused_granule_spec_abs v_0_pa 3 st));
-    if ((v_2.(pbase)) =s ("null"))
+    when st_1 == ((spinlock_acquire_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st));
+    if (((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (16))).(e_state_s_granule)) - (3)) =? (0))
     then (
-      when v_9, st_3 == ((pack_return_code_spec 1 1 st_0));
-      (Some (v_9, st_3)))
+      if ((g_refcount_para (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_1) =? (0))
+      then (
+        when v_2, st_2 == ((memset_spec (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) 0 4096 st_1));
+        rely (((("granules" = ("granules")) /\ (((((test_PA v_0).(meta_granule_offset)) mod (16)) = (0)))) /\ ((((test_PA v_0).(meta_granule_offset)) >= (0)))));
+        when st_3 == (
+            (granule_unlock_spec
+              (mkPtr "granules" ((test_PA v_0).(meta_granule_offset)))
+              (st_2.[share].[globals].[g_granules] :<
+                ((((st_2.(share)).(globals)).(g_granules)) #
+                  (((test_PA v_0).(meta_granule_offset)) / (16)) ==
+                  (((((st_2.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (16))).[e_state_s_granule] :< 1)))));
+        rely (
+          (((((rec_to_rd_para (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) st_1).(pbase)) = ("granules")) /\
+            (((((rec_to_rd_para (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) st_1).(poffset)) mod (16)) = (0)))) /\
+            ((((rec_to_rd_para (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) st_1).(poffset)) >= (0)))));
+        (Some (
+          0  ,
+          (st_3.[share].[globals].[g_granules] :<
+            ((((st_3.(share)).(globals)).(g_granules)) #
+              (((rec_to_rd_para (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) st_1).(poffset)) / (16)) ==
+              (((((st_3.(share)).(globals)).(g_granules)) @ (((rec_to_rd_para (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) st_1).(poffset)) / (16))).[e_ref] :<
+                ((((((st_3.(share)).(globals)).(g_granules)) @ (((rec_to_rd_para (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) st_1).(poffset)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                  (((((((st_3.(share)).(globals)).(g_granules)) @ (((rec_to_rd_para (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) st_1).(poffset)) / (16))).(e_ref)).(e_u_anon_3_0)) +
+                    ((- 1)))))))
+        )))
+      else (
+        when st_2 == ((granule_unlock_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_1));
+        (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_2))))
     else (
-      when v_13, st_2 == ((granule_map_spec v_2 3 st_0));
-      let v_16 := (rec_to_rd_para v_13 st_2) in
-      when st_4 == ((granule_memzero_mapped_spec v_13 st_2));
-      when st_5 == ((granule_unlock_transition_spec v_2 1 st_4));
-      when st_6 == ((__granule_put_spec v_16 st_5));
-      (Some (0, st_6))).
+      when st_2 == ((spinlock_release_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_1));
+      (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_2))).
 
 End Layer13_smc_rec_destroy_LowSpec.
 

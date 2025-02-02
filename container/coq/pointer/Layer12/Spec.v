@@ -9,6 +9,14 @@ Section Layer12_Spec.
 
   Context `{int_ptr: IntPtrCast}.
 
+  Definition ptr_is_err_spec' (v_0: Ptr) : (option bool) :=
+    if (((int_to_ptr 18446744073709547520).(pbase)) =s ("status"))
+    then (
+      if ((v_0.(pbase)) <>s ("status"))
+      then (Some false)
+      else (Some ((v_0.(poffset)) >? (((int_to_ptr 18446744073709547520).(poffset))))))
+    else (Some (((ptr_to_int v_0) - (18446744073709547520)) >? (0))).
+
   Definition s2tt_init_assigned_loop801_rank (v_0: Ptr) (v_2: Z) (v_5: Z) (v__010: Z) (v_indvars_iv: Z) : Z :=
     512.
 
@@ -33,8 +41,19 @@ Section Layer12_Spec.
   Definition measurement_finish_spec (v_0: Ptr) (v_1: Ptr) (st: RData) : (option RData) :=
     (Some st).
 
+  Definition find_lock_unused_granule_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Ptr * RData)) :=
+    None.
+
+  Definition ptr_is_err_spec (v_0: Ptr) (st: RData) : (option (bool * RData)) :=
+    when ret == ((ptr_is_err_spec' v_0));
+    (Some (ret, st)).
+
+  Definition ptr_status_spec (v_0: Ptr) (st: RData) : (option (Z * RData)) :=
+    (Some ((0 - ((ptr_to_int v_0))), st)).
+
 End Layer12_Spec.
 
+Opaque ptr_is_err_spec'.
 #[global] Hint Unfold s2tt_init_assigned_loop801_rank: spec.
 #[global] Hint Unfold rtt_walk_lock_unlock_loop467_rank: spec.
 #[global] Hint Unfold s2tt_init_valid_ns_loop839_rank: spec.
@@ -43,3 +62,6 @@ End Layer12_Spec.
 #[global] Hint Unfold copy_gic_state_from_ns_loop48_rank: spec.
 #[global] Hint Unfold total_root_rtt_refcount_loop295_rank: spec.
 #[global] Hint Unfold measurement_finish_spec: spec.
+#[global] Hint Unfold find_lock_unused_granule_spec: spec.
+#[global] Hint Unfold ptr_is_err_spec: spec.
+#[global] Hint Unfold ptr_status_spec: spec.

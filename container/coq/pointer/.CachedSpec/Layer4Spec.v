@@ -1,5 +1,15 @@
 Parameter s2_addr_to_idx_para : Z -> Z -> Z).
 
+Definition __find_next_level_idx_spec' (v_0: Ptr) (v_1: Z) (st: RData) : (option (Ptr * RData)) :=
+  if (((abs_tte_read (mkPtr "granule_data" ((v_0.(poffset)) + ((8 * (v_1))))) st).(meta_desc_type)) =? (3))
+  then (Some ((mkPtr "granules" (((abs_tte_read (mkPtr "granule_data" ((v_0.(poffset)) + ((8 * (v_1))))) st).(meta_PA)).(meta_granule_offset))), st))
+  else (Some ((mkPtr "null" 0), st)).
+
+Definition s2tte_create_ripas_spec' (v_0: Z) : (option Z) :=
+  if (v_0 =? (0))
+  then (Some 0)
+  else (Some 64).
+
 Definition cpuid_spec (st: RData) : (option (Z * RData)) :=
   (Some (CPU_ID, st)).
 
@@ -7,9 +17,8 @@ Definition find_granule_spec_abs (v_0: abs_PA_t) (st: RData) : (option (Ptr * RD
   (Some ((mkPtr "granules" (v_0.(meta_granule_offset))), st)).
 
 Definition __find_next_level_idx_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option (Ptr * RData)) :=
-  if (((abs_tte_read (mkPtr "granule_data" ((v_0.(poffset)) + ((8 * (v_1))))) st).(meta_desc_type)) =? (3))
-  then (Some ((mkPtr "granules" (((abs_tte_read (mkPtr "granule_data" ((v_0.(poffset)) + ((8 * (v_1))))) st).(meta_PA)).(meta_granule_offset))), st))
-  else (Some ((mkPtr "null" 0), st)).
+  when ret, st' == ((__find_next_level_idx_spec' v_0 v_1 st));
+  (Some (ret, st)).
 
 Definition s2_addr_to_idx_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
   (Some ((s2_addr_to_idx_para v_0 v_1), st)).
@@ -26,7 +35,6 @@ Definition granule_lock_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option RData) :=
     (Some st_2)).
 
 Definition s2tte_create_ripas_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
-  if (v_0 =? (0))
-  then (Some (0, st))
-  else (Some (64, st)).
+  when ret == ((s2tte_create_ripas_spec' v_0));
+  (Some (ret, st)).
 

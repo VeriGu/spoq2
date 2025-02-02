@@ -4,7 +4,7 @@ Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import Layer10.granule_refcount_read_acquire.LowSpec.
-Require Import Layer8.Layer.
+Require Import Layer9.Layer.
 Require Import Zwf.
 
 Local Open Scope string_scope.
@@ -20,7 +20,7 @@ Section Layer10_granule_refcount_read_acquire_CodeProof.
     Lemma f_granule_refcount_read_acquire_correct:
       forall v_0 st st' res
              (Hspec: granule_refcount_read_acquire_spec_low v_0 st = Some (res, st')),
-        exec_func Layer8_layer code "granule_refcount_read_acquire"
+        exec_func Layer9_layer code "granule_refcount_read_acquire"
                   [VPtr v_0]
                   st st' (Some (VInt res)).
     Proof.

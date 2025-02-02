@@ -40,6 +40,7 @@ Section Layer13_Layer.
       PtrGtb := ptr_gtb;
       PrimCall :=
           ("smc_realm_activate", prim smc_realm_activate_spec)
+          :: ("smc_rec_destroy", prim smc_rec_destroy_spec)
           :: nil
     |}.
 

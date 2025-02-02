@@ -27,7 +27,7 @@ Section Layer2_Spec.
       (Some ((mem0_id * (16)), st))).
 
   Definition addr_level_mask_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
-    (Some (((v_0 & (281474976710655)) & (((- 1) << (((39 + (((- 9) * (v_1)))) & (4294967295)))))), st)).
+    (Some (((v_0 & (281474976710655)) & (((- 1) << (((((3 - (v_1)) * (9)) + (12)) & (4294967295)))))), st)).
 
   Definition granule_from_idx_spec (v_0: Z) (st: RData) : (option (Ptr * RData)) :=
     rely ((((v_0 - (NR_GRANULES)) < (0)) /\ ((v_0 >= (0)))));

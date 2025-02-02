@@ -79,6 +79,7 @@ Section Layer10_Layer.
           :: ("granule_memzero", prim granule_memzero_spec)
           :: ("granule_memzero_mapped", prim granule_memzero_mapped_spec)
           :: ("granule_pa_to_va", prim granule_pa_to_va_spec)
+          :: ("granule_refcount_read_acquire", prim granule_refcount_read_acquire_spec)
           :: ("granule_set_state", prim granule_set_state_spec)
           :: ("granule_unlock", prim granule_unlock_spec)
           :: ("granule_unlock_transition", prim granule_unlock_transition_spec)
