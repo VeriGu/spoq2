@@ -54,15 +54,42 @@ Definition atomic_add_64 (loc: Ptr) (val: Z) (st: RData) : (option RData) :=
   when st_2 == ((store_RData_granules 64 loc (v + (val)) st_1));
   (Some st_2).
 
-Definition __granule_put_spec (v_0: Ptr) (st: RData) : (option RData) :=
-  rely (((((v_0.(pbase)) = ("granules")) /\ ((((v_0.(poffset)) mod (16)) = (0)))) /\ (((v_0.(poffset)) >= (0)))));
-  rely (((((v_0.(pbase)) = ("granules")) /\ ((((v_0.(poffset)) mod (16)) = (0)))) /\ (((v_0.(poffset)) >= (0)))));
-  when st_1 == ((atomic_add_64 (ptr_offset v_0 8) (- 1) st));
-  (Some st_1).
+Definition s2tte_is_table_spec (v_0: Z) (v_1: Z) (st: RData) : (option (bool * RData)) :=
+  (Some (((v_1 <? (3)) && (((v_0 & (3)) =? (3)))), st)).
 
 Definition granule_unlock_spec (v_0: Ptr) (st: RData) : (option RData) :=
   when st_0 == ((spinlock_release_spec (mkPtr (v_0.(pbase)) (v_0.(poffset))) st));
   (Some st_0).
+
+Definition s2_sl_addr_to_idx_spec (v_0: Z) (v_1: Z) (v_2: Z) (st: RData) : (option (Z * RData)) :=
+  (Some ((((Z.lxor ((- 1) << ((v_2 & (4294967295)))) (- 1)) & (v_0)) >> ((39 + (((- 9) * (v_1)))))), st)).
+
+Definition __find_lock_next_level_spec (v_0: Ptr) (v_1: Z) (v_2: Z) (st: RData) : (option (Ptr * RData)) :=
+  if (((abs_tte_read (mkPtr "granule_data" ((v_0.(poffset)) + ((8 * ((s2_addr_to_idx_para v_1 v_2)))))) st).(meta_desc_type)) =? (3))
+  then (
+    when st_1 == (
+        (spinlock_acquire_spec
+          (mkPtr "granules" (((abs_tte_read (mkPtr "granule_data" ((v_0.(poffset)) + ((8 * ((s2_addr_to_idx_para v_1 v_2)))))) st).(meta_PA)).(meta_granule_offset)))
+          st));
+    if (
+      (((((((st_1.(share)).(globals)).(g_granules)) @ ((((abs_tte_read (mkPtr "granule_data" ((v_0.(poffset)) + ((8 * ((s2_addr_to_idx_para v_1 v_2)))))) st).(meta_PA)).(meta_granule_offset)) / (16))).(e_state_s_granule)) -
+        (5)) =?
+        (0)))
+    then (
+      (Some (
+        (mkPtr "granules" (((abs_tte_read (mkPtr "granule_data" ((v_0.(poffset)) + ((8 * ((s2_addr_to_idx_para v_1 v_2)))))) st).(meta_PA)).(meta_granule_offset)))  ,
+        st_1
+      )))
+    else (
+      when st_2 == (
+          (spinlock_release_spec
+            (mkPtr "granules" (((abs_tte_read (mkPtr "granule_data" ((v_0.(poffset)) + ((8 * ((s2_addr_to_idx_para v_1 v_2)))))) st).(meta_PA)).(meta_granule_offset)))
+            st_1));
+      (Some (
+        (mkPtr "granules" (((abs_tte_read (mkPtr "granule_data" ((v_0.(poffset)) + ((8 * ((s2_addr_to_idx_para v_1 v_2)))))) st).(meta_PA)).(meta_granule_offset)))  ,
+        st_2
+      ))))
+  else (Some ((mkPtr "null" 0), st)).
 
 Definition set_rd_state_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option RData) :=
   rely (((((((st.(share)).(granule_data)) @ ((v_0.(poffset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_RD)) = (0)));
@@ -79,6 +106,21 @@ Definition pack_struct_return_code_spec (v_0: Z) (st: RData) : (option (Z * RDat
 Definition make_return_code_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
   (Some ((make_return_code_para v_0), st)).
 
+Definition atomic_granule_put_spec (v_0: Ptr) (st: RData) : (option RData) :=
+  rely (((v_0.(pbase)) =s ("granules")));
+  rely (((((v_0.(poffset)) + (8)) mod (16)) = (8)));
+  (Some (st.[share].[globals].[g_granules] :<
+    ((((st.(share)).(globals)).(g_granules)) #
+      (((v_0.(poffset)) + (8)) / (16)) ==
+      (((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).[e_ref] :<
+        ((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+          (((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).(e_u_anon_3_0)) + ((- 1)))))))).
+
 Definition find_lock_granule_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Ptr * RData)) :=
   None.
+
+Definition s2tte_create_unassigned_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
+  if (v_0 =? (0))
+  then (Some (0, st))
+  else (Some (64, st)).
 

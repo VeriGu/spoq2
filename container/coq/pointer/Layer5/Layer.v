@@ -44,7 +44,8 @@ Section Layer5_Layer.
       PtrLtb := ptr_ltb;
       PtrGtb := ptr_gtb;
       PrimCall :=
-          ("__sca_read64", prim __sca_read64_spec)
+          ("__find_lock_next_level", prim __find_lock_next_level_spec)
+          :: ("__sca_read64", prim __sca_read64_spec)
           :: ("__sca_read64_acquire", prim __sca_read64_acquire_spec)
           :: ("__sca_write64", prim __sca_write64_spec)
           :: ("__sca_write64_release", prim __sca_write64_release_spec)
@@ -53,6 +54,7 @@ Section Layer5_Layer.
           :: ("addr_is_level_aligned", prim addr_is_level_aligned_spec)
           :: ("addr_level_mask", prim addr_level_mask_spec)
           :: ("atomic_add_64", prim atomic_add_64_spec)
+          :: ("atomic_granule_put", prim atomic_granule_put_spec)
           :: ("atomic_load_add_release_64", prim atomic_load_add_release_64_spec)
           :: ("esr_is_write", prim esr_is_write_spec)
           :: ("find_granule", prim find_granule_spec)
@@ -82,7 +84,10 @@ Section Layer5_Layer.
           :: ("rec_run_loop", prim rec_run_loop_spec)
           :: ("s1addr_is_level_aligned", prim s1addr_is_level_aligned_spec)
           :: ("s2_addr_to_idx", prim s2_addr_to_idx_spec)
+          :: ("s2_sl_addr_to_idx", prim s2_sl_addr_to_idx_spec)
           :: ("s2tte_create_ripas", prim s2tte_create_ripas_spec)
+          :: ("s2tte_create_unassigned", prim s2tte_create_unassigned_spec)
+          :: ("s2tte_is_table", prim s2tte_is_table_spec)
           :: ("set_rd_state", prim set_rd_state_spec)
           :: ("set_tte_ns", prim set_tte_ns_spec)
           :: ("spinlock_acquire", prim spinlock_acquire_spec)

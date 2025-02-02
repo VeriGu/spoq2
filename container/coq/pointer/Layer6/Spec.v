@@ -1,7 +1,9 @@
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
+Require Import Layer2.Spec.
 Require Import Layer3.Spec.
+Require Import Layer4.Spec.
 Require Import Layer5.Spec.
 
 Local Open Scope string_scope.
@@ -22,6 +24,12 @@ Parameter uart0_phys_para : abs_PTE_t -> bool.
 Section Layer6_Spec.
 
   Context `{int_ptr: IntPtrCast}.
+
+  Definition __granule_put_spec (v_0: Ptr) (st: RData) : (option RData) :=
+    rely (((((v_0.(pbase)) = ("granules")) /\ ((((v_0.(poffset)) mod (16)) = (0)))) /\ (((v_0.(poffset)) >= (0)))));
+    rely (((((v_0.(pbase)) = ("granules")) /\ ((((v_0.(poffset)) mod (16)) = (0)))) /\ (((v_0.(poffset)) >= (0)))));
+    when st_1 == ((atomic_add_64 (ptr_offset v_0 8) (- 1) st));
+    (Some st_1).
 
   Definition s2tte_create_assigned_spec_abs (v_0: abs_PA_t) (v_1: Z) (st: RData) : (option (abs_PTE_t * RData)) :=
     (Some ((mkabs_PTE_t v_0 0 0 1), st)).
@@ -120,11 +128,35 @@ Section Layer6_Spec.
           when i, s == ((s2_addr_to_idx_spec v_4 2 st_6));
           (Some ((mkabs_ret_rtt 3 ret_3 i), s))))).
 
+  Definition s2tte_pa_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
+    if ((v_1 <? (3)) && (((v_0 & (3)) =? (3))))
+    then (Some (((v_0 & (281474976710655)) & (((- 1) << (12)))), st))
+    else (Some (((v_0 & (281474976710655)) & (((- 1) << (((39 + (((- 9) * (v_1)))) & (4294967295)))))), st)).
+
+  Definition rtt_walk_lock_unlock_spec (v_0: Ptr) (v_1: Ptr) (v_2: Z) (v_3: Z) (v_4: Z) (v_5: Z) (st: RData) : (option RData) :=
+    None.
+
+  Definition granule_set_state_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option RData) :=
+    rely ((((v_0.(poffset)) mod (16)) = (0)));
+    (Some (st.[share].[globals].[g_granules] :<
+      ((((st.(share)).(globals)).(g_granules)) #
+        (((v_0.(poffset)) + (4)) / (16)) ==
+        (((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (4)) / (16))).[e_state_s_granule] :< v_1)))).
+
   Definition pack_return_code_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
     (Some ((pack_struct_return_code_para (make_return_code_para v_0)), st)).
 
+  Definition g_refcount_spec (v_0: Ptr) (st: RData) : (option (Z * RData)) :=
+    rely (((((v_0.(pbase)) = ("granules")) /\ ((((v_0.(poffset)) mod (16)) = (0)))) /\ (((v_0.(poffset)) >= (0)))));
+    when v_3, st_0 == ((load_RData 8 (mkPtr (v_0.(pbase)) ((v_0.(poffset)) + (8))) st));
+    (Some ((v_3 & (4095)), st_0)).
+
+  Definition stage1_tlbi_all_spec (st: RData) : (option RData) :=
+    (Some st).
+
 End Layer6_Spec.
 
+#[global] Hint Unfold __granule_put_spec: spec.
 #[global] Hint Unfold s2tte_create_assigned_spec_abs: spec.
 #[global] Hint Unfold s1tte_create_valid_spec_abs: spec.
 #[global] Hint Unfold s1tte_pa_spec_abs: spec.
@@ -141,4 +173,9 @@ Opaque __tte_write_spec.
 #[global] Hint Unfold s2tt_init_unassigned_loop759_rank: spec.
 #[global] Hint Unfold s2tt_init_unassigned_loop759_0_rank: spec.
 Opaque rtt_walk_lock_unlock_spec_abs.
+#[global] Hint Unfold s2tte_pa_spec: spec.
+Opaque rtt_walk_lock_unlock_spec.
+#[global] Hint Unfold granule_set_state_spec: spec.
 #[global] Hint Unfold pack_return_code_spec: spec.
+#[global] Hint Unfold g_refcount_spec: spec.
+#[global] Hint Unfold stage1_tlbi_all_spec: spec.

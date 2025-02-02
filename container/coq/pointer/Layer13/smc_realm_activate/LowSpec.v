@@ -11,27 +11,29 @@ Section Layer13_smc_realm_activate_LowSpec.
   Context `{int_ptr: IntPtrCast}.
 
   Definition smc_realm_activate_spec_low (v_0: Z) (st: RData) : (option (Z * RData)) :=
-    let v_0_pa := (test_PA v_0) in
-    when v_2, st_0 == ((find_lock_granule_spec_abs v_0_pa 2 st));
-    rely (((((v_2.(poffset)) mod (16)) = (0)) /\ (((v_2.(poffset)) >= (0)))));
-    rely ((((v_2.(pbase)) = ("granules")) \/ (((v_2.(pbase)) = ("null")))));
-    if (ptr_eqb v_2 (mkPtr "null" 0))
+    when st_1 == ((spinlock_acquire_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st));
+    if (((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (16))).(e_state_s_granule)) - (2)) =? (0))
     then (
-      when v_4, st_1 == ((pack_return_code_spec 1 1 st_0));
-      (Some (v_4, st_1)))
-    else (
-      when v_7, st_1 == ((granule_map_spec v_2 2 st_0));
-      when v_9, st_2 == ((get_rd_state_locked_spec v_7 st_1));
-      if (v_9 =? (0))
+      rely ((((((test_PA v_0).(meta_granule_offset)) mod (16)) = (0)) /\ ((((test_PA v_0).(meta_granule_offset)) >= (0)))));
+      rely (((("granule_data" = ("granule_data")) /\ ((((test_PA v_0).(meta_granule_offset)) >= (0)))) /\ (((((test_PA v_0).(meta_granule_offset)) mod (4096)) = (0)))));
+      rely (((((((st_1.(share)).(granule_data)) @ (((test_PA v_0).(meta_granule_offset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_RD)) = (0)));
+      if ((((((st_1.(share)).(granule_data)) @ (((test_PA v_0).(meta_granule_offset)) / (4096))).(g_rd)).(e_state_s_rd)) =? (0))
       then (
-        when st_3 == ((measurement_finish_spec (ptr_offset v_7 72) (ptr_offset v_7 184) st_2));
-        when st_4 == ((set_rd_state_spec v_7 1 st_3));
-        when st_6 == ((granule_unlock_spec v_2 st_4));
+        when st_6 == (
+            (granule_unlock_spec
+              (mkPtr "granules" ((test_PA v_0).(meta_granule_offset)))
+              (st_1.[share].[granule_data] :<
+                (((st_1.(share)).(granule_data)) #
+                  (((test_PA v_0).(meta_granule_offset)) / (4096)) ==
+                  ((((st_1.(share)).(granule_data)) @ (((test_PA v_0).(meta_granule_offset)) / (4096))).[g_norm] :<
+                    (((((st_1.(share)).(granule_data)) @ (((test_PA v_0).(meta_granule_offset)) / (4096))).(g_norm)) # (((test_PA v_0).(meta_granule_offset)) mod (4096)) == 1))))));
         (Some (0, st_6)))
       else (
-        when v_17, st_3 == ((pack_return_code_spec 5 0 st_2));
-        when st_5 == ((granule_unlock_spec v_2 st_3));
-        (Some (v_17, st_5)))).
+        when st_5 == ((granule_unlock_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_1));
+        (Some ((pack_struct_return_code_para (make_return_code_para 5)), st_5))))
+    else (
+      when st_2 == ((spinlock_release_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_1));
+      (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_2))).
 
 End Layer13_smc_realm_activate_LowSpec.
 

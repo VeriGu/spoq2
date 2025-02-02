@@ -3,7 +3,7 @@ Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import Layer10.get_rd_state_locked.LowSpec.
-Require Import Layer6.Layer.
+Require Import Layer9.Layer.
 Require Import Zwf.
 
 Local Open Scope string_scope.
@@ -17,7 +17,7 @@ Section Layer10_get_rd_state_locked_CodeProof.
     Lemma f_get_rd_state_locked_correct:
       forall v_0 st st' res
              (Hspec: get_rd_state_locked_spec_low v_0 st = Some (res, st')),
-        exec_func Layer6_layer code "get_rd_state_locked"
+        exec_func Layer9_layer code "get_rd_state_locked"
                   [VPtr v_0]
                   st st' (Some (VInt res)).
     Proof.

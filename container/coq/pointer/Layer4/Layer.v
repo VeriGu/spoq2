@@ -44,7 +44,8 @@ Section Layer4_Layer.
       PtrLtb := ptr_ltb;
       PtrGtb := ptr_gtb;
       PrimCall :=
-          ("__sca_read64", prim __sca_read64_spec)
+          ("__find_next_level_idx", prim __find_next_level_idx_spec)
+          :: ("__sca_read64", prim __sca_read64_spec)
           :: ("__sca_read64_acquire", prim __sca_read64_acquire_spec)
           :: ("__sca_write64", prim __sca_write64_spec)
           :: ("__sca_write64_release", prim __sca_write64_release_spec)
@@ -59,6 +60,7 @@ Section Layer4_Layer.
           :: ("find_lock_two_granules", prim find_lock_two_granules_spec)
           :: ("get_tte", prim get_tte_spec)
           :: ("granule_addr", prim granule_addr_spec)
+          :: ("granule_lock", prim granule_lock_spec)
           :: ("granule_map", prim granule_map_spec)
           :: ("granule_try_lock", prim granule_try_lock_spec)
           :: ("invalidate_block", prim invalidate_block_spec)
@@ -76,6 +78,8 @@ Section Layer4_Layer.
           :: ("realm_ipa_size", prim realm_ipa_size_spec)
           :: ("rec_run_loop", prim rec_run_loop_spec)
           :: ("s1addr_is_level_aligned", prim s1addr_is_level_aligned_spec)
+          :: ("s2_addr_to_idx", prim s2_addr_to_idx_spec)
+          :: ("s2tte_create_ripas", prim s2tte_create_ripas_spec)
           :: ("set_tte_ns", prim set_tte_ns_spec)
           :: ("spinlock_acquire", prim spinlock_acquire_spec)
           :: ("spinlock_release", prim spinlock_release_spec)

@@ -4,6 +4,7 @@ Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import Layer2.Spec.
 Require Import Layer3.Spec.
+Require Import Layer4.Spec.
 Require Import Layer5.Spec.
 Require Import Layer6.Spec.
 
@@ -459,6 +460,14 @@ Section Layer7_Spec.
       when st_8 == ((granule_unlock_spec (rtt_ret.(e_2)) st_4));
       (Some ((pack_struct_return_code_para (make_return_code_para 8)), st_8))).
 
+  Definition s1tte_is_valid_spec (v_0: Z) (v_1: Z) (st: RData) : (option (bool * RData)) :=
+    if ((v_1 =? (3)) && (((v_0 & (3)) =? (3))))
+    then (Some (true, st))
+    else (
+      if ((v_1 <>? (3)) && (((v_0 & (3)) =? (1))))
+      then (Some (true, st))
+      else (Some (false, st))).
+
   Definition granule_unlock_transition_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option RData) :=
     rely (((((v_0.(pbase)) = ("granules")) /\ ((((v_0.(poffset)) mod (16)) = (0)))) /\ (((v_0.(poffset)) >= (0)))));
     when st_1 == (
@@ -469,6 +478,9 @@ Section Layer7_Spec.
               ((v_0.(poffset)) / (16)) ==
               (((((st.(share)).(globals)).(g_granules)) @ ((v_0.(poffset)) / (16))).[e_state_s_granule] :< v_1)))));
     (Some st_1).
+
+  Definition s2tte_is_assigned_spec (v_0: Z) (v_1: Z) (st: RData) : (option (bool * RData)) :=
+    (Some (((v_0 & (63)) =? (4)), st)).
 
 End Layer7_Spec.
 
@@ -482,4 +494,6 @@ End Layer7_Spec.
 #[global] Hint Unfold granule_pa_to_va_spec_abs: spec.
 #[global] Hint Unfold ns_buffer_read_spec_abs: spec.
 #[global] Hint Unfold data_create_internal_spec_abs: spec.
+#[global] Hint Unfold s1tte_is_valid_spec: spec.
 #[global] Hint Unfold granule_unlock_transition_spec: spec.
+#[global] Hint Unfold s2tte_is_assigned_spec: spec.
