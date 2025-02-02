@@ -77,21 +77,20 @@ Section Layer5_Spec.
     when st_0 == ((spinlock_release_spec (mkPtr (v_0.(pbase)) (v_0.(poffset))) st));
     (Some st_0).
 
+  Definition set_rd_state_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option RData) :=
+    rely (((((((st.(share)).(granule_data)) @ ((v_0.(poffset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_RD)) = (0)));
+    rely (((((v_0.(pbase)) = ("granule_data")) /\ (((v_0.(poffset)) >= (0)))) /\ ((((v_0.(poffset)) mod (4096)) = (0)))));
+    (Some (st.[share].[granule_data] :<
+      (((st.(share)).(granule_data)) #
+        ((v_0.(poffset)) / (4096)) ==
+        ((((st.(share)).(granule_data)) @ ((v_0.(poffset)) / (4096))).[g_norm] :<
+          (((((st.(share)).(granule_data)) @ ((v_0.(poffset)) / (4096))).(g_norm)) # ((v_0.(poffset)) mod (4096)) == v_1))))).
+
   Definition pack_struct_return_code_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
     (Some ((pack_struct_return_code_para v_0), st)).
 
   Definition make_return_code_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
     (Some ((make_return_code_para v_0), st)).
-
-  Definition atomic_granule_put_spec (v_0: Ptr) (st: RData) : (option RData) :=
-    rely (((v_0.(pbase)) =s ("granules")));
-    rely (((((v_0.(poffset)) + (8)) mod (16)) = (8)));
-    (Some (st.[share].[globals].[g_granules] :<
-      ((((st.(share)).(globals)).(g_granules)) #
-        (((v_0.(poffset)) + (8)) / (16)) ==
-        (((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).[e_ref] :<
-          ((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).[e_u_anon_3_0] :<
-            (((((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (8)) / (16))).(e_ref)).(e_u_anon_3_0)) + ((- 1)))))))).
 
   Definition find_lock_granule_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Ptr * RData)) :=
     None.
@@ -110,7 +109,7 @@ Opaque memcpy_ns_read_spec.
 #[global] Hint Unfold atomic_add_64: spec.
 #[global] Hint Unfold __granule_put_spec: spec.
 Opaque granule_unlock_spec.
+#[global] Hint Unfold set_rd_state_spec: spec.
 #[global] Hint Unfold pack_struct_return_code_spec: spec.
 #[global] Hint Unfold make_return_code_spec: spec.
-#[global] Hint Unfold atomic_granule_put_spec: spec.
 #[global] Hint Unfold find_lock_granule_spec: spec.

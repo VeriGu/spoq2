@@ -2,23 +2,23 @@ Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
-Require Import Layer4.Layer.
-Require Import Layer5.set_rd_state.LowSpec.
+Require Import Layer10.Layer.
+Require Import Layer12.measurement_finish.LowSpec.
 Require Import Zwf.
 
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Opaque Z.add Z.mul Z.div Z.sub Z.land Z.lor Z.lxor Z.shiftl Z.shiftr Z.quot Z.rem Z.testbit Z.setbit Z.clearbit xorb List.nth.
 
-Section Layer5_set_rd_state_CodeProof.
+Section Layer12_measurement_finish_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
-    Lemma f_set_rd_state_correct:
+    Lemma f_measurement_finish_correct:
       forall v_0 v_1 st st'
-             (Hspec: set_rd_state_spec_low v_0 v_1 st = Some st'),
-        exec_func Layer4_layer code "set_rd_state"
-                  [VPtr v_0; VInt v_1]
+             (Hspec: measurement_finish_spec_low v_0 v_1 st = Some st'),
+        exec_func Layer10_layer code "measurement_finish"
+                  [VPtr v_0; VPtr v_1]
                   st st' None.
     Proof.
         intros; simpl_func Hspec; simpl in *;
@@ -39,5 +39,5 @@ Section Layer5_set_rd_state_CodeProof.
           end).
     Qed.
 
-End Layer5_set_rd_state_CodeProof.
+End Layer12_measurement_finish_CodeProof.
 

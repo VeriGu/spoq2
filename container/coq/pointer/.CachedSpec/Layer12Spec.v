@@ -19,17 +19,6 @@ Definition copy_gic_state_from_ns_loop48_rank (v_0: Ptr) (v_1: Ptr) (v_indvars_i
 Definition total_root_rtt_refcount_loop295_rank (v_0: Ptr) (v__011: Z) (v_indvars_iv: Z) (v_wide_trip_count: Z) : Z :=
   v_wide_trip_count.
 
-Definition find_lock_unused_granule_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Ptr * RData)) :=
-  None.
-
-Definition ptr_is_err_spec (v_0: Ptr) (st: RData) : (option (bool * RData)) :=
-  if (((int_to_ptr 18446744073709547520).(pbase)) =s ("status"))
-  then (
-    if ((v_0.(pbase)) <>s ("status"))
-    then (Some (false, st))
-    else (Some (((v_0.(poffset)) >? (((int_to_ptr 18446744073709547520).(poffset)))), st)))
-  else (Some ((((ptr_to_int v_0) - (18446744073709547520)) >? (0)), st)).
-
-Definition ptr_status_spec (v_0: Ptr) (st: RData) : (option (Z * RData)) :=
-  (Some ((0 - ((ptr_to_int v_0))), st)).
+Definition measurement_finish_spec (v_0: Ptr) (v_1: Ptr) (st: RData) : (option RData) :=
+  (Some st).
 

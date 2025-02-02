@@ -2217,6 +2217,13 @@ Section GlobalDefs.
     when ret == ((load_s_granule sz elem_ofs ((((st.(share)).(globals)).(g_granules)) @ idx)));
     (Some (ret, st)).
 
+  Definition load_RData_granule_data (sz: Z) (p: Ptr) (st: RData) : (option (Z * RData)) :=
+    let idx := ((p.(poffset)) / (4096)) in
+    let g_data := (((st.(share)).(granule_data)) @ idx) in
+    let elem_ofs := ((p.(poffset)) mod (4096)) in
+    when ret == ((load_r_granule_data elem_ofs g_data));
+    (Some (ret, st)).
+
   Definition load_RData (sz: Z) (p: Ptr) (st: RData) : (option (Z * RData)) :=
     if ((p.(pbase)) =s ("stack_type_1"))
     then (Some (((st.(stack)).(stack_type_1)), st))
@@ -3271,6 +3278,7 @@ End GlobalDefs.
 #[global] Hint Unfold load_s_stack_type_4: spec.
 #[global] Hint Unfold load_s_stack_type_4__1: spec.
 #[global] Hint Unfold load_RData_granules: spec.
+#[global] Hint Unfold load_RData_granule_data: spec.
 Opaque load_RData.
 #[global] Hint Unfold global_to_ptr: spec.
 Opaque ptr_to_int.

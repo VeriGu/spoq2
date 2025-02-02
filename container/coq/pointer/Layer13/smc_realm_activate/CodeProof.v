@@ -2,24 +2,24 @@ Require Import Code.
 Require Import CommonDeps.
 Require Import DataTypes.
 Require Import GlobalDefs.
-Require Import Layer4.Layer.
-Require Import Layer5.set_rd_state.LowSpec.
+Require Import Layer12.Layer.
+Require Import Layer13.smc_realm_activate.LowSpec.
 Require Import Zwf.
 
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Opaque Z.add Z.mul Z.div Z.sub Z.land Z.lor Z.lxor Z.shiftl Z.shiftr Z.quot Z.rem Z.testbit Z.setbit Z.clearbit xorb List.nth.
 
-Section Layer5_set_rd_state_CodeProof.
+Section Layer13_smc_realm_activate_CodeProof.
 
   Context `{int_ptr: IntPtrCast}.
 
-    Lemma f_set_rd_state_correct:
-      forall v_0 v_1 st st'
-             (Hspec: set_rd_state_spec_low v_0 v_1 st = Some st'),
-        exec_func Layer4_layer code "set_rd_state"
-                  [VPtr v_0; VInt v_1]
-                  st st' None.
+    Lemma f_smc_realm_activate_correct:
+      forall v_0 st st' res
+             (Hspec: smc_realm_activate_spec_low v_0 st = Some (res, st')),
+        exec_func Layer12_layer code "smc_realm_activate"
+                  [VInt v_0]
+                  st st' (Some (VInt res)).
     Proof.
         intros; simpl_func Hspec; simpl in *;
           unshelve (eapply exec_func_call);
@@ -39,5 +39,5 @@ Section Layer5_set_rd_state_CodeProof.
           end).
     Qed.
 
-End Layer5_set_rd_state_CodeProof.
+End Layer13_smc_realm_activate_CodeProof.
 

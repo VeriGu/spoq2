@@ -9,7 +9,6 @@ Require Import Layer2.Spec.
 Require Import Layer4.Spec.
 Require Import Layer5.Spec.
 Require Import Layer6.Spec.
-Require Import Layer7.Spec.
 Require Import Layer8.Spec.
 
 Local Open Scope string_scope.
@@ -58,7 +57,6 @@ Section Layer12_Layer.
           :: ("find_granule", prim find_granule_spec)
           :: ("find_lock_granule", prim find_lock_granule_spec)
           :: ("find_lock_two_granules", prim find_lock_two_granules_spec)
-          :: ("find_lock_unused_granule", prim find_lock_unused_granule_spec)
           :: ("g_refcount", prim g_refcount_spec)
           :: ("get_rd_state_locked", prim get_rd_state_locked_spec)
           :: ("granule_addr", prim granule_addr_spec)
@@ -76,12 +74,11 @@ Section Layer12_Layer.
           :: ("invalidate_pages_in_block", prim invalidate_pages_in_block_spec)
           :: ("llvm_memcpy_p0i8_p0i8_i64", prim llvm_memcpy_p0i8_p0i8_i64_spec)
           :: ("map_unmap_ns_s1", prim map_unmap_ns_s1_spec)
+          :: ("measurement_finish", prim measurement_finish_spec)
           :: ("ns_buffer_read", prim ns_buffer_read_spec)
           :: ("ns_buffer_unmap", prim ns_buffer_unmap_spec)
           :: ("pack_return_code", prim pack_return_code_spec)
           :: ("pico_rec_enter", prim pico_rec_enter_spec)
-          :: ("ptr_is_err", prim ptr_is_err_spec)
-          :: ("ptr_status", prim ptr_status_spec)
           :: ("ranges_intersect", prim ranges_intersect_spec)
           :: ("realm_ipa_bits", prim realm_ipa_bits_spec)
           :: ("realm_rtt_starting_level", prim realm_rtt_starting_level_spec)

@@ -12,9 +12,6 @@ Layer1/Spec.v
 Layer10/Layer.v
 Layer10/RefineRel.v
 Layer10/Spec.v
-Layer11/Layer.v
-Layer11/RefineRel.v
-Layer11/Spec.v
 Layer12/Layer.v
 Layer12/RefineRel.v
 Layer12/Spec.v
@@ -36,9 +33,3 @@ Layer5/Spec.v
 Layer6/Layer.v
 Layer6/RefineRel.v
 Layer6/Spec.v
-Layer7/Layer.v
-Layer7/RefineRel.v
-Layer7/Spec.v
-Layer8/Layer.v
-Layer8/RefineRel.v
-Layer8/Spec.v

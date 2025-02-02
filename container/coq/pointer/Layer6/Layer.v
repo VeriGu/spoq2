@@ -66,7 +66,6 @@ Section Layer6_Layer.
           :: ("granule_lock", prim granule_lock_spec)
           :: ("granule_map", prim granule_map_spec)
           :: ("granule_pa_to_va", prim granule_pa_to_va_spec)
-          :: ("granule_set_state", prim granule_set_state_spec)
           :: ("granule_try_lock", prim granule_try_lock_spec)
           :: ("granule_unlock", prim granule_unlock_spec)
           :: ("invalidate_block", prim invalidate_block_spec)

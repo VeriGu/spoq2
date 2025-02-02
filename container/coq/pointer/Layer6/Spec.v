@@ -120,13 +120,6 @@ Section Layer6_Spec.
           when i, s == ((s2_addr_to_idx_spec v_4 2 st_6));
           (Some ((mkabs_ret_rtt 3 ret_3 i), s))))).
 
-  Definition granule_set_state_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option RData) :=
-    rely ((((v_0.(poffset)) mod (16)) = (0)));
-    (Some (st.[share].[globals].[g_granules] :<
-      ((((st.(share)).(globals)).(g_granules)) #
-        (((v_0.(poffset)) + (4)) / (16)) ==
-        (((((st.(share)).(globals)).(g_granules)) @ (((v_0.(poffset)) + (4)) / (16))).[e_state_s_granule] :< v_1)))).
-
   Definition pack_return_code_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
     (Some ((pack_struct_return_code_para (make_return_code_para v_0)), st)).
 
@@ -148,5 +141,4 @@ Opaque __tte_write_spec.
 #[global] Hint Unfold s2tt_init_unassigned_loop759_rank: spec.
 #[global] Hint Unfold s2tt_init_unassigned_loop759_0_rank: spec.
 Opaque rtt_walk_lock_unlock_spec_abs.
-#[global] Hint Unfold granule_set_state_spec: spec.
 #[global] Hint Unfold pack_return_code_spec: spec.

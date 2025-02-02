@@ -90,12 +90,12 @@ Section Layer10_Spec.
         ((((((st.(share)).(granule_data)) @ (((v_0.(poffset)) + (168)) / (4096))).(g_rec)).(e_sysregs)).(e_vbar_el1_s_sysreg_state))).[priv].[pcpu_regs].[pcpu_vmpidr_el2] :<
         ((((((st.(share)).(granule_data)) @ (((v_0.(poffset)) + (512)) / (4096))).(g_rec)).(e_sysregs)).(e_vmpidr_el2))))).
 
-  Definition granule_refcount_read_acquire_spec (v_0: Ptr) (st: RData) : (option (Z * RData)) :=
-    rely (((((v_0.(pbase)) = ("granules")) /\ (((v_0.(poffset)) >= (0)))) /\ ((((v_0.(poffset)) mod (16)) = (0)))));
-    when v_3, st_0 == ((load_RData 64 (mkPtr (v_0.(pbase)) ((v_0.(poffset)) + (8))) st));
-    (Some ((v_3 & (4095)), st_0)).
+  Definition get_rd_state_locked_spec (v_0: Ptr) (st: RData) : (option (Z * RData)) :=
+    rely (((((v_0.(pbase)) = ("granule_data")) /\ (((v_0.(poffset)) >= (0)))) /\ ((((v_0.(poffset)) mod (4096)) = (0)))));
+    rely (((((((st.(share)).(granule_data)) @ ((v_0.(poffset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_RD)) = (0)));
+    (Some ((((((st.(share)).(granule_data)) @ ((v_0.(poffset)) / (4096))).(g_rd)).(e_state_s_rd)), st)).
 
 End Layer10_Spec.
 
 #[global] Hint Unfold restore_sysreg_state_spec: spec.
-#[global] Hint Unfold granule_refcount_read_acquire_spec: spec.
+#[global] Hint Unfold get_rd_state_locked_spec: spec.
