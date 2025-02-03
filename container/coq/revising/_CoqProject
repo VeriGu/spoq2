@@ -70,7 +70,6 @@ Layer12/find_lock_transition_rtts/LowSpec.v
 Layer13/Layer.v
 Layer13/RefineRel.v
 Layer13/Spec.v
-<!-- Layer13/Spec_gpt.v -->
 Layer13/smc_data_destroy/LowSpec.v
 Layer13/smc_data_dispose/LowSpec.v
 Layer13/smc_rec_enter/LowSpec.v
