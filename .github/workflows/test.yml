@@ -38,6 +38,6 @@ jobs:
           pwd
           make -j7
           export COQPATH=${{ github.workspace }}/container/coq:
-          cd ${{ github.workspace }}/container/coq/pointer
+          cd ${{ github.workspace }}/container/coq/revising
           pwd
           make
