@@ -6,11 +6,39 @@ Local Open Scope Z_scope.
 
 Parameter CPU_ID : Z.
 
+Parameter s2_addr_to_idx_para : Z -> Z -> Z.
+
 Parameter empty_rec : s_rec.
 
 Parameter empty_rd : s_rd.
 
 Parameter lens : Z -> (RData -> RData).
+
+Parameter g_mapped_addr_set_para : Z -> Z -> Z.
+
+Parameter pack_struct_return_code_para : Z -> Z.
+
+Parameter make_return_code_para : Z -> Z.
+
+Parameter test_PTE_Z : abs_PTE_t -> Z.
+
+Parameter test_Z_PTE : Z -> abs_PTE_t.
+
+Parameter uart0_phys_para : abs_PTE_t -> bool.
+
+Parameter test_PA : Z -> abs_PA_t.
+
+Parameter g_refcount_para : Ptr -> (RData -> Z).
+
+Parameter rec_to_rd_para : Ptr -> (RData -> Ptr).
+
+Parameter test_Ptr_PTE : Ptr -> abs_PTE_t.
+
+Parameter rec_to_ttbr1_para : Ptr -> (RData -> Ptr).
+
+Parameter check_rcsm_mask_para : abs_PA_t -> bool.
+
+Parameter abs_tte_read : Ptr -> (RData -> abs_PTE_t).
 
 Section GlobalDefs.
 

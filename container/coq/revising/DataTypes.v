@@ -6,6 +6,34 @@ Local Open Scope Z_scope.
  | O 
  | S (pred: nat). *)
 
+Record abs_PA_t :=
+  mkabs_PA_t {
+    meta_granule_offset: Z;
+}.
+
+Record abs_PTE_t :=
+  mkabs_PTE_t {
+    meta_PA: abs_PA_t;
+    meta_desc_type: Z;
+    meta_ripas: Z;
+    meta_mem_attr: Z;
+}.
+
+Record abs_ret_rtt :=
+  mkabs_ret_rtt {
+    e_1: Z;
+    e_2: Ptr;
+    e_3: Z;
+}.
+
+Record abs_ret_2ptr :=
+  mkabs_ret_2ptr {
+    e_ret_2ptr_1: Ptr;
+    e_ret_2ptr_2: Ptr;
+}.
+
+
+
 
 Record s_buffer_alloc_ctx :=
   mks_buffer_alloc_ctx {

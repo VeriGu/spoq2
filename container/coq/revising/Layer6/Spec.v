@@ -775,6 +775,31 @@ Section Layer6_Spec.
     | None => None
     end.
 
+   Definition rtt_walk_lock_unlock_spec_abs (v_0: Ptr) (v_1: Ptr) (v_2: Z) (v_3: Z) (v_4: Z) (v_5: Z) (st: RData) : (option (abs_ret_rtt * RData)) :=
+    when ret_1, st_1 == ((__find_lock_next_level_spec v_0 v_4 0 st));
+    if (ptr_eqb ret_1 (mkPtr "null" 0))
+    then (
+      when i, s == ((s2_addr_to_idx_spec v_4 0 st_1));
+      (Some ((mkabs_ret_rtt 0 v_0 i), s)))
+    else (
+      when st_2 == ((granule_unlock_spec v_0 st_1));
+      when ret_2, st_3 == ((__find_lock_next_level_spec ret_1 v_4 1 st_2));
+      if (ptr_eqb ret_2 (mkPtr "null" 0))
+      then (
+        when i, s == ((s2_addr_to_idx_spec v_4 1 st_3));
+        (Some ((mkabs_ret_rtt 1 ret_1 i), s)))
+      else (
+        when st_4 == ((granule_unlock_spec ret_1 st_3));
+        when ret_3, st_5 == ((__find_lock_next_level_spec ret_2 v_4 2 st_4));
+        if (ptr_eqb ret_3 (mkPtr "null" 0))
+        then (
+          when i, s == ((s2_addr_to_idx_spec v_4 2 st_5));
+          (Some ((mkabs_ret_rtt 2 ret_2 i), s)))
+        else (
+          when st_6 == ((granule_unlock_spec ret_2 st_5));
+          when i, s == ((s2_addr_to_idx_spec v_4 2 st_6));
+          (Some ((mkabs_ret_rtt 3 ret_3 i), s))))).
+
 End Layer6_Spec.
 
 #[global] Hint Unfold rtt_walk_lock_unlock_loop467_rank: spec.

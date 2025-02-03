@@ -5,6 +5,7 @@ Require Import Bottom.Spec.
 Require Import Layer13.Spec_gpt.
 Require Import Layer9.Spec.
 Require Import Layer8.Spec.
+Require Import Layer2.Spec.
 Require Import Layer4.Spec.
 Require Import Layer5.Spec.
 Require Import Layer6.Spec.
@@ -34,11 +35,6 @@ Lemma lens_state_same:
   forall st v i,
     ((lens v st).(share).(globals).(g_granules) @ i).(e_state_s_granule) = (st.(share).(globals).(g_granules) @ i).(e_state_s_granule).
 Admitted.
-
-
-
-
-
 
 Ltac find_if_inside_and_simpl H Hspec :=
   match type of H with
@@ -142,37 +138,182 @@ Proof.
   repeat(inversion Hspec; repeat(apply lens_gpt); easy).
 Qed.
 
+Lemma update_ripas_spec_gpt:
+  forall norm_d v_0 v_1 v_2 norm_d' ret_n
+  (Hspec: update_ripas_spec v_0 v_1 v_2 norm_d = Some(ret_n, norm_d'))
+  (Hinv: gpt_false_ns norm_d.(share)),
+    gpt_false_ns norm_d'.(share).
+Admitted.
+
+Lemma granule_map_gpt:
+  forall norm_d v_0 v_1 norm_d' ret_n
+  (Hspec: granule_map_spec v_0 v_1 norm_d = Some(ret_n, norm_d'))
+  (Hinv: gpt_false_ns norm_d.(share)),
+   gpt_false_ns norm_d'.(share).
+Admitted.
 
 
-(*
-Lemma map_unmap_ns_s1_gpt_false:
-  forall norm_d v_0 v_1 v_2 v_3 v_4 ret_n norm_d'
-    (Hspec: map_unmap_ns_s1_spec v_0 v_1 v_2 v_3 v_4 norm_d = Some (ret_n, norm_d'))
-    (Hinv: gpt_false_ns norm_d.(share)),
+Lemma rsi_rtt_set_ripas_spec:
+  forall norm_d v_0 v_1 v_2 v_3 norm_d' ret_n
+  (Hspec: rsi_rtt_set_ripas_gpt_spec v_0 v_1 v_2 v_3 norm_d = Some(ret_n, norm_d'))
+  (Hinv: gpt_false_ns norm_d.(share)),
     gpt_false_ns norm_d'.(share).
 Proof.
-intros.
-unfold map_unmap_ns_s1_spec in Hspec.
-autounfold with sem in *.
-unfold free_stack in *.
-autounfold with sem in *.
-repeat simpl_hyp Hspec.
-- inv Hspec. unfold new_frame in C1. inv C1. apply find_granule_spec_gpt_false in C2.
-apply pack_return_code_gpt_false in C6. apply C6. apply C2. easy.
-- 
-unfold free_stack in C8. inv C8. simpl.
+  intros. unfold rsi_rtt_set_ripas_gpt_spec in Hspec.
+  unfold abstracted__tte_read_spec.
+  autounfold with sem in *.
+  (* repeat  *)
+  (* ( *)
+  repeat(simpl_hyp Hspec;
+  unfold rtt_walk_lock_unlock_gpt_spec in *;
+  unfold abstracted__tte_read_spec in *;
+  unfold granule_unlock_gpt_spec in *).
+  - inversion Hspec. apply lens_gpt. easy.
+  - (* repeat simpl_func C9. *)
+    (* repeat simpl_func C18. *)
+    (* repeat simpl_func C15. *)
+    assert (gpt_false_ns (share (lens 96 (lens 123 (lens 26 norm_d))))).
+    repeat apply lens_gpt.
+    easy. apply update_ripas_spec_gpt in C9.
+    simpl_some. inversion Hspec. repeat apply lens_gpt. easy.
+    repeat apply lens_gpt. easy.
+  - simpl_some. inversion Hspec.
+    autounfold with sem in *.
+    repeat simpl_hyp C9.
+    repeat simpl_func C10.
+    unfold gpt_false_ns.
+    intros. simpl in *.
+    match goal with 
+    | [H: context[gpt (share (lens ?a ?b))] |- _] => assert( gpt_false_ns (share (lens a b)) ); [ repeat apply lens_gpt; easy| ]
+    end. 
+    unfold gpt_false_ns in H0. destruct_zmap. simpl in *. rewrite <- Heq. 
+    pose proof (H0 gidx) as H01. auto.
+    pose proof (H0 gidx) as H01. auto.
+  - simpl_some. inversion Hspec. repeat apply lens_gpt. easy.
+  - match goal with 
+    | [H: context[update_ripas_spec _ _ _ (lens ?a ?b)] |- _] => assert( gpt_false_ns (share (lens a b)) ); [ repeat apply lens_gpt; auto | apply update_ripas_spec_gpt in H] 
+    end. inversion Hspec. repeat apply lens_gpt. auto. exact H.
+  - admit.
+  - simpl_some. inversion Hspec. repeat apply lens_gpt. easy.
+  - admit.
+  - admit.
+  - simpl_some. inversion Hspec. repeat apply lens_gpt. easy. 
+  -admit.
+  - autounfold with sem in *. 
+    repeat match goal with 
+    | [H: (match _ with _ => _ end) = _ |- _] => repeat simpl_hyp H; repeat simpl_some
+    end.  
+    inversion Hspec.
+    simpl_func C13. simpl_func C14. simpl in *. clear Hspec.
+    unfold gpt_false_ns. simpl. intros.
+    destruct_zmap.
+    + simpl. rewrite <- Heq. d
+    
+    vcgen.
 
-unfold free_stack in C8.
-unfold new_frame in C1.
-(* apply find_granule_spec_gpt_false in C2. *)
-apply pack_return_code_gpt_false in C6.
 
-
-
-inv Hnorm.
- inv Hsec; inv Hnorm.
-
-
-
-
- *)
+    unfold_spec C13.
+  
+  admit.
+  -  simpl_some. inversion Hspec. repeat apply lens_gpt. easy. 
+ 
+  
+  
+  repeat match goal with 
+  | [H: (match _ with _ => _ end) = _ |- _] => repeat simpl_hyp H; repeat simpl_some
+  end.  
+    (* simpl_some.  inversion C18. inversion C15. *)
+    (* assert (gpt_false_ns (share (lens 96 r))) as Hr. *)
+    (* simpl in *.  frewrite. rewrite <- H3.  *)
+    repeat apply lens_gpt; easy.
+    match goal with 
+    | [H: context[update_ripas_spec _ _ _ (lens ?a ?b)] |- _] => assert( gpt_false_ns (share (lens a b)) ); [ easy | apply update_ripas_spec_gpt in H]
+    end. 
+    repeat apply lens_gpt. easy. easy.
+    match goal with 
+    | [H: context[update_ripas_spec _ _ _ (lens ?a ?b)] |- _] => assert( gpt_false_ns (share (lens a b)) )
+    end. 
+    autounfold with sem in *.
+    repeat match goal with 
+    | [H: (match _ with _ => _ end) = _ |- _] => repeat simpl_hyp H; repeat simpl_some
+    end. 
+    inversion C18. inversion C15.
+    rewrite <- H1. rewrite <- H3.
+    repeat apply lens_gpt. easy.
+    match goal with 
+    | [H: context[update_ripas_spec _ _ _ (lens ?a ?b)] |- _] => assert( gpt_false_ns (share (lens a b)) ); [ easy | apply update_ripas_spec_gpt in H]
+    end.  apply lens_gpt. easy.
+    easy.
+    autounfold with sem in *.
+    repeat match goal with 
+    | [H: (match _ with _ => _ end) = _ |- _] => repeat simpl_hyp H; repeat simpl_some
+    end. 
+    inversion C18. inversion C15.
+    match goal with 
+    | [H: context[update_ripas_spec _ _ _ (lens ?a ?b)] |- _] => assert( gpt_false_ns (share (lens a b)) )
+    end. 
+    rewrite <- H1. rewrite <- H3. 
+    repeat apply lens_gpt. easy.
+    apply update_ripas_spec_gpt in C11.
+    repeat apply lens_gpt. easy. easy.
+  - autounfold with sem in *.
+    repeat simpl_hyp C9. unfold_spec C10. 
+    autounfold with sem in *.
+    repeat simpl_hyp C10.
+    simpl in C10. simpl_some.
+    unfold gpt_false_ns.
+    intros. inversion Hspec. 
+    solve_refproof.
+    rewrite <- C10.
+    simpl in *.
+    destruct_zmap.
+    + simpl in *. rewrite <- Heq. eapply lens_gpt.  repeat apply lens_gpt; easy. rewrite <- C10 in H. 
+    simpl in *.  easy.
+    + unfold gpt_false_ns in Hinv. rewrite <- C10 in H. simpl in *.  pose proof (Hinv gidx) as H_proof.
+    destruct H_proof. repeat rewrite -> lens_gpt_same in H. easy. repeat rewrite -> lens_state_same.
+    constructor. easy. right. repeat rewrite -> lens_state_same. easy.
+  - simpl_some. inversion Hspec. repeat apply lens_gpt.  easy.
+  - match goal with 
+    | [H: context[update_ripas_spec _ _ _ (lens ?a ?b)] |- _] => assert( gpt_false_ns (share (lens a b)) )
+    end.   
+    simpl_func C9;
+    autounfold with sem in *;
+    repeat match goal with 
+    | [H: (match _ with _ => _ end) = _ |- _] => repeat simpl_hyp H; repeat simpl_some
+    end;
+    repeat(inversion C18; inversion C15;
+    rewrite <- H1; rewrite <- H3;
+    repeat apply lens_gpt; easy).
+    inversion Hspec. 
+    apply update_ripas_spec_gpt in C11.
+    repeat apply lens_gpt; easy.
+    easy.
+  -  simpl_func C9.  autounfold with sem in *. simpl in *.
+     repeat match goal with 
+     | [H: (match _ with _ => _ end) = _ |- _] => repeat simpl_hyp H; repeat simpl_some
+     end.
+     rewrite <- C11.
+     unfold gpt_false_ns.
+     simpl in *. intros.
+     destruct_zmap
+     + simpl in *. rewrite <- Heq. eapply lens_gpt.  repeat apply lens_gpt; easy. easy.
+     + unfold gpt_false_ns in Hinv.   pose proof (Hinv gidx) as H_proof.
+     destruct H_proof. repeat rewrite -> lens_gpt_same in H. easy. repeat rewrite -> lens_state_same.
+     constructor. easy. right. repeat rewrite -> lens_state_same. easy.
+  - simpl_some. inversion Hspec. repeat apply lens_gpt. easy.
+  - assert (gpt_false_ns (share (r))) as H01.
+    + assert (gpt_false_ns (share (lens 26 norm_d))) as H02. repeat apply lens_gpt. easy. 
+      remember (lens 26 norm_d) as x.
+      remember ({|
+        pbase := "granules";
+        poffset := (v_0 & -2 + - MEM1_PHYS) >> 524300 * 16
+      |}) as y.
+      apply (granule_map_gpt x y 3 r p0).  exact C5.
+      exact H02.
+    + admit.
+  - admit.
+   -simpl_some. inversion Hspec. repeat apply lens_gpt. easy.
+  - admit.
+  - admit.
+  -simpl_some. inversion Hspec. repeat apply lens_gpt. easy.
+Admitted.

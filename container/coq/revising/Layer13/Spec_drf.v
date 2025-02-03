@@ -7928,51 +7928,7 @@ Section Layer13_Spec.
 								)))))))
 			else (Some ((((((((v_8 >> (32)) + (1)) << (32)) + (1)) >> (24)) & (4294967040)) |' (((((v_8 >> (32)) + (1)) << (32)) + (1)))), st_1))).
 	
-	Definition smc_realm_activate_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
-		rely (
-			(((((v_0 - (MEM0_PHYS)) >= (0)) /\ (((v_0 - (4294967296)) < (0)))) \/ ((((v_0 - (MEM1_PHYS)) >= (0)) /\ (((v_0 - (556198264832)) < (0)))))) /\
-				(((v_0 & (4095)) = (0)))));
-		if ((v_0 - (MEM1_PHYS)) >=? (0))
-		then (
-			when sh == (((st.(repl)) ((st.(oracle)) (st.(log))) (st.(share))));
-			match ((((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_lock)).(e_val))) with
-			| None =>
-				rely (
-					(((((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)) -
-						(((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)))) =
-						(0)));
-				if ((((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)) - (2)) =? (0))
-				then (
-					when ret == ((granule_addr_spec' (mkPtr "granules" (((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)))));
-					when ret_0 == ((buffer_map_spec' 2 ret false));
-					rely ((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_RD)) = (0)));
-					rely (((((ret_0.(pbase)) = ("granule_data")) /\ (((ret_0.(poffset)) >= (0)))) /\ ((((ret_0.(poffset)) mod (4096)) = (0)))));
-					if (((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_state_s_rd)) =? (0))
-					then (Some (0, (lens 98 st)))
-					else (Some (5, (lens 99 st))))
-				else (Some (4294967553, (lens 100 st)))
-			| (Some cid) => None
-			end)
-		else (
-			when sh == (((st.(repl)) ((st.(oracle)) (st.(log))) (st.(share))));
-			match ((((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val))) with
-			| None =>
-				rely (
-					(((((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) -
-						(((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)))) =
-						(0)));
-				if ((((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) - (2)) =? (0))
-				then (
-					when ret == ((granule_addr_spec' (mkPtr "granules" (((v_0 + ((- MEM0_PHYS))) >> (12)) * (16)))));
-					when ret_0 == ((buffer_map_spec' 2 ret false));
-					rely ((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_RD)) = (0)));
-					rely (((((ret_0.(pbase)) = ("granule_data")) /\ (((ret_0.(poffset)) >= (0)))) /\ ((((ret_0.(poffset)) mod (4096)) = (0)))));
-					if (((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_state_s_rd)) =? (0))
-					then (Some (0, (lens 101 st)))
-					else (Some (5, (lens 102 st))))
-				else (Some (4294967553, (lens 103 st)))
-			| (Some cid) => None
-			end).
+
 	
 	Definition smc_rtt_map_protected_spec (v_0: Z) (v_1: Z) (v_2: Z) (st: RData) : (option (Z * RData)) :=
 		rely (
@@ -8397,7 +8353,6 @@ End Layer13_Spec.
 #[global] Hint Unfold smc_rtt_unmap_non_secure_spec: spec.
 #[global] Hint Unfold smc_rtt_read_entry_spec: spec.
 #[global] Hint Unfold smc_rtt_unmap_protected_spec: spec.
-
 (* #[global] Hint Unfold s1tte_is_writable_spec: spec. *)
 (* #[global] Hint Unfold stage1_tlbi_va_spec: spec. *)
 (* #[global] Hint Unfold stage1_tlbi_val_spec: spec. *)

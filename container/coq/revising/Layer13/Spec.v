@@ -45,28 +45,6 @@ Section Layer13_Spec.
     when st_2 == ((iasm_12_isb_spec st_1));
     (Some st_2).
 
-  (* Definition smc_realm_activate_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
-    when v_2, st_0 == ((find_lock_granule_spec v_0 2 st));
-    rely (((((v_2.(poffset)) mod (16)) = (0)) /\ (((v_2.(poffset)) >= (0)))));
-    rely ((((v_2.(pbase)) = ("granules")) \/ (((v_2.(pbase)) = ("null")))));
-    if (ptr_eqb v_2 (mkPtr "null" 0))
-    then (
-      when v_4, st_1 == ((pack_return_code_spec 1 1 st_0));
-      (Some (v_4, st_1)))
-    else (
-      when v_7, st_1 == ((granule_map_spec v_2 2 st_0));
-      when v_9, st_2 == ((get_rd_state_locked_spec v_7 st_1));
-      if (v_9 =? (0))
-      then (
-        when st_3 == ((measurement_finish_spec (ptr_offset v_7 72) (ptr_offset v_7 184) st_2));
-        when st_4 == ((set_rd_state_spec v_7 1 st_3));
-        when st_6 == ((granule_unlock_spec v_2 st_4));
-        (Some (0, st_6)))
-      else (
-        when v_17, st_3 == ((pack_return_code_spec 5 0 st_2));
-        when st_5 == ((granule_unlock_spec v_2 st_3));
-        (Some (v_17, st_5)))). *)
-
   Definition stage1_tlbi_val_spec (v_0: Z) (v_1: Z) (st: RData) : (option RData) :=
     when st_0 == ((iasm_264_spec (((v_0 >> (12)) & (17592186044415)) + ((v_1 << (48)))) st));
     when st_1 == ((iasm_10_spec st_0));
@@ -2389,558 +2367,6 @@ Section Layer13_Spec.
       when st_4 == ((free_stack "smc_rec_enter" st_0 st_2));
       (Some st_4)).
 
-  (*
-  Definition smc_data_dispose_spec (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Z) (st: RData) : (option (Z * RData)) :=
-    when st_0 == ((new_frame "smc_data_dispose" st));
-    when v_8, st_1 == ((find_lock_two_granules_spec v_0 2 (mkPtr "stack_type_4" 0) v_1 3 (mkPtr "stack_type_4__1" 0) st_0));
-    if (v_8 =? (3))
-    then (
-      when v_11, st_2 == ((pack_return_code_spec 3 0 st_1));
-      when st_4 == ((free_stack "smc_data_dispose" st_0 st_2));
-      (Some (v_11, st_4)))
-    else (
-      if (v_8 =? (0))
-      then (
-        when v_19_tmp, st_2 == ((load_RData 8 (mkPtr "stack_type_4__1" 0) st_1));
-        when v_20, st_3 == ((granule_refcount_read_acquire_spec (int_to_ptr v_19_tmp) st_2));
-        if (v_20 =? (0))
-        then (
-          when v_24_tmp, st_4 == ((load_RData 8 (mkPtr "stack_type_4__1" 0) st_3));
-          when v_25, st_5 == ((granule_map_spec (int_to_ptr v_24_tmp) 3 st_4));
-          when v_26_tmp, st_6 == ((load_RData 8 (mkPtr "stack_type_4" 0) st_5));
-          when v_29_tmp, st_7 == ((load_RData 8 (ptr_offset v_25 944) st_6));
-          if (ptr_eqb (int_to_ptr v_26_tmp) (int_to_ptr v_29_tmp))
-          then (
-            when v_34, st_8 == ((load_RData 1 (ptr_offset v_25 896) st_7));
-            if ((v_34 & (1)) =? (0))
-            then (smc_data_dispose_1_low st_0 st_8 v_34)
-            else (
-              when v_41, st_9 == ((load_RData 8 (ptr_offset v_25 904) st_8));
-              when v_44, st_10 == ((load_RData 8 (ptr_offset v_25 912) st_9));
-              when v_47, st_11 == ((s2tte_map_size_spec v_3 st_10));
-              when v_49, st_12 == ((region_is_contained_spec v_41 (v_44 + (v_41)) v_2 (v_47 + (v_2)) st_11));
-              if v_49
-              then (
-                when v_53_tmp, st_13 == ((load_RData 8 (mkPtr "stack_type_4" 0) st_12));
-                when v_54, st_14 == ((granule_map_spec (int_to_ptr v_53_tmp) 2 st_13));
-                when v_56, st_15 == ((validate_rtt_map_cmds_spec v_2 v_3 v_54 st_14));
-                if (v_56 =? (0))
-                then (
-                  when v_63_tmp, st_16 == ((load_RData 8 (ptr_offset v_54 32) st_15));
-                  when v_64, st_17 == ((realm_rtt_starting_level_spec v_54 st_16));
-                  when v_65, st_18 == ((realm_ipa_bits_spec v_54 st_17));
-                  when st_19 == ((granule_lock_spec (int_to_ptr v_63_tmp) 5 st_18));
-                  when st_20 == ((rtt_walk_lock_unlock_spec (mkPtr "stack_s_rtt_walk" 0) (int_to_ptr v_63_tmp) v_64 v_65 v_2 v_3 st_19));
-                  rely ((((st_20.(share)).(granule_data)) = (((st_19.(share)).(granule_data)))));
-                  when v__sroa_032_0_copyload_tmp, st_21 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 0) st_20));
-                  when v__sroa_5_0_copyload, st_22 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 16) st_21));
-                  if ((v__sroa_5_0_copyload - (v_3)) =? (0))
-                  then (
-                    when v__sroa_3_0_copyload, st_23 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 8) st_22));
-                    when v_70, st_24 == ((granule_map_spec (int_to_ptr v__sroa_032_0_copyload_tmp) 6 st_23));
-                    when v_73, st_25 == ((__tte_read_spec (ptr_offset v_70 (8 * (v__sroa_3_0_copyload))) st_24));
-                    when v_74, st_26 == ((s2tte_is_destroyed_spec v_73 st_25));
-                    if v_74
-                    then (smc_data_dispose_0_low st_0 st_26 v_70 v_74 v__sroa_032_0_copyload_tmp v__sroa_3_0_copyload)
-                    else (
-                      when v_76, st_27 == ((pack_return_code_spec 9 0 st_26));
-                      when st_30 == ((granule_unlock_spec (int_to_ptr v__sroa_032_0_copyload_tmp) st_27));
-                      when v_83_tmp, st_36 == ((load_RData 8 (mkPtr "stack_type_4__1" 0) st_30));
-                      when st_37 == ((granule_unlock_spec (int_to_ptr v_83_tmp) st_36));
-                      when v_84_tmp, st_38 == ((load_RData 8 (mkPtr "stack_type_4" 0) st_37));
-                      when st_39 == ((granule_unlock_spec (int_to_ptr v_84_tmp) st_38));
-                      when st_42 == ((free_stack "smc_data_dispose" st_0 st_39));
-                      (Some (v_76, st_42))))
-                  else (
-                    when v_68, st_23 == ((pack_return_code_spec 8 v__sroa_5_0_copyload st_22));
-                    when st_25 == ((granule_unlock_spec (int_to_ptr v__sroa_032_0_copyload_tmp) st_23));
-                    when v_83_tmp, st_31 == ((load_RData 8 (mkPtr "stack_type_4__1" 0) st_25));
-                    when st_32 == ((granule_unlock_spec (int_to_ptr v_83_tmp) st_31));
-                    when v_84_tmp, st_33 == ((load_RData 8 (mkPtr "stack_type_4" 0) st_32));
-                    when st_34 == ((granule_unlock_spec (int_to_ptr v_84_tmp) st_33));
-                    when st_37 == ((free_stack "smc_data_dispose" st_0 st_34));
-                    (Some (v_68, st_37))))
-                else (
-                  when v_59, st_16 == ((pack_return_code_spec v_56 ((v_56 >> (32)) + (3)) st_15));
-                  when v_83_tmp, st_22 == ((load_RData 8 (mkPtr "stack_type_4__1" 0) st_16));
-                  when st_23 == ((granule_unlock_spec (int_to_ptr v_83_tmp) st_22));
-                  when v_84_tmp, st_24 == ((load_RData 8 (mkPtr "stack_type_4" 0) st_23));
-                  when st_25 == ((granule_unlock_spec (int_to_ptr v_84_tmp) st_24));
-                  when st_28 == ((free_stack "smc_data_dispose" st_0 st_25));
-                  (Some (v_59, st_28))))
-              else (
-                when v_51, st_13 == ((pack_return_code_spec 1 3 st_12));
-                when v_83_tmp, st_18 == ((load_RData 8 (mkPtr "stack_type_4__1" 0) st_13));
-                when st_19 == ((granule_unlock_spec (int_to_ptr v_83_tmp) st_18));
-                when v_84_tmp, st_20 == ((load_RData 8 (mkPtr "stack_type_4" 0) st_19));
-                when st_21 == ((granule_unlock_spec (int_to_ptr v_84_tmp) st_20));
-                when st_24 == ((free_stack "smc_data_dispose" st_0 st_21));
-                (Some (v_51, st_24)))))
-          else (
-            when v_31, st_8 == ((pack_return_code_spec 6 0 st_7));
-            when v_83_tmp, st_11 == ((load_RData 8 (mkPtr "stack_type_4__1" 0) st_8));
-            when st_12 == ((granule_unlock_spec (int_to_ptr v_83_tmp) st_11));
-            when v_84_tmp, st_13 == ((load_RData 8 (mkPtr "stack_type_4" 0) st_12));
-            when st_14 == ((granule_unlock_spec (int_to_ptr v_84_tmp) st_13));
-            when st_17 == ((free_stack "smc_data_dispose" st_0 st_14));
-            (Some (v_31, st_17))))
-        else (
-          when v_22, st_4 == ((pack_return_code_spec 4 0 st_3));
-          when v_83_tmp, st_6 == ((load_RData 8 (mkPtr "stack_type_4__1" 0) st_4));
-          when st_7 == ((granule_unlock_spec (int_to_ptr v_83_tmp) st_6));
-          when v_84_tmp, st_8 == ((load_RData 8 (mkPtr "stack_type_4" 0) st_7));
-          when st_9 == ((granule_unlock_spec (int_to_ptr v_84_tmp) st_8));
-          when st_12 == ((free_stack "smc_data_dispose" st_0 st_9));
-          (Some (v_22, st_12))))
-      else (
-        when v_16, st_2 == ((pack_return_code_spec 1 ((v_8 >> (32)) + (1)) st_1));
-        when st_5 == ((free_stack "smc_data_dispose" st_0 st_2));
-        (Some (v_16, st_5)))).
-
-  Definition smc_read_feature_register_spec (v_0: Z) (v_1: Ptr) (st: RData) : (option RData) :=
-    if (v_0 =? (0))
-    then (
-      when v_4, st_0 == ((rmm_feature_register_0_value_spec st));
-      when st_1 == ((store_RData 8 (ptr_offset v_1 8) v_4 st_0));
-      when st_2 == ((store_RData 8 (ptr_offset v_1 0) 0 st_1));
-      (Some st_2))
-    else (
-      when v_8, st_0 == ((pack_return_code_spec 1 1 st));
-      when st_1 == ((store_RData 8 (ptr_offset v_1 0) v_8 st_0));
-      (Some st_1)).
-
-  Definition smc_rtt_destroy_spec (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Z) (st: RData) : (option (Z * RData)) :=
-    when st_0 == ((new_frame "smc_rtt_destroy" st));
-    when v_7, st_1 == ((find_lock_granule_spec v_1 2 st_0));
-    rely (((((v_7.(poffset)) mod (16)) = (0)) /\ (((v_7.(poffset)) >= (0)))));
-    rely ((((v_7.(pbase)) = ("granules")) \/ (((v_7.(pbase)) = ("null")))));
-    if (ptr_eqb v_7 (mkPtr "null" 0))
-    then (
-      when v_9, st_2 == ((pack_return_code_spec 1 2 st_1));
-      when st_4 == ((free_stack "smc_rtt_destroy" st_0 st_2));
-      (Some (v_9, st_4)))
-    else (
-      when v_11, st_2 == ((granule_map_spec v_7 2 st_1));
-      when v_13, st_3 == ((validate_rtt_structure_cmds_spec v_2 v_3 v_11 st_2));
-      if (v_13 =? (0))
-      then (
-        when v_22_tmp, st_4 == ((load_RData 8 (ptr_offset v_11 32) st_3));
-        when v_23, st_5 == ((realm_rtt_starting_level_spec v_11 st_4));
-        when v_24, st_6 == ((realm_ipa_bits_spec v_11 st_5));
-        when st_7 == ((llvm_memcpy_p0i8_p0i8_i64_spec (mkPtr "stack_s_realm_s2_context" 0) (ptr_offset v_11 16) 32 false st_6));
-        when st_8 == ((granule_lock_spec (int_to_ptr v_22_tmp) 5 st_7));
-        when st_9 == ((granule_unlock_spec v_7 st_8));
-        when st_10 == ((rtt_walk_lock_unlock_spec (mkPtr "stack_s_rtt_walk" 0) (int_to_ptr v_22_tmp) v_23 v_24 v_2 (v_3 + ((- 1))) st_9));
-        rely ((((st_10.(share)).(granule_data)) = (((st_9.(share)).(granule_data)))));
-        when v__sroa_019_0_copyload_tmp, st_11 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 0) st_10));
-        when v__sroa_7_0_copyload, st_12 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 16) st_11));
-        if ((v__sroa_7_0_copyload - ((v_3 + ((- 1))))) =? (0))
-        then (
-          when v__sroa_4_0_copyload, st_13 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 8) st_12));
-          when v_31, st_14 == ((granule_map_spec (int_to_ptr v__sroa_019_0_copyload_tmp) 6 st_13));
-          when v_34, st_15 == ((__tte_read_spec (ptr_offset v_31 (8 * (v__sroa_4_0_copyload))) st_14));
-          when v_35, st_16 == ((s2tte_is_table_spec v_34 (v_3 + ((- 1))) st_15));
-          if v_35
-          then (
-            when v_40, st_17 == ((s2tte_pa_spec v_34 (v_3 + ((- 1))) st_16));
-            if ((v_40 - (v_0)) =? (0))
-            then (
-              when v_44, st_18 == ((find_lock_granule_spec v_0 5 st_17));
-              rely (((((v_44.(poffset)) mod (16)) = (0)) /\ (((v_44.(poffset)) >= (0)))));
-              rely ((((v_44.(pbase)) = ("granules")) \/ (((v_44.(pbase)) = ("null")))));
-              when v_45, st_19 == ((g_refcount_spec v_44 st_18));
-              if (v_45 =? (0))
-              then (smc_rtt_destroy_0_low st_0 st_19 v_2 v_31 v_44 v_45 v__sroa_019_0_copyload_tmp v__sroa_4_0_copyload)
-              else (
-                when v_47, st_20 == ((pack_return_code_spec 4 0 st_19));
-                when st_22 == ((granule_unlock_spec v_44 st_20));
-                when st_26 == ((granule_unlock_spec (int_to_ptr v__sroa_019_0_copyload_tmp) st_22));
-                when st_23 == ((free_stack "smc_rtt_destroy" st_0 st_26));
-                (Some (v_47, st_23))))
-            else (
-              when v_42, st_18 == ((pack_return_code_spec 1 1 st_17));
-              when st_22 == ((granule_unlock_spec (int_to_ptr v__sroa_019_0_copyload_tmp) st_18));
-              when st_20 == ((free_stack "smc_rtt_destroy" st_0 st_22));
-              (Some (v_42, st_20))))
-          else (
-            when v_38, st_17 == ((pack_return_code_spec 8 (v_3 + ((- 1))) st_16));
-            when st_20 == ((granule_unlock_spec (int_to_ptr v__sroa_019_0_copyload_tmp) st_17));
-            when st_19 == ((free_stack "smc_rtt_destroy" st_0 st_20));
-            (Some (v_38, st_19))))
-        else (
-          when v_29, st_13 == ((pack_return_code_spec 8 v__sroa_7_0_copyload st_12));
-          when st_15 == ((granule_unlock_spec (int_to_ptr v__sroa_019_0_copyload_tmp) st_13));
-          when st_16 == ((free_stack "smc_rtt_destroy" st_0 st_15));
-          (Some (v_29, st_16))))
-      else (
-        when st_4 == ((granule_unlock_spec v_7 st_3));
-        when v_16, st_5 == ((pack_return_code_spec v_13 ((v_13 >> (32)) + (3)) st_4));
-        when st_7 == ((free_stack "smc_rtt_destroy" st_0 st_5));
-        (Some (v_16, st_7)))).
-
-
-  Definition s2tte_create_destroyed_spec (st: RData) : (option (Z * RData)) :=
-    (Some (8, st)).
-
-  Definition smc_data_destroy_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
-    when st_0 == ((new_frame "smc_data_destroy" st));
-    when v_4, st_1 == ((find_lock_granule_spec v_0 2 st_0));
-    rely (((((v_4.(poffset)) mod (16)) = (0)) /\ (((v_4.(poffset)) >= (0)))));
-    rely ((((v_4.(pbase)) = ("granules")) \/ (((v_4.(pbase)) = ("null")))));
-    if (ptr_eqb v_4 (mkPtr "null" 0))
-    then (
-      when v_6, st_2 == ((pack_return_code_spec 1 1 st_1));
-      when st_4 == ((free_stack "smc_data_destroy" st_0 st_2));
-      (Some (v_6, st_4)))
-    else (
-      when v_9, st_2 == ((granule_map_spec v_4 2 st_1));
-      when v_11, st_3 == ((validate_map_addr_spec v_1 3 v_9 st_2));
-      if (v_11 =? (0))
-      then (
-        when v_18_tmp, st_4 == ((load_RData 8 (ptr_offset v_9 32) st_3));
-        when v_19, st_5 == ((realm_rtt_starting_level_spec v_9 st_4));
-        when v_20, st_6 == ((realm_ipa_bits_spec v_9 st_5));
-        when st_7 == ((granule_lock_spec (int_to_ptr v_18_tmp) 5 st_6));
-        when st_8 == ((granule_unlock_spec v_4 st_7));
-        when st_9 == ((rtt_walk_lock_unlock_spec (mkPtr "stack_s_rtt_walk" 0) (int_to_ptr v_18_tmp) v_19 v_20 v_1 3 st_8));
-        rely ((((st_9.(share)).(granule_data)) = (((st_8.(share)).(granule_data)))));
-        when v__sroa_016_0_copyload_tmp, st_10 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 0) st_9));
-        when v__sroa_6_0_copyload, st_11 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 16) st_10));
-        if (v__sroa_6_0_copyload =? (3))
-        then (
-          when v__sroa_4_0_copyload, st_12 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 8) st_11));
-          when v_25, st_13 == ((granule_map_spec (int_to_ptr v__sroa_016_0_copyload_tmp) 6 st_12));
-          when v_28, st_14 == ((__tte_read_spec (ptr_offset v_25 (8 * (v__sroa_4_0_copyload))) st_13));
-          when v_29, st_15 == ((s2tte_is_assigned_spec v_28 3 st_14));
-          if v_29
-          then (smc_data_destroy_0_low st_0 st_15 v_25 v_28 v_29 v__sroa_016_0_copyload_tmp v__sroa_4_0_copyload)
-          else (
-            when v_31, st_16 == ((pack_return_code_spec 9 0 st_15));
-            when st_19 == ((granule_unlock_spec (int_to_ptr v__sroa_016_0_copyload_tmp) st_16));
-            when st_22 == ((free_stack "smc_data_destroy" st_0 st_19));
-            (Some (v_31, st_22))))
-        else (
-          when v_23, st_12 == ((pack_return_code_spec 8 v__sroa_6_0_copyload st_11));
-          when st_14 == ((granule_unlock_spec (int_to_ptr v__sroa_016_0_copyload_tmp) st_12));
-          when st_17 == ((free_stack "smc_data_destroy" st_0 st_14));
-          (Some (v_23, st_17))))
-      else (
-        when st_4 == ((granule_unlock_spec v_4 st_3));
-        when v_13, st_5 == ((pack_return_code_spec 1 2 st_4));
-        when st_8 == ((free_stack "smc_data_destroy" st_0 st_5));
-        (Some (v_13, st_8)))).
-
-  Definition smc_rtt_create_spec (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Z) (st: RData) : (option (Z * RData)) :=
-    when st_0 == ((new_frame "smc_rtt_create" st));
-    if ((v_1 & (1)) =? (0))
-    then (
-      when v_22, st_1 == ((find_lock_two_granules_spec v_0 1 (mkPtr "stack_type_4__1" 0) v_1 2 (mkPtr "stack_type_4" 0) st_0));
-      if (v_22 =? (3))
-      then (
-        when v_25, st_2 == ((pack_return_code_spec 3 0 st_1));
-        when st_4 == ((free_stack "smc_rtt_create" st_0 st_2));
-        (Some (v_25, st_4)))
-      else (
-        if (v_22 =? (0))
-        then (
-          when v_33_tmp, st_2 == ((load_RData 8 (mkPtr "stack_type_4" 0) st_1));
-          when v_40, st_3 == ((granule_map_spec (int_to_ptr v_33_tmp) 2 st_2));
-          when v_42, st_4 == ((validate_rtt_structure_cmds_spec v_2 v_3 v_40 st_3));
-          if (v_42 =? (0))
-          then (
-            when v_47_tmp, st_6 == ((load_RData 8 (ptr_offset v_40 32) st_4));
-            when v_48, st_7 == ((realm_rtt_starting_level_spec v_40 st_6));
-            when v_49, st_8 == ((realm_ipa_bits_spec v_40 st_7));
-            when st_9 == ((llvm_memcpy_p0i8_p0i8_i64_spec (mkPtr "stack_s_realm_s2_context" 0) (ptr_offset v_40 16) 32 false st_8));
-            when st_10 == ((granule_lock_spec (int_to_ptr v_47_tmp) 5 st_9));
-            when v_51_tmp, st_11 == ((load_RData 8 (mkPtr "stack_type_4" 0) st_10));
-            when st_12 == ((granule_unlock_spec (int_to_ptr v_51_tmp) st_11));
-            when st_13 == ((rtt_walk_lock_unlock_spec (mkPtr "stack_s_rtt_walk__1" 0) (int_to_ptr v_47_tmp) v_48 v_49 v_2 (v_3 + ((- 1))) st_12));
-            rely ((((st_13.(share)).(granule_data)) = (((st_12.(share)).(granule_data)))));
-            when v__sroa_053_0_copyload_tmp, st_14 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk__1" 0) 0) st_13));
-            when v__sroa_9_0_copyload, st_15 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk__1" 0) 16) st_14));
-            if ((v__sroa_9_0_copyload - ((v_3 + ((- 1))))) =? (0))
-            then (
-              when v__sroa_5_0_copyload, st_16 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk__1" 0) 8) st_15));
-              when v_57, st_17 == ((granule_map_spec (int_to_ptr v__sroa_053_0_copyload_tmp) 6 st_16));
-              when v_60, st_18 == ((__tte_read_spec (ptr_offset v_57 (8 * (v__sroa_5_0_copyload))) st_17));
-              when v_61_tmp, st_19 == ((load_RData 8 (mkPtr "stack_type_4__1" 0) st_18));
-              when v_62, st_20 == ((granule_map_spec (int_to_ptr v_61_tmp) 1 st_19));
-              when v_64, st_21 == ((s2tte_is_unassigned_spec v_60 st_20));
-              if v_64
-              then (smc_rtt_create_4_low st_0 st_21 v_0 v_3 v_57 v_60 v_62 v_64 v__sroa_053_0_copyload_tmp v__sroa_5_0_copyload)
-              else (
-                when v_68, st_22 == ((s2tte_is_destroyed_spec v_60 st_21));
-                if v_68
-                then (smc_rtt_create_3_low st_0 st_22 v_0 v_3 v_57 v_62 v_68 v__sroa_053_0_copyload_tmp v__sroa_5_0_copyload)
-                else (
-                  when v_71, st_23 == ((s2tte_is_assigned_spec v_60 (v_3 + ((- 1))) st_22));
-                  if v_71
-                  then (smc_rtt_create_2_low st_0 st_23 v_0 v_3 v_57 v_60 v_62 v_71 v__sroa_053_0_copyload_tmp v__sroa_5_0_copyload)
-                  else (
-                    when v_76, st_24 == ((s2tte_is_valid_spec v_60 (v_3 + ((- 1))) st_23));
-                    if v_76
-                    then (smc_rtt_create_1_low st_0 st_24 v_0 v_2 v_3 v_57 v_60 v_62 v_76 v__sroa_053_0_copyload_tmp v__sroa_5_0_copyload)
-                    else (
-                      when v_81, st_25 == ((s2tte_is_valid_ns_spec v_60 (v_3 + ((- 1))) st_24));
-                      if v_81
-                      then (smc_rtt_create_0_low st_0 st_25 v_0 v_2 v_3 v_57 v_60 v_62 v_81 v__sroa_053_0_copyload_tmp v__sroa_5_0_copyload)
-                      else (
-                        when v_86, st_26 == ((s2tte_is_table_spec v_60 (v_3 + ((- 1))) st_25));
-                        if v_86
-                        then (
-                          when v_88, st_27 == ((pack_return_code_spec 9 0 st_26));
-                          when st_28 == ((granule_unlock_spec (int_to_ptr v__sroa_053_0_copyload_tmp) st_27));
-                          when v_94_tmp, st_29 == ((load_RData 8 (mkPtr "stack_type_4__1" 0) st_28));
-                          when st_30 == ((granule_unlock_spec (int_to_ptr v_94_tmp) st_29));
-                          when st_32 == ((free_stack "smc_rtt_create" st_0 st_30));
-                          (Some (v_88, st_32)))
-                        else (
-                          when v_90_tmp, st_28 == ((load_RData 8 (mkPtr "stack_type_4__1" 0) st_26));
-                          when st_29 == ((granule_set_state_spec (int_to_ptr v_90_tmp) 5 st_28));
-                          when v_91, st_30 == ((s2tte_create_table_spec v_0 (v_3 + ((- 1))) st_29));
-                          when st_31 == ((__tte_write_spec (ptr_offset v_57 (8 * (v__sroa_5_0_copyload))) v_91 st_30));
-                          when st_32 == ((granule_unlock_spec (int_to_ptr v__sroa_053_0_copyload_tmp) st_31));
-                          when v_94_tmp, st_33 == ((load_RData 8 (mkPtr "stack_type_4__1" 0) st_32));
-                          when st_34 == ((granule_unlock_spec (int_to_ptr v_94_tmp) st_33));
-                          when st_35 == ((free_stack "smc_rtt_create" st_0 st_34));
-                          (Some (0, st_35)))))))))
-            else (
-              when v_55, st_16 == ((pack_return_code_spec 8 v__sroa_9_0_copyload st_15));
-              when st_17 == ((granule_unlock_spec (int_to_ptr v__sroa_053_0_copyload_tmp) st_16));
-              when v_94_tmp, st_18 == ((load_RData 8 (mkPtr "stack_type_4__1" 0) st_17));
-              when st_19 == ((granule_unlock_spec (int_to_ptr v_94_tmp) st_18));
-              when st_21 == ((free_stack "smc_rtt_create" st_0 st_19));
-              (Some (v_55, st_21))))
-          else (
-            when v_38_tmp, st_5 == ((load_RData 8 (mkPtr "stack_type_4" 0) st_4));
-            when st_6 == ((granule_unlock_spec (int_to_ptr v_38_tmp) st_5));
-            when v_39_tmp, st_7 == ((load_RData 8 (mkPtr "stack_type_4__1" 0) st_6));
-            when st_8 == ((granule_unlock_spec (int_to_ptr v_39_tmp) st_7));
-            when v_46, st_9 == ((pack_return_code_spec v_42 ((v_42 >> (32)) + (3)) st_8));
-            when st_11 == ((free_stack "smc_rtt_create" st_0 st_9));
-            (Some (v_46, st_11))))
-        else (
-          when v_30, st_2 == ((pack_return_code_spec 1 ((v_22 >> (32)) + (1)) st_1));
-          when st_4 == ((free_stack "smc_rtt_create" st_0 st_2));
-          (Some (v_30, st_4)))))
-    else (
-      when v_12, st_1 == ((find_lock_granule_spec (v_1 & ((- 2))) 3 st_0));
-      rely (((((v_12.(poffset)) mod (16)) = (0)) /\ (((v_12.(poffset)) >= (0)))));
-      rely ((((v_12.(pbase)) = ("granules")) \/ (((v_12.(pbase)) = ("null")))));
-      if (ptr_eqb v_12 (mkPtr "null" 0))
-      then (
-        when v_14, st_2 == ((pack_return_code_spec 1 2 st_1));
-        when st_4 == ((free_stack "smc_rtt_create" st_0 st_2));
-        (Some (v_14, st_4)))
-      else (
-        when v_17, st_2 == ((granule_map_spec v_12 3 st_1));
-        when v_19, st_3 == ((rtt_create_s1_el1_spec v_17 v_0 v_2 v_3 st_2));
-        when st_4 == ((granule_unlock_spec v_12 st_3));
-        when st_6 == ((free_stack "smc_rtt_create" st_0 st_4));
-        (Some (((v_19 << (32)) >> (32)), st_6)))).
-
-  Definition smc_rtt_map_protected_spec (v_0: Z) (v_1: Z) (v_2: Z) (st: RData) : (option (Z * RData)) :=
-    when st_0 == ((new_frame "smc_rtt_map_protected" st));
-    when v_5, st_1 == ((find_lock_granule_spec v_0 2 st_0));
-    rely (((((v_5.(poffset)) mod (16)) = (0)) /\ (((v_5.(poffset)) >= (0)))));
-    rely ((((v_5.(pbase)) = ("granules")) \/ (((v_5.(pbase)) = ("null")))));
-    if (ptr_eqb v_5 (mkPtr "null" 0))
-    then (
-      when v_7, st_2 == ((pack_return_code_spec 1 1 st_1));
-      when st_4 == ((free_stack "smc_rtt_map_protected" st_0 st_2));
-      (Some (v_7, st_4)))
-    else (
-      when v_9, st_2 == ((granule_map_spec v_5 2 st_1));
-      when v_11, st_3 == ((validate_rtt_map_cmds_spec v_1 v_2 v_9 st_2));
-      if (v_11 =? (0))
-      then (
-        when v_19_tmp, st_4 == ((load_RData 8 (ptr_offset v_9 32) st_3));
-        when v_20, st_5 == ((realm_rtt_starting_level_spec v_9 st_4));
-        when v_21, st_6 == ((realm_ipa_bits_spec v_9 st_5));
-        when st_7 == ((granule_lock_spec (int_to_ptr v_19_tmp) 5 st_6));
-        when st_8 == ((granule_unlock_spec v_5 st_7));
-        when st_9 == ((rtt_walk_lock_unlock_spec (mkPtr "stack_s_rtt_walk" 0) (int_to_ptr v_19_tmp) v_20 v_21 v_1 v_2 st_8));
-        rely ((((st_9.(share)).(granule_data)) = (((st_8.(share)).(granule_data)))));
-        when v__sroa_018_0_copyload_tmp, st_10 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 0) st_9));
-        when v__sroa_5_0_copyload, st_11 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 16) st_10));
-        if ((v__sroa_5_0_copyload - (v_2)) =? (0))
-        then (
-          when v__sroa_320_0_copyload, st_12 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 8) st_11));
-          when v_26, st_13 == ((granule_map_spec (int_to_ptr v__sroa_018_0_copyload_tmp) 6 st_12));
-          when v_29, st_14 == ((__tte_read_spec (ptr_offset v_26 (8 * (v__sroa_320_0_copyload))) st_13));
-          when v_30, st_15 == ((s2tte_is_assigned_spec v_29 v_2 st_14));
-          if v_30
-          then (smc_rtt_map_protected_0_low st_0 st_15 v_2 v_26 v_29 v_30 v__sroa_018_0_copyload_tmp v__sroa_320_0_copyload)
-          else (
-            when v_32, st_16 == ((pack_return_code_spec 9 0 st_15));
-            when st_19 == ((granule_unlock_spec (int_to_ptr v__sroa_018_0_copyload_tmp) st_16));
-            when st_18 == ((free_stack "smc_rtt_map_protected" st_0 st_19));
-            (Some (v_32, st_18))))
-        else (
-          when v_24, st_12 == ((pack_return_code_spec 8 v__sroa_5_0_copyload st_11));
-          when st_14 == ((granule_unlock_spec (int_to_ptr v__sroa_018_0_copyload_tmp) st_12));
-          when st_15 == ((free_stack "smc_rtt_map_protected" st_0 st_14));
-          (Some (v_24, st_15))))
-      else (
-        when st_4 == ((granule_unlock_spec v_5 st_3));
-        when v_14, st_5 == ((pack_return_code_spec v_11 ((v_11 >> (32)) + (2)) st_4));
-        when st_7 == ((free_stack "smc_rtt_map_protected" st_0 st_5));
-        (Some (v_14, st_7)))).
-
-  Definition s2tte_addr_type_mask_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
-    if ((v_0 & (3)) =? (0))
-    then (Some (0, st))
-    else (
-      when v_7, st_0 == ((s2tte_pa_spec v_0 v_1 st));
-      (Some ((v_7 |' ((v_0 & (3)))), st_0))).
-
-  Definition data_granule_measure_spec (v_0: Ptr) (v_1: Ptr) (v_2: Z) (v_3: Z) (st: RData) : (option RData) :=
-    when st_0 == ((new_frame "data_granule_measure" st));
-    when st_1 == ((store_RData 8 (ptr_offset (mkPtr "stack_type_7" 0) 0) 4 st_0));
-    when st_2 == ((store_RData 8 (ptr_offset (mkPtr "stack_type_7" 0) 8) v_2 st_1));
-    when st_3 == ((store_RData 8 (ptr_offset (mkPtr "stack_type_7" 0) 16) 0 st_2));
-    when st_4 == ((free_stack "data_granule_measure" st_0 st_3));
-    (Some st_4).
-
-  Definition smc_rtt_read_entry_spec (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Ptr) (st: RData) : (option RData) :=
-    when st_0 == ((new_frame "smc_rtt_read_entry" st));
-    when v_6, st_1 == ((find_lock_granule_spec v_0 2 st_0));
-    rely (((((v_6.(poffset)) mod (16)) = (0)) /\ (((v_6.(poffset)) >= (0)))));
-    rely ((((v_6.(pbase)) = ("granules")) \/ (((v_6.(pbase)) = ("null")))));
-    if (ptr_eqb v_6 (mkPtr "null" 0))
-    then (
-      when v_8, st_2 == ((pack_return_code_spec 1 1 st_1));
-      when st_3 == ((store_RData 8 (ptr_offset v_3 0) v_8 st_2));
-      when st_5 == ((free_stack "smc_rtt_read_entry" st_0 st_3));
-      (Some st_5))
-    else (
-      when v_12, st_2 == ((granule_map_spec v_6 2 st_1));
-      when v_14, st_3 == ((validate_rtt_entry_cmds_spec v_1 v_2 v_12 st_2));
-      if (v_14 =? (0))
-      then (
-        when v_23_tmp, st_4 == ((load_RData 8 (ptr_offset v_12 32) st_3));
-        when v_24, st_5 == ((realm_rtt_starting_level_spec v_12 st_4));
-        when v_25, st_6 == ((realm_ipa_bits_spec v_12 st_5));
-        when st_7 == ((granule_lock_spec (int_to_ptr v_23_tmp) 5 st_6));
-        when st_8 == ((granule_unlock_spec v_6 st_7));
-        when st_9 == ((rtt_walk_lock_unlock_spec (mkPtr "stack_s_rtt_walk" 0) (int_to_ptr v_23_tmp) v_24 v_25 v_1 v_2 st_8));
-        rely ((((st_9.(share)).(granule_data)) = (((st_8.(share)).(granule_data)))));
-        when v__sroa_017_0_copyload_tmp, st_10 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 0) st_9));
-        when v__sroa_319_0_copyload, st_11 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 8) st_10));
-        when v__sroa_4_0_copyload, st_12 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 16) st_11));
-        when v_26, st_13 == ((granule_map_spec (int_to_ptr v__sroa_017_0_copyload_tmp) 6 st_12));
-        when v_29, st_14 == ((__tte_read_spec (ptr_offset v_26 (8 * (v__sroa_319_0_copyload))) st_13));
-        when st_15 == ((store_RData 8 (ptr_offset v_3 8) v__sroa_4_0_copyload st_14));
-        when st_16 == ((store_RData 8 (ptr_offset v_3 24) 0 st_15));
-        when v_32, st_17 == ((s2tte_is_unassigned_spec v_29 st_16));
-        if v_32
-        then (
-          when st_18 == ((store_RData 8 (ptr_offset v_3 16) 0 st_17));
-          when st_20 == ((granule_unlock_spec (int_to_ptr v__sroa_017_0_copyload_tmp) st_18));
-          when st_21 == ((store_RData 8 (ptr_offset v_3 0) 0 st_20));
-          when st_24 == ((free_stack "smc_rtt_read_entry" st_0 st_21));
-          (Some st_24))
-        else (
-          when v_36, st_18 == ((s2tte_is_destroyed_spec v_29 st_17));
-          if v_36
-          then (
-            when st_19 == ((store_RData 8 (ptr_offset v_3 16) 1 st_18));
-            when st_22 == ((granule_unlock_spec (int_to_ptr v__sroa_017_0_copyload_tmp) st_19));
-            when st_23 == ((store_RData 8 (ptr_offset v_3 0) 0 st_22));
-            when st_26 == ((free_stack "smc_rtt_read_entry" st_0 st_23));
-            (Some st_26))
-          else (
-            when v_40, st_19 == ((s2tte_is_assigned_spec v_29 v__sroa_4_0_copyload st_18));
-            if v_40
-            then (smc_rtt_read_entry_3_low st_0 st_19 v_29 v_3 v_40 v__sroa_017_0_copyload_tmp v__sroa_4_0_copyload)
-            else (
-              when v_45, st_20 == ((s2tte_is_valid_spec v_29 v__sroa_4_0_copyload st_19));
-              if v_45
-              then (smc_rtt_read_entry_2_low st_0 st_20 v_29 v_3 v_45 v__sroa_017_0_copyload_tmp v__sroa_4_0_copyload)
-              else (
-                when v_50, st_21 == ((s2tte_is_valid_ns_spec v_29 v__sroa_4_0_copyload st_20));
-                if v_50
-                then (smc_rtt_read_entry_1_low st_0 st_21 v_29 v_3 v_50 v__sroa_017_0_copyload_tmp v__sroa_4_0_copyload)
-                else (
-                  when v_55, st_22 == ((s2tte_is_table_spec v_29 v__sroa_4_0_copyload st_21));
-                  if v_55
-                  then (smc_rtt_read_entry_0_low st_0 st_22 v_29 v_3 v_55 v__sroa_017_0_copyload_tmp v__sroa_4_0_copyload)
-                  else (
-                    when st_29 == ((granule_unlock_spec (int_to_ptr v__sroa_017_0_copyload_tmp) st_22));
-                    when st_30 == ((store_RData 8 (ptr_offset v_3 0) 0 st_29));
-                    when st_33 == ((free_stack "smc_rtt_read_entry" st_0 st_30));
-                    (Some st_33))))))))
-      else (
-        when st_4 == ((granule_unlock_spec v_6 st_3));
-        when v_17, st_5 == ((pack_return_code_spec v_14 ((v_14 >> (32)) + (2)) st_4));
-        when st_6 == ((store_RData 8 (ptr_offset v_3 0) v_17 st_5));
-        when st_9 == ((free_stack "smc_rtt_read_entry" st_0 st_6));
-        (Some st_9))).
-
-  Definition smc_rtt_unmap_protected_spec (v_0: Z) (v_1: Z) (v_2: Z) (st: RData) : (option (Z * RData)) :=
-    when st_0 == ((new_frame "smc_rtt_unmap_protected" st));
-    when v_6, st_1 == ((find_lock_granule_spec v_0 2 st_0));
-    rely (((((v_6.(poffset)) mod (16)) = (0)) /\ (((v_6.(poffset)) >= (0)))));
-    rely ((((v_6.(pbase)) = ("granules")) \/ (((v_6.(pbase)) = ("null")))));
-    if (ptr_eqb v_6 (mkPtr "null" 0))
-    then (
-      when v_8, st_2 == ((pack_return_code_spec 1 1 st_1));
-      when st_4 == ((free_stack "smc_rtt_unmap_protected" st_0 st_2));
-      (Some (v_8, st_4)))
-    else (
-      when v_10, st_2 == ((granule_map_spec v_6 2 st_1));
-      when v_12, st_3 == ((validate_rtt_map_cmds_spec v_1 v_2 v_10 st_2));
-      if (v_12 =? (0))
-      then (
-        when v_21_tmp, st_4 == ((load_RData 8 (ptr_offset v_10 32) st_3));
-        when v_22, st_5 == ((realm_rtt_starting_level_spec v_10 st_4));
-        when v_23, st_6 == ((realm_ipa_bits_spec v_10 st_5));
-        when st_7 == ((llvm_memcpy_p0i8_p0i8_i64_spec (mkPtr "stack_s_realm_s2_context" 0) (ptr_offset v_10 16) 32 false st_6));
-        when st_8 == ((granule_lock_spec (int_to_ptr v_21_tmp) 5 st_7));
-        when st_9 == ((granule_unlock_spec v_6 st_8));
-        when st_10 == ((rtt_walk_lock_unlock_spec (mkPtr "stack_s_rtt_walk" 0) (int_to_ptr v_21_tmp) v_22 v_23 v_1 v_2 st_9));
-        rely ((((st_10.(share)).(granule_data)) = (((st_9.(share)).(granule_data)))));
-        when v__sroa_017_0_copyload_tmp, st_11 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 0) st_10));
-        when v__sroa_5_0_copyload, st_12 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 16) st_11));
-        if ((v__sroa_5_0_copyload - (v_2)) =? (0))
-        then (
-          when v__sroa_319_0_copyload, st_13 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 8) st_12));
-          when v_29, st_14 == ((granule_map_spec (int_to_ptr v__sroa_017_0_copyload_tmp) 6 st_13));
-          when v_32, st_15 == ((__tte_read_spec (ptr_offset v_29 (8 * (v__sroa_319_0_copyload))) st_14));
-          when v_33, st_16 == ((s2tte_is_valid_spec v_32 v_2 st_15));
-          if v_33
-          then (
-            when v_37, st_17 == ((s2tte_pa_spec v_32 v_2 st_16));
-            when v_38, st_18 == ((s2tte_create_assigned_spec v_37 v_2 st_17));
-            when st_19 == ((__tte_write_spec (ptr_offset v_29 (8 * (v__sroa_319_0_copyload))) v_38 st_18));
-            if (v_2 =? (3))
-            then (
-              when st_20 == ((invalidate_page_spec (mkPtr "stack_s_realm_s2_context" 0) v_1 st_19));
-              when st_24 == ((granule_unlock_spec (int_to_ptr v__sroa_017_0_copyload_tmp) st_20));
-              when st_22 == ((free_stack "smc_rtt_unmap_protected" st_0 st_24));
-              (Some (0, st_22)))
-            else (
-              when st_20 == ((invalidate_block_spec (mkPtr "stack_s_realm_s2_context" 0) v_1 st_19));
-              when st_24 == ((granule_unlock_spec (int_to_ptr v__sroa_017_0_copyload_tmp) st_20));
-              when st_22 == ((free_stack "smc_rtt_unmap_protected" st_0 st_24));
-              (Some (0, st_22))))
-          else (
-            when v_35, st_17 == ((pack_return_code_spec 9 0 st_16));
-            when st_20 == ((granule_unlock_spec (int_to_ptr v__sroa_017_0_copyload_tmp) st_17));
-            when st_19 == ((free_stack "smc_rtt_unmap_protected" st_0 st_20));
-            (Some (v_35, st_19))))
-        else (
-          when v_27, st_13 == ((pack_return_code_spec 8 v__sroa_5_0_copyload st_12));
-          when st_15 == ((granule_unlock_spec (int_to_ptr v__sroa_017_0_copyload_tmp) st_13));
-          when st_16 == ((free_stack "smc_rtt_unmap_protected" st_0 st_15));
-          (Some (v_27, st_16))))
-      else (
-        when st_4 == ((granule_unlock_spec v_6 st_3));
-        when v_15, st_5 == ((pack_return_code_spec v_12 ((v_12 >> (32)) + (2)) st_4));
-        when st_7 == ((free_stack "smc_rtt_unmap_protected" st_0 st_5));
-        (Some (v_15, st_7)))). 
-  *)
 
   Definition smc_rtt_unmap_protected_spec (v_0: Z) (v_1: Z) (v_2: Z) (st: RData) : (option (Z * RData)) :=
   rely (
@@ -12381,130 +11807,29 @@ Section Layer13_Spec.
   
   
   Definition smc_realm_activate_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
-    rely (
-      (((((v_0 - (MEM0_PHYS)) >= (0)) /\ (((v_0 - (4294967296)) < (0)))) \/ ((((v_0 - (MEM1_PHYS)) >= (0)) /\ (((v_0 - (556198264832)) < (0)))))) /\
-        (((v_0 & (4095)) = (0)))));
-    if ((v_0 - (MEM1_PHYS)) >=? (0))
+    when st_1 == ((spinlock_acquire_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st));
+    if (((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (16))).(e_state_s_granule)) - (2)) =? (0))
     then (
-      when sh == (((st.(repl)) ((st.(oracle)) (st.(log))) (st.(share))));
-      match ((((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_lock)).(e_val))) with
-      | None =>
-        rely (
-          (((((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)) -
-            (((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)))) =
-            (0)));
-        if ((((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).(e_state_s_granule)) - (2)) =? (0))
-        then (
-          when ret == ((granule_addr_spec' (mkPtr "granules" (((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)))));
-          when ret_0 == ((buffer_map_spec' 2 ret false));
-          rely ((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_RD)) = (0)));
-          rely (((((ret_0.(pbase)) = ("granule_data")) /\ (((ret_0.(poffset)) >= (0)))) /\ ((((ret_0.(poffset)) mod (4096)) = (0)))));
-          if (((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_state_s_rd)) =? (0))
-          then (
-            (Some (
-              0  ,
-              ((st.[log] :<
-                ((EVT
-                  CPU_ID
-                  (REL
-                    ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))
-                    ((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
-                  (((EVT CPU_ID (ACQ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
-                ((sh.[globals].[g_granules] :<
-                  (((sh.(globals)).(g_granules)) #
-                    ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)) ==
-                    ((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< None))).[granule_data] :<
-                  ((sh.(granule_data)) #
-                    ((ret_0.(poffset)) / (4096)) ==
-                    (((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).[g_norm] :<
-                      ((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_norm)) # ((ret_0.(poffset)) mod (4096)) == 1)))))
-            )))
-          else (
-            (Some (
-              5  ,
-              ((st.[log] :<
-                ((EVT
-                  CPU_ID
-                  (REL
-                    ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))
-                    ((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
-                  (((EVT CPU_ID (ACQ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
-                (sh.[globals].[g_granules] :<
-                  (((sh.(globals)).(g_granules)) #
-                    ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)) ==
-                    ((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< None))))
-            ))))
-        else (
-          (Some (
-            4294967553  ,
-            ((st.[log] :<
-              ((EVT
-                CPU_ID
-                (REL
-                  ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))
-                  ((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
-                (((EVT CPU_ID (ACQ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
-              (sh.[globals].[g_granules] :<
-                (((sh.(globals)).(g_granules)) #
-                  ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16)) ==
-                  ((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (16)) / (16))).[e_lock].[e_val] :< None))))
-          )))
-      | (Some cid) => None
-      end)
+      rely ((((((test_PA v_0).(meta_granule_offset)) mod (16)) = (0)) /\ ((((test_PA v_0).(meta_granule_offset)) >= (0)))));
+      rely (((("granule_data" = ("granule_data")) /\ ((((test_PA v_0).(meta_granule_offset)) >= (0)))) /\ (((((test_PA v_0).(meta_granule_offset)) mod (4096)) = (0)))));
+      rely (((((((st_1.(share)).(granule_data)) @ (((test_PA v_0).(meta_granule_offset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_RD)) = (0)));
+      if ((((((st_1.(share)).(granule_data)) @ (((test_PA v_0).(meta_granule_offset)) / (4096))).(g_rd)).(e_state_s_rd)) =? (0))
+      then (
+        when st_6 == (
+            (granule_unlock_spec
+              (mkPtr "granules" ((test_PA v_0).(meta_granule_offset)))
+              (st_1.[share].[granule_data] :<
+                (((st_1.(share)).(granule_data)) #
+                  (((test_PA v_0).(meta_granule_offset)) / (4096)) ==
+                  ((((st_1.(share)).(granule_data)) @ (((test_PA v_0).(meta_granule_offset)) / (4096))).[g_norm] :<
+                    (((((st_1.(share)).(granule_data)) @ (((test_PA v_0).(meta_granule_offset)) / (4096))).(g_norm)) # (((test_PA v_0).(meta_granule_offset)) mod (4096)) == 1))))));
+        (Some (0, st_6)))
+      else (
+        when st_5 == ((granule_unlock_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_1));
+        (Some ((pack_struct_return_code_para (make_return_code_para 5)), st_5))))
     else (
-      when sh == (((st.(repl)) ((st.(oracle)) (st.(log))) (st.(share))));
-      match ((((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val))) with
-      | None =>
-        rely (
-          (((((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) -
-            (((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)))) =
-            (0)));
-        if ((((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) - (2)) =? (0))
-        then (
-          when ret == ((granule_addr_spec' (mkPtr "granules" (((v_0 + ((- MEM0_PHYS))) >> (12)) * (16)))));
-          when ret_0 == ((buffer_map_spec' 2 ret false));
-          rely ((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_RD)) = (0)));
-          rely (((((ret_0.(pbase)) = ("granule_data")) /\ (((ret_0.(poffset)) >= (0)))) /\ ((((ret_0.(poffset)) mod (4096)) = (0)))));
-          if (((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_state_s_rd)) =? (0))
-          then (
-            (Some (
-              0  ,
-              ((st.[log] :<
-                ((EVT CPU_ID (REL ((v_0 + ((- MEM0_PHYS))) >> (12)) ((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
-                  (((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
-                ((sh.[globals].[g_granules] :<
-                  (((sh.(globals)).(g_granules)) #
-                    ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
-                    ((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None))).[granule_data] :<
-                  ((sh.(granule_data)) #
-                    ((ret_0.(poffset)) / (4096)) ==
-                    (((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).[g_norm] :<
-                      ((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_norm)) # ((ret_0.(poffset)) mod (4096)) == 1)))))
-            )))
-          else (
-            (Some (
-              5  ,
-              ((st.[log] :<
-                ((EVT CPU_ID (REL ((v_0 + ((- MEM0_PHYS))) >> (12)) ((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
-                  (((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
-                (sh.[globals].[g_granules] :<
-                  (((sh.(globals)).(g_granules)) #
-                    ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
-                    ((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None))))
-            ))))
-        else (
-          (Some (
-            4294967553  ,
-            ((st.[log] :<
-              ((EVT CPU_ID (REL ((v_0 + ((- MEM0_PHYS))) >> (12)) ((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
-                (((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
-              (sh.[globals].[g_granules] :<
-                (((sh.(globals)).(g_granules)) #
-                  ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
-                  ((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None))))
-          )))
-      | (Some cid) => None
-      end).
+      when st_2 == ((spinlock_release_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_1));
+      (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_2))).
 
   (* 
       Some smc specs depends on some complex lower-level specs ; e.g. data_create_spec / map_unmap_ns_spec. 
@@ -12567,6 +11892,42 @@ Section Layer13_Spec.
   Definition smc_rtt_unmap_non_secure_spec (v_0: Z) (v_1: Z) (v_2: Z) (st: RData) : (option (Z * RData)) :=
     when v_4, st_0 == ((map_unmap_ns_spec v_0 v_1 v_2 0 1 st));
     (Some (v_4, st_0)).
+
+  Definition smc_rec_destroy_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
+    when st_1 == ((spinlock_acquire_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st));
+    if (((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (16))).(e_state_s_granule)) - (3)) =? (0))
+    then (
+      if ((g_refcount_para (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_1) =? (0))
+      then (
+        when v_2, st_2 == ((memset_spec (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) 0 4096 st_1));
+        rely (((("granules" = ("granules")) /\ (((((test_PA v_0).(meta_granule_offset)) mod (16)) = (0)))) /\ ((((test_PA v_0).(meta_granule_offset)) >= (0)))));
+        when st_3 == (
+            (granule_unlock_spec
+              (mkPtr "granules" ((test_PA v_0).(meta_granule_offset)))
+              (st_2.[share].[globals].[g_granules] :<
+                ((((st_2.(share)).(globals)).(g_granules)) #
+                  (((test_PA v_0).(meta_granule_offset)) / (16)) ==
+                  (((((st_2.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (16))).[e_state_s_granule] :< 1)))));
+        rely (
+          (((((rec_to_rd_para (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) st_1).(pbase)) = ("granules")) /\
+            (((((rec_to_rd_para (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) st_1).(poffset)) mod (16)) = (0)))) /\
+            ((((rec_to_rd_para (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) st_1).(poffset)) >= (0)))));
+        (Some (
+          0  ,
+          (st_3.[share].[globals].[g_granules] :<
+            ((((st_3.(share)).(globals)).(g_granules)) #
+              (((rec_to_rd_para (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) st_1).(poffset)) / (16)) ==
+              (((((st_3.(share)).(globals)).(g_granules)) @ (((rec_to_rd_para (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) st_1).(poffset)) / (16))).[e_ref] :<
+                ((((((st_3.(share)).(globals)).(g_granules)) @ (((rec_to_rd_para (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) st_1).(poffset)) / (16))).(e_ref)).[e_u_anon_3_0] :<
+                  (((((((st_3.(share)).(globals)).(g_granules)) @ (((rec_to_rd_para (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) st_1).(poffset)) / (16))).(e_ref)).(e_u_anon_3_0)) +
+                    ((- 1)))))))
+        )))
+      else (
+        when st_2 == ((granule_unlock_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_1));
+        (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_2))))
+    else (
+      when st_2 == ((spinlock_release_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_1));
+      (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_2))).
 
 End Layer13_Spec.
 
