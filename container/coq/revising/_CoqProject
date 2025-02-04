@@ -78,4 +78,5 @@ Layer13/smc_rtt_destroy/LowSpec.v
 Layer13/smc_rtt_map_protected/LowSpec.v
 Layer13/smc_rtt_read_entry/LowSpec.v
 Security/SecurityProof.v
+Security/rtt_map_data_inv.v
 Security/walk_inv.v
