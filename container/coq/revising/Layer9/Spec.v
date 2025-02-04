@@ -44,55 +44,107 @@ Section Layer9_Spec.
               ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_4).(meta_ripas)) =? (0)))) &&
               ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_4).(meta_mem_attr)) =? (0)))))
           then (
-            when st_13 == ((granule_lock_spec (rec_to_rd_para (mkPtr "null" 0) st_4) 2 st_4));
-            when v_11, st_3 == ((memcpy_ns_read_spec (mkPtr "granule_data" (((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset))) (mkPtr "granule_data" 0) 4096 st_13));
-            if v_11
+            when st_3 == ((spinlock_acquire_spec (mkPtr ((rec_to_rd_para (mkPtr "null" 0) st_4).(pbase)) ((rec_to_rd_para (mkPtr "null" 0) st_4).(poffset))) st_4));
+            if (((((((st_3.(share)).(globals)).(g_granules)) @ (((rec_to_rd_para (mkPtr "null" 0) st_4).(poffset)) / (16))).(e_state_s_granule)) - (2)) =? (0))
             then (
-              when st_18 == ((granule_unlock_spec (rec_to_rd_para (mkPtr "null" 0) st_4) st_3));
-              rely ((((rtt_ret.(e_2)).(pbase)) = ("granules")));
-              rely ((((((rtt_ret.(e_2)).(poffset)) + (8)) mod (4096)) = (8)));
-              when st_29 == (
-                  (granule_unlock_spec
-                    (rtt_ret.(e_2))
-                    ((st_18.[share].[globals].[g_granules] :<
-                      (((((st_18.(share)).(globals)).(g_granules)) #
-                        ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096)) ==
-                        (((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).[e_ref] :<
-                          ((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).[e_u_anon_3_0] :<
-                            (((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
-                        ((((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset)) / (4096)) ==
-                        ((((((st_18.(share)).(globals)).(g_granules)) #
+              when v_11, st_5 == ((memcpy_ns_read_spec (mkPtr "granule_data" (((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset))) (mkPtr "granule_data" 0) 4096 st_3));
+              if v_11
+              then (
+                when st_18 == ((granule_unlock_spec (rec_to_rd_para (mkPtr "null" 0) st_4) st_5));
+                rely ((((rtt_ret.(e_2)).(pbase)) = ("granules")));
+                rely ((((((rtt_ret.(e_2)).(poffset)) + (8)) mod (4096)) = (8)));
+                when st_29 == (
+                    (granule_unlock_spec
+                      (rtt_ret.(e_2))
+                      ((st_18.[share].[globals].[g_granules] :<
+                        (((((st_18.(share)).(globals)).(g_granules)) #
                           ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096)) ==
                           (((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).[e_ref] :<
                             ((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).[e_u_anon_3_0] :<
-                              (((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset)) / (4096))).[e_ref] :<
-                          (((((((st_18.(share)).(globals)).(g_granules)) #
+                              (((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                          ((((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset)) / (4096)) ==
+                          ((((((st_18.(share)).(globals)).(g_granules)) #
                             ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096)) ==
                             (((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).[e_ref] :<
                               ((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).[e_u_anon_3_0] :<
-                                (((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset)) / (4096))).(e_ref)).[e_u_anon_3_0] :<
-                            ((g_mapped_addr_set_para
-                              (((((((st_18.(share)).(globals)).(g_granules)) #
-                                ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096)) ==
-                                (((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).[e_ref] :<
-                                  ((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).[e_u_anon_3_0] :<
-                                    (((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset)) / (4096))).(e_ref)).(e_u_anon_3_0))
-                              v_1) +
-                              (1)))))).[share].[granule_data] :<
-                      (((st_18.(share)).(granule_data)) #
-                        ((((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3)))))) / (4096)) ==
-                        ((((st_18.(share)).(granule_data)) @ ((((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3)))))) / (4096))).[g_norm] :<
-                          (((((st_18.(share)).(granule_data)) @ ((((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3)))))) / (4096))).(g_norm)) #
-                            ((((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3)))))) mod (4096)) ==
-                            (test_PTE_Z (mkabs_PTE_t ((test_Z_PTE v_2).(meta_PA)) 0 0 1))))))));
-              when st_6 == ((granule_unlock_spec (mkPtr "granules" (((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset))) st_29));
-              (Some (0, st_6)))
+                                (((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset)) / (4096))).[e_ref] :<
+                            (((((((st_18.(share)).(globals)).(g_granules)) #
+                              ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096)) ==
+                              (((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).[e_ref] :<
+                                ((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).[e_u_anon_3_0] :<
+                                  (((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset)) / (4096))).(e_ref)).[e_u_anon_3_0] :<
+                              ((g_mapped_addr_set_para
+                                (((((((st_18.(share)).(globals)).(g_granules)) #
+                                  ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096)) ==
+                                  (((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).[e_ref] :<
+                                    ((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).[e_u_anon_3_0] :<
+                                      (((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset)) / (4096))).(e_ref)).(e_u_anon_3_0))
+                                v_1) +
+                                (1)))))).[share].[granule_data] :<
+                        (((st_18.(share)).(granule_data)) #
+                          ((((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3)))))) / (4096)) ==
+                          ((((st_18.(share)).(granule_data)) @ ((((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3)))))) / (4096))).[g_norm] :<
+                            (((((st_18.(share)).(granule_data)) @ ((((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3)))))) / (4096))).(g_norm)) #
+                              ((((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3)))))) mod (4096)) ==
+                              (test_PTE_Z (mkabs_PTE_t ((test_Z_PTE v_2).(meta_PA)) 0 0 1))))))));
+                when st_6 == ((granule_unlock_spec (mkPtr "granules" (((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset))) st_29));
+                (Some (0, st_6)))
+              else (
+                when v_33, st_18 == ((memset_spec (mkPtr "granule_data" (((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset))) 0 4096 st_5));
+                when st_19 == ((granule_unlock_spec (rec_to_rd_para (mkPtr "null" 0) st_4) st_18));
+                when st_21 == ((granule_unlock_spec (rtt_ret.(e_2)) st_19));
+                when st_6 == ((granule_unlock_spec (mkPtr "granules" (((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset))) st_21));
+                (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_6))))
             else (
-              when v_33, st_18 == ((memset_spec (mkPtr "granule_data" (((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset))) 0 4096 st_3));
-              when st_19 == ((granule_unlock_spec (rec_to_rd_para (mkPtr "null" 0) st_4) st_18));
-              when st_21 == ((granule_unlock_spec (rtt_ret.(e_2)) st_19));
-              when st_6 == ((granule_unlock_spec (mkPtr "granules" (((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset))) st_21));
-              (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_6))))
+              when st_5 == ((spinlock_release_spec (mkPtr ((rec_to_rd_para (mkPtr "null" 0) st_4).(pbase)) ((rec_to_rd_para (mkPtr "null" 0) st_4).(poffset))) st_3));
+              when v_11, st_6 == ((memcpy_ns_read_spec (mkPtr "granule_data" (((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset))) (mkPtr "granule_data" 0) 4096 st_5));
+              if v_11
+              then (
+                when st_18 == ((granule_unlock_spec (rec_to_rd_para (mkPtr "null" 0) st_4) st_6));
+                rely ((((rtt_ret.(e_2)).(pbase)) = ("granules")));
+                rely ((((((rtt_ret.(e_2)).(poffset)) + (8)) mod (4096)) = (8)));
+                when st_29 == (
+                    (granule_unlock_spec
+                      (rtt_ret.(e_2))
+                      ((st_18.[share].[globals].[g_granules] :<
+                        (((((st_18.(share)).(globals)).(g_granules)) #
+                          ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096)) ==
+                          (((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).[e_ref] :<
+                            ((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).[e_u_anon_3_0] :<
+                              (((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).(e_u_anon_3_0)) + (1))))) #
+                          ((((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset)) / (4096)) ==
+                          ((((((st_18.(share)).(globals)).(g_granules)) #
+                            ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096)) ==
+                            (((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).[e_ref] :<
+                              ((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).[e_u_anon_3_0] :<
+                                (((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset)) / (4096))).[e_ref] :<
+                            (((((((st_18.(share)).(globals)).(g_granules)) #
+                              ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096)) ==
+                              (((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).[e_ref] :<
+                                ((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).[e_u_anon_3_0] :<
+                                  (((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset)) / (4096))).(e_ref)).[e_u_anon_3_0] :<
+                              ((g_mapped_addr_set_para
+                                (((((((st_18.(share)).(globals)).(g_granules)) #
+                                  ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096)) ==
+                                  (((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).[e_ref] :<
+                                    ((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).[e_u_anon_3_0] :<
+                                      (((((((st_18.(share)).(globals)).(g_granules)) @ ((((rtt_ret.(e_2)).(poffset)) + (8)) / (4096))).(e_ref)).(e_u_anon_3_0)) + (1))))) @ ((((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset)) / (4096))).(e_ref)).(e_u_anon_3_0))
+                                v_1) +
+                                (1)))))).[share].[granule_data] :<
+                        (((st_18.(share)).(granule_data)) #
+                          ((((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3)))))) / (4096)) ==
+                          ((((st_18.(share)).(granule_data)) @ ((((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3)))))) / (4096))).[g_norm] :<
+                            (((((st_18.(share)).(granule_data)) @ ((((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3)))))) / (4096))).(g_norm)) #
+                              ((((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3)))))) mod (4096)) ==
+                              (test_PTE_Z (mkabs_PTE_t ((test_Z_PTE v_2).(meta_PA)) 0 0 1))))))));
+                when st_7 == ((granule_unlock_spec (mkPtr "granules" (((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset))) st_29));
+                (Some (0, st_7)))
+              else (
+                when v_33, st_18 == ((memset_spec (mkPtr "granule_data" (((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset))) 0 4096 st_6));
+                when st_19 == ((granule_unlock_spec (rec_to_rd_para (mkPtr "null" 0) st_4) st_18));
+                when st_21 == ((granule_unlock_spec (rtt_ret.(e_2)) st_19));
+                when st_7 == ((granule_unlock_spec (mkPtr "granules" (((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset))) st_21));
+                (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_7)))))
           else (
             when st_13 == ((granule_unlock_spec (rtt_ret.(e_2)) st_4));
             when st_5 == ((granule_unlock_spec (mkPtr "granules" (((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset))) st_13));
@@ -107,7 +159,6 @@ Section Layer9_Spec.
     else (
       when st_2 == ((spinlock_release_spec (mkPtr "granules" (((test_Z_PTE v_2).(meta_PA)).(meta_granule_offset))) st_1));
       (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_2))).
-
   Definition rsi_rtt_set_ripas_spec (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Z) (st: RData) : (option (Z * RData)) :=
     if (v_3 >? (1))
     then (Some (1, st))
