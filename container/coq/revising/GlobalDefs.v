@@ -2485,8 +2485,8 @@ Section GlobalDefs.
                                                                                                       else (
                                                                                                         if ((p.(pbase)) =s ("granules"))
                                                                                                         then (
-                                                                                                          let idx := ((p.(poffset)) / (16)) in
-                                                                                                          let elem_ofs := ((p.(poffset)) mod (16)) in
+                                                                                                          let idx := ((p.(poffset)) / (4096)) in
+                                                                                                          let elem_ofs := ((p.(poffset)) mod (4096)) in
                                                                                                           when ret == ((load_s_granule sz elem_ofs ((((st.(share)).(globals)).(g_granules)) @ idx)));
                                                                                                           (Some (ret, st)))
                                                                                                         else (
