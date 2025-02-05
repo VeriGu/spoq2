@@ -530,6 +530,7 @@ Proof.
     intros.
     repeat rewrite lens_ignore_g_granules_update.
     repeat rewrite lens_ignore_g_granules_update in Hrtt.
+    repeat rewrite lens_state_same.
     pose proof (Hinv rtt_idx) as Hinv.
     repeat simpl_imply Hinv.
     pose proof (Hinv parent_idx offset) as Hinv.
@@ -608,3 +609,149 @@ Proof.
   - inv Hspec. easy.
   - inv Hspec. easy.
 Qed.
+
+Lemma test_Z_PTE_Z_same:
+  (forall a, (test_Z_PTE (test_PTE_Z a)) = a).
+Admitted.
+
+Lemma abs_tte_read_sem:
+  (forall a st, (abs_tte_read a st) = (test_Z_PTE (g_norm (granule_data (share st)) @ (a.(poffset) / 4096)) @ (a.(poffset) mod 4096))).
+Admitted.
+
+Ltac simpl_andb_true_iff H :=
+  let E1 := fresh "E" in
+  let E2 := fresh "E" in
+  apply Bool.andb_true_iff in H;
+  destruct H as (E1 & E2);
+  try simpl_walk_rev_strong E1;
+  try simpl_walk_rev_strong E2;
+  bool_rel.
+
+Lemma rsi_rtt_set_ripas_spec_walk_rev :
+  forall d v_0 v_1 v_2 v_3 ret_n ret_d
+    (Hspec: rsi_rtt_set_ripas_spec v_0 v_1 v_2 v_3 d = Some(ret_n, ret_d))
+    (Hinv: walk_rev d.(share)),
+    walk_rev ret_d.(share).
+Proof.
+  intros.  unfold rsi_rtt_set_ripas_spec in Hspec.
+  autounfold with sem in *.
+  repeat simpl_hyp Hspec;
+  try intros_ensure;
+  try simpl_walk_rev;
+  repeat match goal with
+    | [H: _ = lens _ _ |- _] => rewrite -> H in *; clear H
+  end;
+  repeat match goal with
+    | [H: context[lens _ (lens _ _)] |- _] => rewrite <- lens_repeat in H
+  end; simpl_some; try simpl_walk_rev_strong Hspec; bool_rel; try (inv Hspec; easy).
+  all: inv Hspec. 
+  all: try(match goal with
+          | [H: (?a =? 3) && _ = true |- _] => simpl_andb_true_iff H
+            end; simpl in *; retrieve_idx;
+            unfold walk_rev; simpl in *; unfold walk_rev in Hinv; destruct Hinv as [rev Hinv];  exists rev;
+            intros; repeat rewrite lens_ignore_g_granules_update; repeat rewrite lens_ignore_g_granules_update in Hrtt;
+            pose proof (Hinv rtt_idx) as Hinv;  repeat simpl_imply Hinv;  pose proof (Hinv parent_idx offset) as Hinv;  repeat simpl_imply Hinv;
+            destruct Hinv as [Hinv_1 Hinv_2]; split; [ exact Hinv_1 | ];
+            destruct ( (parent_idx =? gidx0) && (offset =? normidx) ) eqn: Hidx;
+            [ simpl in *;  apply Bool.andb_true_iff in Hidx;  destruct Hidx as [Hidx1 Hidx2]; bool_rel; rewrite Hidx1 in *; rewrite Hidx2 in *; rewrite ZMap.gss; simpl in *; rewrite ZMap.gss in * ;
+              rewrite test_Z_PTE_Z_same; simpl in *;  rewrite abs_tte_read_sem; simpl in *; rewrite <- Heqgidx0; rewrite <- Heqnormidx; easy
+            | 
+             rewrite Bool.andb_false_iff in Hidx; 
+             destruct Hidx; bool_rel; [ 
+              simpl in *; rewrite ZMap.gso; [ easy | easy ]
+              |  simpl in *;   destruct (parent_idx =? gidx0) eqn: Hp; bool_rel; 
+                 [ rewrite Hp in *; rewrite ZMap.gss; simpl in * ; rewrite ZMap.gso; simpl in *; [ easy| easy]| rewrite ZMap.gso; [easy | easy] ]
+             ]
+            ]
+            ).
+  all: try(match goal with
+          | [H: (?a <>? 3) && _ = true |- _] => simpl_andb_true_iff H
+          end; simpl in *; retrieve_idx;
+          unfold walk_rev; simpl in *; unfold walk_rev in Hinv; destruct Hinv as [rev Hinv];  exists rev;
+          intros; repeat rewrite lens_ignore_g_granules_update; repeat rewrite lens_ignore_g_granules_update in Hrtt;
+          pose proof (Hinv rtt_idx) as Hinv;  repeat simpl_imply Hinv;  pose proof (Hinv parent_idx offset) as Hinv;  repeat simpl_imply Hinv;
+          destruct Hinv as [Hinv_1 Hinv_2]; split; [ exact Hinv_1 | ];
+          destruct ( (parent_idx =? gidx0) && (offset =? normidx) ) eqn: Hidx; 
+          [ simpl in *;  apply Bool.andb_true_iff in Hidx;  destruct Hidx as [Hidx1 Hidx2]; bool_rel; rewrite Hidx1 in *; rewrite Hidx2 in *; rewrite ZMap.gss; simpl in *; rewrite ZMap.gss in * ;
+          rewrite test_Z_PTE_Z_same; simpl in *;  rewrite abs_tte_read_sem; simpl in *; rewrite <- Heqgidx0; rewrite <- Heqnormidx; easy
+          | rewrite Bool.andb_false_iff in Hidx; 
+            destruct Hidx; bool_rel; [ 
+            simpl in *; rewrite ZMap.gso; [ easy | easy ]
+            |  simpl in *;   destruct (parent_idx =? gidx0) eqn: Hp; bool_rel; 
+             [ rewrite Hp in *; rewrite ZMap.gss; simpl in * ; rewrite ZMap.gso; simpl in *; [ easy| easy]| rewrite ZMap.gso; [easy | easy] ]
+            ]
+          ]
+          ).
+    all: try(match goal with
+         | [H: (meta_desc_type _ =? _) && _ && _ = true |- _] => simple_abs_tte_read H 
+         end; retrieve_idx;
+         pose E as Etype;
+         match type of Etype with 
+         | context[(meta_desc_type ?r)] => assert((meta_desc_type r) <> 3) as Etype2; [ rewrite Etype; easy | ]
+         end;
+         match type of Etype2 with 
+         | context[(meta_desc_type (abs_tte_read ?ptr ?st))] => pose proof (abs_tte_read_no_pa ptr st Etype2) as Hpa
+         end; simpl in *;
+         unfold walk_rev; simpl in *; unfold walk_rev in Hinv; destruct Hinv as [rev Hinv];  exists rev;
+         intros; repeat rewrite lens_ignore_g_granules_update; repeat rewrite lens_ignore_g_granules_update in Hrtt;
+         pose proof (Hinv rtt_idx) as Hinv;  repeat simpl_imply Hinv;  pose proof (Hinv parent_idx offset) as Hinv;  repeat simpl_imply Hinv;
+         destruct Hinv as [Hinv_1 Hinv_2]; split; [ exact Hinv_1 | ];
+         rewrite <- Heqgidx0 in Hpa; rewrite <- Heqnormidx in Hpa;
+         let H1 := fresh "H1" in assert (not (parent_idx = gidx0 /\ offset = normidx)) as H1;
+         [ 
+          unfold not; let H2 := fresh "H2" in intros H2;
+          destruct H2 as [H20 H21];
+          rewrite H20 in *; rewrite H21 in *;
+          rewrite Hinv_2 in Hpa;
+          unfold NR_GRANULES in *;
+          lia
+          | apply not_and_or in H1; destruct H1;
+           [ simpl in *; rewrite ZMap.gso; [easy | easy]
+           |
+             simpl in *; destruct (parent_idx =? gidx0) eqn: Hp; bool_rel;
+             [ rewrite Hp in *; rewrite ZMap.gss; simpl in *;
+               rewrite ZMap.gso; simpl in *; [ easy | easy]
+             | rewrite ZMap.gso; [easy | easy]  ]
+           ]
+         ]
+      ).
+  all: try(match goal with
+      | [H: (?a =? 3) && _ = true |- _] => simpl_andb_true_iff H
+        end; simpl in *; retrieve_idx;
+        unfold walk_rev; simpl in *; unfold walk_rev in Hinv; destruct Hinv as [rev Hinv];  exists rev;
+        intros; repeat rewrite lens_ignore_g_granules_update; repeat rewrite lens_ignore_g_granules_update in Hrtt;
+        pose proof (Hinv rtt_idx) as Hinv;  repeat simpl_imply Hinv;  pose proof (Hinv parent_idx offset) as Hinv;  repeat simpl_imply Hinv;
+        destruct Hinv as [Hinv_1 Hinv_2]; split; [ exact Hinv_1 | ];
+        destruct ((parent_idx =? gidx1) && (offset =? normidx) ) eqn: Hidx;
+        [ simpl in *;  apply Bool.andb_true_iff in Hidx;  destruct Hidx as [Hidx1 Hidx2]; bool_rel; rewrite Hidx1 in *; rewrite Hidx2 in *; rewrite ZMap.gss; simpl in *; rewrite ZMap.gss in * ;
+          rewrite test_Z_PTE_Z_same; simpl in *;  rewrite abs_tte_read_sem; simpl in *; rewrite <- Heqgidx1; rewrite <- Heqnormidx; easy
+        | 
+         rewrite Bool.andb_false_iff in Hidx; 
+         destruct Hidx; bool_rel; [ 
+          simpl in *; rewrite ZMap.gso; [ easy | easy ]
+          |  simpl in *;   destruct (parent_idx =? gidx1) eqn: Hp; bool_rel; 
+             [ rewrite Hp in *; rewrite ZMap.gss; simpl in * ; rewrite ZMap.gso; simpl in *; [ easy| easy]| rewrite ZMap.gso; [easy | easy] ]
+         ]
+        ] 
+   ).
+  all:  try( 
+        simpl in *;
+        unfold walk_rev; simpl in *; unfold walk_rev in Hinv; destruct Hinv as [rev Hinv];  exists rev;
+        intros; repeat rewrite lens_ignore_g_granules_update; repeat rewrite lens_ignore_g_granules_update in Hrtt;
+        pose proof (Hinv rtt_idx) as Hinv;  repeat simpl_imply Hinv;  pose proof (Hinv parent_idx offset) as Hinv;  repeat simpl_imply Hinv;
+        destruct Hinv as [Hinv_1 Hinv_2]; split; [ exact Hinv_1 | ];
+        retrieve_idx;
+        destruct ((parent_idx =? gidx1) && (offset =? normidx) ) eqn: Hidx;
+        [ simpl in *;  apply Bool.andb_true_iff in Hidx;  destruct Hidx as [Hidx1 Hidx2]; bool_rel; rewrite Hidx1 in *; rewrite Hidx2 in *; rewrite ZMap.gss; simpl in *; rewrite ZMap.gss in * ;
+        rewrite test_Z_PTE_Z_same; simpl in *;  rewrite abs_tte_read_sem; simpl in *; rewrite <- Heqgidx1; rewrite <- Heqnormidx; easy 
+        | 
+        rewrite Bool.andb_false_iff in Hidx; 
+        destruct Hidx; bool_rel; [ 
+         simpl in *; rewrite ZMap.gso; [ easy | easy ]
+         |  simpl in *;   destruct (parent_idx =? gidx1) eqn: Hp; bool_rel; 
+            [ rewrite Hp in *; rewrite ZMap.gss; simpl in * ; rewrite ZMap.gso; simpl in *; [ easy| easy]| rewrite ZMap.gso; [easy | easy] ]
+        ]
+        ]
+  ).
+Qed.
+        
