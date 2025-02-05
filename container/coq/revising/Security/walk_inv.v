@@ -161,6 +161,13 @@ Lemma memset_spec_walk_rev_lens:
     ret_d = (lens len_para d).
 Admitted.
 
+Lemma memcpy_ns_read_spec_walk_rev_lens:
+  forall d v_0 v_1 v_2 ret_n ret_d
+    (Hspec: memcpy_ns_read_spec v_0 v_1 v_2 d = Some(ret_n, ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
+
+
 Lemma spinlock_acquire_spec_walk_rev_lens:
   forall d v_0 ret_d
     (Hspec: spinlock_acquire_spec v_0 d = Some(ret_d)),
@@ -184,13 +191,27 @@ Lemma rec_to_rd_para_state_rec:
     (st.(share).(globals).(g_granules) @ ((rec_to_rd_para rd st).(poffset) / 4096)).(e_state_s_granule) = GRANULE_STATE_RD.
 Admitted.
 
+Lemma rtt_walk_lock_unlock_spec_walk_rev_lens:
+  forall d v_0 v_1 v_2 v_3 v_4 v_5 ret_d ret_n
+    (Hspec: rtt_walk_lock_unlock_spec_abs v_0 v_1 v_2 v_3 v_4 v_5 d = Some(ret_n, ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
+
+
+
+
 Ltac simpl_component :=
   match goal with 
   | [H: context[memset_spec _ _ _] |- _] => try apply memset_spec_walk_rev_lens in H 
   | [H: context[granule_unlock_spec _ _] |- _] => try apply granule_unlock_spec_walk_rev_lens in H 
   | [H: context[spinlock_acquire_spec _ _] |- _] => try apply spinlock_acquire_spec_walk_rev_lens in H 
   | [H: context[spinlock_release_spec _ _] |- _] => try apply spinlock_release_spec_walk_rev_lens in H 
+  | [H: context[memcpy_ns_read_spec _ _ _ _] |- _] => try apply memcpy_ns_read_spec_walk_rev_lens in H 
+  | [H: context[rtt_walk_lock_unlock_spec_abs _ _ _ _ _ _ _] |- _] => try apply rtt_walk_lock_unlock_spec_walk_rev_lens in H 
   end. 
+
+
+
 
 Ltac intros_rd_para_state := 
   match goal with 
@@ -212,6 +233,18 @@ Lemma lens_granule_data_same :
   (lens v st).(share).(granule_data) @ i = st.(share).(granule_data) @ i.
 Admitted.
 
+Lemma rtt_walk_lock_unlock_spec_ensure:
+  forall d v_0 v_1 v_2 v_3 v_4 v_5 ret_d ret_n
+    (Hspec: rtt_walk_lock_unlock_spec_abs v_0 v_1 v_2 v_3 v_4 v_5 d = Some(ret_n, ret_d)),
+    (((poffset (e_2 ret_n)) mod 4096 = 0))
+     /\ (0 <= (e_3 ret_n))
+     /\ (512 > (e_3 ret_n))
+     /\ (
+      (((poffset (e_2 ret_n)) + 8 * (e_3 ret_n)) / 4096) = 
+      ((poffset (e_2 ret_n)) / 4096)
+     ).
+Admitted.
+
 Lemma smc_rec_destroy_spec_walk_rev:
   forall d v_0 ret_n ret_d
     (Hspec: smc_rec_destroy_spec v_0 d = Some(ret_n, ret_d))
@@ -220,7 +253,8 @@ Lemma smc_rec_destroy_spec_walk_rev:
 Proof.
   intros.  unfold smc_rec_destroy_spec in Hspec.
   autounfold with sem in *.
-  repeat simpl_hyp Hspec; simpl_walk_rev;
+  repeat simpl_hyp Hspec;
+  try simpl_walk_rev;
   repeat match goal with
     | [H: _ = lens _ _ |- _] => rewrite -> H in *; clear H
   end;
@@ -388,5 +422,189 @@ Proof.
   - inv Hspec. apply lens_walk_rev. easy.
 Qed.
 
+Lemma strong_lens:
+  forall m st,
+    (lens m st) = st.
+Admitted.
+
+Ltac simpl_walk_rev_strong H :=
+  try repeat rewrite strong_lens in H.
 
 
+Ltac retrieve_idx :=
+  repeat match goal with
+  | [H: context[(g_granules (globals (share ?st))) @ (?app ?idx)] |- _ ]  =>
+      let gidx := fresh "gidx" in remember (app idx) as gidx
+  | |- context[(g_granules (globals (share ?st))) @ (?app ?idx)]  =>
+      let gidx := fresh "gidx" in remember (app idx) as gidx
+  | |- context[(granule_data ((share ?st))) @ (?app ?idx)]  =>
+      let gidx := fresh "gidx" in remember (app idx) as gidx
+  | |- context[(g_norm _) # (?app ?idx) == _]  =>
+      let gidx := fresh "normidx" in 
+      (* let name := fresh "Heqgidx" in  *)
+        remember (app idx) as gidx
+         (* eqn: name; rewrite <- name in * *)
+  end.
+
+Ltac intros_ensure :=
+    match goal with 
+   | [H: context[rtt_walk_lock_unlock_spec_abs _ _ _ _ _ _ _] |- _] => let H2 := fresh "Hcopy" in pose proof H as H2; try (apply rtt_walk_lock_unlock_spec_ensure in H2; 
+    destruct H2 as [Hrtt_ret0 H2]; 
+    destruct H2 as [Hrtt_ret1 H2]; 
+    destruct H2 as [Hrtt_ret2 Hrtt_ret3]
+   )
+end. 
+
+Lemma quick_index_compute :
+  forall a off
+    (He: (a + off) mod 4096 = off),
+    (a + off) / 4096 = a / 4096.
+Admitted.
+
+Lemma abs_tte_read_no_pa:
+  forall ptr st
+    (Htype: (abs_tte_read ptr st).(meta_desc_type) <> 3),
+    (test_Z_PTE
+      ((g_norm (granule_data (share st)) @ (ptr.(poffset) / 4096)) @ (ptr.(poffset) mod 4096))
+    ).(meta_PA).(meta_granule_offset) = (-1).
+Admitted.
+
+Lemma lens_ignore_g_granules_update:
+  forall gs idx idx2 elem1,
+    (e_state_s_granule ((gs) # idx == (update_s_granule_e_ref (gs @ idx) elem1)) @ idx2)  = 
+    (e_state_s_granule (gs) @ idx2).
+Proof.
+  intros.
+  unfold update_s_granule_e_ref.
+  destruct (idx =? idx2) eqn:Hidx; bool_rel.
+  rewrite Hidx in *.
+  rewrite ZMap.gss. simpl in *. reflexivity.
+  rewrite ZMap.gso. auto. auto.
+Qed.
+  
+Ltac simple_abs_tte_read H :=
+  let E1 := fresh "E" in
+  let E2 := fresh "E" in
+  let E3 := fresh "E" in
+  apply Bool.andb_true_iff in H;
+  destruct H as (E2 & E3);
+  apply Bool.andb_true_iff in E2;
+  destruct E2 as (E1 & E2);
+  bool_rel;
+  try simpl_walk_rev_strong E1;
+  try simpl_walk_rev_strong E2;
+  try simpl_walk_rev_strong E3.
+
+Lemma rsi_data_map_extra_spec_walk_rev:
+  forall d v_0 v_1 v_2 ret_n ret_d
+    (Hspec: rsi_data_map_extra_spec v_0 v_1 v_2 d = Some(ret_n, ret_d))
+    (Hinv: walk_rev d.(share)),
+    walk_rev ret_d.(share).
+Proof.
+  intros.  unfold rsi_data_map_extra_spec in Hspec.
+  autounfold with sem in *.
+  repeat simpl_hyp Hspec;
+  try intros_ensure;
+  try simpl_walk_rev;
+  repeat match goal with
+    | [H: _ = lens _ _ |- _] => rewrite -> H in *; clear H
+  end;
+  repeat match goal with
+    | [H: context[lens _ (lens _ _)] |- _] => rewrite <- lens_repeat in H
+  end; simpl_some; try simpl_walk_rev_strong Hspec; bool_rel.
+  - simpl in *. inv Hspec.
+    simple_abs_tte_read C9.
+    pose E as Etype.
+    match type of Etype with 
+    | context[(meta_desc_type ?r)] => assert((meta_desc_type r) <> 3) as Etype2; [ rewrite Etype; easy | ]
+    end.
+    match type of Etype2 with 
+    | context[(meta_desc_type (abs_tte_read ?ptr ?st))] => pose proof (abs_tte_read_no_pa ptr st Etype2)
+    end.
+    simpl in *.
+    unfold walk_rev. simpl in *.
+    unfold walk_rev in Hinv.
+    destruct Hinv as [rev Hinv].
+    exists rev.
+    retrieve_idx.
+    intros.
+    repeat rewrite lens_ignore_g_granules_update.
+    repeat rewrite lens_ignore_g_granules_update in Hrtt.
+    pose proof (Hinv rtt_idx) as Hinv.
+    repeat simpl_imply Hinv.
+    pose proof (Hinv parent_idx offset) as Hinv.
+    repeat simpl_imply Hinv.
+    destruct Hinv as [Hinv_1 Hinv_2]; split; [ exact Hinv_1 | ].
+    assert (not (parent_idx = gidx4 /\ offset = normidx)).
+    * unfold not. intros. destruct H1 as [H10 H11].
+      rewrite H10 in *. rewrite H11 in *.
+      rewrite Hinv_2 in H. 
+      unfold NR_GRANULES in *.
+      lia.
+    * apply not_and_or in H1. destruct H1.
+      { 
+        simpl in *. rewrite ZMap.gso. easy. easy.
+      }
+      {
+        simpl in *. 
+        destruct (parent_idx =? gidx4) eqn: Hp; bool_rel.
+        {  rewrite Hp in *. rewrite ZMap.gss. simpl in *. 
+           rewrite ZMap.gso. simpl in *. easy. easy.
+        }
+        { rewrite ZMap.gso. easy. easy.  }
+      }
+  - inv Hspec. easy.
+  - simpl in *. inv Hspec.
+    simple_abs_tte_read C9.
+    pose E as Etype.
+    match type of Etype with 
+    | context[(meta_desc_type ?r)] => assert((meta_desc_type r) <> 3) as Etype2; [ rewrite Etype; easy | ]
+    end.
+    match type of Etype2 with 
+    | context[(meta_desc_type (abs_tte_read ?ptr ?st))] => pose proof (abs_tte_read_no_pa ptr st Etype2)
+    end.
+    simpl in *.
+    unfold walk_rev. simpl in *.
+    unfold walk_rev in Hinv.
+    destruct Hinv as [rev Hinv].
+    exists rev.
+    retrieve_idx.
+    intros.
+    repeat rewrite lens_ignore_g_granules_update.
+    repeat rewrite lens_ignore_g_granules_update in Hrtt.
+    pose proof (Hinv rtt_idx) as Hinv.
+    repeat simpl_imply Hinv.
+    pose proof (Hinv parent_idx offset) as Hinv.
+    repeat simpl_imply Hinv.
+    destruct Hinv as [Hinv_1 Hinv_2]; split; [ exact Hinv_1 | ].
+    assert (not (parent_idx = gidx4 /\ offset = normidx)).
+    * unfold not. intros. destruct H1 as [H10 H11].
+      rewrite H10 in *. rewrite H11 in *.
+      rewrite Hinv_2 in H. 
+      unfold NR_GRANULES in *.
+      lia.
+    * apply not_and_or in H1. destruct H1.
+      { 
+        simpl in *. rewrite ZMap.gso. easy. easy.
+      }
+      {
+        simpl in *. 
+        destruct (parent_idx =? gidx4) eqn: Hp; bool_rel.
+        {  rewrite Hp in *. rewrite ZMap.gss. simpl in *. 
+           rewrite ZMap.gso. simpl in *. easy. easy.
+        }
+        { rewrite ZMap.gso. easy. easy.  }
+      }
+  - inv Hspec. easy.
+  - inv Hspec. easy.
+  - inv Hspec. easy.
+  - inv Hspec. easy.
+  - inv Hspec. easy.
+  - inv Hspec. easy.
+  - inv Hspec. easy.
+  - inv Hspec. easy.
+  - inv Hspec. easy.
+  - inv Hspec. easy.
+  - inv Hspec. easy.
+  - inv Hspec. easy.
+Qed.
