@@ -7,6 +7,7 @@
 #include <unordered_set>
 #include <llvm.h>
 #include <mutex>
+#include <filesystem>
 
 
 namespace autov {
@@ -43,6 +44,28 @@ public:
     string info;
     tuple<string, string, string> loc;
     unsigned long order;
+};
+
+
+class QueryInfo {
+public: 
+    string query_dir;
+    unsigned long query_id;
+
+    QueryInfo() : query_dir(""), query_id(0) {}
+    QueryInfo(const string &d) : query_dir(d), query_id(0) {
+        if (!std::filesystem::exists(d)) {
+            std::filesystem::create_directories(d);
+        }
+    }
+    
+    void dump(const string &q) {
+        auto dumpfile = query_dir + "/query_" + std::to_string(query_id) + ".smt2";
+        std::ofstream ofs(dumpfile);
+        ofs << q;
+        ofs.close();
+        query_id++;
+    }
 };
 
 class Project {
@@ -98,12 +121,15 @@ public:
 
 
     // coi[spec_name][invariant_name] -> coi
+    /** autoproof-related variables BEGIN */
     unordered_map<string, std::unordered_map<string, std::set<string>>> coi;
     unordered_map<string, std::set<field_t>> inv_fields;
     std::set<string> lemmas;
     unordered_map<string, std::set<Definition *>> inv_lemmas;
     unordered_map<string, bool> verified_specs;
-    
+    QueryInfo query_saver;
+    /** autoproof-related variables END */
+
     class cmds {
     public:
         std::set<string> Unfold;

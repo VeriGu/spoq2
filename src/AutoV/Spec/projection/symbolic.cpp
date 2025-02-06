@@ -37,6 +37,317 @@ void print_path(const path_t &p) {
     std::cout << std::endl;
 }
 
+/** Separate prove-stage z3 translator from the specgen-stage one */
+shared_ptr<SpecValue> z3_expr(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
+    if (val->cached_eval) return val->cached_eval;
+
+    auto _cache = [&](shared_ptr<SpecValue> return_val) {
+        val->set_z3_eval(return_val);
+        return return_val;
+    };
+
+    if (auto sym = instance_of(val, Symbol)) {
+        if (sym->text != "None" && sym->text != "nil" && state->vars->find(sym->text) != state->vars->end()) {
+            return _cache(state->vars->at(sym->text));
+        } else if (proj->defs.find(sym->text) != proj->defs.end()) {
+            auto df = proj->defs[sym->text].get();
+            assert(df->args->size() == 0);
+            if (auto c = instance_of(df->body.get(), Const)) {
+                return _cache(z3_expr(proj, c, state));
+            } else {
+                return _cache(df->absf()->call({}));
+            }
+        } else if (proj->decls.find(sym->text) != proj->decls.end()) {
+            auto decl = proj->decls[sym->text].get();
+            assert(!dynamic_pointer_cast<Function>(decl->type));
+            return _cache(decl->absf());
+        } else if (proj->is_ind_constr(sym->text)) {
+            return _cache(static_pointer_cast<Inductive>(sym->get_type())->construct(sym->text, {}));
+        } else if (proj->symbols.find(sym->text) != proj->symbols.end() &&
+                   proj->symbols[sym->text].kind == SymbolKind::StructElem) {
+            return _cache(make_shared<StringValue>(sym->text));
+        } else {
+            throw std::runtime_error("Unknown symbol: " + sym->text);
+        }
+    } else if (auto con = instance_of(val, Const)) {
+        if (auto intc = std::get_if<unsigned long>(&con->value)) {
+            return make_shared<IntValue>(*intc);
+        } else if (auto boolc = std::get_if<bool>(&con->value)) {
+            return make_shared<BoolValue>(*boolc);
+        } else if (auto strc = std::get_if<string>(&con->value)) {
+            return make_shared<StringValue>(*strc);
+        }
+    } else if (auto expr = instance_of(val, Expr)) {
+        vector<shared_ptr<SpecValue>> elems;
+
+        for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {
+            elems.push_back(z3_expr(proj, e->get(), state));
+        }
+
+        if (op_eq(expr->op, Expr::None))
+            return _cache(static_pointer_cast<Inductive>(val->get_type())->construct("None", {}));
+        if (op_eq(expr->op, Expr::binops::ADD))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::MINUS)) {
+            if (expr->elems->size() == 2)
+                return _cache(static_pointer_cast<IntValue>(elems[0])->sub(static_pointer_cast<IntValue>(elems[1])));
+            else
+                return _cache(static_pointer_cast<IntValue>(elems[0])->neg());
+        }
+        if (op_eq(expr->op, Expr::binops::MULT))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->mul(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::DIV))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->div(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::MOD))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->mod(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::LSHIFT))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->shiftl(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::RSHIFT))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->shiftr(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::BITAND))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->land(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::BITOR))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->lor(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "Z.lxor"))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->lxor(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "Z.lnot"))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->lnot());
+        if (op_eq(expr->op, "Z.testbit"))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->testbit(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "Z.setbit"))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->setbit(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "Z.clearbit"))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->clearbit(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, "Z.xorb"))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->xorb(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::EQUAL))
+            return _cache(Prop::PROP->from_z3_value((elems[0]->get_z3_value() == elems[1]->get_z3_value()).simplify()));
+        if (op_eq(expr->op, Expr::binops::BEQ))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->eq(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::SEQ))
+            return _cache(static_pointer_cast<StringValue>(elems[0])->eq(static_pointer_cast<StringValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::NOT_EQUAL))
+            return _cache(Prop::PROP->from_z3_value(elems[0]->get_z3_value() != elems[1]->get_z3_value()));
+        if (op_eq(expr->op, Expr::binops::BNE))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->ne(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::SNE))
+            return _cache(static_pointer_cast<StringValue>(elems[0])->ne(static_pointer_cast<StringValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::GT) || op_eq(expr->op, Expr::binops::BGT))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->gt(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::GTE) || op_eq(expr->op, Expr::binops::BGE))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->ge(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::LT) || op_eq(expr->op, Expr::binops::BLT))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->lt(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::LTE) || op_eq(expr->op, Expr::binops::BLE))
+            return _cache(static_pointer_cast<IntValue>(elems[0])->le(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, Expr::ops::NOT) || op_eq(expr->op, Expr::ops::BNOT))
+            return _cache(static_pointer_cast<BoolValue>(elems[0])->negb());
+        if (op_eq(expr->op, Expr::binops::AND) || op_eq(expr->op, Expr::binops::BAND))
+            return _cache(static_pointer_cast<BoolValue>(elems[0])->andb(static_pointer_cast<BoolValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::OR) || op_eq(expr->op, Expr::binops::BOR))
+            return _cache(static_pointer_cast<BoolValue>(elems[0])->orb(static_pointer_cast<BoolValue>(elems[1])));
+        if (op_eq(expr->op, "xorb"))
+            return _cache(static_pointer_cast<BoolValue>(elems[0])->xorb(static_pointer_cast<BoolValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::IMPLIES))
+            return _cache(static_pointer_cast<BoolValue>(elems[0])->implies(static_pointer_cast<BoolValue>(elems[1])));
+        else if (op_eq(expr->op, Expr::GET)) {
+            return _cache(static_pointer_cast<ZMapValue>(elems[0])->get(static_pointer_cast<IntValue>(elems[1])));
+        } else if (op_eq(expr->op, Expr::SET)) {
+            return _cache(static_pointer_cast<ZMapValue>(elems[0])->set(static_pointer_cast<IntValue>(elems[1]), elems[2]));
+        } else if (op_eq(expr->op, Expr::RecordGet)) {
+            // expr.elem[0]: record
+            // expr.elem[1...n-2]: (sub)fields
+            for (int i = 1; i < expr->elems->size(); i++) {
+                elems[i] = static_pointer_cast<StructValue>(elems[i-1])->get(static_cast<Symbol *>(expr->elems->at(i).get())->text);
+            }
+            return _cache(elems.back());
+        } else if (op_eq(expr->op, Expr::RecordSet)) {
+            // expr.elem[0]: record
+            // expr.elem[1...n-2]: (sub)fields
+            // expr.elem[n-1]: value
+
+            // First read-off all the old fields, except the one to be updated
+            for (int i = 1; i < expr->elems->size() - 2; i++) {
+                elems[i] = static_pointer_cast<StructValue>(elems[i-1])->get(static_cast<Symbol *>(expr->elems->at(i).get())->text);
+            }
+            // Update the field
+            elems[expr->elems->size() - 2] = elems.back();
+            // Then update the record
+            for (int i = expr->elems->size() - 2; i > 0; i--) {
+                elems[i - 1] = static_pointer_cast<StructValue>(elems[i - 1])->set(static_cast<Symbol *>(expr->elems->at(i).get())->text, elems[i]);
+            }
+
+            return _cache(elems[0]);
+        } else if (op_eq(expr->op, Expr::binops::APPEND))
+            return _cache(static_pointer_cast<List>(val->get_type())->construct("cons", {elems[0], elems[1]}));
+        else if (op_eq(expr->op, Expr::binops::CONCAT))
+            return _cache(static_pointer_cast<IndValue>(elems[0])->concat(static_pointer_cast<IndValue>(elems[1])));
+        else if (op_eq(expr->op, Expr::ops::Some))
+            return _cache(static_pointer_cast<Option>(val->get_type())->construct("Some", {elems[0]}));
+        else if (op_eq(expr->op,Expr::ops::Tuple)) {
+            return _cache(static_pointer_cast<Tuple>(val->get_type())->construct(elems));
+        }
+        else if (op_eq(expr->op, "prop"))
+            return _cache(elems[0]);
+        else if (op_eq(expr->op,"ptr_to_int"))
+            return _cache(static_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems));
+        else if (op_eq(expr->op,"int_to_ptr"))
+            return _cache(static_pointer_cast<FuncValue>(autov::int_to_ptr())->call(elems));
+        else if (op_eq(expr->op, "z_to_nat"))
+            return _cache(static_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems));
+        else if (op_eq(expr->op,"zmap_init") || op_eq(expr->op, "ZMap.init"))
+            return _cache(val->get_type()->from_z3_value(z3::const_array(z3ctx.int_sort(), elems[0]->get_z3_value())));
+        else if (std::holds_alternative<string>(expr->op)) {
+            auto sym = std::get<string>(expr->op);
+            auto info = proj->symbols[sym];
+            if (info.kind == SymbolKind::StructConstr) {
+                return _cache(static_pointer_cast<Struct>(val->get_type())->construct(elems));
+            } else if (info.kind == SymbolKind::IndConstructor) {
+                return _cache(static_pointer_cast<Inductive>(val->get_type())->construct(sym, elems));
+            } else if (info.kind == SymbolKind::Def) {
+                auto df = proj->defs[sym].get();
+                return _cache(df->absf()->call(elems));
+            } else if (info.kind == SymbolKind::Decl) {
+                auto df = proj->decls[sym].get();
+                auto absf = static_pointer_cast<FuncValue>(df->absf());
+                return _cache(absf->call(elems));
+            } else {
+                std::cout << "[z3_expr] expr: " << string(*expr) << std::endl;
+                throw std::runtime_error("[z3_expr] Unknown symbol: " + sym);
+            }
+        } else if (std::holds_alternative<unique_ptr<SpecNode>>(expr->op)) {
+            auto op = z3_expr(proj, std::get<unique_ptr<SpecNode>>(expr->op).get(), state);
+            if (auto func = dynamic_pointer_cast<FuncValue>(op))
+                return _cache(func->call(elems));
+        }
+
+        throw std::runtime_error("[z3_expr] Unknown expression: " + string(*expr));
+    } else if (auto match = instance_of(val, Match)) {
+        auto src = z3_expr(proj, match->src.get(), state);
+        shared_ptr<SpecValue> match_val = nullptr;
+        for (auto pm = match->match_list->rbegin(); pm != match->match_list->rend(); pm++) {
+            unordered_map<string, shared_ptr<SpecValue>> vars;
+            unordered_map<string, shared_ptr<SpecValue>> assigns;
+            auto pat = resolve_pattern(proj, val, (*pm)->pattern.get(), src, vars, assigns);
+            auto cond = pat->get_z3_value() == src->get_z3_value();
+            for (auto v = vars.begin(); v != vars.end(); v++) {
+                cond = z3::exists(v->second->get_z3_value(), cond);
+            }
+            auto new_state = state->copy();
+            for (auto v = assigns.begin(); v != assigns.end(); v++) {
+                new_state->vars->emplace(v->first, v->second);
+            }
+            if (match_val == nullptr) {
+                match_val = z3_expr(proj, (*pm)->body.get(), new_state);
+            } else {
+                auto then_val = z3_expr(proj, (*pm)->body.get(), new_state);
+                match_val = match_val->get_type()->from_z3_value(z3::ite(cond, then_val->get_z3_value(), match_val->get_z3_value()));
+            }
+        }
+        if (match_val == nullptr) {
+            auto opt = static_pointer_cast<Option>(val->get_type());
+            return _cache(opt->construct("None", {}));
+        } else {
+            return _cache(match_val);
+        }
+    } else if (auto rely = instance_of(val, Rely)) {
+        auto cond = z3_expr(proj, rely->prop.get(), state);
+        PROFILE_START(rely_eval_check);
+        PROFILE_START(eval_check);
+        auto res = z3_check(state, cond->get_z3_value());
+        PROFILE_END(eval_check);
+        PROFILE_END(rely_eval_check);
+
+        if (res == Z3Result::Unknown) {
+            profile_log_eval_rely_unsolved(string(*rely->prop.get()));
+            auto body = z3_expr(proj, rely->body.get(), state);
+            auto none = static_pointer_cast<Option>(val->get_type())->construct("None", {});
+
+            auto z3_val = z3::ite(cond->get_z3_value(), body->get_z3_value(), none->get_z3_value());
+            return _cache(rely->get_type()->from_z3_value(z3_val.simplify()));
+        } else if (res == Z3Result::True) {
+            profile_log_eval_rely_solved(string(*rely->prop.get()));
+            return _cache(z3_expr(proj, rely->body.get(), state));
+        } else {
+            profile_log_eval_rely_solved(string(*rely->prop.get()));
+            return _cache(static_pointer_cast<Option>(val->get_type())->construct("None", {}));
+        }
+    }
+    else if (auto iff = instance_of(val, If))
+    {
+        auto c = z3_expr(proj, iff->cond.get(), state);
+        PROFILE_START(if_eval_check);
+        PROFILE_START(eval_check);
+        auto res = z3_check(state, c->get_z3_value());
+        PROFILE_END(eval_check);
+        PROFILE_END(if_eval_check);
+        if (res == Z3Result::Unknown)
+        {
+            profile_log_eval_if_unsolved(string(*iff->cond.get()));
+            auto true_state = state->copy();
+            true_state->conds->push_back(c->get_z3_value());
+            auto True = z3_expr(proj, iff->then_body.get(), true_state);
+            auto false_state = state->copy();
+            false_state->conds->push_back(!c->get_z3_value());
+            auto False = z3_expr(proj, iff->else_body.get(), false_state);
+            auto z3_val = z3::ite(c->get_z3_value(), True->get_z3_value(), False->get_z3_value());
+            return _cache(iff->get_type()->from_z3_value(z3_val.simplify()));
+        }
+        else if (res == Z3Result::True)
+        {
+            profile_log_eval_if_solved(string(*iff->cond.get()));
+            state->conds->push_back(c->get_z3_value());
+            return _cache(z3_expr(proj, iff->then_body.get(), state));
+        }
+        else
+        {
+            profile_log_eval_if_solved(string(*iff->cond.get()));
+            state->conds->push_back(!c->get_z3_value());
+            return _cache(z3_expr(proj, iff->else_body.get(), state));
+        }
+    }
+    else if (auto forall = instance_of(val, Forall))
+    {
+        z3::expr_vector vars(z3ctx);
+        std::vector<z3::expr> hypos;
+        for (auto v = forall->vars->begin(); v != forall->vars->end(); v++)
+        {
+            if ((*v)->type) {
+                auto var = (*v)->type->declare((*v)->name, val->nid);
+                (*state->vars)[(*v)->name] = var;
+                vars.push_back(var->get_z3_value());
+            } else {
+                // bounded variable v is prop, push into state
+                auto prop = z3_expr(proj, (*v)->expr.get(), state);
+                hypos.push_back(prop->get_z3_value());
+            }
+        }
+        /** bounded variables may have a newer nid over cached z3 values, so we need to clear cached value first  */
+        forall->clear_z3_eval();
+        auto body = z3_expr(proj, forall->body.get(), state);
+        auto p = body->get_z3_value();
+
+        for (const auto &h : hypos) {
+            p = z3::implies(h, p);
+        }
+        return _cache(make_shared<BoolValue>(z3::forall(vars, p)));
+    }
+    else if (auto exsts = instance_of(val, Exists))
+    {
+        z3::expr_vector vars(z3ctx);
+        for (auto v = exsts->vars->begin(); v != exsts->vars->end(); v++)
+        {
+            auto var = (*v)->type->declare((*v)->name, val->nid);
+            (*state->vars)[(*v)->name] = var;
+            vars.push_back(var->get_z3_value());
+        }
+        exsts->clear_z3_eval();
+        auto body = z3_expr(proj, exsts->body.get(), state);
+        return _cache(make_shared<BoolValue>(z3::exists(vars, body->value)));
+    }
+    throw std::runtime_error("[z3_expr] Unknown node type: " + string(*val));
+}
+
 /** get_access_field
  *      return the access field chain of the given expr
  *         e.g. (x).(y).(z) -> [z, y, x]
@@ -70,7 +381,6 @@ field_t get_access_field(Project* proj, SpecNode* node, std::set<field_t> &field
     return trace;
 }
 
-/* */
 void rec_analyze_used_fields(Project* proj, SpecNode* node, std::set<field_t> &fields) {
     field_t empty_trace = {};
     if (auto wa = instance_of(node, ForallExists)) {
@@ -115,8 +425,6 @@ void rec_analyze_used_fields(Project* proj, SpecNode* node, std::set<field_t> &f
     } else if (auto s = instance_of(node, Symbol)) {
         auto f = get_access_field(proj, s, fields, empty_trace);
         if (!f.empty()) {
-            std::cout << "[rec_analyze_used_fields] Symbol\n" << string(*s) << std::endl;
-            print_field(f);
             fields.insert(f);
         }
 
@@ -134,6 +442,15 @@ inline bool contains_field(const field_t &f_check, const field_t &f_interested) 
 bool has_subfield(const std::set<field_t> &fields, const field_t &f) {
     for (auto &f_check : fields) {
         if (contains_field(f_check, f)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool has_proper_subfield(const std::set<field_t> &fields, const field_t &f) {
+    for (auto &f_check : fields) {
+        if (f_check.size() != f.size() && contains_field(f_check, f)) {
             return true;
         }
     }
@@ -198,41 +515,53 @@ void collect_immi_symbols_in(Project *proj, SpecNode *spec, const path_t &path, 
  *      - Add used (but not tracked) fields to coi, 
  *      - When propagate to symbol, add them to to-be-solved symbol set
  */
-void backward_propagation_on_expr(Project *proj, SpecNode *node, std::set<field_t> &coi, std::set<string> &symbols) {
+void backward_propagation_on_expr(Project *proj, SpecNode *node, std::set<field_t> &coi, std::set<field_t> trace, std::set<string> &symbols) {
     if (auto e = instance_of(node, Expr)) {
         if (auto op = std::get_if<Expr::ops>(&e->op)) {
             if (*op == Expr::ops::RecordGet) {
-                // Update coi set
-                rec_analyze_used_fields(proj, e, coi);
+                // Update coi set if necessary
+                field_t access_field = {};
+                std::set<field_t> used_fields = {};
+                get_access_field(proj, e, used_fields, access_field);
+                /** FP Elimination: if we are reading the same field duplicately to update its subfields.
+                 *  e.g. st1.[f1] :< (st2.(f1) # (foo) == (bar))
+                 *      1. spoq ensures st1 == st2 (last state)
+                 *      2. f1 in trace, in this case (st.(f1)) should not be added to coi
+                 */
+                if (!has_subfield(trace, access_field)) {
+                    rec_analyze_used_fields(proj, e, coi);
+                }
                 
             } else if (*op == Expr::ops::GET) {
                 for (int i = 0; i < e->elems->size(); i++) {
-                    backward_propagation_on_expr(proj, e->elems->at(i).get(), coi, symbols);
+                    backward_propagation_on_expr(proj, e->elems->at(i).get(), coi, trace, symbols);
                 }
             } else if (*op == Expr::ops::RecordSet) {
                 // WRITE operation: 
                 // expr.elem[0]: record
                 // expr.elem[1...n-2]: (sub)fields
                 // expr.elem[n-1]: value
-                field_t f = {};
+                field_t set_field = {};
                 for (int i = e->elems->size() - 2; i > 0; i--) {
-                    auto field = e->elems->at(i).get();
-                    if (auto s = instance_of(field, Symbol)) {
-                        f.push_back(s->text);
+                    auto f = e->elems->at(i).get();
+                    if (auto s = instance_of(f, Symbol)) {
+                        set_field.push_back(s->text);
                     }
                 }
-                if (has_subfield(coi, f)) {
-                    backward_propagation_on_expr(proj, e->elems->back().get(), coi, symbols);
+                if (has_subfield(coi, set_field)) {
+                    // we are tracing the parent field of some interest field, keep tracing
+                    trace.insert(set_field);
+                    backward_propagation_on_expr(proj, e->elems->back().get(), coi, trace, symbols);
                 }
-                backward_propagation_on_expr(proj, e->elems->at(0).get(), coi, symbols);
+                backward_propagation_on_expr(proj, e->elems->at(0).get(), coi, trace, symbols);
             } else if (*op == Expr::ops::SET) {
                 for (int i = 0; i < e->elems->size(); i++) {
-                    backward_propagation_on_expr(proj, e->elems->at(i).get(), coi, symbols);
+                    backward_propagation_on_expr(proj, e->elems->at(i).get(), coi, trace, symbols);
                 }
             } 
         } else {
             for (int i = 0; i < e->elems->size(); i++) {
-                backward_propagation_on_expr(proj, e->elems->at(i).get(), coi, symbols);
+                backward_propagation_on_expr(proj, e->elems->at(i).get(), coi, trace, symbols);
             }
         }
     } else if (auto c = instance_of(node, Const)) {
@@ -242,7 +571,7 @@ void backward_propagation_on_expr(Project *proj, SpecNode *node, std::set<field_
         symbols.insert(s->text);
     } else if (auto m = instance_of(node, Match)) {
         LOG_WARNING << "[backward_propagation_on_expr] Unexpected node caused by imcomplete spec_transformation rule: " << string(*m);
-        backward_propagation_on_expr(proj, m->src.get(), coi, symbols);
+        backward_propagation_on_expr(proj, m->src.get(), coi, trace, symbols);
     } else {
         throw std::runtime_error("[backward_propagation_on_expr] unknown node" + string(*node));
     }
@@ -325,12 +654,11 @@ std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecN
     while (!q.empty()) {
         auto [expr, path] = q.front();
         q.pop_front();
-
         std::map<string, path_node_t> immediate_symbols = {};
         collect_immi_symbols_in(proj, spec, path, 0, immediate_symbols);
 
         std::set<string> symbols = {};
-        backward_propagation_on_expr(proj, expr, coi_fields, symbols);
+        backward_propagation_on_expr(proj, expr, coi_fields, {}, symbols);
 
         for (const auto &s : symbols) {
             if (arg_symbols.find(s) != arg_symbols.end()) {
@@ -349,12 +677,11 @@ std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecN
         }   
     }
     for (auto &c : coi_fields) {
+        // if (coi_blacklist.find(c.front()) != coi_blacklist.end()) {
+            // continue;
+        // }
         coi_ret.insert(c.front());
         proj->coi[def->name][inv_name].insert(c.front());
-    }
-    std::cout << "[analyze_cone_of_influence] COI for " << inv_name << std::endl;
-    for (auto &c: coi_fields) {
-        print_field(c);
     }
     return coi_ret;
 }
@@ -439,8 +766,8 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 					// Prove the return state maintains the invariant
 					// construct new invariants
 					auto p = instantiate_prop(inv->deep_copy().release(), ret_st);
-					auto c = z3_eval(proj, p, state);
-					auto z3_ret = z3_check(state, c->get_z3_value(), Z3_VERIFY_TIMEOUT);
+					auto c = z3_expr(proj, p, state);
+                    auto z3_ret = z3_verify(state, c->get_z3_value(), proj->query_saver);
 
 					std::cout << "----------------------------------" << std::endl;
                     std::cout << "prove_by_traverse: Proving invariant for instantiate_prop\n" << string(*p) << std::endl;
@@ -464,7 +791,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
         auto abst_spec = abst_transition(proj, m->src.get()); 
         SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
     
-        auto src = z3_eval(proj, m->src.get(), state);
+        auto src = z3_expr(proj, m->src.get(), state);
 		for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 			auto new_state = state->copy();
             auto pat = (*pm)->pattern.get();
@@ -475,18 +802,18 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                 SpecNode *st_ret = extract_st_from_expr(proj, pat);
                 if (st_input && st_ret) {
                     auto p_input = instantiate_prop(inv->deep_copy().release(), st_input);
-                    auto precond = z3_eval(proj, p_input, new_state);
+                    auto precond = z3_expr(proj, p_input, new_state);
                     auto z3_ret = z3_check(new_state, precond->get_z3_value(), Z3_VERIFY_TIMEOUT);
-                    if (z3_ret == Z3Result::False || z3_ret == Z3Result::Unknown) {
+                    if (z3_ret == Z3Result::Unknown || z3_ret == Z3Result::False) {
                         LOG_WARNING << "[prove_by_traverse] Invariant is violated for pre-condition state\n" << string(*st_input) << std::endl;
                         // return false; // even pre-conditon is failed, the lemma may still strong enough to ensure post-cond inv
                     }
                     auto p_ret = instantiate_prop(inv->deep_copy().release(), st_ret);
-                    auto postcond = z3_eval(proj, p_ret, new_state);
+                    auto postcond = z3_expr(proj, p_ret, new_state);
                     new_state->conds->push_back(postcond->get_z3_value());
                     /** add abstract sub-spec to prove queue */
                     if (std::holds_alternative<Definition *>(abst_spec)) {
-                        // deps.push_back(std::get<Definition *>(abst_spec));
+                        deps.push_back(std::get<Definition *>(abst_spec));
                     }
                 }
             }
@@ -496,7 +823,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 		}
     } else if (auto i = instance_of(spec, If)) {
 		// push cond
-		auto c = z3_eval(proj, i->cond.get(), state);
+		auto c = z3_expr(proj, i->cond.get(), state);
 		auto true_state = state->copy();
 		auto false_state = state->copy();
 		true_state->conds->push_back(c->get_z3_value());
@@ -507,7 +834,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 		}
     } else if (auto r = instance_of(spec, Rely)) {
 		// push cond
-		auto c = z3_eval(proj, r->prop.get(), state);
+		auto c = z3_expr(proj, r->prop.get(), state);
 		state->conds->push_back(c->get_z3_value());
         return prove_by_traverse(proj, r->body.get(), inv, state, deps);
     } else {
@@ -542,6 +869,11 @@ static void lensify_spec(Project *proj, Definition *def, std::set<string> &coi) 
     }
     def->body.reset(spec);
     def->_str = "";
+    std::cout << "[lensify_spec] Lensified: " << string(*def) << std::endl;
+}
+
+static string query_saver_dir(const string &spec_name, const string &inv_name) {
+    return "./container/z3_queries/" + spec_name + "/" + inv_name;
 }
 /**
  * spec_prover:
@@ -550,59 +882,62 @@ static void lensify_spec(Project *proj, Definition *def, std::set<string> &coi) 
  *  3. Prove inv path-by-path, recursively check abst function
  */
 void spec_prover(Project *proj, Definition *goal_def) {
-    if (goal_def->name == "rsi_rtt_set_ripas_spec") {
-        profile_clear_epoch();
-        for (auto const &d: proj->defs) {
-            if (!is_invariant_defs(proj, d.first)) {
+    if (verify_spec_names.find(goal_def->name) == verify_spec_names.end()) {
+        return;
+    }
+    for (auto const &d: proj->defs) { 
+        if (!is_invariant_defs(proj, d.first)) {
+            continue;
+        }
+        // Prove invariants separately
+        proj->verified_specs.clear();
+        auto inv = d.second->body.get();
+        std::cout << "[spec_prover] Invariant: " << string(*inv) << std::endl;
+
+        std::deque<Definition *> q = {goal_def};
+        auto coi = analyze_cone_of_influence(proj, goal_def, inv);
+
+        while (!q.empty()) {
+            auto def = q.front();
+            q.pop_front();
+            if (proj->verified_specs.find(def->name) != proj->verified_specs.end() && proj->verified_specs[def->name]) {
+                LOG_INFO << "[spec_prover] Cache hit! Skip: " << def->name << std::endl;
                 continue;
             }
-            // Prove invariants separately
-            proj->verified_specs.clear();
-            auto inv = d.second->body.get();
-            std::cout << "[spec_prover] Invariant: " << string(*inv) << std::endl;
+            std::cout << "[spec_prover] Try proving invariant for " << string(*def) << std::endl;
+            if (is_instance(def, Fixpoint)) {
+                std::cout << "[spec_prover] Skip Fixpoint: " << def->name << std::endl;
+                proj->verified_specs[def->name] = true;
+                continue;
+            }
+            // save queries as reproducible machine-checkable proofs
+            proj->query_saver = QueryInfo(query_saver_dir(def->name, d.second->name));
+            // apply lens to high spec
+            lensify_spec(proj, def, coi);
+            auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+            auto conds = std::make_shared<vector<z3::expr>>();
+            for (auto arg : *def->args) {
+                (*vars)[arg->name] = arg->type->declare(arg->name, 0);
+            }
+            auto state = std::make_shared<EvalState>(vars, conds);
+            // invariant by induction
+            auto c = z3_expr(proj, inv, state);
+            state->conds->push_back(c->get_z3_value());
 
-            std::deque<Definition *> q = {goal_def};
-            while (!q.empty()) {
-                auto def = q.front();
-                q.pop_front();
-                if (proj->verified_specs.find(def->name) != proj->verified_specs.end() && proj->verified_specs[def->name]) {
-                    LOG_INFO << "[spec_prover] Cache hit! Skip: " << def->name << std::endl;
-                    continue;
-                }
-                std::cout << "[spec_prover] Try proving invariant for " << string(*def) << std::endl;
-                if (is_instance(def, Fixpoint)) {
-                    std::cout << "[spec_prover] Skip Fixpoint: " << def->name << std::endl;
-                    proj->verified_specs[def->name] = true;
-                    continue;
-                }
-                auto coi = analyze_cone_of_influence(proj, def, inv);
-                // apply lens to high spec
-                lensify_spec(proj, def, coi);
-                auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
-	            auto conds = std::make_shared<vector<z3::expr>>();
-                for (auto arg : *def->args) {
-                    (*vars)[arg->name] = arg->type->declare(arg->name, 0);
-                }
-                auto state = std::make_shared<EvalState>(vars, conds);
-                // invariant by induction
-                auto c = z3_eval(proj, inv, state);
-                state->conds->push_back(c->get_z3_value());
-
-                // lemmas, note that it only applies to the initial state (st), but that is enough for proving (for now)
-                for (auto const &lemma_def : proj->inv_lemmas[d.first]) {
-                    auto lemma = lemma_def->body.get();
-                    auto lemma_expr = z3_eval(proj, lemma, state);
-                    state->conds->push_back(lemma_expr->get_z3_value());
-                }
-	            
-                /** TODO: optimize: no need to generate inv z3 epxr for duplicated times */
-                /** TODO: feat: Lemma selection command */
-                proj->verified_specs[def->name] = prove_by_traverse(proj, def->body.get(), inv, state, q);
-                if (proj->verified_specs[def->name]) {
-                    LOG_INFO << "[spec_prover] Invariant: " << d.first << " is verified for " << def->name << std::endl;
-                } else {
-                    LOG_WARNING << "[spec_prover] Invariant: " << d.first << " can not be verified for " << def->name << std::endl;
-                }
+            // lemmas, note that it only applies to the initial state (st), but that is enough for proving (for now)
+            for (auto const &lemma_def : proj->inv_lemmas[d.first]) {
+                auto lemma = lemma_def->body.get();
+                auto lemma_expr = z3_expr(proj, lemma, state);
+                state->conds->push_back(lemma_expr->get_z3_value());
+            }
+            
+            /** TODO: optimize: no need to generate inv z3 epxr for duplicated times */
+            /** TODO: feat: Lemma selection command */
+            proj->verified_specs[def->name] = prove_by_traverse(proj, def->body.get(), inv, state, q);
+            if (proj->verified_specs[def->name]) {
+                LOG_INFO << "[spec_prover] Invariant: " << d.first << " is verified for " << def->name << std::endl;
+            } else {
+                LOG_WARNING << "[spec_prover] Invariant: " << d.first << " can not be verified for " << def->name << std::endl;
             }
         }
     }
