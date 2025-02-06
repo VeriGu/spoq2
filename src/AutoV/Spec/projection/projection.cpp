@@ -246,7 +246,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
             auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec1, make_shared<EvalState>(vars, conds));
             profile_update_epoch();
 
-            Z3Cache.clear();
+            // Z3Cache.clear();
 
             changed |= __changed;
 
@@ -263,6 +263,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
         if (!changed)
             break;
     }
+    Z3Cache.clear();
 
     bool has_if = false;
 
