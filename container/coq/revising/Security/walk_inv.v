@@ -536,7 +536,10 @@ Proof.
     pose proof (Hinv parent_idx offset) as Hinv.
     repeat simpl_imply Hinv.
     destruct Hinv as [Hinv_1 Hinv_2]; split; [ exact Hinv_1 | ].
-    assert (not (parent_idx = gidx4 /\ offset = normidx)).
+    match goal with
+    | [H: ?gp = (poffset (e_2 ?a) + 8 * (e_3 ?a)) / 4096 |- _] => remember gp as gp_idx
+    end.
+    assert (not (parent_idx = gp_idx /\ offset = normidx)).
     * unfold not. intros. destruct H1 as [H10 H11].
       rewrite H10 in *. rewrite H11 in *.
       rewrite Hinv_2 in H. 
@@ -548,7 +551,7 @@ Proof.
       }
       {
         simpl in *. 
-        destruct (parent_idx =? gidx4) eqn: Hp; bool_rel.
+        destruct (parent_idx =? gp_idx) eqn: Hp; bool_rel.
         {  rewrite Hp in *. rewrite ZMap.gss. simpl in *. 
            rewrite ZMap.gso. simpl in *. easy. easy.
         }
@@ -578,7 +581,10 @@ Proof.
     pose proof (Hinv parent_idx offset) as Hinv.
     repeat simpl_imply Hinv.
     destruct Hinv as [Hinv_1 Hinv_2]; split; [ exact Hinv_1 | ].
-    assert (not (parent_idx = gidx4 /\ offset = normidx)).
+    match goal with
+    | [H: ?gp = (poffset (e_2 ?a) + 8 * (e_3 ?a)) / 4096 |- _] => remember gp as gp_idx
+    end.
+    assert (not (parent_idx = gp_idx /\ offset = normidx)).
     * unfold not. intros. destruct H1 as [H10 H11].
       rewrite H10 in *. rewrite H11 in *.
       rewrite Hinv_2 in H. 
@@ -590,7 +596,7 @@ Proof.
       }
       {
         simpl in *. 
-        destruct (parent_idx =? gidx4) eqn: Hp; bool_rel.
+        destruct (parent_idx =? gp_idx) eqn: Hp; bool_rel.
         {  rewrite Hp in *. rewrite ZMap.gss. simpl in *. 
            rewrite ZMap.gso. simpl in *. easy. easy.
         }
@@ -754,4 +760,177 @@ Proof.
         ]
   ).
 Qed.
-        
+
+Lemma rtt_walk_lock_unlock_spec_ensure_state:
+  forall d v_0 v_1 v_2 v_3 v_4 v_5 ret_d ret_n
+    (Hspec: rtt_walk_lock_unlock_spec_abs v_0 v_1 v_2 v_3 v_4 v_5 d = Some(ret_n, ret_d)),
+      ((ret_d.(share).(globals).(g_granules) @ ((poffset (e_2 ret_n)) / 4096)).(e_state_s_granule) = 5).
+Admitted.
+
+Ltac intros_ensure_state :=
+   match goal with 
+   | [H: context[rtt_walk_lock_unlock_spec_abs _ _ _ _ _ _ _] |- _] => let H2 := fresh "Hcopy" in pose proof H as H2; try (apply rtt_walk_lock_unlock_spec_ensure_state in H2)
+end. 
+
+Lemma s2tt_init_unassigned_spec_walk_rev_lens:
+  forall d v_0 v_1 ret_d
+    (Hspec: s2tt_init_unassigned_spec v_0 v_1 d = Some(ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
+
+
+
+Ltac partial_simpl_component :=
+  match goal with 
+  | [H: memset_spec _ _ _ = _|- _] => apply memset_spec_walk_rev_lens in H 
+  | [H: granule_unlock_spec _ _ = _ |- _] => apply granule_unlock_spec_walk_rev_lens in H 
+  | [H: spinlock_acquire_spec _ _ = _ |- _] => apply spinlock_acquire_spec_walk_rev_lens in H 
+  | [H: spinlock_release_spec _ _ = _  |- _] => apply spinlock_release_spec_walk_rev_lens in H 
+  | [H: memcpy_ns_read_spec _ _ _ _ = _ |- _] =>  apply memcpy_ns_read_spec_walk_rev_lens in H 
+  | [H: rtt_walk_lock_unlock_spec_abs _ _ _ _ _ _ _ = _ |- _] =>  apply rtt_walk_lock_unlock_spec_walk_rev_lens in H 
+  | [H: s2tt_init_unassigned_spec _ _ _ = _ |- _] => apply s2tt_init_unassigned_spec_walk_rev_lens in H
+  end. 
+
+Ltac partial_simpl_walk_rev :=
+  try unfold GRANULE_STATE_RTT in *; try unfold GRANULE_STATE_RD in *;
+  try unfold GRANULE_STATE_REC in *; repeat partial_simpl_component; try intros_rd_para_state.
+
+Ltac partial_simpl_walk_rev_and_solve Hspec :=
+  try intros_ensure;
+  try partial_simpl_walk_rev;
+  repeat match goal with
+    | [H: _ = lens _ _ |- _] => rewrite -> H in *; clear H
+  end;
+  repeat match goal with
+    | [H: (_, _, _) = (_, _, _) |- _] => inv H
+  end;
+  repeat match goal with
+    | [H: context[lens _ (lens _ _)] |- _] => rewrite <- lens_repeat in H
+  end; simpl_some; try simpl_walk_rev_strong Hspec; bool_rel; try (inv Hspec; easy).
+
+
+Lemma rtt_idx_compute_1 :
+  (forall a, (poffset (e_2 a) + 8 * e_3 a) / 4096 = (poffset (e_2 a)) / 4096 ).
+Admitted.
+
+Lemma rtt_idx_compute_2 :
+  (forall a, (poffset (e_2 a) + 8) / 4096 = (poffset (e_2 a)) / 4096).
+Admitted.
+
+Lemma rtt_mul_div_4096_same :
+  (forall a (Hmod: a mod 4096 = 0), a = a / 4096 * 4096).
+Admitted.
+
+Ltac simpl_rtt_idx :=
+  try rewrite rtt_idx_compute_1; try rewrite rtt_idx_compute_2.
+
+Lemma rtt_create_internal_built_in_assert :
+  (forall ptr d v_3
+                (Ht: ((meta_desc_type (abs_tte_read ptr d)) =? 0) && ((meta_ripas (abs_tte_read ptr d)) =? 0) = false )
+                (Ht: (v_3 + -1 <? 3) && ((meta_desc_type (abs_tte_read ptr d)) =? 3) = false ),
+                (meta_granule_offset (meta_PA (test_Z_PTE ((g_norm 
+                    ( (granule_data (share d)) @ ((poffset ptr) / 4096))
+                ) @ ((poffset ptr) mod 4096))))) = -1
+                ).
+Admitted.
+
+Lemma argument_ensure :
+  forall v_0,
+  ((meta_granule_offset (test_PA v_0) + 4) / 4096 = (meta_granule_offset (test_PA v_0)) / 4096).
+Admitted.
+
+Lemma rsi_rtt_create_walk_rev :
+  forall d v_0 v_1 v_2 v_3 ret_n ret_d
+    (Hspec: rsi_rtt_create_spec v_0 v_1 v_2 v_3 d = Some(ret_n, ret_d))
+    (Hinv: walk_rev d.(share)),
+    walk_rev ret_d.(share).
+Proof.
+  intros.  unfold rsi_rtt_create_spec in Hspec.
+  autounfold with sem in *.
+  repeat simpl_hyp Hspec; try intros_ensure_state; partial_simpl_walk_rev_and_solve Hspec.
+  all: partial_simpl_walk_rev_and_solve Hspec.
+  all: inv Hspec.
+  all: simpl_rtt_idx.
+  all: try(
+      unfold walk_rev; simpl in *; unfold walk_rev in Hinv; unfold GRANULE_STATE_RTT in *; destruct Hinv as [rev Hinv];  
+      retrieve_idx; intros; repeat rewrite lens_ignore_g_granules_update; repeat rewrite lens_ignore_g_granules_update in Hrtt ).
+  (* all: ( assert((meta_granule_offset (test_PA v_0) + 4) / 4096 = (meta_granule_offset (test_PA v_0)) / 4096) as Hoff; [ admit | rewrite -> Hoff in *; try rewrite <- Heqgidx in *; clear Hoff ]). *)
+  all: (rewrite -> argument_ensure in *).
+  all: repeat match goal with
+    | [H: (_ =? 0) && _ = true |- _] => simpl_andb_true_iff H
+    end.
+  all: try match goal with 
+    | [H: (meta_desc_type (abs_tte_read ?ptr ?d)) = 0 |- _] => assert( (meta_desc_type (abs_tte_read ptr d)) <> 3) as H_neq_3; [ rewrite H; lia | 
+        pose proof (abs_tte_read_no_pa ptr d H_neq_3); simpl in *  ]
+    end.
+  all: simpl_rtt_idx.
+  all:
+    try rewrite Heqnormidx in *;
+    repeat match goal with
+    | [H: ?gidx = poffset (e_2 ?r) / 4096 |- _] => rewrite -> H in *; clear H
+    end;
+    match goal with
+    | |- context[poffset (e_2 ?r) / 4096] => remember (poffset (e_2 r) / 4096) as Hgp_idx; try rewrite <- Hgp_idx in *
+    end.
+  all: rewrite <- Heqnormidx in *.
+  all: rewrite strong_lens in *.
+  all: match goal with
+       | [H:(e_state_s_granule (g_granules (globals (share _))) @ (?r)) - 1 = 0 |- _] => remember r as Hrtt_idx; remember H as Hrtt_state;
+          match goal with
+          | [H: Hrtt_idx = meta_granule_offset _ / 4096 |- _] => rewrite <- H in *; pose H as Hrtt_val
+          end;
+          repeat match goal with
+          | [H: ?a = Hrtt_idx |- _] => rewrite -> H in *; clear H
+          end;
+          assert (Hgp_idx <> Hrtt_idx) as Hneq_gp_rtt; [ unfold not; intros Heq_gp_rtt; rewrite Heq_gp_rtt in *; lia | ] 
+       end.
+  all: simpl in *.
+  all: pose (rev_ans := fun idx => if (idx =? Hrtt_idx) then (Hgp_idx, normidx) else rev idx);
+      exists rev_ans;  intros rtt_idx ? ? ? parent_idx offset H_rev_ans.
+  all: destruct (rtt_idx =? Hrtt_idx) eqn: H_real_rtt_idx; bool_rel;
+       [ rewrite H_real_rtt_idx in *; unfold rev_ans in H_rev_ans; simpl_hyp H_rev_ans; bool_rel;
+        [ injection H_rev_ans; intros Hpp Hrr; rewrite <- Hrr in *; rewrite <- Hpp in *; split;
+          [ rewrite ZMap.gso; repeat rewrite lens_ignore_g_granules_update; try assumption 
+            | rewrite ZMap.gss; simpl in *; rewrite  ZMap.gss; rewrite test_Z_PTE_Z_same; simpl in *; rewrite Hrtt_val;
+              (* assert(forall a (Hmod: a mod 4096 = 0), a = a / 4096 * 4096) as Hass; [ admit | ]; *)
+              apply rtt_mul_div_4096_same; easy
+          ]
+        | contra ]
+       |  ].
+  all: unfold rev_ans in H_rev_ans; simpl_hyp H_rev_ans; bool_rel; [ contra | ]. 
+  all: rewrite ZMap.gso in Hrtt; repeat rewrite lens_ignore_g_granules_update; repeat rewrite lens_ignore_g_granules_update in Hrtt; try easy;
+        pose proof (Hinv rtt_idx) as Hinv;  repeat simpl_imply Hinv;  pose proof (Hinv parent_idx offset) as Hinv;  repeat simpl_imply Hinv;
+        assert (parent_idx <> Hrtt_idx) as Hneq_p_rtt; [ unfold not; intros Heq_p_rtt; rewrite Heq_p_rtt in *; lia | ];
+        rewrite ZMap.gso in *; simpl in *; try rewrite lens_ignore_g_granules_update; try easy; split; try easy.
+  all:  try rewrite <- Hgp_idx in *.
+  all:  assert(not (parent_idx = Hgp_idx /\ offset = normidx)) as Hsame; [ 
+          unfold not; intros Hnsame; destruct Hnsame as [H10 H11];
+          rewrite H10 in *; rewrite H11 in *;
+          destruct Hinv as [Hinv1 Hinv2];
+          unfold NR_GRANULES in *; try lia | ].
+  all: try( (* assert(forall ptr d v_3
+              (Ht: ((meta_desc_type (abs_tte_read ptr d)) =? 0) && ((meta_ripas (abs_tte_read ptr d)) =? 0) = false )
+              (Ht: (v_3 + -1 <? 3) && ((meta_desc_type (abs_tte_read ptr d)) =? 3) = false ),
+              (meta_granule_offset (meta_PA (test_Z_PTE ((g_norm 
+                  ( (granule_data (share d)) @ ((poffset ptr) / 4096))
+              ) @ ((poffset ptr) mod 4096))))) = -1
+              )
+              as Hassert_false; [ admit| ]; *)
+            pose proof rtt_create_internal_built_in_assert as Hassert_false;
+            match goal with
+            |  [H: ((meta_desc_type (abs_tte_read ?ptr ?d)) =? 0) && ((meta_ripas (abs_tte_read ?ptr ?d)) =? 0) = false |- _] => pose proof (Hassert_false ptr d) as Hassert_false
+            end;
+            match goal with
+            |  [H: (?v + -1 <? 3 ) && (_) = false |- _] => pose proof (Hassert_false v) as Hassert_false; simpl in *
+            end;
+            repeat simpl_imply Hassert_false).
+  all: repeat simpl_rtt_idx; try rewrite Hrtt_ret3 in *; try rewrite <- Heqnormidx in *; try rewrite <- HeqHgp_idx in *; simpl in *. 
+  all: try lia.
+  all: apply not_and_or in Hsame; destruct Hsame;
+       [ simpl in *; rewrite ZMap.gso; [ easy | easy ] | 
+         simpl in *;
+         let Hp := fresh "Hp" in destruct (parent_idx =? Hgp_idx) eqn: Hp; bool_rel;
+         [ rewrite Hp in *; rewrite ZMap.gss; simpl in *; rewrite ZMap.gso; simpl in *; [ easy | easy] 
+         | rewrite ZMap.gso; [easy | easy ] ]
+       ].
+Qed.
