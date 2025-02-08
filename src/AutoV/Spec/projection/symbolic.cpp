@@ -37,6 +37,28 @@ void print_path(const path_t &p) {
     std::cout << std::endl;
 }
 
+inline bool contains_field(const field_t &f_check, const field_t &f_interested) {
+    return std::search(f_check.begin(), f_check.end(), f_interested.begin(), f_interested.end()) != f_check.end();
+}
+
+bool has_subfield(const std::set<field_t> &fields, const field_t &f) {
+    for (auto &f_check : fields) {
+        if (contains_field(f_check, f)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool has_proper_subfield(const std::set<field_t> &fields, const field_t &f) {
+    for (auto &f_check : fields) {
+        if (f_check.size() != f.size() && contains_field(f_check, f)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /** Separate prove-stage z3 translator from the specgen-stage one */
 shared_ptr<SpecValue> z3_expr(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
     if (val->cached_eval) return val->cached_eval;
@@ -410,7 +432,10 @@ void rec_analyze_used_fields(Project* proj, SpecNode* node, std::set<field_t> &f
                 if (!f.empty()) {
                     fields.insert(f);
                 }
+            } else if (std::get<Expr::ops>(e->op) == Expr::RecordSet) { 
+                // pass 
             } else {
+                /** TODO: Fix FP in Expr::SET */
                 for (int i = 0; i < e->elems->size(); i++) {
                     rec_analyze_used_fields(proj, e->elems->at(i).get(), fields);
                 }
@@ -433,28 +458,6 @@ void rec_analyze_used_fields(Project* proj, SpecNode* node, std::set<field_t> &f
     } else {
         throw std::runtime_error("[rec_analyze_used_fields] Unexpected node type: " + string(*node));
     }
-}
-
-inline bool contains_field(const field_t &f_check, const field_t &f_interested) {
-    return std::search(f_check.begin(), f_check.end(), f_interested.begin(), f_interested.end()) != f_check.end();
-}
-
-bool has_subfield(const std::set<field_t> &fields, const field_t &f) {
-    for (auto &f_check : fields) {
-        if (contains_field(f_check, f)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool has_proper_subfield(const std::set<field_t> &fields, const field_t &f) {
-    for (auto &f_check : fields) {
-        if (f_check.size() != f.size() && contains_field(f_check, f)) {
-            return true;
-        }
-    }
-    return false;
 }
 
 void extract_vars_from_expr(Project *proj, SpecNode *pattern, std::set<string> &vars) {
@@ -528,7 +531,7 @@ void backward_propagation_on_expr(Project *proj, SpecNode *node, std::set<field_
                  *      1. spoq ensures st1 == st2 (last state)
                  *      2. f1 in trace, in this case (st.(f1)) should not be added to coi
                  */
-                if (!has_subfield(trace, access_field)) {
+                if (!has_subfield(trace, access_field) && coi_blacklist.find(access_field.front()) == coi_blacklist.end()) {
                     rec_analyze_used_fields(proj, e, coi);
                 }
                 
@@ -677,9 +680,9 @@ std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecN
         }   
     }
     for (auto &c : coi_fields) {
-        // if (coi_blacklist.find(c.front()) != coi_blacklist.end()) {
-            // continue;
-        // }
+        if (coi_blacklist.find(c.front()) != coi_blacklist.end()) {
+            continue;
+        }
         coi_ret.insert(c.front());
         proj->coi[def->name][inv_name].insert(c.front());
     }
@@ -723,6 +726,9 @@ SpecNode *extract_st_from_expr(Project *proj, SpecNode *expr) {
                 return extract_st_from_expr(proj, last);
             }
         } else {
+            if (e->get_type() == SpecType::UNKNOWN_TYPE) {
+                throw std::runtime_error("[extract_st_from_expr] Type inferrence failed before proof! " + string(*e));
+            }
             if (e->get_type() == proj->layers[0]->abs_data) {
                 return e;
             }
@@ -767,10 +773,9 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 					// construct new invariants
 					auto p = instantiate_prop(inv->deep_copy().release(), ret_st);
 					auto c = z3_expr(proj, p, state);
-                    auto z3_ret = z3_verify(state, c->get_z3_value(), proj->query_saver);
+                    auto z3_ret = z3_verify(state, c->get_z3_value(), &proj->query_saver);
 
 					std::cout << "----------------------------------" << std::endl;
-                    std::cout << "prove_by_traverse: Proving invariant for instantiate_prop\n" << string(*p) << std::endl;
 					std::cout << "prove_by_traverse: Final State\n" << string(*ret_st) << std::endl;
 					std::cout << "----------------------------------" << std::endl;
 					if (z3_ret == Z3Result::False) {
@@ -803,13 +808,14 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                 if (st_input && st_ret) {
                     auto p_input = instantiate_prop(inv->deep_copy().release(), st_input);
                     auto precond = z3_expr(proj, p_input, new_state);
-                    auto z3_ret = z3_check(new_state, precond->get_z3_value(), Z3_VERIFY_TIMEOUT);
+                    auto z3_ret = z3_verify(new_state, precond->get_z3_value(), &proj->query_saver);
                     if (z3_ret == Z3Result::Unknown || z3_ret == Z3Result::False) {
                         LOG_WARNING << "[prove_by_traverse] Invariant is violated for pre-condition state\n" << string(*st_input) << std::endl;
                         // return false; // even pre-conditon is failed, the lemma may still strong enough to ensure post-cond inv
                     }
                     auto p_ret = instantiate_prop(inv->deep_copy().release(), st_ret);
                     auto postcond = z3_expr(proj, p_ret, new_state);
+                    new_state->conds->clear();
                     new_state->conds->push_back(postcond->get_z3_value());
                     /** add abstract sub-spec to prove queue */
                     if (std::holds_alternative<Definition *>(abst_spec)) {
@@ -846,6 +852,11 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 
 static void lensify_spec(Project *proj, Definition *def, std::set<string> &coi) {
     set_interest_list(coi);
+    std::cout << "[lensify_spec] coi set: " << std::endl;
+    for (auto &c : coi) {
+        std::cout << c << std::endl;
+    }
+
     auto spec = def->body.release();
     while (true) {
         bool changed = false;
@@ -896,6 +907,8 @@ void spec_prover(Project *proj, Definition *goal_def) {
 
         std::deque<Definition *> q = {goal_def};
         auto coi = analyze_cone_of_influence(proj, goal_def, inv);
+        // should only apply lens to the top (high) spec
+        lensify_spec(proj, goal_def, coi);
 
         while (!q.empty()) {
             auto def = q.front();
@@ -910,10 +923,9 @@ void spec_prover(Project *proj, Definition *goal_def) {
                 proj->verified_specs[def->name] = true;
                 continue;
             }
+            def->infer_type(*proj);
             // save queries as reproducible machine-checkable proofs
             proj->query_saver = QueryInfo(query_saver_dir(def->name, d.second->name));
-            // apply lens to high spec
-            lensify_spec(proj, def, coi);
             auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
             auto conds = std::make_shared<vector<z3::expr>>();
             for (auto arg : *def->args) {
