@@ -45,6 +45,8 @@ Section Layer13_Layer.
       :: ("smc_data_dispose", prim smc_data_dispose_spec)
       :: ("smc_read_feature_register", prim smc_read_feature_register_spec)
       :: ("smc_realm_activate", prim smc_realm_activate_spec)
+      :: ("smc_realm_create", prim smc_realm_create_spec)
+      :: ("smc_realm_destroy", prim smc_realm_destroy_spec)
       :: ("smc_rec_enter", prim smc_rec_enter_spec)
       :: ("smc_rtt_create", prim smc_rtt_create_spec)
       :: ("smc_rtt_destroy", prim smc_rtt_destroy_spec)
