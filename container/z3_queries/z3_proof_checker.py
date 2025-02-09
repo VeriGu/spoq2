@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 
 import os
-import sys
 from z3 import Solver, parse_smt2_file, unsat
+from colorama import Fore, Style, init
+
+# Initialize colorama for colored output
+init(autoreset=True)
 
 def check_smt2_file(file_path):
     """Check an SMT2 file using Z3 and return the result."""
     solver = Solver()
     constraints = parse_smt2_file(file_path)
+    solver.set("timeout", 1000)  # Set a timeout of 5 seconds
     solver.add(constraints)
     return solver.check()
 
@@ -21,7 +25,12 @@ def check_invariants():
         if not os.path.isdir(spec_path):
             continue
 
-        print(f"Checking Invariant for {spec_name}")
+        # Section header for the spec_name
+        print(f"\n{Fore.CYAN}{'='*40}")
+        print(f"{Fore.BLUE}Checking Invariants for \"{spec_name}\"")
+        print(f"{Fore.CYAN}{'='*40}")
+
+        spec_success = True  # Track success for the entire spec_name
 
         # Iterate over invariant subdirectories (./spec_name/inv_name)
         for inv_name in os.listdir(spec_path):
@@ -30,23 +39,31 @@ def check_invariants():
             if not os.path.isdir(inv_path):
                 continue
 
-            print(f"Checking Invariant \"{inv_name}\" for \"{spec_name}\"")
-
-            all_unsat = True  # Assume all files are unsat unless proven otherwise
+            # Check the invariant
+            print(f"  {Fore.YELLOW}- Checking Invariant \"{inv_name}\"...", end=" ")
+            all_unsat = True  # Assume all SMT2 files are unsat unless proven otherwise
 
             # Check all .smt2 files in ./spec_name/inv_name/
             for file_name in os.listdir(inv_path):
                 if file_name.endswith(".smt2"):
-                    print(f"Checking file {file_name}")
                     file_path = os.path.join(inv_path, file_name)
                     result = check_smt2_file(file_path)
 
                     if result != unsat:
                         all_unsat = False  # If any file is not unsat, mark as failed
 
-            # Output success message if all SMT2 files were unsat
+            # Output success or failure for the invariant
             if all_unsat:
-                print(f"Checking Invariant \"{inv_name}\" for \"{spec_name}\" success!")
+                print(f"{Fore.GREEN}success!")
+            else:
+                print(f"{Fore.RED}failed!")
+                spec_success = False
+
+        # Summary for the entire spec_name
+        if spec_success:
+            print(f"{Fore.GREEN}[{spec_name}] verified!")
+        else:
+            print(f"{Fore.RED}Some invariants failed for \"{spec_name}\"")
 
 if __name__ == "__main__":
     check_invariants()

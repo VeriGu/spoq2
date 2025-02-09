@@ -54,9 +54,10 @@ public:
 
     QueryInfo() : query_dir(""), query_id(0) {}
     QueryInfo(const string &d) : query_dir(d), query_id(0) {
-        if (!std::filesystem::exists(d)) {
-            std::filesystem::create_directories(d);
+        if (std::filesystem::exists(d)) {
+            std::filesystem::remove_all(d);
         }
+        std::filesystem::create_directories(d);
     }
     
     void dump(const string &q) {

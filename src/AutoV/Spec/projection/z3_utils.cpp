@@ -80,12 +80,8 @@ size_t hash_unsigned_vector(const vector<unsigned> &v) {
     return hash;
 }
 
-static size_t hash_z3_expr(z3::expr &e) {
-    // Combine e.hash() and e.id()
-    size_t hash = 0;
-    boost::hash_combine(hash, e.hash());
-    boost::hash_combine(hash, e.id());
-    return hash;
+static inline size_t hash_z3_expr(z3::expr &e) {
+    return e.hash();
 }
 
 size_t hash_z3_state(std::shared_ptr<EvalState> state, int timeout) {
@@ -123,14 +119,14 @@ std::chrono::duration<double> z3_accumulative_time = std::chrono::duration<doubl
  *  2. automatically dump queries
  *      TODO: also dump counter examples
   */
-Z3Result z3_verify(shared_ptr<EvalState> state, z3::expr cond, QueryInfo &qinfo, int timeout) {
+Z3Result z3_verify(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, int timeout) {
     auto start = std::chrono::high_resolution_clock::now();
-    auto hash = hash_z3_state(state, cond, timeout);
-    if (Z3Cache.find(hash) != Z3Cache.end()) {
-        z3_cache_hits++;
-        return Z3Cache[hash];
-    }
-    z3_checks++;
+    // auto hash = hash_z3_state(state, cond, timeout);
+    // z3_checks++;
+    // if (Z3Cache.find(hash) != Z3Cache.end()) {
+    //     z3_cache_hits++;
+    //     return Z3Cache[hash];
+    // }
 
     Z3Params.set("timeout", (unsigned int)timeout);
     Z3Solver.set(Z3Params);
@@ -142,7 +138,8 @@ Z3Result z3_verify(shared_ptr<EvalState> state, z3::expr cond, QueryInfo &qinfo,
     
     Z3Solver.add(!cond);
     auto not_res = Z3Solver.check();
-    qinfo.dump(Z3Solver.to_smt2());
+    if (qinfo)
+        qinfo->dump(Z3Solver.to_smt2());
 
     Z3Solver.pop();
     Z3Solver.pop();
@@ -150,14 +147,14 @@ Z3Result z3_verify(shared_ptr<EvalState> state, z3::expr cond, QueryInfo &qinfo,
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
     if (not_res == z3::unsat) {
-        Z3Cache[hash] = Z3Result::True;
+        // Z3Cache[hash] = Z3Result::True;
         return Z3Result::True;
     } else if (not_res == z3::sat) {
         auto ce = Z3Solver.get_model();
-        Z3Cache[hash] = Z3Result::False;
+        // Z3Cache[hash] = Z3Result::False;
         return Z3Result::False;
     } else {
-        Z3Cache[hash] = Z3Result::Unknown;
+        // Z3Cache[hash] = Z3Result::Unknown;
         z3_unknowns++;
         return Z3Result::Unknown;
     }
@@ -167,17 +164,11 @@ Z3Result z3_verify(shared_ptr<EvalState> state, z3::expr cond, QueryInfo &qinfo,
 Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     auto start = std::chrono::high_resolution_clock::now();
     auto hash = hash_z3_state(state, cond, timeout);
+    z3_checks++;
     if (Z3Cache.find(hash) != Z3Cache.end()) {
         z3_cache_hits++;
-        // std::cout << "-----------------Z3 (hit)-----------------" << std::endl;
-        // std::cout << "state hash: " << hash << std::endl;
-        // std::cout << "z3 check cond: " << cond << ", hash: " << cond.hash() << std::endl;
-        // // std::cout << "z3 check result: " << Z3Cache[hash] << std::endl;
-        // std::cout << "-----------------Z3-----------------" << std::endl;
         return Z3Cache[hash];
     }
-
-    z3_checks++;
 
     Z3Params.set("timeout", (unsigned int)timeout);
 
@@ -246,12 +237,12 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
 Z3Result z3_check(shared_ptr<EvalState> state, int timeout) {
     auto start = std::chrono::high_resolution_clock::now();
     auto hash = hash_z3_state(state, timeout);
+    z3_checks++;
     if (Z3Cache.find(hash) != Z3Cache.end()) {
         z3_cache_hits++;
         return Z3Cache[hash];
     }
 
-    z3_checks++;
 
     Z3Params.set("timeout", (unsigned int)timeout);
 
