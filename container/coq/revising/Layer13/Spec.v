@@ -12042,6 +12042,8 @@ Section Layer13_Spec.
       else (Some (v_9, st_5)))
     else (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_2)).
 
+  Parameter total_root_rtt_refcount_para (Z -> (Z -> (RData -> (Z)))).
+  Parameter test_Z_Ptr : (Z -> (Ptr)).
   Definition smc_realm_destroy_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
     when st_1 == ((spinlock_acquire_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st));
     if (((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (4096))).(e_state_s_granule)) - (2)) =? (0))
