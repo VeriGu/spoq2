@@ -11929,6 +11929,9 @@ Section Layer13_Spec.
       when st_2 == ((spinlock_release_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_1));
       (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_2))).
 
+  Definition smc_system_interface_version_spec (st: RData) : (option (Z * RData)) :=
+    (Some (2687387, st)).
+
 End Layer13_Spec.
 
 #[global] Hint Unfold smc_realm_activate_spec: spec.
@@ -11945,6 +11948,7 @@ End Layer13_Spec.
 #[global] Hint Unfold smc_rtt_unmap_non_secure_spec: spec.
 #[global] Hint Unfold smc_rtt_read_entry_spec: spec.
 #[global] Hint Unfold smc_rtt_unmap_protected_spec: spec.
+#[global] Hint Unfold smc_system_interface_version_spec: spec.
 
 (* #[global] Hint Unfold s1tte_is_writable_spec: spec. *)
 (* #[global] Hint Unfold stage1_tlbi_va_spec: spec. *)

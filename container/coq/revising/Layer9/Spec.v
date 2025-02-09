@@ -2085,42 +2085,56 @@ Section Layer9_Spec.
       when v_8, st_1 == ((pack_return_code_spec 8 0 st));
       (Some (((v_8 - (v_1)) =? (0)), st_1))).
 
+  Parameter set_pas_realm_spec_para: (Z -> (RData -> (Z))).
   Definition smc_granule_delegate_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
-    when v_3, st_0 == ((find_lock_granule_spec v_0 0 st));
-    rely (((((v_3.(poffset)) mod (4096)) = (0)) /\ (((v_3.(poffset)) >= (0)))));
-    rely ((((v_3.(pbase)) = ("granules")) \/ (((v_3.(pbase)) = ("null")))));
-    if (ptr_eqb v_3 (mkPtr "null" 0))
+    when st_1 == ((spinlock_acquire_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st));
+    if ((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (16))).(e_state_s_granule)) =? (0))
     then (
-      when v_5, st_1 == ((pack_return_code_spec 1 1 st_0));
-      (Some (v_5, st_1)))
-    else (
-      when st_1 == ((granule_set_state_spec v_3 1 st_0));
-      when v_7, st_2 == ((set_pas_realm_spec v_0 st_1));
-      when st_3 == ((clear_tte_ns_spec v_0 st_2));
-      if (v_7 =? (0))
+      rely ((((((test_PA v_0).(meta_granule_offset)) mod (4096)) = (0)) /\ ((((test_PA v_0).(meta_granule_offset)) >= (0)))));
+      if ((set_pas_realm_spec_para ((test_PA v_0).(meta_granule_offset)) st_1) =? (0))
       then (
-        when st_4 == ((granule_memzero_spec v_3 1 st_3));
-        when st_6 == ((granule_unlock_spec v_3 st_4));
+        when st_3_1 == (
+            (clear_tte_ns_spec
+              v_0
+              (st_1.[share] :<
+                (((st_1.(share)).[globals].[g_granules] :<
+                  ((((st_1.(share)).(globals)).(g_granules)) #
+                    ((((test_PA v_0).(meta_granule_offset)) + (4)) / (4096)) ==
+                    (((((st_1.(share)).(globals)).(g_granules)) @ ((((test_PA v_0).(meta_granule_offset)) + (4)) / (4096))).[e_state_s_granule] :< 1))).[gpt] :<
+                  (((st_1.(share)).(gpt)) # (((test_PA v_0).(meta_granule_offset)) / (4096)) == true)))));
+        when v_4, st_2 == ((memset_spec (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) 0 4096 st_3_1));
+        when st_6 == ((granule_unlock_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_2));
         (Some (0, st_6)))
       else (
-        when st_5 == ((granule_unlock_spec v_3 st_3));
-        when v_12, st_6 == ((pack_return_code_spec 1 1 st_5));
-        (Some (v_12, st_6)))).
+        when st_5 == (
+            (granule_unlock_spec
+              (mkPtr "granules" ((test_PA v_0).(meta_granule_offset)))
+              (st_1.[share] :< ((st_1.(share)).[gpt] :< (((st_1.(share)).(gpt)) # (((test_PA v_0).(meta_granule_offset)) / (4096)) == true)))));
+        (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_5))))
+    else (
+      when st_2 == ((spinlock_release_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_1));
+      (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_2))).
+
 
   Definition smc_granule_undelegate_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
-    when v_3, st_0 == ((find_lock_granule_spec v_0 1 st));
-    rely (((((v_3.(poffset)) mod (4096)) = (0)) /\ (((v_3.(poffset)) >= (0)))));
-    rely ((((v_3.(pbase)) = ("granules")) \/ (((v_3.(pbase)) = ("null")))));
-    if (ptr_eqb v_3 (mkPtr "null" 0))
+    when st_1 == ((spinlock_acquire_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st));
+    if (((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (16))).(e_state_s_granule)) - (1)) =? (0))
     then (
-      when v_5, st_1 == ((pack_return_code_spec 1 1 st_0));
-      (Some (v_5, st_1)))
+      rely ((((((test_PA v_0).(meta_granule_offset)) mod (4096)) = (0)) /\ ((((test_PA v_0).(meta_granule_offset)) >= (0)))));
+      when st_3 == (
+          (set_tte_ns_spec
+            v_0
+            (st_1.[share] :<
+              (((st_1.(share)).[globals].[g_granules] :<
+                ((((st_1.(share)).(globals)).(g_granules)) #
+                  ((((test_PA v_0).(meta_granule_offset)) + (4)) / (4096)) ==
+                  (((((st_1.(share)).(globals)).(g_granules)) @ ((((test_PA v_0).(meta_granule_offset)) + (4)) / (4096))).[e_state_s_granule] :< 0))).[gpt] :<
+                (((st_1.(share)).(gpt)) # (((test_PA v_0).(meta_granule_offset)) / (4096)) == false)))));
+      when st_4 == ((granule_unlock_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_3));
+      (Some (0, st_4)))
     else (
-      when st_1 == ((set_pas_ns_spec v_0 st_0));
-      when st_2 == ((granule_set_state_spec v_3 0 st_1));
-      when st_3 == ((set_tte_ns_spec v_0 st_2));
-      when st_4 == ((granule_unlock_spec v_3 st_3));
-      (Some (0, st_4))).
+      when st_2 == ((spinlock_release_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_1));
+      (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_2))).
 
   Definition rsi_data_set_attrs_spec (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Z) (st: RData) : (option (Z * RData)) :=
     when st_0 == ((new_frame "rsi_data_set_attrs" st));

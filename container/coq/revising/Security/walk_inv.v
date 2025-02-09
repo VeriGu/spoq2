@@ -197,17 +197,29 @@ Lemma rtt_walk_lock_unlock_spec_walk_rev_lens:
     ret_d = (lens len_para d).
 Admitted.
 
+Lemma clear_tte_ns_spec_walk_rev_lens:
+  forall d v_0 ret_d
+    (Hspec: clear_tte_ns_spec v_0 d = Some(ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
 
+Lemma set_tte_ns_spec_walk_rev_lens:
+  forall d v_0 ret_d
+    (Hspec: set_tte_ns_spec v_0 d = Some(ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
 
 
 Ltac simpl_component :=
   match goal with 
-  | [H: context[memset_spec _ _ _] |- _] => try apply memset_spec_walk_rev_lens in H 
+  | [H: context[memset_spec _ _ _ _] |- _] => try apply memset_spec_walk_rev_lens in H 
   | [H: context[granule_unlock_spec _ _] |- _] => try apply granule_unlock_spec_walk_rev_lens in H 
   | [H: context[spinlock_acquire_spec _ _] |- _] => try apply spinlock_acquire_spec_walk_rev_lens in H 
   | [H: context[spinlock_release_spec _ _] |- _] => try apply spinlock_release_spec_walk_rev_lens in H 
   | [H: context[memcpy_ns_read_spec _ _ _ _] |- _] => try apply memcpy_ns_read_spec_walk_rev_lens in H 
   | [H: context[rtt_walk_lock_unlock_spec_abs _ _ _ _ _ _ _] |- _] => try apply rtt_walk_lock_unlock_spec_walk_rev_lens in H 
+  | [H: context[clear_tte_ns_spec _ _] |- _] => try apply clear_tte_ns_spec_walk_rev_lens in H 
+  | [H: context[set_tte_ns_spec _ _] |- _] => try apply set_tte_ns_spec_walk_rev_lens in H 
   end. 
 
 
@@ -782,13 +794,15 @@ Admitted.
 
 Ltac partial_simpl_component :=
   match goal with 
-  | [H: memset_spec _ _ _ = _|- _] => apply memset_spec_walk_rev_lens in H 
+  | [H: memset_spec _ _ _ _ = _|- _] => apply memset_spec_walk_rev_lens in H 
   | [H: granule_unlock_spec _ _ = _ |- _] => apply granule_unlock_spec_walk_rev_lens in H 
   | [H: spinlock_acquire_spec _ _ = _ |- _] => apply spinlock_acquire_spec_walk_rev_lens in H 
   | [H: spinlock_release_spec _ _ = _  |- _] => apply spinlock_release_spec_walk_rev_lens in H 
   | [H: memcpy_ns_read_spec _ _ _ _ = _ |- _] =>  apply memcpy_ns_read_spec_walk_rev_lens in H 
   | [H: rtt_walk_lock_unlock_spec_abs _ _ _ _ _ _ _ = _ |- _] =>  apply rtt_walk_lock_unlock_spec_walk_rev_lens in H 
   | [H: s2tt_init_unassigned_spec _ _ _ = _ |- _] => apply s2tt_init_unassigned_spec_walk_rev_lens in H
+  | [H: clear_tte_ns_spec _ _ = _ |- _] => try apply clear_tte_ns_spec_walk_rev_lens in H 
+  | [H: set_tte_ns_spec _ _ = _ |- _] => try apply set_tte_ns_spec_walk_rev_lens in H 
   end. 
 
 Ltac partial_simpl_walk_rev :=

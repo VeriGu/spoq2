@@ -53,6 +53,7 @@ Section Layer13_Layer.
       :: ("smc_rtt_read_entry", prim smc_rtt_read_entry_spec)
       :: ("smc_rtt_unmap_non_secure", prim smc_rtt_unmap_non_secure_spec)
       :: ("smc_rtt_unmap_protected", prim smc_rtt_unmap_protected_spec)
+      :: ("smc_system_interface_version", prim smc_system_interface_version_spec)
           (* ("data_granule_measure", prim data_granule_measure_spec) *)
           (* :: ("s1tte_is_writable", prim s1tte_is_writable_spec) *)
           (* :: ("s2tte_addr_type_mask", prim s2tte_addr_type_mask_spec) *)
