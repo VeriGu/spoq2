@@ -19,6 +19,7 @@ Definition rd_rev (sh: Shared) : Prop :=
   exists (rev: Z -> (Z)),
   forall rd_idx rtt_idx
     (Hrd: (sh.(globals).(g_granules) @ rd_idx).(e_state_s_granule) = GRANULE_STATE_RD)
+    (Hrtt_state: (sh.(globals).(g_granules) @ rtt_idx).(e_state_s_granule) = GRANULE_STATE_RTT)
     (Hrtt: (sh.(granule_data) @ rd_idx).(g_norm) @ 32 = rtt_idx),
     (* 32 : (sh.(granule_data) @ rd).(g_rd).(e_rd_s2_ctx).(e_g_rtt). *)
     rev rtt_idx = rd_idx.
@@ -30,7 +31,12 @@ Lemma keep_rd_rev :
       (ret_sh.(globals).(g_granules) @ rd_idx).(e_state_s_granule) = GRANULE_STATE_RD
       -> (sh.(globals).(g_granules) @ rd_idx).(e_state_s_granule) = GRANULE_STATE_RD
       /\ (sh.(granule_data) @ rd_idx).(g_norm) @ 32 = (ret_sh.(granule_data) @ rd_idx).(g_norm) @ 32
-    ) , rd_rev ret_sh.
+    ) 
+    (Hrtt_ret:
+      forall rtt_idx,
+       (ret_sh.(globals).(g_granules) @ rtt_idx).(e_state_s_granule) = GRANULE_STATE_RTT 
+       -> (sh.(globals).(g_granules) @ rtt_idx).(e_state_s_granule) = GRANULE_STATE_RTT
+    ), rd_rev ret_sh.
 Proof.
     intros.
     unfold rd_rev in *.
@@ -41,11 +47,15 @@ Proof.
     - pose proof (Hrd_ret rd_idx) as H.  
       apply H in Hrd.
       destruct Hrd as [Hrd Hrd1].
+      pose proof (Hrtt_ret rtt_idx) as H3.
+      apply H3 in Hrtt_state.
       pose proof (Hinv rd_idx rtt_idx) as H2.
       repeat simpl_imply H2. auto.
     - pose proof (Hrd_ret rd_idx) as H.  
       apply H in Hrd.     
       destruct Hrd as [Hrd Hrd1].
+      pose proof (Hrtt_ret rtt_idx) as H3.
+      apply H3 in Hrtt_state.
       pose proof (Hinv rd_idx rtt_idx) as H2.
       rewrite Hrd1 in *.
       repeat simpl_imply H2. 
@@ -79,13 +89,20 @@ Proof.
   all: pose proof Hinv as Hinv2.
   all: apply (@keep_rd_rev (share d) (share ret_d) Hinv2).
   all: repeat rewrite strong_lens in *; intros; inv Hspec; simpl in *.
-  all: simpl in *; retrieve_idx.
-  all: split; [ | auto].
+  all: try(simpl in *; retrieve_idx; split; [ | auto]).
   all: simpl_walk_rev. 
   - destruct (gidx0 =? rd_idx) eqn: H3; bool_rel.
     + rewrite H3 in *; assumption.
     + rewrite ZMap.gso in H; simpl in *; [ | auto].
       destruct (gidx =? rd_idx) eqn: H2; bool_rel.
+      * rewrite H2 in *.  rewrite ZMap.gss in H; simpl in *; lia.
+      * rewrite ZMap.gso in *; [ simpl in *; auto | auto].
+  - simpl in *; retrieve_idx; destruct (gidx0 =? rtt_idx) eqn: H3; bool_rel.
+    + rewrite H3 in *. simpl in *. rewrite ZMap.gss in H.
+      assert(gidx <> rtt_idx); [ unfold not; intros Hneq; rewrite Hneq in *; lia | 
+        rewrite ZMap.gso in H; [ simpl in *; auto | auto ] ].
+    + rewrite ZMap.gso in H; simpl in *; [ | auto].
+      destruct (gidx =? rtt_idx) eqn: H2; bool_rel.
       * rewrite H2 in *.  rewrite ZMap.gss in H; simpl in *; lia.
       * rewrite ZMap.gso in *; [ simpl in *; auto | auto].
 Qed.
