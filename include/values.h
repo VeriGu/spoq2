@@ -228,7 +228,7 @@ public:
     }
 
     string define() const;
-
+    z3::func_decl get_recognizer(string constr);
     virtual z3::sort get_z3_type() override;
     virtual shared_ptr<SpecValue> from_z3_value(z3::expr value) override;
     virtual shared_ptr<SpecValue> declare(string name, int nid) override;
@@ -523,6 +523,7 @@ public:
         auto func_call_str = __func_call_str.c_str();
         z3_func = z3ctx.function(z3ctx.str_symbol(func_call_str), arg_types.size(), arg_types.data(), ftyp->rettype->get_z3_type());
     }
+
 
     shared_ptr<SpecValue> call(vector<shared_ptr<SpecValue>> args) {
         vector<z3::expr> z3_args;

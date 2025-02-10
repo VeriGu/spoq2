@@ -246,6 +246,12 @@ shared_ptr<SpecValue> Struct::construct(vector<shared_ptr<SpecValue>> &elems) {
     return from_z3_value(mkRData(args));
 }
 
+
+z3::func_decl Struct::get_recognizer(string constr) {
+        auto css = this->get_z3_type().recognizers()[0];
+
+};
+
 // ----------------------------------------------------------------------------
 // StructValue
 // ----------------------------------------------------------------------------

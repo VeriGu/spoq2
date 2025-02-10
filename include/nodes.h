@@ -225,7 +225,10 @@ public:
     IntConst() { throw std::invalid_argument("IntConst must have a value"); }
     IntConst(unsigned long value) : Const(value, Int::INT) {}
     //IntConst(unsigned long value, SpecType type) : Const(value, type) {}
-
+    
+    unsigned long get_value() {
+        return std::get<unsigned long>(this->value);
+    }
     ~IntConst() {}
 private:
     const string to_string() const {
@@ -1060,27 +1063,33 @@ public:
     }
 
     unique_ptr<SpecNode> deep_copy() const {
-        throw std::invalid_argument("Exists cannot be deep copied");
-        // unique_ptr<SpecNode> new_body = this->body->deep_copy();
-        // unique_ptr<vector<shared_ptr<Arg>>> new_vars = make_unique<vector<shared_ptr<Arg>>>();
+        unique_ptr<SpecNode> new_body = this->body->deep_copy();
+        unique_ptr<vector<shared_ptr<Arg>>> new_vars = make_unique<vector<shared_ptr<Arg>>>();
 
-        // for (auto it = vars->begin(); it != vars->end(); it++) {
-        //     new_vars->push_back(make_shared<Arg>((*it)->name, (*it)->type));
-        // }
+        for (auto it = vars->begin(); it != vars->end(); it++) {
+            auto new_arg = make_shared<Arg>((*it)->name, (*it)->type);
+            if ((*it)->expr) {
+                new_arg->expr = (*it)->expr->deep_copy_down();
+            }
+            new_vars->push_back(std::move(new_arg));
+        }
 
-        // return make_unique<Exists>(std::move(new_vars), std::move(new_body));
+        return make_unique<Exists>(std::move(new_vars), std::move(new_body));
     }
 
     void deep_copy(unique_ptr<SpecNode> &p) const {
-        throw std::invalid_argument("Exists cannot be deep copied");
-        // unique_ptr<SpecNode> new_body = this->body->deep_copy();
-        // unique_ptr<vector<shared_ptr<Arg>>> new_vars = make_unique<vector<shared_ptr<Arg>>>();
+        unique_ptr<SpecNode> new_body = this->body->deep_copy();
+        unique_ptr<vector<shared_ptr<Arg>>> new_vars = make_unique<vector<shared_ptr<Arg>>>();
 
-        // for (auto it = vars->begin(); it != vars->end(); it++) {
-        //     new_vars->push_back(make_shared<Arg>((*it)->name, (*it)->type));
-        // }
+        for (auto it = vars->begin(); it != vars->end(); it++) {
+            auto new_arg = make_shared<Arg>((*it)->name, (*it)->type);
+            if ((*it)->expr) {
+                new_arg->expr = (*it)->expr->deep_copy_down();
+            }
+            new_vars->push_back(std::move(new_arg));
+        }
 
-        // p = make_unique<Exists>(std::move(new_vars), std::move(new_body));
+        p = make_unique<Forall>(std::move(new_vars), std::move(new_body));
     }
 
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
@@ -1244,6 +1253,22 @@ public:
     Fixpoint(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args) :
         Definition(name, rettype, std::move(args)) {}
     Fixpoint(Fixpoint &other) : Definition(other) {}
+
+    z3::func_decl absf() const {
+
+         z3::sort_vector sorts(z3ctx);
+         //z3::expr_vector args(z3ctx);
+         auto arg_list = make_shared<vector<shared_ptr<SpecType>>>();
+         for(auto arg: *this->args) { 
+            sorts.push_back(arg->type->get_z3_type());
+            arg_list->push_back(arg->type);
+         }
+        
+        auto rec_fun = z3ctx.recfun(this->name.c_str(), sorts, this->rettype->get_z3_type());
+        //auto func = make_shared<Function>(this->rettype, arg_list);
+        // func has to be wrapped in a shared_ptr because SpecType inherit from enable_shared_from_this
+        return rec_fun;
+    }
 
 private:
     const string to_string() const;

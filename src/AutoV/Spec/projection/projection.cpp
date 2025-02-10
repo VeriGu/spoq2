@@ -57,7 +57,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
     LOG_INFO << "Transforming " << def->name << ", unfold: " << unfold;
     // std::cout << string(*def) << std::endl;
 
-    bool debug = unfold && (def->name.rfind("smc_rtt_create_low", 0) == 0);
+    bool debug = unfold && (def->name.rfind("granule_lock_on_state_match", 0) == 0);
     auto known = std::set<string>();
     auto fname = def->name;
 
@@ -181,7 +181,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                 break;
         }
 
-#define APPLY_LENS
+//#define APPLY_LENS
 #ifdef APPLY_LENS
         // lens
         while (true) {
@@ -255,7 +255,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
             break;
     }
 
-    #define CONDITION_SPEC
+    //#define CONDITION_SPEC
     #ifdef CONDITION_SPEC
     if(!instance_of(def, Fixpoint) && low_spec) {
         rule_conditional_spec(proj, def);

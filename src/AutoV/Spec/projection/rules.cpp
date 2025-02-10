@@ -2086,7 +2086,7 @@ std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, D
     auto length = length_of_exp(def->body.get());
     def->length = length;
     //LOG_DEBUG << "length:" + std::to_string(def->body->length);
-    LOG_DEBUG << "num_of_conds:" << std::to_string(num_of_conds);
+    //LOG_DEBUG << "num_of_conds:" << std::to_string(num_of_conds);
     if(num_of_conds < 1000) {
         return std::make_pair(changed,std::make_pair("",""));       
     }
@@ -2212,6 +2212,31 @@ rule_ret_t rule_eliminate_let(Project *proj, SpecNode *spec) {
     };
 
     return std::make_pair(rec_apply(spec, f, false), changed);
+}
+
+
+SpecNode* partial_eval(Project* proj, SpecNode* spec) {
+    if(auto expr = instance_of(spec, Expr)) {
+        if(op_eq(expr->op, Expr::binops::EQUAL)) {
+            SpecNode* node1 = partial_eval(proj, expr->elems->at(0).release());
+            SpecNode* node2 = partial_eval(proj, expr->elems->at(1).release());
+            if(auto cons = instance_of(node1, Const)) {
+            if(auto cons2 = instance_of(node2, Const)){
+                return new BoolConst((*cons) == *cons2);
+            }}
+        } else if(op_eq(expr->op, Expr::AND)) {
+            SpecNode* node1 = partial_eval(proj, expr->elems->at(0).release());
+            SpecNode* node2 = partial_eval(proj, expr->elems->at(1).release());
+            if(auto cons = instance_of(node1, IntConst)) {
+            if(auto cons2 = instance_of(node2, IntConst)){
+                return new IntConst(cons->get_value() + cons2->get_value());
+            }}
+        }                                       
+    } else if(auto ifnode = instance_of(spec, If)) {
+        
+    } else if(auto m = instance_of(spec, Match)) {
+
+    }
 }
 
 static string get_constr(SpecNode *node) {
