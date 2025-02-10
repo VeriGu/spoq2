@@ -323,7 +323,7 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
             state->conds->push_back(src->get_z3_value() == t->construct(sym->text, {})->get_z3_value());
         }
         else {
-            state->vars->emplace(sym->text, src);
+            (*state->vars)[sym->text] = src;
         }
     } else if (auto con = instance_of(pat, Const)) {
         if (auto v = std::get_if<unsigned long>(&con->value))
@@ -350,6 +350,9 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
             state->conds->push_back(tester);
             resolve_pattern(proj, spec, expr->elems->at(0).get(), value, state);
         } else if (op_eq(expr->op, Expr::Tuple)) {
+            auto v = dynamic_pointer_cast<Tuple>(src->get_type());
+            auto recog = v->get_z3_type().recognizers()[0];
+            state->conds->push_back(recog(src->get_z3_value()));
             for (int i = 0; i < expr->elems->size(); i++) {
                 resolve_pattern(proj, spec, expr->elems->at(i).get(), dynamic_pointer_cast<StructValue>(src)->get(i), state);
             }
@@ -410,7 +413,7 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
         // }
         if (z3_check(new_state) == Z3Result::False) {
             changed = true;
-            //std::cout << "pattern false" << std::endl;
+            std::cout << "pattern false" << std::endl;
             continue;
         }
         //std::cout << "pattern true/unkown" << std::endl;
@@ -841,7 +844,7 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
     auto exp_val = z3_eval(proj, spec, state);
 
     unordered_map<unsigned, std::pair<z3::expr, SpecNode*>> subexprs;
-    //collect_exprs(spec, subexprs);
+    // collect_exprs(spec, subexprs);
     // if ((spec->get_type() == Int::INT || spec->get_type() == Bool::BOOL)
     //      && length_of_exp(spec) <= 20) {
     //     auto _expr = reconstruct_expr(exp_val->get_z3_value(), subexprs, state);
@@ -938,13 +941,14 @@ rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState
 #endif
 
     state = state->copy();
+    ret = std::make_pair(spec, false);
     if (is_instance(spec, Symbol)) {
         ret = std::make_pair(spec, false);
     } else if (is_instance(spec, Const)) {
         ret = std::make_pair(spec, false);
     } else if (auto expr = instance_of(spec, Expr)) {
         auto orig = string(*spec);
-        ret = simple_expr_by_z3(proj, expr, state);
+        //ret = simple_expr_by_z3(proj, expr, state);
     } else if (auto match = instance_of(spec, Match)) {
         ret = simple_match_by_z3(proj, match, state);
     } else if (auto rely = instance_of(spec, RelyAnno)) {
