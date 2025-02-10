@@ -11965,7 +11965,6 @@ Section Layer13_Spec.
           then (
             rely ((((((test_PA v_0).(meta_granule_offset)) mod (4096)) = (0)) /\ ((((test_PA v_0).(meta_granule_offset)) >= (0)))));
             rely (((((test_PA v_0).(meta_granule_offset)) mod (4096)) = (0)));
-            rely (((((((st_6.(share)).(granule_data)) @ (((test_PA v_0).(meta_granule_offset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_RD)) = (0)));
             when st_7 == (
                 (granule_unlock_spec
                   (mkPtr "granules" ((test_PA v_0).(meta_granule_offset)))

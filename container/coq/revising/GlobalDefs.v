@@ -6,6 +6,10 @@ Local Open Scope Z_scope.
 
 Parameter CPU_ID : Z.
 
+Parameter vmpidr_is_valid_para: (Z -> (bool)).
+
+Parameter vmpidr_to_rec_idx_para: (Z -> (Z)).
+
 Parameter s2_addr_to_idx_para : Z -> Z -> Z.
 
 Parameter empty_rec : s_rec.

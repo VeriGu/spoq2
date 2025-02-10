@@ -37,9 +37,15 @@ Lemma rtt_idx_compute_3 :
       (meta_granule_offset (test_PA a) + b) / 4096 = (meta_granule_offset (test_PA a)) / 4096.
 Admitted.
 
+Lemma rtt_idx_compute_4 :
+  forall a b, (0 <= b < 4096) ->
+      (meta_granule_offset (test_PA a) + b) mod 4096 = b.
+Admitted.
+
 Ltac simpl_rtt_idx_all_2 :=
   try rewrite rtt_idx_compute_1 in *; try rewrite rtt_idx_compute_2 in *;
-  try (rewrite rtt_idx_compute_3 in *; [ | lia]).
+  try (rewrite rtt_idx_compute_3 in *; [ | lia]);
+  try (rewrite rtt_idx_compute_4 in *; [ | lia]).
 
 
 Definition rd_rev (sh: Shared) : Prop :=
@@ -277,3 +283,42 @@ Proof.
         | 
         rewrite ZMap.gso; simpl in *; [ try auto | try auto] ].
 Qed.
+(* 
+Lemma smc_realm_create_spec_rd_rev:
+  forall d v_0 v_1 ret_n ret_d
+    (Hspec: smc_realm_create_spec v_0 v_1 d = Some(ret_n, ret_d))
+    (Hinv: rd_rev d.(share)),
+    rd_rev ret_d.(share).
+Proof.   
+  intros.  unfold smc_realm_create_spec in Hspec.
+  autounfold with sem in *.
+  repeat simpl_hyp Hspec; try intros_ensure_state; partial_simpl_rd_rev_and_solve Hspec.
+  all: repeat rewrite strong_lens in *; intros.
+  all: pose proof Hinv as Hinv2.
+  all: apply (@keep_rd_rev (share d) (share ret_d) Hinv2).
+  all: intros; inv Hspec. 
+  all: simpl_rtt_idx_all_2. 
+  all: try(simpl in *; retrieve_idx).
+  all: try( split; [ try auto | try auto]).
+  all: simpl_walk_rev; try auto.
+  all: try match goal with
+       | |- context[_ (_ @ ?idx) = _] => remember idx as Htidx
+       | |- context[(_ (_ @ ?idx)) @ 32 = _] => remember idx as Htidx
+       end.
+  all: try match goal with
+       | [H: e_state_s_granule (g_granules (globals (share _))) @ ?rd_idx = 2 |- _]
+          => remember rd_idx as Hrd_idx
+       end.
+  all: repeat rewrite lens_ignore_g_granules_update in *; try auto.
+  - destruct (gidx0 =? Htidx) eqn: Hp_idx; bool_rel.
+    * rewrite Hp_idx in *. rewrite ZMap.gss in H; simpl in *.
+       
+  all: destruct (gidx =? Htidx) eqn: Hp_idx; bool_rel;
+      [ rewrite Hp_idx in *; rewrite ZMap.gss; simpl in *;
+        assert (normidx <> 32) as Hn_idx;
+        [ unfold not; intros Hn_idx; rewrite Hn_idx in *; try lia |
+          rewrite ZMap.gso in *; simpl in *; [ try auto | try auto ]
+        ]
+        | 
+        rewrite ZMap.gso; simpl in *; [ try auto | try auto] ].
+Qed. *)

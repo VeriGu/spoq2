@@ -48,6 +48,7 @@ Lemma page_is_not_rtt:
 Admitted.
 
 
+
 Ltac simpl_rtt_idx_all :=
   try rewrite rtt_idx_compute_1 in *; try rewrite rtt_idx_compute_2 in *.
 

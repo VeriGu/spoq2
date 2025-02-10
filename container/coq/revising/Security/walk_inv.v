@@ -3,6 +3,7 @@ Require Import DataTypes.
 Require Import GlobalDefs.
 Require Import Bottom.Spec.
 Require Import Layer13.Spec.
+Require Import Layer12.Spec.
 Require Import Layer9.Spec.
 Require Import Layer8.Spec.
 Require Import Layer2.Spec.
@@ -209,6 +210,17 @@ Lemma set_tte_ns_spec_walk_rev_lens:
     ret_d = (lens len_para d).
 Admitted.
 
+Lemma s2tt_init_unassigned_spec_walk_rev_lens:
+  forall d v_0 v_1 ret_d
+    (Hspec: s2tt_init_unassigned_spec v_0 v_1 d = Some(ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
+
+Lemma validate_realm_params_spec_walk_rev_lens:
+  forall d v_0 ret_d ret_n
+    (Hspec: validate_realm_params_spec v_0 d = Some(ret_n, ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
 
 Ltac simpl_component :=
   match goal with 
@@ -220,6 +232,8 @@ Ltac simpl_component :=
   | [H: context[rtt_walk_lock_unlock_spec_abs _ _ _ _ _ _ _] |- _] => try apply rtt_walk_lock_unlock_spec_walk_rev_lens in H 
   | [H: context[clear_tte_ns_spec _ _] |- _] => try apply clear_tte_ns_spec_walk_rev_lens in H 
   | [H: context[set_tte_ns_spec _ _] |- _] => try apply set_tte_ns_spec_walk_rev_lens in H 
+  | [H: context[s2tt_init_unassigned_spec _ _] |- _] => try apply s2tt_init_unassigned_spec_walk_rev_lens in H 
+  | [H: context[validate_realm_params_spec _ _] |- _] => try apply validate_realm_params_spec_walk_rev_lens in H
   end. 
 
 
@@ -784,12 +798,6 @@ Ltac intros_ensure_state :=
    | [H: context[rtt_walk_lock_unlock_spec_abs _ _ _ _ _ _ _] |- _] => let H2 := fresh "Hcopy" in pose proof H as H2; try (apply rtt_walk_lock_unlock_spec_ensure_state in H2)
 end. 
 
-Lemma s2tt_init_unassigned_spec_walk_rev_lens:
-  forall d v_0 v_1 ret_d
-    (Hspec: s2tt_init_unassigned_spec v_0 v_1 d = Some(ret_d)),
-    ret_d = (lens len_para d).
-Admitted.
-
 
 
 Ltac partial_simpl_component :=
@@ -803,6 +811,7 @@ Ltac partial_simpl_component :=
   | [H: s2tt_init_unassigned_spec _ _ _ = _ |- _] => apply s2tt_init_unassigned_spec_walk_rev_lens in H
   | [H: clear_tte_ns_spec _ _ = _ |- _] => try apply clear_tte_ns_spec_walk_rev_lens in H 
   | [H: set_tte_ns_spec _ _ = _ |- _] => try apply set_tte_ns_spec_walk_rev_lens in H 
+  | [H: validate_realm_params_spec _ _ = _ |- _] => try apply validate_realm_params_spec_walk_rev_lens in H
   end. 
 
 Ltac partial_simpl_walk_rev :=
