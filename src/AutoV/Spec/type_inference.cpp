@@ -548,6 +548,14 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                         expr->type = typ->rettype;
                         spec->tmp.reset();
                     }
+                } else if(known_types->find(op) != known_types->end()) {
+                    if (n < expr->elems->size()) {
+                        expr->elems->at(n)->type = Bool::BOOL;
+                        stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
+                        stack.push_back(std::make_tuple(__LINE__, expr->elems->at(n).get(), 0, known_types));
+                    } else {
+                        expr->type = (*known_types)[op];
+                    }
                 } else {
                     // TODO: better error message
                     throw std::runtime_error("unknown expr op " + string(*expr));
