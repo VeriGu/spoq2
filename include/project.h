@@ -114,6 +114,7 @@ public:
     unordered_map<string, SymbolInfo> symbols;
     unordered_map<string, vector<unique_ptr<SpecNode>>> loop_invs;
     vector<unique_ptr<SpecNode>> sys_invs;
+    unique_ptr<SpecNode> conjoined_sys_inv;
     
     // cone_of_influence[spec_name][invariant_name] -> coi
     unordered_map<string, std::unordered_map<string, std::set<field_t>>> cone_of_influence;
@@ -132,7 +133,10 @@ public:
         bool CheckLoopInv = false;
         std::set<string> invs;
         std::map<string, vector<unique_ptr<SpecNode>>> InitRely;
+        std::map<string, vector<unique_ptr<SpecNode>>> PreCond;
         std::map<string, vector<unique_ptr<SpecNode>>> PostEnsure;
+        std::map<string, vector<unique_ptr<SpecNode>>> PostCond;  
+        std::set<string> PreserveInv;
         std::unordered_map<string, std::unordered_map<string, string>> StackMap;
     };
     cmds cmds;

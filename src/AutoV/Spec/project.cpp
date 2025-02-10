@@ -9,12 +9,16 @@
 #include <z3_rules.h>
 #include <symbolic.h>
 //#define MT_TRANSFORM
+#include <type_inference.h>
 #ifdef MT_TRANSFORM
 #include <unistd.h>
 #include <sys/wait.h>
 #include <cstring>
 #include <parser.h>
 #include <ext/stdio_filebuf.h>
+
+
+
 #define READ_END 0
 #define WRITE_END 1
 
@@ -266,6 +270,28 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
             auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
             this->cmds.invs.insert(s->text);
+        } else if(op_str == "Precondition") {
+            //used for modular function precondition when doing z3 checking
+            assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) &&
+                   dynamic_cast<Expr *>(cmd->elems->at(1).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            auto expr = dynamic_cast<Expr *>(cmd->elems->at(1).get());
+
+            cmd->elems->at(1).release();
+            this->cmds.PreCond[s->text].push_back(unique_ptr<Expr>(expr));
+        } else if(op_str == "Postcondition") {
+            //used for modular function postcondition when doing z3 checking, automatically added when function checked by z3
+            assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) &&
+                   dynamic_cast<Expr *>(cmd->elems->at(1).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            auto expr = dynamic_cast<Expr *>(cmd->elems->at(1).get());
+
+            cmd->elems->at(1).release();
+            this->cmds.PostCond[s->text].push_back(unique_ptr<Expr>(expr));
+        } else if(op_str == "Preserve"){
+            assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            this->cmds.PreserveInv.insert(s->text);
         } else {
             LOG_WARNING << "Unknown command " << op_str;
         }
@@ -896,23 +922,31 @@ void Project::finalize_project()
             elems->push_back(inv->deep_copy());
             conjoined = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems));
         }
+        auto known= make_shared<unordered_map<string, shared_ptr<SpecType>>>();
+        (*known)["st"] = this->layers[0]->abs_data;
+        //type check the conjoined
+        type_inference::infer_type(*this, conjoined, known);
+        
+
+        this->conjoined_sys_inv = unique_ptr<SpecNode>(conjoined);
         /** TODO: decompose invs */
-        analyze_invariant_fields(this, conjoined, "invariant");
+        //analyze_invariant_fields(this, conjoined, "invariant");
         for(auto prim : cmds.invs) {
             //only check inv for prims in cmds.invs
             // LOG_DEBUG << "Checking Invariant: " << prim;
             auto def = this->defs[prim].get();
             // compute coi and cache it
-            analyze_cone_of_influence(this, prim, def);
-            // fast symbolic proof
-            auto invariant = conjoined->deep_copy().release();
+            //analyze_cone_of_influence(this, prim, def);
+            auto invariant = conjoined_sys_inv.get();
             if (check_inv_by_path(this, def, invariant)) {
                 LOG_DEBUG << "Invariant Valid :D :" << prim;
+            } else {
+                LOG_DEBUG << "Invariant not Valid :(" << prim;
             }
-            /* META Inv Proof */
-            if (check_invariant(this, def, conjoined)) {
-                LOG_DEBUG << "Invariant Valid :) :" << prim;
-            };
+            // /* META Inv Proof */
+            // if (check_invariant(this, def, conjoined)) {
+            //     LOG_DEBUG << "Invariant Valid :) :" << prim;
+            // };
         }
     }
 #else
