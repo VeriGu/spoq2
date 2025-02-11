@@ -283,6 +283,12 @@ Proof.
         | 
         rewrite ZMap.gso; simpl in *; [ try auto | try auto] ].
 Qed.
+
+Ltac retrieve_idx_2 :=
+  repeat match goal with
+  | [H: context[(g_granules _) @ (?app ?idx)] |- _ ]  =>
+      let gidx := fresh "gidx" in remember (app idx) as gidx
+  end.
 (* 
 Lemma smc_realm_create_spec_rd_rev:
   forall d v_0 v_1 ret_n ret_d
@@ -295,30 +301,169 @@ Proof.
   repeat simpl_hyp Hspec; try intros_ensure_state; partial_simpl_rd_rev_and_solve Hspec.
   all: repeat rewrite strong_lens in *; intros.
   all: pose proof Hinv as Hinv2.
-  all: apply (@keep_rd_rev (share d) (share ret_d) Hinv2).
-  all: intros; inv Hspec. 
+  - intros; inv Hspec.  unfold rd_rev in *.
+    repeat match goal with
+    | |- context[(meta_granule_offset (test_PA ?z) + ?v) mod 4096]
+      => rewrite rtt_idx_compute_4 with z v; [ |lia]
+    end.
+    repeat match goal with
+    | [H: context[(meta_granule_offset (test_PA ?z) + ?v) mod 4096] |- _]
+      => rewrite rtt_idx_compute_4 with z v in H; [ |lia]
+    end.
+    simpl in *.
+    simpl_rtt_idx_all_2. 
+    repeat match goal with
+        | [H: context[_ @ (meta_granule_offset (test_PA ?v) / 4096)] |- _] =>
+          let gidx := fresh "gidx" in remember ((meta_granule_offset (test_PA v)) / 4096) as gidx 
+        end.
+    try(simpl in *; retrieve_idx).
+    destruct Hinv as [rev Hinv]; clear Hinv2.
+    pose (rev_ans := fun idx => if (idx =? gidx0) then (gidx) else rev idx); exists rev_ans.
+    intros.  destruct(gidx0 =? rd_idx) eqn:Heq; bool_rel; simpl in *.
+      * rewrite Heq in *. assert(gidx <> rd_idx) as Heq_rd.
+        { unfold not; intros Heq_rd; rewrite Heq_rd in *. rewrite ZMap.gss in C13.
+          simpl in *; try lia. }
+        { rewrite ZMap.gso in Hrd. rewrite ZMap.gss in Hrd. unfold GRANULE_STATE_RD in *.
+          simpl in Hrd; try lia. try auto. }
+      * split.
+        + destruct (gidx =? rd_idx) eqn:Heq_rd; bool_rel; simpl in *.
+          { rewrite Heq_rd in *. rewrite ZMap.gss in Hrtt.
+            simpl in Hrtt. rewrite ZMap.gso in Hrtt; [ | try lia].
+            simpl in Hrtt. rewrite ZMap.gso in Hrtt; [ | try lia].
+            simpl in Hrtt. rewrite ZMap.gso in Hrtt; [ | try lia].
+            simpl in Hrtt. rewrite ZMap.gso in Hrtt; [ | try lia].
+            simpl in Hrtt. rewrite ZMap.gso in Hrtt; [ | try lia].
+            simpl in Hrtt. rewrite ZMap.gso in Hrtt; [ | try lia].
+            simpl in Hrtt. rewrite ZMap.gss in Hrtt.
+            rewrite test_Z_Ptr_Z_same in Hrtt. simpl in Hrtt.
+            rewrite <- Heqgidx0 in *.
+            rewrite -> Hrtt in *. 
+            rewrite ZMap.gso; [ | try auto ].
+            rewrite ZMap.gss. simpl in *. unfold GRANULE_STATE_RTT in *. try auto.
+          }
+          { simpl in *. rewrite ZMap.gso in Hrtt; [ | try auto ].
+            rewrite ZMap.gso in Hrd; [ | try auto].
+            rewrite ZMap.gso in Hrd; [ | try auto].
+            pose proof (Hinv rd_idx rtt_idx) as Hinv.
+            repeat simpl_imply Hinv.
+            destruct Hinv as [Hinv0 Hinv1].
+            simpl_walk_rev.
+            rewrite ZMap.gso.
+            destruct (gidx0 =? rtt_idx) eqn:Heq_rtt; bool_rel; simpl in *;
+            [ try rewrite Heq_rtt in *; rewrite ZMap.gss; simpl in *; try auto | 
+              rewrite ZMap.gso; [ try auto | try auto ]
+            ].
+            assert (gidx0 <> gidx) as Hgidx.
+            unfold not; intros Hgidx; rewrite Hgidx in C13; rewrite ZMap.gss in C13;
+            simpl in C13; try lia.
+            rewrite ZMap.gso in C13; [ | try lia ].
+            unfold not; intros Heq4; rewrite Heq4 in *; try lia.
+          }
+        + destruct (gidx =? rd_idx) eqn:Heq_rd; bool_rel; simpl in *.
+        { rewrite Heq_rd in *. rewrite ZMap.gss in Hrtt.
+          simpl in Hrtt. rewrite ZMap.gso in Hrtt; [ | try lia].
+          simpl in Hrtt. rewrite ZMap.gso in Hrtt; [ | try lia].
+          simpl in Hrtt. rewrite ZMap.gso in Hrtt; [ | try lia].
+          simpl in Hrtt. rewrite ZMap.gso in Hrtt; [ | try lia].
+          simpl in Hrtt. rewrite ZMap.gso in Hrtt; [ | try lia].
+          simpl in Hrtt. rewrite ZMap.gso in Hrtt; [ | try lia].
+          simpl in Hrtt. rewrite ZMap.gss in Hrtt.
+          rewrite test_Z_Ptr_Z_same in Hrtt. simpl in Hrtt.
+          rewrite <- Heqgidx0 in *.
+          rewrite -> Hrtt in *. 
+          unfold rev_ans in *. 
+          destruct (rtt_idx =? gidx0) eqn: cond; bool_rel.
+          auto. lia.
+        }
+        { simpl in *. rewrite ZMap.gso in Hrtt; [ | try auto ].
+          rewrite ZMap.gso in Hrd; [ | try auto].
+          rewrite ZMap.gso in Hrd; [ | try auto].
+          pose proof (Hinv rd_idx rtt_idx) as Hinv.
+          repeat simpl_imply Hinv.
+          destruct Hinv as [Hinv0 Hinv1].
+          simpl_walk_rev.
+          unfold rev_ans in *.
+          destruct (rtt_idx =? gidx0) eqn: cond; bool_rel.
+          rewrite cond in *; try lia.
+          auto.
+         }
+  -
+     intros; inv Hspec.
+     unfold rd_rev in *.
+     repeat match goal with
+    | |- context[(meta_granule_offset (test_PA ?z) + ?v) mod 4096]
+      => rewrite rtt_idx_compute_4 with z v; [ |lia]
+    end.
+    repeat match goal with
+    | [H: context[(meta_granule_offset (test_PA ?z) + ?v) mod 4096] |- _]
+      => rewrite rtt_idx_compute_4 with z v in H; [ |lia]
+    end.
+       simpl in *.
+      simpl_rtt_idx_all_2. 
+       repeat match goal with     | [H: context[_ @ (meta_granule_offset (test_PA ?v) / 4096)] |- _] =>       let gidx := fresh "gidx" in remember ((meta_granule_offset (test_PA v)) / 4096) as gidx      end.
+      try(simpl in *; retrieve_idx).
+      destruct Hinv as [rev Hinv]; clear Hinv2.
+    exists rev; intros; assert(gidx0 <> rd_idx) as Heq; [ unfold not; intros Heq; rewrite Heq in *; rewrite ZMap.gss in Hrd; simpl in *; unfold GRANULE_STATE_RD in *; try lia | rewrite ZMap.gso in Hrd; simpl in *;
+  [ pose proof (Hinv rd_idx rtt_idx) as Hinv; repeat simpl_imply Hinv; destruct Hinv as [Hinv0 Hinv1]; split; [ 
+    assert (rtt_idx <> gidx0) as Heq2; [ unfold not; intros Heq2; rewrite Heq2 in *; unfold GRANULE_STATE_RTT in *; try lia| rewrite ZMap.gso; simpl in *; [ auto | auto] ]
+    | auto ] | auto ]
+  ].
+  - apply (@keep_rd_rev (share d) (share ret_d) Hinv2).
+  all:  intros; inv Hspec. 
+  all: repeat match goal with
+        | |- context[(meta_granule_offset (test_PA ?z) + ?v) mod 4096]
+      => rewrite rtt_idx_compute_4 with z v; [ |lia]
+    end.
+  all:  repeat match goal with
+    | [H: context[(meta_granule_offset (test_PA ?z) + ?v) mod 4096] |- _]
+      => rewrite rtt_idx_compute_4 with z v in H; [ |lia]
+    end.
+  all:  simpl in *.
   all: simpl_rtt_idx_all_2. 
+  all:  repeat match goal with
+        | [H: context[_ @ (meta_granule_offset (test_PA ?v) / 4096)] |- _] =>
+          let gidx := fresh "gidx" in remember ((meta_granule_offset (test_PA v)) / 4096) as gidx 
+        end.
   all: try(simpl in *; retrieve_idx).
-  all: try( split; [ try auto | try auto]).
-  all: simpl_walk_rev; try auto.
-  all: try match goal with
-       | |- context[_ (_ @ ?idx) = _] => remember idx as Htidx
-       | |- context[(_ (_ @ ?idx)) @ 32 = _] => remember idx as Htidx
-       end.
-  all: try match goal with
-       | [H: e_state_s_granule (g_granules (globals (share _))) @ ?rd_idx = 2 |- _]
-          => remember rd_idx as Hrd_idx
-       end.
-  all: repeat rewrite lens_ignore_g_granules_update in *; try auto.
-  - destruct (gidx0 =? Htidx) eqn: Hp_idx; bool_rel.
-    * rewrite Hp_idx in *. rewrite ZMap.gss in H; simpl in *.
-       
-  all: destruct (gidx =? Htidx) eqn: Hp_idx; bool_rel;
-      [ rewrite Hp_idx in *; rewrite ZMap.gss; simpl in *;
-        assert (normidx <> 32) as Hn_idx;
-        [ unfold not; intros Hn_idx; rewrite Hn_idx in *; try lia |
-          rewrite ZMap.gso in *; simpl in *; [ try auto | try auto ]
-        ]
-        | 
-        rewrite ZMap.gso; simpl in *; [ try auto | try auto] ].
-Qed.  *)
+  all: try (assert( gidx <> gidx0 ) as Heq_0; 
+       [ unfold not; intros Heq_0; rewrite Heq_0 in *; rewrite ZMap.gss in *; simpl in *; try lia |  
+       match goal with
+       | [H: context[update_s_granule_e_state_s_granule _ _] |- _] =>
+          rewrite ZMap.gso in H; [ 
+            rewrite ZMap.gso; [ 
+              rewrite ZMap.gso; [
+                auto
+                | simpl_walk_rev; unfold not; intros Heq3; rewrite Heq3 in *; try lia ]
+              | simpl_walk_rev; unfold not; intros Heq2; rewrite Heq2 in *; try lia]
+          | try auto; try lia ]
+       end]).
+  all: try(destruct (gidx0 =? rtt_idx) eqn:Heq; bool_rel; simpl in *;
+        [ try rewrite Heq in *; rewrite ZMap.gss; simpl in *; try auto | 
+          rewrite ZMap.gso; [ try auto | try auto ]
+        ]).
+  all: try( split; [ | try auto ]).
+  all: try( destruct (rd_idx =? gidx) eqn: Heq; bool_rel; simpl in *;
+    [ rewrite Heq in *; rewrite ZMap.gss in H; unfold GRANULE_STATE_RD in *; simpl in *; try lia |
+      rewrite ZMap.gso in H; simpl in *; [ try auto | try auto] ]).
+      -
+      intros; inv Hspec.
+      unfold rd_rev in *.
+      repeat match goal with
+     | |- context[(meta_granule_offset (test_PA ?z) + ?v) mod 4096]
+       => rewrite rtt_idx_compute_4 with z v; [ |lia]
+     end.
+     repeat match goal with
+     | [H: context[(meta_granule_offset (test_PA ?z) + ?v) mod 4096] |- _]
+       => rewrite rtt_idx_compute_4 with z v in H; [ |lia]
+     end.
+        simpl in *.
+       simpl_rtt_idx_all_2. 
+        repeat match goal with     | [H: context[_ @ (meta_granule_offset (test_PA ?v) / 4096)] |- _] =>       let gidx := fresh "gidx" in remember ((meta_granule_offset (test_PA v)) / 4096) as gidx      end.
+       try(simpl in *; retrieve_idx).
+       destruct Hinv as [rev Hinv]; clear Hinv2.
+     exists rev; intros; assert(gidx0 <> rd_idx) as Heq; [ unfold not; intros Heq; rewrite Heq in *; rewrite ZMap.gss in Hrd; simpl in *; unfold GRANULE_STATE_RD in *; try lia | rewrite ZMap.gso in Hrd; simpl in *;
+   [ pose proof (Hinv rd_idx rtt_idx) as Hinv; repeat simpl_imply Hinv; destruct Hinv as [Hinv0 Hinv1]; split; [ 
+     assert (rtt_idx <> gidx0) as Heq2; [ unfold not; intros Heq2; rewrite Heq2 in *; unfold GRANULE_STATE_RTT in *; try lia| rewrite ZMap.gso; simpl in *; [ auto | auto] ]
+     | auto ] | auto ]
+   ].
+Qed. *)
