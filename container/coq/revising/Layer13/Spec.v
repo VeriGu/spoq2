@@ -12248,7 +12248,6 @@ Section Layer13_Spec.
                 (5)) =?
                 (0)))
             then (
-              rely (((((((st_3.(share)).(granule_data)) @ (((test_PA v_1).(meta_granule_offset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_REC)) = (0)));
               rely (((("granule_data" = ("granule_data")) /\ (((((test_PA v_1).(meta_granule_offset)) mod (4096)) = (0)))) /\ ((((test_PA v_1).(meta_granule_offset)) >= (0)))));
               when rtt_ret, st_4 == (
                   (rtt_walk_lock_unlock_spec_abs
