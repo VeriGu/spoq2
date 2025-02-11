@@ -40,6 +40,9 @@ Section Layer12_Spec.
     when st_1 == ((bitmap_clear_spec (ptr_offset (mkPtr "vmids" 0) 0) v_0 st_0));
     when st_2 == ((spinlock_release_spec (mkPtr "vmid_lock" 0) st_1));
     (Some st_2).
+  
+  Definition init_rec_regs_spec (v_rec: Ptr) (v_1: Z) (v_rec_params: Ptr) (v_rd: Ptr) (st: RData) : (option RData) :=
+    None.
 
   Fixpoint total_root_rtt_refcount_loop295 (_N_: nat) (__break__: bool) (v_0: Ptr) (v__011: Z) (v__0_lcssa: Z) (v_indvars_iv: Z) (v_wide_trip_count: Z) (st: RData) : (option (bool * Ptr * Z * Z * Z * Z * RData)) :=
     match (_N_) with

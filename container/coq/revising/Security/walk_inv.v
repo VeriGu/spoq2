@@ -4,6 +4,7 @@ Require Import GlobalDefs.
 Require Import Bottom.Spec.
 Require Import Layer13.Spec.
 Require Import Layer12.Spec.
+Require Import Layer11.Spec.
 Require Import Layer9.Spec.
 Require Import Layer8.Spec.
 Require Import Layer2.Spec.
@@ -222,6 +223,24 @@ Lemma validate_realm_params_spec_walk_rev_lens:
     ret_d = (lens len_para d).
 Admitted.
 
+Lemma free_sl_rtts_spec_walk_rev_lens:
+  forall d v_0 v_1 v_2 ret_d
+    (Hspec: free_sl_rtts_spec v_0 v_1 v_2 d = Some(ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
+
+Lemma vmid_free_spec_walk_rev_lens:
+  forall d v_0 ret_d
+    (Hspec: vmid_free_spec v_0 d = Some(ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
+
+Lemma init_rec_regs_spec_walk_rev_lens:
+  forall d v_0 v_1 v_2 v_3 ret_d
+    (Hspec: init_rec_regs_spec v_0 v_1 v_2 v_3 d = Some(ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
+
 Ltac simpl_component :=
   match goal with 
   | [H: context[memset_spec _ _ _ _] |- _] => try apply memset_spec_walk_rev_lens in H 
@@ -234,6 +253,9 @@ Ltac simpl_component :=
   | [H: context[set_tte_ns_spec _ _] |- _] => try apply set_tte_ns_spec_walk_rev_lens in H 
   | [H: context[s2tt_init_unassigned_spec _ _] |- _] => try apply s2tt_init_unassigned_spec_walk_rev_lens in H 
   | [H: context[validate_realm_params_spec _ _] |- _] => try apply validate_realm_params_spec_walk_rev_lens in H
+  | [H: context[free_sl_rtts_spec _ _ _ _] |- _] => try apply free_sl_rtts_spec_walk_rev_lens in H
+  | [H: context[vmid_free_spec _ _] |- _] => try apply vmid_free_spec_walk_rev_lens in H
+  | [H: context[init_rec_regs_spec _ _ _ _ _] |- _] => try apply init_rec_regs_spec_walk_rev_lens in H
   end. 
 
 
@@ -812,6 +834,9 @@ Ltac partial_simpl_component :=
   | [H: clear_tte_ns_spec _ _ = _ |- _] => try apply clear_tte_ns_spec_walk_rev_lens in H 
   | [H: set_tte_ns_spec _ _ = _ |- _] => try apply set_tte_ns_spec_walk_rev_lens in H 
   | [H: validate_realm_params_spec _ _ = _ |- _] => try apply validate_realm_params_spec_walk_rev_lens in H
+  | [H: free_sl_rtts_spec _ _ _ _ = _ |- _] => try apply free_sl_rtts_spec_walk_rev_lens in H
+  | [H: vmid_free_spec _ _ = _ |- _] => try apply vmid_free_spec_walk_rev_lens in H
+  | [H: init_rec_regs_spec _ _ _ _ _ = _ |- _] => try apply init_rec_regs_spec_walk_rev_lens in H
   end. 
 
 Ltac partial_simpl_walk_rev :=
