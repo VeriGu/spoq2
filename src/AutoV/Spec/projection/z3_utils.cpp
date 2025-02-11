@@ -128,6 +128,8 @@ Z3Result z3_verify(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo,
     //     return Z3Cache[hash];
     // }
 
+    Z3Params.set("relevancy", (unsigned int)2);
+    Z3Params.set("case_split", (unsigned int)2);
     Z3Params.set("timeout", (unsigned int)timeout);
     Z3Solver.set(Z3Params);
     Z3Solver.push();

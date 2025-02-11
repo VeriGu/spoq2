@@ -9,7 +9,7 @@ static bool __OPT_ON_MATCH = true;
 static bool __OPT_ON_ARITH = true;
 struct OPTS_t {
     bool conditional_spec = false;
-    bool lens = true;
+    bool lens = false;
 };
 
 extern struct OPTS_t OPTS;

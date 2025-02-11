@@ -77,7 +77,7 @@ simple_if_by_z3 timeout 50:
 build/spoq testcase/proof_debug_of.v  316.46s user 1.86s system 100% cpu 5:18.22 total
 */
 #define Z3_TIMEOUT 50
-#define Z3_VERIFY_TIMEOUT 500
+#define Z3_VERIFY_TIMEOUT 2000
 Z3Result z3_verify(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, int timeout = Z3_VERIFY_TIMEOUT);
 Z3Result z3_check(std::shared_ptr<EvalState> state, z3::expr cond, int timeout=Z3_TIMEOUT);
 Z3Result z3_check(shared_ptr<EvalState> state, int timeout=Z3_TIMEOUT);

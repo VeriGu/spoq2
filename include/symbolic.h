@@ -12,6 +12,9 @@
 
 namespace autov {
 
+    static std::set<string> coi_whitelist = {
+        "g_norm",
+    };
 
     static std::set<string> coi_blacklist = {
         "pbase", "poffset", "meta_PA", "meta_desc_type", "meta_granule_offset", "meta_mem_attr", "meta_ripas",
