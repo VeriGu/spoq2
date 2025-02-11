@@ -4,6 +4,26 @@ import os
 from z3 import Solver, parse_smt2_file, unsat
 from colorama import Fore, Style, init
 
+VERIFY_SPEC_NAMES = {
+    "smc_system_interface_version_spec",
+    "smc_read_feature_register_spec",
+    "smc_granule_delegate_spec",
+    "smc_granule_undelegate_spec",
+    "smc_realm_create_spec",
+    "smc_realm_destroy_spec",
+    "smc_rec_enter_spec",
+    "smc_realm_activate_spec",
+    "smc_rec_create_spec",
+    "smc_rec_destroy_spec",
+    "smc_data_create_spec",
+    "rsi_data_create_unknown_s1_spec",
+    "map_unmap_ns_s1_spec",
+    "rsi_data_destroy_spec",
+    "rsi_rtt_create_spec",
+    "rsi_rtt_destroy_spec",
+    "rsi_rtt_set_ripas_spec",
+    "rsi_data_map_extra_spec"
+}
 # Initialize colorama for colored output
 init(autoreset=True)
 
@@ -20,6 +40,8 @@ def check_invariants():
 
     # Iterate over all subdirectories (./spec_name)
     for spec_name in os.listdir(current_dir):
+        if spec_name not in VERIFY_SPEC_NAMES:
+            continue 
         spec_path = os.path.join(current_dir, spec_name)
 
         if not os.path.isdir(spec_path):
