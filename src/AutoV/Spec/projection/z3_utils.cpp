@@ -119,7 +119,7 @@ std::chrono::duration<double> z3_accumulative_time = std::chrono::duration<doubl
  *  2. automatically dump queries
  *      TODO: also dump counter examples
   */
-Z3Result z3_verify(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, int timeout) {
+Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo, int timeout) {
     auto start = std::chrono::high_resolution_clock::now();
     // auto hash = hash_z3_state(state, cond, timeout);
     // z3_checks++;
@@ -135,6 +135,9 @@ Z3Result z3_verify(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo,
     Z3Solver.push();
     for (auto &c : *state->conds) {
         Z3Solver.add(c);
+    }
+    for (auto &ind : *state->inductions) {
+        Z3Solver.add(ind);
     }
     Z3Solver.push();
     

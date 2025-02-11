@@ -295,16 +295,14 @@ shared_ptr<SpecValue> z3_expr(Project* proj, SpecNode* val, shared_ptr<EvalState
             return _cache(static_pointer_cast<Option>(val->get_type())->construct("None", {}));
         }
     }
-    else if (auto iff = instance_of(val, If))
-    {
+    else if (auto iff = instance_of(val, If)) {
         auto c = z3_expr(proj, iff->cond.get(), state);
         PROFILE_START(if_eval_check);
         PROFILE_START(eval_check);
         auto res = z3_check(state, c->get_z3_value());
         PROFILE_END(eval_check);
         PROFILE_END(if_eval_check);
-        if (res == Z3Result::Unknown)
-        {
+        if (res == Z3Result::Unknown) {
             profile_log_eval_if_unsolved(string(*iff->cond.get()));
             auto true_state = state->copy();
             true_state->conds->push_back(c->get_z3_value());
@@ -315,25 +313,21 @@ shared_ptr<SpecValue> z3_expr(Project* proj, SpecNode* val, shared_ptr<EvalState
             auto z3_val = z3::ite(c->get_z3_value(), True->get_z3_value(), False->get_z3_value());
             return _cache(iff->get_type()->from_z3_value(z3_val.simplify()));
         }
-        else if (res == Z3Result::True)
-        {
+        else if (res == Z3Result::True) {
             profile_log_eval_if_solved(string(*iff->cond.get()));
             state->conds->push_back(c->get_z3_value());
             return _cache(z3_expr(proj, iff->then_body.get(), state));
         }
-        else
-        {
+        else {
             profile_log_eval_if_solved(string(*iff->cond.get()));
             state->conds->push_back(!c->get_z3_value());
             return _cache(z3_expr(proj, iff->else_body.get(), state));
         }
     }
-    else if (auto forall = instance_of(val, Forall))
-    {
+    else if (auto forall = instance_of(val, Forall)) {
         z3::expr_vector vars(z3ctx);
         std::vector<z3::expr> hypos;
-        for (auto v = forall->vars->begin(); v != forall->vars->end(); v++)
-        {
+        for (auto v = forall->vars->begin(); v != forall->vars->end(); v++) {
             if ((*v)->type) {
                 auto var = (*v)->type->declare((*v)->name, val->nid);
                 (*state->vars)[(*v)->name] = var;
@@ -354,11 +348,9 @@ shared_ptr<SpecValue> z3_expr(Project* proj, SpecNode* val, shared_ptr<EvalState
         }
         return _cache(make_shared<BoolValue>(z3::forall(vars, p)));
     }
-    else if (auto exsts = instance_of(val, Exists))
-    {
+    else if (auto exsts = instance_of(val, Exists)) {
         z3::expr_vector vars(z3ctx);
-        for (auto v = exsts->vars->begin(); v != exsts->vars->end(); v++)
-        {
+        for (auto v = exsts->vars->begin(); v != exsts->vars->end(); v++) {
             auto var = (*v)->type->declare((*v)->name, val->nid);
             (*state->vars)[(*v)->name] = var;
             vars.push_back(var->get_z3_value());
@@ -784,7 +776,7 @@ abst_t abst_transition(Project *proj, SpecNode *spec) {
 /** prove_by_traverse:
  * 		works on specs with abstract functions, symbolically check inv path-by-path
  * */
-bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<EvalState> state, std::deque<Definition *> *deps) {
+bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<ProveState> state, std::deque<Definition *> *deps) {
     if (auto e = instance_of(spec, Expr)) {
         if (auto e_op = std::get_if<Expr::ops>(&e->op)) {
             if (*e_op == Expr::Some) {
@@ -845,15 +837,17 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                     }
                     auto p_ret = instantiate_prop(inv->deep_copy().release(), st_ret);
                     auto postcond = z3_expr(proj, p_ret, new_state);
-                    new_state->conds->push_back(postcond->get_z3_value());
+                    // new_state->conds->push_back(postcond->get_z3_value());
+                    
+                    new_state->inductions->clear();
+                    new_state->add_induction(postcond->get_z3_value());
+
                     for (auto const &l : proj->lemmas) {
                         auto lemma_body = proj->defs[l]->body.get();
                         auto lemma = instantiate_prop(lemma_body->deep_copy().release(), st_ret);
-                        std::cout << "prove_by_traverse: instantiated lemma:\n" << string(*lemma) << std::endl;
                         auto lemma_expr = z3_expr(proj, instantiate_prop(lemma, st_ret), new_state);
-                        new_state->conds->push_back(lemma_expr->get_z3_value());
+                        new_state->add_induction(lemma_expr->get_z3_value());
                     }
-                    std::cout << "prove_by_traverse: pushing post-cond: " << string(*p_ret) << std::endl;
                     /** add abstract sub-spec to prove queue */
                     if (deps && std::holds_alternative<Definition *>(abst_spec)) {
                         // deps->push_back(std::get<Definition *>(abst_spec));
@@ -979,19 +973,19 @@ void spec_prover(Project *proj, Definition *goal_def) {
             for (auto arg : *def->args) {
                 (*vars)[arg->name] = arg->type->declare(arg->name, 0);
             }
-            auto state = std::make_shared<EvalState>(vars, conds);
+            auto induction = std::make_shared<vector<z3::expr>>();
+            auto state = std::make_shared<ProveState>(vars, conds, induction);
             // invariant by induction
             auto c = z3_expr(proj, inv, state);
-            state->conds->push_back(c->get_z3_value());
+            state->add_induction(c->get_z3_value());
 
             // instantiate lemmas for initial state
             for (auto const &lemma_def : proj->inv_lemmas[d.first]) {
                 auto lemma = lemma_def->body.get();
                 auto lemma_expr = z3_expr(proj, lemma, state);
-                state->conds->push_back(lemma_expr->get_z3_value());
+                state->add_induction(lemma_expr->get_z3_value());
             }
             
-            /** TODO: optimize: no need to generate inv z3 epxr for duplicated times */
             /** TODO: feat: Lemma selection command */
             proj->verified_specs[def->name] = prove_by_traverse(proj, def->body.get(), inv, state, &q);
             if (proj->verified_specs[def->name]) {

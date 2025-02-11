@@ -7,6 +7,8 @@ extern boost::program_options::variables_map OPT_VM;
 static bool __OPT_ON_RELY = false;
 static bool __OPT_ON_MATCH = true;
 static bool __OPT_ON_ARITH = true;
+static bool __OPT_ON_INDUCTION = true;
+
 struct OPTS_t {
     bool conditional_spec = false;
     bool lens = false;

@@ -6,6 +6,7 @@
 #include <rules.h>
 #include <profile.h>
 #include <symbolic.h>
+#include <cmd.h>
 
 namespace autov {
 
@@ -56,6 +57,48 @@ public:
     }
 };
 
+class ProveState : public EvalState {
+public: 
+    /** We separate the branch conditions (EvalState.conds) and 
+     *              the inductive RData conditions (ProveState.inductions) to
+     *      1. reduce quantifier instantiation cost
+     * by Ganxiang Yang, Feb 10, 2025
+     */
+    shared_ptr<vector<z3::expr>> inductions;
+
+    ProveState() {
+        vars = make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+        conds = make_shared<vector<z3::expr>>();
+        inductions = make_shared<vector<z3::expr>>();
+    }
+
+    ProveState(shared_ptr<unordered_map<string, shared_ptr<SpecValue>>>& vars, shared_ptr<vector<z3::expr>>& conds, shared_ptr<vector<z3::expr>>& inductions) {
+        this->vars = vars;
+        this->conds = conds;
+        this->inductions = inductions;
+    }
+
+    shared_ptr<ProveState> copy() {
+        auto vars = make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*this->vars);
+        auto conds = make_shared<vector<z3::expr>>(*this->conds);
+        auto inductions = make_shared<vector<z3::expr>>(*this->inductions);
+        return make_shared<ProveState>(vars, conds, inductions);
+    }
+
+    void add_induction(z3::expr cond) {
+        if (__OPT_ON_INDUCTION) {
+            this->inductions->push_back(cond);
+        } else {
+            this->conds->push_back(cond);
+        }
+    }
+
+    void add_branch_cond(z3::expr cond) {
+        this->conds->push_back(cond);
+    } 
+
+};
+
 enum class Z3Result {
     True,
     False,
@@ -77,8 +120,8 @@ simple_if_by_z3 timeout 50:
 build/spoq testcase/proof_debug_of.v  316.46s user 1.86s system 100% cpu 5:18.22 total
 */
 #define Z3_TIMEOUT 50
-#define Z3_VERIFY_TIMEOUT 2000
-Z3Result z3_verify(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, int timeout = Z3_VERIFY_TIMEOUT);
+#define Z3_VERIFY_TIMEOUT 10000
+Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo, int timeout = Z3_VERIFY_TIMEOUT);
 Z3Result z3_check(std::shared_ptr<EvalState> state, z3::expr cond, int timeout=Z3_TIMEOUT);
 Z3Result z3_check(shared_ptr<EvalState> state, int timeout=Z3_TIMEOUT);
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state);
