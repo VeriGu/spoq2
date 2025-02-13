@@ -8,6 +8,9 @@
 #include <llvm.h>
 #include <mutex>
 #include <filesystem>
+#include <iostream>
+#include <fstream>
+namespace fs = std::filesystem;
 
 
 namespace autov {
@@ -62,10 +65,22 @@ public:
     
     void dump(const string &q) {
         auto dumpfile = query_dir + "/query_" + std::to_string(query_id) + ".smt2";
+        std::cout << "Dumping query to " << dumpfile << std::endl;
         std::ofstream ofs(dumpfile);
         ofs << q;
         ofs.close();
         query_id++;
+    }
+
+    void save_config(const std::string &config_path) {
+        auto dumpfile = query_dir + "/config.v";
+        std::cout << "Copying config from " << config_path << " to " << dumpfile << std::endl;
+
+        try {
+            fs::copy_file(config_path, dumpfile, fs::copy_options::overwrite_existing);
+        } catch (const std::exception &e) {
+            std::cerr << "Error copying file: " << e.what() << std::endl;
+        }
     }
 };
 

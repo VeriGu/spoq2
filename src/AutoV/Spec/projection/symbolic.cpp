@@ -795,10 +795,10 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 					auto c = z3_expr(proj, p, state);
                     auto z3_ret = z3_verify(state, c->get_z3_value(), &proj->query_saver);
 
-					std::cout << "----------------------------------" << std::endl;
-					std::cout << "prove_by_traverse: Final State\n" << string(*ret_st) << std::endl;
-                    std::cout << "prove_by_traverse: Instantiated Invariant\n" << string(*p) << std::endl;
-					std::cout << "----------------------------------" << std::endl;
+					// std::cout << "----------------------------------" << std::endl;
+					// std::cout << "prove_by_traverse: Final State\n" << string(*ret_st) << std::endl;
+                    // std::cout << "prove_by_traverse: Instantiated Invariant\n" << string(*p) << std::endl;
+					// std::cout << "----------------------------------" << std::endl;
 					if (z3_ret == Z3Result::False) {
 						LOG_WARNING << "[prove_by_traverse] Invariant is violated for state\n" << string(*ret_st) << std::endl;
 						return false;
@@ -838,14 +838,14 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                     auto p_ret = instantiate_prop(inv->deep_copy().release(), st_ret);
                     auto postcond = z3_expr(proj, p_ret, new_state);
                     // new_state->conds->push_back(postcond->get_z3_value());
-                    
                     new_state->inductions->clear();
                     new_state->add_induction(postcond->get_z3_value());
 
                     for (auto const &l : proj->lemmas) {
                         auto lemma_body = proj->defs[l]->body.get();
                         auto lemma = instantiate_prop(lemma_body->deep_copy().release(), st_ret);
-                        auto lemma_expr = z3_expr(proj, instantiate_prop(lemma, st_ret), new_state);
+                        auto lemma_expr = z3_expr(proj, lemma, new_state);
+                        // auto lemma_expr = z3_expr(proj, instantiate_prop(lemma, st_ret), new_state);
                         new_state->add_induction(lemma_expr->get_z3_value());
                     }
                     /** add abstract sub-spec to prove queue */
@@ -863,14 +863,24 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
     } else if (auto i = instance_of(spec, If)) {
 		// push cond
 		auto c = z3_expr(proj, i->cond.get(), state);
-		auto true_state = state->copy();
+		auto res = Z3Result::Unknown;
+        res = z3_check(state, c->get_z3_value());
+
+        auto true_state = state->copy();
 		auto false_state = state->copy();
+        
 		true_state->conds->push_back(c->get_z3_value());
 		false_state->conds->push_back(!c->get_z3_value());
-        auto verify_fail = false;
-        verify_fail |= !prove_by_traverse(proj, i->then_body.get(), inv, true_state, deps);
-        verify_fail |= !prove_by_traverse(proj, i->else_body.get(), inv, false_state, deps);
-        return !verify_fail;
+        if (res == Z3Result::True) {
+            return prove_by_traverse(proj, i->then_body.get(), inv, true_state, deps);
+        } else if (res == Z3Result::False) {
+            return prove_by_traverse(proj, i->else_body.get(), inv, false_state, deps); 
+        } else {
+            auto verify_fail = false;
+            verify_fail |= !prove_by_traverse(proj, i->then_body.get(), inv, true_state, deps);
+            verify_fail |= !prove_by_traverse(proj, i->else_body.get(), inv, false_state, deps);
+            return !verify_fail;
+        }
 		// if (!prove_by_traverse(proj, i->then_body.get(), inv, true_state, deps) || 
 		// 	!prove_by_traverse(proj, i->else_body.get(), inv, false_state, deps)) {
 		// 	return false;
@@ -919,7 +929,7 @@ static void lensify_spec(Project *proj, Definition *def, std::set<string> &coi) 
     }
     def->body.reset(spec);
     def->_str = "";
-    std::cout << "[lensify_spec] Lensified: " << string(*def) << std::endl;
+    std::cout << "[lensify_spec] Lensified:\n" << string(*def) << std::endl;
 }
 
 static string query_saver_dir(const string &spec_name, const string &inv_name) {
@@ -968,6 +978,7 @@ void spec_prover(Project *proj, Definition *goal_def) {
             def->infer_type(*proj);
             // save queries as reproducible machine-checkable proofs
             proj->query_saver = QueryInfo(query_saver_dir(def->name, d.second->name));
+            proj->query_saver.save_config("./testcase/proof_rcsm.v");
             auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
             auto conds = std::make_shared<vector<z3::expr>>();
             for (auto arg : *def->args) {
@@ -984,6 +995,7 @@ void spec_prover(Project *proj, Definition *goal_def) {
                 auto lemma = lemma_def->body.get();
                 auto lemma_expr = z3_expr(proj, lemma, state);
                 state->add_induction(lemma_expr->get_z3_value());
+                // state->conds->push_back(lemma_expr->get_z3_value());
             }
             
             /** TODO: feat: Lemma selection command */
