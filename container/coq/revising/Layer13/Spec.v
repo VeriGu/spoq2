@@ -51,15 +51,16 @@ Section Layer13_Spec.
     when st_2 == ((iasm_12_isb_spec st_1));
     (Some st_2).
 
-    Definition handle_pico_rec_exit_spec (v_0: Ptr) (V_1: Ptr) (st: RData) : 
+  Definition handle_pico_rec_exit_spec (v_0: Ptr) (V_1: Ptr) (st: RData) : 
   (option (bool * RData)) :=
-  None.
+    Some(false, st).
 
-Definition rcsm_save_pico_state_spec (v_0: Ptr) (st: RData) : (option (RData)) :=
-  None.
+  Definition rcsm_save_pico_state_spec (v_0: Ptr) (st: RData) : (option (RData)) :=
+    Some(st).
 
-    Definition rcsm_restore_pico_state_spec (v_0: Ptr) (st: RData) : (option (RData)) :=
-      None.
+  Definition rcsm_restore_pico_state_spec (v_0: Ptr) (st: RData) : (option (RData)) :=
+    Some(st).
+
     
 
     Definition smc_rec_enter_spec (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Ptr) (st: RData) : (option RData) :=

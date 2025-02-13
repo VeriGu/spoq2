@@ -12,6 +12,8 @@ Require Import Layer3.Spec.
 Require Import Layer4.Spec.
 Require Import Layer5.Spec.
 Require Import Layer6.Spec.
+Require Import Layer7.Spec.
+Require Import Layer10.Spec.
 Require Import SecurityProof.
 (* Require Import SMCHandler.Spec. *)
 
@@ -241,6 +243,61 @@ Lemma init_rec_regs_spec_walk_rev_lens:
     ret_d = (lens len_para d).
 Admitted.
 
+Lemma create_realm_token_spec_walk_rev_lens:
+  forall d v_0 v_1 v_2 v_3 ret_d ret_n
+    (Hspec: create_realm_token_spec v_0 v_1 v_2 v_3 d = Some(ret_n, ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
+
+Lemma handle_pico_rec_exit_spec_walk_rev_lens:
+  forall d v_0 v_1 ret_d ret_n
+    (Hspec: handle_pico_rec_exit_spec v_0 v_1 d = Some(ret_n, ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
+
+Lemma rcsm_save_pico_state_spec_walk_rev_lens:
+  forall d v_0 ret_d
+    (Hspec: rcsm_save_pico_state_spec v_0 d = Some(ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
+
+Lemma rcsm_restore_pico_state_spec_walk_rev_lens:
+  forall d v_0 ret_d
+    (Hspec: rcsm_save_pico_state_spec v_0 d = Some(ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
+
+Lemma validate_data_create_spec_walk_rev_lens:
+  forall d v_0 v_1 ret_n ret_d
+    (Hspec: validate_data_create_spec v_0 v_1 d = Some(ret_n, ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
+
+Lemma validate_data_create_unknown_spec_walk_rev_lens:
+  forall d v_0 v_1 ret_n ret_d
+    (Hspec: validate_data_create_unknown_spec v_0 v_1 d = Some(ret_n, ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
+
+Lemma validate_rtt_entry_cmds_spec_walk_rev_lens:
+  forall d v_0 v_1 v_2 ret_n ret_d
+    (Hspec: validate_rtt_entry_cmds_spec v_0 v_1 v_2 d = Some(ret_n, ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
+
+Lemma memcpy_spec_walk_rev_lens:
+  forall d v_0 v_1 v_2 ret_n ret_d
+    (Hspec: memcpy_spec v_0 v_1 v_2 d = Some(ret_n, ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
+
+Lemma run_realm_spec_walk_rev_lens:
+  forall d v_0 ret_d ret_n
+    (Hspec: run_realm_spec v_0 d = Some(ret_n, ret_d)),
+    ret_d = (lens len_para d).
+Admitted.
+
+
 Ltac simpl_component :=
   match goal with 
   | [H: context[memset_spec _ _ _ _] |- _] => try apply memset_spec_walk_rev_lens in H 
@@ -248,18 +305,23 @@ Ltac simpl_component :=
   | [H: context[spinlock_acquire_spec _ _] |- _] => try apply spinlock_acquire_spec_walk_rev_lens in H 
   | [H: context[spinlock_release_spec _ _] |- _] => try apply spinlock_release_spec_walk_rev_lens in H 
   | [H: context[memcpy_ns_read_spec _ _ _ _] |- _] => try apply memcpy_ns_read_spec_walk_rev_lens in H 
+  | [H: context[memcpy_spec _ _ _ _] |- _] => try apply memcpy_spec_walk_rev_lens in H 
   | [H: context[rtt_walk_lock_unlock_spec_abs _ _ _ _ _ _ _] |- _] => try apply rtt_walk_lock_unlock_spec_walk_rev_lens in H 
   | [H: context[clear_tte_ns_spec _ _] |- _] => try apply clear_tte_ns_spec_walk_rev_lens in H 
   | [H: context[set_tte_ns_spec _ _] |- _] => try apply set_tte_ns_spec_walk_rev_lens in H 
   | [H: context[s2tt_init_unassigned_spec _ _] |- _] => try apply s2tt_init_unassigned_spec_walk_rev_lens in H 
   | [H: context[validate_realm_params_spec _ _] |- _] => try apply validate_realm_params_spec_walk_rev_lens in H
-  | [H: context[free_sl_rtts_spec _ _ _ _] |- _] => try apply free_sl_rtts_spec_walk_rev_lens in H
   | [H: context[vmid_free_spec _ _] |- _] => try apply vmid_free_spec_walk_rev_lens in H
   | [H: context[init_rec_regs_spec _ _ _ _ _] |- _] => try apply init_rec_regs_spec_walk_rev_lens in H
+  | [H: context[create_realm_token_spec _ _ _ _ _] |- _] => try apply create_realm_token_spec_walk_rev_lens in H
+  | [H: context[handle_pico_rec_exit_spec _ _ _] |- _] => try apply handle_pico_rec_exit_spec_walk_rev_lens in H
+  | [H: context[rcsm_save_pico_state_spec _ _] |- _] => try apply rcsm_save_pico_state_spec_walk_rev_lens in H
+  | [H: context[rcsm_restore_pico_state_spec _ _] |- _] => try apply rcsm_restore_pico_state_spec_walk_rev_lens in H
+  | [H: context[validate_data_create_spec _ _ _] |- _] => try apply validate_data_create_spec_walk_rev_lens in H
+  | [H: context[validate_data_create_unknown_spec _ _ _] |- _] => try apply validate_data_create_unknown_spec_walk_rev_lens in H
+  | [H: context[validate_rtt_entry_cmds_spec _ _ _ _] |- _] => try apply validate_rtt_entry_cmds_spec_walk_rev_lens in H
+  | [H: context[run_realm_spec _ _] |- _] => try apply run_realm_spec_walk_rev_lens in H
   end. 
-
-
-
 
 Ltac intros_rd_para_state := 
   match goal with 
