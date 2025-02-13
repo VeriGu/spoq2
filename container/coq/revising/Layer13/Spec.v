@@ -51,2321 +51,141 @@ Section Layer13_Spec.
     when st_2 == ((iasm_12_isb_spec st_1));
     (Some st_2).
 
-  Definition smc_rec_enter_spec (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Ptr) (st: RData) : (option RData) :=
-    when st_0 == ((new_frame "smc_rec_enter" st));
-    if ((v_0 & (1)) =? (0))
-    then (
-      when v_13, st_1 == ((validate_ns_struct_spec v_1 232 st_0));
-      if (ptr_eqb v_13 (mkPtr "null" 0))
+    Definition handle_pico_rec_exit_spec (v_0: Ptr) (V_1: Ptr) (st: RData) : 
+  (option (bool * RData)) :=
+  None.
+
+Definition rcsm_save_pico_state_spec (v_0: Ptr) (st: RData) : (option (RData)) :=
+  None.
+
+    Definition rcsm_restore_pico_state_spec (v_0: Ptr) (st: RData) : (option (RData)) :=
+      None.
+    
+
+    Definition smc_rec_enter_spec (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Ptr) (st: RData) : (option RData) :=
+      if (check_rcsm_mask_para (test_PA v_0))
       then (
-        when v_15, st_2 == ((pack_return_code_spec 1 2 st_1));
-        when st_3 == ((store_RData 8 (ptr_offset v_3 0) v_15 st_2));
-        when v_19, st_5 == ((validate_ns_struct_spec v_2 304 st_3));
-        if (ptr_eqb v_19 (mkPtr "null" 0))
+        if (
+          ((((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (1528)) / (4096))).(g_norm)) @ ((((test_PA v_0).(meta_granule_offset)) + (1528)) mod (4096))) =?
+            (0)))
         then (
-          when v_21, st_6 == ((pack_return_code_spec 1 3 st_5));
-          when st_7 == ((store_RData 8 (ptr_offset v_3 0) v_21 st_6));
-          when v_25, st_9 == ((ranges_intersect_spec v_1 232 v_2 304 st_7));
-          if v_25
-          then (
-            when v_27, st_10 == ((pack_return_code_spec 3 0 st_9));
-            when st_11 == ((store_RData 8 (ptr_offset v_3 0) v_27 st_10));
-            when v_31, st_13 == ((find_lock_unused_granule_spec v_0 3 st_11));
-            when st_14 == ((atomic_granule_get_spec v_31 st_13));
-            when st_15 == ((granule_unlock_spec v_31 st_14));
-            when v_34, st_16 == ((ns_buffer_read_spec 0 v_1 232 (mkPtr "stack_s_rec_entry" 0) st_15));
-            when st_17 == ((ns_buffer_unmap_spec 0 st_16));
-            if v_34
-            then (
-              when v_40, st_19 == ((granule_map_spec v_31 3 st_17));
-              when v_44_tmp, st_20 == ((load_RData 8 (ptr_offset v_40 944) st_19));
-              when v_45, st_21 == ((granule_map_spec (int_to_ptr v_44_tmp) 2 st_20));
-              when v_47, st_22 == ((get_rd_state_unlocked_spec v_45 st_21));
-              if (v_47 =? (2))
-              then (
-                when v_51, st_23 == ((pack_return_code_spec 5 1 st_22));
-                if (v_51 =? (0))
-                then (
-                  when v_95, st_25 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_23));
-                  when st_26 == ((ns_buffer_unmap_spec 0 st_25));
-                  when st_28 == ((atomic_granule_put_release_spec v_31 st_26));
-                  when st_30 == ((free_stack "smc_rec_enter" st_0 st_28));
-                  (Some st_30))
-                else (
-                  when st_26 == ((atomic_granule_put_release_spec v_31 st_23));
-                  when st_28 == ((free_stack "smc_rec_enter" st_0 st_26));
-                  (Some st_28)))
-              else (
-                if (v_47 =? (0))
-                then (
-                  when v_49, st_23 == ((pack_return_code_spec 5 0 st_22));
-                  if (v_49 =? (0))
-                  then (
-                    when v_95, st_26 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_23));
-                    when st_27 == ((ns_buffer_unmap_spec 0 st_26));
-                    when st_29 == ((atomic_granule_put_release_spec v_31 st_27));
-                    when st_31 == ((free_stack "smc_rec_enter" st_0 st_29));
-                    (Some st_31))
-                  else (
-                    when st_27 == ((atomic_granule_put_release_spec v_31 st_23));
-                    when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                    (Some st_29)))
-                else (
-                  when v_54, st_23 == ((load_RData 1 (ptr_offset v_40 16) st_22));
-                  if ((v_54 & (1)) =? (0))
-                  then (
-                    when v_57, st_24 == ((pack_return_code_spec 7 0 st_23));
-                    if (v_57 =? (0))
-                    then (
-                      when v_95, st_28 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_24));
-                      when st_29 == ((ns_buffer_unmap_spec 0 st_28));
-                      when st_31 == ((atomic_granule_put_release_spec v_31 st_29));
-                      when st_33 == ((free_stack "smc_rec_enter" st_0 st_31));
-                      (Some st_33))
-                    else (
-                      when st_29 == ((atomic_granule_put_release_spec v_31 st_24));
-                      when st_31 == ((free_stack "smc_rec_enter" st_0 st_29));
-                      (Some st_31)))
-                  else (
-                    when v_60, st_24 == ((load_RData 1 (ptr_offset v_40 1512) st_23));
-                    if ((v_60 & (1)) =? (0))
-                    then (
-                      when st_25 == ((copy_gic_state_from_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_entry" 0) st_24));
-                      when v_67, st_26 == ((validate_gic_state_spec (ptr_offset v_40 584) st_25));
-                      if v_67
-                      then (
-                        when v_71, st_27 == ((complete_mmio_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_26));
-                        if v_71
-                        then (
-                          when st_28 == ((complete_sysreg_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_27));
-                          when st_29 == ((complete_hvc_exit_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_28));
-                          when st_30 == ((reset_last_run_info_spec v_40 st_29));
-                          when st_31 == ((process_disposed_info_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_30));
-                          when v_77, st_32 == ((load_RData 8 (ptr_offset v_40 856) st_31));
-                          when st_33 == ((store_RData 8 (ptr_offset v_40 808) v_77 st_32));
-                          when v_81, st_34 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 216) st_33));
-                          if (v_81 =? (0))
-                          then (
-                            when v_86, st_36 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_34));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_0_low st_0 st_36 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_37 == ((load_RData 8 (ptr_offset v_40 808) st_36));
-                              when st_38 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_37));
-                              when st_40 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_38));
-                              when st_41 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_40));
-                              when v_95, st_48 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_41));
-                              when st_49 == ((ns_buffer_unmap_spec 0 st_48));
-                              when st_51 == ((atomic_granule_put_release_spec v_31 st_49));
-                              when st_53 == ((free_stack "smc_rec_enter" st_0 st_51));
-                              (Some st_53)))
-                          else (
-                            when st_35 == ((store_RData 8 (ptr_offset v_40 808) (v_77 |' (8192)) st_34));
-                            when v_86, st_37 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_35));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_1_low st_0 st_37 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_38 == ((load_RData 8 (ptr_offset v_40 808) st_37));
-                              when st_39 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_38));
-                              when st_41 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_39));
-                              when st_42 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_41));
-                              when v_95, st_49 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_42));
-                              when st_50 == ((ns_buffer_unmap_spec 0 st_49));
-                              when st_52 == ((atomic_granule_put_release_spec v_31 st_50));
-                              when st_54 == ((free_stack "smc_rec_enter" st_0 st_52));
-                              (Some st_54))))
-                        else (
-                          when v_73, st_28 == ((pack_return_code_spec 7 0 st_27));
-                          if (v_73 =? (0))
-                          then (
-                            when v_95, st_35 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_28));
-                            when st_36 == ((ns_buffer_unmap_spec 0 st_35));
-                            when st_38 == ((atomic_granule_put_release_spec v_31 st_36));
-                            when st_40 == ((free_stack "smc_rec_enter" st_0 st_38));
-                            (Some st_40))
-                          else (
-                            when st_36 == ((atomic_granule_put_release_spec v_31 st_28));
-                            when st_38 == ((free_stack "smc_rec_enter" st_0 st_36));
-                            (Some st_38))))
-                      else (
-                        when v_69, st_27 == ((pack_return_code_spec 7 0 st_26));
-                        if (v_69 =? (0))
-                        then (
-                          when v_95, st_33 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_27));
-                          when st_34 == ((ns_buffer_unmap_spec 0 st_33));
-                          when st_36 == ((atomic_granule_put_release_spec v_31 st_34));
-                          when st_38 == ((free_stack "smc_rec_enter" st_0 st_36));
-                          (Some st_38))
-                        else (
-                          when st_34 == ((atomic_granule_put_release_spec v_31 st_27));
-                          when st_36 == ((free_stack "smc_rec_enter" st_0 st_34));
-                          (Some st_36))))
-                    else (
-                      when v_63, st_25 == ((pack_return_code_spec 7 0 st_24));
-                      if (v_63 =? (0))
-                      then (
-                        when v_95, st_30 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_25));
-                        when st_31 == ((ns_buffer_unmap_spec 0 st_30));
-                        when st_33 == ((atomic_granule_put_release_spec v_31 st_31));
-                        when st_35 == ((free_stack "smc_rec_enter" st_0 st_33));
-                        (Some st_35))
-                      else (
-                        when st_31 == ((atomic_granule_put_release_spec v_31 st_25));
-                        when st_33 == ((free_stack "smc_rec_enter" st_0 st_31));
-                        (Some st_33)))))))
-            else (
-              when st_18 == ((atomic_granule_put_release_spec v_31 st_17));
-              when v_36, st_19 == ((pack_return_code_spec 1 2 st_18));
-              when st_20 == ((store_RData 8 (ptr_offset v_3 0) v_36 st_19));
-              when v_40, st_22 == ((granule_map_spec v_31 3 st_20));
-              when v_44_tmp, st_23 == ((load_RData 8 (ptr_offset v_40 944) st_22));
-              when v_45, st_24 == ((granule_map_spec (int_to_ptr v_44_tmp) 2 st_23));
-              when v_47, st_25 == ((get_rd_state_unlocked_spec v_45 st_24));
-              if (v_47 =? (2))
-              then (
-                when v_51, st_26 == ((pack_return_code_spec 5 1 st_25));
-                if (v_51 =? (0))
-                then (
-                  when v_95, st_28 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_26));
-                  when st_29 == ((ns_buffer_unmap_spec 0 st_28));
-                  when st_31 == ((atomic_granule_put_release_spec v_31 st_29));
-                  when st_33 == ((free_stack "smc_rec_enter" st_0 st_31));
-                  (Some st_33))
-                else (
-                  when st_29 == ((atomic_granule_put_release_spec v_31 st_26));
-                  when st_31 == ((free_stack "smc_rec_enter" st_0 st_29));
-                  (Some st_31)))
-              else (
-                if (v_47 =? (0))
-                then (
-                  when v_49, st_26 == ((pack_return_code_spec 5 0 st_25));
-                  if (v_49 =? (0))
-                  then (
-                    when v_95, st_29 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_26));
-                    when st_30 == ((ns_buffer_unmap_spec 0 st_29));
-                    when st_32 == ((atomic_granule_put_release_spec v_31 st_30));
-                    when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                    (Some st_34))
-                  else (
-                    when st_30 == ((atomic_granule_put_release_spec v_31 st_26));
-                    when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                    (Some st_32)))
-                else (
-                  when v_54, st_26 == ((load_RData 1 (ptr_offset v_40 16) st_25));
-                  if ((v_54 & (1)) =? (0))
-                  then (
-                    when v_57, st_27 == ((pack_return_code_spec 7 0 st_26));
-                    if (v_57 =? (0))
-                    then (
-                      when v_95, st_31 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_27));
-                      when st_32 == ((ns_buffer_unmap_spec 0 st_31));
-                      when st_34 == ((atomic_granule_put_release_spec v_31 st_32));
-                      when st_36 == ((free_stack "smc_rec_enter" st_0 st_34));
-                      (Some st_36))
-                    else (
-                      when st_32 == ((atomic_granule_put_release_spec v_31 st_27));
-                      when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                      (Some st_34)))
-                  else (
-                    when v_60, st_27 == ((load_RData 1 (ptr_offset v_40 1512) st_26));
-                    if ((v_60 & (1)) =? (0))
-                    then (
-                      when st_28 == ((copy_gic_state_from_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_entry" 0) st_27));
-                      when v_67, st_29 == ((validate_gic_state_spec (ptr_offset v_40 584) st_28));
-                      if v_67
-                      then (
-                        when v_71, st_30 == ((complete_mmio_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_29));
-                        if v_71
-                        then (
-                          when st_31 == ((complete_sysreg_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_30));
-                          when st_32 == ((complete_hvc_exit_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_31));
-                          when st_33 == ((reset_last_run_info_spec v_40 st_32));
-                          when st_34 == ((process_disposed_info_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_33));
-                          when v_77, st_35 == ((load_RData 8 (ptr_offset v_40 856) st_34));
-                          when st_36 == ((store_RData 8 (ptr_offset v_40 808) v_77 st_35));
-                          when v_81, st_37 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 216) st_36));
-                          if (v_81 =? (0))
-                          then (
-                            when v_86, st_39 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_37));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_2_low st_0 st_39 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_40 == ((load_RData 8 (ptr_offset v_40 808) st_39));
-                              when st_41 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_40));
-                              when st_43 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_41));
-                              when st_44 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_43));
-                              when v_95, st_51 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_44));
-                              when st_52 == ((ns_buffer_unmap_spec 0 st_51));
-                              when st_54 == ((atomic_granule_put_release_spec v_31 st_52));
-                              when st_56 == ((free_stack "smc_rec_enter" st_0 st_54));
-                              (Some st_56)))
-                          else (
-                            when st_38 == ((store_RData 8 (ptr_offset v_40 808) (v_77 |' (8192)) st_37));
-                            when v_86, st_40 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_38));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_3_low st_0 st_40 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_41 == ((load_RData 8 (ptr_offset v_40 808) st_40));
-                              when st_42 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_41));
-                              when st_44 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_42));
-                              when st_45 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_44));
-                              when v_95, st_52 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_45));
-                              when st_53 == ((ns_buffer_unmap_spec 0 st_52));
-                              when st_55 == ((atomic_granule_put_release_spec v_31 st_53));
-                              when st_57 == ((free_stack "smc_rec_enter" st_0 st_55));
-                              (Some st_57))))
-                        else (
-                          when v_73, st_31 == ((pack_return_code_spec 7 0 st_30));
-                          if (v_73 =? (0))
-                          then (
-                            when v_95, st_38 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_31));
-                            when st_39 == ((ns_buffer_unmap_spec 0 st_38));
-                            when st_41 == ((atomic_granule_put_release_spec v_31 st_39));
-                            when st_43 == ((free_stack "smc_rec_enter" st_0 st_41));
-                            (Some st_43))
-                          else (
-                            when st_39 == ((atomic_granule_put_release_spec v_31 st_31));
-                            when st_41 == ((free_stack "smc_rec_enter" st_0 st_39));
-                            (Some st_41))))
-                      else (
-                        when v_69, st_30 == ((pack_return_code_spec 7 0 st_29));
-                        if (v_69 =? (0))
-                        then (
-                          when v_95, st_36 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_30));
-                          when st_37 == ((ns_buffer_unmap_spec 0 st_36));
-                          when st_39 == ((atomic_granule_put_release_spec v_31 st_37));
-                          when st_41 == ((free_stack "smc_rec_enter" st_0 st_39));
-                          (Some st_41))
-                        else (
-                          when st_37 == ((atomic_granule_put_release_spec v_31 st_30));
-                          when st_39 == ((free_stack "smc_rec_enter" st_0 st_37));
-                          (Some st_39))))
-                    else (
-                      when v_63, st_28 == ((pack_return_code_spec 7 0 st_27));
-                      if (v_63 =? (0))
-                      then (
-                        when v_95, st_33 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_28));
-                        when st_34 == ((ns_buffer_unmap_spec 0 st_33));
-                        when st_36 == ((atomic_granule_put_release_spec v_31 st_34));
-                        when st_38 == ((free_stack "smc_rec_enter" st_0 st_36));
-                        (Some st_38))
-                      else (
-                        when st_34 == ((atomic_granule_put_release_spec v_31 st_28));
-                        when st_36 == ((free_stack "smc_rec_enter" st_0 st_34));
-                        (Some st_36))))))))
-          else (
-            when v_31, st_11 == ((find_lock_unused_granule_spec v_0 3 st_9));
-            when st_12 == ((atomic_granule_get_spec v_31 st_11));
-            when st_13 == ((granule_unlock_spec v_31 st_12));
-            when v_34, st_14 == ((ns_buffer_read_spec 0 v_1 232 (mkPtr "stack_s_rec_entry" 0) st_13));
-            when st_15 == ((ns_buffer_unmap_spec 0 st_14));
-            if v_34
-            then (
-              when v_40, st_17 == ((granule_map_spec v_31 3 st_15));
-              when v_44_tmp, st_18 == ((load_RData 8 (ptr_offset v_40 944) st_17));
-              when v_45, st_19 == ((granule_map_spec (int_to_ptr v_44_tmp) 2 st_18));
-              when v_47, st_20 == ((get_rd_state_unlocked_spec v_45 st_19));
-              if (v_47 =? (2))
-              then (
-                when v_51, st_21 == ((pack_return_code_spec 5 1 st_20));
-                if (v_51 =? (0))
-                then (
-                  when v_95, st_23 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_21));
-                  when st_24 == ((ns_buffer_unmap_spec 0 st_23));
-                  when st_26 == ((atomic_granule_put_release_spec v_31 st_24));
-                  when st_28 == ((free_stack "smc_rec_enter" st_0 st_26));
-                  (Some st_28))
-                else (
-                  when st_24 == ((atomic_granule_put_release_spec v_31 st_21));
-                  when st_26 == ((free_stack "smc_rec_enter" st_0 st_24));
-                  (Some st_26)))
-              else (
-                if (v_47 =? (0))
-                then (
-                  when v_49, st_21 == ((pack_return_code_spec 5 0 st_20));
-                  if (v_49 =? (0))
-                  then (
-                    when v_95, st_24 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_21));
-                    when st_25 == ((ns_buffer_unmap_spec 0 st_24));
-                    when st_27 == ((atomic_granule_put_release_spec v_31 st_25));
-                    when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                    (Some st_29))
-                  else (
-                    when st_25 == ((atomic_granule_put_release_spec v_31 st_21));
-                    when st_27 == ((free_stack "smc_rec_enter" st_0 st_25));
-                    (Some st_27)))
-                else (
-                  when v_54, st_21 == ((load_RData 1 (ptr_offset v_40 16) st_20));
-                  if ((v_54 & (1)) =? (0))
-                  then (
-                    when v_57, st_22 == ((pack_return_code_spec 7 0 st_21));
-                    if (v_57 =? (0))
-                    then (
-                      when v_95, st_26 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_22));
-                      when st_27 == ((ns_buffer_unmap_spec 0 st_26));
-                      when st_29 == ((atomic_granule_put_release_spec v_31 st_27));
-                      when st_31 == ((free_stack "smc_rec_enter" st_0 st_29));
-                      (Some st_31))
-                    else (
-                      when st_27 == ((atomic_granule_put_release_spec v_31 st_22));
-                      when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                      (Some st_29)))
-                  else (
-                    when v_60, st_22 == ((load_RData 1 (ptr_offset v_40 1512) st_21));
-                    if ((v_60 & (1)) =? (0))
-                    then (
-                      when st_23 == ((copy_gic_state_from_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_entry" 0) st_22));
-                      when v_67, st_24 == ((validate_gic_state_spec (ptr_offset v_40 584) st_23));
-                      if v_67
-                      then (
-                        when v_71, st_25 == ((complete_mmio_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_24));
-                        if v_71
-                        then (
-                          when st_26 == ((complete_sysreg_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_25));
-                          when st_27 == ((complete_hvc_exit_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_26));
-                          when st_28 == ((reset_last_run_info_spec v_40 st_27));
-                          when st_29 == ((process_disposed_info_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_28));
-                          when v_77, st_30 == ((load_RData 8 (ptr_offset v_40 856) st_29));
-                          when st_31 == ((store_RData 8 (ptr_offset v_40 808) v_77 st_30));
-                          when v_81, st_32 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 216) st_31));
-                          if (v_81 =? (0))
-                          then (
-                            when v_86, st_34 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_32));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_4_low st_0 st_34 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_35 == ((load_RData 8 (ptr_offset v_40 808) st_34));
-                              when st_36 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_35));
-                              when st_38 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_36));
-                              when st_39 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_38));
-                              when v_95, st_46 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_39));
-                              when st_47 == ((ns_buffer_unmap_spec 0 st_46));
-                              when st_49 == ((atomic_granule_put_release_spec v_31 st_47));
-                              when st_51 == ((free_stack "smc_rec_enter" st_0 st_49));
-                              (Some st_51)))
-                          else (
-                            when st_33 == ((store_RData 8 (ptr_offset v_40 808) (v_77 |' (8192)) st_32));
-                            when v_86, st_35 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_33));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_5_low st_0 st_35 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_36 == ((load_RData 8 (ptr_offset v_40 808) st_35));
-                              when st_37 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_36));
-                              when st_39 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_37));
-                              when st_40 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_39));
-                              when v_95, st_47 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_40));
-                              when st_48 == ((ns_buffer_unmap_spec 0 st_47));
-                              when st_50 == ((atomic_granule_put_release_spec v_31 st_48));
-                              when st_52 == ((free_stack "smc_rec_enter" st_0 st_50));
-                              (Some st_52))))
-                        else (
-                          when v_73, st_26 == ((pack_return_code_spec 7 0 st_25));
-                          if (v_73 =? (0))
-                          then (
-                            when v_95, st_33 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_26));
-                            when st_34 == ((ns_buffer_unmap_spec 0 st_33));
-                            when st_36 == ((atomic_granule_put_release_spec v_31 st_34));
-                            when st_38 == ((free_stack "smc_rec_enter" st_0 st_36));
-                            (Some st_38))
-                          else (
-                            when st_34 == ((atomic_granule_put_release_spec v_31 st_26));
-                            when st_36 == ((free_stack "smc_rec_enter" st_0 st_34));
-                            (Some st_36))))
-                      else (
-                        when v_69, st_25 == ((pack_return_code_spec 7 0 st_24));
-                        if (v_69 =? (0))
-                        then (
-                          when v_95, st_31 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_25));
-                          when st_32 == ((ns_buffer_unmap_spec 0 st_31));
-                          when st_34 == ((atomic_granule_put_release_spec v_31 st_32));
-                          when st_36 == ((free_stack "smc_rec_enter" st_0 st_34));
-                          (Some st_36))
-                        else (
-                          when st_32 == ((atomic_granule_put_release_spec v_31 st_25));
-                          when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                          (Some st_34))))
-                    else (
-                      when v_63, st_23 == ((pack_return_code_spec 7 0 st_22));
-                      if (v_63 =? (0))
-                      then (
-                        when v_95, st_28 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_23));
-                        when st_29 == ((ns_buffer_unmap_spec 0 st_28));
-                        when st_31 == ((atomic_granule_put_release_spec v_31 st_29));
-                        when st_33 == ((free_stack "smc_rec_enter" st_0 st_31));
-                        (Some st_33))
-                      else (
-                        when st_29 == ((atomic_granule_put_release_spec v_31 st_23));
-                        when st_31 == ((free_stack "smc_rec_enter" st_0 st_29));
-                        (Some st_31)))))))
-            else (
-              when st_16 == ((atomic_granule_put_release_spec v_31 st_15));
-              when v_36, st_17 == ((pack_return_code_spec 1 2 st_16));
-              when st_18 == ((store_RData 8 (ptr_offset v_3 0) v_36 st_17));
-              when v_40, st_20 == ((granule_map_spec v_31 3 st_18));
-              when v_44_tmp, st_21 == ((load_RData 8 (ptr_offset v_40 944) st_20));
-              when v_45, st_22 == ((granule_map_spec (int_to_ptr v_44_tmp) 2 st_21));
-              when v_47, st_23 == ((get_rd_state_unlocked_spec v_45 st_22));
-              if (v_47 =? (2))
-              then (
-                when v_51, st_24 == ((pack_return_code_spec 5 1 st_23));
-                if (v_51 =? (0))
-                then (
-                  when v_95, st_26 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_24));
-                  when st_27 == ((ns_buffer_unmap_spec 0 st_26));
-                  when st_29 == ((atomic_granule_put_release_spec v_31 st_27));
-                  when st_31 == ((free_stack "smc_rec_enter" st_0 st_29));
-                  (Some st_31))
-                else (
-                  when st_27 == ((atomic_granule_put_release_spec v_31 st_24));
-                  when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                  (Some st_29)))
-              else (
-                if (v_47 =? (0))
-                then (
-                  when v_49, st_24 == ((pack_return_code_spec 5 0 st_23));
-                  if (v_49 =? (0))
-                  then (
-                    when v_95, st_27 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_24));
-                    when st_28 == ((ns_buffer_unmap_spec 0 st_27));
-                    when st_30 == ((atomic_granule_put_release_spec v_31 st_28));
-                    when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                    (Some st_32))
-                  else (
-                    when st_28 == ((atomic_granule_put_release_spec v_31 st_24));
-                    when st_30 == ((free_stack "smc_rec_enter" st_0 st_28));
-                    (Some st_30)))
-                else (
-                  when v_54, st_24 == ((load_RData 1 (ptr_offset v_40 16) st_23));
-                  if ((v_54 & (1)) =? (0))
-                  then (
-                    when v_57, st_25 == ((pack_return_code_spec 7 0 st_24));
-                    if (v_57 =? (0))
-                    then (
-                      when v_95, st_29 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_25));
-                      when st_30 == ((ns_buffer_unmap_spec 0 st_29));
-                      when st_32 == ((atomic_granule_put_release_spec v_31 st_30));
-                      when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                      (Some st_34))
-                    else (
-                      when st_30 == ((atomic_granule_put_release_spec v_31 st_25));
-                      when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                      (Some st_32)))
-                  else (
-                    when v_60, st_25 == ((load_RData 1 (ptr_offset v_40 1512) st_24));
-                    if ((v_60 & (1)) =? (0))
-                    then (
-                      when st_26 == ((copy_gic_state_from_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_entry" 0) st_25));
-                      when v_67, st_27 == ((validate_gic_state_spec (ptr_offset v_40 584) st_26));
-                      if v_67
-                      then (
-                        when v_71, st_28 == ((complete_mmio_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_27));
-                        if v_71
-                        then (
-                          when st_29 == ((complete_sysreg_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_28));
-                          when st_30 == ((complete_hvc_exit_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_29));
-                          when st_31 == ((reset_last_run_info_spec v_40 st_30));
-                          when st_32 == ((process_disposed_info_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_31));
-                          when v_77, st_33 == ((load_RData 8 (ptr_offset v_40 856) st_32));
-                          when st_34 == ((store_RData 8 (ptr_offset v_40 808) v_77 st_33));
-                          when v_81, st_35 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 216) st_34));
-                          if (v_81 =? (0))
-                          then (
-                            when v_86, st_37 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_35));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_6_low st_0 st_37 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_38 == ((load_RData 8 (ptr_offset v_40 808) st_37));
-                              when st_39 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_38));
-                              when st_41 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_39));
-                              when st_42 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_41));
-                              when v_95, st_49 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_42));
-                              when st_50 == ((ns_buffer_unmap_spec 0 st_49));
-                              when st_52 == ((atomic_granule_put_release_spec v_31 st_50));
-                              when st_54 == ((free_stack "smc_rec_enter" st_0 st_52));
-                              (Some st_54)))
-                          else (
-                            when st_36 == ((store_RData 8 (ptr_offset v_40 808) (v_77 |' (8192)) st_35));
-                            when v_86, st_38 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_36));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_7_low st_0 st_38 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_39 == ((load_RData 8 (ptr_offset v_40 808) st_38));
-                              when st_40 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_39));
-                              when st_42 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_40));
-                              when st_43 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_42));
-                              when v_95, st_50 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_43));
-                              when st_51 == ((ns_buffer_unmap_spec 0 st_50));
-                              when st_53 == ((atomic_granule_put_release_spec v_31 st_51));
-                              when st_55 == ((free_stack "smc_rec_enter" st_0 st_53));
-                              (Some st_55))))
-                        else (
-                          when v_73, st_29 == ((pack_return_code_spec 7 0 st_28));
-                          if (v_73 =? (0))
-                          then (
-                            when v_95, st_36 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_29));
-                            when st_37 == ((ns_buffer_unmap_spec 0 st_36));
-                            when st_39 == ((atomic_granule_put_release_spec v_31 st_37));
-                            when st_41 == ((free_stack "smc_rec_enter" st_0 st_39));
-                            (Some st_41))
-                          else (
-                            when st_37 == ((atomic_granule_put_release_spec v_31 st_29));
-                            when st_39 == ((free_stack "smc_rec_enter" st_0 st_37));
-                            (Some st_39))))
-                      else (
-                        when v_69, st_28 == ((pack_return_code_spec 7 0 st_27));
-                        if (v_69 =? (0))
-                        then (
-                          when v_95, st_34 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_28));
-                          when st_35 == ((ns_buffer_unmap_spec 0 st_34));
-                          when st_37 == ((atomic_granule_put_release_spec v_31 st_35));
-                          when st_39 == ((free_stack "smc_rec_enter" st_0 st_37));
-                          (Some st_39))
-                        else (
-                          when st_35 == ((atomic_granule_put_release_spec v_31 st_28));
-                          when st_37 == ((free_stack "smc_rec_enter" st_0 st_35));
-                          (Some st_37))))
-                    else (
-                      when v_63, st_26 == ((pack_return_code_spec 7 0 st_25));
-                      if (v_63 =? (0))
-                      then (
-                        when v_95, st_31 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_26));
-                        when st_32 == ((ns_buffer_unmap_spec 0 st_31));
-                        when st_34 == ((atomic_granule_put_release_spec v_31 st_32));
-                        when st_36 == ((free_stack "smc_rec_enter" st_0 st_34));
-                        (Some st_36))
-                      else (
-                        when st_32 == ((atomic_granule_put_release_spec v_31 st_26));
-                        when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                        (Some st_34)))))))))
+          when st_13 == (
+              (rcsm_restore_pico_state_spec
+                (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset)))
+                ((((st.[priv].[pcpu_regs].[pcpu_sctlr_el12] :<
+                  (((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (360)) / (4096))).(g_norm)) @ ((((test_PA v_0).(meta_granule_offset)) + (360)) mod (4096)))).[priv].[pcpu_regs].[pcpu_tcr_el12] :<
+                  (((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (408)) / (4096))).(g_norm)) @ ((((test_PA v_0).(meta_granule_offset)) + (408)) mod (4096)))).[priv].[pcpu_regs].[pcpu_vbar_el12] :<
+                  (((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (456)) / (4096))).(g_norm)) @ ((((test_PA v_0).(meta_granule_offset)) + (456)) mod (4096)))).[share].[granule_data] :<
+                  (((((st.(share)).(granule_data)) #
+                    ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096)) ==
+                    ((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).[g_norm] :<
+                      (((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).(g_norm)) #
+                        ((((test_PA v_0).(meta_granule_offset)) + (24)) mod (4096)) ==
+                        CPU_ID))) #
+                    ((((test_PA v_0).(meta_granule_offset)) + (32)) / (4096)) ==
+                    (((((st.(share)).(granule_data)) #
+                      ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096)) ==
+                      ((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).[g_norm] :<
+                        (((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).(g_norm)) #
+                          ((((test_PA v_0).(meta_granule_offset)) + (24)) mod (4096)) ==
+                          CPU_ID))) @ ((((test_PA v_0).(meta_granule_offset)) + (32)) / (4096))).[g_norm] :<
+                      ((((((st.(share)).(granule_data)) #
+                        ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096)) ==
+                        ((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).[g_norm] :<
+                          (((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).(g_norm)) #
+                            ((((test_PA v_0).(meta_granule_offset)) + (24)) mod (4096)) ==
+                            CPU_ID))) @ ((((test_PA v_0).(meta_granule_offset)) + (32)) / (4096))).(g_norm)) #
+                        ((((test_PA v_0).(meta_granule_offset)) + (32)) mod (4096)) ==
+                        v_1))) #
+                    ((((test_PA v_0).(meta_granule_offset)) + (1528)) / (4096)) ==
+                    ((((((st.(share)).(granule_data)) #
+                      ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096)) ==
+                      ((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).[g_norm] :<
+                        (((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).(g_norm)) #
+                          ((((test_PA v_0).(meta_granule_offset)) + (24)) mod (4096)) ==
+                          CPU_ID))) #
+                      ((((test_PA v_0).(meta_granule_offset)) + (32)) / (4096)) ==
+                      (((((st.(share)).(granule_data)) #
+                        ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096)) ==
+                        ((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).[g_norm] :<
+                          (((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).(g_norm)) #
+                            ((((test_PA v_0).(meta_granule_offset)) + (24)) mod (4096)) ==
+                            CPU_ID))) @ ((((test_PA v_0).(meta_granule_offset)) + (32)) / (4096))).[g_norm] :<
+                        ((((((st.(share)).(granule_data)) #
+                          ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096)) ==
+                          ((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).[g_norm] :<
+                            (((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).(g_norm)) #
+                              ((((test_PA v_0).(meta_granule_offset)) + (24)) mod (4096)) ==
+                              CPU_ID))) @ ((((test_PA v_0).(meta_granule_offset)) + (32)) / (4096))).(g_norm)) #
+                          ((((test_PA v_0).(meta_granule_offset)) + (32)) mod (4096)) ==
+                          v_1))) @ ((((test_PA v_0).(meta_granule_offset)) + (1528)) / (4096))).[g_norm] :<
+                      (((((((st.(share)).(granule_data)) #
+                        ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096)) ==
+                        ((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).[g_norm] :<
+                          (((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).(g_norm)) #
+                            ((((test_PA v_0).(meta_granule_offset)) + (24)) mod (4096)) ==
+                            CPU_ID))) #
+                        ((((test_PA v_0).(meta_granule_offset)) + (32)) / (4096)) ==
+                        (((((st.(share)).(granule_data)) #
+                          ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096)) ==
+                          ((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).[g_norm] :<
+                            (((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).(g_norm)) #
+                              ((((test_PA v_0).(meta_granule_offset)) + (24)) mod (4096)) ==
+                              CPU_ID))) @ ((((test_PA v_0).(meta_granule_offset)) + (32)) / (4096))).[g_norm] :<
+                          ((((((st.(share)).(granule_data)) #
+                            ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096)) ==
+                            ((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).[g_norm] :<
+                              (((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).(g_norm)) #
+                                ((((test_PA v_0).(meta_granule_offset)) + (24)) mod (4096)) ==
+                                CPU_ID))) @ ((((test_PA v_0).(meta_granule_offset)) + (32)) / (4096))).(g_norm)) #
+                            ((((test_PA v_0).(meta_granule_offset)) + (32)) mod (4096)) ==
+                            v_1))) @ ((((test_PA v_0).(meta_granule_offset)) + (1528)) / (4096))).(g_norm)) #
+                        ((((test_PA v_0).(meta_granule_offset)) + (1528)) mod (4096)) ==
+                        1))))));
+          when v_28, st_4 == ((run_realm_spec (mkPtr "granule_data" (((test_PA v_0).(meta_granule_offset)) + (24))) st_13));
+          when v_29, st_6 == (
+              (handle_pico_rec_exit_spec
+                (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset)))
+                (mkPtr "granule_data" (((test_PA v_0).(meta_granule_offset)) + (24)))
+                st_4));
+          when st_19 == (
+              (rcsm_save_pico_state_spec
+                (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset)))
+                (st_6.[stack].[stack_s_smc_result] :<
+                  ((((((st_6.(stack)).(stack_s_smc_result)).[e_x0] :<
+                    (((((st_6.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).(g_norm)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) mod (4096)))).[e_x1] :<
+                    (((((st_6.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (32)) / (4096))).(g_norm)) @ ((((test_PA v_0).(meta_granule_offset)) + (32)) mod (4096)))).[e_x2] :<
+                    (((((st_6.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (40)) / (4096))).(g_norm)) @ ((((test_PA v_0).(meta_granule_offset)) + (40)) mod (4096)))).[e_x3] :<
+                    (((((st_6.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (48)) / (4096))).(g_norm)) @ ((((test_PA v_0).(meta_granule_offset)) + (48)) mod (4096)))))));
+          (Some (st_19.[priv].[pcpu_regs].[pcpu_ich_hcr_el2] :< (((st.(priv)).(pcpu_regs)).(pcpu_ich_hcr_el2)))))
         else (
-          when v_25, st_7 == ((ranges_intersect_spec v_1 232 v_2 304 st_5));
-          if v_25
-          then (
-            when v_27, st_8 == ((pack_return_code_spec 3 0 st_7));
-            when st_9 == ((store_RData 8 (ptr_offset v_3 0) v_27 st_8));
-            when v_31, st_11 == ((find_lock_unused_granule_spec v_0 3 st_9));
-            when st_12 == ((atomic_granule_get_spec v_31 st_11));
-            when st_13 == ((granule_unlock_spec v_31 st_12));
-            when v_34, st_14 == ((ns_buffer_read_spec 0 v_1 232 (mkPtr "stack_s_rec_entry" 0) st_13));
-            when st_15 == ((ns_buffer_unmap_spec 0 st_14));
-            if v_34
-            then (
-              when v_40, st_17 == ((granule_map_spec v_31 3 st_15));
-              when v_44_tmp, st_18 == ((load_RData 8 (ptr_offset v_40 944) st_17));
-              when v_45, st_19 == ((granule_map_spec (int_to_ptr v_44_tmp) 2 st_18));
-              when v_47, st_20 == ((get_rd_state_unlocked_spec v_45 st_19));
-              if (v_47 =? (2))
-              then (
-                when v_51, st_21 == ((pack_return_code_spec 5 1 st_20));
-                if (v_51 =? (0))
-                then (
-                  when v_95, st_23 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_21));
-                  when st_24 == ((ns_buffer_unmap_spec 0 st_23));
-                  when st_26 == ((atomic_granule_put_release_spec v_31 st_24));
-                  when st_28 == ((free_stack "smc_rec_enter" st_0 st_26));
-                  (Some st_28))
-                else (
-                  when st_24 == ((atomic_granule_put_release_spec v_31 st_21));
-                  when st_26 == ((free_stack "smc_rec_enter" st_0 st_24));
-                  (Some st_26)))
-              else (
-                if (v_47 =? (0))
-                then (
-                  when v_49, st_21 == ((pack_return_code_spec 5 0 st_20));
-                  if (v_49 =? (0))
-                  then (
-                    when v_95, st_24 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_21));
-                    when st_25 == ((ns_buffer_unmap_spec 0 st_24));
-                    when st_27 == ((atomic_granule_put_release_spec v_31 st_25));
-                    when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                    (Some st_29))
-                  else (
-                    when st_25 == ((atomic_granule_put_release_spec v_31 st_21));
-                    when st_27 == ((free_stack "smc_rec_enter" st_0 st_25));
-                    (Some st_27)))
-                else (
-                  when v_54, st_21 == ((load_RData 1 (ptr_offset v_40 16) st_20));
-                  if ((v_54 & (1)) =? (0))
-                  then (
-                    when v_57, st_22 == ((pack_return_code_spec 7 0 st_21));
-                    if (v_57 =? (0))
-                    then (
-                      when v_95, st_26 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_22));
-                      when st_27 == ((ns_buffer_unmap_spec 0 st_26));
-                      when st_29 == ((atomic_granule_put_release_spec v_31 st_27));
-                      when st_31 == ((free_stack "smc_rec_enter" st_0 st_29));
-                      (Some st_31))
-                    else (
-                      when st_27 == ((atomic_granule_put_release_spec v_31 st_22));
-                      when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                      (Some st_29)))
-                  else (
-                    when v_60, st_22 == ((load_RData 1 (ptr_offset v_40 1512) st_21));
-                    if ((v_60 & (1)) =? (0))
-                    then (
-                      when st_23 == ((copy_gic_state_from_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_entry" 0) st_22));
-                      when v_67, st_24 == ((validate_gic_state_spec (ptr_offset v_40 584) st_23));
-                      if v_67
-                      then (
-                        when v_71, st_25 == ((complete_mmio_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_24));
-                        if v_71
-                        then (
-                          when st_26 == ((complete_sysreg_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_25));
-                          when st_27 == ((complete_hvc_exit_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_26));
-                          when st_28 == ((reset_last_run_info_spec v_40 st_27));
-                          when st_29 == ((process_disposed_info_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_28));
-                          when v_77, st_30 == ((load_RData 8 (ptr_offset v_40 856) st_29));
-                          when st_31 == ((store_RData 8 (ptr_offset v_40 808) v_77 st_30));
-                          when v_81, st_32 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 216) st_31));
-                          if (v_81 =? (0))
-                          then (
-                            when v_86, st_34 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_32));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_8_low st_0 st_34 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_35 == ((load_RData 8 (ptr_offset v_40 808) st_34));
-                              when st_36 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_35));
-                              when st_38 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_36));
-                              when st_39 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_38));
-                              when v_95, st_46 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_39));
-                              when st_47 == ((ns_buffer_unmap_spec 0 st_46));
-                              when st_49 == ((atomic_granule_put_release_spec v_31 st_47));
-                              when st_51 == ((free_stack "smc_rec_enter" st_0 st_49));
-                              (Some st_51)))
-                          else (
-                            when st_33 == ((store_RData 8 (ptr_offset v_40 808) (v_77 |' (8192)) st_32));
-                            when v_86, st_35 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_33));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_9_low st_0 st_35 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_36 == ((load_RData 8 (ptr_offset v_40 808) st_35));
-                              when st_37 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_36));
-                              when st_39 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_37));
-                              when st_40 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_39));
-                              when v_95, st_47 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_40));
-                              when st_48 == ((ns_buffer_unmap_spec 0 st_47));
-                              when st_50 == ((atomic_granule_put_release_spec v_31 st_48));
-                              when st_52 == ((free_stack "smc_rec_enter" st_0 st_50));
-                              (Some st_52))))
-                        else (
-                          when v_73, st_26 == ((pack_return_code_spec 7 0 st_25));
-                          if (v_73 =? (0))
-                          then (
-                            when v_95, st_33 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_26));
-                            when st_34 == ((ns_buffer_unmap_spec 0 st_33));
-                            when st_36 == ((atomic_granule_put_release_spec v_31 st_34));
-                            when st_38 == ((free_stack "smc_rec_enter" st_0 st_36));
-                            (Some st_38))
-                          else (
-                            when st_34 == ((atomic_granule_put_release_spec v_31 st_26));
-                            when st_36 == ((free_stack "smc_rec_enter" st_0 st_34));
-                            (Some st_36))))
-                      else (
-                        when v_69, st_25 == ((pack_return_code_spec 7 0 st_24));
-                        if (v_69 =? (0))
-                        then (
-                          when v_95, st_31 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_25));
-                          when st_32 == ((ns_buffer_unmap_spec 0 st_31));
-                          when st_34 == ((atomic_granule_put_release_spec v_31 st_32));
-                          when st_36 == ((free_stack "smc_rec_enter" st_0 st_34));
-                          (Some st_36))
-                        else (
-                          when st_32 == ((atomic_granule_put_release_spec v_31 st_25));
-                          when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                          (Some st_34))))
-                    else (
-                      when v_63, st_23 == ((pack_return_code_spec 7 0 st_22));
-                      if (v_63 =? (0))
-                      then (
-                        when v_95, st_28 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_23));
-                        when st_29 == ((ns_buffer_unmap_spec 0 st_28));
-                        when st_31 == ((atomic_granule_put_release_spec v_31 st_29));
-                        when st_33 == ((free_stack "smc_rec_enter" st_0 st_31));
-                        (Some st_33))
-                      else (
-                        when st_29 == ((atomic_granule_put_release_spec v_31 st_23));
-                        when st_31 == ((free_stack "smc_rec_enter" st_0 st_29));
-                        (Some st_31)))))))
-            else (
-              when st_16 == ((atomic_granule_put_release_spec v_31 st_15));
-              when v_36, st_17 == ((pack_return_code_spec 1 2 st_16));
-              when st_18 == ((store_RData 8 (ptr_offset v_3 0) v_36 st_17));
-              when v_40, st_20 == ((granule_map_spec v_31 3 st_18));
-              when v_44_tmp, st_21 == ((load_RData 8 (ptr_offset v_40 944) st_20));
-              when v_45, st_22 == ((granule_map_spec (int_to_ptr v_44_tmp) 2 st_21));
-              when v_47, st_23 == ((get_rd_state_unlocked_spec v_45 st_22));
-              if (v_47 =? (2))
-              then (
-                when v_51, st_24 == ((pack_return_code_spec 5 1 st_23));
-                if (v_51 =? (0))
-                then (
-                  when v_95, st_26 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_24));
-                  when st_27 == ((ns_buffer_unmap_spec 0 st_26));
-                  when st_29 == ((atomic_granule_put_release_spec v_31 st_27));
-                  when st_31 == ((free_stack "smc_rec_enter" st_0 st_29));
-                  (Some st_31))
-                else (
-                  when st_27 == ((atomic_granule_put_release_spec v_31 st_24));
-                  when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                  (Some st_29)))
-              else (
-                if (v_47 =? (0))
-                then (
-                  when v_49, st_24 == ((pack_return_code_spec 5 0 st_23));
-                  if (v_49 =? (0))
-                  then (
-                    when v_95, st_27 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_24));
-                    when st_28 == ((ns_buffer_unmap_spec 0 st_27));
-                    when st_30 == ((atomic_granule_put_release_spec v_31 st_28));
-                    when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                    (Some st_32))
-                  else (
-                    when st_28 == ((atomic_granule_put_release_spec v_31 st_24));
-                    when st_30 == ((free_stack "smc_rec_enter" st_0 st_28));
-                    (Some st_30)))
-                else (
-                  when v_54, st_24 == ((load_RData 1 (ptr_offset v_40 16) st_23));
-                  if ((v_54 & (1)) =? (0))
-                  then (
-                    when v_57, st_25 == ((pack_return_code_spec 7 0 st_24));
-                    if (v_57 =? (0))
-                    then (
-                      when v_95, st_29 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_25));
-                      when st_30 == ((ns_buffer_unmap_spec 0 st_29));
-                      when st_32 == ((atomic_granule_put_release_spec v_31 st_30));
-                      when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                      (Some st_34))
-                    else (
-                      when st_30 == ((atomic_granule_put_release_spec v_31 st_25));
-                      when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                      (Some st_32)))
-                  else (
-                    when v_60, st_25 == ((load_RData 1 (ptr_offset v_40 1512) st_24));
-                    if ((v_60 & (1)) =? (0))
-                    then (
-                      when st_26 == ((copy_gic_state_from_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_entry" 0) st_25));
-                      when v_67, st_27 == ((validate_gic_state_spec (ptr_offset v_40 584) st_26));
-                      if v_67
-                      then (
-                        when v_71, st_28 == ((complete_mmio_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_27));
-                        if v_71
-                        then (
-                          when st_29 == ((complete_sysreg_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_28));
-                          when st_30 == ((complete_hvc_exit_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_29));
-                          when st_31 == ((reset_last_run_info_spec v_40 st_30));
-                          when st_32 == ((process_disposed_info_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_31));
-                          when v_77, st_33 == ((load_RData 8 (ptr_offset v_40 856) st_32));
-                          when st_34 == ((store_RData 8 (ptr_offset v_40 808) v_77 st_33));
-                          when v_81, st_35 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 216) st_34));
-                          if (v_81 =? (0))
-                          then (
-                            when v_86, st_37 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_35));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_10_low st_0 st_37 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_38 == ((load_RData 8 (ptr_offset v_40 808) st_37));
-                              when st_39 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_38));
-                              when st_41 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_39));
-                              when st_42 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_41));
-                              when v_95, st_49 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_42));
-                              when st_50 == ((ns_buffer_unmap_spec 0 st_49));
-                              when st_52 == ((atomic_granule_put_release_spec v_31 st_50));
-                              when st_54 == ((free_stack "smc_rec_enter" st_0 st_52));
-                              (Some st_54)))
-                          else (
-                            when st_36 == ((store_RData 8 (ptr_offset v_40 808) (v_77 |' (8192)) st_35));
-                            when v_86, st_38 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_36));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_11_low st_0 st_38 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_39 == ((load_RData 8 (ptr_offset v_40 808) st_38));
-                              when st_40 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_39));
-                              when st_42 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_40));
-                              when st_43 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_42));
-                              when v_95, st_50 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_43));
-                              when st_51 == ((ns_buffer_unmap_spec 0 st_50));
-                              when st_53 == ((atomic_granule_put_release_spec v_31 st_51));
-                              when st_55 == ((free_stack "smc_rec_enter" st_0 st_53));
-                              (Some st_55))))
-                        else (
-                          when v_73, st_29 == ((pack_return_code_spec 7 0 st_28));
-                          if (v_73 =? (0))
-                          then (
-                            when v_95, st_36 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_29));
-                            when st_37 == ((ns_buffer_unmap_spec 0 st_36));
-                            when st_39 == ((atomic_granule_put_release_spec v_31 st_37));
-                            when st_41 == ((free_stack "smc_rec_enter" st_0 st_39));
-                            (Some st_41))
-                          else (
-                            when st_37 == ((atomic_granule_put_release_spec v_31 st_29));
-                            when st_39 == ((free_stack "smc_rec_enter" st_0 st_37));
-                            (Some st_39))))
-                      else (
-                        when v_69, st_28 == ((pack_return_code_spec 7 0 st_27));
-                        if (v_69 =? (0))
-                        then (
-                          when v_95, st_34 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_28));
-                          when st_35 == ((ns_buffer_unmap_spec 0 st_34));
-                          when st_37 == ((atomic_granule_put_release_spec v_31 st_35));
-                          when st_39 == ((free_stack "smc_rec_enter" st_0 st_37));
-                          (Some st_39))
-                        else (
-                          when st_35 == ((atomic_granule_put_release_spec v_31 st_28));
-                          when st_37 == ((free_stack "smc_rec_enter" st_0 st_35));
-                          (Some st_37))))
-                    else (
-                      when v_63, st_26 == ((pack_return_code_spec 7 0 st_25));
-                      if (v_63 =? (0))
-                      then (
-                        when v_95, st_31 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_26));
-                        when st_32 == ((ns_buffer_unmap_spec 0 st_31));
-                        when st_34 == ((atomic_granule_put_release_spec v_31 st_32));
-                        when st_36 == ((free_stack "smc_rec_enter" st_0 st_34));
-                        (Some st_36))
-                      else (
-                        when st_32 == ((atomic_granule_put_release_spec v_31 st_26));
-                        when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                        (Some st_34))))))))
-          else (
-            when v_31, st_9 == ((find_lock_unused_granule_spec v_0 3 st_7));
-            when st_10 == ((atomic_granule_get_spec v_31 st_9));
-            when st_11 == ((granule_unlock_spec v_31 st_10));
-            when v_34, st_12 == ((ns_buffer_read_spec 0 v_1 232 (mkPtr "stack_s_rec_entry" 0) st_11));
-            when st_13 == ((ns_buffer_unmap_spec 0 st_12));
-            if v_34
-            then (
-              when v_40, st_15 == ((granule_map_spec v_31 3 st_13));
-              when v_44_tmp, st_16 == ((load_RData 8 (ptr_offset v_40 944) st_15));
-              when v_45, st_17 == ((granule_map_spec (int_to_ptr v_44_tmp) 2 st_16));
-              when v_47, st_18 == ((get_rd_state_unlocked_spec v_45 st_17));
-              if (v_47 =? (2))
-              then (
-                when v_51, st_19 == ((pack_return_code_spec 5 1 st_18));
-                if (v_51 =? (0))
-                then (
-                  when v_95, st_21 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_19));
-                  when st_22 == ((ns_buffer_unmap_spec 0 st_21));
-                  when st_24 == ((atomic_granule_put_release_spec v_31 st_22));
-                  when st_26 == ((free_stack "smc_rec_enter" st_0 st_24));
-                  (Some st_26))
-                else (
-                  when st_22 == ((atomic_granule_put_release_spec v_31 st_19));
-                  when st_24 == ((free_stack "smc_rec_enter" st_0 st_22));
-                  (Some st_24)))
-              else (
-                if (v_47 =? (0))
-                then (
-                  when v_49, st_19 == ((pack_return_code_spec 5 0 st_18));
-                  if (v_49 =? (0))
-                  then (
-                    when v_95, st_22 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_19));
-                    when st_23 == ((ns_buffer_unmap_spec 0 st_22));
-                    when st_25 == ((atomic_granule_put_release_spec v_31 st_23));
-                    when st_27 == ((free_stack "smc_rec_enter" st_0 st_25));
-                    (Some st_27))
-                  else (
-                    when st_23 == ((atomic_granule_put_release_spec v_31 st_19));
-                    when st_25 == ((free_stack "smc_rec_enter" st_0 st_23));
-                    (Some st_25)))
-                else (
-                  when v_54, st_19 == ((load_RData 1 (ptr_offset v_40 16) st_18));
-                  if ((v_54 & (1)) =? (0))
-                  then (
-                    when v_57, st_20 == ((pack_return_code_spec 7 0 st_19));
-                    if (v_57 =? (0))
-                    then (
-                      when v_95, st_24 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_20));
-                      when st_25 == ((ns_buffer_unmap_spec 0 st_24));
-                      when st_27 == ((atomic_granule_put_release_spec v_31 st_25));
-                      when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                      (Some st_29))
-                    else (
-                      when st_25 == ((atomic_granule_put_release_spec v_31 st_20));
-                      when st_27 == ((free_stack "smc_rec_enter" st_0 st_25));
-                      (Some st_27)))
-                  else (
-                    when v_60, st_20 == ((load_RData 1 (ptr_offset v_40 1512) st_19));
-                    if ((v_60 & (1)) =? (0))
-                    then (
-                      when st_21 == ((copy_gic_state_from_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_entry" 0) st_20));
-                      when v_67, st_22 == ((validate_gic_state_spec (ptr_offset v_40 584) st_21));
-                      if v_67
-                      then (
-                        when v_71, st_23 == ((complete_mmio_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_22));
-                        if v_71
-                        then (
-                          when st_24 == ((complete_sysreg_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_23));
-                          when st_25 == ((complete_hvc_exit_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_24));
-                          when st_26 == ((reset_last_run_info_spec v_40 st_25));
-                          when st_27 == ((process_disposed_info_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_26));
-                          when v_77, st_28 == ((load_RData 8 (ptr_offset v_40 856) st_27));
-                          when st_29 == ((store_RData 8 (ptr_offset v_40 808) v_77 st_28));
-                          when v_81, st_30 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 216) st_29));
-                          if (v_81 =? (0))
-                          then (
-                            when v_86, st_32 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_30));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_12_low st_0 st_32 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_33 == ((load_RData 8 (ptr_offset v_40 808) st_32));
-                              when st_34 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_33));
-                              when st_36 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_34));
-                              when st_37 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_36));
-                              when v_95, st_44 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_37));
-                              when st_45 == ((ns_buffer_unmap_spec 0 st_44));
-                              when st_47 == ((atomic_granule_put_release_spec v_31 st_45));
-                              when st_49 == ((free_stack "smc_rec_enter" st_0 st_47));
-                              (Some st_49)))
-                          else (
-                            when st_31 == ((store_RData 8 (ptr_offset v_40 808) (v_77 |' (8192)) st_30));
-                            when v_86, st_33 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_31));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_13_low st_0 st_33 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_34 == ((load_RData 8 (ptr_offset v_40 808) st_33));
-                              when st_35 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_34));
-                              when st_37 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_35));
-                              when st_38 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_37));
-                              when v_95, st_45 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_38));
-                              when st_46 == ((ns_buffer_unmap_spec 0 st_45));
-                              when st_48 == ((atomic_granule_put_release_spec v_31 st_46));
-                              when st_50 == ((free_stack "smc_rec_enter" st_0 st_48));
-                              (Some st_50))))
-                        else (
-                          when v_73, st_24 == ((pack_return_code_spec 7 0 st_23));
-                          if (v_73 =? (0))
-                          then (
-                            when v_95, st_31 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_24));
-                            when st_32 == ((ns_buffer_unmap_spec 0 st_31));
-                            when st_34 == ((atomic_granule_put_release_spec v_31 st_32));
-                            when st_36 == ((free_stack "smc_rec_enter" st_0 st_34));
-                            (Some st_36))
-                          else (
-                            when st_32 == ((atomic_granule_put_release_spec v_31 st_24));
-                            when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                            (Some st_34))))
-                      else (
-                        when v_69, st_23 == ((pack_return_code_spec 7 0 st_22));
-                        if (v_69 =? (0))
-                        then (
-                          when v_95, st_29 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_23));
-                          when st_30 == ((ns_buffer_unmap_spec 0 st_29));
-                          when st_32 == ((atomic_granule_put_release_spec v_31 st_30));
-                          when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                          (Some st_34))
-                        else (
-                          when st_30 == ((atomic_granule_put_release_spec v_31 st_23));
-                          when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                          (Some st_32))))
-                    else (
-                      when v_63, st_21 == ((pack_return_code_spec 7 0 st_20));
-                      if (v_63 =? (0))
-                      then (
-                        when v_95, st_26 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_21));
-                        when st_27 == ((ns_buffer_unmap_spec 0 st_26));
-                        when st_29 == ((atomic_granule_put_release_spec v_31 st_27));
-                        when st_31 == ((free_stack "smc_rec_enter" st_0 st_29));
-                        (Some st_31))
-                      else (
-                        when st_27 == ((atomic_granule_put_release_spec v_31 st_21));
-                        when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                        (Some st_29)))))))
-            else (
-              when st_14 == ((atomic_granule_put_release_spec v_31 st_13));
-              when v_36, st_15 == ((pack_return_code_spec 1 2 st_14));
-              when st_16 == ((store_RData 8 (ptr_offset v_3 0) v_36 st_15));
-              when v_40, st_18 == ((granule_map_spec v_31 3 st_16));
-              when v_44_tmp, st_19 == ((load_RData 8 (ptr_offset v_40 944) st_18));
-              when v_45, st_20 == ((granule_map_spec (int_to_ptr v_44_tmp) 2 st_19));
-              when v_47, st_21 == ((get_rd_state_unlocked_spec v_45 st_20));
-              if (v_47 =? (2))
-              then (
-                when v_51, st_22 == ((pack_return_code_spec 5 1 st_21));
-                if (v_51 =? (0))
-                then (
-                  when v_95, st_24 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_22));
-                  when st_25 == ((ns_buffer_unmap_spec 0 st_24));
-                  when st_27 == ((atomic_granule_put_release_spec v_31 st_25));
-                  when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                  (Some st_29))
-                else (
-                  when st_25 == ((atomic_granule_put_release_spec v_31 st_22));
-                  when st_27 == ((free_stack "smc_rec_enter" st_0 st_25));
-                  (Some st_27)))
-              else (
-                if (v_47 =? (0))
-                then (
-                  when v_49, st_22 == ((pack_return_code_spec 5 0 st_21));
-                  if (v_49 =? (0))
-                  then (
-                    when v_95, st_25 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_22));
-                    when st_26 == ((ns_buffer_unmap_spec 0 st_25));
-                    when st_28 == ((atomic_granule_put_release_spec v_31 st_26));
-                    when st_30 == ((free_stack "smc_rec_enter" st_0 st_28));
-                    (Some st_30))
-                  else (
-                    when st_26 == ((atomic_granule_put_release_spec v_31 st_22));
-                    when st_28 == ((free_stack "smc_rec_enter" st_0 st_26));
-                    (Some st_28)))
-                else (
-                  when v_54, st_22 == ((load_RData 1 (ptr_offset v_40 16) st_21));
-                  if ((v_54 & (1)) =? (0))
-                  then (
-                    when v_57, st_23 == ((pack_return_code_spec 7 0 st_22));
-                    if (v_57 =? (0))
-                    then (
-                      when v_95, st_27 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_23));
-                      when st_28 == ((ns_buffer_unmap_spec 0 st_27));
-                      when st_30 == ((atomic_granule_put_release_spec v_31 st_28));
-                      when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                      (Some st_32))
-                    else (
-                      when st_28 == ((atomic_granule_put_release_spec v_31 st_23));
-                      when st_30 == ((free_stack "smc_rec_enter" st_0 st_28));
-                      (Some st_30)))
-                  else (
-                    when v_60, st_23 == ((load_RData 1 (ptr_offset v_40 1512) st_22));
-                    if ((v_60 & (1)) =? (0))
-                    then (
-                      when st_24 == ((copy_gic_state_from_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_entry" 0) st_23));
-                      when v_67, st_25 == ((validate_gic_state_spec (ptr_offset v_40 584) st_24));
-                      if v_67
-                      then (
-                        when v_71, st_26 == ((complete_mmio_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_25));
-                        if v_71
-                        then (
-                          when st_27 == ((complete_sysreg_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_26));
-                          when st_28 == ((complete_hvc_exit_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_27));
-                          when st_29 == ((reset_last_run_info_spec v_40 st_28));
-                          when st_30 == ((process_disposed_info_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_29));
-                          when v_77, st_31 == ((load_RData 8 (ptr_offset v_40 856) st_30));
-                          when st_32 == ((store_RData 8 (ptr_offset v_40 808) v_77 st_31));
-                          when v_81, st_33 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 216) st_32));
-                          if (v_81 =? (0))
-                          then (
-                            when v_86, st_35 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_33));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_14_low st_0 st_35 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_36 == ((load_RData 8 (ptr_offset v_40 808) st_35));
-                              when st_37 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_36));
-                              when st_39 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_37));
-                              when st_40 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_39));
-                              when v_95, st_47 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_40));
-                              when st_48 == ((ns_buffer_unmap_spec 0 st_47));
-                              when st_50 == ((atomic_granule_put_release_spec v_31 st_48));
-                              when st_52 == ((free_stack "smc_rec_enter" st_0 st_50));
-                              (Some st_52)))
-                          else (
-                            when st_34 == ((store_RData 8 (ptr_offset v_40 808) (v_77 |' (8192)) st_33));
-                            when v_86, st_36 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_34));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_15_low st_0 st_36 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_37 == ((load_RData 8 (ptr_offset v_40 808) st_36));
-                              when st_38 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_37));
-                              when st_40 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_38));
-                              when st_41 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_40));
-                              when v_95, st_48 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_41));
-                              when st_49 == ((ns_buffer_unmap_spec 0 st_48));
-                              when st_51 == ((atomic_granule_put_release_spec v_31 st_49));
-                              when st_53 == ((free_stack "smc_rec_enter" st_0 st_51));
-                              (Some st_53))))
-                        else (
-                          when v_73, st_27 == ((pack_return_code_spec 7 0 st_26));
-                          if (v_73 =? (0))
-                          then (
-                            when v_95, st_34 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_27));
-                            when st_35 == ((ns_buffer_unmap_spec 0 st_34));
-                            when st_37 == ((atomic_granule_put_release_spec v_31 st_35));
-                            when st_39 == ((free_stack "smc_rec_enter" st_0 st_37));
-                            (Some st_39))
-                          else (
-                            when st_35 == ((atomic_granule_put_release_spec v_31 st_27));
-                            when st_37 == ((free_stack "smc_rec_enter" st_0 st_35));
-                            (Some st_37))))
-                      else (
-                        when v_69, st_26 == ((pack_return_code_spec 7 0 st_25));
-                        if (v_69 =? (0))
-                        then (
-                          when v_95, st_32 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_26));
-                          when st_33 == ((ns_buffer_unmap_spec 0 st_32));
-                          when st_35 == ((atomic_granule_put_release_spec v_31 st_33));
-                          when st_37 == ((free_stack "smc_rec_enter" st_0 st_35));
-                          (Some st_37))
-                        else (
-                          when st_33 == ((atomic_granule_put_release_spec v_31 st_26));
-                          when st_35 == ((free_stack "smc_rec_enter" st_0 st_33));
-                          (Some st_35))))
-                    else (
-                      when v_63, st_24 == ((pack_return_code_spec 7 0 st_23));
-                      if (v_63 =? (0))
-                      then (
-                        when v_95, st_29 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_24));
-                        when st_30 == ((ns_buffer_unmap_spec 0 st_29));
-                        when st_32 == ((atomic_granule_put_release_spec v_31 st_30));
-                        when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                        (Some st_34))
-                      else (
-                        when st_30 == ((atomic_granule_put_release_spec v_31 st_24));
-                        when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                        (Some st_32))))))))))
-      else (
-        when v_19, st_3 == ((validate_ns_struct_spec v_2 304 st_1));
-        if (ptr_eqb v_19 (mkPtr "null" 0))
-        then (
-          when v_21, st_4 == ((pack_return_code_spec 1 3 st_3));
-          when st_5 == ((store_RData 8 (ptr_offset v_3 0) v_21 st_4));
-          when v_25, st_7 == ((ranges_intersect_spec v_1 232 v_2 304 st_5));
-          if v_25
-          then (
-            when v_27, st_8 == ((pack_return_code_spec 3 0 st_7));
-            when st_9 == ((store_RData 8 (ptr_offset v_3 0) v_27 st_8));
-            when v_31, st_11 == ((find_lock_unused_granule_spec v_0 3 st_9));
-            when st_12 == ((atomic_granule_get_spec v_31 st_11));
-            when st_13 == ((granule_unlock_spec v_31 st_12));
-            when v_34, st_14 == ((ns_buffer_read_spec 0 v_1 232 (mkPtr "stack_s_rec_entry" 0) st_13));
-            when st_15 == ((ns_buffer_unmap_spec 0 st_14));
-            if v_34
-            then (
-              when v_40, st_17 == ((granule_map_spec v_31 3 st_15));
-              when v_44_tmp, st_18 == ((load_RData 8 (ptr_offset v_40 944) st_17));
-              when v_45, st_19 == ((granule_map_spec (int_to_ptr v_44_tmp) 2 st_18));
-              when v_47, st_20 == ((get_rd_state_unlocked_spec v_45 st_19));
-              if (v_47 =? (2))
-              then (
-                when v_51, st_21 == ((pack_return_code_spec 5 1 st_20));
-                if (v_51 =? (0))
-                then (
-                  when v_95, st_23 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_21));
-                  when st_24 == ((ns_buffer_unmap_spec 0 st_23));
-                  when st_26 == ((atomic_granule_put_release_spec v_31 st_24));
-                  when st_28 == ((free_stack "smc_rec_enter" st_0 st_26));
-                  (Some st_28))
-                else (
-                  when st_24 == ((atomic_granule_put_release_spec v_31 st_21));
-                  when st_26 == ((free_stack "smc_rec_enter" st_0 st_24));
-                  (Some st_26)))
-              else (
-                if (v_47 =? (0))
-                then (
-                  when v_49, st_21 == ((pack_return_code_spec 5 0 st_20));
-                  if (v_49 =? (0))
-                  then (
-                    when v_95, st_24 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_21));
-                    when st_25 == ((ns_buffer_unmap_spec 0 st_24));
-                    when st_27 == ((atomic_granule_put_release_spec v_31 st_25));
-                    when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                    (Some st_29))
-                  else (
-                    when st_25 == ((atomic_granule_put_release_spec v_31 st_21));
-                    when st_27 == ((free_stack "smc_rec_enter" st_0 st_25));
-                    (Some st_27)))
-                else (
-                  when v_54, st_21 == ((load_RData 1 (ptr_offset v_40 16) st_20));
-                  if ((v_54 & (1)) =? (0))
-                  then (
-                    when v_57, st_22 == ((pack_return_code_spec 7 0 st_21));
-                    if (v_57 =? (0))
-                    then (
-                      when v_95, st_26 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_22));
-                      when st_27 == ((ns_buffer_unmap_spec 0 st_26));
-                      when st_29 == ((atomic_granule_put_release_spec v_31 st_27));
-                      when st_31 == ((free_stack "smc_rec_enter" st_0 st_29));
-                      (Some st_31))
-                    else (
-                      when st_27 == ((atomic_granule_put_release_spec v_31 st_22));
-                      when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                      (Some st_29)))
-                  else (
-                    when v_60, st_22 == ((load_RData 1 (ptr_offset v_40 1512) st_21));
-                    if ((v_60 & (1)) =? (0))
-                    then (
-                      when st_23 == ((copy_gic_state_from_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_entry" 0) st_22));
-                      when v_67, st_24 == ((validate_gic_state_spec (ptr_offset v_40 584) st_23));
-                      if v_67
-                      then (
-                        when v_71, st_25 == ((complete_mmio_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_24));
-                        if v_71
-                        then (
-                          when st_26 == ((complete_sysreg_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_25));
-                          when st_27 == ((complete_hvc_exit_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_26));
-                          when st_28 == ((reset_last_run_info_spec v_40 st_27));
-                          when st_29 == ((process_disposed_info_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_28));
-                          when v_77, st_30 == ((load_RData 8 (ptr_offset v_40 856) st_29));
-                          when st_31 == ((store_RData 8 (ptr_offset v_40 808) v_77 st_30));
-                          when v_81, st_32 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 216) st_31));
-                          if (v_81 =? (0))
-                          then (
-                            when v_86, st_34 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_32));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_16_low st_0 st_34 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_35 == ((load_RData 8 (ptr_offset v_40 808) st_34));
-                              when st_36 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_35));
-                              when st_38 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_36));
-                              when st_39 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_38));
-                              when v_95, st_46 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_39));
-                              when st_47 == ((ns_buffer_unmap_spec 0 st_46));
-                              when st_49 == ((atomic_granule_put_release_spec v_31 st_47));
-                              when st_51 == ((free_stack "smc_rec_enter" st_0 st_49));
-                              (Some st_51)))
-                          else (
-                            when st_33 == ((store_RData 8 (ptr_offset v_40 808) (v_77 |' (8192)) st_32));
-                            when v_86, st_35 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_33));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_17_low st_0 st_35 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_36 == ((load_RData 8 (ptr_offset v_40 808) st_35));
-                              when st_37 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_36));
-                              when st_39 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_37));
-                              when st_40 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_39));
-                              when v_95, st_47 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_40));
-                              when st_48 == ((ns_buffer_unmap_spec 0 st_47));
-                              when st_50 == ((atomic_granule_put_release_spec v_31 st_48));
-                              when st_52 == ((free_stack "smc_rec_enter" st_0 st_50));
-                              (Some st_52))))
-                        else (
-                          when v_73, st_26 == ((pack_return_code_spec 7 0 st_25));
-                          if (v_73 =? (0))
-                          then (
-                            when v_95, st_33 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_26));
-                            when st_34 == ((ns_buffer_unmap_spec 0 st_33));
-                            when st_36 == ((atomic_granule_put_release_spec v_31 st_34));
-                            when st_38 == ((free_stack "smc_rec_enter" st_0 st_36));
-                            (Some st_38))
-                          else (
-                            when st_34 == ((atomic_granule_put_release_spec v_31 st_26));
-                            when st_36 == ((free_stack "smc_rec_enter" st_0 st_34));
-                            (Some st_36))))
-                      else (
-                        when v_69, st_25 == ((pack_return_code_spec 7 0 st_24));
-                        if (v_69 =? (0))
-                        then (
-                          when v_95, st_31 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_25));
-                          when st_32 == ((ns_buffer_unmap_spec 0 st_31));
-                          when st_34 == ((atomic_granule_put_release_spec v_31 st_32));
-                          when st_36 == ((free_stack "smc_rec_enter" st_0 st_34));
-                          (Some st_36))
-                        else (
-                          when st_32 == ((atomic_granule_put_release_spec v_31 st_25));
-                          when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                          (Some st_34))))
-                    else (
-                      when v_63, st_23 == ((pack_return_code_spec 7 0 st_22));
-                      if (v_63 =? (0))
-                      then (
-                        when v_95, st_28 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_23));
-                        when st_29 == ((ns_buffer_unmap_spec 0 st_28));
-                        when st_31 == ((atomic_granule_put_release_spec v_31 st_29));
-                        when st_33 == ((free_stack "smc_rec_enter" st_0 st_31));
-                        (Some st_33))
-                      else (
-                        when st_29 == ((atomic_granule_put_release_spec v_31 st_23));
-                        when st_31 == ((free_stack "smc_rec_enter" st_0 st_29));
-                        (Some st_31)))))))
-            else (
-              when st_16 == ((atomic_granule_put_release_spec v_31 st_15));
-              when v_36, st_17 == ((pack_return_code_spec 1 2 st_16));
-              when st_18 == ((store_RData 8 (ptr_offset v_3 0) v_36 st_17));
-              when v_40, st_20 == ((granule_map_spec v_31 3 st_18));
-              when v_44_tmp, st_21 == ((load_RData 8 (ptr_offset v_40 944) st_20));
-              when v_45, st_22 == ((granule_map_spec (int_to_ptr v_44_tmp) 2 st_21));
-              when v_47, st_23 == ((get_rd_state_unlocked_spec v_45 st_22));
-              if (v_47 =? (2))
-              then (
-                when v_51, st_24 == ((pack_return_code_spec 5 1 st_23));
-                if (v_51 =? (0))
-                then (
-                  when v_95, st_26 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_24));
-                  when st_27 == ((ns_buffer_unmap_spec 0 st_26));
-                  when st_29 == ((atomic_granule_put_release_spec v_31 st_27));
-                  when st_31 == ((free_stack "smc_rec_enter" st_0 st_29));
-                  (Some st_31))
-                else (
-                  when st_27 == ((atomic_granule_put_release_spec v_31 st_24));
-                  when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                  (Some st_29)))
-              else (
-                if (v_47 =? (0))
-                then (
-                  when v_49, st_24 == ((pack_return_code_spec 5 0 st_23));
-                  if (v_49 =? (0))
-                  then (
-                    when v_95, st_27 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_24));
-                    when st_28 == ((ns_buffer_unmap_spec 0 st_27));
-                    when st_30 == ((atomic_granule_put_release_spec v_31 st_28));
-                    when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                    (Some st_32))
-                  else (
-                    when st_28 == ((atomic_granule_put_release_spec v_31 st_24));
-                    when st_30 == ((free_stack "smc_rec_enter" st_0 st_28));
-                    (Some st_30)))
-                else (
-                  when v_54, st_24 == ((load_RData 1 (ptr_offset v_40 16) st_23));
-                  if ((v_54 & (1)) =? (0))
-                  then (
-                    when v_57, st_25 == ((pack_return_code_spec 7 0 st_24));
-                    if (v_57 =? (0))
-                    then (
-                      when v_95, st_29 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_25));
-                      when st_30 == ((ns_buffer_unmap_spec 0 st_29));
-                      when st_32 == ((atomic_granule_put_release_spec v_31 st_30));
-                      when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                      (Some st_34))
-                    else (
-                      when st_30 == ((atomic_granule_put_release_spec v_31 st_25));
-                      when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                      (Some st_32)))
-                  else (
-                    when v_60, st_25 == ((load_RData 1 (ptr_offset v_40 1512) st_24));
-                    if ((v_60 & (1)) =? (0))
-                    then (
-                      when st_26 == ((copy_gic_state_from_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_entry" 0) st_25));
-                      when v_67, st_27 == ((validate_gic_state_spec (ptr_offset v_40 584) st_26));
-                      if v_67
-                      then (
-                        when v_71, st_28 == ((complete_mmio_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_27));
-                        if v_71
-                        then (
-                          when st_29 == ((complete_sysreg_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_28));
-                          when st_30 == ((complete_hvc_exit_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_29));
-                          when st_31 == ((reset_last_run_info_spec v_40 st_30));
-                          when st_32 == ((process_disposed_info_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_31));
-                          when v_77, st_33 == ((load_RData 8 (ptr_offset v_40 856) st_32));
-                          when st_34 == ((store_RData 8 (ptr_offset v_40 808) v_77 st_33));
-                          when v_81, st_35 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 216) st_34));
-                          if (v_81 =? (0))
-                          then (
-                            when v_86, st_37 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_35));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_18_low st_0 st_37 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_38 == ((load_RData 8 (ptr_offset v_40 808) st_37));
-                              when st_39 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_38));
-                              when st_41 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_39));
-                              when st_42 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_41));
-                              when v_95, st_49 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_42));
-                              when st_50 == ((ns_buffer_unmap_spec 0 st_49));
-                              when st_52 == ((atomic_granule_put_release_spec v_31 st_50));
-                              when st_54 == ((free_stack "smc_rec_enter" st_0 st_52));
-                              (Some st_54)))
-                          else (
-                            when st_36 == ((store_RData 8 (ptr_offset v_40 808) (v_77 |' (8192)) st_35));
-                            when v_86, st_38 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_36));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_19_low st_0 st_38 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_39 == ((load_RData 8 (ptr_offset v_40 808) st_38));
-                              when st_40 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_39));
-                              when st_42 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_40));
-                              when st_43 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_42));
-                              when v_95, st_50 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_43));
-                              when st_51 == ((ns_buffer_unmap_spec 0 st_50));
-                              when st_53 == ((atomic_granule_put_release_spec v_31 st_51));
-                              when st_55 == ((free_stack "smc_rec_enter" st_0 st_53));
-                              (Some st_55))))
-                        else (
-                          when v_73, st_29 == ((pack_return_code_spec 7 0 st_28));
-                          if (v_73 =? (0))
-                          then (
-                            when v_95, st_36 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_29));
-                            when st_37 == ((ns_buffer_unmap_spec 0 st_36));
-                            when st_39 == ((atomic_granule_put_release_spec v_31 st_37));
-                            when st_41 == ((free_stack "smc_rec_enter" st_0 st_39));
-                            (Some st_41))
-                          else (
-                            when st_37 == ((atomic_granule_put_release_spec v_31 st_29));
-                            when st_39 == ((free_stack "smc_rec_enter" st_0 st_37));
-                            (Some st_39))))
-                      else (
-                        when v_69, st_28 == ((pack_return_code_spec 7 0 st_27));
-                        if (v_69 =? (0))
-                        then (
-                          when v_95, st_34 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_28));
-                          when st_35 == ((ns_buffer_unmap_spec 0 st_34));
-                          when st_37 == ((atomic_granule_put_release_spec v_31 st_35));
-                          when st_39 == ((free_stack "smc_rec_enter" st_0 st_37));
-                          (Some st_39))
-                        else (
-                          when st_35 == ((atomic_granule_put_release_spec v_31 st_28));
-                          when st_37 == ((free_stack "smc_rec_enter" st_0 st_35));
-                          (Some st_37))))
-                    else (
-                      when v_63, st_26 == ((pack_return_code_spec 7 0 st_25));
-                      if (v_63 =? (0))
-                      then (
-                        when v_95, st_31 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_26));
-                        when st_32 == ((ns_buffer_unmap_spec 0 st_31));
-                        when st_34 == ((atomic_granule_put_release_spec v_31 st_32));
-                        when st_36 == ((free_stack "smc_rec_enter" st_0 st_34));
-                        (Some st_36))
-                      else (
-                        when st_32 == ((atomic_granule_put_release_spec v_31 st_26));
-                        when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                        (Some st_34))))))))
-          else (
-            when v_31, st_9 == ((find_lock_unused_granule_spec v_0 3 st_7));
-            when st_10 == ((atomic_granule_get_spec v_31 st_9));
-            when st_11 == ((granule_unlock_spec v_31 st_10));
-            when v_34, st_12 == ((ns_buffer_read_spec 0 v_1 232 (mkPtr "stack_s_rec_entry" 0) st_11));
-            when st_13 == ((ns_buffer_unmap_spec 0 st_12));
-            if v_34
-            then (
-              when v_40, st_15 == ((granule_map_spec v_31 3 st_13));
-              when v_44_tmp, st_16 == ((load_RData 8 (ptr_offset v_40 944) st_15));
-              when v_45, st_17 == ((granule_map_spec (int_to_ptr v_44_tmp) 2 st_16));
-              when v_47, st_18 == ((get_rd_state_unlocked_spec v_45 st_17));
-              if (v_47 =? (2))
-              then (
-                when v_51, st_19 == ((pack_return_code_spec 5 1 st_18));
-                if (v_51 =? (0))
-                then (
-                  when v_95, st_21 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_19));
-                  when st_22 == ((ns_buffer_unmap_spec 0 st_21));
-                  when st_24 == ((atomic_granule_put_release_spec v_31 st_22));
-                  when st_26 == ((free_stack "smc_rec_enter" st_0 st_24));
-                  (Some st_26))
-                else (
-                  when st_22 == ((atomic_granule_put_release_spec v_31 st_19));
-                  when st_24 == ((free_stack "smc_rec_enter" st_0 st_22));
-                  (Some st_24)))
-              else (
-                if (v_47 =? (0))
-                then (
-                  when v_49, st_19 == ((pack_return_code_spec 5 0 st_18));
-                  if (v_49 =? (0))
-                  then (
-                    when v_95, st_22 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_19));
-                    when st_23 == ((ns_buffer_unmap_spec 0 st_22));
-                    when st_25 == ((atomic_granule_put_release_spec v_31 st_23));
-                    when st_27 == ((free_stack "smc_rec_enter" st_0 st_25));
-                    (Some st_27))
-                  else (
-                    when st_23 == ((atomic_granule_put_release_spec v_31 st_19));
-                    when st_25 == ((free_stack "smc_rec_enter" st_0 st_23));
-                    (Some st_25)))
-                else (
-                  when v_54, st_19 == ((load_RData 1 (ptr_offset v_40 16) st_18));
-                  if ((v_54 & (1)) =? (0))
-                  then (
-                    when v_57, st_20 == ((pack_return_code_spec 7 0 st_19));
-                    if (v_57 =? (0))
-                    then (
-                      when v_95, st_24 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_20));
-                      when st_25 == ((ns_buffer_unmap_spec 0 st_24));
-                      when st_27 == ((atomic_granule_put_release_spec v_31 st_25));
-                      when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                      (Some st_29))
-                    else (
-                      when st_25 == ((atomic_granule_put_release_spec v_31 st_20));
-                      when st_27 == ((free_stack "smc_rec_enter" st_0 st_25));
-                      (Some st_27)))
-                  else (
-                    when v_60, st_20 == ((load_RData 1 (ptr_offset v_40 1512) st_19));
-                    if ((v_60 & (1)) =? (0))
-                    then (
-                      when st_21 == ((copy_gic_state_from_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_entry" 0) st_20));
-                      when v_67, st_22 == ((validate_gic_state_spec (ptr_offset v_40 584) st_21));
-                      if v_67
-                      then (
-                        when v_71, st_23 == ((complete_mmio_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_22));
-                        if v_71
-                        then (
-                          when st_24 == ((complete_sysreg_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_23));
-                          when st_25 == ((complete_hvc_exit_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_24));
-                          when st_26 == ((reset_last_run_info_spec v_40 st_25));
-                          when st_27 == ((process_disposed_info_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_26));
-                          when v_77, st_28 == ((load_RData 8 (ptr_offset v_40 856) st_27));
-                          when st_29 == ((store_RData 8 (ptr_offset v_40 808) v_77 st_28));
-                          when v_81, st_30 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 216) st_29));
-                          if (v_81 =? (0))
-                          then (
-                            when v_86, st_32 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_30));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_20_low st_0 st_32 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_33 == ((load_RData 8 (ptr_offset v_40 808) st_32));
-                              when st_34 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_33));
-                              when st_36 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_34));
-                              when st_37 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_36));
-                              when v_95, st_44 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_37));
-                              when st_45 == ((ns_buffer_unmap_spec 0 st_44));
-                              when st_47 == ((atomic_granule_put_release_spec v_31 st_45));
-                              when st_49 == ((free_stack "smc_rec_enter" st_0 st_47));
-                              (Some st_49)))
-                          else (
-                            when st_31 == ((store_RData 8 (ptr_offset v_40 808) (v_77 |' (8192)) st_30));
-                            when v_86, st_33 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_31));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_21_low st_0 st_33 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_34 == ((load_RData 8 (ptr_offset v_40 808) st_33));
-                              when st_35 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_34));
-                              when st_37 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_35));
-                              when st_38 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_37));
-                              when v_95, st_45 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_38));
-                              when st_46 == ((ns_buffer_unmap_spec 0 st_45));
-                              when st_48 == ((atomic_granule_put_release_spec v_31 st_46));
-                              when st_50 == ((free_stack "smc_rec_enter" st_0 st_48));
-                              (Some st_50))))
-                        else (
-                          when v_73, st_24 == ((pack_return_code_spec 7 0 st_23));
-                          if (v_73 =? (0))
-                          then (
-                            when v_95, st_31 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_24));
-                            when st_32 == ((ns_buffer_unmap_spec 0 st_31));
-                            when st_34 == ((atomic_granule_put_release_spec v_31 st_32));
-                            when st_36 == ((free_stack "smc_rec_enter" st_0 st_34));
-                            (Some st_36))
-                          else (
-                            when st_32 == ((atomic_granule_put_release_spec v_31 st_24));
-                            when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                            (Some st_34))))
-                      else (
-                        when v_69, st_23 == ((pack_return_code_spec 7 0 st_22));
-                        if (v_69 =? (0))
-                        then (
-                          when v_95, st_29 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_23));
-                          when st_30 == ((ns_buffer_unmap_spec 0 st_29));
-                          when st_32 == ((atomic_granule_put_release_spec v_31 st_30));
-                          when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                          (Some st_34))
-                        else (
-                          when st_30 == ((atomic_granule_put_release_spec v_31 st_23));
-                          when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                          (Some st_32))))
-                    else (
-                      when v_63, st_21 == ((pack_return_code_spec 7 0 st_20));
-                      if (v_63 =? (0))
-                      then (
-                        when v_95, st_26 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_21));
-                        when st_27 == ((ns_buffer_unmap_spec 0 st_26));
-                        when st_29 == ((atomic_granule_put_release_spec v_31 st_27));
-                        when st_31 == ((free_stack "smc_rec_enter" st_0 st_29));
-                        (Some st_31))
-                      else (
-                        when st_27 == ((atomic_granule_put_release_spec v_31 st_21));
-                        when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                        (Some st_29)))))))
-            else (
-              when st_14 == ((atomic_granule_put_release_spec v_31 st_13));
-              when v_36, st_15 == ((pack_return_code_spec 1 2 st_14));
-              when st_16 == ((store_RData 8 (ptr_offset v_3 0) v_36 st_15));
-              when v_40, st_18 == ((granule_map_spec v_31 3 st_16));
-              when v_44_tmp, st_19 == ((load_RData 8 (ptr_offset v_40 944) st_18));
-              when v_45, st_20 == ((granule_map_spec (int_to_ptr v_44_tmp) 2 st_19));
-              when v_47, st_21 == ((get_rd_state_unlocked_spec v_45 st_20));
-              if (v_47 =? (2))
-              then (
-                when v_51, st_22 == ((pack_return_code_spec 5 1 st_21));
-                if (v_51 =? (0))
-                then (
-                  when v_95, st_24 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_22));
-                  when st_25 == ((ns_buffer_unmap_spec 0 st_24));
-                  when st_27 == ((atomic_granule_put_release_spec v_31 st_25));
-                  when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                  (Some st_29))
-                else (
-                  when st_25 == ((atomic_granule_put_release_spec v_31 st_22));
-                  when st_27 == ((free_stack "smc_rec_enter" st_0 st_25));
-                  (Some st_27)))
-              else (
-                if (v_47 =? (0))
-                then (
-                  when v_49, st_22 == ((pack_return_code_spec 5 0 st_21));
-                  if (v_49 =? (0))
-                  then (
-                    when v_95, st_25 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_22));
-                    when st_26 == ((ns_buffer_unmap_spec 0 st_25));
-                    when st_28 == ((atomic_granule_put_release_spec v_31 st_26));
-                    when st_30 == ((free_stack "smc_rec_enter" st_0 st_28));
-                    (Some st_30))
-                  else (
-                    when st_26 == ((atomic_granule_put_release_spec v_31 st_22));
-                    when st_28 == ((free_stack "smc_rec_enter" st_0 st_26));
-                    (Some st_28)))
-                else (
-                  when v_54, st_22 == ((load_RData 1 (ptr_offset v_40 16) st_21));
-                  if ((v_54 & (1)) =? (0))
-                  then (
-                    when v_57, st_23 == ((pack_return_code_spec 7 0 st_22));
-                    if (v_57 =? (0))
-                    then (
-                      when v_95, st_27 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_23));
-                      when st_28 == ((ns_buffer_unmap_spec 0 st_27));
-                      when st_30 == ((atomic_granule_put_release_spec v_31 st_28));
-                      when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                      (Some st_32))
-                    else (
-                      when st_28 == ((atomic_granule_put_release_spec v_31 st_23));
-                      when st_30 == ((free_stack "smc_rec_enter" st_0 st_28));
-                      (Some st_30)))
-                  else (
-                    when v_60, st_23 == ((load_RData 1 (ptr_offset v_40 1512) st_22));
-                    if ((v_60 & (1)) =? (0))
-                    then (
-                      when st_24 == ((copy_gic_state_from_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_entry" 0) st_23));
-                      when v_67, st_25 == ((validate_gic_state_spec (ptr_offset v_40 584) st_24));
-                      if v_67
-                      then (
-                        when v_71, st_26 == ((complete_mmio_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_25));
-                        if v_71
-                        then (
-                          when st_27 == ((complete_sysreg_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_26));
-                          when st_28 == ((complete_hvc_exit_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_27));
-                          when st_29 == ((reset_last_run_info_spec v_40 st_28));
-                          when st_30 == ((process_disposed_info_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_29));
-                          when v_77, st_31 == ((load_RData 8 (ptr_offset v_40 856) st_30));
-                          when st_32 == ((store_RData 8 (ptr_offset v_40 808) v_77 st_31));
-                          when v_81, st_33 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 216) st_32));
-                          if (v_81 =? (0))
-                          then (
-                            when v_86, st_35 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_33));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_22_low st_0 st_35 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_36 == ((load_RData 8 (ptr_offset v_40 808) st_35));
-                              when st_37 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_36));
-                              when st_39 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_37));
-                              when st_40 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_39));
-                              when v_95, st_47 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_40));
-                              when st_48 == ((ns_buffer_unmap_spec 0 st_47));
-                              when st_50 == ((atomic_granule_put_release_spec v_31 st_48));
-                              when st_52 == ((free_stack "smc_rec_enter" st_0 st_50));
-                              (Some st_52)))
-                          else (
-                            when st_34 == ((store_RData 8 (ptr_offset v_40 808) (v_77 |' (8192)) st_33));
-                            when v_86, st_36 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_34));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_23_low st_0 st_36 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_37 == ((load_RData 8 (ptr_offset v_40 808) st_36));
-                              when st_38 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_37));
-                              when st_40 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_38));
-                              when st_41 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_40));
-                              when v_95, st_48 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_41));
-                              when st_49 == ((ns_buffer_unmap_spec 0 st_48));
-                              when st_51 == ((atomic_granule_put_release_spec v_31 st_49));
-                              when st_53 == ((free_stack "smc_rec_enter" st_0 st_51));
-                              (Some st_53))))
-                        else (
-                          when v_73, st_27 == ((pack_return_code_spec 7 0 st_26));
-                          if (v_73 =? (0))
-                          then (
-                            when v_95, st_34 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_27));
-                            when st_35 == ((ns_buffer_unmap_spec 0 st_34));
-                            when st_37 == ((atomic_granule_put_release_spec v_31 st_35));
-                            when st_39 == ((free_stack "smc_rec_enter" st_0 st_37));
-                            (Some st_39))
-                          else (
-                            when st_35 == ((atomic_granule_put_release_spec v_31 st_27));
-                            when st_37 == ((free_stack "smc_rec_enter" st_0 st_35));
-                            (Some st_37))))
-                      else (
-                        when v_69, st_26 == ((pack_return_code_spec 7 0 st_25));
-                        if (v_69 =? (0))
-                        then (
-                          when v_95, st_32 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_26));
-                          when st_33 == ((ns_buffer_unmap_spec 0 st_32));
-                          when st_35 == ((atomic_granule_put_release_spec v_31 st_33));
-                          when st_37 == ((free_stack "smc_rec_enter" st_0 st_35));
-                          (Some st_37))
-                        else (
-                          when st_33 == ((atomic_granule_put_release_spec v_31 st_26));
-                          when st_35 == ((free_stack "smc_rec_enter" st_0 st_33));
-                          (Some st_35))))
-                    else (
-                      when v_63, st_24 == ((pack_return_code_spec 7 0 st_23));
-                      if (v_63 =? (0))
-                      then (
-                        when v_95, st_29 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_24));
-                        when st_30 == ((ns_buffer_unmap_spec 0 st_29));
-                        when st_32 == ((atomic_granule_put_release_spec v_31 st_30));
-                        when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                        (Some st_34))
-                      else (
-                        when st_30 == ((atomic_granule_put_release_spec v_31 st_24));
-                        when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                        (Some st_32)))))))))
-        else (
-          when v_25, st_5 == ((ranges_intersect_spec v_1 232 v_2 304 st_3));
-          if v_25
-          then (
-            when v_27, st_6 == ((pack_return_code_spec 3 0 st_5));
-            when st_7 == ((store_RData 8 (ptr_offset v_3 0) v_27 st_6));
-            when v_31, st_9 == ((find_lock_unused_granule_spec v_0 3 st_7));
-            when st_10 == ((atomic_granule_get_spec v_31 st_9));
-            when st_11 == ((granule_unlock_spec v_31 st_10));
-            when v_34, st_12 == ((ns_buffer_read_spec 0 v_1 232 (mkPtr "stack_s_rec_entry" 0) st_11));
-            when st_13 == ((ns_buffer_unmap_spec 0 st_12));
-            if v_34
-            then (
-              when v_40, st_15 == ((granule_map_spec v_31 3 st_13));
-              when v_44_tmp, st_16 == ((load_RData 8 (ptr_offset v_40 944) st_15));
-              when v_45, st_17 == ((granule_map_spec (int_to_ptr v_44_tmp) 2 st_16));
-              when v_47, st_18 == ((get_rd_state_unlocked_spec v_45 st_17));
-              if (v_47 =? (2))
-              then (
-                when v_51, st_19 == ((pack_return_code_spec 5 1 st_18));
-                if (v_51 =? (0))
-                then (
-                  when v_95, st_21 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_19));
-                  when st_22 == ((ns_buffer_unmap_spec 0 st_21));
-                  when st_24 == ((atomic_granule_put_release_spec v_31 st_22));
-                  when st_26 == ((free_stack "smc_rec_enter" st_0 st_24));
-                  (Some st_26))
-                else (
-                  when st_22 == ((atomic_granule_put_release_spec v_31 st_19));
-                  when st_24 == ((free_stack "smc_rec_enter" st_0 st_22));
-                  (Some st_24)))
-              else (
-                if (v_47 =? (0))
-                then (
-                  when v_49, st_19 == ((pack_return_code_spec 5 0 st_18));
-                  if (v_49 =? (0))
-                  then (
-                    when v_95, st_22 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_19));
-                    when st_23 == ((ns_buffer_unmap_spec 0 st_22));
-                    when st_25 == ((atomic_granule_put_release_spec v_31 st_23));
-                    when st_27 == ((free_stack "smc_rec_enter" st_0 st_25));
-                    (Some st_27))
-                  else (
-                    when st_23 == ((atomic_granule_put_release_spec v_31 st_19));
-                    when st_25 == ((free_stack "smc_rec_enter" st_0 st_23));
-                    (Some st_25)))
-                else (
-                  when v_54, st_19 == ((load_RData 1 (ptr_offset v_40 16) st_18));
-                  if ((v_54 & (1)) =? (0))
-                  then (
-                    when v_57, st_20 == ((pack_return_code_spec 7 0 st_19));
-                    if (v_57 =? (0))
-                    then (
-                      when v_95, st_24 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_20));
-                      when st_25 == ((ns_buffer_unmap_spec 0 st_24));
-                      when st_27 == ((atomic_granule_put_release_spec v_31 st_25));
-                      when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                      (Some st_29))
-                    else (
-                      when st_25 == ((atomic_granule_put_release_spec v_31 st_20));
-                      when st_27 == ((free_stack "smc_rec_enter" st_0 st_25));
-                      (Some st_27)))
-                  else (
-                    when v_60, st_20 == ((load_RData 1 (ptr_offset v_40 1512) st_19));
-                    if ((v_60 & (1)) =? (0))
-                    then (
-                      when st_21 == ((copy_gic_state_from_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_entry" 0) st_20));
-                      when v_67, st_22 == ((validate_gic_state_spec (ptr_offset v_40 584) st_21));
-                      if v_67
-                      then (
-                        when v_71, st_23 == ((complete_mmio_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_22));
-                        if v_71
-                        then (
-                          when st_24 == ((complete_sysreg_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_23));
-                          when st_25 == ((complete_hvc_exit_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_24));
-                          when st_26 == ((reset_last_run_info_spec v_40 st_25));
-                          when st_27 == ((process_disposed_info_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_26));
-                          when v_77, st_28 == ((load_RData 8 (ptr_offset v_40 856) st_27));
-                          when st_29 == ((store_RData 8 (ptr_offset v_40 808) v_77 st_28));
-                          when v_81, st_30 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 216) st_29));
-                          if (v_81 =? (0))
-                          then (
-                            when v_86, st_32 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_30));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_24_low st_0 st_32 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_33 == ((load_RData 8 (ptr_offset v_40 808) st_32));
-                              when st_34 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_33));
-                              when st_36 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_34));
-                              when st_37 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_36));
-                              when v_95, st_44 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_37));
-                              when st_45 == ((ns_buffer_unmap_spec 0 st_44));
-                              when st_47 == ((atomic_granule_put_release_spec v_31 st_45));
-                              when st_49 == ((free_stack "smc_rec_enter" st_0 st_47));
-                              (Some st_49)))
-                          else (
-                            when st_31 == ((store_RData 8 (ptr_offset v_40 808) (v_77 |' (8192)) st_30));
-                            when v_86, st_33 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_31));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_25_low st_0 st_33 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_34 == ((load_RData 8 (ptr_offset v_40 808) st_33));
-                              when st_35 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_34));
-                              when st_37 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_35));
-                              when st_38 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_37));
-                              when v_95, st_45 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_38));
-                              when st_46 == ((ns_buffer_unmap_spec 0 st_45));
-                              when st_48 == ((atomic_granule_put_release_spec v_31 st_46));
-                              when st_50 == ((free_stack "smc_rec_enter" st_0 st_48));
-                              (Some st_50))))
-                        else (
-                          when v_73, st_24 == ((pack_return_code_spec 7 0 st_23));
-                          if (v_73 =? (0))
-                          then (
-                            when v_95, st_31 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_24));
-                            when st_32 == ((ns_buffer_unmap_spec 0 st_31));
-                            when st_34 == ((atomic_granule_put_release_spec v_31 st_32));
-                            when st_36 == ((free_stack "smc_rec_enter" st_0 st_34));
-                            (Some st_36))
-                          else (
-                            when st_32 == ((atomic_granule_put_release_spec v_31 st_24));
-                            when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                            (Some st_34))))
-                      else (
-                        when v_69, st_23 == ((pack_return_code_spec 7 0 st_22));
-                        if (v_69 =? (0))
-                        then (
-                          when v_95, st_29 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_23));
-                          when st_30 == ((ns_buffer_unmap_spec 0 st_29));
-                          when st_32 == ((atomic_granule_put_release_spec v_31 st_30));
-                          when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                          (Some st_34))
-                        else (
-                          when st_30 == ((atomic_granule_put_release_spec v_31 st_23));
-                          when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                          (Some st_32))))
-                    else (
-                      when v_63, st_21 == ((pack_return_code_spec 7 0 st_20));
-                      if (v_63 =? (0))
-                      then (
-                        when v_95, st_26 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_21));
-                        when st_27 == ((ns_buffer_unmap_spec 0 st_26));
-                        when st_29 == ((atomic_granule_put_release_spec v_31 st_27));
-                        when st_31 == ((free_stack "smc_rec_enter" st_0 st_29));
-                        (Some st_31))
-                      else (
-                        when st_27 == ((atomic_granule_put_release_spec v_31 st_21));
-                        when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                        (Some st_29)))))))
-            else (
-              when st_14 == ((atomic_granule_put_release_spec v_31 st_13));
-              when v_36, st_15 == ((pack_return_code_spec 1 2 st_14));
-              when st_16 == ((store_RData 8 (ptr_offset v_3 0) v_36 st_15));
-              when v_40, st_18 == ((granule_map_spec v_31 3 st_16));
-              when v_44_tmp, st_19 == ((load_RData 8 (ptr_offset v_40 944) st_18));
-              when v_45, st_20 == ((granule_map_spec (int_to_ptr v_44_tmp) 2 st_19));
-              when v_47, st_21 == ((get_rd_state_unlocked_spec v_45 st_20));
-              if (v_47 =? (2))
-              then (
-                when v_51, st_22 == ((pack_return_code_spec 5 1 st_21));
-                if (v_51 =? (0))
-                then (
-                  when v_95, st_24 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_22));
-                  when st_25 == ((ns_buffer_unmap_spec 0 st_24));
-                  when st_27 == ((atomic_granule_put_release_spec v_31 st_25));
-                  when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                  (Some st_29))
-                else (
-                  when st_25 == ((atomic_granule_put_release_spec v_31 st_22));
-                  when st_27 == ((free_stack "smc_rec_enter" st_0 st_25));
-                  (Some st_27)))
-              else (
-                if (v_47 =? (0))
-                then (
-                  when v_49, st_22 == ((pack_return_code_spec 5 0 st_21));
-                  if (v_49 =? (0))
-                  then (
-                    when v_95, st_25 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_22));
-                    when st_26 == ((ns_buffer_unmap_spec 0 st_25));
-                    when st_28 == ((atomic_granule_put_release_spec v_31 st_26));
-                    when st_30 == ((free_stack "smc_rec_enter" st_0 st_28));
-                    (Some st_30))
-                  else (
-                    when st_26 == ((atomic_granule_put_release_spec v_31 st_22));
-                    when st_28 == ((free_stack "smc_rec_enter" st_0 st_26));
-                    (Some st_28)))
-                else (
-                  when v_54, st_22 == ((load_RData 1 (ptr_offset v_40 16) st_21));
-                  if ((v_54 & (1)) =? (0))
-                  then (
-                    when v_57, st_23 == ((pack_return_code_spec 7 0 st_22));
-                    if (v_57 =? (0))
-                    then (
-                      when v_95, st_27 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_23));
-                      when st_28 == ((ns_buffer_unmap_spec 0 st_27));
-                      when st_30 == ((atomic_granule_put_release_spec v_31 st_28));
-                      when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                      (Some st_32))
-                    else (
-                      when st_28 == ((atomic_granule_put_release_spec v_31 st_23));
-                      when st_30 == ((free_stack "smc_rec_enter" st_0 st_28));
-                      (Some st_30)))
-                  else (
-                    when v_60, st_23 == ((load_RData 1 (ptr_offset v_40 1512) st_22));
-                    if ((v_60 & (1)) =? (0))
-                    then (
-                      when st_24 == ((copy_gic_state_from_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_entry" 0) st_23));
-                      when v_67, st_25 == ((validate_gic_state_spec (ptr_offset v_40 584) st_24));
-                      if v_67
-                      then (
-                        when v_71, st_26 == ((complete_mmio_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_25));
-                        if v_71
-                        then (
-                          when st_27 == ((complete_sysreg_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_26));
-                          when st_28 == ((complete_hvc_exit_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_27));
-                          when st_29 == ((reset_last_run_info_spec v_40 st_28));
-                          when st_30 == ((process_disposed_info_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_29));
-                          when v_77, st_31 == ((load_RData 8 (ptr_offset v_40 856) st_30));
-                          when st_32 == ((store_RData 8 (ptr_offset v_40 808) v_77 st_31));
-                          when v_81, st_33 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 216) st_32));
-                          if (v_81 =? (0))
-                          then (
-                            when v_86, st_35 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_33));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_26_low st_0 st_35 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_36 == ((load_RData 8 (ptr_offset v_40 808) st_35));
-                              when st_37 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_36));
-                              when st_39 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_37));
-                              when st_40 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_39));
-                              when v_95, st_47 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_40));
-                              when st_48 == ((ns_buffer_unmap_spec 0 st_47));
-                              when st_50 == ((atomic_granule_put_release_spec v_31 st_48));
-                              when st_52 == ((free_stack "smc_rec_enter" st_0 st_50));
-                              (Some st_52)))
-                          else (
-                            when st_34 == ((store_RData 8 (ptr_offset v_40 808) (v_77 |' (8192)) st_33));
-                            when v_86, st_36 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_34));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_27_low st_0 st_36 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_37 == ((load_RData 8 (ptr_offset v_40 808) st_36));
-                              when st_38 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_37));
-                              when st_40 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_38));
-                              when st_41 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_40));
-                              when v_95, st_48 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_41));
-                              when st_49 == ((ns_buffer_unmap_spec 0 st_48));
-                              when st_51 == ((atomic_granule_put_release_spec v_31 st_49));
-                              when st_53 == ((free_stack "smc_rec_enter" st_0 st_51));
-                              (Some st_53))))
-                        else (
-                          when v_73, st_27 == ((pack_return_code_spec 7 0 st_26));
-                          if (v_73 =? (0))
-                          then (
-                            when v_95, st_34 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_27));
-                            when st_35 == ((ns_buffer_unmap_spec 0 st_34));
-                            when st_37 == ((atomic_granule_put_release_spec v_31 st_35));
-                            when st_39 == ((free_stack "smc_rec_enter" st_0 st_37));
-                            (Some st_39))
-                          else (
-                            when st_35 == ((atomic_granule_put_release_spec v_31 st_27));
-                            when st_37 == ((free_stack "smc_rec_enter" st_0 st_35));
-                            (Some st_37))))
-                      else (
-                        when v_69, st_26 == ((pack_return_code_spec 7 0 st_25));
-                        if (v_69 =? (0))
-                        then (
-                          when v_95, st_32 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_26));
-                          when st_33 == ((ns_buffer_unmap_spec 0 st_32));
-                          when st_35 == ((atomic_granule_put_release_spec v_31 st_33));
-                          when st_37 == ((free_stack "smc_rec_enter" st_0 st_35));
-                          (Some st_37))
-                        else (
-                          when st_33 == ((atomic_granule_put_release_spec v_31 st_26));
-                          when st_35 == ((free_stack "smc_rec_enter" st_0 st_33));
-                          (Some st_35))))
-                    else (
-                      when v_63, st_24 == ((pack_return_code_spec 7 0 st_23));
-                      if (v_63 =? (0))
-                      then (
-                        when v_95, st_29 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_24));
-                        when st_30 == ((ns_buffer_unmap_spec 0 st_29));
-                        when st_32 == ((atomic_granule_put_release_spec v_31 st_30));
-                        when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                        (Some st_34))
-                      else (
-                        when st_30 == ((atomic_granule_put_release_spec v_31 st_24));
-                        when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                        (Some st_32))))))))
-          else (
-            when v_31, st_7 == ((find_lock_unused_granule_spec v_0 3 st_5));
-            when st_8 == ((atomic_granule_get_spec v_31 st_7));
-            when st_9 == ((granule_unlock_spec v_31 st_8));
-            when v_34, st_10 == ((ns_buffer_read_spec 0 v_1 232 (mkPtr "stack_s_rec_entry" 0) st_9));
-            when st_11 == ((ns_buffer_unmap_spec 0 st_10));
-            if v_34
-            then (
-              when v_40, st_13 == ((granule_map_spec v_31 3 st_11));
-              when v_44_tmp, st_14 == ((load_RData 8 (ptr_offset v_40 944) st_13));
-              when v_45, st_15 == ((granule_map_spec (int_to_ptr v_44_tmp) 2 st_14));
-              when v_47, st_16 == ((get_rd_state_unlocked_spec v_45 st_15));
-              if (v_47 =? (2))
-              then (
-                when v_51, st_17 == ((pack_return_code_spec 5 1 st_16));
-                if (v_51 =? (0))
-                then (
-                  when v_95, st_19 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_17));
-                  when st_20 == ((ns_buffer_unmap_spec 0 st_19));
-                  when st_22 == ((atomic_granule_put_release_spec v_31 st_20));
-                  when st_24 == ((free_stack "smc_rec_enter" st_0 st_22));
-                  (Some st_24))
-                else (
-                  when st_20 == ((atomic_granule_put_release_spec v_31 st_17));
-                  when st_22 == ((free_stack "smc_rec_enter" st_0 st_20));
-                  (Some st_22)))
-              else (
-                if (v_47 =? (0))
-                then (
-                  when v_49, st_17 == ((pack_return_code_spec 5 0 st_16));
-                  if (v_49 =? (0))
-                  then (
-                    when v_95, st_20 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_17));
-                    when st_21 == ((ns_buffer_unmap_spec 0 st_20));
-                    when st_23 == ((atomic_granule_put_release_spec v_31 st_21));
-                    when st_25 == ((free_stack "smc_rec_enter" st_0 st_23));
-                    (Some st_25))
-                  else (
-                    when st_21 == ((atomic_granule_put_release_spec v_31 st_17));
-                    when st_23 == ((free_stack "smc_rec_enter" st_0 st_21));
-                    (Some st_23)))
-                else (
-                  when v_54, st_17 == ((load_RData 1 (ptr_offset v_40 16) st_16));
-                  if ((v_54 & (1)) =? (0))
-                  then (
-                    when v_57, st_18 == ((pack_return_code_spec 7 0 st_17));
-                    if (v_57 =? (0))
-                    then (
-                      when v_95, st_22 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_18));
-                      when st_23 == ((ns_buffer_unmap_spec 0 st_22));
-                      when st_25 == ((atomic_granule_put_release_spec v_31 st_23));
-                      when st_27 == ((free_stack "smc_rec_enter" st_0 st_25));
-                      (Some st_27))
-                    else (
-                      when st_23 == ((atomic_granule_put_release_spec v_31 st_18));
-                      when st_25 == ((free_stack "smc_rec_enter" st_0 st_23));
-                      (Some st_25)))
-                  else (
-                    when v_60, st_18 == ((load_RData 1 (ptr_offset v_40 1512) st_17));
-                    if ((v_60 & (1)) =? (0))
-                    then (
-                      when st_19 == ((copy_gic_state_from_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_entry" 0) st_18));
-                      when v_67, st_20 == ((validate_gic_state_spec (ptr_offset v_40 584) st_19));
-                      if v_67
-                      then (
-                        when v_71, st_21 == ((complete_mmio_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_20));
-                        if v_71
-                        then (
-                          when st_22 == ((complete_sysreg_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_21));
-                          when st_23 == ((complete_hvc_exit_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_22));
-                          when st_24 == ((reset_last_run_info_spec v_40 st_23));
-                          when st_25 == ((process_disposed_info_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_24));
-                          when v_77, st_26 == ((load_RData 8 (ptr_offset v_40 856) st_25));
-                          when st_27 == ((store_RData 8 (ptr_offset v_40 808) v_77 st_26));
-                          when v_81, st_28 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 216) st_27));
-                          if (v_81 =? (0))
-                          then (
-                            when v_86, st_30 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_28));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_28_low st_0 st_30 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_31 == ((load_RData 8 (ptr_offset v_40 808) st_30));
-                              when st_32 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_31));
-                              when st_34 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_32));
-                              when st_35 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_34));
-                              when v_95, st_42 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_35));
-                              when st_43 == ((ns_buffer_unmap_spec 0 st_42));
-                              when st_45 == ((atomic_granule_put_release_spec v_31 st_43));
-                              when st_47 == ((free_stack "smc_rec_enter" st_0 st_45));
-                              (Some st_47)))
-                          else (
-                            when st_29 == ((store_RData 8 (ptr_offset v_40 808) (v_77 |' (8192)) st_28));
-                            when v_86, st_31 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_29));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_29_low st_0 st_31 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_32 == ((load_RData 8 (ptr_offset v_40 808) st_31));
-                              when st_33 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_32));
-                              when st_35 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_33));
-                              when st_36 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_35));
-                              when v_95, st_43 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_36));
-                              when st_44 == ((ns_buffer_unmap_spec 0 st_43));
-                              when st_46 == ((atomic_granule_put_release_spec v_31 st_44));
-                              when st_48 == ((free_stack "smc_rec_enter" st_0 st_46));
-                              (Some st_48))))
-                        else (
-                          when v_73, st_22 == ((pack_return_code_spec 7 0 st_21));
-                          if (v_73 =? (0))
-                          then (
-                            when v_95, st_29 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_22));
-                            when st_30 == ((ns_buffer_unmap_spec 0 st_29));
-                            when st_32 == ((atomic_granule_put_release_spec v_31 st_30));
-                            when st_34 == ((free_stack "smc_rec_enter" st_0 st_32));
-                            (Some st_34))
-                          else (
-                            when st_30 == ((atomic_granule_put_release_spec v_31 st_22));
-                            when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                            (Some st_32))))
-                      else (
-                        when v_69, st_21 == ((pack_return_code_spec 7 0 st_20));
-                        if (v_69 =? (0))
-                        then (
-                          when v_95, st_27 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_21));
-                          when st_28 == ((ns_buffer_unmap_spec 0 st_27));
-                          when st_30 == ((atomic_granule_put_release_spec v_31 st_28));
-                          when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                          (Some st_32))
-                        else (
-                          when st_28 == ((atomic_granule_put_release_spec v_31 st_21));
-                          when st_30 == ((free_stack "smc_rec_enter" st_0 st_28));
-                          (Some st_30))))
-                    else (
-                      when v_63, st_19 == ((pack_return_code_spec 7 0 st_18));
-                      if (v_63 =? (0))
-                      then (
-                        when v_95, st_24 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_19));
-                        when st_25 == ((ns_buffer_unmap_spec 0 st_24));
-                        when st_27 == ((atomic_granule_put_release_spec v_31 st_25));
-                        when st_29 == ((free_stack "smc_rec_enter" st_0 st_27));
-                        (Some st_29))
-                      else (
-                        when st_25 == ((atomic_granule_put_release_spec v_31 st_19));
-                        when st_27 == ((free_stack "smc_rec_enter" st_0 st_25));
-                        (Some st_27)))))))
-            else (
-              when st_12 == ((atomic_granule_put_release_spec v_31 st_11));
-              when v_36, st_13 == ((pack_return_code_spec 1 2 st_12));
-              when st_14 == ((store_RData 8 (ptr_offset v_3 0) v_36 st_13));
-              when v_40, st_16 == ((granule_map_spec v_31 3 st_14));
-              when v_44_tmp, st_17 == ((load_RData 8 (ptr_offset v_40 944) st_16));
-              when v_45, st_18 == ((granule_map_spec (int_to_ptr v_44_tmp) 2 st_17));
-              when v_47, st_19 == ((get_rd_state_unlocked_spec v_45 st_18));
-              if (v_47 =? (2))
-              then (
-                when v_51, st_20 == ((pack_return_code_spec 5 1 st_19));
-                if (v_51 =? (0))
-                then (
-                  when v_95, st_22 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_20));
-                  when st_23 == ((ns_buffer_unmap_spec 0 st_22));
-                  when st_25 == ((atomic_granule_put_release_spec v_31 st_23));
-                  when st_27 == ((free_stack "smc_rec_enter" st_0 st_25));
-                  (Some st_27))
-                else (
-                  when st_23 == ((atomic_granule_put_release_spec v_31 st_20));
-                  when st_25 == ((free_stack "smc_rec_enter" st_0 st_23));
-                  (Some st_25)))
-              else (
-                if (v_47 =? (0))
-                then (
-                  when v_49, st_20 == ((pack_return_code_spec 5 0 st_19));
-                  if (v_49 =? (0))
-                  then (
-                    when v_95, st_23 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_20));
-                    when st_24 == ((ns_buffer_unmap_spec 0 st_23));
-                    when st_26 == ((atomic_granule_put_release_spec v_31 st_24));
-                    when st_28 == ((free_stack "smc_rec_enter" st_0 st_26));
-                    (Some st_28))
-                  else (
-                    when st_24 == ((atomic_granule_put_release_spec v_31 st_20));
-                    when st_26 == ((free_stack "smc_rec_enter" st_0 st_24));
-                    (Some st_26)))
-                else (
-                  when v_54, st_20 == ((load_RData 1 (ptr_offset v_40 16) st_19));
-                  if ((v_54 & (1)) =? (0))
-                  then (
-                    when v_57, st_21 == ((pack_return_code_spec 7 0 st_20));
-                    if (v_57 =? (0))
-                    then (
-                      when v_95, st_25 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_21));
-                      when st_26 == ((ns_buffer_unmap_spec 0 st_25));
-                      when st_28 == ((atomic_granule_put_release_spec v_31 st_26));
-                      when st_30 == ((free_stack "smc_rec_enter" st_0 st_28));
-                      (Some st_30))
-                    else (
-                      when st_26 == ((atomic_granule_put_release_spec v_31 st_21));
-                      when st_28 == ((free_stack "smc_rec_enter" st_0 st_26));
-                      (Some st_28)))
-                  else (
-                    when v_60, st_21 == ((load_RData 1 (ptr_offset v_40 1512) st_20));
-                    if ((v_60 & (1)) =? (0))
-                    then (
-                      when st_22 == ((copy_gic_state_from_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_entry" 0) st_21));
-                      when v_67, st_23 == ((validate_gic_state_spec (ptr_offset v_40 584) st_22));
-                      if v_67
-                      then (
-                        when v_71, st_24 == ((complete_mmio_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_23));
-                        if v_71
-                        then (
-                          when st_25 == ((complete_sysreg_emulation_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_24));
-                          when st_26 == ((complete_hvc_exit_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_25));
-                          when st_27 == ((reset_last_run_info_spec v_40 st_26));
-                          when st_28 == ((process_disposed_info_spec v_40 (mkPtr "stack_s_rec_entry" 0) st_27));
-                          when v_77, st_29 == ((load_RData 8 (ptr_offset v_40 856) st_28));
-                          when st_30 == ((store_RData 8 (ptr_offset v_40 808) v_77 st_29));
-                          when v_81, st_31 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 216) st_30));
-                          if (v_81 =? (0))
-                          then (
-                            when v_86, st_33 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_31));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_30_low st_0 st_33 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_34 == ((load_RData 8 (ptr_offset v_40 808) st_33));
-                              when st_35 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_34));
-                              when st_37 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_35));
-                              when st_38 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_37));
-                              when v_95, st_45 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_38));
-                              when st_46 == ((ns_buffer_unmap_spec 0 st_45));
-                              when st_48 == ((atomic_granule_put_release_spec v_31 st_46));
-                              when st_50 == ((free_stack "smc_rec_enter" st_0 st_48));
-                              (Some st_50)))
-                          else (
-                            when st_32 == ((store_RData 8 (ptr_offset v_40 808) (v_77 |' (8192)) st_31));
-                            when v_86, st_34 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rec_entry" 0) 224) st_32));
-                            if (v_86 =? (0))
-                            then (smc_rec_enter_31_low st_0 st_34 v_2 v_31 v_40 v_86)
-                            else (
-                              when v_88, st_35 == ((load_RData 8 (ptr_offset v_40 808) st_34));
-                              when st_36 == ((store_RData 8 (ptr_offset v_40 808) (v_88 |' (16384)) st_35));
-                              when st_38 == ((rec_run_loop_spec v_40 (mkPtr "stack_s_rec_exit" 0) st_36));
-                              when st_39 == ((copy_gic_state_to_ns_spec (ptr_offset v_40 584) (mkPtr "stack_s_rec_exit" 0) st_38));
-                              when v_95, st_46 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_39));
-                              when st_47 == ((ns_buffer_unmap_spec 0 st_46));
-                              when st_49 == ((atomic_granule_put_release_spec v_31 st_47));
-                              when st_51 == ((free_stack "smc_rec_enter" st_0 st_49));
-                              (Some st_51))))
-                        else (
-                          when v_73, st_25 == ((pack_return_code_spec 7 0 st_24));
-                          if (v_73 =? (0))
-                          then (
-                            when v_95, st_32 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_25));
-                            when st_33 == ((ns_buffer_unmap_spec 0 st_32));
-                            when st_35 == ((atomic_granule_put_release_spec v_31 st_33));
-                            when st_37 == ((free_stack "smc_rec_enter" st_0 st_35));
-                            (Some st_37))
-                          else (
-                            when st_33 == ((atomic_granule_put_release_spec v_31 st_25));
-                            when st_35 == ((free_stack "smc_rec_enter" st_0 st_33));
-                            (Some st_35))))
-                      else (
-                        when v_69, st_24 == ((pack_return_code_spec 7 0 st_23));
-                        if (v_69 =? (0))
-                        then (
-                          when v_95, st_30 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_24));
-                          when st_31 == ((ns_buffer_unmap_spec 0 st_30));
-                          when st_33 == ((atomic_granule_put_release_spec v_31 st_31));
-                          when st_35 == ((free_stack "smc_rec_enter" st_0 st_33));
-                          (Some st_35))
-                        else (
-                          when st_31 == ((atomic_granule_put_release_spec v_31 st_24));
-                          when st_33 == ((free_stack "smc_rec_enter" st_0 st_31));
-                          (Some st_33))))
-                    else (
-                      when v_63, st_22 == ((pack_return_code_spec 7 0 st_21));
-                      if (v_63 =? (0))
-                      then (
-                        when v_95, st_27 == ((ns_buffer_write_spec 0 v_2 304 (mkPtr "stack_s_rec_exit" 0) st_22));
-                        when st_28 == ((ns_buffer_unmap_spec 0 st_27));
-                        when st_30 == ((atomic_granule_put_release_spec v_31 st_28));
-                        when st_32 == ((free_stack "smc_rec_enter" st_0 st_30));
-                        (Some st_32))
-                      else (
-                        when st_28 == ((atomic_granule_put_release_spec v_31 st_22));
-                        when st_30 == ((free_stack "smc_rec_enter" st_0 st_28));
-                        (Some st_30)))))))))))
-    else (
-      when v_10, st_1 == ((granule_pa_to_va_spec (v_0 & ((- 2))) st_0));
-      when st_2 == ((pico_rec_enter_spec v_10 v_1 v_2 v_3 st_1));
-      when st_4 == ((free_stack "smc_rec_enter" st_0 st_2));
-      (Some st_4)).
+          when st_5 == (
+              (rcsm_restore_pico_state_spec
+                (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset)))
+                (st.[share].[granule_data] :<
+                  (((st.(share)).(granule_data)) #
+                    ((((test_PA v_0).(meta_granule_offset)) + (32)) / (4096)) ==
+                    ((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (32)) / (4096))).[g_norm] :<
+                      (((((st.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (32)) / (4096))).(g_norm)) #
+                        ((((test_PA v_0).(meta_granule_offset)) + (32)) mod (4096)) ==
+                        CPU_ID))))));
+          when v_28, st_3 == ((run_realm_spec (mkPtr "granule_data" (((test_PA v_0).(meta_granule_offset)) + (24))) st_5));
+          when v_29, st_4 == (
+              (handle_pico_rec_exit_spec
+                (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset)))
+                (mkPtr "granule_data" (((test_PA v_0).(meta_granule_offset)) + (24)))
+                st_3));
+          when st_14 == (
+              (rcsm_save_pico_state_spec
+                (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset)))
+                (st_4.[stack].[stack_s_smc_result] :<
+                  ((((((st_4.(stack)).(stack_s_smc_result)).[e_x0] :<
+                    (((((st_4.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) / (4096))).(g_norm)) @ ((((test_PA v_0).(meta_granule_offset)) + (24)) mod (4096)))).[e_x1] :<
+                    (((((st_4.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (32)) / (4096))).(g_norm)) @ ((((test_PA v_0).(meta_granule_offset)) + (32)) mod (4096)))).[e_x2] :<
+                    (((((st_4.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (40)) / (4096))).(g_norm)) @ ((((test_PA v_0).(meta_granule_offset)) + (40)) mod (4096)))).[e_x3] :<
+                    (((((st_4.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (48)) / (4096))).(g_norm)) @ ((((test_PA v_0).(meta_granule_offset)) + (48)) mod (4096)))))));
+          (Some (st_14.[priv].[pcpu_regs].[pcpu_ich_hcr_el2] :< (((st.(priv)).(pcpu_regs)).(pcpu_ich_hcr_el2))))))
+      else (Some st).
 
 
 
@@ -3119,816 +939,195 @@ Section Layer13_Spec.
     | (Some cid) => None
     end).
 
-  Definition smc_rtt_read_entry_spec (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Ptr) (st: RData) : (option RData) :=
-    rely ((((v_3.(pbase)) = ("stack_s_smc_result")) /\ (((v_3.(poffset)) = (0)))));
-    rely (
-      (((((v_0 - (MEM0_PHYS)) >= (0)) /\ (((v_0 - (4294967296)) < (0)))) \/ ((((v_0 - (MEM1_PHYS)) >= (0)) /\ (((v_0 - (556198264832)) < (0)))))) /\
-        (((v_0 & (4095)) = (0)))));
-    if ((v_0 - (MEM1_PHYS)) >=? (0))
-    then (
-      when sh == (((st.(repl)) ((st.(oracle)) (st.(log))) (st.(share))));
-      match ((((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))).(e_lock)).(e_val))) with
-      | None =>
-        rely (
-          (((((((st.(share)).(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))).(e_state_s_granule)) -
-            (((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))).(e_state_s_granule)))) =
-            (0)));
-        if ((((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))).(e_state_s_granule)) - (2)) =? (0))
+    Definition smc_rtt_read_entry_spec (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Ptr) (st: RData) : (option RData) :=
+      rely (((v_3.(pbase)) = ("stack_s_smc_result")));
+      rely (((v_3.(poffset)) = (0)));
+      when st_1 == ((spinlock_acquire_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st));
+      if (((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (4096))).(e_state_s_granule)) - (2)) =? (0))
+      then (
+        rely ((((((test_PA v_0).(meta_granule_offset)) mod (4096)) = (0)) /\ ((((test_PA v_0).(meta_granule_offset)) >= (0)))));
+        when v_14, st_3 == ((validate_rtt_entry_cmds_spec v_1 v_2 (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) st_1));
+        if (v_14 =? (0))
         then (
-          when ret == ((granule_addr_spec' (mkPtr "granules" (((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)))));
-          when ret_0 == ((buffer_map_spec' 2 ret false));
-          rely ((((ret_0.(pbase)) = ("granule_data")) /\ (((ret_0.(poffset)) >= (0)))));
-          rely (((((ret_0.(pbase)) = ("granule_data")) /\ (((ret_0.(poffset)) >= (0)))) /\ ((((ret_0.(poffset)) mod (4096)) = (0)))));
-          rely ((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_RD)) = (0)));
-          when ret_1, st' == (
-              (validate_rtt_entry_cmds_spec'
-                v_1
-                v_2
-                ret_0
-                ((st.[log] :< ((EVT CPU_ID (ACQ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))).[share] :<
-                  (sh.[globals].[g_granules] :<
-                    (((sh.(globals)).(g_granules)) #
-                      ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)) ==
-                      ((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))).[e_lock].[e_val] :< (Some CPU_ID)))))));
-          if (ret_1 =? (0))
+          when ret == (
+              (load_r_granule_data
+                ((((test_PA v_0).(meta_granule_offset)) + (32)) mod (4096))
+                (((st_3.(share)).(granule_data)) @ ((((test_PA v_0).(meta_granule_offset)) + (32)) / (4096)))));
+          when st_2 == ((spinlock_acquire_spec (mkPtr ((test_Z_Ptr ret).(pbase)) ((test_Z_Ptr ret).(poffset))) st_3));
+          if (((((((st_2.(share)).(globals)).(g_granules)) @ (((test_Z_Ptr ret).(poffset)) / (4096))).(e_state_s_granule)) - (5)) =? (0))
           then (
-            rely ((((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) >= (0)));
-            rely ((((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (MEM0_VIRT)) < (0)));
-            when ret_2, st'_0 == (
-                (realm_rtt_starting_level_spec'
-                  ret_0
-                  ((st.[log] :< ((EVT CPU_ID (ACQ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))).[share] :<
-                    (sh.[globals].[g_granules] :<
-                      (((sh.(globals)).(g_granules)) #
-                        ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)) ==
-                        ((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))).[e_lock].[e_val] :< (Some CPU_ID)))))));
-            when ret_3, st'_1 == (
-                (realm_ipa_bits_spec'
-                  ret_0
-                  ((st.[log] :< ((EVT CPU_ID (ACQ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))).[share] :<
-                    (sh.[globals].[g_granules] :<
-                      (((sh.(globals)).(g_granules)) #
-                        ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)) ==
-                        ((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))).[e_lock].[e_val] :< (Some CPU_ID)))))));
-            when sh_0 == (
-                ((st.(repl))
-                  ((st.(oracle)) ((EVT CPU_ID (ACQ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log)))))))
-                  (sh.[globals].[g_granules] :<
-                    (((sh.(globals)).(g_granules)) #
-                      ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)) ==
-                      ((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))).[e_lock].[e_val] :< (Some CPU_ID))))));
-            match ((((((sh_0.(globals)).(g_granules)) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val))) with
-            | None =>
-              rely (
-                (((((((sh.(globals)).(g_granules)) #
-                  ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)) ==
-                  ((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))).[e_lock].[e_val] :< (Some CPU_ID))) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).(e_state_s_granule)) -
-                  (((((sh_0.(globals)).(g_granules)) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).(e_state_s_granule)))) =
-                  (0)));
-              rely (
-                ((("granules" = ("granules")) /\ ((((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) mod(4096)) = (0)))) /\
-                  ((((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) >= (0)))));
+            when st_8 == ((granule_unlock_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_2));
+            when rtt_ret, st_9 == ((rtt_walk_lock_unlock_spec_abs (mkPtr "stack_s_rtt_walk" 0) (int_to_ptr ret) 0 64 v_1 v_2 st_8));
+            rely ((((st_9.(share)).(granule_data)) = (((st_8.(share)).(granule_data)))));
+            if (
+              (((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_desc_type)) =? (0)) &&
+                ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_ripas)) =? (0)))) &&
+                ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_mem_attr)) =? (0)))))
+            then (
+              when st_20 == (
+                  (granule_unlock_spec
+                    (rtt_ret.(e_2))
+                    (st_9.[stack].[stack_s_smc_result] :< (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 0).[e_x3] :< 0))));
+              (Some (st_20.[stack].[stack_s_smc_result] :< (((st_20.(stack)).(stack_s_smc_result)).[e_x0] :< 0))))
+            else (
               if (
-                ((((((sh_0.(globals)).(g_granules)) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).(e_state_s_granule)) -
-                  (5)) =?
-                  (0)))
+                (((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_desc_type)) =? (0)) &&
+                  ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_ripas)) =? (0)))) &&
+                  ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_mem_attr)) =? (2)))))
               then (
-                when cid == ((((((sh_0.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))).(e_lock)).(e_val)));
-                when st_9 == (
-                    (rtt_walk_lock_unlock_spec
-                      (mkPtr "stack_s_rtt_walk" 0)
-                      (mkPtr "granules" ((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)))
-                      ret_2
-                      ret_3
-                      v_1
-                      v_2
-                      ((st.[log] :<
-                        ((EVT
-                          CPU_ID
-                          (REL ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)) (((sh_0.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))))) ::
-                          (((EVT CPU_ID (ACQ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096)))) ::
-                            ((((st.(oracle)) ((EVT CPU_ID (ACQ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
-                              (((EVT CPU_ID (ACQ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share] :<
-                        (sh_0.[globals].[g_granules] :<
-                          ((((sh_0.(globals)).(g_granules)) #
-                            (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096)) ==
-                            ((((sh_0.(globals)).(g_granules)) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :<
-                              (Some CPU_ID))) #
-                            ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)) ==
-                            ((((sh_0.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))).[e_lock].[e_val] :< None))))));
-                rely ((((st_9.(share)).(granule_data)) = ((sh_0.(granule_data)))));
-                rely ((((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)));
-                rely ((((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (MEM0_VIRT)) < (0)));
-                rely (
-                  ((((("granules" = ("granules")) /\ ((((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) mod(4096)) = (0)))) /\
-                    ((((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
-                    ((6 >= (0)))) /\
-                    ((6 <= (24)))));
-                when ret_4 == ((granule_addr_spec' (mkPtr "granules" ((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)))));
-                when ret_5 == ((buffer_map_spec' 6 ret_4 false));
-                rely ((((ret_5.(pbase)) = ("granule_data")) /\ (((ret_5.(poffset)) >= (0)))));
-                when v_29, st_14 == ((__tte_read_spec (mkPtr (ret_5.(pbase)) ((ret_5.(poffset)) + ((8 * ((((st_9.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk))))))) st_9));
-                rely ((((st_14.(share)).(granule_data)) = (((st_9.(share)).(granule_data)))));
-                if ((v_29 & (63)) =? (0))
-                then (
-                  when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                  (Some (((st_14.[log] :<
-                    ((EVT
-                      CPU_ID
-                      (REL
-                        (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                        ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                      ((st_14.(log))))).[share].[globals].[g_granules] :<
-                    ((((st_14.(share)).(globals)).(g_granules)) #
-                      (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                      (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                    ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 0).[e_x3] :< 0))))
-                else (
-                  if ((v_29 & (63)) =? (8))
-                  then (
-                    when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                    (Some (((st_14.[log] :<
-                      ((EVT
-                        CPU_ID
-                        (REL
-                          (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                          ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                        ((st_14.(log))))).[share].[globals].[g_granules] :<
-                      ((((st_14.(share)).(globals)).(g_granules)) #
-                        (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                        (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                      ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 1).[e_x3] :< 0))))
-                  else (
-                    if ((v_29 & (63)) =? (4))
-                    then (
-                      when ret_6 == ((s2tte_pa_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                      when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                      (Some (((st_14.[log] :<
-                        ((EVT
-                          CPU_ID
-                          (REL
-                            (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                            ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                          ((st_14.(log))))).[share].[globals].[g_granules] :<
-                        ((((st_14.(share)).(globals)).(g_granules)) #
-                          (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                          (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                        ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 2).[e_x3] :< ret_6))))
-                    else (
-                      when ret_6 == ((s2tte_is_valid_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                      if ret_6
-                      then (
-                        when ret_7 == ((s2tte_pa_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                        when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                        (Some (((st_14.[log] :<
-                          ((EVT
-                            CPU_ID
-                            (REL
-                              (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                              ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                            ((st_14.(log))))).[share].[globals].[g_granules] :<
-                          ((((st_14.(share)).(globals)).(g_granules)) #
-                            (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                            (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                          ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 4).[e_x3] :< ret_7))))
-                      else (
-                        when ret_7 == ((s2tte_is_valid_ns_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                        if ret_7
-                        then (
-                          when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                          (Some (((st_14.[log] :<
-                            ((EVT
-                              CPU_ID
-                              (REL
-                                (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                                ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                              ((st_14.(log))))).[share].[globals].[g_granules] :<
-                            ((((st_14.(share)).(globals)).(g_granules)) #
-                              (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                              (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                            ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 5).[e_x3] :<
-                              (((((- 1) & (281474976710655)) & (((- 1) << (((39 + (((- 9) * ((((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level)))))) & (4294967295)))))) |' (1020)) & (v_29))))))
-                        else (
-                          if (((((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level)) <? (3)) && (((v_29 & (3)) =? (3))))
-                          then (
-                            when ret_8 == ((s2tte_pa_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                            when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                            (Some (((st_14.[log] :<
-                              ((EVT
-                                CPU_ID
-                                (REL
-                                  (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                                  ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                                ((st_14.(log))))).[share].[globals].[g_granules] :<
-                              ((((st_14.(share)).(globals)).(g_granules)) #
-                                (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                                (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                              ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 3).[e_x3] :< ret_8))))
-                          else (
-                            when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                            (Some (((st_14.[log] :<
-                              ((EVT
-                                CPU_ID
-                                (REL
-                                  (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                                  ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                                ((st_14.(log))))).[share].[globals].[g_granules] :<
-                              ((((st_14.(share)).(globals)).(g_granules)) #
-                                (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                                (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                              (((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x3] :< 0))))))))))
+                when st_22 == (
+                    (granule_unlock_spec
+                      (rtt_ret.(e_2))
+                      (st_9.[stack].[stack_s_smc_result] :< (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 1).[e_x3] :< 0))));
+                (Some (st_22.[stack].[stack_s_smc_result] :< (((st_22.(stack)).(stack_s_smc_result)).[e_x0] :< 0))))
               else (
-                when cid == (
-                    ((((((sh_0.(globals)).(g_granules)) #
-                      (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096)) ==
-                      ((((sh_0.(globals)).(g_granules)) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :<
-                        None)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))).(e_lock)).(e_val)));
-                when st_9 == (
-                    (rtt_walk_lock_unlock_spec
-                      (mkPtr "stack_s_rtt_walk" 0)
-                      (mkPtr "granules" ((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)))
-                      ret_2
-                      ret_3
-                      v_1
-                      v_2
-                      ((st.[log] :<
-                        ((EVT
-                          CPU_ID
-                          (REL
-                            ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))
-                            ((((sh_0.(globals)).(g_granules)) #
-                              (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096)) ==
-                              ((((sh_0.(globals)).(g_granules)) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :<
-                                None)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))))) ::
-                          (((EVT
-                            CPU_ID
-                            (REL
-                              (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))
-                              ((((sh_0.(globals)).(g_granules)) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :<
-                                (Some CPU_ID)))) ::
-                            (((EVT CPU_ID (ACQ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096)))) ::
-                              ((((st.(oracle)) ((EVT CPU_ID (ACQ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
-                                (((EVT CPU_ID (ACQ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))))).[share] :<
-                        (sh_0.[globals].[g_granules] :<
-                          ((((sh_0.(globals)).(g_granules)) #
-                            (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096)) ==
-                            ((((sh_0.(globals)).(g_granules)) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :<
-                              None)) #
-                            ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)) ==
-                            (((((sh_0.(globals)).(g_granules)) #
-                              (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096)) ==
-                              ((((sh_0.(globals)).(g_granules)) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :<
-                                None)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))).[e_lock].[e_val] :<
-                              None))))));
-                rely ((((st_9.(share)).(granule_data)) = ((sh_0.(granule_data)))));
-                rely ((((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)));
-                rely ((((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (MEM0_VIRT)) < (0)));
-                rely (
-                  ((((("granules" = ("granules")) /\ ((((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) mod(4096)) = (0)))) /\
-                    ((((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
-                    ((6 >= (0)))) /\
-                    ((6 <= (24)))));
-                when ret_4 == ((granule_addr_spec' (mkPtr "granules" ((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)))));
-                when ret_5 == ((buffer_map_spec' 6 ret_4 false));
-                rely ((((ret_5.(pbase)) = ("granule_data")) /\ (((ret_5.(poffset)) >= (0)))));
-                when v_29, st_14 == ((__tte_read_spec (mkPtr (ret_5.(pbase)) ((ret_5.(poffset)) + ((8 * ((((st_9.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk))))))) st_9));
-                rely ((((st_14.(share)).(granule_data)) = (((st_9.(share)).(granule_data)))));
-                if ((v_29 & (63)) =? (0))
+                if (
+                  (((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_desc_type)) =? (0)) &&
+                    ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_ripas)) =? (0)))) &&
+                    ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_mem_attr)) =? (1)))))
                 then (
-                  when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                  (Some (((st_14.[log] :<
-                    ((EVT
-                      CPU_ID
-                      (REL
-                        (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                        ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                      ((st_14.(log))))).[share].[globals].[g_granules] :<
-                    ((((st_14.(share)).(globals)).(g_granules)) #
-                      (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                      (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                    ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 0).[e_x3] :< 0))))
+                  when st_26 == (
+                      (granule_unlock_spec
+                        (rtt_ret.(e_2))
+                        (st_9.[stack].[stack_s_smc_result] :<
+                          (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 2).[e_x3] :<
+                            (read_entry_para
+                              (abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9)
+                              (rtt_ret.(e_1))
+                              (st_9.[stack].[stack_s_smc_result] :< (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 2).[e_x3] :< 0)))))));
+                  (Some (st_26.[stack].[stack_s_smc_result] :< (((st_26.(stack)).(stack_s_smc_result)).[e_x0] :< 0))))
                 else (
-                  if ((v_29 & (63)) =? (8))
+                  if (((rtt_ret.(e_1)) =? (3)) && ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_desc_type)) =? (3))))
                   then (
-                    when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                    (Some (((st_14.[log] :<
-                      ((EVT
-                        CPU_ID
-                        (REL
-                          (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                          ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                        ((st_14.(log))))).[share].[globals].[g_granules] :<
-                      ((((st_14.(share)).(globals)).(g_granules)) #
-                        (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                        (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                      ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 1).[e_x3] :< 0))))
+                    when st_28 == (
+                        (granule_unlock_spec
+                          (rtt_ret.(e_2))
+                          (st_9.[stack].[stack_s_smc_result] :<
+                            (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 4).[e_x3] :<
+                              (read_entry_para
+                                (abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9)
+                                (rtt_ret.(e_1))
+                                (st_9.[stack].[stack_s_smc_result] :< (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 4).[e_x3] :< 0)))))));
+                    (Some (st_28.[stack].[stack_s_smc_result] :< (((st_28.(stack)).(stack_s_smc_result)).[e_x0] :< 0))))
                   else (
-                    if ((v_29 & (63)) =? (4))
+                    if (((rtt_ret.(e_1)) <>? (3)) && ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_desc_type)) =? (1))))
                     then (
-                      when ret_6 == ((s2tte_pa_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                      when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                      (Some (((st_14.[log] :<
-                        ((EVT
-                          CPU_ID
-                          (REL
-                            (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                            ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                          ((st_14.(log))))).[share].[globals].[g_granules] :<
-                        ((((st_14.(share)).(globals)).(g_granules)) #
-                          (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                          (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                        ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 2).[e_x3] :< ret_6))))
+                      when st_28 == (
+                          (granule_unlock_spec
+                            (rtt_ret.(e_2))
+                            (st_9.[stack].[stack_s_smc_result] :<
+                              (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 4).[e_x3] :<
+                                (read_entry_para
+                                  (abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9)
+                                  (rtt_ret.(e_1))
+                                  (st_9.[stack].[stack_s_smc_result] :< (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 4).[e_x3] :< 0)))))));
+                      (Some (st_28.[stack].[stack_s_smc_result] :< (((st_28.(stack)).(stack_s_smc_result)).[e_x0] :< 0))))
                     else (
-                      when ret_6 == ((s2tte_is_valid_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                      if ret_6
+                      if (((rtt_ret.(e_1)) <? (3)) && ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_desc_type)) =? (3))))
                       then (
-                        when ret_7 == ((s2tte_pa_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                        when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                        (Some (((st_14.[log] :<
-                          ((EVT
-                            CPU_ID
-                            (REL
-                              (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                              ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                            ((st_14.(log))))).[share].[globals].[g_granules] :<
-                          ((((st_14.(share)).(globals)).(g_granules)) #
-                            (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                            (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                          ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 4).[e_x3] :< ret_7))))
+                        when st_32 == (
+                            (granule_unlock_spec
+                              (rtt_ret.(e_2))
+                              (st_9.[stack].[stack_s_smc_result] :<
+                                (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 3).[e_x3] :<
+                                  (read_entry_para
+                                    (abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9)
+                                    (rtt_ret.(e_1))
+                                    (st_9.[stack].[stack_s_smc_result] :< (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 3).[e_x3] :< 0)))))));
+                        (Some (st_32.[stack].[stack_s_smc_result] :< (((st_32.(stack)).(stack_s_smc_result)).[e_x0] :< 0))))
                       else (
-                        when ret_7 == ((s2tte_is_valid_ns_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                        if ret_7
-                        then (
-                          when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                          (Some (((st_14.[log] :<
-                            ((EVT
-                              CPU_ID
-                              (REL
-                                (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                                ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                              ((st_14.(log))))).[share].[globals].[g_granules] :<
-                            ((((st_14.(share)).(globals)).(g_granules)) #
-                              (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                              (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                            ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 5).[e_x3] :<
-                              (((((- 1) & (281474976710655)) & (((- 1) << (((39 + (((- 9) * ((((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level)))))) & (4294967295)))))) |' (1020)) & (v_29))))))
-                        else (
-                          if (((((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level)) <? (3)) && (((v_29 & (3)) =? (3))))
-                          then (
-                            when ret_8 == ((s2tte_pa_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                            when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                            (Some (((st_14.[log] :<
-                              ((EVT
-                                CPU_ID
-                                (REL
-                                  (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                                  ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                                ((st_14.(log))))).[share].[globals].[g_granules] :<
-                              ((((st_14.(share)).(globals)).(g_granules)) #
-                                (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                                (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                              ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 3).[e_x3] :< ret_8))))
-                          else (
-                            when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                            (Some (((st_14.[log] :<
-                              ((EVT
-                                CPU_ID
-                                (REL
-                                  (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                                  ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                                ((st_14.(log))))).[share].[globals].[g_granules] :<
-                              ((((st_14.(share)).(globals)).(g_granules)) #
-                                (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                                (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                              (((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x3] :< 0))))))))))
-            | (Some cid) => None
-            end)
+                        when st_29 == ((granule_unlock_spec (rtt_ret.(e_2)) (st_9.[stack].[stack_s_smc_result] :< ((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x3] :< 0))));
+                        (Some (st_29.[stack].[stack_s_smc_result] :< (((st_29.(stack)).(stack_s_smc_result)).[e_x0] :< 0))))))))))
           else (
-            (Some (((st.[log] :<
-              ((EVT
-                CPU_ID
-                (REL
-                  ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))
-                  ((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
-                (((EVT CPU_ID (ACQ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
-              (sh.[globals].[g_granules] :<
-                (((sh.(globals)).(g_granules)) #
-                  ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)) ==
-                  ((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))).[e_lock].[e_val] :< None)))).[stack].[stack_s_smc_result] :<
-              (((st.(stack)).(stack_s_smc_result)).[e_x0] :<
-                (((((((ret_1 >> (32)) + (2)) << (32)) + (ret_1)) >> (24)) & (4294967040)) |' (((((ret_1 >> (32)) + (2)) << (32)) + (ret_1)))))))))
-        else (
-          (Some (((st.[log] :<
-            ((EVT
-              CPU_ID
-              (REL
-                ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))
-                ((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
-              (((EVT CPU_ID (ACQ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
-            (sh.[globals].[g_granules] :<
-              (((sh.(globals)).(g_granules)) #
-                ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096)) ==
-                ((((sh.(globals)).(g_granules)) @ ((((v_0 + ((- MEM1_PHYS))) >> (524300)) * (4096)) / (4096))).[e_lock].[e_val] :< None)))).[stack].[stack_s_smc_result] :<
-            (((st.(stack)).(stack_s_smc_result)).[e_x0] :< 4294967553))))
-      | (Some cid) => None
-      end)
-    else (
-      when sh == (((st.(repl)) ((st.(oracle)) (st.(log))) (st.(share))));
-      match ((((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val))) with
-      | None =>
-        rely (
-          (((((((st.(share)).(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) -
-            (((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)))) =
-            (0)));
-        if ((((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_state_s_granule)) - (2)) =? (0))
-        then (
-          when ret == ((granule_addr_spec' (mkPtr "granules" (((v_0 + ((- MEM0_PHYS))) >> (12)) * (4096)))));
-          when ret_0 == ((buffer_map_spec' 2 ret false));
-          rely ((((ret_0.(pbase)) = ("granule_data")) /\ (((ret_0.(poffset)) >= (0)))));
-          rely (((((ret_0.(pbase)) = ("granule_data")) /\ (((ret_0.(poffset)) >= (0)))) /\ ((((ret_0.(poffset)) mod (4096)) = (0)))));
-          rely ((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_RD)) = (0)));
-          when ret_1, st' == (
-              (validate_rtt_entry_cmds_spec'
-                v_1
-                v_2
-                ret_0
-                ((st.[log] :< ((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))).[share] :<
-                  (sh.[globals].[g_granules] :<
-                    (((sh.(globals)).(g_granules)) #
-                      ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
-                      ((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))))));
-          if (ret_1 =? (0))
-          then (
-            rely ((((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) >= (0)));
-            rely ((((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (MEM0_VIRT)) < (0)));
-            when ret_2, st'_0 == (
-                (realm_rtt_starting_level_spec'
-                  ret_0
-                  ((st.[log] :< ((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))).[share] :<
-                    (sh.[globals].[g_granules] :<
-                      (((sh.(globals)).(g_granules)) #
-                        ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
-                        ((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))))));
-            when ret_3, st'_1 == (
-                (realm_ipa_bits_spec'
-                  ret_0
-                  ((st.[log] :< ((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))).[share] :<
-                    (sh.[globals].[g_granules] :<
-                      (((sh.(globals)).(g_granules)) #
-                        ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
-                        ((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))))));
-            when sh_0 == (
-                ((st.(repl))
-                  ((st.(oracle)) ((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log)))))))
-                  (sh.[globals].[g_granules] :<
-                    (((sh.(globals)).(g_granules)) #
-                      ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
-                      ((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))))));
-            match ((((((sh_0.(globals)).(g_granules)) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val))) with
-            | None =>
-              rely (
-                (((((((sh.(globals)).(g_granules)) #
-                  ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
-                  ((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID))) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).(e_state_s_granule)) -
-                  (((((sh_0.(globals)).(g_granules)) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).(e_state_s_granule)))) =
-                  (0)));
-              rely (
-                ((("granules" = ("granules")) /\ ((((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) mod(4096)) = (0)))) /\
-                  ((((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) >= (0)))));
+            when st_4 == ((spinlock_release_spec (mkPtr ((test_Z_Ptr ret).(pbase)) ((test_Z_Ptr ret).(poffset))) st_2));
+            when st_8 == ((granule_unlock_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_4));
+            when rtt_ret, st_9 == ((rtt_walk_lock_unlock_spec_abs (mkPtr "stack_s_rtt_walk" 0) (int_to_ptr ret) 0 64 v_1 v_2 st_8));
+            rely ((((st_9.(share)).(granule_data)) = (((st_8.(share)).(granule_data)))));
+            if (
+              (((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_desc_type)) =? (0)) &&
+                ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_ripas)) =? (0)))) &&
+                ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_mem_attr)) =? (0)))))
+            then (
+              when st_20 == (
+                  (granule_unlock_spec
+                    (rtt_ret.(e_2))
+                    (st_9.[stack].[stack_s_smc_result] :< (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 0).[e_x3] :< 0))));
+              (Some (st_20.[stack].[stack_s_smc_result] :< (((st_20.(stack)).(stack_s_smc_result)).[e_x0] :< 0))))
+            else (
               if (
-                ((((((sh_0.(globals)).(g_granules)) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).(e_state_s_granule)) -
-                  (5)) =?
-                  (0)))
+                (((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_desc_type)) =? (0)) &&
+                  ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_ripas)) =? (0)))) &&
+                  ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_mem_attr)) =? (2)))))
               then (
-                when cid == ((((((sh_0.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val)));
-                when st_9 == (
-                    (rtt_walk_lock_unlock_spec
-                      (mkPtr "stack_s_rtt_walk" 0)
-                      (mkPtr "granules" ((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)))
-                      ret_2
-                      ret_3
-                      v_1
-                      v_2
-                      ((st.[log] :<
-                        ((EVT CPU_ID (REL ((v_0 + ((- MEM0_PHYS))) >> (12)) (((sh_0.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))))) ::
-                          (((EVT CPU_ID (ACQ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096)))) ::
-                            ((((st.(oracle)) ((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
-                              (((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))).[share] :<
-                        (sh_0.[globals].[g_granules] :<
-                          ((((sh_0.(globals)).(g_granules)) #
-                            (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096)) ==
-                            ((((sh_0.(globals)).(g_granules)) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :<
-                              (Some CPU_ID))) #
-                            ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
-                            ((((sh_0.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None))))));
-                rely ((((st_9.(share)).(granule_data)) = ((sh_0.(granule_data)))));
-                rely ((((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)));
-                rely ((((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (MEM0_VIRT)) < (0)));
-                rely (
-                  ((((("granules" = ("granules")) /\ ((((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) mod(4096)) = (0)))) /\
-                    ((((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
-                    ((6 >= (0)))) /\
-                    ((6 <= (24)))));
-                when ret_4 == ((granule_addr_spec' (mkPtr "granules" ((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)))));
-                when ret_5 == ((buffer_map_spec' 6 ret_4 false));
-                rely ((((ret_5.(pbase)) = ("granule_data")) /\ (((ret_5.(poffset)) >= (0)))));
-                when v_29, st_14 == ((__tte_read_spec (mkPtr (ret_5.(pbase)) ((ret_5.(poffset)) + ((8 * ((((st_9.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk))))))) st_9));
-                rely ((((st_14.(share)).(granule_data)) = (((st_9.(share)).(granule_data)))));
-                if ((v_29 & (63)) =? (0))
-                then (
-                  when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                  (Some (((st_14.[log] :<
-                    ((EVT
-                      CPU_ID
-                      (REL
-                        (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                        ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                      ((st_14.(log))))).[share].[globals].[g_granules] :<
-                    ((((st_14.(share)).(globals)).(g_granules)) #
-                      (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                      (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                    ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 0).[e_x3] :< 0))))
-                else (
-                  if ((v_29 & (63)) =? (8))
-                  then (
-                    when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                    (Some (((st_14.[log] :<
-                      ((EVT
-                        CPU_ID
-                        (REL
-                          (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                          ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                        ((st_14.(log))))).[share].[globals].[g_granules] :<
-                      ((((st_14.(share)).(globals)).(g_granules)) #
-                        (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                        (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                      ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 1).[e_x3] :< 0))))
-                  else (
-                    if ((v_29 & (63)) =? (4))
-                    then (
-                      when ret_6 == ((s2tte_pa_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                      when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                      (Some (((st_14.[log] :<
-                        ((EVT
-                          CPU_ID
-                          (REL
-                            (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                            ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                          ((st_14.(log))))).[share].[globals].[g_granules] :<
-                        ((((st_14.(share)).(globals)).(g_granules)) #
-                          (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                          (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                        ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 2).[e_x3] :< ret_6))))
-                    else (
-                      when ret_6 == ((s2tte_is_valid_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                      if ret_6
-                      then (
-                        when ret_7 == ((s2tte_pa_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                        when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                        (Some (((st_14.[log] :<
-                          ((EVT
-                            CPU_ID
-                            (REL
-                              (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                              ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                            ((st_14.(log))))).[share].[globals].[g_granules] :<
-                          ((((st_14.(share)).(globals)).(g_granules)) #
-                            (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                            (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                          ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 4).[e_x3] :< ret_7))))
-                      else (
-                        when ret_7 == ((s2tte_is_valid_ns_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                        if ret_7
-                        then (
-                          when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                          (Some (((st_14.[log] :<
-                            ((EVT
-                              CPU_ID
-                              (REL
-                                (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                                ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                              ((st_14.(log))))).[share].[globals].[g_granules] :<
-                            ((((st_14.(share)).(globals)).(g_granules)) #
-                              (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                              (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                            ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 5).[e_x3] :<
-                              (((((- 1) & (281474976710655)) & (((- 1) << (((39 + (((- 9) * ((((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level)))))) & (4294967295)))))) |' (1020)) & (v_29))))))
-                        else (
-                          if (((((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level)) <? (3)) && (((v_29 & (3)) =? (3))))
-                          then (
-                            when ret_8 == ((s2tte_pa_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                            when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                            (Some (((st_14.[log] :<
-                              ((EVT
-                                CPU_ID
-                                (REL
-                                  (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                                  ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                                ((st_14.(log))))).[share].[globals].[g_granules] :<
-                              ((((st_14.(share)).(globals)).(g_granules)) #
-                                (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                                (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                              ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 3).[e_x3] :< ret_8))))
-                          else (
-                            when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                            (Some (((st_14.[log] :<
-                              ((EVT
-                                CPU_ID
-                                (REL
-                                  (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                                  ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                                ((st_14.(log))))).[share].[globals].[g_granules] :<
-                              ((((st_14.(share)).(globals)).(g_granules)) #
-                                (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                                (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                              (((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x3] :< 0))))))))))
+                when st_22 == (
+                    (granule_unlock_spec
+                      (rtt_ret.(e_2))
+                      (st_9.[stack].[stack_s_smc_result] :< (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 1).[e_x3] :< 0))));
+                (Some (st_22.[stack].[stack_s_smc_result] :< (((st_22.(stack)).(stack_s_smc_result)).[e_x0] :< 0))))
               else (
-                when cid == (
-                    ((((((sh_0.(globals)).(g_granules)) #
-                      (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096)) ==
-                      ((((sh_0.(globals)).(g_granules)) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :<
-                        None)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).(e_lock)).(e_val)));
-                when st_9 == (
-                    (rtt_walk_lock_unlock_spec
-                      (mkPtr "stack_s_rtt_walk" 0)
-                      (mkPtr "granules" ((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)))
-                      ret_2
-                      ret_3
-                      v_1
-                      v_2
-                      ((st.[log] :<
-                        ((EVT
-                          CPU_ID
-                          (REL
-                            ((v_0 + ((- MEM0_PHYS))) >> (12))
-                            ((((sh_0.(globals)).(g_granules)) #
-                              (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096)) ==
-                              ((((sh_0.(globals)).(g_granules)) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :<
-                                None)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))))) ::
-                          (((EVT
-                            CPU_ID
-                            (REL
-                              (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))
-                              ((((sh_0.(globals)).(g_granules)) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :<
-                                (Some CPU_ID)))) ::
-                            (((EVT CPU_ID (ACQ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096)))) ::
-                              ((((st.(oracle)) ((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))) ++
-                                (((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))))))))).[share] :<
-                        (sh_0.[globals].[g_granules] :<
-                          ((((sh_0.(globals)).(g_granules)) #
-                            (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096)) ==
-                            ((((sh_0.(globals)).(g_granules)) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :<
-                              None)) #
-                            ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
-                            (((((sh_0.(globals)).(g_granules)) #
-                              (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096)) ==
-                              ((((sh_0.(globals)).(g_granules)) @ (((((((sh.(granule_data)) @ ((ret_0.(poffset)) / (4096))).(g_rd)).(e_s2_ctx)).(e_g_rtt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :<
-                                None)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :<
-                              None))))));
-                rely ((((st_9.(share)).(granule_data)) = ((sh_0.(granule_data)))));
-                rely ((((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)));
-                rely ((((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (MEM0_VIRT)) < (0)));
-                rely (
-                  ((((("granules" = ("granules")) /\ ((((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) mod(4096)) = (0)))) /\
-                    ((((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) >= (0)))) /\
-                    ((6 >= (0)))) /\
-                    ((6 <= (24)))));
-                when ret_4 == ((granule_addr_spec' (mkPtr "granules" ((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)))));
-                when ret_5 == ((buffer_map_spec' 6 ret_4 false));
-                rely ((((ret_5.(pbase)) = ("granule_data")) /\ (((ret_5.(poffset)) >= (0)))));
-                when v_29, st_14 == ((__tte_read_spec (mkPtr (ret_5.(pbase)) ((ret_5.(poffset)) + ((8 * ((((st_9.(stack)).(stack_s_rtt_walk)).(e_index_s_rtt_walk))))))) st_9));
-                rely ((((st_14.(share)).(granule_data)) = (((st_9.(share)).(granule_data)))));
-                if ((v_29 & (63)) =? (0))
+                if (
+                  (((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_desc_type)) =? (0)) &&
+                    ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_ripas)) =? (0)))) &&
+                    ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_mem_attr)) =? (1)))))
                 then (
-                  when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                  (Some (((st_14.[log] :<
-                    ((EVT
-                      CPU_ID
-                      (REL
-                        (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                        ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                      ((st_14.(log))))).[share].[globals].[g_granules] :<
-                    ((((st_14.(share)).(globals)).(g_granules)) #
-                      (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                      (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                    ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 0).[e_x3] :< 0))))
+                  when st_26 == (
+                      (granule_unlock_spec
+                        (rtt_ret.(e_2))
+                        (st_9.[stack].[stack_s_smc_result] :<
+                          (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 2).[e_x3] :<
+                            (read_entry_para
+                              (abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9)
+                              (rtt_ret.(e_1))
+                              (st_9.[stack].[stack_s_smc_result] :< (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 2).[e_x3] :< 0)))))));
+                  (Some (st_26.[stack].[stack_s_smc_result] :< (((st_26.(stack)).(stack_s_smc_result)).[e_x0] :< 0))))
                 else (
-                  if ((v_29 & (63)) =? (8))
+                  if (((rtt_ret.(e_1)) =? (3)) && ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_desc_type)) =? (3))))
                   then (
-                    when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                    (Some (((st_14.[log] :<
-                      ((EVT
-                        CPU_ID
-                        (REL
-                          (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                          ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                        ((st_14.(log))))).[share].[globals].[g_granules] :<
-                      ((((st_14.(share)).(globals)).(g_granules)) #
-                        (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                        (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                      ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 1).[e_x3] :< 0))))
+                    when st_28 == (
+                        (granule_unlock_spec
+                          (rtt_ret.(e_2))
+                          (st_9.[stack].[stack_s_smc_result] :<
+                            (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 4).[e_x3] :<
+                              (read_entry_para
+                                (abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9)
+                                (rtt_ret.(e_1))
+                                (st_9.[stack].[stack_s_smc_result] :< (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 4).[e_x3] :< 0)))))));
+                    (Some (st_28.[stack].[stack_s_smc_result] :< (((st_28.(stack)).(stack_s_smc_result)).[e_x0] :< 0))))
                   else (
-                    if ((v_29 & (63)) =? (4))
+                    if (((rtt_ret.(e_1)) <>? (3)) && ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_desc_type)) =? (1))))
                     then (
-                      when ret_6 == ((s2tte_pa_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                      when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                      (Some (((st_14.[log] :<
-                        ((EVT
-                          CPU_ID
-                          (REL
-                            (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                            ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                          ((st_14.(log))))).[share].[globals].[g_granules] :<
-                        ((((st_14.(share)).(globals)).(g_granules)) #
-                          (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                          (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                        ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 2).[e_x3] :< ret_6))))
+                      when st_28 == (
+                          (granule_unlock_spec
+                            (rtt_ret.(e_2))
+                            (st_9.[stack].[stack_s_smc_result] :<
+                              (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 4).[e_x3] :<
+                                (read_entry_para
+                                  (abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9)
+                                  (rtt_ret.(e_1))
+                                  (st_9.[stack].[stack_s_smc_result] :< (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 4).[e_x3] :< 0)))))));
+                      (Some (st_28.[stack].[stack_s_smc_result] :< (((st_28.(stack)).(stack_s_smc_result)).[e_x0] :< 0))))
                     else (
-                      when ret_6 == ((s2tte_is_valid_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                      if ret_6
+                      if (((rtt_ret.(e_1)) <? (3)) && ((((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9).(meta_desc_type)) =? (3))))
                       then (
-                        when ret_7 == ((s2tte_pa_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                        when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                        (Some (((st_14.[log] :<
-                          ((EVT
-                            CPU_ID
-                            (REL
-                              (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                              ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                            ((st_14.(log))))).[share].[globals].[g_granules] :<
-                          ((((st_14.(share)).(globals)).(g_granules)) #
-                            (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                            (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                          ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 4).[e_x3] :< ret_7))))
+                        when st_32 == (
+                            (granule_unlock_spec
+                              (rtt_ret.(e_2))
+                              (st_9.[stack].[stack_s_smc_result] :<
+                                (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 3).[e_x3] :<
+                                  (read_entry_para
+                                    (abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_9)
+                                    (rtt_ret.(e_1))
+                                    (st_9.[stack].[stack_s_smc_result] :< (((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x2] :< 3).[e_x3] :< 0)))))));
+                        (Some (st_32.[stack].[stack_s_smc_result] :< (((st_32.(stack)).(stack_s_smc_result)).[e_x0] :< 0))))
                       else (
-                        when ret_7 == ((s2tte_is_valid_ns_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                        if ret_7
-                        then (
-                          when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                          (Some (((st_14.[log] :<
-                            ((EVT
-                              CPU_ID
-                              (REL
-                                (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                                ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                              ((st_14.(log))))).[share].[globals].[g_granules] :<
-                            ((((st_14.(share)).(globals)).(g_granules)) #
-                              (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                              (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                            ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 5).[e_x3] :<
-                              (((((- 1) & (281474976710655)) & (((- 1) << (((39 + (((- 9) * ((((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level)))))) & (4294967295)))))) |' (1020)) & (v_29))))))
-                        else (
-                          if (((((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level)) <? (3)) && (((v_29 & (3)) =? (3))))
-                          then (
-                            when ret_8 == ((s2tte_pa_spec' v_29 (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))));
-                            when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                            (Some (((st_14.[log] :<
-                              ((EVT
-                                CPU_ID
-                                (REL
-                                  (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                                  ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                                ((st_14.(log))))).[share].[globals].[g_granules] :<
-                              ((((st_14.(share)).(globals)).(g_granules)) #
-                                (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                                (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                              ((((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x2] :< 3).[e_x3] :< ret_8))))
-                          else (
-                            when cid_0 == (((((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).(e_lock)).(e_val)));
-                            (Some (((st_14.[log] :<
-                              ((EVT
-                                CPU_ID
-                                (REL
-                                  (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))
-                                  ((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))))) ::
-                                ((st_14.(log))))).[share].[globals].[g_granules] :<
-                              ((((st_14.(share)).(globals)).(g_granules)) #
-                                (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096)) ==
-                                (((((st_14.(share)).(globals)).(g_granules)) @ (((((st_9.(stack)).(stack_s_rtt_walk)).(e_g_llt)) - (GRANULES_BASE)) / (4096))).[e_lock].[e_val] :< None))).[stack].[stack_s_smc_result] :<
-                              (((((st_14.(stack)).(stack_s_smc_result)).[e_x0] :< 0).[e_x1] :< (((st_9.(stack)).(stack_s_rtt_walk)).(e_last_level))).[e_x3] :< 0))))))))))
-            | (Some cid) => None
-            end)
-          else (
-            (Some (((st.[log] :<
-              ((EVT CPU_ID (REL ((v_0 + ((- MEM0_PHYS))) >> (12)) ((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
-                (((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
-              (sh.[globals].[g_granules] :<
-                (((sh.(globals)).(g_granules)) #
-                  ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
-                  ((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None)))).[stack].[stack_s_smc_result] :<
-              (((st.(stack)).(stack_s_smc_result)).[e_x0] :<
-                (((((((ret_1 >> (32)) + (2)) << (32)) + (ret_1)) >> (24)) & (4294967040)) |' (((((ret_1 >> (32)) + (2)) << (32)) + (ret_1)))))))))
+                        when st_29 == ((granule_unlock_spec (rtt_ret.(e_2)) (st_9.[stack].[stack_s_smc_result] :< ((((st_9.(stack)).(stack_s_smc_result)).[e_x1] :< (rtt_ret.(e_1))).[e_x3] :< 0))));
+                        (Some (st_29.[stack].[stack_s_smc_result] :< (((st_29.(stack)).(stack_s_smc_result)).[e_x0] :< 0)))))))))))
         else (
-          (Some (((st.[log] :<
-            ((EVT CPU_ID (REL ((v_0 + ((- MEM0_PHYS))) >> (12)) ((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< (Some CPU_ID)))) ::
-              (((EVT CPU_ID (ACQ ((v_0 + ((- MEM0_PHYS))) >> (12)))) :: ((((st.(oracle)) (st.(log))) ++ ((st.(log))))))))).[share] :<
-            (sh.[globals].[g_granules] :<
-              (((sh.(globals)).(g_granules)) #
-                ((v_0 + ((- MEM0_PHYS))) >> (12)) ==
-                ((((sh.(globals)).(g_granules)) @ ((v_0 + ((- MEM0_PHYS))) >> (12))).[e_lock].[e_val] :< None)))).[stack].[stack_s_smc_result] :<
-            (((st.(stack)).(stack_s_smc_result)).[e_x0] :< 4294967553))))
-      | (Some cid) => None
-      end).
+          when st_4 == ((granule_unlock_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_3));
+          (Some (st_4.[stack].[stack_s_smc_result] :< (((st_4.(stack)).(stack_s_smc_result)).[e_x0] :< (pack_struct_return_code_para (make_return_code_para v_14)))))))
+      else (
+        when st_2 == ((spinlock_release_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_1));
+        (Some (st_2.[stack].[stack_s_smc_result] :< (((st_2.(stack)).(stack_s_smc_result)).[e_x0] :< (pack_struct_return_code_para (make_return_code_para 1)))))).
 
 
   Definition smc_rtt_map_protected_spec (v_0: Z) (v_1: Z) (v_2: Z) (st: RData) : (option (Z * RData)) :=
@@ -11933,9 +9132,11 @@ Section Layer13_Spec.
 
   Definition smc_system_interface_version_spec (st: RData) : (option (Z * RData)) :=
     (Some (2687387, st)).
+  
+  Definition system_rsi_abi_version_spec (st: RData) : (option (Z * RData)) :=
+    (Some (327680, st)).
 
-  Parameter test_Ptr_Z : (Ptr -> (Z)).
-  Parameter wrap_180_para : (Z -> (RData -> (Z))).
+
   Definition smc_realm_create_spec (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
     when v_7, st_2 == ((memcpy_ns_read_spec (mkPtr "stack_s_realm_params" 0) (mkPtr "granule_data" ((test_PA v_1).(meta_granule_offset))) 64 st));
     if v_7

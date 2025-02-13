@@ -2039,22 +2039,30 @@ Section Layer9_Spec.
       (Some st_4)).
 
   Definition rsi_set_ttbr0_spec (v_0: Ptr) (v_1: Z) (st: RData) : (option (Z * RData)) :=
-    rely (((((((st.(share)).(granule_data)) @ ((v_0.(poffset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_REC)) = (0)));
-    rely (((((v_0.(pbase)) = ("granule_data")) /\ ((((v_0.(poffset)) mod (4096)) = (0)))) /\ (((v_0.(poffset)) >= (0)))));
-    when v_4, st_0 == ((find_lock_granule_spec (v_1 & (281474976710654)) 5 st));
-    rely (((((v_4.(poffset)) mod (4096)) = (0)) /\ (((v_4.(poffset)) >= (0)))));
-    rely ((((v_4.(pbase)) = ("granules")) \/ (((v_4.(pbase)) = ("null")))));
-    if (ptr_eqb v_4 (mkPtr "null" 0))
+    rely ((((((((st.(share)).(globals)).(g_granules)) @ ((v_0.(poffset)) / (4096))).(e_state_s_granule)) - (GRANULE_STATE_REC)) = (0)));
+    rely (((((v_0.(poffset)) mod (4096)) = (0)) /\ (((v_0.(poffset)) >= (0)))));
+    rely (((v_0.(pbase)) = ("granule_data")));
+    when st_1 == ((spinlock_acquire_spec (mkPtr "granules" ((test_PA v_1).(meta_granule_offset))) st));
+    if (((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_1).(meta_granule_offset)) / (4096))).(e_state_s_granule)) - (5)) =? (0))
     then (
-      when v_6, st_1 == ((pack_return_code_spec 1 2 st_0));
-      (Some (v_6, st_1)))
+      rely ((((((test_PA v_1).(meta_granule_offset)) mod (4096)) = (0)) /\ ((((test_PA v_1).(meta_granule_offset)) >= (0)))));
+      when st_6 == (
+          (granule_unlock_spec
+            (mkPtr "granules" ((test_PA v_1).(meta_granule_offset)))
+            ((st_1.[priv].[pcpu_regs].[pcpu_ttbr0_el12] :< v_1).[share].[granule_data] :<
+              (((st_1.(share)).(granule_data)) #
+                (((v_0.(poffset)) + (1536)) / (4096)) ==
+                ((((st_1.(share)).(granule_data)) @ (((v_0.(poffset)) + (1536)) / (4096))).[g_norm] :<
+                  ((((((st_1.(share)).(granule_data)) @ (((v_0.(poffset)) + (1536)) / (4096))).(g_norm)) #
+                    (((v_0.(poffset)) + (1536)) mod (4096)) ==
+                    (test_Ptr_Z (mkPtr "granules" ((test_PA v_1).(meta_granule_offset))))) #
+                    (((v_0.(poffset)) + (392)) mod (4096)) ==
+                    v_1))))));
+      (Some (0, st_6)))
     else (
-      when st_1 == ((store_RData 8 (ptr_offset v_0 1536) (ptr_to_int v_4) st_0));
-      when st_2 == ((store_RData 8 (ptr_offset v_0 392) v_1 st_1));
-      when st_3 == ((iasm_82_spec v_1 st_2));
-      when st_4 == ((iasm_12_isb_spec st_3));
-      when st_5 == ((granule_unlock_spec v_4 st_4));
-      (Some (0, st_5))).
+      when st_2 == ((spinlock_release_spec (mkPtr "granules" ((test_PA v_1).(meta_granule_offset))) st_1));
+      (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_2))).
+
 
   Definition rsi_data_make_root_rtt_spec (v_0: Z) (st: RData) : (option (Z * RData)) :=
     when v_2, st_0 == ((find_granule_spec v_0 st));
@@ -2137,27 +2145,35 @@ Section Layer9_Spec.
       (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_2))).
 
   Definition rsi_data_set_attrs_spec (v_0: Z) (v_1: Z) (v_2: Z) (v_3: Z) (st: RData) : (option (Z * RData)) :=
-    when st_0 == ((new_frame "rsi_data_set_attrs" st));
-    when v_7, st_1 == ((find_lock_granule_spec v_0 5 st_0));
-    rely (((((v_7.(poffset)) mod (4096)) = (0)) /\ (((v_7.(poffset)) >= (0)))));
-    rely ((((v_7.(pbase)) = ("granules")) \/ (((v_7.(pbase)) = ("null")))));
-    if (ptr_eqb v_7 (mkPtr "null" 0))
+    when st_1 == ((spinlock_acquire_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st));
+    if (((((((st_1.(share)).(globals)).(g_granules)) @ (((test_PA v_0).(meta_granule_offset)) / (4096))).(e_state_s_granule)) - (5)) =? (0))
     then (
-      when v_9, st_2 == ((pack_return_code_spec 1 1 st_1));
-      when st_4 == ((free_stack "rsi_data_set_attrs" st_0 st_2));
-      (Some (v_9, st_4)))
-    else (
-      when st_2 == ((rtt_walk_lock_unlock_spec (mkPtr "stack_s_rtt_walk" 0) v_7 0 64 v_1 3 st_1));
-      rely ((((st_2.(share)).(granule_data)) = (((st_1.(share)).(granule_data)))));
-      when v__sroa_0_0_copyload_tmp, st_3 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 0) st_2));
-      when v__sroa_6_0_copyload, st_4 == ((load_RData 8 (ptr_offset (mkPtr "stack_s_rtt_walk" 0) 16) st_3));
-      if (v__sroa_6_0_copyload =? (3))
-      then (rsi_data_set_attrs_0_low st_0 st_4 v_2 v__sroa_0_0_copyload_tmp v__sroa_6_0_copyload)
+      rely ((((((test_PA v_0).(meta_granule_offset)) mod (4096)) = (0)) /\ ((((test_PA v_0).(meta_granule_offset)) >= (0)))));
+      when rtt_ret, st_2 == ((rtt_walk_lock_unlock_spec_abs (mkPtr "stack_s_rtt_walk" 0) (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) 0 64 v_1 3 st_1));
+      if ((rtt_ret.(e_1)) =? (3))
+      then (
+        when st_19 == (
+            (granule_unlock_spec
+              (rtt_ret.(e_2))
+              (st_2.[share].[granule_data] :<
+                (((st_2.(share)).(granule_data)) #
+                  ((((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3)))))) / (4096)) ==
+                  ((((st_2.(share)).(granule_data)) @ ((((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3)))))) / (4096))).[g_norm] :<
+                    (((((st_2.(share)).(granule_data)) @ ((((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3)))))) / (4096))).(g_norm)) #
+                      ((((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3)))))) mod (4096)) ==
+                      (test_PTE_Z
+                        (mkabs_PTE_t
+                          ((abs_tte_read (mkPtr "granule_data" (((rtt_ret.(e_2)).(poffset)) + ((8 * ((rtt_ret.(e_3))))))) st_2).(meta_PA))
+                          (abs_attr_to_desc_type v_2)
+                          (abs_attr_to_ripas v_2)
+                          (abs_attr_to_mem_attr v_2)))))))));
+        (Some (0, st_19)))
       else (
-        when v_14, st_5 == ((pack_return_code_spec 8 v__sroa_6_0_copyload st_4));
-        when st_7 == ((granule_unlock_spec (int_to_ptr v__sroa_0_0_copyload_tmp) st_5));
-        when st_9 == ((free_stack "rsi_data_set_attrs" st_0 st_7));
-        (Some (v_14, st_9)))).
+        when st_7 == ((granule_unlock_spec (rtt_ret.(e_2)) st_2));
+        (Some ((pack_struct_return_code_para (make_return_code_para 8)), st_7))))
+    else (
+      when st_2 == ((spinlock_release_spec (mkPtr "granules" ((test_PA v_0).(meta_granule_offset))) st_1));
+      (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_2))).
 
   Definition timer_condition_met_spec (v_0: Z) (st: RData) : (option (bool * RData)) :=
     (Some (((v_0 & (5)) =? (5)), st)).

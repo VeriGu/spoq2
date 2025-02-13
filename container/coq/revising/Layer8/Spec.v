@@ -213,38 +213,67 @@ Section Layer8_Spec.
         (Some st_1))).
 
   Definition handle_rsi_realm_extend_measurement_spec (v_0: Ptr) (st: RData) : (option (Z * RData)) :=
-    when st_0 == ((new_frame "handle_rsi_realm_extend_measurement" st));
-    rely (((((((st_0.(share)).(granule_data)) @ ((v_0.(poffset)) / (4096))).(g_granule_state)) - (GRANULE_STATE_REC)) = (0)));
+    rely ((((((((st.(share)).(globals)).(g_granules)) @ ((v_0.(poffset)) / (4096))).(e_state_s_granule)) - (GRANULE_STATE_REC)) = (0)));
     rely (((((v_0.(pbase)) = ("granule_data")) /\ (((v_0.(poffset)) >= (0)))) /\ ((((v_0.(poffset)) mod (4096)) = (0)))));
-    when v_4_tmp, st_1 == ((load_RData 8 (ptr_offset v_0 944) st_0));
-    when st_2 == ((granule_lock_spec (int_to_ptr v_4_tmp) 2 st_1));
-    when v_5_tmp, st_3 == ((load_RData 8 (ptr_offset v_0 944) st_2));
-    when v_6, st_4 == ((granule_map_spec (int_to_ptr v_5_tmp) 2 st_3));
-    when v_8, st_5 == ((load_RData 8 (ptr_offset v_0 32) st_4));
-    if (((v_8 + ((- 7))) - ((- 6))) <? (0))
+    when st_1 == ((spinlock_acquire_spec (mkPtr ((rec_to_rd_para v_0 st).(pbase)) ((rec_to_rd_para v_0 st).(poffset))) st));
+    if (((((((st_1.(share)).(globals)).(g_granules)) @ (((rec_to_rd_para v_0 st).(poffset)) / (4096))).(e_state_s_granule)) - (2)) =? (0))
     then (
-      when v_13, st_6 == ((pack_return_code_spec 1 1 st_5));
-      when v_33_tmp, st_8 == ((load_RData 8 (ptr_offset v_0 944) st_6));
-      when st_9 == ((granule_unlock_spec (int_to_ptr v_33_tmp) st_8));
-      when st_10 == ((free_stack "handle_rsi_realm_extend_measurement" st_0 st_9));
-      (Some (v_13, st_10)))
-    else (
-      when v_16, st_6 == ((load_RData 8 (ptr_offset v_0 40) st_5));
-      if (v_16 >? (64))
+      if ((((((((st_1.(share)).(granule_data)) @ (((v_0.(poffset)) + (32)) / (4096))).(g_norm)) @ (((v_0.(poffset)) + (32)) mod (4096))) + ((- 7))) - ((- 6))) <? (0))
       then (
-        when v_19, st_7 == ((pack_return_code_spec 1 2 st_6));
-        when v_33_tmp, st_10 == ((load_RData 8 (ptr_offset v_0 944) st_7));
-        when st_11 == ((granule_unlock_spec (int_to_ptr v_33_tmp) st_10));
-        when st_12 == ((free_stack "handle_rsi_realm_extend_measurement" st_0 st_11));
-        (Some (v_19, st_12)))
+        when st_9 == ((granule_unlock_spec (rec_to_rd_para v_0 st_1) st_1));
+        (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_9)))
       else (
-        rely ((((0 - ((v_8 & (4294967295)))) <= (0)) /\ (((v_8 & (4294967295)) < (7)))));
-        when v_29, st_7 == ((memcpy_spec (ptr_offset (mkPtr "stack_type_8" 0) 0) (ptr_offset (ptr_offset v_6 184) (32 * ((v_8 & (4294967295))))) 32 st_6));
-        when v_31, st_8 == ((memcpy_spec (ptr_offset (mkPtr "stack_type_8" 0) 32) (ptr_offset v_0 48) v_16 st_7));
-        when v_33_tmp, st_11 == ((load_RData 8 (ptr_offset v_0 944) st_8));
-        when st_12 == ((granule_unlock_spec (int_to_ptr v_33_tmp) st_11));
-        when st_13 == ((free_stack "handle_rsi_realm_extend_measurement" st_0 st_12));
-        (Some (0, st_13)))).
+        if ((((((st_1.(share)).(granule_data)) @ (((v_0.(poffset)) + (40)) / (4096))).(g_norm)) @ (((v_0.(poffset)) + (40)) mod (4096))) >? (64))
+        then (
+          when st_11 == ((granule_unlock_spec (rec_to_rd_para v_0 st_1) st_1));
+          (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_11)))
+        else (
+          when v_29, st_7 == (
+              (memcpy_spec
+                (mkPtr "stack_type_8" 0)
+                (mkPtr
+                  "granule_data"
+                  ((((rec_to_rd_para v_0 st_1).(poffset)) + (184)) +
+                    ((32 * (((((((st_1.(share)).(granule_data)) @ (((v_0.(poffset)) + (32)) / (4096))).(g_norm)) @ (((v_0.(poffset)) + (32)) mod (4096))) & (4294967295)))))))
+                32
+                st_1));
+          when v_31, st_8 == (
+              (memcpy_spec
+                (mkPtr "stack_type_8" 32)
+                (mkPtr (v_0.(pbase)) ((v_0.(poffset)) + (48)))
+                (((((st_1.(share)).(granule_data)) @ (((v_0.(poffset)) + (40)) / (4096))).(g_norm)) @ (((v_0.(poffset)) + (40)) mod (4096)))
+                st_7));
+          when st_12 == ((granule_unlock_spec (rec_to_rd_para v_0 st_8) st_8));
+          (Some (0, st_12)))))
+    else (
+      when st_2 == ((spinlock_release_spec (mkPtr ((rec_to_rd_para v_0 st).(pbase)) ((rec_to_rd_para v_0 st).(poffset))) st_1));
+      if ((((((((st_2.(share)).(granule_data)) @ (((v_0.(poffset)) + (32)) / (4096))).(g_norm)) @ (((v_0.(poffset)) + (32)) mod (4096))) + ((- 7))) - ((- 6))) <? (0))
+      then (
+        when st_9 == ((granule_unlock_spec (rec_to_rd_para v_0 st_2) st_2));
+        (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_9)))
+      else (
+        if ((((((st_2.(share)).(granule_data)) @ (((v_0.(poffset)) + (40)) / (4096))).(g_norm)) @ (((v_0.(poffset)) + (40)) mod (4096))) >? (64))
+        then (
+          when st_11 == ((granule_unlock_spec (rec_to_rd_para v_0 st_2) st_2));
+          (Some ((pack_struct_return_code_para (make_return_code_para 1)), st_11)))
+        else (
+          when v_29, st_7 == (
+              (memcpy_spec
+                (mkPtr "stack_type_8" 0)
+                (mkPtr
+                  "granule_data"
+                  ((((rec_to_rd_para v_0 st_2).(poffset)) + (184)) +
+                    ((32 * (((((((st_2.(share)).(granule_data)) @ (((v_0.(poffset)) + (32)) / (4096))).(g_norm)) @ (((v_0.(poffset)) + (32)) mod (4096))) & (4294967295)))))))
+                32
+                st_2));
+          when v_31, st_8 == (
+              (memcpy_spec
+                (mkPtr "stack_type_8" 32)
+                (mkPtr (v_0.(pbase)) ((v_0.(poffset)) + (48)))
+                (((((st_2.(share)).(granule_data)) @ (((v_0.(poffset)) + (40)) / (4096))).(g_norm)) @ (((v_0.(poffset)) + (40)) mod (4096)))
+                st_7));
+          when st_12 == ((granule_unlock_spec (rec_to_rd_para v_0 st_8) st_8));
+          (Some (0, st_12))))).
 
   Definition rsi_memory_dispose_spec (v_0: Ptr) (v_1: Ptr) (st: RData) : (option (bool * RData)) :=
     rely ((((v_1.(pbase)) = ("stack_s_rec_exit")) /\ (((v_1.(poffset)) = (0)))));
@@ -412,6 +441,15 @@ Section Layer8_Spec.
     when v_4, st_0 == ((load_RData 8 v_0 st));
     when st_1 == ((store_RData 8 v_0 ((v_4 & ((Z.lxor v_2 (- 1)))) |' ((v_2 & (v_1)))) st_0));
     (Some st_1).
+
+  Parameter abs_attr_to_desc_type :(Z -> (Z)).
+  Parameter abs_attr_to_ripas :(Z -> (Z)).
+  Parameter abs_attr_to_mem_attr :(Z -> (Z)).
+  Definition masked_assign_spec_abs (pte: abs_PTE_t) (attr: Z) : (abs_PTE_t) :=
+    (mkabs_PTE_t pte.(meta_PA) 
+      (abs_attr_to_desc_type attr)
+      (abs_attr_to_ripas attr)
+      (abs_attr_to_mem_attr attr)).
 
   Definition set_tte_ns_spec (v_0: Z) (st: RData) : (option RData) :=
     rely (((((v_0 - (MEM1_PHYS)) >= (0)) /\ (((v_0 - (556198264832)) < (0)))) \/ ((((v_0 - (MEM0_PHYS)) >= (0)) /\ (((v_0 - (MEM0_SIZE)) < (0)))))));
@@ -1507,6 +1545,61 @@ Section Layer8_Spec.
             when st_11 == ((store_RData 8 v_0 (v_25 |' (v_24)) st_10));
             (Some (true, st_11)))
           else (Some (false, st_7))))).
+
+  Definition handle_rsi_realm_get_attest_token_spec (v_0: Ptr) (v_1: Ptr) (st: RData) : (option RData) :=
+    rely (((v_0.(pbase)) = ("stack_s_attest_result")));
+    rely (((v_0.(poffset)) = (0)));
+    rely ((((((((st.(share)).(globals)).(g_granules)) @ ((v_1.(poffset)) / (4096))).(e_state_s_granule)) - (GRANULE_STATE_REC)) = (0)));
+    rely ((((0 - (CPU_ID)) <= (0)) /\ ((CPU_ID < (16)))));
+    if ((((((st.(share)).(granule_data)) @ (((v_1.(poffset)) + (40)) / (4096))).(g_norm)) @ (((v_1.(poffset)) + (40)) mod (4096))) >? (4096))
+    then (
+      (Some ((st.[stack].[stack_s_attest_result] :<
+        ((((st.(stack)).(stack_s_attest_result)).[e_return_to_realm] :< 1).[e_smc_result] :<
+          ((((st.(stack)).(stack_s_attest_result)).(e_smc_result)).[e_x0] :< (pack_struct_return_code_para (make_return_code_para 1))))).[stack].[stack_type_4] :<
+        0)))
+    else (
+      if ((((((st.(share)).(granule_data)) @ (((v_1.(poffset)) + (48)) / (4096))).(g_norm)) @ (((v_1.(poffset)) + (48)) mod (4096))) =? (64))
+      then (
+        when v_34, st_8 == (
+            (create_realm_token_spec
+              (mkPtr "granule_data" ((rec_to_rd_para (mkPtr (v_1.(pbase)) ((v_1.(poffset)) + (944))) (st.[stack].[stack_type_4] :< 0)).(poffset)))
+              v_1
+              (mkPtr "null" 0)
+              (mkPtr "stack_s_q_useful_buf__3" 0)
+              (st.[stack].[stack_type_4] :< 0)));
+        if (
+          (((((((st_8.(share)).(globals)).(g_rmm_platform_token)).(e_len_s_q_useful_buf)) + ((((st_8.(stack)).(stack_s_q_useful_buf__3)).(e_len_s_q_useful_buf)))) -
+            ((((((st.(share)).(granule_data)) @ (((v_1.(poffset)) + (40)) / (4096))).(g_norm)) @ (((v_1.(poffset)) + (40)) mod (4096))))) >?
+            (0)))
+        then (
+          (Some (st_8.[stack].[stack_s_attest_result] :<
+            ((((st_8.(stack)).(stack_s_attest_result)).[e_return_to_realm] :< 1).[e_smc_result] :<
+              ((((st_8.(stack)).(stack_s_attest_result)).(e_smc_result)).[e_x0] :< (pack_struct_return_code_para (make_return_code_para 1)))))))
+        else (
+          when v_67, st_17 == (
+              (memcpy_spec
+                (mkPtr "granule_data" ((test_PA ((st_8.(stack)).(stack_type_4))).(meta_granule_offset)))
+                (test_Z_Ptr (((st_8.(stack)).(stack_s_q_useful_buf__3)).(e_ptr)))
+                (((st_8.(stack)).(stack_s_q_useful_buf__3)).(e_len_s_q_useful_buf))
+                st_8));
+          when v_72, st_21 == (
+              (memcpy_spec
+                (mkPtr
+                  "granule_data"
+                  (((test_PA ((st_8.(stack)).(stack_type_4))).(meta_granule_offset)) + ((1 * ((((st_17.(stack)).(stack_s_q_useful_buf__3)).(e_len_s_q_useful_buf)))))))
+                (test_Z_Ptr ((((st_17.(share)).(globals)).(g_rmm_platform_token)).(e_ptr)))
+                ((((st_17.(share)).(globals)).(g_rmm_platform_token)).(e_len_s_q_useful_buf))
+                st_17));
+          when st_23 == ((granule_unlock_spec (test_Z_Ptr ((st_21.(stack)).(stack_type_4))) st_21));
+          (Some (st_23.[stack].[stack_s_attest_result] :<
+            ((((st_23.(stack)).(stack_s_attest_result)).[e_return_to_realm] :< 1).[e_smc_result] :<
+              (((((st_23.(stack)).(stack_s_attest_result)).(e_smc_result)).[e_x0] :< 0).[e_x1] :<
+                (((((st_23.(share)).(globals)).(g_rmm_platform_token)).(e_len_s_q_useful_buf)) + ((((st_23.(stack)).(stack_s_q_useful_buf__3)).(e_len_s_q_useful_buf))))))))))
+      else (
+        (Some ((st.[stack].[stack_s_attest_result] :<
+          ((((st.(stack)).(stack_s_attest_result)).[e_return_to_realm] :< 1).[e_smc_result] :<
+            ((((st.(stack)).(stack_s_attest_result)).(e_smc_result)).[e_x0] :< (pack_struct_return_code_para (make_return_code_para 1))))).[stack].[stack_type_4] :<
+          0)))).
 
 End Layer8_Spec.
 

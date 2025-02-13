@@ -6,6 +6,14 @@ Local Open Scope Z_scope.
 
 Parameter CPU_ID : Z.
 
+Parameter read_entry_para : (abs_PTE_t -> (Z -> (RData -> (Z)))).
+
+Parameter test_Ptr_Z : (Ptr -> (Z)).
+
+Parameter test_Z_Ptr : (Z -> (Ptr)).
+
+Parameter wrap_180_para : (Z -> (RData -> (Z))).
+
 Parameter vmpidr_is_valid_para: (Z -> (bool)).
 
 Parameter vmpidr_to_rec_idx_para: (Z -> (Z)).

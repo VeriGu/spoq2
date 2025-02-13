@@ -927,6 +927,10 @@ Section Layer7_Spec.
   Definition s2tte_is_assigned_spec (v_0: Z) (v_1: Z) (st: RData) : (option (bool * RData)) :=
     (Some (((v_0 & (63)) =? (4)), st)).
 
+  Parameter create_realm_token_para : (Ptr -> (Ptr -> (Ptr -> (Ptr -> (RData -> (Z)))))).
+  Definition create_realm_token_spec (v_0: Ptr) (v_1: Ptr) (v_2: Ptr) (v_3: Ptr) (st: RData) : (option (Z * RData))
+    := Some ((create_realm_token_para v_0 v_1 v_2 v_3 st), st).
+
 End Layer7_Spec.
 
 #[global] Hint Unfold get_tte_spec': spec.
