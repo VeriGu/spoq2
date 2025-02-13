@@ -697,35 +697,3 @@ Proof.
             { auto. }
 Qed.            
       
-(* Lemma smc_data_create_spec_rd_rev:
-  forall d v_0 v_1 v_2 v_3 ret_n ret_d
-    (Hspec: smc_data_create_spec v_0 v_1 v_2 v_3 d = Some(ret_n, ret_d))
-    (Hinv: rd_rev d.(share)),
-    rd_rev ret_d.(share).
-Proof.   
-  intros.  unfold smc_data_create_spec in Hspec.
-  autounfold with sem in *.
-  repeat simpl_hyp Hspec; try intros_ensure_state; partial_simpl_rd_rev_and_solve Hspec.
-  all: simpl_rtt_idx_all_2.
-  all: repeat rewrite strong_lens in *; intros.
-  all: pose proof Hinv as Hinv2.
-  all: apply (@keep_rd_rev (share d) (share ret_d) Hinv2).
-  all: intros; inv Hspec. 
-  all: try(simpl in *; retrieve_idx).
-  all: try( split; [ try auto | try auto]).
-  all: simpl_walk_rev; try auto.
-  all: try match goal with
-       | |- context[_ (_ @ ?idx) = _] => remember idx as Htidx
-       | |- context[(_ (_ @ ?idx)) @ 32 = _] => remember idx as Htidx
-       end.
-  all: repeat rewrite lens_ignore_g_granules_update in *; try auto.
-  all: destruct (gidx =? Htidx) eqn: Hp_idx; bool_rel;
-      [ rewrite Hp_idx in *; rewrite ZMap.gss; simpl in *;
-        assert (normidx <> 32) as Hn_idx;
-        [ unfold not; intros Hn_idx; rewrite Hn_idx in *; try lia |
-          rewrite ZMap.gso in *; simpl in *; [ try auto | try auto ]
-        ]
-        | 
-        rewrite ZMap.gso; simpl in *; [ try auto | try auto] ].
-Qed. *)
-

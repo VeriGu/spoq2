@@ -9489,7 +9489,7 @@ Section Layer13_Spec.
                         if v_11
                         then (
                           when st_18 == ((granule_unlock_spec (rec_to_rd_para (mkPtr "granule_data" ((test_PA v_1).(meta_granule_offset))) st_4) st_6));
-                          rely ((((rtt_ret.(e_2)).(pbase)) =s ("granules")));
+                          rely ((((rtt_ret.(e_2)).(pbase)) = ("granules")));
                           rely ((((((rtt_ret.(e_2)).(poffset)) + (8)) mod (4096)) = (8)));
                           rely (
                             ((("granules" = ("granules")) /\ ((((((test_Z_PTE v_0).(meta_PA)).(meta_granule_offset)) mod (4096)) = (0)))) /\
@@ -9584,7 +9584,7 @@ Section Layer13_Spec.
                         if v_11
                         then (
                           when st_18 == ((granule_unlock_spec (rec_to_rd_para (mkPtr "granule_data" ((test_PA v_1).(meta_granule_offset))) st_4) st_7));
-                          rely ((((rtt_ret.(e_2)).(pbase)) =s ("granules")));
+                          rely ((((rtt_ret.(e_2)).(pbase)) = ("granules")));
                           rely ((((((rtt_ret.(e_2)).(poffset)) + (8)) mod (4096)) = (8)));
                           rely (
                             ((("granules" = ("granules")) /\ ((((((test_Z_PTE v_0).(meta_PA)).(meta_granule_offset)) mod (4096)) = (0)))) /\
@@ -9767,7 +9767,7 @@ Section Layer13_Spec.
                         if v_11
                         then (
                           when st_18 == ((granule_unlock_spec (rec_to_rd_para (mkPtr "granule_data" ((test_PA v_1).(meta_granule_offset))) st_5) st_7));
-                          rely ((((rtt_ret.(e_2)).(pbase)) =s ("granules")));
+                          rely ((((rtt_ret.(e_2)).(pbase)) = ("granules")));
                           rely ((((((rtt_ret.(e_2)).(poffset)) + (8)) mod (4096)) = (8)));
                           rely (
                             ((("granules" = ("granules")) /\ ((((((test_Z_PTE v_0).(meta_PA)).(meta_granule_offset)) mod (4096)) = (0)))) /\
@@ -9862,7 +9862,7 @@ Section Layer13_Spec.
                         if v_11
                         then (
                           when st_18 == ((granule_unlock_spec (rec_to_rd_para (mkPtr "granule_data" ((test_PA v_1).(meta_granule_offset))) st_5) st_8));
-                          rely ((((rtt_ret.(e_2)).(pbase)) =s ("granules")));
+                          rely ((((rtt_ret.(e_2)).(pbase)) = ("granules")));
                           rely ((((((rtt_ret.(e_2)).(poffset)) + (8)) mod (4096)) = (8)));
                           rely (
                             ((("granules" = ("granules")) /\ ((((((test_Z_PTE v_0).(meta_PA)).(meta_granule_offset)) mod (4096)) = (0)))) /\
@@ -10059,7 +10059,7 @@ Section Layer13_Spec.
                         when v_9, st_7 == ((memcpy_ns_read_spec (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) (mkPtr "granule_data" ((test_PA v_3).(meta_granule_offset))) 4096 st_10));
                         if v_9
                         then (
-                          rely ((((rtt_ret.(e_2)).(pbase)) =s ("granules")));
+                          rely ((((rtt_ret.(e_2)).(pbase)) = ("granules")));
                           rely ((((((rtt_ret.(e_2)).(poffset)) + (8)) mod (4096)) = (8)));
                           when st_27 == (
                               (granule_unlock_spec
@@ -10153,7 +10153,7 @@ Section Layer13_Spec.
                         when v_9, st_8 == ((memcpy_ns_read_spec (mkPtr "granule_data" ((test_PA v_0).(meta_granule_offset))) (mkPtr "granule_data" ((test_PA v_3).(meta_granule_offset))) 4096 st_10));
                         if v_9
                         then (
-                          rely ((((rtt_ret.(e_2)).(pbase)) =s ("granules")));
+                          rely ((((rtt_ret.(e_2)).(pbase)) = ("granules")));
                           rely ((((((rtt_ret.(e_2)).(poffset)) + (8)) mod (4096)) = (8)));
                           when st_27 == (
                               (granule_unlock_spec
