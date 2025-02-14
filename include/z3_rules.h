@@ -29,6 +29,7 @@ class EvalState {
 public:
     shared_ptr<unordered_map<string, shared_ptr<SpecValue>>> vars;
     shared_ptr<vector<z3::expr>> conds;
+    virtual ~EvalState() = default; // Make the class polymorphic
 
     EvalState() {
         vars = make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
@@ -120,7 +121,7 @@ simple_if_by_z3 timeout 50:
 build/spoq testcase/proof_debug_of.v  316.46s user 1.86s system 100% cpu 5:18.22 total
 */
 #define Z3_TIMEOUT 50
-#define Z3_VERIFY_TIMEOUT 10000
+#define Z3_VERIFY_TIMEOUT 40000
 Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo, int timeout = Z3_VERIFY_TIMEOUT);
 Z3Result z3_check(std::shared_ptr<EvalState> state, z3::expr cond, int timeout=Z3_TIMEOUT);
 Z3Result z3_check(shared_ptr<EvalState> state, int timeout=Z3_TIMEOUT);

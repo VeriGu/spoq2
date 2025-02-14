@@ -184,6 +184,11 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     for (auto &c : *state->conds) {
         Z3Solver.add(c);
     }
+    if (auto prover = instance_of(state.get(), ProveState)) {
+        for (auto &ind : *prover->inductions) {
+            Z3Solver.add(ind);
+        }
+    }
     Z3Solver.push();
     Z3Solver.add(cond);
 #ifdef Z3_PCACHE
