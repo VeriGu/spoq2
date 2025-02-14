@@ -83,5 +83,10 @@ Security/walk_inv.v
 Security/walk_inv_2.v
 Security/walk_inv_3.v
 Security/walk_inv_4.v
+Security/walk_inv_5.v
 Security/rd_reverse.v
+Security/rd_reverse_2.v
+Security/rd_reverse_3.v
+Security/rd_reverse_4.v
+Security/rd_reverse_5.v
 Security/gpt_false.v
