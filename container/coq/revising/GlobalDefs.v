@@ -6,6 +6,8 @@ Local Open Scope Z_scope.
 
 Parameter CPU_ID : Z.
 
+Parameter check_ttbr01: (abs_PA_t -> (bool)).
+
 Parameter read_entry_para : (abs_PTE_t -> (Z -> (RData -> (Z)))).
 
 Parameter test_Ptr_Z : (Ptr -> (Z)).
