@@ -1,9 +1,0 @@
-#include <stdbool.h>
-typedef unsigned long long u64;
-typedef unsigned u32;
-typedef unsigned char u8;
-
-void iasm_255(u64 in0)
-{
-    asm volatile("msr pmevcntr0_el0, %0":  : "r" (in0));
-}

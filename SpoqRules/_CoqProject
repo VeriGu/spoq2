@@ -1,4 +1,0 @@
--R . Spoq.SpoqRules
-
-./CommonDeps.v
-./SpoqRules.v

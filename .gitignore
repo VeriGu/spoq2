@@ -17,3 +17,5 @@ AsmGen/asmgen.native
 *.o
 *.so
 llvm
+docs/html/*
+docs/latex/*

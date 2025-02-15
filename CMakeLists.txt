@@ -33,11 +33,6 @@ if(Boost_FOUND)
 endif()
 
 # ------------------------------------------------------------------------------
-# libTBB
-# ------------------------------------------------------------------------------
-# find_package(TBB REQUIRED)
-
-# ------------------------------------------------------------------------------
 # External libaries are always build in release mode
 # ------------------------------------------------------------------------------
 set(MAIN_CMAKE_BUILDTYPE ${CMAKE_BUILD_TYPE})
@@ -47,11 +42,11 @@ set(CMAKE_BUILD_TYPE "Release")
 # ANTRL4 runtime
 # ------------------------------------------------------------------------------
 message("ANTLR4 build type: ${CMAKE_BUILD_TYPE}")
-add_subdirectory(src/AutoV/Spec/Parser/antlr4/runtime/Cpp/)
+add_subdirectory(src/frontend/parser/antlr4/runtime/Cpp/)
 #target_compile_options(antlr4_shared PRIVATE -Wno-unused-parameter -w -Wno-unused-variable)
 
 # Include ANTLR4 runtime headers
-include_directories(src/AutoV/Spec/Parser/antlr4/runtime/Cpp/runtime/src/)
+include_directories(src/frontend/parser/antlr4/runtime/Cpp/runtime/src/)
 
 # ------------------------------------------------------------------------------
 # Z3
@@ -80,19 +75,18 @@ message("Spoq CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 # IRLoader is compiled as a shared library
 # ------------------------------------------------------------------------------
 set(IRLOADER_SOURCES
-    src/AutoV/IRLoader/coq.cpp
-    src/AutoV/IRLoader/irvalues.cpp
-    src/AutoV/IRLoader/instructions.cpp
-    src/AutoV/IRLoader/irtypes.cpp
-    src/AutoV/IRLoader/irloader.cpp
-    src/AutoV/IRLoader/control_flow.cpp
-    src/AutoV/IRLoader/inline_asm.cpp
-    src/AutoV/IRLoader/post_process.cpp
-    src/AutoV/log.cpp
+    src/frontend/IRLoader/coq.cpp
+    src/frontend/IRLoader/irvalues.cpp
+    src/frontend/IRLoader/instructions.cpp
+    src/frontend/IRLoader/irtypes.cpp
+    src/frontend/IRLoader/irloader.cpp
+    src/frontend/IRLoader/control_flow.cpp
+    src/frontend/IRLoader/inline_asm.cpp
+    src/frontend/IRLoader/post_process.cpp
+    src/libs/log.cpp
 )
 
 add_library(irloader SHARED ${IRLOADER_SOURCES})
-#target_link_libraries(irloader TBB::tbb)
 if(Boost_FOUND)
     target_link_libraries(irloader ${Boost_LIBRARIES})
 endif()
@@ -101,11 +95,10 @@ endif()
 # json2coq is compiled as an independent executable
 # ------------------------------------------------------------------------------
 set(JSON2COQ_SOURCES
-    src/AutoV/IRLoader/json2coq.cpp
+    src/frontend/IRLoader/json2coq.cpp
 )
 
 add_executable(json2coq ${JSON2COQ_SOURCES})
-# target_link_libraries(json2coq TBB::tbb)
 if(Boost_FOUND)
     target_link_libraries(json2coq ${Boost_LIBRARIES})
 endif()
@@ -115,51 +108,42 @@ target_link_libraries(json2coq irloader)
 # Parser is compiled as a shared library
 # ------------------------------------------------------------------------------
 set(PARSER_SOURCES
-    src/AutoV/Spec/Parser/SpecLexer.cpp
-    src/AutoV/Spec/Parser/SpecParser.cpp
-    src/AutoV/Spec/Parser/parse.cpp
-    src/AutoV/Spec/Parser/parse_light.cpp
+    src/frontend/parser/SpecLexer.cpp
+    src/frontend/parser/SpecParser.cpp
+    src/frontend/parser/parse.cpp
+    src/frontend/parser/parse_light.cpp
 )
 add_library(parser SHARED ${PARSER_SOURCES})
-# target_link_libraries(parser TBB::tbb)
 if(Boost_FOUND)
     target_link_libraries(parser ${Boost_LIBRARIES})
 endif()
 target_compile_options(parser PRIVATE -O3 -UDEBUG)
 
-
-#if(MT_TRANSFORM)
-#    message("MT_TRANSFORM: ${MT_TRANSFORM}")
-#    add_definitions(-DMT_TRANSFORM=${MT_TRANSFORM})
-#endif()
-
-#add_definitions(-DMT_TRANSFORM=0)
-
 # List all source files explicitly
 set(SOURCES
-    src/AutoV/main.cpp
-    src/AutoV/log.cpp
-    src/AutoV/Spec/nodes.cpp
-    src/AutoV/Spec/values.cpp
-    src/AutoV/Spec/utils.cpp
-    src/AutoV/Spec/project.cpp
-    src/AutoV/Spec/type_inference.cpp
-    src/AutoV/Spec/ir2spec.cpp
-    src/AutoV/Spec/shortcuts.cpp
-    src/AutoV/Spec/projection/rules.cpp
-    src/AutoV/Spec/projection/projection.cpp
-    src/AutoV/Spec/projection/z3_rules.cpp
-    src/AutoV/Spec/projection/z3_utils.cpp
-    src/AutoV/Spec/projection/profile.cpp
-    src/AutoV/Spec/projection/symbolic.cpp
-    src/AutoV/GenCoq/gen_code.cpp
-    src/AutoV/GenCoq/gen_data.cpp
-    src/AutoV/GenCoq/gen_high_proof.cpp
-    src/AutoV/GenCoq/gen_high_spec.cpp
-    src/AutoV/GenCoq/gen_low_proof.cpp
-    src/AutoV/GenCoq/gen_low_spec.cpp
-    src/AutoV/GenCoq/gen_layer.cpp
-    src/AutoV/GenCoq/gen_project.cpp
+    src/main.cpp
+    src/libs/log.cpp
+    src/libs/nodes.cpp
+    src/libs/values.cpp
+    src/libs/utils.cpp
+    src/libs/project.cpp
+    src/libs/shortcuts.cpp
+    src/frontend/type_inference.cpp
+    src/frontend/ir2spec.cpp
+    src/optimizations/rules.cpp
+    src/optimizations/projection.cpp
+    src/optimizations/z3_rules.cpp
+    src/optimizations/z3_utils.cpp
+    src/optimizations/profile.cpp
+    src/optimizations/symbolic.cpp
+    src/backend/gen_coq/gen_code.cpp
+    src/backend/gen_coq/gen_data.cpp
+    src/backend/gen_coq/gen_high_proof.cpp
+    src/backend/gen_coq/gen_high_spec.cpp
+    src/backend/gen_coq/gen_low_proof.cpp
+    src/backend/gen_coq/gen_low_spec.cpp
+    src/backend/gen_coq/gen_layer.cpp
+    src/backend/gen_coq/gen_project.cpp
 )
 
 # Specify the executable target and its source files
