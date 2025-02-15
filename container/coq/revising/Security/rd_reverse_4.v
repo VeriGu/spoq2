@@ -73,3 +73,60 @@ Proof.
     + pose proof (Hinv rd_idx rtt_idx) as Hinv; repeat simpl_imply Hinv.
       auto.
 Qed.
+
+
+Lemma smc_rtt_fold_spec_rd_rev:
+  forall d v_0 v_1 v_2 v_3 ret_n ret_d
+    (Hspec: smc_rtt_fold_spec v_0 v_1 v_2 v_3 d = Some(ret_n, ret_d))
+    (Hinv: rd_rev d.(share)),
+    rd_rev ret_d.(share).
+Proof.
+  intros.  unfold smc_rtt_fold_spec in Hspec.
+  autounfold with sem in *.
+  repeat simpl_hyp Hspec; try intros_ensure_state; repeat simpl_component; partial_simpl_rd_rev_and_solve Hspec.
+  all: repeat rewrite strong_lens in *; partial_simpl_rd_rev_and_solve Hspec.
+  all: simpl_rtt_idx_all_2.
+  all: repeat match goal with
+  | |- context[(meta_granule_offset (test_PA ?z) + ?v) mod 4096]
+  => rewrite rtt_idx_compute_4 with z v; [ |lia]
+  end.
+  all: repeat match goal with
+  | [H: context[(meta_granule_offset (test_PA ?z) + ?v) mod 4096] |- _]
+  => rewrite rtt_idx_compute_4 with z v in H; [ |lia]
+  end.
+  all: repeat match goal with
+    | |- context[(meta_granule_offset (test_PA ?z) + ?v) / 4096]
+  => rewrite rtt_idx_compute_3 with z v; [ |lia]
+  end.
+  all: repeat match goal with
+  | [H: context[(meta_granule_offset (test_PA ?z) + ?v) / 4096] |- _]
+  => rewrite rtt_idx_compute_3 with z v in H; [ |lia]
+  end.
+  all: inv Hspec.
+  all: retrieve_idx; simpl in *.
+  all: unfold rd_rev in *.
+  all: simpl in *.
+  all: destruct Hinv as [rev Hinv]; simpl in *; exists rev; intros.
+  all: simpl_walk_rev; destruct_zmap' Hrd; simpl in *; try lia.
+  all: destruct_zmap' Hrtt; simpl in *; try lia.
+  all: try(pose proof (Hinv rd_idx rtt_idx) as Hinv; repeat simpl_imply Hinv; destruct Hinv as [Hinv0 Hinv1]; simpl in *).
+  all: split; try auto.
+  all: destruct_zmap; simpl in *; try auto.
+  all: pose proof rd_g_rtt_is_root as Ha; simpl_walk_rev.
+  all: match goal with
+       | [H: context[(meta_granule_offset (meta_PA (abs_tte_read _ _)))] |- _] => 
+          rewrite abs_tte_read_sem in H; simpl in H;
+          rewrite Z.sub_move_r in H; try(ring_simplify in H); simpl_rtt_idx_all_2;
+          repeat rewrite <- Heqgidx in *; repeat rewrite <- Heqnormidx in *;
+          match type of H with
+          | context[(g_norm ((granule_data (share ?d)) @ ?pidx)) @?sidx]
+          => pose proof (Ha (share d) rd_idx rtt_idx (pidx) (sidx)) as Hb; repeat simpl_imply Hb;
+             rewrite -> Heqgidx0 in *; rewrite -> Heq1 in *; destruct a0 as [a00 a01];
+             rewrite <- rtt_mul_div_4096_same in Hb; [ contra | try auto ]
+             (* eapply rtt_mul_div_4096_same in Hb *)
+             (* rewrite -> H in *; rewrite Heq1 in *; rewrite <- Hrtt in * *)
+             (* try rewrite rtt_mul_div_4096_same in Hb *)
+          end
+        end.
+Qed.
+ 

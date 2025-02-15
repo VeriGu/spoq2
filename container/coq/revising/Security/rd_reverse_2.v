@@ -87,9 +87,19 @@ Proof.
     => rewrite rtt_idx_compute_4 with z v in H; [ |lia]
   end.
   all: rewrite Heqnormidx in *. rewrite Heqnormidx0 in *.
-  - admit.
-  - admit.
-Admitted.
+  - destruct_zmap; simpl in *. 
+    + rewrite rtt_idx_compute_3 in Heq; [ rewrite Heqgidx in *; rewrite Heq in *; try lia| try lia ].
+    + destruct_zmap; simpl in *. rewrite rtt_idx_compute_3 in Heq; [ |try lia].
+      rewrite rtt_idx_compute_3 in Heq0; try lia. 
+      destruct_zmap; simpl in *.
+      rewrite rtt_idx_compute_3 in Heq0; try lia.
+      rewrite rtt_idx_compute_3 in Heqgidx0; try lia.
+      try auto.
+  - destruct_zmap; try auto.
+    rewrite rtt_idx_compute_3 in Heqgidx0; try lia.
+    rewrite Heqgidx0 in *; rewrite Heq in *.
+    rewrite Heqgidx in *; try lia.
+Qed.
 
 Lemma smc_rtt_read_entry_spec_rd_rev:
   forall d v_0 v_1 v_2 v_3 ret_d
@@ -98,6 +108,17 @@ Lemma smc_rtt_read_entry_spec_rd_rev:
   rd_rev ret_d.(share).
 Proof.   
   intros.  unfold smc_rtt_read_entry_spec in Hspec.
+  autounfold with sem in *.
+  repeat simpl_hyp Hspec; try intros_ensure_state; repeat simpl_component; partial_simpl_rd_rev_and_solve Hspec.
+Qed.
+
+Lemma smc_rc_rtt_read_entry_spec_rd_rev:
+  forall d v_0 v_1 v_2 v_3 ret_d
+  (Hspec: smc_rc_rtt_read_entry_spec v_0 v_1 v_2 v_3 d = Some(ret_d))
+  (Hinv: rd_rev d.(share)),
+  rd_rev ret_d.(share).
+Proof.   
+  intros.  unfold smc_rc_rtt_read_entry_spec in Hspec.
   autounfold with sem in *.
   repeat simpl_hyp Hspec; try intros_ensure_state; repeat simpl_component; partial_simpl_rd_rev_and_solve Hspec.
 Qed.

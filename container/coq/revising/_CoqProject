@@ -84,6 +84,7 @@ Security/walk_inv_2.v
 Security/walk_inv_3.v
 Security/walk_inv_4.v
 Security/walk_inv_5.v
+Security/walk_inv_6.v
 Security/rd_reverse.v
 Security/rd_reverse_2.v
 Security/rd_reverse_3.v

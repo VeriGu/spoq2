@@ -23,7 +23,7 @@ Section Layer3_Spec.
       let new_granules := ((((st.(share)).(globals)).(g_granules)) # gidx_l == (g.[e_lock].[e_val] :< None)) in
       let new_st := (st.[share].[globals].[g_granules] :< new_granules) in
       (Some (new_st.[log] :< (e :: ((new_st.(log)))))))
-    else None.
+    else Some (st).
 
   Definition spinlock_acquire_spec (lock: Ptr) (st: RData) : (option RData) :=
     if ((lock.(pbase)) =s ("granules"))
@@ -41,7 +41,7 @@ Section Layer3_Spec.
         (Some (new_st.[log] :< (e :: ((new_st.(log))))))
       | (Some cid) => None
       end)
-    else None.
+    else Some (st).
 
   Definition granule_try_lock_spec' (v_0: Ptr) (v_1: Z) (st: RData) : (option (bool * RData)) :=
     rely (((((v_0.(pbase)) = ("granules")) /\ ((((v_0.(poffset)) mod (16)) = (0)))) /\ (((v_0.(poffset)) >= (0)))));
