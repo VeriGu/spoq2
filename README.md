@@ -71,7 +71,7 @@ src/optimizations/profile.cpp:
 	static bool __PROFILE_ON = false;
 ```
 
-#### Memory Leakakge 
+#### Memory Leakage Detection 
 
 Option 1. Use Valgrind
 ```
