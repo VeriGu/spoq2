@@ -16,11 +16,18 @@ static unsigned long get_mono_lens_id() {
     return mono_lens_id++;
 }
 
+std::unique_ptr<SpecNode> rec_apply_smart(std::unique_ptr<SpecNode> spec,
+                                          const std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)>& f,
+                                          bool apply_anno);
 SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f, bool apply_anno);
 
 using rule_ret_t = std::pair<SpecNode *, bool>;
+using smart_rule_ret_t = std::pair<std::unique_ptr<SpecNode>, bool>;
+
 SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &prev_symbols, bool &changed);
 rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec);
+
+smart_rule_ret_t rule_empty_smart(Project *proj, std::unique_ptr<SpecNode> spec);
 
 rule_ret_t rule_simple_record_get_set(Project *proj, SpecNode *spec);
 rule_ret_t rule_keep_fields_of_interest(Project *proj, SpecNode *spec);

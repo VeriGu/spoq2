@@ -432,6 +432,106 @@ SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &
     return spec;
 }
 
+/** rec_apply_smart:
+ *      - Recursively apply [f] to all nodes in [spec]
+ *      - Use smart pointer in params and return type to avoid memory leak. 
+ *          Any release() to raw pointer should be comment with reasons
+ * by Ganxiang Yang, Feb 16, 2025
+ */
+std::unique_ptr<SpecNode> rec_apply_smart(std::unique_ptr<SpecNode> spec,
+                                    const std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)>& f,
+                                    bool apply_anno = true) {
+    if (!spec) {
+        return spec;
+    }
+
+    if (is_instance(spec.get(), Symbol)) {
+        return f(std::move(spec));
+    } else if (is_instance(spec.get(), Const)) {
+        return f(std::move(spec));
+    } else if (auto e = instance_of(spec.get(), Expr)) {
+        auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+        if (e->elems) {
+            for (auto &old_elems : *(e->elems)) {
+                new_elems->push_back(rec_apply_smart(std::move(old_elems), f, apply_anno));
+            }
+            e->elems->clear();
+        }
+
+        return std::visit([&](auto &&arg) -> std::unique_ptr<SpecNode> {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, std::unique_ptr<SpecNode>>) {
+                auto new_op = rec_apply_smart(std::move(arg), f, apply_anno);
+                return f(std::make_unique<Expr>(std::move(new_op), std::move(new_elems), e->type));
+            } else {
+                return f(std::make_unique<Expr>(arg, std::move(new_elems), e->type));
+            }
+        }, e->op);
+
+        // throw std::runtime_error("Unknown SpecNode " + string(*spec.get()));
+    } else if (auto m = instance_of(spec.get(), Match)) {
+        auto new_src = rec_apply_smart(std::move(m->src), f, apply_anno);
+        auto new_matches = make_unique<vector<unique_ptr<PatternMatch>>>();
+        if (m->match_list) {
+            for (auto &pm : *(m->match_list)) {
+                auto pm_copy = std::make_unique<PatternMatch>(std::move(pm->pattern), rec_apply_smart(std::move(pm->body), f, apply_anno));
+                new_matches->push_back(std::move(pm_copy));
+            }
+        }
+        return f(std::make_unique<Match>(std::move(new_src), std::move(new_matches)));
+    } else if (auto r = instance_of(spec.get(), Rely)) {
+        auto new_prop = rec_apply_smart(std::move(r->prop), f, apply_anno);
+        auto new_body = rec_apply_smart(std::move(r->body), f, apply_anno);
+        return f(std::make_unique<Rely>(std::move(new_prop), std::move(new_body)));
+
+    } else if (auto r = instance_of(spec.get(), Anno)) {
+        auto new_prop = rec_apply_smart(std::move(r->prop), f, apply_anno);
+        auto new_body = rec_apply_smart(std::move(r->body), f, apply_anno);
+        return f(std::make_unique<Anno>(std::move(new_prop), std::move(new_body)));
+
+    } else if (auto i = instance_of(spec.get(), If)) {
+        auto new_cond = rec_apply_smart(std::move(i->cond), f, apply_anno);
+        auto new_then = rec_apply_smart(std::move(i->then_body), f, apply_anno);
+        auto new_else = rec_apply_smart(std::move(i->else_body), f, apply_anno);
+        return f(std::make_unique<If>(std::move(new_cond), std::move(new_then), std::move(new_else)));
+
+    } else if (auto fe = instance_of(spec.get(), Forall)) {
+        auto vars = make_unique<vector<shared_ptr<Arg>>>();
+        if (fe->vars) {
+            for (auto &v : *(fe->vars)) {
+                if (v->expr) {
+                    /** apply f to the hypos
+                     *  this release will not leak since v->expr takes the ownership of the Expr object
+                     *      by Ganxiang Yang, Feb 16, 2025
+                     */
+                    auto new_expr = rec_apply_smart(std::move(v->expr), f, apply_anno);
+                    auto e = dynamic_cast<Expr*>(new_expr.release());
+                    if (e) {
+                        v->expr = std::unique_ptr<Expr>(e);
+                    } else {
+                        throw std::runtime_error("rec_apply did not return an Expr type for the hypothesis!");
+                    }
+                }
+                vars->push_back(v);
+            }
+            fe->vars->clear();
+        }
+        return f(std::make_unique<Forall>(std::move(vars), rec_apply_smart(std::move(fe->body), f, apply_anno)));
+    } else if (auto fe = instance_of(spec.get(), Exists)) {
+        auto vars = make_unique<vector<shared_ptr<Arg>>>();
+        if (fe->vars) {
+            for (auto &v : *(fe->vars)) {
+                vars->push_back(v);
+            }
+            fe->vars->clear();
+        }
+        return f(std::make_unique<Exists>(std::move(vars), rec_apply_smart(std::move(fe->body), f, apply_anno)));
+
+    } else {
+        return f(std::move(spec));
+    }
+}
+
 /*
 recursively apply [f] to all nodes in [spec]
 [f] must be a function from SpecNode to SpecNode
@@ -1644,6 +1744,17 @@ std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, D
     def->body = unique_ptr<SpecNode>(changed_body);
     return std::make_pair(changed,std::make_pair("",""));      
 }
+
+/** This rule do nothing for the spec, only for checking the memory footprint of rec_apply */
+smart_rule_ret_t rule_empty_smart(Project *proj, std::unique_ptr<SpecNode> spec) {
+    std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)> f =
+        [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+            return node; 
+        };
+    auto newSpec = rec_apply_smart(std::move(spec), f, false);
+    return { std::move(newSpec), false };
+}
+
 
 rule_ret_t rule_eliminate_let(Project *proj, SpecNode *spec) {
     bool changed = false;
