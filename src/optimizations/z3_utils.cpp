@@ -160,7 +160,44 @@ Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo
         return Z3Result::False;
     } else {
         // Z3Cache[hash] = Z3Result::Unknown;
-        z3_unknowns++;
+        return Z3Result::Unknown;
+    }
+}
+
+/** 
+ * z3_verify without cond:
+ *  used for check the satisfiability of current symbolic path 
+ * Usage: 
+ * 1. Check None-path for drf invariant
+ * 2. TODO 
+ * */
+Z3Result z3_verify_state_sat(shared_ptr<ProveState> state, QueryInfo *qinfo, int timeout) {
+    auto start = std::chrono::high_resolution_clock::now();
+    Z3Params.set("relevancy", (unsigned int)2);
+    Z3Params.set("case_split", (unsigned int)2);
+    Z3Params.set("timeout", (unsigned int)timeout);
+
+    Z3Solver.push();
+    for (auto &c : *state->conds) {
+        Z3Solver.add(c);
+    }
+    for (auto &ind : *state->inductions) {
+        Z3Solver.add(ind);
+    }
+    Z3Solver.push();
+    auto res = Z3Solver.check();
+    if (qinfo)
+        qinfo->dump(Z3Solver.to_smt2());
+    Z3Solver.pop();
+    Z3Solver.pop();
+    auto end = std::chrono::high_resolution_clock::now();
+    z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+
+    if (res == z3::sat) {
+        return Z3Result::True;
+    } else if (res == z3::unsat) {
+        return Z3Result::False;
+    } else {
         return Z3Result::Unknown;
     }
 }

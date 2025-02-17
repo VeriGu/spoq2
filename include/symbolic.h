@@ -12,10 +12,12 @@
 
 namespace autov {
 
+    /** elements in white list will be added into coi set initially */
     static std::set<string> coi_whitelist = {
-        "g_norm",
+        // "g_norm",
     };
 
+    /** elements in white list will be removed from coi set eventually  */
     static std::set<string> coi_blacklist = {
         "pbase", "poffset", "meta_PA", "meta_desc_type", "meta_granule_offset", "meta_mem_attr", "meta_ripas",
         "e_1", "e_2", "e_3", 
@@ -39,7 +41,15 @@ namespace autov {
         "rsi_rtt_create_spec",
         "rsi_rtt_destroy_spec",
         "rsi_rtt_set_ripas_spec",
-        "rsi_data_map_extra_spec"
+        "rsi_data_map_extra_spec",
+        "rsi_set_ttbr0_spec",
+        "rsi_data_set_attrs_spec",
+        "handle_rsi_realm_extend_measurement_spec",
+        "handle_rsi_realm_get_attest_token_spec",
+        "smc_rtt_read_entry_spec",
+        "smc_rc_rtt_read_entry_spec",
+        "smc_rtt_fold_spec",
+        "system_rsi_abi_version_spec",
     };
 
     // State field is composed of a list of accessed fields

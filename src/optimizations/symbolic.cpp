@@ -773,8 +773,73 @@ abst_t abst_transition(Project *proj, SpecNode *spec) {
     return nullptr;
 }
 
+bool check_drf_by_traverse(Project *proj, SpecNode *spec, shared_ptr<ProveState> state) {
+    if (auto s = instance_of(spec, Symbol)) {
+        if (s->text == "None") {
+            std::cout << "[check_drf_by_traverse] Checking None path: " << string(*spec) << std::endl;
+            auto res = z3_verify_state_sat(state, &proj->query_saver);
+            if (res == Z3Result::True) {
+                LOG_ERROR << "[check_drf_by_traverse] A None path is proved to be sat! DRF failed!" << std::endl;
+                return false;
+            } else if (res == Z3Result::Unknown) {
+                LOG_WARNING << "[check_drf_by_traverse] A None path is unknown!" << std::endl;
+            }
+        }
+    } else if (auto e = instance_of(spec, Expr)) {
+        // pass
+    } else if (auto m = instance_of(spec, Match)) {
+        auto src = z3_expr(proj, m->src.get(), state);
+        auto verify_fail = false;
+		for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
+            auto new_state = state->copy();
+            auto pat = (*pm)->pattern.get();
+			resolve_pattern(proj, m, pat, src, new_state);
+            verify_fail |= !check_drf_by_traverse(proj, (*pm)->body.get(), new_state);
+        }
+        return !verify_fail;
+    } else if (auto i = instance_of(spec, If)) {
+		// push cond
+		auto c = z3_expr(proj, i->cond.get(), state);
+		auto res = Z3Result::Unknown;
+        res = z3_check(state, c->get_z3_value());
+
+        auto true_state = state->copy();
+		auto false_state = state->copy();
+        
+		true_state->conds->push_back(c->get_z3_value());
+		false_state->conds->push_back(!c->get_z3_value());
+        if (res == Z3Result::True) {
+            return check_drf_by_traverse(proj, i->then_body.get(), true_state);
+        } else if (res == Z3Result::False) {
+            return check_drf_by_traverse(proj, i->else_body.get(), false_state); 
+        } else {
+            auto verify_fail = false;
+            verify_fail |= !check_drf_by_traverse(proj, i->then_body.get(), true_state);
+            verify_fail |= !check_drf_by_traverse(proj, i->else_body.get(), false_state);
+            return !verify_fail;
+        }
+    } else if (auto r = instance_of(spec, Rely)) {
+		// push cond
+		auto c = z3_expr(proj, r->prop.get(), state);
+        auto res = z3_check(state, c->get_z3_value());
+        if (res == Z3Result::False || res == Z3Result::Unknown) {
+            LOG_WARNING << "[check_drf_by_traverse] Rely condition is violated: " << string(*r->prop.get()) << std::endl;
+        } else {
+            LOG_INFO << "[check_drf_by_traverse] Rely condition is proved: " << string(*r->prop.get()) << std::endl;
+        }
+		state->conds->push_back(c->get_z3_value());
+        return check_drf_by_traverse(proj, r->body.get(), state);
+    } else {
+        // pass
+        return true;
+    }
+    return true;
+}
+
 /** prove_by_traverse:
  * 		works on specs with abstract functions, symbolically check inv path-by-path
+ * 1. Normal invariant: instantiate SpecNode *inv
+ * 2. Data-race-free: SpecNode *inv = NULL
  * */
 bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<ProveState> state, std::deque<Definition *> *deps) {
     if (auto e = instance_of(spec, Expr)) {
@@ -903,7 +968,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 	return true;
 }
 
-static void lensify_spec(Project *proj, Definition *def, std::set<string> &coi) {
+static void spec_abstraction(Project *proj, Definition *def, std::set<string> &coi) {
     set_interest_list(coi);
 
     auto spec = def->body.release();
@@ -929,7 +994,7 @@ static void lensify_spec(Project *proj, Definition *def, std::set<string> &coi) 
     }
     def->body.reset(spec);
     def->_str = "";
-    std::cout << "[lensify_spec] Lensified:\n" << string(*def) << std::endl;
+    std::cout << "[spec_abstraction] Abstracted (Lensified) spec:\n" << string(*def) << std::endl;
 }
 
 static string query_saver_dir(const string &spec_name, const string &inv_name) {
@@ -942,6 +1007,7 @@ static string query_saver_dir(const string &spec_name, const string &inv_name) {
  *  3. Prove inv path-by-path, recursively check abst function
  */
 void spec_prover(Project *proj, Definition *goal_def) {
+    static const std::set<string> drf_init_coi = {"e_lock", };
     if (verify_spec_names.find(goal_def->name) == verify_spec_names.end()) {
         return;
     }
@@ -956,7 +1022,7 @@ void spec_prover(Project *proj, Definition *goal_def) {
 
         std::deque<Definition *> q = {goal_def};
         auto coi = analyze_cone_of_influence(proj, goal_def, inv);
-        std::cout << "[lensify_spec] coi set: " << std::endl;
+        std::cout << "[spec_abstraction] coi set: " << std::endl;
         for (auto &c : coi) {
             std::cout << c << std::endl;
         }
@@ -974,11 +1040,6 @@ void spec_prover(Project *proj, Definition *goal_def) {
                 proj->verified_specs[def->name] = true;
                 continue;
             }
-            lensify_spec(proj, def, coi);
-            def->infer_type(*proj);
-            // save queries as reproducible machine-checkable proofs
-            proj->query_saver = QueryInfo(query_saver_dir(def->name, d.second->name));
-            proj->query_saver.save_config("./testcase/proof_rcsm.v");
             auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
             auto conds = std::make_shared<vector<z3::expr>>();
             for (auto arg : *def->args) {
@@ -986,6 +1047,30 @@ void spec_prover(Project *proj, Definition *goal_def) {
             }
             auto induction = std::make_shared<vector<z3::expr>>();
             auto state = std::make_shared<ProveState>(vars, conds, induction);
+            
+            /** For the top high-spec we also examine the data-race-free invariant */
+            if (def == goal_def) {
+                auto drf_args = make_unique<vector<shared_ptr<Arg>>>();
+                for (auto &arg: *goal_def->args)
+                    drf_args->push_back(arg);
+                auto drf_def = new Definition(goal_def->name, goal_def->rettype, std::move(drf_args), goal_def->body->deep_copy());
+                
+                auto drf_state = state->copy();
+                auto drf_coi = drf_init_coi;
+                spec_abstraction(proj, drf_def, drf_coi);
+                drf_def->infer_type(*proj);
+                proj->query_saver = QueryInfo(query_saver_dir(def->name, "drf"));
+                if (!check_drf_by_traverse(proj, drf_def->body.get(), drf_state)) {
+                    LOG_WARNING << "[spec_prover] DRF invariant is violated for " << drf_def->name << std::endl;
+                }
+                check_drf_by_traverse(proj, drf_def->body.get(), drf_state);
+            }
+
+            spec_abstraction(proj, def, coi);
+            def->infer_type(*proj);
+            // save queries as reproducible machine-checkable proofs
+            proj->query_saver = QueryInfo(query_saver_dir(def->name, d.second->name));
+            proj->query_saver.save_config("./testcase/proof_rcsm.v");
             // invariant by induction
             auto c = z3_expr(proj, inv, state);
             state->add_induction(c->get_z3_value());
