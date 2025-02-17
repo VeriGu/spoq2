@@ -273,21 +273,23 @@ void Project::add_command(unique_ptr<Expr> cmd) {
         } else if(op_str == "Precondition") {
             //used for modular function precondition when doing z3 checking
             assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) &&
-                   dynamic_cast<Expr *>(cmd->elems->at(1).get()));
+                   dynamic_cast<SpecNode *>(cmd->elems->at(1).get()));
             auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
-            auto expr = dynamic_cast<Expr *>(cmd->elems->at(1).get());
+            auto expr = dynamic_cast<SpecNode *>(cmd->elems->at(1).get());
 
             cmd->elems->at(1).release();
-            this->cmds.PreCond[s->text].push_back(unique_ptr<Expr>(expr));
+            this->cmds.PreCond[s->text].push_back(unique_ptr<SpecNode>(expr));
         } else if(op_str == "Postcondition") {
             //used for modular function postcondition when doing z3 checking, automatically added when function checked by z3
+            auto s1 = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            LOG_DEBUG << s1->text;
             assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) &&
-                   dynamic_cast<Expr *>(cmd->elems->at(1).get()));
+                   dynamic_cast<SpecNode *>(cmd->elems->at(1).get()));
             auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
-            auto expr = dynamic_cast<Expr *>(cmd->elems->at(1).get());
+            auto expr = dynamic_cast<SpecNode *>(cmd->elems->at(1).get());
 
             cmd->elems->at(1).release();
-            this->cmds.PostCond[s->text].push_back(unique_ptr<Expr>(expr));
+            this->cmds.PostCond[s->text].push_back(unique_ptr<SpecNode>(expr));
         } else if(op_str == "Preserve"){
             assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
             auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
@@ -747,6 +749,9 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
             proj->deps[high_name] = proj->calc_dependencies(_def->body.get());
 
             if (_def->body) {
+                if(_def->deleyed_type_inference) {
+                    _def->infer_type(*proj);
+                }
                 LOG_INFO << "Provided: " << high_name << std::endl;
                 proj->update_symbol_loc(high_name, make_shared<loc_t>(L->name, Project::LOC_SPEC, ""));
                 continue;
