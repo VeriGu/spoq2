@@ -403,7 +403,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
         }
     } else if (auto m = instance_of(spec, Match)) {
         set<string> used_fix;
-        auto src = z3_eval(proj, m->src.get(), state, true, true, used_fix);
+        auto src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
 		if(auto expr = instance_of(m->src.get(), Expr)) {
 			if(holds_alternative<string>(expr->op)){
 			auto op = std::get<string>(expr->op);
@@ -588,16 +588,40 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 					if(proj->cmds.PostCond.find(op) != proj->cmds.PostCond.end()) {
 						//add post condition
                         SpecNode* post_cond = formulate_post_condition(proj, op, expr->elems.get());
-                        for (auto arg : *def->args) {
-                            (*state->vars)[def->name + "_" + arg->name + "'"] = arg->type->declare(def->name + "_" + arg->name + "'", 0); //current
+                        string tmpname = "__tmp__";
+                        int i = 0;
+                        auto rettype = instance_of(def->rettype.get(), Option);
+                        if(auto rettupletype = instance_of(rettype->elem_type.get(), Tuple)) {
+                            for(auto elemtype : *rettupletype->types) {
+                                if(i != rettupletype->types->size() - 1) {
+                                    (*state->vars)[def->name + tmpname + std::to_string(i)] = elemtype->declare(def->name + tmpname + std::to_string(i), 0); //after
+                                } else {
+                                    (*state->vars)[def->name + "_st'"] = elemtype->declare(def->name + "_st'", 0); //after
+                                }
+                                i++;
+                            }
+                        } else{
+                            (*state->vars)[def->name + "_st'"] = rettype->elem_type->declare(def->name + "_st'", 0);
                         }
-                        auto post_val = z3_eval(proj, post_cond, state, false, true, used_fix);
+
+                        auto post_val = z3_eval(proj, post_cond, state, false, false, used_fix);
                         auto post = post_val->get_z3_value();
-                        for(auto arg : *def->args) {
-                            post = z3::forall((*state->vars)[loop->name + "_" + arg->name + "'"]->get_z3_value(), post);
+                        if(auto rettupletype = instance_of(rettype->elem_type.get(), Tuple)) {
+                            i = 0;
+                            for(auto elemtype : *rettupletype->types) {
+                                if(i != rettupletype->types->size() - 1) {
+                                    post = z3::forall((*state->vars)[def->name + tmpname + std::to_string(i)]->get_z3_value(), post);
+                                } else {
+                                    post = z3::forall((*state->vars)[def->name + "_st'"]->get_z3_value(), post);
+                                }
+                                i++;
+                            }
+                        } else {
+                            post = z3::forall((*state->vars)[def->name + "_st'"]->get_z3_value(), post);
                         }
                         //delete post_cond;
-					    LOG_DEBUG << "[Adding Post Condition] Adding func postcondition: " << op;
+                        LOG_DEBUG << "[Adding Post Condition] Adding func postcondition: " << post_cond;
+					    LOG_DEBUG << "[Adding Post Condition] Adding func postcondition: " << post;
                         state->conds->push_back(post);
 					}
                     //if it is a preserving function, directly add post condition
