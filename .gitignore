@@ -19,3 +19,6 @@ AsmGen/asmgen.native
 llvm
 docs/html/*
 docs/latex/*
+test/**/coq/
+.history/
+**/z3_queries/

@@ -16,7 +16,7 @@ project(spoq)
 # ------------------------------------------------------------------------------
 # Basic setup
 # ------------------------------------------------------------------------------
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -Wall -Wno-unused-function")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -gdwarf-4 -Wall -Wno-unused-function")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wno-unused-function")
 set(CMAKE_CXX_STANDARD 17)
 
