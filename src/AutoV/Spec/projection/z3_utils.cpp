@@ -371,9 +371,9 @@ bool check_invariant(Project* proj, Definition* prim, SpecNode* inv) {
     //the state will be added loop conditions
     auto body_val = z3_eval(proj, equa, state, true);
     
-    for(auto cond : *state->conds) {
-        LOG_DEBUG << "cond" << cond;
-    }
+    // for(auto cond : *state->conds) {
+    //     LOG_DEBUG << "cond" << cond;
+    // }
 
     LOG_DEBUG << "Printing the Invariant: " << string(*inv);
     auto inv_before_val = z3_eval(proj, inv, make_shared<EvalState>(
@@ -696,9 +696,10 @@ SpecNode* formulate_preserved_function(Project* proj, string fname) {
     return forall;
 }
 
+//fname(v1,v2,v3,v4) = Some (t1,t2,t3,t4, st') -> post(t1,t2,t3,t4,st')
 SpecNode* formulate_post_condition(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args) {
     auto def = proj->defs[fname].get();
-    auto &postconds = proj->cmds.PreCond[fname];
+    auto &postconds = proj->cmds.PostCond[fname];
     SpecNode* aggrepost = new BoolConst(true);
 	for(auto &inv : postconds) {
         auto elems = new vector<unique_ptr<SpecNode>>();
@@ -706,49 +707,53 @@ SpecNode* formulate_post_condition(Project* proj, string fname, vector<unique_pt
         elems->push_back(inv->deep_copy());
         aggrepost = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
 	}
-    unique_ptr<vector<shared_ptr<Arg>>> vars = make_unique<vector<shared_ptr<Arg>>>();
-     for(auto arg : *def->args) {
-        vars->push_back(make_shared<Arg>(def->name + "_" + arg->name + "'", arg->type));
-    }
-
+    
     auto lhselems = make_unique<vector<unique_ptr<SpecNode>>>();
     for(auto &arg: *args) {
         lhselems->push_back(arg->deep_copy());
     }
 
-    auto lhsbody = new Expr(fname, std::move(lhselems));
+    auto lhsbody = new Expr(fname, std::move(lhselems), def->rettype);
 
     auto rhselems = make_unique<vector<unique_ptr<SpecNode>>>();
     auto tupleelems = make_unique<vector<unique_ptr<SpecNode>>>();
     
     auto known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
-    for(auto arg: *def->args) {
-        
-        tupleelems->push_back(make_unique<Symbol>(def->name + "_" + arg->name + "'"));
-        (*known)[arg->name] = arg->type;
-        
-        if(arg->name == "st") {
-            (*known)[arg->name + "_old"] = arg->type;
-        }
-    }
+    auto rettype = instance_of(def->rettype.get(), Option);
 
-    auto rhstuple = new Expr(Expr::ops::Tuple, std::move(tupleelems), instance_of(def->body->type.get(), Option)->elem_type);      
-    rhselems->push_back(unique_ptr<SpecNode>(rhstuple));                                                            
+
+    if(auto rettupletype = instance_of(rettype->elem_type.get(), Tuple)) {
+        string tmpname = "__tmp__";
+        int i = 0;
+        for(auto elemtype : *rettupletype->types) {
+            if(i != rettupletype->types->size() - 1) {
+                //(*var)[tmpname + i] = elemtype->declare(tmpname + i, 0); //after
+                tupleelems->push_back(unique_ptr<SpecNode>(new Symbol(fname + tmpname + std::to_string(i), elemtype)));
+            } else {
+                //(*var)["st'"] = elemtype->declare("st'", 0); //after
+                tupleelems->push_back(unique_ptr<SpecNode>(new Symbol(fname + "_st'", elemtype)));
+            }
+            i++;
+        }
+
+        auto rhstuple = new Expr(Expr::ops::Tuple, std::move(tupleelems), instance_of(def->body->type.get(), Option)->elem_type);      
+        rhselems->push_back(unique_ptr<SpecNode>(rhstuple));
+    } else if(rettype->elem_type == proj->layers[0]->abs_data) {
+        rhselems->push_back(unique_ptr<SpecNode>(new Symbol(fname + "_st'", proj->layers[0]->abs_data)));
+    }                                                            
     auto rhsbody = new Expr(Expr::ops::Some, std::move(rhselems), def->body->type);
 
     auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
     elems->push_back(unique_ptr<SpecNode>(lhsbody));
     elems->push_back(unique_ptr<SpecNode>(rhsbody));
     auto eqbody = new Expr(Expr::binops::EQUAL, std::move(elems), Bool::BOOL);
-    for(auto arg : *def->args) {
-        auto sym = new Symbol(def->name + "_" + arg->name + "'", arg->type);
-        bool succ;
-        aggrepost = subst(aggrepost, arg->name, sym, succ);
-        delete sym;
-    }
 
     bool succ;
-    aggrepost = subst(aggrepost->deep_copy().release(), "st_old", args->back().get(), succ);
+    // for(auto arg: *def->args) {
+    //     aggrepost = subst(aggrepost, "st_old", args->back().get(), succ);
+
+    // }
+    aggrepost = subst(aggrepost, "st_old", args->back().get(), succ);
 
 
     auto bodyelems = new vector<unique_ptr<SpecNode>>();
@@ -1678,6 +1683,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                 (*new_state->vars)[v->first] = v->second;
             }
             if (match_val == nullptr) {
+                //LOG_DEBUG << "match body:" << string(*(*pm)->body);
                 match_val = z3_eval(proj, (*pm)->body.get(), new_state,  check_loop);
             } else {
                 auto then_val = z3_eval(proj, (*pm)->body.get(), new_state,  check_loop);
@@ -1705,6 +1711,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         auto cond = z3_eval(proj, rely->prop.get(), state,  check_loop);
         auto res = z3_check(state, cond->get_z3_value());
         if (res == Z3Result::Unknown || res == Z3Result::Sat) {
+            //LOG_DEBUG << "rely body:" << string(*rely->body);
             auto body = z3_eval(proj, rely->body.get(), state,  check_loop);
             auto none = static_pointer_cast<Option>(val->get_type())->construct("None", {});
 
@@ -2065,7 +2072,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                     }else{
                         //no loop invariant provided
                         //if treated as recursive function, need to add the definition
-                        if(unfold) {
+                        if(unfold && proj->cmds.NoUnfold.find(loop->name) == proj->cmds.NoUnfold.end()) {
                             used_fixpoint.insert(df->name);
                             z3::expr_vector z3_args(z3ctx);
                             for (const auto &arg : elems) {
@@ -2076,7 +2083,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                         }
                     }
                 } else {
-                    if(unfold) {
+                    if(unfold && proj->cmds.NoUnfold.find(df->name) == proj->cmds.NoUnfold.end()) {
                         z3::expr func = formulate_function(proj, df);
                         auto arg_list = make_shared<vector<shared_ptr<SpecType>>>();
 
