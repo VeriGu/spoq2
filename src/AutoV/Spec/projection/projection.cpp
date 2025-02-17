@@ -11,7 +11,7 @@ extern unordered_map<unsigned long, bool> converged_spec;
 unsigned long mono_lens_id = 0;
 
 static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group1 = {
-    rule_eliminate_let,
+    rule_simplify_expr,
     rule_eliminate_when,
     rule_eliminate_if,
     rule_eliminate_match_simple,
@@ -20,17 +20,17 @@ static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group1 = {
     rule_simple_record_get_set,
     rule_move_rely_out_when,
     rule_move_when_out_when,
-    rule_move_if_out_match,
+    //rule_move_if_out_match,
     rule_move_if_out_expr,
     //rule_unfold_specs,
-    rule_move_match_out_expr,
+    rule_move_match_out_expr
 };
 
 static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group2 = {
-    rule_eliminate_let,
     rule_eliminate_match_simple,
-    rule_move_if_out_expr,
+    //rule_move_if_out_expr,
     rule_simple_record_get_set,
+    rule_eliminate_let
 };
 
 static unordered_map<rule_ret_t(*)(Project *, SpecNode *), string> rule_names = {
@@ -47,6 +47,7 @@ static unordered_map<rule_ret_t(*)(Project *, SpecNode *), string> rule_names = 
     {rule_move_if_out_expr, "rule_move_if_out_expr"},
     {rule_move_match_out_expr, "rule_move_match_out_expr"},
     {rule_unfold_specs, "rule_unfold_specs"},
+    {rule_simplify_expr, "rule_simplify_expr"}
 };
 
 extern unordered_map<size_t, Z3Result> Z3Cache;
@@ -57,7 +58,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
     LOG_INFO << "Transforming " << def->name << ", unfold: " << unfold;
     // std::cout << string(*def) << std::endl;
 
-    bool debug = unfold && (def->name.rfind("granule_lock_on_state_match", 0) == 0);
+    bool debug = true && (def->name.rfind("map_unmap_ns_2",0) == 0);
     auto known = std::set<string>();
     auto fname = def->name;
 
@@ -99,7 +100,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
 
                 new_spec = new_spec1;
 
-#if 0
+#if 1
                 if (__changed && debug)
                     std::cout << "(group1) " << def->name << " new_spec " << rule_names[rule] << ": \n=========================\n"
                         << string(*new_spec) << "\n==============================" << std::endl;
@@ -237,13 +238,13 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                     << string(*new_spec) << "\n==============================" << std::endl;
 #endif
             auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec1, make_shared<EvalState>(vars, conds));
-            Z3Cache.clear();
+            //Z3Cache.clear();
 
             changed |= __changed;
 
             new_spec = __spec;
 
-            if (debug && def->name == "__find_next_level_idx_spec")
+            if (debug)
                 std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
                     << string(*new_spec) << "\n==============================\n";
 
