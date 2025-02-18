@@ -861,10 +861,16 @@ static void collect_lemmas(Project *proj) {
     }
 }
 
+/**
+ * @brief finalize the project
+ * 
+ */
 void Project::finalize_project()
 {
     std::set<string> loaded, deps;
     shared_ptr<IRModule> module;
+
+    // Step1 : read the LLVM IR into Spoq
 
     // XXX: currently we only support one LAYER_CODE for all layers
     for (auto &L: this->layers) {
@@ -876,6 +882,8 @@ void Project::finalize_project()
     }
 
     this->code = IRLoader::post_process(module);
+
+    // Step2: reconstruct the control flow graph on LLVM IR
 
     for (auto it = this->layers.rbegin(); it != this->layers.rend() - 1; it++) {
         auto &L = *it;
@@ -909,7 +917,6 @@ void Project::finalize_project()
     filter_only_trans(this);
     collect_lemmas(this);
 
-#ifndef MT_TRANSFORM
     for (int i = 1; i < this->layers.size(); i++) {
         auto &L = this->layers[i];
         auto &prev_L = this->layers[i - 1];
@@ -940,128 +947,6 @@ void Project::finalize_project()
             auto [fname, low_specs, high_specs] = infer_spec_task(this, i, p);
         }
     }
-#else
-    std::set<string> transformed;
-
-    for (auto &p: this->layers[0]->prims)
-        transformed.insert(p);
-
-#define NR_PROCS 8
-    std::set<string> untransformed;
-    vector<pid_t> children;
-    unordered_map<pid_t, int[2]> pipes;
-    unordered_map<pid_t, std::tuple<string, int>> tasks;
-
-    for (int i = 1; i < this->layers.size(); i++) {
-        auto &L = this->layers[i];
-
-        for (auto &p: L->prims) {
-            if (this->code->functions->find(p) == this->code->functions->end() ||
-                this->code->functions->at(p)->body == nullptr) {
-                transformed.insert(p);
-                continue;
-            }
-
-            for (auto &p: L->prims) {
-                untransformed.insert(p);
-            }
-        }
-    }
-
-    while (!untransformed.empty()) {
-        for (int i = 1; i < this->layers.size(); i++) {
-            auto &L = this->layers[i];
-
-            for (auto &p: L->prims) {
-                if (this->code->functions->find(p) == this->code->functions->end() ||
-                    this->code->functions->at(p)->body == nullptr) {
-                    transformed.insert(p);
-                    untransformed.erase(p);
-                    continue;
-                }
-
-                // If p is transformed, skip
-                if (untransformed.find(p) == untransformed.end())
-                    continue;
-
-                // Check if all dependencies are transformed
-                bool all_deps_transformed = true;
-
-                // Collect the results
-                for (int child_no = 0; child_no < children.size(); child_no++) {
-                    bool succ = collect_transformed_defs(this, transformed, children, pipes, tasks, children.size() != NR_PROCS);
-
-                    if (!succ)
-                        break;
-                }
-
-                for (auto &d: L->prim_deps[p]) {
-                    if (transformed.find(d) == transformed.end()) {
-                        all_deps_transformed = false;
-                        break;
-                    }
-                }
-
-                if (!all_deps_transformed)
-                    continue;
-
-                // At this point, p is not transformed and all dependencies are transformed
-
-                // Check if we can fork a new process
-                if (children.size() < NR_PROCS) {
-                    int pipefd[2];
-
-                    if (pipe(pipefd) == -1) {
-                        LOG_ERROR << "pipe() failed";
-                        exit(EXIT_FAILURE);
-                    }
-                    LOG_INFO << "Current number of children: " << children.size() << std::endl;
-                    for (auto &child: children) {
-                        if (tasks.find(child) == tasks.end()) {
-                            throw std::runtime_error("Child not found in the task map");
-                        }
-
-                        LOG_INFO << "Child: " << child << ", task: " << std::get<0>(tasks[child]);
-                    }
-                    pid_t pid = fork();
-
-                    if (pid == 0) {
-                        LOG_INFO << "Transforming start: " << p;
-                        auto specs = infer_spec_task(this, i, p);
-                        LOG_INFO << "Transforming finish: " << p;
-
-                        write(pipefd[WRITE_END], specs.c_str(), specs.size() + 1);  // Write to pipe
-                        close(pipefd[WRITE_END]);  // Close write end
-                        close(pipefd[READ_END]);  // Close read end
-
-                        exit(0);
-                    } else if (pid > 0) {
-                        untransformed.erase(p);
-                        children.push_back(pid);
-                        pipes[pid][READ_END] = pipefd[READ_END];
-                        pipes[pid][WRITE_END] = pipefd[WRITE_END];
-                        tasks[pid] = std::make_tuple(p, i);
-                        close(pipefd[WRITE_END]);
-                    } else {
-                        throw std::runtime_error("fork() failed");
-                    }
-                }
-
-                // Collect the results
-                // for (int child_no = 0; child_no < children.size(); child_no++) {
-                //     collect_transformed_defs(this, transformed, children, pipes, tasks, children.size() != NR_PROCS);
-                // }
-            }
-        }
-    }
-
-    LOG_INFO << "Waiting for children to finish" << std::endl;
-
-    while (!children.empty()) {
-        collect_transformed_defs(this, transformed, children, pipes, tasks, false);
-    }
-
-#endif
 
     extern unsigned long z3_unknowns, z3_checks, z3_cache_hits, z3_global_hash_hit, z3_global_hash_total;
     extern std::chrono::duration<double> z3_accumulative_time;

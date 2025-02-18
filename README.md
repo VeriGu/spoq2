@@ -4,13 +4,22 @@ This repo is based on the previous work by Spoq and Spoq2. It is expected to be 
 
 ## Documentation
 
-See at Ronghui's machine (port 5050):
+See here[http://128.59.16.30:5050/]. 
+
 ```
 Username: the github group name (lowercase)
 Password: the biggest positive int32
 ```
 
 ## Build
+
+### Dependencies
+
+- Z3 : 4.12.5 (Please use the cmake-version for our cmakefile to correctly find z3).
+- LLVM : 14.0.0
+- Antlr4: Served as a submodule
+- Boost: (todo: specify version)
+
 
 ### Build Spoq
 ```
@@ -40,15 +49,19 @@ cd ..
 
 ## Features
 
+### LLVM Translation Algorithm
+
 ### Pointer Abstraction
 
 ### Z3 Cache
+
 ```
 include/z3_rules.h
 src/optimizations/z3_utils.cpp
 ```
 
 ### Automated Verification
+
 ```
 include/symbolic.h
 src/optimizations/symbolic.cpp

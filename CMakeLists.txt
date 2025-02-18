@@ -1,14 +1,5 @@
 set(CMAKE_C_COMPILER "clang")
 set(CMAKE_CXX_COMPILER "clang++")
-#set(CMAKE_BUILD_TYPE Release)
-
-#if (DEFINED ENV{VCPKG_ROOT})
-#    message("import vcpkg packages")
-#    message("$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
-#    set(VCPKG_TARGET_TRIPLET x64-osx)
-#    set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
-#    include("$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
-#endif()
 
 cmake_minimum_required(VERSION 3.10)
 project(spoq)
@@ -21,16 +12,31 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wno-unused-function")
 set(CMAKE_CXX_STANDARD 17)
 
 include_directories(include)
-# DO NOT put z3 include directory here, it will cause conflict with the z3 library in the system PATH
-# include_directories(include/z3)
+
+# ------------------------------------------------------------------------------
+# Z3
+# ------------------------------------------------------------------------------
+find_package(Z3 4.12.5 REQUIRED CONFIG)
+include_directories(${Z3_CXX_INCLUDE_DIRS})
+message(STATUS "Found Z3 ${Z3_VERSION_STRING}")
+message(STATUS "Using Z3Config.cmake in: ${Z3_DIR}")
+
+
+# ------------------------------------------------------------------------------
+# LLVM
+# ------------------------------------------------------------------------------
+find_package(LLVM 14.0.0 REQUIRED CONFIG)
+include_directories(${LLVM_INCLUDE_DIRS})
+add_definitions(${LLVM_DEFINITIONS})
+message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+
 
 # ------------------------------------------------------------------------------
 # Boost
 # ------------------------------------------------------------------------------
 find_package(Boost REQUIRED COMPONENTS log program_options)
-if(Boost_FOUND)
-    include_directories(${Boost_INCLUDE_DIRS})
-endif()
+include_directories(${Boost_INCLUDE_DIRS})
 
 # ------------------------------------------------------------------------------
 # External libaries are always build in release mode
@@ -47,19 +53,6 @@ add_subdirectory(src/frontend/parser/antlr4/runtime/Cpp/)
 
 # Include ANTLR4 runtime headers
 include_directories(src/frontend/parser/antlr4/runtime/Cpp/runtime/src/)
-
-# ------------------------------------------------------------------------------
-# Z3
-# ------------------------------------------------------------------------------
-message("Z3 build type: ${CMAKE_BUILD_TYPE}")
-FetchContent_Declare(z3
-        GIT_REPOSITORY https://github.com/Z3Prover/z3
-        GIT_TAG        z3-4.12.5
-)
-FetchContent_MakeAvailable(z3)
-include_directories(${z3_SOURCE_DIR}/src/api)
-include_directories(${z3_SOURCE_DIR}/src/api/c++)
-#target_compile_options(libz3 PRIVATE -O3 -w -Wno-unused-variable)
 
 # ------------------------------------------------------------------------------
 # Restore the build type
@@ -87,9 +80,10 @@ set(IRLOADER_SOURCES
 )
 
 add_library(irloader SHARED ${IRLOADER_SOURCES})
-if(Boost_FOUND)
-    target_link_libraries(irloader ${Boost_LIBRARIES})
-endif()
+target_link_libraries(irloader ${Boost_LIBRARIES})
+target_link_libraries(irloader LLVMSupport)
+target_link_libraries(irloader ${Z3_LIBRARIES})
+
 
 # ------------------------------------------------------------------------------
 # json2coq is compiled as an independent executable
@@ -99,11 +93,11 @@ set(JSON2COQ_SOURCES
 )
 
 add_executable(json2coq ${JSON2COQ_SOURCES})
-if(Boost_FOUND)
-    target_link_libraries(json2coq ${Boost_LIBRARIES})
-endif()
+target_link_libraries(json2coq ${Boost_LIBRARIES})
 target_link_libraries(json2coq irloader)
-
+target_link_libraries(json2coq LLVMSupport)
+target_link_libraries(json2coq ${Z3_LIBRARIES})
+ 
 # ------------------------------------------------------------------------------
 # Parser is compiled as a shared library
 # ------------------------------------------------------------------------------
@@ -114,12 +108,10 @@ set(PARSER_SOURCES
     src/frontend/parser/parse_light.cpp
 )
 add_library(parser SHARED ${PARSER_SOURCES})
-if(Boost_FOUND)
-    target_link_libraries(parser ${Boost_LIBRARIES})
-endif()
+target_link_libraries(parser ${Boost_LIBRARIES})
+target_link_libraries(parser ${Z3_LIBRARIES})
 target_compile_options(parser PRIVATE -O3 -UDEBUG)
-
-# List all source files explicitly
+ 
 set(SOURCES
     src/main.cpp
     src/libs/log.cpp
@@ -148,14 +140,11 @@ set(SOURCES
 
 # Specify the executable target and its source files
 add_executable(spoq ${SOURCES})
-# Link the shared library to the main executable
-target_link_libraries(spoq irloader parser antlr4_shared libz3)
 
-# Link the Boost libraries to the executable
-if(Boost_FOUND)
-    target_link_libraries(spoq ${Boost_LIBRARIES})
-endif()
-
-# Set the output directory for the executable
+target_link_libraries(spoq irloader parser antlr4_shared)
+target_link_libraries(spoq LLVMSupport)
+target_link_libraries(spoq ${Z3_LIBRARIES})
+target_link_libraries(spoq ${Boost_LIBRARIES})
+ 
 set_target_properties(spoq PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build")
