@@ -1018,13 +1018,8 @@ void mark_interested_read(Project* proj, SpecNode* spec, std::unordered_set<stri
                 //auto r = false;
                 for(int i = 1; i < node->elems->size()-1; ++i) {
                     auto field = static_cast<Symbol*>(node->elems->at(i).get())->text;
-                    if(interest_list.find(field) != interest_list.end()) {
-                        //find interested field
-                        node->is_interested_write = true;
-                        node->depend_on_interested_write = true;
-                        //node->depend_on_interested_read = true;
-                    }
                     if(fields->find(field) != fields->end()) {
+                        node->is_interested_write = true;
                         node->depend_on_interested_write = true;
                     }
                 }
@@ -1147,6 +1142,37 @@ void mark_interested_read(Project* proj, SpecNode* spec, std::unordered_set<stri
         return;
     }
 }
+
+
+// void mark_interested_write(Project* proj, SpecNode *spec, std::unordered_set<string>* fields, bool debug = false) {
+//     if(auto node = instance_of(spec, Expr)) {
+//         if(auto op = std::get_if<Expr::ops>(&node->op)) {
+//             if (*op == Expr::ops::RecordSet) {
+//                 //auto r = false;
+//                 for(int i = 1; i < node->elems->size()-1; ++i) {
+//                     auto field = static_cast<Symbol*>(node->elems->at(i).get())->text;
+//                     if(fields->find(field) != fields->end()) {
+//                         node->is_interested_write = true;
+//                         node->depend_on_interested_write = true;
+//                     }
+//                 }
+//                 back_propogate_interest_dependency(proj, node->elems->back().get(), fields, false);
+//                 mark_interested_write(proj, node->elems->at(0).get(), fields, false);
+//             }
+//         }
+//     } else if(auto node = instance_of(spec, If)) {
+//         mark_interested_write(proj, node->then_body.get(), fields, debug);
+//         mark_interested_write(proj, node->else_body.get(), fields, debug);
+//         mark_interested_write(proj, node->cond.get(), fields, debug);
+//     } else if(auto node = instance_of(spec, RelyAnno)) {
+//         mark_interested_write(proj, node->body.get(), fields, debug);
+//     } else if(auto node = instance_of(spec, Match)) {
+//          mark_interested_write(proj, node->src.get(), fields, debug); 
+//         for (auto &pm: *node->match_list) {
+//             mark_interested_write(proj, pm->body.get(), fields, debug);
+//         }
+//     }
+// }
 
 
 static bool op_is_lens_v(const std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string> &op) {
@@ -2235,7 +2261,7 @@ SpecNode* partial_eval(Project* proj, SpecNode* spec) {
     } else if(auto ifnode = instance_of(spec, If)) {
         
     } else if(auto m = instance_of(spec, Match)) {
-
+        
     }
 }
 
@@ -2338,6 +2364,10 @@ rule_ret_t rule_eliminate_match_simple(Project *proj, SpecNode *spec) {
     std::function<SpecNode*(SpecNode*)> f = [&] (SpecNode *node) -> SpecNode* {
         if (auto m = instance_of(node, Match)) {
             auto possible = false;
+            if(m->match_list->size() == 1 && instance_of(m->match_list->at(0)->pattern.get(), Symbol)) {
+                //let should not be allowed
+                return node;
+            }
             for (int i = 0; i < m->match_list->size(); ++i) {
                 std::unordered_map<string, unique_ptr<SpecNode>> assigns;
                 if (try_match(proj, m->match_list->at(i)->pattern.get(), m->src.get(), assigns, true)) {
@@ -2855,6 +2885,7 @@ rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec) {
 
         if (auto m = instance_of(node, If)) {
             if (auto c = instance_of(m->cond.get(), BoolConst)) {
+                expr_is_changed = true;
                 if (std::get<bool>(c->value)) {
                     return m->then_body.release();
                 } else {
@@ -2879,14 +2910,29 @@ rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec) {
                     auto elems2 = new vector<unique_ptr<SpecNode>>();
                     elems2->push_back(unique_ptr<SpecNode>(left));
                     elems2->push_back(unique_ptr<SpecNode>(right));
-
+                    expr_is_changed = true;
                     return new Expr(ops, unique_ptr<vector<unique_ptr<SpecNode>>>(elems2), node->get_type());
-                } else if (ops == op::ADD && is_const_zero(m->elems->at(0).get())) {
+                } 
+                if (ops == op::ADD && is_const_zero(m->elems->at(0).get())) {
                     expr_is_changed = true;
                     return m->elems->at(1).release();
                 } else if (ops == op::ADD && is_const_zero(m->elems->at(1).get())) {
                     expr_is_changed = true;
                     return m->elems->at(0).release();
+                } else if (ops == op::EQUAL || ops == op::BEQ || ops == op::SEQ) {
+                    if(auto const1 = instance_of(m->elems->at(0).get(), Const)) {
+                        if(auto const2 = instance_of(m->elems->at(1).get(), Const)) {
+                            expr_is_changed = true;
+                            return new BoolConst(*const1 == *const2);
+                        }
+                    }
+                } else if (ops == op::NOT_EQUAL || ops == op::BNE || ops == op::SNE) {
+                    if(auto const1 = instance_of(m->elems->at(0).get(), Const)) {
+                        if(auto const2 = instance_of(m->elems->at(1).get(), Const)) {
+                            expr_is_changed = true;
+                            return new BoolConst(*const1 != *const2);
+                        }
+                    }
                 } else if (ops == op::MINUS && m->elems->size() == 2 && is_const_zero(m->elems->at(1).get())) {
                     expr_is_changed = true;
                     return m->elems->at(0).release();
@@ -3014,6 +3060,7 @@ rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec) {
                                                          {bop::LT, bop::GTE}, {bop::GTE, bop::LT}, {bop::GT, bop::LTE},
                                                          {bop::LTE, bop::GT}, {bop::BGT, bop::BLE}, {bop::BLE, bop::BGT},
                                                          {bop::BLT, bop::BGE}, {bop::BGE, bop::BLT}};
+                                expr_is_changed = true;
                                 return new Expr(rev[elem0op], std::move(elem0->elems), node->get_type());
                             }
                         }
