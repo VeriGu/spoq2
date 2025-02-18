@@ -90,9 +90,9 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
                                       unordered_map<string, shared_ptr<SpecValue>> &assigns);
 bool check_loop_inv(Project* proj, Definition *loop);
 bool check_invariant(Project* proj, Definition* prim, SpecNode* inv);
-SpecNode* formulate_loop_invariant(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args);
-SpecNode* formulate_preserved_function(Project* proj, string fname);
-SpecNode* formulate_post_condition(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args);
+unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args);
+unique_ptr<SpecNode> formulate_preserved_function(Project* proj, string fname);
+unique_ptr<SpecNode> formulate_post_condition(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args);
 void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>>& states);
 unsigned long length_of_exp(SpecNode* spec);
 static inline bool op_eq(std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string>& val,

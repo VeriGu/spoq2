@@ -629,7 +629,7 @@ void pattern_matching(SpecNode* pattern, SpecNode* spec) {
 
 
 //forall st st', inv st /\ query_oracle st = Some st' -> inv st'.
-SpecNode* formulate_preserved_function(Project* proj, string fname) {
+unique_ptr<SpecNode> formulate_preserved_function(Project* proj, string fname) {
     auto sys_inv = proj->conjoined_sys_inv.get();
     auto inv = sys_inv->deep_copy();
     auto before_inv = inv->deep_copy();
@@ -693,11 +693,11 @@ SpecNode* formulate_preserved_function(Project* proj, string fname) {
     auto forall = new Forall(std::move(quantified), unique_ptr<SpecNode>(implies));
 
     LOG_DEBUG << "formulate_preserved_function" << string(*forall);
-    return forall;
+    return unique_ptr<SpecNode>(forall);
 }
 
 //fname(v1,v2,v3,v4) = Some (t1,t2,t3,t4, st') -> post(t1,t2,t3,t4,st')
-SpecNode* formulate_post_condition(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args) {
+unique_ptr<SpecNode> formulate_post_condition(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args) {
     auto def = proj->defs[fname].get();
     auto &postconds = proj->cmds.PostCond[fname];
     SpecNode* aggrepost = new BoolConst(true);
@@ -761,12 +761,12 @@ SpecNode* formulate_post_condition(Project* proj, string fname, vector<unique_pt
     bodyelems->push_back(unique_ptr<SpecNode>(aggrepost));
     auto expr = new Expr(Expr::binops::IMPLIES, unique_ptr<vector<unique_ptr<SpecNode>>>(bodyelems), Bool::BOOL);
 
-    return expr;
+    return unique_ptr<SpecNode>(expr);
 }
 
 //formulate loop invariant post condition
 //forall v1' v2'....loop_spec(n, v1....vk,st) = Some (v1',v2',v3'....vk',st') -> loop_cond /\ invariant(v1',v2',....vk'，st',st)
-SpecNode* formulate_loop_invariant(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args) {
+unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args) {
     auto &invs = proj->loop_invs[fname];
     auto def = proj->defs[fname].get();
     assert(instance_of(def, Fixpoint));
@@ -848,7 +848,7 @@ SpecNode* formulate_loop_invariant(Project* proj, string fname, vector<unique_pt
     auto expr = new Expr(Expr::binops::IMPLIES, unique_ptr<vector<unique_ptr<SpecNode>>>(bodyelems), Bool::BOOL);
 
 
-    return expr;
+    return unique_ptr<SpecNode>(expr);
 }
 
 

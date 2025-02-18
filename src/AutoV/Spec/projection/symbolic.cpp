@@ -451,13 +451,13 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                         // if (arg->name != "_N_") {
                         auto sym = new Symbol(loop->name + "_" + arg->name, arg->type);
                         bool succ;
-                        before_inv = subst(before_inv->deep_copy().release(), arg->name, sym, succ);
+                        before_inv = subst(before_inv, arg->name, sym, succ);
                         delete sym;
                         // }
                     }
 					auto sym = new Symbol(loop->name + "_" + "st_old", loop->args->back()->type);
 					bool succ;
-					before_inv = subst(before_inv->deep_copy().release(), "st_old", sym, succ);
+					before_inv = subst(before_inv, "st_old", sym, succ);
 					delete sym;
                     auto vc = z3ctx.bool_val(true);
                     set<string> used_fix;
@@ -493,7 +493,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                     }
                     LOG_INFO << "[Checking Loop Invariant] Precondition implies invariant";
                     //add loop post condition
-                    //delete before_inv;
+                    delete before_inv;
                     //delete aggreinv;
                     auto fname = loop->name;
                     auto loop_post_cond = formulate_loop_invariant(proj, fname, expr->elems.get());
@@ -503,7 +503,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                         }
                     }
 					//LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << string(*loop_post_cond);
-                    auto loop_post_val = z3_eval(proj, loop_post_cond, state, false, true, used_fix);
+                    auto loop_post_val = z3_eval(proj, loop_post_cond.get(), state, false, true, used_fix);
 					auto post = loop_post_val->get_z3_value();
 					for(auto arg : *loop->args) {
 						if (arg->name != "_N_") {
@@ -587,7 +587,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 
 					if(proj->cmds.PostCond.find(op) != proj->cmds.PostCond.end()) {
 						//add post condition
-                        SpecNode* post_cond = formulate_post_condition(proj, op, expr->elems.get());
+                        auto post_cond = formulate_post_condition(proj, op, expr->elems.get());
                         string tmpname = "__tmp__";
                         int i = 0;
                         auto rettype = instance_of(def->rettype.get(), Option);
@@ -604,7 +604,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                             (*state->vars)[def->name + "_st'"] = rettype->elem_type->declare(def->name + "_st'", 0);
                         }
 
-                        auto post_val = z3_eval(proj, post_cond, state, false, false, used_fix);
+                        auto post_val = z3_eval(proj, post_cond.get(), state, false, false, used_fix);
                         auto post = post_val->get_z3_value();
                         if(auto rettupletype = instance_of(rettype->elem_type.get(), Tuple)) {
                             i = 0;
@@ -620,14 +620,14 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                             post = z3::forall((*state->vars)[def->name + "_st'"]->get_z3_value(), post);
                         }
                         //delete post_cond;
-                        LOG_DEBUG << "[Adding Post Condition] Adding func postcondition: " << post_cond;
+                        LOG_DEBUG << "[Adding Post Condition] Adding func postcondition: " << string(*post_cond);
 					    LOG_DEBUG << "[Adding Post Condition] Adding func postcondition: " << post;
                         state->conds->push_back(post);
 					}
                     //if it is a preserving function, directly add post condition
                     if(proj->cmds.PreserveInv.find(op) != proj->cmds.PreserveInv.end()) {
-                        SpecNode* post_cond = formulate_preserved_function(proj, op);
-                        auto post_val = z3_eval(proj, post_cond, state, false, true, used_fix);
+                        unique_ptr<SpecNode> post_cond = formulate_preserved_function(proj, op);
+                        auto post_val = z3_eval(proj, post_cond.get(), state, false, true, used_fix);
                         //delete post_cond;
                         state->conds->push_back(post_val->get_z3_value());
                         LOG_DEBUG << "[Adding Post Condition] Adding preserved inv postcondition: " << op;
