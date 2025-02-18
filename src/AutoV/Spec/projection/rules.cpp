@@ -2241,29 +2241,67 @@ rule_ret_t rule_eliminate_let(Project *proj, SpecNode *spec) {
 }
 
 
-SpecNode* partial_eval(Project* proj, SpecNode* spec) {
-    if(auto expr = instance_of(spec, Expr)) {
-        if(op_eq(expr->op, Expr::binops::EQUAL)) {
-            SpecNode* node1 = partial_eval(proj, expr->elems->at(0).release());
-            SpecNode* node2 = partial_eval(proj, expr->elems->at(1).release());
-            if(auto cons = instance_of(node1, Const)) {
-            if(auto cons2 = instance_of(node2, Const)){
-                return new BoolConst((*cons) == *cons2);
-            }}
-        } else if(op_eq(expr->op, Expr::AND)) {
-            SpecNode* node1 = partial_eval(proj, expr->elems->at(0).release());
-            SpecNode* node2 = partial_eval(proj, expr->elems->at(1).release());
-            if(auto cons = instance_of(node1, IntConst)) {
-            if(auto cons2 = instance_of(node2, IntConst)){
-                return new IntConst(cons->get_value() + cons2->get_value());
-            }}
-        }                                       
-    } else if(auto ifnode = instance_of(spec, If)) {
-        
-    } else if(auto m = instance_of(spec, Match)) {
-        
+
+// unique_ptr<SpecNode> rule_simplify_expr(Project* proj, unique_ptr<SpecNode> spec);
+// unique_ptr<SpecNode> rule_eliminate_if(Project* proj, unique_ptr<SpecNode> spec);
+
+unique_ptr<SpecNode> rule_eliminate_rely(Project* proj, unique_ptr<SpecNode> spec) {
+    if(auto r = instance_of(spec.get(), Rely)) {
+        if(auto cons = instance_of(r->prop.get(), BoolConst)) {
+            if(std::get<bool>(cons->value)) {
+                return std::move(r->body);
+            } else {
+                return make_unique<Symbol>("None", spec->type);
+            }
+        }
     }
 }
+
+// unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec) {
+//     if(auto expr = instance_of(spec.get(), Expr)) {
+//         //will move this to rule_simplify_expr
+//         //unfold, arithmatic expressions
+//         if(op_eq(expr->op, Expr::binops::EQUAL)) {
+//             auto node1 = partial_eval(proj, std::move(expr->elems->at(0)));
+//             auto node2 = partial_eval(proj, std::move(expr->elems->at(1)));
+//             if(auto cons = instance_of(node1.get(), Const)) {
+//             if(auto cons2 = instance_of(node2.get(), Const)){
+//                 return make_unique<BoolConst>((*cons) == *cons2);
+//             }}
+//         } else if(op_eq(expr->op, Expr::AND)) {
+//             auto node1 = partial_eval(proj, std::move(expr->elems->at(0)));
+//             auto node2 = partial_eval(proj, std::move(expr->elems->at(1)));
+//             if(auto cons = instance_of(node1.get(), IntConst)) {
+//             if(auto cons2 = instance_of(node2.get(), IntConst)){
+//                 return make_unique<IntConst>(cons->get_value() + cons2->get_value());
+//             }}
+//         }                                       
+//     } else if(auto ifnode = instance_of(spec.get(), If)) {
+//         //eliminate if
+//         auto cond = partial_eval(proj, std::move(ifnode->cond));
+//         ifnode->cond = std::move(cond);
+//         if(auto cond = instance_of(ifnode->cond.get(), BoolConst)) {
+//             unique_ptr<SpecNode> eliminatif = rule_eliminate_if(proj, std::move(spec));
+//             auto after1 = partial_eval(proj, std::move(eliminatif));
+//             return after1;
+//         }
+//         auto then_b = partial_eval(proj, std::move(ifnode->then_body));
+//         auto else_b = partial_eval(proj, std::move(ifnode->else_body));
+//         ifnode->then_body = std::move(then_b);
+//         ifnode->else_body = std::move(else_b);
+//         return spec;
+//     } else if(auto m = instance_of(spec.get(), Match)) {
+//         //match
+//     } else if(auto m = instance_of(spec.get(), RelyAnno)) {
+//         auto cond = partial_eval(proj, std::move(m->prop));
+
+//         if(auto cond = instance_of(ifnode->cond.get(), BoolConst)) {
+//             unique_ptr<SpecNode> eliminate = rule_eliminate_rely(proj, std::move(spec));
+//             auto after = partial_eval(proj, std::move(eliminate));
+//             return after;
+//         }
+//     }
+// }
 
 static string get_constr(SpecNode *node) {
     if (auto p = instance_of(node, Symbol)) {
