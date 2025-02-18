@@ -117,7 +117,7 @@ std::chrono::duration<double> z3_accumulative_time = std::chrono::duration<doubl
 /** specialized z3 checker for automated proof
  *  1. only check !cond if UNSAT (True) or not
  *  2. automatically dump queries
- *      TODO: also dump counter examples
+ *  3. use local solver, which significantly speedup path-by-path verification
   */
 Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo, int timeout) {
     auto start = std::chrono::high_resolution_clock::now();
@@ -127,27 +127,25 @@ Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo
     //     z3_cache_hits++;
     //     return Z3Cache[hash];
     // }
-
-    Z3Params.set("relevancy", (unsigned int)2);
-    Z3Params.set("case_split", (unsigned int)2);
+    z3::solver solve(z3ctx);
     Z3Params.set("timeout", (unsigned int)timeout);
-    Z3Solver.set(Z3Params);
-    Z3Solver.push();
+    solve.set(Z3Params);
+    solve.push();
     for (auto &c : *state->conds) {
-        Z3Solver.add(c);
+        solve.add(c);
     }
     for (auto &ind : *state->inductions) {
-        Z3Solver.add(ind);
+        solve.add(ind);
     }
-    Z3Solver.push();
+    solve.push();
     
-    Z3Solver.add(!cond);
-    auto not_res = Z3Solver.check();
+    solve.add(!cond);
+    auto not_res = solve.check();
     if (qinfo)
-        qinfo->dump(Z3Solver.to_smt2());
+        qinfo->dump(solve.to_smt2());
 
-    Z3Solver.pop();
-    Z3Solver.pop();
+    solve.pop();
+    solve.pop();
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
@@ -155,7 +153,7 @@ Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo
         // Z3Cache[hash] = Z3Result::True;
         return Z3Result::True;
     } else if (not_res == z3::sat) {
-        auto ce = Z3Solver.get_model();
+        auto ce = solve.get_model();
         // Z3Cache[hash] = Z3Result::False;
         return Z3Result::False;
     } else {
