@@ -15,6 +15,7 @@ extern std::set<string> interest_list;
 static unsigned long get_mono_lens_id() {
     return mono_lens_id++;
 }
+class EvalState;
 
 SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f, bool apply_anno);
 
@@ -73,6 +74,8 @@ enum class RuleID {
     rule_move_if_out_expr,
     rule_move_match_out_expr,
     rule_unfold_specs, 
+    rule_simplify_expr,
+    rule_simple_by_z3,
 };
 /** others:
  * subst: done
@@ -94,6 +97,10 @@ private:
     std::unique_ptr<SpecNode> rec_apply_smart(std::unique_ptr<SpecNode> spec,
                                               const std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)>& f,
                                               bool apply_anno);
+    smart_rule_ret_t simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::shared_ptr<EvalState> state);
+    smart_rule_ret_t simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<EvalState> state);
+    smart_rule_ret_t simple_match_by_z3(std::unique_ptr<Match> spec, std::shared_ptr<EvalState> state);
+    smart_rule_ret_t simple_expr_by_z3(std::unique_ptr<Expr> expr, std::shared_ptr<EvalState> state);
 public: 
     using rule_t = std::function<smart_rule_ret_t(std::unique_ptr<SpecNode>)>;
     std::vector<SpecRule> rules_group1;
@@ -139,7 +146,7 @@ public:
     smart_rule_ret_t rule_unfold_specs(std::unique_ptr<SpecNode> spec);
 
     smart_rule_ret_t rule_simplify_expr(std::unique_ptr<SpecNode> spec);
-    // smart_rule_ret_t rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state);
+    smart_rule_ret_t rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state);
 
 };
 

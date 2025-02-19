@@ -95,11 +95,10 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
     }
 
     converged_spec.clear();
-    bool be_smart = false;
+    bool be_smart = true;
     /** Rules with smart pointers */
     while (be_smart) {
         auto new_spec = std::move(def->body);
-        // fetch from def body
         auto changed = false;
 
         // group 1
@@ -111,9 +110,6 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                 if (r.id == RuleID::rule_eliminate_let) {
                     auto prev_symbols = std::set<string>(known);
                     auto __changed = false;
-                    /** FIXME: memory leak here */
-                    // auto __spec = eliminiate_ambiguity(proj, tmp_spec.release(), prev_symbols, __changed);
-                    // tmp_spec.reset(__spec);
                     tmp_spec = eliminate_ambiguity(proj, std::move(tmp_spec), prev_symbols, __changed);
 
                     this_changed |= __changed;
@@ -188,11 +184,13 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                 (*vars)[arg->name] = arg->type->declare(arg->name, 0);
             }
             profile_clear_epoch();
-            auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec.release(), make_shared<EvalState>(vars, conds));
+            auto [__spec, __changed] = proj->rules.rule_simple_by_z3(std::move(new_spec), make_shared<EvalState>(vars, conds));
+            // auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec.release(), make_shared<EvalState>(vars, conds));
             profile_update_epoch();
             
             changed |= __changed;
-            new_spec.reset(__spec);
+            new_spec = std::move(__spec);
+            // new_spec.reset(__spec);
             
             std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
                     << string(*new_spec.get()) << "\n==============================\n";

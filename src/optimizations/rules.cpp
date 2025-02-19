@@ -4037,15 +4037,12 @@ smart_rule_ret_t SpecRules::rule_simplify_expr(std::unique_ptr<SpecNode> spec) {
                 } else if (ops == op::ADD && is_const_zero(m->elems->at(0).get())) {
                     expr_is_changed = true;
                     return std::move(m->elems->at(1));
-                    // return m->elems->at(1).release();
                 } else if (ops == op::ADD && is_const_zero(m->elems->at(1).get())) {
                     expr_is_changed = true;
                     return std::move(m->elems->at(0));
-                    // return m->elems->at(0).release();
                 } else if (ops == op::MINUS && m->elems->size() == 2 && is_const_zero(m->elems->at(1).get())) {
                     expr_is_changed = true;
                     return std::move(m->elems->at(0));
-                    // return m->elems->at(0).release();
                 } else if ((ops == op::ADD || ops == op::MINUS) &&
                             m->elems->size() == 2 &&
                             (!is_instance(m->elems->at(0).get(), IntConst) ||
@@ -4070,13 +4067,11 @@ smart_rule_ret_t SpecRules::rule_simplify_expr(std::unique_ptr<SpecNode> spec) {
                         elems->push_back(std::move(expr));
                         //here node is already deleted since expr is pointing to another place.
                         return make_unique<Expr>(op::MULT, std::move(elems), expr->get_type());
-                        // return new Expr(Expr::binops::MULT, std::move(elems), expr->get_type());
                     }
 
                     //here expr is not changed;
                 } else if (ops == op::MINUS && m->elems->size() == 1) {
                     return expr;
-                    // return expr.release();
                 }
 
                 bool all_intconst = true;
