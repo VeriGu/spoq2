@@ -16,9 +16,6 @@ static unsigned long get_mono_lens_id() {
     return mono_lens_id++;
 }
 
-std::unique_ptr<SpecNode> rec_apply_smart(std::unique_ptr<SpecNode> spec,
-                                          const std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)>& f,
-                                          bool apply_anno);
 SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f, bool apply_anno);
 
 using rule_ret_t = std::pair<SpecNode *, bool>;
@@ -26,8 +23,6 @@ using smart_rule_ret_t = std::pair<std::unique_ptr<SpecNode>, bool>;
 
 SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &prev_symbols, bool &changed);
 rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec);
-
-smart_rule_ret_t rule_empty_smart(Project *proj, std::unique_ptr<SpecNode> spec);
 
 rule_ret_t rule_simple_record_get_set(Project *proj, SpecNode *spec);
 rule_ret_t rule_keep_fields_of_interest(Project *proj, SpecNode *spec);
@@ -55,5 +50,99 @@ inline void set_interest_list(const std::set<string> &coi) {
     interest_list.clear();
     interest_list.insert(coi.begin(), coi.end());
 }
+
+
+std::unique_ptr<SpecNode> eliminate_ambiguity(
+    Project* proj,
+    std::unique_ptr<SpecNode> spec,
+    std::set<std::string>& prev_symbols,
+    bool& changed
+);
+
+enum class RuleID {
+    rule_eliminate_let,
+    rule_eliminate_when,
+    rule_eliminate_if,
+    rule_eliminate_match_simple,
+    rule_subst_match_src_with_content,
+    rule_simple_builtin_functions,
+    rule_simple_record_get_set,
+    rule_move_rely_out_when, 
+    rule_move_when_out_when,
+    rule_move_if_out_match,
+    rule_move_if_out_expr,
+    rule_move_match_out_expr,
+    rule_unfold_specs, 
+};
+/** others:
+ * subst: done
+ * subst_expr: done
+ * eliminate_ambiguity, done
+ * rule_simplify_expr, done
+ * rule_simple_by_z3,
+ * rule_simplify_lens
+ */
+
+struct SpecRule {
+    RuleID id;
+    std::function<smart_rule_ret_t(std::unique_ptr<SpecNode>)> call;
+};
+
+class SpecRules {
+private:
+    Project *proj;
+    std::unique_ptr<SpecNode> rec_apply_smart(std::unique_ptr<SpecNode> spec,
+                                              const std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)>& f,
+                                              bool apply_anno);
+public: 
+    using rule_t = std::function<smart_rule_ret_t(std::unique_ptr<SpecNode>)>;
+    std::vector<SpecRule> rules_group1;
+    std::vector<SpecRule> rules_group2;
+
+    SpecRules(Project *proj) : proj(proj),
+        rules_group1 {
+            { RuleID::rule_eliminate_let,           [this](auto spec) { return rule_eliminate_let(std::move(spec)); } },
+            { RuleID::rule_eliminate_when,          [this](auto spec) { return rule_eliminate_when(std::move(spec)); } },
+            { RuleID::rule_eliminate_if,            [this](auto spec) { return rule_eliminate_if(std::move(spec)); } },
+            { RuleID::rule_eliminate_match_simple,  [this](auto spec) { return rule_eliminate_match_simple(std::move(spec)); } },
+            { RuleID::rule_subst_match_src_with_content, [this](auto spec) { return rule_subst_match_src_with_content(std::move(spec)); } },
+            { RuleID::rule_simple_builtin_functions, [this](auto spec) { return rule_simple_builtin_functions(std::move(spec)); } },
+            { RuleID::rule_simple_record_get_set,   [this](auto spec) { return rule_simple_record_get_set(std::move(spec)); } },
+            { RuleID::rule_move_rely_out_when,      [this](auto spec) { return rule_move_rely_out_when(std::move(spec)); } },
+            { RuleID::rule_move_when_out_when,      [this](auto spec) { return rule_move_when_out_when(std::move(spec)); } },
+            { RuleID::rule_move_if_out_match,       [this](auto spec) { return rule_move_if_out_match(std::move(spec)); } },
+            { RuleID::rule_move_if_out_expr,        [this](auto spec) { return rule_move_if_out_expr(std::move(spec)); } },
+            { RuleID::rule_move_match_out_expr,     [this](auto spec) { return rule_move_match_out_expr(std::move(spec)); } }
+        },
+        rules_group2 {
+            { RuleID::rule_eliminate_let,          [this](auto spec) { return rule_eliminate_let(std::move(spec)); } },
+            { RuleID::rule_eliminate_match_simple, [this](auto spec) { return rule_eliminate_match_simple(std::move(spec)); } },
+            { RuleID::rule_move_if_out_expr,       [this](auto spec) { return rule_move_if_out_expr(std::move(spec)); } },
+            { RuleID::rule_simple_record_get_set,  [this](auto spec) { return rule_simple_record_get_set(std::move(spec)); } },
+            { RuleID::rule_eliminate_if,           [this](auto spec) { return rule_eliminate_if(std::move(spec)); } }
+        } {}
+
+    // Rules as member functions
+    smart_rule_ret_t rule_empty(std::unique_ptr<SpecNode> spec);
+    smart_rule_ret_t rule_eliminate_let(std::unique_ptr<SpecNode> spec);
+    smart_rule_ret_t rule_eliminate_when(std::unique_ptr<SpecNode> spec);
+    smart_rule_ret_t rule_eliminate_if(std::unique_ptr<SpecNode> spec);
+    smart_rule_ret_t rule_eliminate_match_simple(std::unique_ptr<SpecNode> spec);
+    smart_rule_ret_t rule_subst_match_src_with_content(std::unique_ptr<SpecNode> spec);
+    smart_rule_ret_t rule_simple_builtin_functions(std::unique_ptr<SpecNode> spec);
+    smart_rule_ret_t rule_simple_record_get_set(std::unique_ptr<SpecNode> spec);
+    smart_rule_ret_t rule_move_rely_out_when(std::unique_ptr<SpecNode> spec);
+    smart_rule_ret_t rule_move_when_out_when(std::unique_ptr<SpecNode> spec);
+    smart_rule_ret_t rule_move_if_out_match(std::unique_ptr<SpecNode> spec);
+    smart_rule_ret_t rule_move_if_out_expr(std::unique_ptr<SpecNode> spec);
+    smart_rule_ret_t rule_move_match_out_expr(std::unique_ptr<SpecNode> spec);
+    smart_rule_ret_t rule_unfold_specs(std::unique_ptr<SpecNode> spec);
+
+    smart_rule_ret_t rule_simplify_expr(std::unique_ptr<SpecNode> spec);
+    // smart_rule_ret_t rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state);
+
+};
+
+using rule_t = std::function<smart_rule_ret_t(std::unique_ptr<SpecNode>)>;
 
 } // namespace autov

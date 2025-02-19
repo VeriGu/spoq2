@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <iostream>
 #include <fstream>
+#include <rules.h>
 namespace fs = std::filesystem;
 
 
@@ -135,7 +136,9 @@ public:
 
     std::set<string> skip_state_specs;
 
-
+    /** Backend rules BEGIN */
+    SpecRules rules;
+    /** Backend rules END */
     // coi[spec_name][invariant_name] -> coi
     /** autoproof-related variables BEGIN */
     unordered_map<string, std::unordered_map<string, std::set<string>>> coi;

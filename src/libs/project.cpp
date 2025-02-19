@@ -349,6 +349,7 @@ static inline unique_ptr<Definition> make_bool_to_int(void) {
 }
 
 Project::Project()
+    : rules(this)
 {
     add_struct(Struct::Ptr);
     add_indtype(Inductive::Nat);

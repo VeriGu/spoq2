@@ -57,6 +57,26 @@ extern unordered_map<size_t, Z3Result> Z3Cache;
 
 std::mutex Z3mtx;
 
+
+inline std::string ruleid_to_string(RuleID rule) {
+    switch (rule) {
+        case RuleID::rule_eliminate_let: return "rule_eliminate_let";
+        case RuleID::rule_eliminate_when: return "rule_eliminate_when";
+        case RuleID::rule_eliminate_if: return "rule_eliminate_if";
+        case RuleID::rule_eliminate_match_simple: return "rule_eliminate_match_simple";
+        case RuleID::rule_subst_match_src_with_content: return "rule_subst_match_src_with_content";
+        case RuleID::rule_simple_builtin_functions: return "rule_simple_builtin_functions";
+        case RuleID::rule_simple_record_get_set: return "rule_simple_record_get_set";
+        case RuleID::rule_move_rely_out_when: return "rule_move_rely_out_when";
+        case RuleID::rule_move_when_out_when: return "rule_move_when_out_when";
+        case RuleID::rule_move_if_out_match: return "rule_move_if_out_match";
+        case RuleID::rule_move_if_out_expr: return "rule_move_if_out_expr";
+        case RuleID::rule_move_match_out_expr: return "rule_move_match_out_expr";
+        case RuleID::rule_unfold_specs: return "rule_unfold_specs";
+        default: return "Unknown RuleID";
+    }
+}
+
 void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold, bool low_spec) {
     LOG_INFO << "Transforming " << def->name << ", unfold: " << unfold;
 
@@ -75,8 +95,117 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
     }
 
     converged_spec.clear();
+    bool be_smart = false;
+    /** Rules with smart pointers */
+    while (be_smart) {
+        auto new_spec = std::move(def->body);
+        // fetch from def body
+        auto changed = false;
 
-    while(true) {
+        // group 1
+        while (true) {
+            auto this_changed = false;
+            // tmp spec should only be used in rule group loop
+            auto tmp_spec = std::move(new_spec);
+            for (auto &r : proj->rules.rules_group1) {
+                if (r.id == RuleID::rule_eliminate_let) {
+                    auto prev_symbols = std::set<string>(known);
+                    auto __changed = false;
+                    /** FIXME: memory leak here */
+                    // auto __spec = eliminiate_ambiguity(proj, tmp_spec.release(), prev_symbols, __changed);
+                    // tmp_spec.reset(__spec);
+                    tmp_spec = eliminate_ambiguity(proj, std::move(tmp_spec), prev_symbols, __changed);
+
+                    this_changed |= __changed;
+                    changed |= __changed;
+                }
+                auto orig_spec_str = string(*tmp_spec.get());
+                auto [__spec, __changed] = r.call(std::move(tmp_spec));
+                tmp_spec = std::move(__spec);
+                this_changed |= __changed;
+                changed |= __changed;
+                auto new_spec_str = string(*tmp_spec.get());
+            }
+            new_spec = std::move(tmp_spec);
+            if (!this_changed)
+                break;
+        }
+
+        if (unfold) {
+            do {
+                if (proj->cmds.NoUnfoldAll) {
+                    break;
+                }
+                auto [__spec, __unfolded] = proj->rules.rule_unfold_specs(std::move(new_spec));
+                new_spec = std::move(__spec);
+                changed |= __unfolded;
+
+                if (__unfolded) {
+                    auto prev_symbols = std::set<string>(known);
+                    bool __changed = false;
+                    new_spec = eliminate_ambiguity(proj, std::move(new_spec), prev_symbols, __changed);
+                    changed |= __changed;
+                }
+            } while (false);
+        }
+
+        // group 2
+        while (true) {
+            auto this_changed = false;
+            // tmp spec should only be used in rule group loop
+            auto tmp_spec = std::move(new_spec);
+            for (auto &r : proj->rules.rules_group2) {
+                if (r.id == RuleID::rule_eliminate_let) {
+                    auto prev_symbols = std::set<string>(known);
+                    auto __changed = false;
+                    tmp_spec = eliminate_ambiguity(proj, std::move(tmp_spec), prev_symbols, __changed);
+
+                    this_changed |= __changed;
+                    changed |= __changed;
+                }
+                auto [__spec, __changed] = r.call(std::move(tmp_spec));
+                tmp_spec = std::move(__spec);
+                this_changed |= __changed;
+                changed |= __changed;
+                if (__changed) {
+                    std::cout << "Rule " << ruleid_to_string(r.id) << " apply! (group 2)" << std::endl;
+                }
+
+            }
+            auto [__spec, __changed] = proj->rules.rule_simplify_expr(std::move(tmp_spec));
+            this_changed |= __changed;
+            changed |= __changed;
+            new_spec = std::move(__spec);
+
+            if (!this_changed)
+                break;
+        }
+        // z3
+        // if (unfold) {
+            auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+            auto conds = std::make_shared<vector<z3::expr>>();
+            for (auto arg : *def->args) {
+                (*vars)[arg->name] = arg->type->declare(arg->name, 0);
+            }
+            profile_clear_epoch();
+            auto [__spec, __changed] = rule_simple_by_z3(proj, new_spec.release(), make_shared<EvalState>(vars, conds));
+            profile_update_epoch();
+            
+            changed |= __changed;
+            new_spec.reset(__spec);
+            
+            std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
+                    << string(*new_spec.get()) << "\n==============================\n";
+        // }
+
+        def->body = std::move(new_spec);
+        def->_str = "";
+
+        if (!changed)
+            break;
+    }
+
+    while(!be_smart) {
         auto new_spec = def->body.release();
 
         auto changed = false;
