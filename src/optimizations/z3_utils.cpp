@@ -121,43 +121,29 @@ std::chrono::duration<double> z3_accumulative_time = std::chrono::duration<doubl
   */
 Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo, int timeout) {
     auto start = std::chrono::high_resolution_clock::now();
-    // auto hash = hash_z3_state(state, cond, timeout);
-    // z3_checks++;
-    // if (Z3Cache.find(hash) != Z3Cache.end()) {
-    //     z3_cache_hits++;
-    //     return Z3Cache[hash];
-    // }
     z3::solver solve(z3ctx);
     Z3Params.set("timeout", (unsigned int)timeout);
     solve.set(Z3Params);
-    solve.push();
     for (auto &c : *state->conds) {
         solve.add(c);
     }
     for (auto &ind : *state->inductions) {
         solve.add(ind);
     }
-    solve.push();
     
     solve.add(!cond);
     auto not_res = solve.check();
     if (qinfo)
         qinfo->dump(solve.to_smt2());
 
-    solve.pop();
-    solve.pop();
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
     if (not_res == z3::unsat) {
-        // Z3Cache[hash] = Z3Result::True;
         return Z3Result::True;
     } else if (not_res == z3::sat) {
-        auto ce = solve.get_model();
-        // Z3Cache[hash] = Z3Result::False;
         return Z3Result::False;
     } else {
-        // Z3Cache[hash] = Z3Result::Unknown;
         return Z3Result::Unknown;
     }
 }

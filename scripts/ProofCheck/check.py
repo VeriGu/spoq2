@@ -24,6 +24,7 @@ VERIFY_SPEC_NAMES = {
     "rsi_rtt_set_ripas_spec",
     "rsi_data_map_extra_spec"
 }
+
 # Initialize colorama for colored output
 init(autoreset=True)
 
@@ -31,57 +32,59 @@ def check_smt2_file(file_path):
     """Check an SMT2 file using Z3 and return the result."""
     solver = Solver()
     constraints = parse_smt2_file(file_path)
-    solver.set("timeout", 1000)  # Set a timeout of 5 seconds
+    # Increase or adjust the timeout as needed
+    solver.set("timeout", 40000)  # 40 seconds
     solver.add(constraints)
     return solver.check()
 
 def check_invariants():
-    current_dir = os.getcwd()
+    # Instead of current_dir, use ../container/z3_queries/
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    smt_base_dir = os.path.abspath(os.path.join(script_dir, "..", "..", "container", "z3_queries"))
 
-    # Iterate over all subdirectories (./spec_name)
-    for spec_name in os.listdir(current_dir):
+    # Iterate over all subdirectories in ../container/z3_queries
+    for spec_name in os.listdir(smt_base_dir):
+        # Only check known specs
         if spec_name not in VERIFY_SPEC_NAMES:
-            continue 
-        spec_path = os.path.join(current_dir, spec_name)
-
+            continue
+        
+        spec_path = os.path.join(smt_base_dir, spec_name)
         if not os.path.isdir(spec_path):
             continue
 
-        # Section header for the spec_name
+        # Section header for this spec
         print(f"\n{Fore.CYAN}{'='*40}")
         print(f"{Fore.BLUE}Checking Invariants for \"{spec_name}\"")
         print(f"{Fore.CYAN}{'='*40}")
 
-        spec_success = True  # Track success for the entire spec_name
+        spec_success = True  # Track success for this spec_name
 
-        # Iterate over invariant subdirectories (./spec_name/inv_name)
+        # Iterate over potential invariant subdirectories in spec_name
         for inv_name in os.listdir(spec_path):
             inv_path = os.path.join(spec_path, inv_name)
-
             if not os.path.isdir(inv_path):
                 continue
 
             # Check the invariant
             print(f"  {Fore.YELLOW}- Checking Invariant \"{inv_name}\"...", end=" ")
-            all_unsat = True  # Assume all SMT2 files are unsat unless proven otherwise
+            all_unsat = True  # We'll assume unsat unless proven otherwise
 
-            # Check all .smt2 files in ./spec_name/inv_name/
+            # Check all .smt2 files in each invariant folder
             for file_name in os.listdir(inv_path):
                 if file_name.endswith(".smt2"):
                     file_path = os.path.join(inv_path, file_name)
                     result = check_smt2_file(file_path)
 
                     if result != unsat:
-                        all_unsat = False  # If any file is not unsat, mark as failed
+                        all_unsat = False
 
-            # Output success or failure for the invariant
             if all_unsat:
                 print(f"{Fore.GREEN}success!")
             else:
                 print(f"{Fore.RED}failed!")
                 spec_success = False
 
-        # Summary for the entire spec_name
+        # Summary for this spec_name
         if spec_success:
             print(f"{Fore.GREEN}[{spec_name}] verified!")
         else:

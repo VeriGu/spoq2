@@ -30,7 +30,7 @@ string getAutovHome() {
 }
 
 const string autov = getAutovHome();
-const string asmgen = path(autov) / "AsmGen" / "asmgen.native";
+const string asmgen = path(autov) / "scripts" / "AsmGen" / "asmgen.native";
 
 using type_str_t = variant<string, unique_ptr<vector<string>>>;
 
