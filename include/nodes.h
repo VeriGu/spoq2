@@ -10,6 +10,7 @@
 #include <variant>
 #include <memory>
 #include <optional>
+#include <set>
 
 #include <values.h>
 #include <log.h>
