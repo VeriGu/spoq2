@@ -11,6 +11,7 @@
 #include <iostream>
 #include <fstream>
 #include <rules.h>
+#include <set>
 namespace fs = std::filesystem;
 
 
