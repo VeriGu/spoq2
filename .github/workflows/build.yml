@@ -1,0 +1,43 @@
+name: C/C++ Project build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Get Cmake
+      run: |
+            git submodule update --init --recursive
+            sudo apt-get update
+            sudo apt-get install -y cmake make build-essential llvm-14 llvm-14-dev libboost-all-dev clang-14
+            sudo ln -sf $(which clang-14) /usr/local/bin/clang
+            sudo ln -sf $(which clang++-14) /usr/local/bin/clang++
+
+    - name: Clone Z3 4.12.5
+      run: |
+           git clone --branch z3-4.12.5 --depth 1 https://github.com/Z3Prover/z3.git
+
+    - name: Get Z3
+      run: |
+           cd z3
+           mkdir build && cd build
+           cmake ..
+           make -j16
+           sudo make install
+
+    - name: cmake Spoq 12.5
+      run: |
+           cd ${{ github.workspace }}
+           mkdir build && cd build
+           cmake -DCMAKE_BUILD_TYPE=Release ../
+           make -j16
