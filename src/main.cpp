@@ -23,16 +23,15 @@ int main(int argc, char *argv[])
 
     std::unique_ptr<autov::Project> proj = std::make_unique<autov::Project>();
 
-    // autov::parser::parse(proj.get(), OPTS.config_file);
-
+    autov::parser::parse(proj.get(), OPTS.config_file);
 
     // autov::analyze_fields_access(proj.get());
 
     // return 0;
 
-    // proj->finalize_project();
+    proj->finalize_project();
 
-    // autov::generate_proj(proj.get());
+    autov::generate_proj(proj.get());
 
     return 0;
 }
