@@ -12,10 +12,10 @@ filename="$(realpath "$1")" # container_dir is the dir for the container project
 
 echo "The single file name:" $filename
 
-clang-14 -c -emit-llvm "$filename" -o "$filename.bc"
+clang-14 -S -emit-llvm "$filename" -o "$filename.ll" -O0 -Wall -fno-builtin -ffunction-sections -fomit-frame-pointer -fno-common 
 
 # Convert BC file to IR file
-llvm-dis-14 "$filename.bc" -o "$filename.ll"
+# llvm-dis-14 "$filename.bc" -o "$filename.ll"
 
 # Run preprocessing passes
 "$root_dir/opt.sh" "$filename.ll" "$filename.ll"

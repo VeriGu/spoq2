@@ -17,6 +17,9 @@
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Bitcode/BitcodeReader.h>
+
+#include "SpoqIRLoader.h"
+
 namespace fs = std::filesystem;
 
 
@@ -130,6 +133,7 @@ public:
     shared_ptr<IRModule> code;
 
     std::string code_path;
+    SpoqIRModule spoq_code;
     llvm::LLVMContext llvm_context;
     unique_ptr<llvm::Module> llvm_module;
 
@@ -227,6 +231,7 @@ public:
      */
     bool load_llvm_module();
 
+    // finalize project with llvm module and SpoqInst
     bool finalize_project_v2();
 
     /**
@@ -237,6 +242,10 @@ public:
      */
     bool control_flow_conversion_v2();
 
+    static std::tuple<string, vector<Definition *> *, vector<unique_ptr<Definition>> *> infer_spec_task_v2(Project* proj, int layer_id, string fname);
+
+    bool infer_low_spec_v2(int layer_id, string fname, bool &have_loop, bool &have_sub, std::unordered_map<string, string> &name_map, 
+    std::vector<std::string>& low_specs);
 };
 
 }; // namespace autov

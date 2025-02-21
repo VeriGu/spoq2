@@ -1,5 +1,6 @@
 Definition PROJ_NAME: string := "working".
 Definition PROJ_BASE: string := "coq/working".
+Definition PROJ_BC_PATH: string := "./rmm-opt.linked.bc".
 
 Parameter CPU_ID: Z.
 

@@ -8,6 +8,10 @@
 #include <chrono>
 #include <cmd.h>
 #include <symbolic.h>
+#include <tuple>
+
+#include "SpoqIR.h"
+#include "nodes.h"
 
 //#define MT_TRANSFORM
 #ifdef MT_TRANSFORM
@@ -62,6 +66,7 @@ void Project::add_symbol(string name, SymbolKind kind, string info, shared_ptr<l
     symbols[name] = SymbolInfo{kind, info, *loc, order};
 }
 
+// TODO: to remove
 void Project::update_symbol_loc(string name, shared_ptr<loc_t> loc)
 {
     symbols[name].loc = *loc;
@@ -356,6 +361,7 @@ Project::Project()
 
 }
 
+// TODO: fix raw pointer of expr
 std::set<string> Project::calc_dependencies(SpecNode *expr) {
     std::set<string> deps;
 
@@ -863,13 +869,90 @@ bool Project::finalize_project_v2() {
 
     LOG_DEBUG << "LLVM IR read ok." << std::endl;
 
-    // TODO: llvm IR -> llvm IR preproccesing
+    // TODO: process the llvm module
+    SpoqIRLoader::get_spoq_module(this->spoq_code, this->llvm_module);
 
-    // IRLoader::post_process(
+    // TODO: IRLoader::post_process(module);
     
+    // Step2: reconstruct the control flow graph on LLVM IR
+    std::set<string> deps;
+    for (auto it = this->layers.rbegin(); it != this->layers.rend() - 1; it++) {
+        auto &L = *it;
 
-    // if(!control_flow_conversion_v2()) return false;
+        for (auto &p: L->prims) {
+            if (deps.find(p) != deps.end())
+                deps.erase(p);
+        }
+        L->passthrough = vector<string>(deps.begin(), deps.end());
 
+        for (auto &p: L->prims) {
+            auto func = this->llvm_module->getFunction(p);
+            if (func == nullptr || func->isDeclaration()) 
+                continue;
+            L->prim_deps[p] = SpoqIRModule::get_func_dependencies(func);
+
+            if (this->cmds.AddDep.find(p) != this->cmds.AddDep.end()) {
+                L->prim_deps[p].insert(this->cmds.AddDep[p].begin(), this->cmds.AddDep[p].end());
+            }
+            prim_deps[p] = L->prim_deps[p];
+            for (auto &d: L->prim_deps[p])
+                deps.insert(d);
+        }
+    }
+
+    LOG_DEBUG << "pass through compute ok." << "\n";
+
+    deps.insert(this->layers[0]->prims.begin(), this->layers[0]->prims.end());
+    this->layers[0]->prims.assign(deps.begin(), deps.end());
+
+    filter_only_trans(this);
+    collect_lemmas(this);
+
+    LOG_DEBUG << "filter and lemma ok" << "\n";
+    LOG_DEBUG << "layer: " << this->layers.size() << "\n";
+    
+    for (int i = 1; i < this->layers.size(); i++) {
+        auto &L = this->layers[i];
+        auto &prev_L = this->layers[i - 1];
+
+        // Previously, if we manually gave high specs (and low specs) but delayed having their type inference done (due to low-level generated spec calls), they would never be inferred.
+        // Now, before inferring the next layer, we check if there is a low/high spec in the previous layer that has not yet been inferred.
+        // FIXME: Note that, if we define something other than 'prim_spec' and 'prim_spec_low', the mechanism here WOULD STILL FAIL.
+        for (auto &p : prev_L->prims) {
+            auto p_low = p + "_spec_low";
+            auto p_high = p + "_spec";
+            if (this->defs.find(p_low) != this->defs.end()) {
+                if (this->defs[p_low]->deleyed_type_inference) {
+                    this->defs[p_low]->infer_type(*this);
+                }
+            }
+            if (this->defs.find(p_high) != this->defs.end()) {
+                if (this->defs[p_high]->deleyed_type_inference) {
+                    this->defs[p_high]->infer_type(*this);
+                }
+            }
+        }
+
+        for (auto &p: L->prims) {
+            auto func = this->llvm_module->getFunction(p);
+            LOG_DEBUG << "primitive: " << p << "\n";
+            if (func == nullptr || func->isDeclaration()) 
+                continue;
+            LOG_DEBUG << "primitive infer: " << p << "\n";
+
+            auto [fname, low_specs, high_specs] = infer_spec_task_v2(this, i, p);
+        }
+    }
+
+    LOG_DEBUG << "low spec ok" << "\n";
+
+    extern unsigned long z3_unknowns, z3_checks, z3_cache_hits, z3_global_hash_hit, z3_global_hash_total;
+    extern std::chrono::duration<double> z3_accumulative_time;
+
+    LOG_INFO << "Z3 unknowns: " << z3_unknowns << "/" << z3_checks << std::endl;
+    LOG_INFO << "Z3 cache hits: " << z3_cache_hits << "/" << z3_checks << std::endl;
+    LOG_INFO << "Z3 global hash hit: " << z3_global_hash_hit << "/" << z3_global_hash_total << std::endl;
+    LOG_INFO << "Z3 accumulative time: " << z3_accumulative_time.count() << " (s)";
     return true;
 }
 
@@ -889,6 +972,183 @@ bool Project::load_llvm_module() {
     return true;
 }
 
+std::tuple<string, vector<Definition *> *, vector<unique_ptr<Definition>> *>
+Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
 
+    LOG_DEBUG << "Infer spec task: " << fname << std::endl;
+
+    if (proj->llvm_module->getFunction(fname) == nullptr)
+        throw std::runtime_error("Function " + fname + " not found");
+
+    std::unordered_map<string, string> name_map; // low_name -> high_name
+    bool have_loop = false, have_sub = false;
+
+    vector<std::string> low_specs_name;
+    proj->infer_low_spec_v2(layer_id, fname, have_loop, have_sub, name_map, low_specs_name);
+
+    // auto &L = proj->layers[layer_id];
+    unsigned long symbol_order = proj->symbols.size();
+
+    // =========================================================================
+    // Generate high specs
+    // =========================================================================
+    
+    for (int i = 0; i < low_specs_name.size(); i++) {
+        std::unique_ptr<Definition>& low_def = proj->defs[low_specs_name[i]];
+        if(low_def == nullptr) {
+            LOG_ERROR << "low spec not found: " << low_specs_name[i] << "\n";
+            exit(0);
+        }
+
+        auto low_name = low_def->name;
+        LOG_DEBUG << "low_name:" << low_name;
+
+        auto high_name = name_map[low_name];
+
+        // If the high spec is provided, skip
+        if (proj->defs.find(high_name) != proj->defs.end()) {
+            std::unique_ptr<Definition>& _def = proj->defs[high_name];
+            LOG_DEBUG << "High_name: " << high_name;
+
+            proj->deps[high_name] = proj->calc_dependencies(_def->body.get());
+            LOG_DEBUG << "proj.deps size :" << proj->deps[high_name].size();
+
+            proj->deps[high_name] = proj->calc_dependencies(_def->body.get());
+
+            if (_def->body) {
+                LOG_INFO << "Provided: " << high_name << std::endl;
+                proj->symbols[high_name].loc = make_tuple(proj->layers[layer_id]->name, Project::LOC_SPEC, "");
+                continue;
+            }
+        }
+        if (low_def->deleyed_type_inference) {
+            low_def->infer_type(*proj);
+            low_def->deleyed_type_inference = false;
+        }
+        // High spec begins from the low spec
+        unique_ptr<SpecNode> high_body = low_def->body->deep_copy();
+
+        if (have_loop || have_sub) {
+            auto [new_high, __changed] =
+                replace_spec_name(proj, high_body.release(), name_map);
+
+            high_body.reset(new_high);
+        }
+
+        auto high_args = make_unique<vector<shared_ptr<Arg>>>();
+        for (auto &arg : *low_def->args)
+            high_args->push_back(arg);
+
+        Definition *high_def = nullptr;
+
+        // FIXME: do not `get` a unique pointer
+        if (is_instance(low_def.get(), Fixpoint)) {
+            // For Fixpoint, we need to add the definition in advance for
+            // z3_eval
+            auto tmp_high_def =
+                new Fixpoint(high_name, proj->defs[low_name]->rettype,
+                             make_unique<vector<shared_ptr<Arg>>>(*high_args));
+
+            high_def = new Fixpoint(high_name, proj->defs[low_name]->rettype,
+                                    std::move(high_args), std::move(high_body));
+            proj->add_definition(
+                unique_ptr<Fixpoint>(static_cast<Fixpoint *>(tmp_high_def)),
+                make_shared<loc_t>(proj->layers[layer_id]->name, Project::LOC_SPEC, ""),
+                i + symbol_order);
+        } else {
+            high_def =
+                new Definition(high_name, proj->defs[low_name]->rettype,
+                               std::move(high_args), std::move(high_body));
+        }
+
+        // Transform the low spec to high spec
+        bool no_trans = proj->cmds.NoHighSpec ||
+                        proj->cmds.NoTrans.find(name_map[low_name]) !=
+                            proj->cmds.NoTrans.end();
+
+        LOG_DEBUG << "NO HIGH SPEC" << proj->cmds.NoHighSpec;
+
+        profile_clear();
+        if (!no_trans) {
+            spec_transformer(proj, high_def, layer_id,
+                             !is_instance(low_def.get(), Fixpoint), true);
+            std::cout << "Transformed: " << std::endl
+                      << string(*high_def) << std::endl;
+        } else {
+            LOG_INFO << "No transformation for " << high_name;
+        }
+        profile_print();
+        profile_finalize();
+
+        spec_prover(proj, high_def);
+
+        proj->deps[high_name] = proj->calc_dependencies(high_def->body.get());
+        if (is_instance(low_def.get(), Fixpoint))
+            proj->add_definition(
+                unique_ptr<Fixpoint>(static_cast<Fixpoint *>(high_def)),
+                make_shared<loc_t>(proj->layers[layer_id]->name, Project::LOC_SPEC, ""),
+                i + symbol_order);
+        else
+            proj->add_definition(
+                unique_ptr<Definition>(high_def),
+                make_shared<loc_t>(proj->layers[layer_id]->name, Project::LOC_SPEC, ""),
+                i + symbol_order);
+    }
+                
+
+    // return std::make_tuple(fname, low_specs, nullptr);
+    return std::make_tuple(fname, nullptr, nullptr);
+}
+
+bool Project::infer_low_spec_v2(int layer_id, string fname, bool &have_loop,
+                  bool &have_sub, std::unordered_map<string, string> &name_map,
+                  std::vector<std::string>& low_specs) {
+
+    auto low_name = fname + "_spec_low";
+    if(this->defs.find(low_name) == this->defs.end()) {
+        LOG_DEBUG << "low spec not found: " << low_name << "\n";
+        return true;
+        // TODO: generate low spec
+    } else {
+        LOG_DEBUG << "low spec provided: " << low_name << "\n";
+        // The name of the low spec may have three forms: `fname_loop\d+_low`,
+        // `fname_\d+_low`, "fname_spec_low"
+        std::regex pattern1(fname + "_loop\\d+_low");
+        std::regex pattern2(fname + "_\\d+_low");
+        string low_name = fname + "_spec_low";
+
+        // TODO: function types
+        // auto func = this->code->functions->at(fname);
+        // func->types = make_unique<unordered_map<string, shared_ptr<SpecType>>>();
+        // func->types->emplace("st", this->layers[layer_id]->abs_data);
+        // analyze_types(func->body.get(), func->types.get());
+
+        // Since low spec might be provided and we don't know the name of the
+        // low spec, we cannot directly get the spec Definition object from
+        // `proj->defs`. Instead, we need to iterate through all the definitions
+        // and check if the name matches the pattern.
+        for (auto &spec_name : this->def_order) {
+            bool is_loop = false, is_sub = false;
+
+            if (std::regex_match(spec_name, pattern1)) {
+                is_loop = true;
+                have_loop = true;
+            } else if (std::regex_match(spec_name, pattern2)) {
+                is_sub = true;
+                have_sub = true;
+            }
+
+            if (spec_name == low_name || is_loop || is_sub) {
+                auto high_name = spec_name.substr(0, spec_name.size() - 4);
+
+                low_specs.push_back(spec_name);
+                this->symbols[spec_name].loc = std::make_tuple(this->layers[layer_id]->name, fname, Project::LOC_LOWSPEC);
+
+                name_map[spec_name] = high_name;
+            }
+        }
+        return true;
+    }
+}
 
 }; // namespace autov
