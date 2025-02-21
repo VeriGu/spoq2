@@ -970,7 +970,7 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
             z3_check(state, b->get_z3_value() >= 0) == Z3Result::True &&
             z3_check(state, d->get_z3_value() > 0) == Z3Result::True &&
             (z3_check(state, a->get_z3_value() % d->get_z3_value() == 0) == Z3Result::True ||
-             z3_check(state, b->get_z3_value() % d->get_z3_value() == 0) == Z3Result::True)) {
+             z3_check(state, b->get_z3_value() % d->get_z3_value() == 0) == Z3Result::True));
 
             auto elems1 = make_unique<vector<unique_ptr<SpecNode>>>();
             elems1->push_back(std::move(ea));
@@ -986,8 +986,7 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
             auto expr = new Expr(std::move(elem0->op), std::move(new_elems), Int::INT);
             delete spec;
             return std::make_pair(expr, true);
-        }
-    } 
+    }
     if (auto op = std::get_if<Expr::ops>(&spec->op)) {
         if ((*op == Expr::SET || *op == Expr::GET)) {
             auto new_zmap = reconstruct_zmap(proj, spec, state);
