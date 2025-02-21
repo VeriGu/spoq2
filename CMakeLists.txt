@@ -122,6 +122,7 @@ set(SOURCES
     src/libs/shortcuts.cpp
     src/frontend/type_inference.cpp
     src/frontend/ir2spec.cpp
+    src/optimizations/coi.cpp
     src/optimizations/rules.cpp
     src/optimizations/projection.cpp
     src/optimizations/z3_rules.cpp

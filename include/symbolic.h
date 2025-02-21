@@ -12,16 +12,6 @@
 
 namespace autov {
 
-    /** elements in white list will be added into coi set initially */
-    static std::set<string> coi_whitelist = {
-        // "g_norm",
-    };
-
-    /** elements in white list will be removed from coi set eventually  */
-    static std::set<string> coi_blacklist = {
-        "pbase", "poffset", "meta_PA", "meta_desc_type", "meta_granule_offset", "meta_mem_attr", "meta_ripas",
-        "e_1", "e_2", "e_3", 
-    };
 
     static std::set<std::string> verify_spec_names = {
         "smc_system_interface_version_spec",
@@ -60,9 +50,7 @@ namespace autov {
 
     bool is_invariant_defs(Project *proj, string const &name);
     bool is_lemma_defs(Project *proj, const string &name);
-    void rec_analyze_used_fields(Project* proj, SpecNode* node, std::set<field_t> &fields);
-    /* Calculate cone of influence */
-    std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecNode *inv);
+
 
     void spec_prover(Project *proj, Definition *def);
 }
