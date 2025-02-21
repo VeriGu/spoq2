@@ -29,7 +29,10 @@ int main(int argc, char *argv[])
     desc.add_options()
         ("help,h", "produce help message")
         ("lens,l", po::bool_switch()->default_value(true), "use lens")
-        ("conditional-spec,c", po::bool_switch()->default_value(false), "automatically generate conditional spec");
+        ("conditional-spec,c", po::bool_switch()->default_value(false), "automatically generate conditional spec")
+        ("check-sys-inv", po::bool_switch()->default_value(false), "checking system invariants")
+        ("check-loop-inv", po::bool_switch()->default_value(false), "checking loop invariants")
+        ("check-pre-post", po::bool_switch()->default_value(false), "checking pre/post conditions");
 
     po::positional_options_description p;
     p.add("input", 1); // The input .v config file is positional and is the first argument
@@ -57,8 +60,17 @@ int main(int argc, char *argv[])
         LOG_INFO << "Generating conditional spec" << std::endl;
     }
 
-    std::unique_ptr<autov::Project> proj = std::make_unique<autov::Project>();
 
+    std::unique_ptr<autov::Project> proj = std::make_unique<autov::Project>();
+    if(OPT_VM["check-sys-inv"].as<bool>()) {
+       proj->cmds.CheckInv = true;
+    }
+    if(OPT_VM["check-loop-inv"].as<bool>()) {
+       proj->cmds.CheckLoopInv = true;
+    }
+    if(OPT_VM["check-pre-post"].as<bool>()) {
+       //TODO
+    }
     autov::parser::parse(proj.get(), OPT_VM["input"].as<string>());
 
     // autov::analyze_fields_access(proj.get());
