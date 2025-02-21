@@ -8,124 +8,6 @@
 #include <rules.h>
 #include <z3_rules.h>
 namespace autov {
-/*
-recursively subst [name] with [value] in [spec] until [name] is assigned by a value using Match in [spec]
-e.g.
-subst(let x := x + 1 in x, "x", 1) => let x := 1 + 1 in x
-
-[spec] is freed is subsitution is successful
-[value] is freed by the caller
-*/
-static SpecNode* subst(SpecNode *spec, string name, SpecNode *value, bool &succ) {
-    if (auto s = instance_of(spec, Symbol)) {
-        if (s->text != name)
-            return spec;
-
-        auto new_value = value->deep_copy();
-        if (is_instance(new_value.get(), Symbol))
-            new_value->set_type(s->type);
-        delete s;
-        succ = true;
-        return new_value.release();
-    } else if (auto e = instance_of(spec, Expr)) {
-        auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-        for (auto &elem : *e->elems)
-            elems->push_back(unique_ptr<SpecNode>(subst(elem.release(), name, value, succ)));
-        return std::visit([&](auto&& arg) -> Expr* {
-            using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, std::unique_ptr<SpecNode>>) {
-                auto op = arg.release();
-                auto new_op = std::unique_ptr<SpecNode>(subst(op, name, value, succ));
-                auto new_expr = new Expr(std::move(new_op), std::move(elems), e->type);
-                delete e;
-                return new_expr;
-            } else {
-                auto new_expr = new Expr(arg, std::move(elems), e->type);
-                delete e;
-                return new_expr;
-            }
-        }, e->op);
-    } else if (auto m = instance_of(spec, Match)) {
-        std::function<bool(SpecNode*)> exists_in_pattern;
-
-        exists_in_pattern = [&](SpecNode *pattern) -> bool {
-            if (auto s = instance_of(pattern, Symbol)) {
-                return s->text == name;
-            } else if (auto e = instance_of(pattern, Expr)) {
-                for (auto &elem : *e->elems)
-                    if (exists_in_pattern(elem.get()))
-                        return true;
-            }
-            return false;
-        };
-
-        auto src = subst(m->src.release(), name, value, succ);
-        auto matches = make_unique<vector<unique_ptr<PatternMatch>>>();
-
-        for (auto &pm : *m->match_list) {
-            if (!exists_in_pattern(pm->pattern.get())) {
-                auto new_body = subst(pm->body.release(), name, value, succ);
-                matches->push_back(make_unique<PatternMatch>(pm->pattern->deep_copy(), unique_ptr<SpecNode>(new_body)));
-            } else {
-                matches->push_back(pm->deep_copy_down());
-            }
-        }
-        auto new_match = new Match(unique_ptr<SpecNode>(src), std::move(matches));
-        new_match->type = m->type;
-        delete m;
-        return new_match;
-    } else if (auto r = instance_of(spec, Rely)) {
-        auto new_rely = new Rely(unique_ptr<SpecNode>(subst(r->prop.release(), name, value, succ)),
-                                 unique_ptr<SpecNode>(subst(r->body.release(), name, value, succ)));
-        new_rely->type = r->type;
-        delete r;
-        return new_rely;
-    } else if (auto r = instance_of(spec, Anno)) {
-        auto new_anno = new Anno(unique_ptr<SpecNode>(subst(r->prop.release(), name, value, succ)),
-                                 unique_ptr<SpecNode>(subst(r->body.release(), name, value, succ)));
-        new_anno->type = r->type;
-        delete r;
-        return new_anno;
-    } else if (auto i = instance_of(spec, If)) {
-        auto new_if = new If(unique_ptr<SpecNode>(subst(i->cond.release(), name, value, succ)),
-                             unique_ptr<SpecNode>(subst(i->then_body.release(), name, value, succ)),
-                             unique_ptr<SpecNode>(subst(i->else_body.release(), name, value, succ)));
-        new_if->type = i->type;
-        delete i;
-        return new_if;
-    } else if (auto fe = instance_of(spec, Forall)) {
-        auto vars = new vector<shared_ptr<Arg>>(*fe->vars.get());
-        for (auto &v : *vars) {
-            if (v->expr) {
-                v->expr.reset(dynamic_cast<Expr*>(subst(v->expr.release(), name, value, succ)));
-            }
-        }
-
-        auto new_forall = new Forall(unique_ptr<vector<shared_ptr<Arg>>>(vars),
-                                     unique_ptr<SpecNode>(subst(fe->body.release(), name, value, succ)));
-        new_forall->type = fe->type;
-        delete fe;
-        return new_forall;
-    } else if (auto fe = instance_of(spec, Exists)) {
-        auto vars = new vector<shared_ptr<Arg>>(*fe->vars.get());
-        for (auto &v : *vars) {
-            if (v->expr) {
-                v->expr.reset(dynamic_cast<Expr*>(subst(v->expr.release(), name, value, succ)));
-            }
-        }
-
-        auto new_exists = new Exists(unique_ptr<vector<shared_ptr<Arg>>>(vars),
-                                     unique_ptr<SpecNode>(subst(fe->body.release(), name, value, succ)));
-        new_exists->type = fe->type;
-        delete fe;
-        return new_exists;
-    } else if (is_instance(spec, Const)) {
-        // pass
-    } else
-        throw std::runtime_error("Unknown SpecNode type: " + string(*spec->get_type()));
-    return spec;
-}
 
 static string pick_new_name(string sym, std::set<string> &prev) {
     string new_sym = sym;
@@ -194,242 +76,6 @@ void free_vars_map(Project *proj, SpecNode *spec, std::set<string> &free, std::m
         free_vars_map(proj, e->then_body.get(), free, map);
         free_vars_map(proj, e->else_body.get(), free, map);
     }
-}
-
-void free_vars(Project *proj, SpecNode *spec, std::set<string> &free) {
-    if(auto s = instance_of(spec, Symbol)) {
-        if(!proj->is_known_symbol(s->text)) {
-            free.insert(s->text);
-        }
-    }else if (auto m = instance_of(spec, Match)) {
-        free_vars(proj, m->src.get(), free);
-        for (auto &pm : *m->match_list) {
-            free_vars(proj, pm->body.get(), free);
-            std::set<string> symbols;
-            std::function<void(SpecNode*)> collect_symbols = [&](SpecNode *pattern) {
-                if (auto s = instance_of(pattern, Symbol))
-                    symbols.insert(s->text);
-                else if (auto e = instance_of(pattern, Expr)) {
-                    for (auto &elem : *e->elems)
-                        collect_symbols(elem.get());
-                }
-            };
-            collect_symbols(pm->pattern.get());
-            for(auto sym : symbols) {
-                free.erase(sym);
-            }
-        }
-    } else if (auto fe = instance_of(spec, ForallExists)) {
-        auto body = fe->body->deep_copy().release();
-        auto vars = new vector<shared_ptr<Arg>>(*fe->vars.get());
-        free_vars(proj, body, free);
-        for(auto arg : *vars) {
-            free.erase(arg->name);
-        }
-
-    } else if(auto e = instance_of(spec, Expr)) {
-        for(int i = 0; i < e->elems->size(); i++) {
-            free_vars(proj, e->elems->at(i).get(), free);
-        }
-    } else if(auto r = instance_of(spec, RelyAnno)) {
-        free_vars(proj, r->prop.get(), free);
-        free_vars(proj, r->body.get(), free);
-    } else if(auto e = instance_of(spec, If)) {
-        free_vars(proj, e->cond.get(), free);
-        free_vars(proj, e->then_body.get(), free);
-        free_vars(proj, e->else_body.get(), free);
-    }
-}
-/*
-[spec] is freed if substitution is successful, implementing capture-avoiding subsititutions,
-that requires a rename variables does not occurs in (FV(body) - original_names) U FV(expression to substitute(src))
-*/
-SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &prev_symbols, bool &changed) {
-    if (auto e = instance_of(spec, Expr)) {
-        auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-        for (auto &elem : *e->elems)
-            elems->push_back(unique_ptr<SpecNode>(eliminiate_ambiguity(proj, elem.release(), prev_symbols, changed)));
-
-        return std::visit([&](auto&& arg) -> Expr* {
-            using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, std::unique_ptr<SpecNode>>) {
-                auto op = arg.release();
-                auto new_op = std::unique_ptr<SpecNode>(eliminiate_ambiguity(proj, op, prev_symbols, changed));
-                auto new_expr = new Expr(std::move(new_op), std::move(elems), e->type);
-                delete e;
-                return new_expr;
-            } else {
-                auto new_expr = new Expr(arg, std::move(elems), e->type);
-                delete e;
-                return new_expr;
-            }
-        }, e->op);
-    } else if (auto m = instance_of(spec, Match)) {
-        //LOG_DEBUG << "debugging spec:" << string(*spec);
-        auto src = eliminiate_ambiguity(proj, m->src.release(), prev_symbols, changed);
-        std::set<string> src_free;
-        free_vars(proj, src, src_free);
-        auto matches = make_unique<vector<unique_ptr<PatternMatch>>>();
-        for (auto &pm : *m->match_list) {
-            std::unordered_map<string, shared_ptr<SpecType>> symbols;
-            std::function<void(SpecNode*)> collect_symbols = [&](SpecNode *pattern) {
-                if (auto s = instance_of(pattern, Symbol))
-                    symbols[s->text] = s->get_type();
-                else if (auto e = instance_of(pattern, Expr)) {
-                    for (auto &elem : *e->elems)
-                        collect_symbols(elem.get());
-                }
-            };
-            collect_symbols(pm->pattern.get());
-            
-            auto prev = std::set<string>(prev_symbols);
-            auto _prev = std::set<string>(prev_symbols);
-            auto pattern = pm->pattern->deep_copy().release();
-            auto body = pm->body->deep_copy().release();
-
-            std::set<string> body_free;
-            free_vars(proj, body, body_free);
-            for (auto [sym,_] : symbols) {
-                body_free.erase(sym);   
-            }
-            
-            std::set<string> ps;
-            std::set_union(body_free.begin(), body_free.end(), _prev.begin(), _prev.end(),
-                   std::inserter(ps, ps.end()));
-
-            std::set<string> magic_variables;
-            std::set_union(ps.begin(), ps.end(), src_free.begin(), src_free.end(),
-                   std::inserter(magic_variables, magic_variables.end()));
-            
-
-            std::set<string> ps2 = std::set<string>(magic_variables);
-
-            //select new names for patterns, and add to previous symbols
-            for (auto [sym,_] : symbols) {
-                if (sym == "_")
-                    continue;
-                if (!proj->is_known_symbol(sym)) {
-                    std::set<string> temp = std::set<string>(magic_variables);
-                    for(auto [osym,_]: symbols) {
-                        if(sym != osym) {
-                            temp.insert(osym);
-                        }
-                    }
-                    auto new_sym = pick_new_name(sym, temp);
-                    magic_variables.insert(new_sym);
-                }
-            }
-            body = eliminiate_ambiguity(proj, body, magic_variables, changed);
-
-            for (auto [sym,typ] : symbols) {
-                if (sym == "_")
-                    continue;
-                if (!proj->is_known_symbol(sym)) {
-                    std::set<string> temp = std::set<string>(ps2);
-                    for(auto [osym,_]: symbols) {
-                        if(sym != osym) {
-                            temp.insert(osym);
-                        }
-                    }
-                    auto new_sym = pick_new_name(sym, temp);
-                    //LOG_DEBUG << "sym: " << sym << ",new_sym: " << new_sym;
-                    ps2.insert(new_sym);
-                    if (sym != new_sym) {
-                        auto new_symbol = new Symbol(new_sym, typ);
-                        bool succ = false;
-
-                        pattern = subst(pattern, sym, new_symbol, succ);
-                        changed |= succ;
-                        body = subst(body, sym, new_symbol, succ);
-                        changed |= succ;
-                        delete new_symbol;
-                    }
-                }
-            }
-
-            //body = eliminiate_ambiguity(proj, body, prev, changed);
-
-            matches->push_back(make_unique<PatternMatch>(unique_ptr<SpecNode>(pattern), unique_ptr<SpecNode>(body)));
-        }
-
-        auto new_match = new Match(unique_ptr<SpecNode>(src), std::move(matches));
-        delete m;
-        return new_match;
-    }
-    else if (auto r = instance_of(spec, Rely)) {
-        auto new_rely = new Rely(unique_ptr<SpecNode>(eliminiate_ambiguity(proj, r->prop.release(), prev_symbols, changed)),
-                                 unique_ptr<SpecNode>(eliminiate_ambiguity(proj, r->body.release(), prev_symbols, changed)));
-        delete r;
-        return new_rely;
-    } else if (auto r = instance_of(spec, Anno)) {
-        auto new_anno = new Anno(unique_ptr<SpecNode>(eliminiate_ambiguity(proj, r->prop.release(), prev_symbols, changed)),
-                                 unique_ptr<SpecNode>(eliminiate_ambiguity(proj, r->body.release(), prev_symbols, changed)));
-        delete r;
-        return new_anno;
-    } else if (auto i = instance_of(spec, If)) {
-        auto new_if = new If(unique_ptr<SpecNode>(eliminiate_ambiguity(proj, i->cond.release(), prev_symbols, changed)),
-                             unique_ptr<SpecNode>(eliminiate_ambiguity(proj, i->then_body.release(), prev_symbols, changed)),
-                             unique_ptr<SpecNode>(eliminiate_ambiguity(proj, i->else_body.release(), prev_symbols, changed)));
-        delete i;
-        return new_if;
-    } else if (auto fe = instance_of(spec, ForallExists)) {
-        auto prev = std::set<string>(prev_symbols);
-        auto body = fe->body->deep_copy().release();
-        auto vars = new vector<shared_ptr<Arg>>(*fe->vars.get());
-
-        auto free = std::set<string>();
-        free_vars(proj, body, free);
-
-        for(auto arg : *vars) {
-            free.erase(arg->name);
-        }
-
-        std::set<string> ps;
-            std::set_union(free.begin(), free.end(), prev_symbols.begin(), prev_symbols.end(),
-                   std::inserter(ps, ps.end()));
-
-        for (auto &v : *vars) {
-            auto temp =  std::set<string>(ps);
-            for(auto sym : *vars) {
-                if(v->name != sym->name){
-                    temp.insert(sym->name);
-                }
-            }
-            auto new_name = pick_new_name(v->name, temp);
-
-            if (v->name != new_name) {
-                auto new_symbol = new Symbol(new_name, v->type);
-                bool succ = false;
-
-                body = subst(body, v->name, new_symbol, succ);
-                changed |= succ;
-                delete new_symbol;
-            }
-            ps.insert(new_name);
-        }
-
-        for (auto &v : *vars) {
-            if (v->expr) {
-                auto e = v->expr->deep_copy().release();
-                v->expr.reset(dynamic_cast<Expr*>(eliminiate_ambiguity(proj, e, ps, changed)));
-            }
-        }
-
-        if (is_instance(fe, Forall)) {
-            auto new_fe = new Forall(unique_ptr<vector<shared_ptr<Arg>>>(vars),
-                                     unique_ptr<SpecNode>(eliminiate_ambiguity(proj, body, prev, changed)));
-            delete fe;
-            return new_fe;
-        } else {
-            auto new_fe = new Exists(unique_ptr<vector<shared_ptr<Arg>>>(vars),
-                                     unique_ptr<SpecNode>(eliminiate_ambiguity(proj, body, prev, changed)));
-            delete fe;
-            return new_fe;
-        }
-    }
-
-    return spec;
 }
 
 /*
@@ -561,12 +207,6 @@ static bool contains_vars(Project *proj, SpecNode *spec, std::set<string>vars) {
     return false;
 }
 
-/*
-substitute [expr] with [var] in [spec]
-
-[spec] is freed if substitution is successful
-[expr] and [var] is freed by the caller
-*/
 SpecNode *subst_expr(Project *proj, SpecNode *spec, SpecNode *expr, SpecNode *var, bool &succ) {
     if (*spec == *expr) {
         succ = true;
@@ -653,82 +293,6 @@ SpecNode *subst_expr(Project *proj, SpecNode *spec, SpecNode *expr, SpecNode *va
     return spec;
 }
 
-rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec) {
-    bool unfolded = false;
-    bool changed = false;
-
-    std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
-        if (unfolded)
-            return node;
-        if (auto e = instance_of(node, Expr)) {
-            if (auto op = std::get_if<string>(&e->op)) {
-                if (proj->defs.find(*op) == proj->defs.end())
-                    return node;
-
-                if (proj->cmds.NoUnfold.find(*op) != proj->cmds.NoUnfold.end() &&
-                    proj->cmds.Unfold.find(*op) == proj->cmds.Unfold.end())
-                    return node;
-
-                auto define = proj->defs[*op].get();
-
-                if (is_instance(define, Fixpoint))
-                    return node;
-
-                // std::cout << "======================================" << std::endl;
-                // std::cout << "Unfold definition: " << string(*define) << std::endl;
-                // std::cout << "======================================" << std::endl;
-
-                std::cout << "Unfold definition: " << define->name << std::endl;
-                if (define->deleyed_type_inference) {
-                    define->infer_type(*proj);
-                    define->deleyed_type_inference = false;
-                }
-
-                auto body = define->body->deep_copy();
-                assert(e->elems->size() == define->args->size());
-
-                if (proj->symbols.find(define->name) != proj->symbols.end() &&
-                    std::get<0>(proj->symbols[define->name].loc) != "")
-                    unfolded = true;
-
-                changed = true;
-                if (e->elems->size() == 0)
-                    return body.release();
-                else if (e->elems->size() == 1) {
-                    return Match::raw_let(define->args->at(0)->name, std::move(e->elems->at(0)), std::move(body),
-                                          define->args->at(0)->type);
-                } else {
-                    auto tuple_type_list = make_shared<vector<shared_ptr<SpecType>>>();
-
-                    for (auto &e: *e->elems)
-                        tuple_type_list->push_back(e->get_type());
-
-                    auto tuple_type = make_shared<Tuple>(tuple_type_list);
-                    auto src = make_unique<Expr>(Expr::Tuple, std::move(e->elems), tuple_type);
-
-                    auto pattern_list = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                    for (auto &arg: *define->args) {
-                        //LOG_DEBUG << "debug arg name: " + arg->name;
-                        pattern_list->push_back(make_unique<Symbol>(arg->name, arg->type));
-                    }
-
-                    auto pattern = make_unique<Expr>(Expr::Tuple, std::move(pattern_list), tuple_type);
-                    auto pm_list = make_unique<vector<unique_ptr<PatternMatch>>>();
-
-                    pm_list->push_back(make_unique<PatternMatch>(std::move(pattern), std::move(body)));
-
-                    return new Match(std::move(src), std::move(pm_list));
-                }
-            }
-        }
-
-        return node;
-    };
-
-    return std::make_pair(rec_apply(spec, f), changed);
-}
-
 class FieldPath {
 public:
     string name;
@@ -771,13 +335,7 @@ static void search_field_path(Project *proj, string name, string parent, vector<
 }
 
 static vector<vector<FieldPath>> interest_path;
-//static const std::set<string> interest_list = {"e_lock", "e_refcount", "log"};
-//static const std::set<string> interest_list = {"gpt", "g_norm", "e_state", "g_rec", "slots", "granule_data", "e_lock"}; // delegate/undelegate
-//static const std::set<string> interest_list = {"gpt", "g_norm", "e_state", "slots", "granule_data", "stack", "log"}; // RTT
-//static const std::set<string> interest_list = {"pcpu_gpregs", "e_regs"}; // CPU
-//static const std::set<string> indifferent_list = {"g_aux_simd_state", "g_rec", "g_rd"}; // RTT
-// static const std::set<string> interest_list = {"halt"}; // DRF
-std::set<string> interest_list = {"e_state_s_granule", "e_state_s_rd", "g_granule_state", "g_granules", "g_norm", "granule_data"}; // DRF
+std::set<string> interest_list = {};
 
 //static const std::set<string> interest_list = {};
 static void collect_interest_path(Project *proj) {
@@ -930,8 +488,6 @@ rule_ret_t rule_keep_fields_of_interest(Project *proj, SpecNode *spec) {
 
     return std::make_pair(rec_apply(spec, f), changed);
 }
-
-rule_ret_t rule_eliminate_indifferent(Project *proj, SpecNode *spec, string fname) {}
 
 static SpecNode* remove_expr_lens(Expr *e, bool &changed) {
     if (op_is_lens(e->op)) {
@@ -1133,297 +689,6 @@ rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec) {
     };
 
     return std::make_pair(rec_apply(spec, f), changed);
-}
-
-/*
-match (if c then A else B) with { ... } -> if c then (match A with { ... }) else (match B with { ... })
-*/
-rule_ret_t rule_move_if_out_match(Project *proj, SpecNode *spec) {
-    bool changed = false;
-
-    std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
-        if (auto m = instance_of(node, Match)) {
-            if (auto src = instance_of(m->src.get(), If)) {
-                unique_ptr<Match> m1(static_cast<Match*>(m->deep_copy().release()));
-                auto new_if = new If(std::move(src->cond),
-                                     make_unique<Match>(std::move(src->then_body), std::move(m->match_list)),
-                                     make_unique<Match>(std::move(src->else_body), std::move(m1->match_list)));
-
-                delete m;
-                changed = true;
-                return new_if;
-            }
-        }
-
-        return node;
-    };
-
-    return std::make_pair(rec_apply(spec, f, false), changed);
-}
-
-rule_ret_t rule_move_if_out_expr(Project *proj, SpecNode *spec) {
-    bool changed = false;
-
-    std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
-
-        if (auto e = instance_of(node, Expr)) {
-            for (size_t i = 0; i < e->elems->size(); i++) {
-                if (auto elem = instance_of(e->elems->at(i).get(), If)) {
-                    unique_ptr<Expr> e1 = e->deep_copy_down();
-                    unique_ptr<Expr> e2 = e->deep_copy_down();
-                    auto elems1 = make_unique<vector<unique_ptr<SpecNode>>>();
-                    auto elems2 = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                    for (size_t j = 0; j < e->elems->size(); j++) {
-                        if (j == i) {
-                            elems1->push_back(std::move(elem->then_body));
-                            elems2->push_back(std::move(elem->else_body));
-                        } else {
-                            elems1->push_back(std::move(e1->elems->at(j)));
-                            elems2->push_back(std::move(e2->elems->at(j)));
-                        }
-                    }
-
-                    auto new_if = new If(std::move(elem->cond),
-                                        make_unique<Expr>(std::move(e1->op), std::move(elems1), e->type),
-                                        make_unique<Expr>(std::move(e2->op), std::move(elems2), e->type));
-                    delete e;
-                    changed = true;
-                    return new_if;
-                }
-            }
-        }
-
-        return node;
-    };
-
-    return std::make_pair(rec_apply(spec, f, false), changed);
-}
-
-rule_ret_t rule_move_match_out_expr(Project *proj, SpecNode *spec) {
-    bool changed = false;
-
-    std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
-        if (auto e = instance_of(node, Expr)) {
-            for (size_t i = 0; i < e->elems->size(); i++) {
-                if (auto elem = instance_of(e->elems->at(i).get(), Match)) {
-                    bool movable = true;
-                    for (auto &pm : *elem->match_list) {
-                        std::set<string> vars;
-                        get_vars_from_pattern(proj, pm->pattern.get(), vars);
-                        for (size_t j = 0; j < e->elems->size(); j++) {
-                            if (j == i)
-                                continue;
-                            if (contains_vars(proj, e->elems->at(j).get(), vars)) {
-                                movable = false;
-                                break;
-                            }
-                        }
-                        if (!movable)
-                            break;
-                    }
-
-                    if (movable) {
-                        auto matches = make_unique<vector<unique_ptr<PatternMatch>>>();
-
-                        for (auto &pm : *elem->match_list) {
-                            auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-                            for (size_t j = 0; j < e->elems->size(); j++) {
-                                if (j == i)
-                                    elems->push_back(std::move(pm->body));
-                                else
-                                    elems->push_back(e->elems->at(j)->deep_copy());
-                            }
-
-                            // auto new_op = std::visit([](auto&& arg) -> std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string> {
-                            //     using T = std::decay_t<decltype(arg)>;
-                            //     if constexpr (std::is_same_v<T, std::unique_ptr<SpecNode>>) {
-                            //         return std::move(arg->deep_copy());;
-                            //     }
-                            //     return arg;
-                            // }, e->op);
-                            std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string> new_op;
-                            if (auto op = std::get_if<Expr::ops>(&e->op)) {
-                                new_op = *op;
-                            } else if (auto binop = std::get_if<Expr::binops>(&e->op)) {
-                                new_op = *binop;
-                            } else if (auto str = std::get_if<std::string>(&e->op)) {
-                                new_op = *str;
-                            } else if (auto expr = std::get_if<std::unique_ptr<SpecNode>>(&e->op)) {
-                                new_op = (*expr)->deep_copy();
-                            }
-
-                            auto expr = make_unique<Expr>(std::move(new_op), std::move(elems), e->type);
-
-                            matches->push_back(make_unique<PatternMatch>(std::move(pm->pattern),
-                                                                         std::move(expr)));
-                        }
-                        auto new_match = new Match(std::move(elem->src), std::move(matches));
-                        delete e;
-                        changed = true;
-                        return new_match;
-                    }
-                }
-            }
-        }
-        return node;
-    };
-
-    return std::make_pair(rec_apply(spec, f, false), changed);
-}
-
-rule_ret_t rule_move_rely_out_when(Project *proj, SpecNode *spec) {
-    bool changed = false;
-    std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
-        if (auto m = instance_of(node, Match)) {
-            if (auto r = instance_of(m->src.get(), Rely)) {
-                if (instance_of(m->type.get(), Option)) {
-                    for (auto &pm : *m->match_list) {
-                        if (string(*pm->pattern) == "None" && string(*pm->body) == "None") {
-                            auto new_rely = new Rely(std::move(r->prop),
-                                                     make_unique<Match>(std::move(r->body), std::move(m->match_list)));
-                            delete m;
-                            changed = true;
-                            return new_rely;
-                        }
-                    }
-                    return node;
-                }
-            }
-        }
-        return node;
-    };
-
-    return std::make_pair(rec_apply(spec, f, false), changed);
-}
-
-/*
-match (
-  when [src->match_list->at(0)->pattern->elems] == [src->src];
-  [src->match_list->at(0)->body]
-) with
-  [match_list]
-end
-
-===>
-
-when [src->match_list->at(0)->pattern->elems] == [src->src];
-match [src->match_list->at(0)->body] with
-  [match_list]
-end
-*/
-rule_ret_t rule_move_when_out_when(Project *proj, SpecNode *spec) {
-    bool changed = false;
-
-    std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
-        if (auto m = instance_of(node, Match)) {
-            if (auto src = instance_of(m->src.get(), Match)) {
-                if (src->is_when() && is_instance(m->type.get(), Option)) {
-                    for (auto &pm : *m->match_list) {
-                        if (string(*pm->pattern) == "None" && string(*pm->body) == "None") {
-                            auto pattern = dynamic_cast<Expr*>(src->match_list->at(0)->pattern.get());
-                            auto match = make_unique<Match>(std::move(src->match_list->at(0)->body), std::move(m->match_list));
-                            auto new_match = Match::raw_when(std::move(pattern->elems->at(0)), std::move(src->src), std::move(match));
-                            delete m;
-                            changed = true;
-                            return new_match;
-                        }
-                    }
-                    return node;
-                }
-            }
-        }
-        return node;
-    };
-
-    return std::make_pair(rec_apply(spec, f, false), changed);
-}
-
-/*
-if true then [then_body] else [else_body] ===> [then_body]
-if false then [then_body] else [else_body] ===> [else_body]
-if ... then [body] else [body] ===> [body]
-
-The following simplification may not actually simplify the expression
-if A then [then_body] else (if B then [then_body] else [else_body]) ===> if (A || B) then [then_body] else [else_body]
-*/
-rule_ret_t rule_eliminate_if(Project *proj, SpecNode *spec) {
-    bool changed = false;
-    std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
-        if (auto i = instance_of(node, If)) {
-            if (auto cond = instance_of(i->cond.get(), Const)) {
-                if (auto val = std::get_if<bool>(&cond->value)) {
-                    SpecNode *new_node;
-
-                    if (*val)
-                        new_node = i->then_body.release();
-                    else
-                        new_node = i->else_body.release();
-
-                    delete i;
-                    changed = true;
-                    return new_node;
-                }
-            } else if (auto cond = instance_of(i->cond.get(), Expr)) {
-                if (auto op = std::get_if<Expr::binops>(&cond->op)) {
-                    if (*op == Expr::SEQ) {
-                        if (auto l = instance_of(cond->elems->at(0).get(), Const)) {
-                            if (auto r = instance_of(cond->elems->at(1).get(), Const)) {
-                                if (auto l_str = std::get_if<string>(&l->value)) {
-                                    if (auto r_str = std::get_if<string>(&r->value)) {
-                                        if (*l_str == *r_str) {
-                                            auto new_node = i->then_body.release();
-
-                                            delete i;
-                                            changed = true;
-                                            return new_node;
-                                        } else {
-                                            auto new_node = i->else_body.release();
-
-                                            delete i;
-                                            changed = true;
-                                            return new_node;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (*i->then_body == *i->else_body) {
-                auto new_node = i->then_body.release();
-
-                delete i;
-                changed = true;
-                return new_node;
-            }
-
-#if 0
-            if (auto ei = instance_of(i->else_body.get(), If)) {
-                if (*i->then_body == *ei->then_body) {
-                    auto cond_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                    cond_elems->push_back(std::move(i->cond));
-                    cond_elems->push_back(std::move(ei->cond));
-
-                    auto new_cond = new Expr(Expr::binops::BOR, std::move(cond_elems), Bool::BOOL);
-                    auto new_if = new If(unique_ptr<SpecNode>(new_cond),
-                                         unique_ptr<SpecNode>(ei->then_body.release()),
-                                         unique_ptr<SpecNode>(ei->else_body.release()));
-
-                    delete i;
-                    changed = true;
-                    return new_if;
-                }
-            }
-#endif
-        }
-        return node;
-    };
-
-    return std::make_pair(rec_apply(spec, f, false), changed);
 }
 
 unsigned long number_of_conditionals_inside(Project* proj, SpecNode * spec) {
@@ -1645,34 +910,6 @@ std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, D
     return std::make_pair(changed,std::make_pair("",""));      
 }
 
-rule_ret_t rule_eliminate_let(Project *proj, SpecNode *spec) {
-    bool changed = false;
-
-    std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
-        if (auto m = instance_of(node, Match)) {
-            if (m->is_let()) {
-                if (auto pattern = instance_of(m->match_list->at(0)->pattern.get(), Symbol)) {
-                    string name = pattern->text;
-                    if (!proj->is_known_symbol(name)) {
-                        SpecNode *value = m->src.get();
-                        SpecNode *body = m->match_list->at(0)->body.release();
-                        bool succ = false;
-
-                        auto new_e = subst(body, name, value, succ);
-                        delete m;
-                        changed = true;
-
-                        return new_e;
-                    }
-                }
-            }
-        }
-        return node;
-    };
-
-    return std::make_pair(rec_apply(spec, f, false), changed);
-}
-
 static string get_constr(SpecNode *node) {
     if (auto p = instance_of(node, Symbol)) {
         return p->text;
@@ -1867,10 +1104,6 @@ rule_ret_t rule_simple_builtin_functions(Project* proj, SpecNode *spec) {
     return std::make_pair(rec_apply(spec, f, false), changed);
 }
 
-/*
-when X == (if c then (Some Y) else (Some Z)); body
-=> if c then (match Y with X => body) else (match Z with X => body)
-*/
 rule_ret_t rule_eliminate_when(Project *proj, SpecNode *spec) {
     bool changed = false;
 
@@ -2041,235 +1274,6 @@ SpecNode* try_divide_const_factor(SpecNode *expr, int factor) {
     return nullptr;
 }
 
-rule_ret_t rule_simple_record_get_set(Project *proj, SpecNode *spec) {
-    bool changed = false;
-
-    std::function<SpecNode*(SpecNode*)> f = [&] (SpecNode *node) -> SpecNode* {
-        auto e = instance_of(node, Expr);
-
-        if (!e)
-            return node;
-
-        auto op = std::get_if<Expr::ops>(&e->op);
-
-        if (op && *op == Expr::RecordGet) {
-            auto rec = e->elems->at(0).get();
-            auto field = static_cast<Symbol *>(e->elems->at(1).get())->text;
-            auto typ = proj->structs.at(proj->symbols.at(field).info);
-
-            auto rec_e = instance_of(rec, Expr);
-
-            if (!rec_e)
-                return node;
-
-            if (auto rec_op = std::get_if<string>(&rec_e->op)) {
-                if (proj->is_struct_constr(*rec_op)) {
-                    // (mkRec "a" b).(a) => "a"
-                    for (int i = 0; i < typ->elems->size(); i++) {
-                        if (typ->elems->at(i)->name == field) {
-                            auto new_expr = rec_e->elems->at(i).release();
-
-                            changed = true;
-                            delete e;
-                            return new_expr;
-                        }
-                    }
-                    throw std::runtime_error("rule_simple_record_get_set: field not found" + string(*node));
-                }
-            } else if (auto rec_op = std::get_if<Expr::ops>(&rec_e->op)) {
-                if (*rec_op == Expr::RecordSet) {
-                    auto set_field = static_cast<Symbol *>(rec_e->elems->at(1).get())->text;
-
-                    if (field == set_field) {
-                        changed = true;
-                        if (rec_e->elems->size() == 3) {
-                            // (st.[a] :< v1).(a) ==> v1
-                            auto new_expr = rec_e->elems->at(2).release();
-
-                            delete e;
-                            return new_expr;
-                        } else {
-                            // (st.[a].[b].[c] :< v1).(a) ==> Record.set (Record.get st a) b c v1 ==> (st.(a)).[b].[c] :< v1
-                            auto new_get_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                            new_get_elems->push_back(std::move(rec_e->elems->at(0)));
-                            new_get_elems->push_back(std::move(rec_e->elems->at(1)));
-
-                            auto new_get = make_unique<Expr>(Expr::RecordGet, std::move(new_get_elems));
-                            auto new_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                            new_set_elems->push_back(std::move(new_get));
-                            for (int i = 2; i < rec_e->elems->size(); i++)
-                                new_set_elems->push_back(std::move(rec_e->elems->at(i)));
-
-                            auto new_set = new Expr(Expr::RecordSet, std::move(new_set_elems));
-
-                            delete e;
-                            return new_set;
-                        }
-                    } else {
-                        // (st.[a].[b].[c] :< v1).(d) ==> st.(d)
-                        auto new_get_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                        new_get_elems->push_back(std::move(rec_e->elems->at(0)));
-                        new_get_elems->push_back(make_unique<Symbol>(field));
-
-                        changed = true;
-                        delete e;
-                        return new Expr(Expr::RecordGet, std::move(new_get_elems));
-                    }
-                }
-            }
-        } else if (op && *op == Expr::RecordSet) {
-            auto rec = e->elems->at(0).get();
-            vector<string> fields;
-
-            auto old_value = rec->deep_copy();
-
-            for (int i = 1; i < e->elems->size() - 1; i++) {
-                auto field = static_cast<Symbol *>(e->elems->at(i).get())->text;
-                auto get_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                fields.push_back(field);
-                get_elems->push_back(std::move(old_value));
-                get_elems->push_back(make_unique<Symbol>(field));
-
-                old_value = make_unique<Expr>(Expr::RecordGet, std::move(get_elems));
-            }
-
-            auto value = e->elems->back().get();
-            if (auto rec_e = instance_of(rec, Expr)) {
-                auto rec_op = std::get_if<Expr::ops>(&rec_e->op);
-
-                if (rec_op && *rec_op == Expr::RecordSet) {
-                    auto obj = rec_e->elems->at(0).get();
-                    vector<string> subfields;
-
-                    for (int i = 1; i < rec_e->elems->size() - 1; i++) {
-                        auto field = static_cast<Symbol *>(rec_e->elems->at(i).get())->text;
-                        subfields.push_back(field);
-                    }
-
-                    if (fields.size() <= subfields.size() &&
-                        fields == vector<string>(subfields.begin(), subfields.begin() + fields.size())) {
-                        // (st.[a].[b] :< v1).[a] :< v2 ==> st.[a] :< v2
-                        auto new_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                        new_set_elems->push_back(obj->deep_copy());
-                        for (int i = 1; i < e->elems->size(); i++)
-                            new_set_elems->push_back(std::move(e->elems->at(i)));
-
-                        auto new_set = new Expr(Expr::RecordSet, std::move(new_set_elems));
-
-                        delete e;
-                        changed = true;
-                        return new_set;
-                    } else if (fields.size() > subfields.size() &&
-                               subfields == vector<string>(fields.begin(), fields.begin() + subfields.size())) {
-                        // (st.[a] :< v1).[a].[b] :< v2 ===> st.[a] :< (v1.[b] :< v2) (i.e. Record.set st a (Record.set v1 b v2))
-                        auto inner_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-                        auto new_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                        inner_set_elems->push_back(std::move(rec_e->elems->back()));
-                        for (int i = 1 + subfields.size(); i < e->elems->size(); i++)
-                            inner_set_elems->push_back(std::move(e->elems->at(i)));
-
-                        auto inner_set = make_unique<Expr>(Expr::RecordSet, std::move(inner_set_elems));
-
-                        for (int i = 0; i < rec_e->elems->size() - 1; i++)
-                            new_set_elems->push_back(std::move(rec_e->elems->at(i)));
-
-                        new_set_elems->push_back(std::move(inner_set));
-
-                        auto new_set = new Expr(Expr::RecordSet, std::move(new_set_elems));
-
-                        delete e;
-                        changed = true;
-                        return new_set;
-                    } else if (fields < subfields) {
-                        // (st.[a].[b].[c] :< v1).[d] :< v2 ==> (st.[d] :< v2).[a].[b].[c] :< v1 (i.e.  Record.set (Record.set st d v2) a b c v1)
-                        // (st.[a].[b].[d] :< v1).[a].[b].[c] :< v2 ==>(st.[a].[b].[c] :< v2).[a].[b].[d] :< v1
-                        auto inner_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-                        auto new_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                        inner_set_elems->push_back(obj->deep_copy());
-                        for (int i = 1; i < e->elems->size(); i++)
-                            inner_set_elems->push_back(std::move(e->elems->at(i)));
-
-                        auto inner_set = make_unique<Expr>(Expr::RecordSet, std::move(inner_set_elems));
-
-                        new_set_elems->push_back(std::move(inner_set));
-                        for (int i = 1; i < rec_e->elems->size(); i++)
-                            new_set_elems->push_back(std::move(rec_e->elems->at(i)));
-
-                        auto new_set = new Expr(Expr::RecordSet, std::move(new_set_elems));
-
-                        delete e;
-                        changed = true;
-                        return new_set;
-                    }
-                }
-            }
-
-            if (auto value_e = instance_of(value, Expr)) {
-                auto value_op = std::get_if<Expr::ops>(&value_e->op);
-
-                if (value_op && *value_op == Expr::RecordGet &&
-                    dynamic_cast<Symbol *>(value_e->elems->at(1).get())->text == fields.back()) {
-                        bool valid = true;
-                        SpecNode *_value = value_e;
-
-                        for (auto const &f: fields) {
-                            auto _value_e = instance_of(_value, Expr);
-
-                            if (!_value_e) {
-                                valid = false;
-                                break;
-                            }
-
-                            auto op = std::get_if<Expr::ops>(&_value_e->op);
-
-                            if (*op != Expr::RecordGet ||
-                                dynamic_cast<Symbol *>(_value_e->elems->at(1).get())->text != f) {
-                                valid = false;
-                                break;
-                            }
-
-                            _value = _value_e->elems->at(0).get();
-                        }
-
-                        if (valid && *value == *rec) {
-                            auto new_expr = rec->deep_copy();
-
-                            changed = true;
-                            delete e;
-                            return new_expr.release();
-                        } else
-                            return node;
-                } else if (value_op && *value_op == Expr::RecordGet && *value_e->elems->at(0) == *old_value) {
-                    auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                    new_elems->push_back(rec->deep_copy());
-
-                    for (int i = 1; i < e->elems->size() - 1; i++)
-                        new_elems->push_back(std::move(e->elems->at(i)));
-
-                    for (int i = 1; i < value_e->elems->size(); i++)
-                        new_elems->push_back(std::move(value_e->elems->at(i)));
-
-                    auto new_expr = new Expr(Expr::RecordSet, std::move(new_elems));
-
-                    changed = true;
-                    delete e;
-                    return new_expr;
-                }
-            }
-        }
-        return node;
-    };
-
-    return std::make_pair(rec_apply(spec, f, false), changed);
-}
 
 static bool is_const_zero(SpecNode *node) {
     if (auto m = instance_of(node, IntConst)) {
@@ -2280,208 +1284,22 @@ static bool is_const_zero(SpecNode *node) {
 
     return false;
 }
-
-rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec) {
-    bool expr_is_changed = false;
-
-    std::function<SpecNode*(SpecNode*)> f = [&] (SpecNode *node) -> SpecNode* {
-        unique_ptr<SpecNode> expr = unique_ptr<SpecNode>(node);
-
-        if (auto m = instance_of(node, If)) {
-            if (auto c = instance_of(m->cond.get(), BoolConst)) {
-                if (std::get<bool>(c->value)) {
-                    return m->then_body.release();
-                } else {
-                    return m->else_body.release();
-                }
-            }
-        } else if (auto m = instance_of(node, Expr)) {
-            if (holds_alternative<Expr::binops>(m->op)) {
-                auto ops = std::get<Expr::binops>(m->op);
-                using op = Expr::binops;
-                std::set<op> vec = {op::EQUAL, op::NOT_EQUAL, op::LTE, op::GTE, op::GT, op::LT, op::BEQ,
-                                    op:: BNE, op::BLT, op::BGT, op::BGE, op::BLE};
-
-                if (vec.find(ops) != vec.end() && m->elems->at(0)->get_type() == Int::INT &&
-                    m->elems->at(1)->get_type() == Int::INT && !is_instance(m->elems->at(1).get(), Const)) {
-                    auto elems = new vector<unique_ptr<SpecNode>>();
-                    elems->push_back(std::move(m->elems->at(0)));
-                    elems->push_back(std::move(m->elems->at(1)));
-                    auto left = new Expr(op::MINUS, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Int::INT);
-                    auto right = new IntConst(0);
-
-                    auto elems2 = new vector<unique_ptr<SpecNode>>();
-                    elems2->push_back(unique_ptr<SpecNode>(left));
-                    elems2->push_back(unique_ptr<SpecNode>(right));
-
-                    return new Expr(ops, unique_ptr<vector<unique_ptr<SpecNode>>>(elems2), node->get_type());
-                } else if (ops == op::ADD && is_const_zero(m->elems->at(0).get())) {
-                    expr_is_changed = true;
-                    return m->elems->at(1).release();
-                } else if (ops == op::ADD && is_const_zero(m->elems->at(1).get())) {
-                    expr_is_changed = true;
-                    return m->elems->at(0).release();
-                } else if (ops == op::MINUS && m->elems->size() == 2 && is_const_zero(m->elems->at(1).get())) {
-                    expr_is_changed = true;
-                    return m->elems->at(0).release();
-                } else if ((ops == op::ADD || ops == op::MINUS) &&
-                            m->elems->size() == 2 &&
-                            (!is_instance(m->elems->at(0).get(), IntConst) ||
-                             !is_instance(m->elems->at(1).get(), IntConst))) {
-                    auto factor = 1;
-                    for (auto i : PRIM_NUMS) {
-                        while (1) {
-                            auto a = try_divide_const_factor(expr.get(), i);
-
-                            if(a == nullptr){
-                                break;
-                            }
-                            factor *= i;
-
-                            expr = unique_ptr<SpecNode>(a);
-                        }
-                    }
-
-                    if (factor > 1) {
-                        auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-                        elems->push_back(make_unique<IntConst>(factor));
-                        elems->push_back(std::move(expr));
-                        //here node is already deleted since expr is pointing to another place.
-                        return new Expr(Expr::binops::MULT, std::move(elems), expr->get_type());
-                    }
-
-                    //here expr is not changed;
-                } else if (ops == op::MINUS && m->elems->size() == 1) {
-                    return expr.release();
-                }
-
-                bool all_intconst = true;
-                for (auto & e : *m->elems) {
-                    if (!is_instance(e.get(), IntConst)) {
-                        if (is_instance(e.get(), Const) &&
-                            holds_alternative<unsigned long>((static_cast<Const *>(e.get()))->value)) {
-                            continue;
-                        }
-                        all_intconst = false;
-                        break;
-                    }
-                }
-
-                if(all_intconst) {
-                    auto elem0 = instance_of(m->elems->at(0).get(), Const);
-                    auto elem1 = instance_of(m->elems->at(1).get(), Const);
-
-                    if(ops == op::ADD) {
-                        expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) + std::get<unsigned long>(elem1->value)));
-                    } else if (ops == op::MINUS && m->elems->size() == 1) {
-                        expr_is_changed = true;
-                        expr.reset(new IntConst(-std::get<unsigned long>(elem0->value)));
-                    } else if (ops == op::MINUS && m->elems->size() == 2) {
-                        expr_is_changed = true;
-                        long long res = std::get<unsigned long>(elem0->value) - std::get<unsigned long>(elem1->value);
-
-                        if (res < 0) {
-                            auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-                            elems->push_back(make_unique<IntConst>((unsigned long)(-res)));
-
-                            //return new Expr(op::MINUS, std::move(elems), Int::INT);
-                            expr.reset(new Expr(op::MINUS, std::move(elems), Int::INT));
-                        } else {
-                            expr.reset(new IntConst(std::get<unsigned long>(elem0->value) - std::get<unsigned long>(elem1->value)));
-                        }
-                    } else if (ops == op::MULT) {
-                        expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) * std::get<unsigned long>(elem1->value)));
-                    } else if(ops == op::DIV) {
-                        expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) / std::get<unsigned long>(elem1->value)));
-                    } else if(ops == op::MOD) {
-                        expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) % std::get<unsigned long>(elem1->value)));
-                    } else if(ops == op::BITAND) {
-                        expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) & std::get<unsigned long>(elem1->value)));
-                    } else if(ops == op::BITOR) {
-                        expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) | std::get<unsigned long>(elem1->value)));
-                    } else if(ops == op::LSHIFT) {
-                        expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) << std::get<unsigned long>(elem1->value)));
-                    } else if(ops == op::RSHIFT) {
-                        expr_is_changed = true;
-                        expr.reset(new IntConst(std::get<unsigned long>(elem0->value) >> std::get<unsigned long>(elem1->value)));
-                    } else if(ops == op::BEQ) {
-                        expr_is_changed = true;
-                        expr.reset(new BoolConst(std::get<unsigned long>(elem0->value) == std::get<unsigned long>(elem1->value)));
-                    } else if(ops == op::BNE) {
-                        expr_is_changed = true;
-                        expr.reset(new BoolConst(std::get<unsigned long>(elem0->value) != std::get<unsigned long>(elem1->value)));
-                    } else if(ops == op::BGT) {
-                        expr_is_changed = true;
-                        expr.reset(new BoolConst(std::get<unsigned long>(elem0->value) > std::get<unsigned long>(elem1->value)));
-                    } else if(ops == op::BLT) {
-                        expr_is_changed = true;
-                        expr.reset(new BoolConst(std::get<unsigned long>(elem0->value) < std::get<unsigned long>(elem1->value)));
-                    } else if(ops == op::BGE) {
-                        expr_is_changed = true;
-                        expr.reset(new BoolConst(std::get<unsigned long>(elem0->value) >= std::get<unsigned long>(elem1->value)));
-                    } else if(ops == op::BLE) {
-                        expr_is_changed = true;
-                        expr.reset(new BoolConst(std::get<unsigned long>(elem0->value) <= std::get<unsigned long>(elem1->value)));
-                    }
-
-                    expr->_str = "";
-                }
-            } else if(holds_alternative<Expr::ops>(m->op)) {
-                auto ops = std::get<Expr::ops>(m->op);
-                using op = Expr::ops;
-                using bop = Expr::binops;
-                if (ops == op::NOT || ops == op::BNOT) {
-                    if (auto elem0 = instance_of(m->elems->at(0).get(), Expr)) {
-                        std::set<bop> vec = {bop::EQUAL, bop::NOT_EQUAL, bop::LTE, bop::GTE, bop::GT, bop::LT, bop::BEQ,
-                                             bop:: BNE, bop::BLT, bop::BGT, bop::BGE, bop::BLE};
-                        if (holds_alternative<bop>(elem0->op)) {
-                            auto elem0op = std::get<bop>(elem0->op);
-                            if (vec.find(elem0op) != vec.end()) {
-                                std::map<bop,bop> rev = {{bop::BEQ, bop::BNE}, {bop::EQUAL, bop::NOT_EQUAL},
-                                                         {bop::LT, bop::GTE}, {bop::GTE, bop::LT}, {bop::GT, bop::LTE},
-                                                         {bop::LTE, bop::GT}, {bop::BGT, bop::BLE}, {bop::BLE, bop::BGT},
-                                                         {bop::BLT, bop::BGE}, {bop::BGE, bop::BLT}};
-                                return new Expr(rev[elem0op], std::move(elem0->elems), node->get_type());
-                            }
-                        }
-                    }
-                } else if (ops == Expr::RecordGet) {
-                    if (auto record_expr = instance_of(m->elems->at(0).get(), Expr)) {
-                        if (auto record_expr_op = std::get_if<Expr::ops>(&record_expr->op)) {
-                            if (*record_expr_op == Expr::RecordSet) {
-                                auto record_set_elems_size = record_expr->elems->size();
-                                auto set_field = record_expr->elems->at(record_set_elems_size - 2).get();
-                                auto get_field = m->elems->at(1).get();
-                                assert(is_instance(set_field, Symbol));
-                                assert(is_instance(get_field, Symbol));
-
-                                if (*set_field == *get_field) {
-                                    expr_is_changed = true;
-                                    return record_expr->elems->at(record_set_elems_size - 1).release();
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        //haven't care about the annotation
-        return expr.release();
-    };
-
-    return std::make_pair(rec_apply(spec, f, false), expr_is_changed);
-}
-
-
-/** Rewrite subst using smart pointer */
+/**
+ * @brief Recursively substitutes [name] with [value] in [spec] until [name] is assigned by a value using Match in [spec].
+ * 
+ * @details Example usage:
+ * ```
+ * subst(let x := x + 1 in x, "x", 1) => let x := 1 + 1 in x
+ * ```
+ * The [value] is freed by the caller.
+ * 
+ * @param spec   The specification node in which substitution occurs.
+ * @param name   The name to be replaced.
+ * @param value  The value to replace occurrences of [name].
+ * @param succ   A reference boolean that indicates success/failure of the substitution.
+ * 
+ * @return A unique pointer to the modified SpecNode.
+ */
 static std::unique_ptr<SpecNode> subst(
     std::unique_ptr<SpecNode> spec,
     const std::string& name,
@@ -2617,6 +1435,13 @@ static std::unique_ptr<SpecNode> subst(
     return spec;
 }
 
+
+/*
+substitute [expr] with [var] in [spec]
+
+[spec] is freed if substitution is successful
+[expr] and [var] is freed by the caller
+*/
 std::unique_ptr<SpecNode> subst_expr(
     Project* proj,
     std::unique_ptr<SpecNode> spec,
@@ -2754,8 +1579,7 @@ void free_vars(Project* proj, const std::unique_ptr<SpecNode>& spec, std::set<st
     }
 }
 
-std::unique_ptr<SpecNode> eliminate_ambiguity(
-    Project* proj,
+std::unique_ptr<SpecNode> SpecRules::eliminate_ambiguity(
     std::unique_ptr<SpecNode> spec,
     std::set<std::string>& prev_symbols,
     bool& changed
@@ -2766,19 +1590,19 @@ std::unique_ptr<SpecNode> eliminate_ambiguity(
     if (auto e = instance_of(spec.get(), Expr)) {
         auto new_elems = std::make_unique<std::vector<std::unique_ptr<SpecNode>>>();
         for (auto &elem : *e->elems) {
-            new_elems->push_back(eliminate_ambiguity(proj, std::move(elem), prev_symbols, changed));
+            new_elems->push_back(eliminate_ambiguity(std::move(elem), prev_symbols, changed));
         }
         return std::visit([&](auto&& arg) -> std::unique_ptr<SpecNode> {
             using T = std::decay_t<decltype(arg)>;
             if constexpr (std::is_same_v<T, std::unique_ptr<SpecNode>>) {
-                auto new_op = eliminate_ambiguity(proj, std::move(arg), prev_symbols, changed);
+                auto new_op = eliminate_ambiguity(std::move(arg), prev_symbols, changed);
                 return std::make_unique<Expr>(std::move(new_op), std::move(new_elems), e->type);
             } else {
                 return std::make_unique<Expr>(arg, std::move(new_elems), e->type);
             }
         }, e->op);
     } else if (auto m = instance_of(spec.get(), Match)) {
-        auto src = eliminate_ambiguity(proj, std::move(m->src), prev_symbols, changed);
+        auto src = eliminate_ambiguity(std::move(m->src), prev_symbols, changed);
         std::set<string> src_free;
         free_vars(proj, src->deep_copy(), src_free);
         auto matches = make_unique<vector<unique_ptr<PatternMatch>>>();
@@ -2830,7 +1654,7 @@ std::unique_ptr<SpecNode> eliminate_ambiguity(
                 }
             }
 
-            body = eliminate_ambiguity(proj, std::move(body), magic_variables, changed);
+            body = eliminate_ambiguity(std::move(body), magic_variables, changed);
 
             for (auto [sym,typ] : symbols) {
                 if (sym == "_")
@@ -2860,19 +1684,19 @@ std::unique_ptr<SpecNode> eliminate_ambiguity(
 
         return std::make_unique<Match>(std::move(src), std::move(matches));
     } else if (auto r = instance_of(spec.get(), Rely)) {
-        auto new_prop = eliminate_ambiguity(proj, std::move(r->prop), prev_symbols, changed);
-        auto new_body = eliminate_ambiguity(proj, std::move(r->body), prev_symbols, changed);
+        auto new_prop = eliminate_ambiguity(std::move(r->prop), prev_symbols, changed);
+        auto new_body = eliminate_ambiguity(std::move(r->body), prev_symbols, changed);
         return std::make_unique<Rely>(std::move(new_prop), std::move(new_body));
 
     } else if (auto r = instance_of(spec.get(), Anno)) {
-        auto new_prop = eliminate_ambiguity(proj, std::move(r->prop), prev_symbols, changed);
-        auto new_body = eliminate_ambiguity(proj, std::move(r->body), prev_symbols, changed);
+        auto new_prop = eliminate_ambiguity(std::move(r->prop), prev_symbols, changed);
+        auto new_body = eliminate_ambiguity(std::move(r->body), prev_symbols, changed);
         return std::make_unique<Anno>(std::move(new_prop), std::move(new_body));
 
     } else if (auto i = instance_of(spec.get(), If)) {
-        auto cond = eliminate_ambiguity(proj, std::move(i->cond), prev_symbols, changed);
-        auto then_body = eliminate_ambiguity(proj, std::move(i->then_body), prev_symbols, changed);
-        auto else_body = eliminate_ambiguity(proj, std::move(i->else_body), prev_symbols, changed);
+        auto cond = eliminate_ambiguity(std::move(i->cond), prev_symbols, changed);
+        auto then_body = eliminate_ambiguity(std::move(i->then_body), prev_symbols, changed);
+        auto else_body = eliminate_ambiguity(std::move(i->else_body), prev_symbols, changed);
         return std::make_unique<If>(std::move(cond), std::move(then_body), std::move(else_body));
 
     } else if (auto fe = instance_of(spec.get(), ForallExists)) {
@@ -2914,16 +1738,16 @@ std::unique_ptr<SpecNode> eliminate_ambiguity(
         for (auto &v : *vars) {
             if (v->expr) {
                 auto e = v->expr->deep_copy();
-                v->expr.reset(dynamic_cast<Expr*>(eliminate_ambiguity(proj, std::move(e), ps, changed).release()));
+                v->expr.reset(dynamic_cast<Expr*>(eliminate_ambiguity(std::move(e), ps, changed).release()));
             }
         }
 
         if (is_instance(fe, Forall)) {
             return std::make_unique<Forall>(std::move(vars),
-                                            eliminate_ambiguity(proj, std::move(body), prev, changed));
+                                            eliminate_ambiguity(std::move(body), prev, changed));
         } else {
             return std::make_unique<Exists>(std::move(vars),
-                                            eliminate_ambiguity(proj, std::move(body), prev, changed));
+                                            eliminate_ambiguity(std::move(body), prev, changed));
         }
     }
     return spec;
@@ -3030,16 +1854,6 @@ std::unique_ptr<SpecNode> SpecRules::rec_apply_smart(std::unique_ptr<SpecNode> s
     }
 }
 
-/** This rule do nothing for the spec, only for checking the memory footprint of rec_apply */
-smart_rule_ret_t SpecRules::rule_empty(std::unique_ptr<SpecNode> spec) {
-    std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)> f =
-        [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
-            return node; 
-        };
-    auto newSpec = rec_apply_smart(std::move(spec), f, false);
-    return { std::move(newSpec), false };
-}
-
 smart_rule_ret_t SpecRules::rule_eliminate_let(std::unique_ptr<SpecNode> spec) {
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
@@ -3068,6 +1882,11 @@ smart_rule_ret_t SpecRules::rule_eliminate_let(std::unique_ptr<SpecNode> spec) {
     return { std::move(new_root), changed };
 }
 
+
+/*
+when X == (if c then (Some Y) else (Some Z)); body
+=> if c then (match Y with X => body) else (match Z with X => body)
+*/
 smart_rule_ret_t SpecRules::rule_eliminate_when(std::unique_ptr<SpecNode> spec) {
     bool changed = false;
     std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)> f =
@@ -3150,7 +1969,14 @@ smart_rule_ret_t SpecRules::rule_eliminate_when(std::unique_ptr<SpecNode> spec) 
     return { std::move(new_spec), changed };
 }
 
+/*
+if true then [then_body] else [else_body] ===> [then_body]
+if false then [then_body] else [else_body] ===> [else_body]
+if ... then [body] else [body] ===> [body]
 
+The following simplification may not actually simplify the expression
+if A then [then_body] else (if B then [then_body] else [else_body]) ===> if (A || B) then [then_body] else [else_body]
+*/
 smart_rule_ret_t SpecRules::rule_eliminate_if(std::unique_ptr<SpecNode> spec) {
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
@@ -3221,62 +2047,30 @@ smart_rule_ret_t SpecRules::rule_eliminate_match_simple(std::unique_ptr<SpecNode
 
 smart_rule_ret_t SpecRules::rule_subst_match_src_with_content(std::unique_ptr<SpecNode> spec) {
     bool changed = false;
-    if (true) {
-        auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
-            if (auto s = instance_of(node.get(), Match)) {
-                if (s->is_let()) {
-                    return node;
-                }
-                auto matches = std::make_unique<std::vector<std::unique_ptr<PatternMatch>>>();
-                for (auto& pm : *s->match_list) {
-                    std::set<string> vars;
-                    get_vars_from_pattern(proj, pm->pattern.get(), vars);
-                    if (!contains_vars(proj, s->src.get(), vars)) {
-                        bool succ = false;
-                        auto body = subst_expr(proj, std::move(pm->body), s->src, pm->pattern, succ);
-                        matches->push_back(std::make_unique<PatternMatch>(std::move(pm->pattern), std::move(body)));
-                        changed |= succ;
-                    } else {
-                        matches->push_back(std::move(pm));
-                    }
-                }
-                return std::make_unique<Match>(std::move(s->src), std::move(matches));
+    auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+        if (auto s = instance_of(node.get(), Match)) {
+            if (s->is_let()) {
+                return node;
             }
-            return node;
-        };
-        auto new_spec = rec_apply_smart(std::move(spec), f, false);
-        return { std::move(new_spec), changed };
-
-    } else {
-        std::function<SpecNode*(SpecNode*)> f = [&] (SpecNode *node) -> SpecNode* {
-            if (auto s = instance_of(node, Match)) {
-                if (s->is_let())
-                    return node;
-                unique_ptr<vector<unique_ptr<PatternMatch>>> matches = make_unique<vector<unique_ptr<PatternMatch>>>();
-                for (auto & pm : *s->match_list) {
-                    std::set<string> vars;
-                    get_vars_from_pattern(proj, pm->pattern.get(), vars);
-                    if (!contains_vars(proj, s->src.get(), vars)) { 
-                        //pattern will be deep copyed in subst_expr
-                        bool succ = false;
-                        auto body = subst_expr(proj, pm->body.release(), s->src.get(), pm->pattern.get(), succ);
-                        matches->push_back(make_unique<PatternMatch>(std::move(pm->pattern), unique_ptr<SpecNode>(body)));
-                        changed |= succ;
-                    } else {
-                        matches->push_back(std::move(pm));
-                    }
+            auto matches = std::make_unique<std::vector<std::unique_ptr<PatternMatch>>>();
+            for (auto& pm : *s->match_list) {
+                std::set<string> vars;
+                get_vars_from_pattern(proj, pm->pattern.get(), vars);
+                if (!contains_vars(proj, s->src.get(), vars)) {
+                    bool succ = false;
+                    auto body = subst_expr(proj, std::move(pm->body), s->src, pm->pattern, succ);
+                    matches->push_back(std::make_unique<PatternMatch>(std::move(pm->pattern), std::move(body)));
+                    changed |= succ;
+                } else {
+                    matches->push_back(std::move(pm));
                 }
-                auto new_match = new Match(std::move(s->src), std::move(matches));
-                delete s;
-                return new_match;
             }
-            return node;
-        };
-
-        SpecNode *new_root = rec_apply(spec.release(), f, false);
-        return std::make_pair(std::unique_ptr<SpecNode>(new_root), changed);
-    }
-    
+            return std::make_unique<Match>(std::move(s->src), std::move(matches));
+        }
+        return node;
+    };
+    auto new_spec = rec_apply_smart(std::move(spec), f, false);
+    return { std::move(new_spec), changed };
 }
 
 smart_rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> spec) {
@@ -3313,444 +2107,215 @@ smart_rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNo
 
 smart_rule_ret_t SpecRules::rule_simple_record_get_set(std::unique_ptr<SpecNode> spec) {
     bool changed = false;
-    if (true) {
-        auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
-            auto e = instance_of(node.get(), Expr);
-            if (!e) {
+    auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+        auto e = instance_of(node.get(), Expr);
+        if (!e) {
+            return node;
+        }
+
+        auto op = std::get_if<Expr::ops>(&e->op);
+        
+        if (op && *op == Expr::RecordGet) {
+            auto rec = e->elems->at(0).get();
+            auto field = static_cast<Symbol *>(e->elems->at(1).get())->text;
+            auto typ = proj->structs.at(proj->symbols.at(field).info);
+
+            auto rec_e = instance_of(rec, Expr);
+
+            if (!rec_e)
                 return node;
-            }
 
-            auto op = std::get_if<Expr::ops>(&e->op);
-            
-            if (op && *op == Expr::RecordGet) {
-                auto rec = e->elems->at(0).get();
-                auto field = static_cast<Symbol *>(e->elems->at(1).get())->text;
-                auto typ = proj->structs.at(proj->symbols.at(field).info);
-
-                auto rec_e = instance_of(rec, Expr);
-
-                if (!rec_e)
-                    return node;
-
-                if (auto rec_op = std::get_if<string>(&rec_e->op)) {
-                    if (proj->is_struct_constr(*rec_op)) {
-                        // (mkRec "a" b).(a) => "a"
-                        for (int i = 0; i < typ->elems->size(); i++) {
-                            if (typ->elems->at(i)->name == field) {
-                                changed = true;
-                                auto new_expr = std::move(rec_e->elems->at(i));
-                                return new_expr;
-                            }
-                        }
-                        throw std::runtime_error("rule_simple_record_get_set: field not found" + string(*node));
-                    }
-                } else if (auto rec_op = std::get_if<Expr::ops>(&rec_e->op)) {
-                    if (*rec_op == Expr::RecordSet) {
-                        auto set_field = static_cast<Symbol *>(rec_e->elems->at(1).get())->text;
-                        if (field == set_field) {
+            if (auto rec_op = std::get_if<string>(&rec_e->op)) {
+                if (proj->is_struct_constr(*rec_op)) {
+                    // (mkRec "a" b).(a) => "a"
+                    for (int i = 0; i < typ->elems->size(); i++) {
+                        if (typ->elems->at(i)->name == field) {
                             changed = true;
-                            if (rec_e->elems->size() == 3) {
-                                // (st.[a] :< v1).(a) ==> v1
-                                auto new_expr = std::move(rec_e->elems->at(2));
-                                return new_expr;
+                            auto new_expr = std::move(rec_e->elems->at(i));
+                            return new_expr;
+                        }
+                    }
+                    throw std::runtime_error("rule_simple_record_get_set: field not found" + string(*node));
+                }
+            } else if (auto rec_op = std::get_if<Expr::ops>(&rec_e->op)) {
+                if (*rec_op == Expr::RecordSet) {
+                    auto set_field = static_cast<Symbol *>(rec_e->elems->at(1).get())->text;
+                    if (field == set_field) {
+                        changed = true;
+                        if (rec_e->elems->size() == 3) {
+                            // (st.[a] :< v1).(a) ==> v1
+                            auto new_expr = std::move(rec_e->elems->at(2));
+                            return new_expr;
 
-                            } else {
-                                // (st.[a].[b].[c] :< v1).(a) ==> Record.set (Record.get st a) b c v1 ==> (st.(a)).[b].[c] :< v1
-                                auto new_get_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                                new_get_elems->push_back(std::move(rec_e->elems->at(0)));
-                                new_get_elems->push_back(std::move(rec_e->elems->at(1)));
-
-                                auto new_get = make_unique<Expr>(Expr::RecordGet, std::move(new_get_elems));
-                                auto new_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                                new_set_elems->push_back(std::move(new_get));
-                                for (int i = 2; i < rec_e->elems->size(); i++)
-                                    new_set_elems->push_back(std::move(rec_e->elems->at(i)));
-
-                                auto new_set = std::make_unique<Expr>(Expr::RecordSet, std::move(new_set_elems));
-                                return new_set;
-                            }
                         } else {
-                            // (st.[a].[b].[c] :< v1).(d) ==> st.(d)
+                            // (st.[a].[b].[c] :< v1).(a) ==> Record.set (Record.get st a) b c v1 ==> (st.(a)).[b].[c] :< v1
                             auto new_get_elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
                             new_get_elems->push_back(std::move(rec_e->elems->at(0)));
-                            new_get_elems->push_back(make_unique<Symbol>(field));
+                            new_get_elems->push_back(std::move(rec_e->elems->at(1)));
 
-                            changed = true;
-                            auto new_get = std::make_unique<Expr>(Expr::RecordGet, std::move(new_get_elems));
-                            return new_get;
-                        }
-                    }
-                }
-            } else if (op && *op == Expr::RecordSet) {
-                auto rec = e->elems->at(0).get();
-                vector<string> fields;
-
-                auto old_value = rec->deep_copy();
-                for (int i = 1; i < e->elems->size() - 1; i++) {
-                    auto field = static_cast<Symbol *>(e->elems->at(i).get())->text;
-                    auto get_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                    fields.push_back(field);
-                    get_elems->push_back(std::move(old_value));
-                    get_elems->push_back(make_unique<Symbol>(field));
-
-                    old_value = make_unique<Expr>(Expr::RecordGet, std::move(get_elems));
-                }
-
-                auto value = e->elems->back().get();
-                if (auto rec_e = instance_of(rec, Expr)) {
-                    auto rec_op = std::get_if<Expr::ops>(&rec_e->op);
-                    if (rec_op && *rec_op == Expr::RecordSet) {
-                        auto obj = rec_e->elems->at(0).get();
-                        vector<string> subfields;
-
-                        for (int i = 1; i < rec_e->elems->size() - 1; i++) {
-                            auto field = static_cast<Symbol *>(rec_e->elems->at(i).get())->text;
-                            subfields.push_back(field);
-                        }
-
-                        if (fields.size() <= subfields.size() &&
-                            fields == vector<string>(subfields.begin(), subfields.begin() + fields.size())) {
-                            // (st.[a].[b] :< v1).[a] :< v2 ==> st.[a] :< v2
+                            auto new_get = make_unique<Expr>(Expr::RecordGet, std::move(new_get_elems));
                             auto new_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-                            new_set_elems->push_back(obj->deep_copy());
-                            for (int i = 1; i < e->elems->size(); i++)
-                                new_set_elems->push_back(std::move(e->elems->at(i)));
+                            new_set_elems->push_back(std::move(new_get));
+                            for (int i = 2; i < rec_e->elems->size(); i++)
+                                new_set_elems->push_back(std::move(rec_e->elems->at(i)));
 
                             auto new_set = std::make_unique<Expr>(Expr::RecordSet, std::move(new_set_elems));
-                            changed = true;
-                            return new_set;
-                        } else if (fields.size() > subfields.size() &&
-                                subfields == vector<string>(fields.begin(), fields.begin() + subfields.size())) {
-                            // (st.[a] :< v1).[a].[b] :< v2 ===> st.[a] :< (v1.[b] :< v2) (i.e. Record.set st a (Record.set v1 b v2))
-                            auto inner_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-                            auto new_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                            inner_set_elems->push_back(std::move(rec_e->elems->back()));
-                            for (int i = 1 + subfields.size(); i < e->elems->size(); i++)
-                                inner_set_elems->push_back(std::move(e->elems->at(i)));
-
-                            auto inner_set = make_unique<Expr>(Expr::RecordSet, std::move(inner_set_elems));
-
-                            for (int i = 0; i < rec_e->elems->size() - 1; i++)
-                                new_set_elems->push_back(std::move(rec_e->elems->at(i)));
-
-                            new_set_elems->push_back(std::move(inner_set));
-
-                            auto new_set = make_unique<Expr>(Expr::RecordSet, std::move(new_set_elems));
-                            changed = true;
-                            return new_set;
-
-                        } else if (fields < subfields) {
-                            // (st.[a].[b].[c] :< v1).[d] :< v2 ==> (st.[d] :< v2).[a].[b].[c] :< v1 (i.e.  Record.set (Record.set st d v2) a b c v1)
-                            // (st.[a].[b].[d] :< v1).[a].[b].[c] :< v2 ==>(st.[a].[b].[c] :< v2).[a].[b].[d] :< v1
-                            auto inner_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-                            auto new_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                            inner_set_elems->push_back(obj->deep_copy());
-                            for (int i = 1; i < e->elems->size(); i++)
-                                inner_set_elems->push_back(std::move(e->elems->at(i)));
-
-                            auto inner_set = make_unique<Expr>(Expr::RecordSet, std::move(inner_set_elems));
-
-                            new_set_elems->push_back(std::move(inner_set));
-                            for (int i = 1; i < rec_e->elems->size(); i++)
-                                new_set_elems->push_back(std::move(rec_e->elems->at(i)));
-
-                            auto new_set = make_unique<Expr>(Expr::RecordSet, std::move(new_set_elems));
-                            changed = true;
                             return new_set;
                         }
-                    }
-                }
+                    } else {
+                        // (st.[a].[b].[c] :< v1).(d) ==> st.(d)
+                        auto new_get_elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-                if (auto value_e = instance_of(value, Expr)) {
-                    auto value_op = std::get_if<Expr::ops>(&value_e->op);
+                        new_get_elems->push_back(std::move(rec_e->elems->at(0)));
+                        new_get_elems->push_back(make_unique<Symbol>(field));
 
-                    if (value_op && *value_op == Expr::RecordGet &&
-                        dynamic_cast<Symbol *>(value_e->elems->at(1).get())->text == fields.back()) {
-                            bool valid = true;
-                            SpecNode *_value = value_e;
-
-                            for (auto const &f: fields) {
-                                auto _value_e = instance_of(_value, Expr);
-
-                                if (!_value_e) {
-                                    valid = false;
-                                    break;
-                                }
-
-                                auto op = std::get_if<Expr::ops>(&_value_e->op);
-
-                                if (*op != Expr::RecordGet ||
-                                    dynamic_cast<Symbol *>(_value_e->elems->at(1).get())->text != f) {
-                                    valid = false;
-                                    break;
-                                }
-
-                                _value = _value_e->elems->at(0).get();
-                            }
-                            if (valid && *value == *rec) {
-                                auto new_expr = rec->deep_copy();
-                                changed = true;
-                                return new_expr;
-                            } else {
-                                return node;
-                            }
-                    } else if (value_op && *value_op == Expr::RecordGet && *value_e->elems->at(0) == *old_value) {
-                        auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                        new_elems->push_back(rec->deep_copy());
-
-                        for (int i = 1; i < e->elems->size() - 1; i++)
-                            new_elems->push_back(std::move(e->elems->at(i)));
-
-                        for (int i = 1; i < value_e->elems->size(); i++)
-                            new_elems->push_back(std::move(value_e->elems->at(i)));
-
-                        auto new_expr = make_unique<Expr>(Expr::RecordSet, std::move(new_elems));
                         changed = true;
-                        return new_expr;
+                        auto new_get = std::make_unique<Expr>(Expr::RecordGet, std::move(new_get_elems));
+                        return new_get;
                     }
                 }
             }
-            return node;
+        } else if (op && *op == Expr::RecordSet) {
+            auto rec = e->elems->at(0).get();
+            vector<string> fields;
 
-        };
-        auto new_root = rec_apply_smart(std::move(spec), f, false);
-        return { std::move(new_root), changed };
-    } else {
-        std::function<SpecNode*(SpecNode*)> f = [&] (SpecNode *node) -> SpecNode* {
-            auto e = instance_of(node, Expr);
+            auto old_value = rec->deep_copy();
+            for (int i = 1; i < e->elems->size() - 1; i++) {
+                auto field = static_cast<Symbol *>(e->elems->at(i).get())->text;
+                auto get_elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-            if (!e)
-                return node;
+                fields.push_back(field);
+                get_elems->push_back(std::move(old_value));
+                get_elems->push_back(make_unique<Symbol>(field));
 
-            auto op = std::get_if<Expr::ops>(&e->op);
+                old_value = make_unique<Expr>(Expr::RecordGet, std::move(get_elems));
+            }
 
-            if (op && *op == Expr::RecordGet) {
-                auto rec = e->elems->at(0).get();
-                auto field = static_cast<Symbol *>(e->elems->at(1).get())->text;
-                auto typ = proj->structs.at(proj->symbols.at(field).info);
+            auto value = e->elems->back().get();
+            if (auto rec_e = instance_of(rec, Expr)) {
+                auto rec_op = std::get_if<Expr::ops>(&rec_e->op);
+                if (rec_op && *rec_op == Expr::RecordSet) {
+                    auto obj = rec_e->elems->at(0).get();
+                    vector<string> subfields;
 
-                auto rec_e = instance_of(rec, Expr);
-
-                if (!rec_e)
-                    return node;
-
-                if (auto rec_op = std::get_if<string>(&rec_e->op)) {
-                    if (proj->is_struct_constr(*rec_op)) {
-                        // (mkRec "a" b).(a) => "a"
-                        for (int i = 0; i < typ->elems->size(); i++) {
-                            if (typ->elems->at(i)->name == field) {
-                                auto new_expr = rec_e->elems->at(i).release();
-
-                                changed = true;
-                                delete e;
-                                return new_expr;
-                            }
-                        }
-                        throw std::runtime_error("rule_simple_record_get_set: field not found" + string(*node));
+                    for (int i = 1; i < rec_e->elems->size() - 1; i++) {
+                        auto field = static_cast<Symbol *>(rec_e->elems->at(i).get())->text;
+                        subfields.push_back(field);
                     }
-                } else if (auto rec_op = std::get_if<Expr::ops>(&rec_e->op)) {
-                    if (*rec_op == Expr::RecordSet) {
-                        auto set_field = static_cast<Symbol *>(rec_e->elems->at(1).get())->text;
 
-                        if (field == set_field) {
-                            changed = true;
-                            if (rec_e->elems->size() == 3) {
-                                // (st.[a] :< v1).(a) ==> v1
-                                auto new_expr = rec_e->elems->at(2).release();
+                    if (fields.size() <= subfields.size() &&
+                        fields == vector<string>(subfields.begin(), subfields.begin() + fields.size())) {
+                        // (st.[a].[b] :< v1).[a] :< v2 ==> st.[a] :< v2
+                        auto new_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-                                delete e;
-                                return new_expr;
-                            } else {
-                                // (st.[a].[b].[c] :< v1).(a) ==> Record.set (Record.get st a) b c v1 ==> (st.(a)).[b].[c] :< v1
-                                auto new_get_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                        new_set_elems->push_back(obj->deep_copy());
+                        for (int i = 1; i < e->elems->size(); i++)
+                            new_set_elems->push_back(std::move(e->elems->at(i)));
 
-                                new_get_elems->push_back(std::move(rec_e->elems->at(0)));
-                                new_get_elems->push_back(std::move(rec_e->elems->at(1)));
+                        auto new_set = std::make_unique<Expr>(Expr::RecordSet, std::move(new_set_elems));
+                        changed = true;
+                        return new_set;
+                    } else if (fields.size() > subfields.size() &&
+                            subfields == vector<string>(fields.begin(), fields.begin() + subfields.size())) {
+                        // (st.[a] :< v1).[a].[b] :< v2 ===> st.[a] :< (v1.[b] :< v2) (i.e. Record.set st a (Record.set v1 b v2))
+                        auto inner_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                        auto new_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-                                auto new_get = make_unique<Expr>(Expr::RecordGet, std::move(new_get_elems));
-                                auto new_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                        inner_set_elems->push_back(std::move(rec_e->elems->back()));
+                        for (int i = 1 + subfields.size(); i < e->elems->size(); i++)
+                            inner_set_elems->push_back(std::move(e->elems->at(i)));
 
-                                new_set_elems->push_back(std::move(new_get));
-                                for (int i = 2; i < rec_e->elems->size(); i++)
-                                    new_set_elems->push_back(std::move(rec_e->elems->at(i)));
+                        auto inner_set = make_unique<Expr>(Expr::RecordSet, std::move(inner_set_elems));
 
-                                auto new_set = new Expr(Expr::RecordSet, std::move(new_set_elems));
+                        for (int i = 0; i < rec_e->elems->size() - 1; i++)
+                            new_set_elems->push_back(std::move(rec_e->elems->at(i)));
 
-                                delete e;
-                                return new_set;
+                        new_set_elems->push_back(std::move(inner_set));
+
+                        auto new_set = make_unique<Expr>(Expr::RecordSet, std::move(new_set_elems));
+                        changed = true;
+                        return new_set;
+
+                    } else if (fields < subfields) {
+                        // (st.[a].[b].[c] :< v1).[d] :< v2 ==> (st.[d] :< v2).[a].[b].[c] :< v1 (i.e.  Record.set (Record.set st d v2) a b c v1)
+                        // (st.[a].[b].[d] :< v1).[a].[b].[c] :< v2 ==>(st.[a].[b].[c] :< v2).[a].[b].[d] :< v1
+                        auto inner_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                        auto new_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+
+                        inner_set_elems->push_back(obj->deep_copy());
+                        for (int i = 1; i < e->elems->size(); i++)
+                            inner_set_elems->push_back(std::move(e->elems->at(i)));
+
+                        auto inner_set = make_unique<Expr>(Expr::RecordSet, std::move(inner_set_elems));
+
+                        new_set_elems->push_back(std::move(inner_set));
+                        for (int i = 1; i < rec_e->elems->size(); i++)
+                            new_set_elems->push_back(std::move(rec_e->elems->at(i)));
+
+                        auto new_set = make_unique<Expr>(Expr::RecordSet, std::move(new_set_elems));
+                        changed = true;
+                        return new_set;
+                    }
+                }
+            }
+
+            if (auto value_e = instance_of(value, Expr)) {
+                auto value_op = std::get_if<Expr::ops>(&value_e->op);
+
+                if (value_op && *value_op == Expr::RecordGet &&
+                    dynamic_cast<Symbol *>(value_e->elems->at(1).get())->text == fields.back()) {
+                        bool valid = true;
+                        SpecNode *_value = value_e;
+
+                        for (auto const &f: fields) {
+                            auto _value_e = instance_of(_value, Expr);
+
+                            if (!_value_e) {
+                                valid = false;
+                                break;
                             }
+
+                            auto op = std::get_if<Expr::ops>(&_value_e->op);
+
+                            if (*op != Expr::RecordGet ||
+                                dynamic_cast<Symbol *>(_value_e->elems->at(1).get())->text != f) {
+                                valid = false;
+                                break;
+                            }
+
+                            _value = _value_e->elems->at(0).get();
+                        }
+                        if (valid && *value == *rec) {
+                            auto new_expr = rec->deep_copy();
+                            changed = true;
+                            return new_expr;
                         } else {
-                            // (st.[a].[b].[c] :< v1).(d) ==> st.(d)
-                            auto new_get_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                            new_get_elems->push_back(std::move(rec_e->elems->at(0)));
-                            new_get_elems->push_back(make_unique<Symbol>(field));
-
-                            changed = true;
-                            delete e;
-                            return new Expr(Expr::RecordGet, std::move(new_get_elems));
+                            return node;
                         }
-                    }
-                }
-            } else if (op && *op == Expr::RecordSet) {
-                auto rec = e->elems->at(0).get();
-                vector<string> fields;
+                } else if (value_op && *value_op == Expr::RecordGet && *value_e->elems->at(0) == *old_value) {
+                    auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-                auto old_value = rec->deep_copy();
+                    new_elems->push_back(rec->deep_copy());
 
-                for (int i = 1; i < e->elems->size() - 1; i++) {
-                    auto field = static_cast<Symbol *>(e->elems->at(i).get())->text;
-                    auto get_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                    for (int i = 1; i < e->elems->size() - 1; i++)
+                        new_elems->push_back(std::move(e->elems->at(i)));
 
-                    fields.push_back(field);
-                    get_elems->push_back(std::move(old_value));
-                    get_elems->push_back(make_unique<Symbol>(field));
+                    for (int i = 1; i < value_e->elems->size(); i++)
+                        new_elems->push_back(std::move(value_e->elems->at(i)));
 
-                    old_value = make_unique<Expr>(Expr::RecordGet, std::move(get_elems));
-                }
-
-                auto value = e->elems->back().get();
-                if (auto rec_e = instance_of(rec, Expr)) {
-                    auto rec_op = std::get_if<Expr::ops>(&rec_e->op);
-
-                    if (rec_op && *rec_op == Expr::RecordSet) {
-                        auto obj = rec_e->elems->at(0).get();
-                        vector<string> subfields;
-
-                        for (int i = 1; i < rec_e->elems->size() - 1; i++) {
-                            auto field = static_cast<Symbol *>(rec_e->elems->at(i).get())->text;
-                            subfields.push_back(field);
-                        }
-
-                        if (fields.size() <= subfields.size() &&
-                            fields == vector<string>(subfields.begin(), subfields.begin() + fields.size())) {
-                            // (st.[a].[b] :< v1).[a] :< v2 ==> st.[a] :< v2
-                            auto new_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                            new_set_elems->push_back(obj->deep_copy());
-                            for (int i = 1; i < e->elems->size(); i++)
-                                new_set_elems->push_back(std::move(e->elems->at(i)));
-
-                            auto new_set = new Expr(Expr::RecordSet, std::move(new_set_elems));
-
-                            delete e;
-                            changed = true;
-                            return new_set;
-                        } else if (fields.size() > subfields.size() &&
-                                subfields == vector<string>(fields.begin(), fields.begin() + subfields.size())) {
-                            // (st.[a] :< v1).[a].[b] :< v2 ===> st.[a] :< (v1.[b] :< v2) (i.e. Record.set st a (Record.set v1 b v2))
-                            auto inner_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-                            auto new_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                            inner_set_elems->push_back(std::move(rec_e->elems->back()));
-                            for (int i = 1 + subfields.size(); i < e->elems->size(); i++)
-                                inner_set_elems->push_back(std::move(e->elems->at(i)));
-
-                            auto inner_set = make_unique<Expr>(Expr::RecordSet, std::move(inner_set_elems));
-
-                            for (int i = 0; i < rec_e->elems->size() - 1; i++)
-                                new_set_elems->push_back(std::move(rec_e->elems->at(i)));
-
-                            new_set_elems->push_back(std::move(inner_set));
-
-                            auto new_set = new Expr(Expr::RecordSet, std::move(new_set_elems));
-
-                            delete e;
-                            changed = true;
-                            return new_set;
-                        } else if (fields < subfields) {
-                            // (st.[a].[b].[c] :< v1).[d] :< v2 ==> (st.[d] :< v2).[a].[b].[c] :< v1 (i.e.  Record.set (Record.set st d v2) a b c v1)
-                            // (st.[a].[b].[d] :< v1).[a].[b].[c] :< v2 ==>(st.[a].[b].[c] :< v2).[a].[b].[d] :< v1
-                            auto inner_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-                            auto new_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                            inner_set_elems->push_back(obj->deep_copy());
-                            for (int i = 1; i < e->elems->size(); i++)
-                                inner_set_elems->push_back(std::move(e->elems->at(i)));
-
-                            auto inner_set = make_unique<Expr>(Expr::RecordSet, std::move(inner_set_elems));
-
-                            new_set_elems->push_back(std::move(inner_set));
-                            for (int i = 1; i < rec_e->elems->size(); i++)
-                                new_set_elems->push_back(std::move(rec_e->elems->at(i)));
-
-                            auto new_set = new Expr(Expr::RecordSet, std::move(new_set_elems));
-
-                            delete e;
-                            changed = true;
-                            return new_set;
-                        }
-                    }
-                }
-
-                if (auto value_e = instance_of(value, Expr)) {
-                    auto value_op = std::get_if<Expr::ops>(&value_e->op);
-
-                    if (value_op && *value_op == Expr::RecordGet &&
-                        dynamic_cast<Symbol *>(value_e->elems->at(1).get())->text == fields.back()) {
-                            bool valid = true;
-                            SpecNode *_value = value_e;
-
-                            for (auto const &f: fields) {
-                                auto _value_e = instance_of(_value, Expr);
-
-                                if (!_value_e) {
-                                    valid = false;
-                                    break;
-                                }
-
-                                auto op = std::get_if<Expr::ops>(&_value_e->op);
-
-                                if (*op != Expr::RecordGet ||
-                                    dynamic_cast<Symbol *>(_value_e->elems->at(1).get())->text != f) {
-                                    valid = false;
-                                    break;
-                                }
-
-                                _value = _value_e->elems->at(0).get();
-                            }
-
-                            if (valid && *value == *rec) {
-                                auto new_expr = rec->deep_copy();
-
-                                changed = true;
-                                delete e;
-                                return new_expr.release();
-                            } else
-                                return node;
-                    } else if (value_op && *value_op == Expr::RecordGet && *value_e->elems->at(0) == *old_value) {
-                        auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-
-                        new_elems->push_back(rec->deep_copy());
-
-                        for (int i = 1; i < e->elems->size() - 1; i++)
-                            new_elems->push_back(std::move(e->elems->at(i)));
-
-                        for (int i = 1; i < value_e->elems->size(); i++)
-                            new_elems->push_back(std::move(value_e->elems->at(i)));
-
-                        auto new_expr = new Expr(Expr::RecordSet, std::move(new_elems));
-
-                        changed = true;
-                        delete e;
-                        return new_expr;
-                    }
+                    auto new_expr = make_unique<Expr>(Expr::RecordSet, std::move(new_elems));
+                    changed = true;
+                    return new_expr;
                 }
             }
-            return node;
-        };
-        SpecNode *new_root = rec_apply(spec.release(), f, false);
-        return std::make_pair(std::unique_ptr<SpecNode>(new_root), changed);
-    }
-    
+        }
+        return node;
+
+    };
+    auto new_root = rec_apply_smart(std::move(spec), f, false);
+    return { std::move(new_root), changed };
 }
 
 smart_rule_ret_t SpecRules::rule_move_rely_out_when(std::unique_ptr<SpecNode> spec) {
@@ -3776,6 +2341,22 @@ smart_rule_ret_t SpecRules::rule_move_rely_out_when(std::unique_ptr<SpecNode> sp
     return { std::move(new_root), changed };
 }
 
+
+/*
+match (
+  when [src->match_list->at(0)->pattern->elems] == [src->src];
+  [src->match_list->at(0)->body]
+) with
+  [match_list]
+end
+
+===>
+
+when [src->match_list->at(0)->pattern->elems] == [src->src];
+match [src->match_list->at(0)->body] with
+  [match_list]
+end
+*/
 smart_rule_ret_t SpecRules::rule_move_when_out_when(std::unique_ptr<SpecNode> spec) {
     bool changed = false;
 
@@ -3809,6 +2390,9 @@ smart_rule_ret_t SpecRules::rule_move_when_out_when(std::unique_ptr<SpecNode> sp
     return { std::move(new_spec), changed };
 }
 
+/*
+match (if c then A else B) with { ... } -> if c then (match A with { ... }) else (match B with { ... })
+*/
 smart_rule_ret_t SpecRules::rule_move_if_out_match(std::unique_ptr<SpecNode> spec) {
     bool changed = false;
 

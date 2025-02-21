@@ -20,27 +20,9 @@ class EvalState;
 SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f, bool apply_anno);
 
 using rule_ret_t = std::pair<SpecNode *, bool>;
-using smart_rule_ret_t = std::pair<std::unique_ptr<SpecNode>, bool>;
-
-SpecNode *eliminiate_ambiguity(Project *proj, SpecNode *spec, std::set<string> &prev_symbols, bool &changed);
-rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec);
-
-rule_ret_t rule_simple_record_get_set(Project *proj, SpecNode *spec);
+std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, Definition *spec, vector<Definition*>* low_specs);
 rule_ret_t rule_keep_fields_of_interest(Project *proj, SpecNode *spec);
 rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec);
-rule_ret_t rule_move_if_out_match(Project *proj, SpecNode *spec);
-rule_ret_t rule_move_if_out_expr(Project *proj, SpecNode *spec);
-rule_ret_t rule_move_match_out_expr(Project *proj, SpecNode *spec);
-rule_ret_t rule_move_rely_out_when(Project *proj, SpecNode *spec);
-rule_ret_t rule_move_when_out_when(Project *proj, SpecNode *spec);
-rule_ret_t rule_eliminate_if(Project *proj, SpecNode *spec);
-rule_ret_t rule_eliminate_let(Project *proj, SpecNode *spec);
-rule_ret_t rule_eliminate_match_simple(Project *proj, SpecNode *spec);
-rule_ret_t rule_subst_match_src_with_content(Project *proj, SpecNode *spec);
-rule_ret_t rule_simple_builtin_functions(Project* proj, SpecNode *spec);
-rule_ret_t rule_eliminate_when(Project *proj, SpecNode *spec);
-rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec);
-std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, Definition *spec, vector<Definition*>* low_specs);
 rule_ret_t replace_spec_name(Project *proj, SpecNode *spec, unordered_map<string, string> &name_map);
 
 bool spec_is_pure(Project *proj, SpecNode *spec, bool &has_if);
@@ -51,14 +33,6 @@ inline void set_interest_list(const std::set<string> &coi) {
     interest_list.clear();
     interest_list.insert(coi.begin(), coi.end());
 }
-
-
-std::unique_ptr<SpecNode> eliminate_ambiguity(
-    Project* proj,
-    std::unique_ptr<SpecNode> spec,
-    std::set<std::string>& prev_symbols,
-    bool& changed
-);
 
 enum class RuleID {
     rule_eliminate_let,
@@ -77,19 +51,11 @@ enum class RuleID {
     rule_simplify_expr,
     rule_simple_by_z3,
 };
-/** others:
- * subst: done
- * subst_expr: done
- * eliminate_ambiguity, done
- * rule_simplify_expr, done
- * rule_simple_by_z3,
+
+/** FIXME:
  * rule_simplify_lens
  */
-
-struct SpecRule {
-    RuleID id;
-    std::function<smart_rule_ret_t(std::unique_ptr<SpecNode>)> call;
-};
+using smart_rule_ret_t = std::pair<std::unique_ptr<SpecNode>, bool>;
 
 class SpecRules {
 private:
@@ -103,6 +69,10 @@ private:
     smart_rule_ret_t simple_expr_by_z3(std::unique_ptr<Expr> expr, std::shared_ptr<EvalState> state);
 public: 
     using rule_t = std::function<smart_rule_ret_t(std::unique_ptr<SpecNode>)>;
+    struct SpecRule {
+        RuleID id;
+        std::function<smart_rule_ret_t(std::unique_ptr<SpecNode>)> call;
+    };
     std::vector<SpecRule> rules_group1;
     std::vector<SpecRule> rules_group2;
 
@@ -130,7 +100,6 @@ public:
         } {}
 
     // Rules as member functions
-    smart_rule_ret_t rule_empty(std::unique_ptr<SpecNode> spec);
     smart_rule_ret_t rule_eliminate_let(std::unique_ptr<SpecNode> spec);
     smart_rule_ret_t rule_eliminate_when(std::unique_ptr<SpecNode> spec);
     smart_rule_ret_t rule_eliminate_if(std::unique_ptr<SpecNode> spec);
@@ -148,6 +117,7 @@ public:
     smart_rule_ret_t rule_simplify_expr(std::unique_ptr<SpecNode> spec);
     smart_rule_ret_t rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state);
 
+    std::unique_ptr<SpecNode> eliminate_ambiguity(std::unique_ptr<SpecNode> spec, std::set<std::string>& prev_symbols, bool& changed);
 };
 
 using rule_t = std::function<smart_rule_ret_t(std::unique_ptr<SpecNode>)>;
