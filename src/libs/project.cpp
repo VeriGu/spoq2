@@ -467,7 +467,8 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
             if (OPTS.conditional_spec) {
                 auto subs_defs = new vector<Definition*>();
                 if(!is_instance(def, Fixpoint)) {
-                    rule_conditional_spec(proj, def, subs_defs);
+                    LOG_WARNING << "Clean-version conditional spec is not supported for now";
+                    // rule_conditional_spec(proj, def, subs_defs);
                 }
 
 
@@ -739,9 +740,8 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         unique_ptr<SpecNode> high_body = low_def->body->deep_copy();
 
         if (have_loop || have_sub) {
-            auto [new_high, __changed] = replace_spec_name(proj, high_body.release(), name_map);
-
-            high_body.reset(new_high);
+            auto [new_high, __changed] = proj->rules.replace_spec_name(std::move(high_body), name_map);
+            high_body = std::move(new_high);
         }
 
         auto high_args = make_unique<vector<shared_ptr<Arg>>>();

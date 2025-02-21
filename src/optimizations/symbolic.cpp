@@ -325,20 +325,6 @@ shared_ptr<SpecValue> z3_expr(Project* proj, SpecNode* val, shared_ptr<EvalState
     throw std::runtime_error("[z3_expr] Unknown node type: " + string(*val));
 }
 
-
-
-SpecNode *instantiate_prop(SpecNode *spec, SpecNode *instance_st, string st = "st") {
-	std::function<SpecNode*(SpecNode*)> f = [&] (SpecNode *node) -> SpecNode* {
-		if (auto s = instance_of(node, Symbol)) {
-			if (s->text == st) {
-				return instance_st;
-			}
-		}
-		return node;
-	};
-	return rec_apply(spec, f, false);
-}
-
 SpecNode *extract_st_from_expr(Project *proj, SpecNode *expr) {
     if (auto sym = instance_of(expr, Symbol)) {
         if (!proj->is_ind_constr(sym->text)) {
@@ -462,18 +448,19 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
         if (auto e_op = std::get_if<Expr::ops>(&e->op)) {
             if (*e_op == Expr::Some) {
                 if (auto ret_Some = instance_of(e->elems->at(0).get(), Expr)) {
-					SpecNode *ret_st = ret_Some;
+					auto ret_st = e->elems->at(0)->deep_copy();
 					// if the return value is := Some (ret_val, st), then take the last 'st'
 					if (auto ret_op = std::get_if<Expr::ops>(&ret_Some->op)) {
 						if (*ret_op == Expr::Tuple) {
-							ret_st = ret_Some->elems->back()->deep_copy().release();
+							ret_st = ret_Some->elems->back()->deep_copy();
 						}
 					}
                     std::cout << "prove_by_traverse: Final state Visiting: " << string(*spec) << std::endl;
 					// Prove the return state maintains the invariant
 					// construct new invariants
-					auto p = instantiate_prop(inv->deep_copy().release(), ret_st);
-					auto c = z3_expr(proj, p, state);
+                    auto ret_st_str = string(*ret_st);
+					auto p = proj->rules.instantiate_prop(inv->deep_copy(), std::move(ret_st));
+					auto c = z3_expr(proj, p.get(), state);
                     auto z3_ret = z3_verify(state, c->get_z3_value(), &proj->query_saver);
 
 					// std::cout << "----------------------------------" << std::endl;
@@ -481,13 +468,13 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                     // std::cout << "prove_by_traverse: Instantiated Invariant\n" << string(*p) << std::endl;
 					// std::cout << "----------------------------------" << std::endl;
 					if (z3_ret == Z3Result::False) {
-						LOG_WARNING << "[prove_by_traverse] Invariant is violated for state\n" << string(*ret_st) << std::endl;
+						LOG_WARNING << "[prove_by_traverse] Invariant is violated for state\n" << ret_st_str << std::endl;
 						return false;
 					} else if (z3_ret == Z3Result::Unknown) {
-						LOG_WARNING << "[prove_by_traverse] Invariant is unknown for state\n" << string(*ret_st) << std::endl;
+						LOG_WARNING << "[prove_by_traverse] Invariant is unknown for state\n" << ret_st_str << std::endl;
 						return false;
 					} else {
-						LOG_INFO << "[prove_by_traverse] Invariant is proved for state\n" << string(*ret_st) << std::endl;
+						LOG_INFO << "[prove_by_traverse] Invariant is proved for state\n" << ret_st_str << std::endl;
 						return true;
 					}
                 }
@@ -509,24 +496,23 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
             if (!std::holds_alternative<std::nullptr_t>(abst_spec)) {            
                 SpecNode *st_ret = extract_st_from_expr(proj, pat);
                 if (st_input && st_ret) {
-                    auto p_input = instantiate_prop(inv->deep_copy().release(), st_input);
-                    auto precond = z3_expr(proj, p_input, new_state);
+                    auto p_input = proj->rules.instantiate_prop(inv->deep_copy(), st_input->deep_copy());
+                    auto precond = z3_expr(proj, p_input.get(), new_state);
                     auto z3_ret = z3_verify(new_state, precond->get_z3_value(), &proj->query_saver);
                     if (z3_ret == Z3Result::Unknown || z3_ret == Z3Result::False) {
                         LOG_WARNING << "[prove_by_traverse] Invariant is violated for pre-condition state\n" << string(*st_input) << std::endl;
                         // return false; // even pre-conditon is failed, the lemma may still strong enough to ensure post-cond inv
                     }
-                    auto p_ret = instantiate_prop(inv->deep_copy().release(), st_ret);
-                    auto postcond = z3_expr(proj, p_ret, new_state);
+                    auto p_ret = proj->rules.instantiate_prop(inv->deep_copy(), st_ret->deep_copy());
+                    auto postcond = z3_expr(proj, p_ret.get(), new_state);
                     // new_state->conds->push_back(postcond->get_z3_value());
                     new_state->inductions->clear();
                     new_state->add_induction(postcond->get_z3_value());
 
                     for (auto const &l : proj->lemmas) {
                         auto lemma_body = proj->defs[l]->body.get();
-                        auto lemma = instantiate_prop(lemma_body->deep_copy().release(), st_ret);
-                        auto lemma_expr = z3_expr(proj, lemma, new_state);
-                        // auto lemma_expr = z3_expr(proj, instantiate_prop(lemma, st_ret), new_state);
+                        auto lemma = proj->rules.instantiate_prop(lemma_body->deep_copy(), st_ret->deep_copy());
+                        auto lemma_expr = z3_expr(proj, lemma.get(), new_state);
                         new_state->add_induction(lemma_expr->get_z3_value());
                     }
                     /** add abstract sub-spec to prove queue */
@@ -580,29 +566,28 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 static void spec_abstraction(Project *proj, Definition *def, std::set<string> &coi) {
     set_interest_list(coi);
 
-    auto spec = def->body.release();
+    auto spec = std::move(def->body);
     while (true) {
         bool changed = false;
-        auto tmp_spec = spec;
         do {
-            auto [__spec, __changed] = rule_keep_fields_of_interest(proj, spec);
-            tmp_spec = __spec;
+            auto [__spec, __changed] = proj->rules.rule_keep_fields_of_interest(std::move(spec));
+            spec = std::move(__spec);
             changed |= __changed;
         } while (false);
 
         do {
-            auto [__spec, __changed] = rule_simplify_lens(proj, tmp_spec);
-            tmp_spec = __spec;
+            auto [__spec, __changed] = proj->rules.rule_simplify_lens(std::move(spec));
+            spec = std::move(__spec);
             changed |= __changed;
         } while (false);
 
-        spec = tmp_spec;
         if (!changed) {
             break;
         }
     }
-    def->body.reset(spec);
-    def->_str = "";
+    def->body = std::move(spec);
+    def->_str.clear();
+
     std::cout << "[spec_abstraction] Abstracted (Lensified) spec:\n" << string(*def) << std::endl;
 }
 

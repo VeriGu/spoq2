@@ -468,7 +468,7 @@ unsigned long z3_global_hash_hit = 0;
 unsigned long z3_global_hash_total = 0;
 #define Z3_OPT_CACHE
 
-smart_rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::shared_ptr<EvalState> state) {
+rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::shared_ptr<EvalState> state) {
     bool changed = false;
     auto orig_prop = std::string(*spec->prop);
 
@@ -539,7 +539,7 @@ smart_rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, st
     }
 }
 
-smart_rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<EvalState> state) {
+rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<EvalState> state) {
     bool changed = false;
     auto orig_cond = string(*spec->cond);
 
@@ -621,9 +621,9 @@ smart_rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::share
 }
 
 
-smart_rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::shared_ptr<EvalState> state) {
+rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::shared_ptr<EvalState> state) {
     string orig_src = string(*spec->src);
-    auto src_ret = this->rule_simple_by_z3(std::move(spec->src->deep_copy()), state);
+    auto src_ret = this->rule_simple_by_z3(spec->src->deep_copy(), state);
 
     if (src_ret.first == nullptr) {
         return std::make_pair(nullptr, true);
@@ -703,7 +703,7 @@ smart_rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std:
     }
 }
 
-smart_rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_ptr<EvalState> state) {
+rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_ptr<EvalState> state) {
     auto elems = std::make_unique<std::vector<std::unique_ptr<SpecNode>>>();
     bool changed = false;
 
@@ -771,7 +771,7 @@ smart_rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::s
     return { std::move(new_spec), changed };
 }
 
-smart_rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state) {
+rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state) {
     bool changed = false;
 
 #ifdef Z3_OPT_CACHE

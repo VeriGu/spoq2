@@ -8,7 +8,6 @@
 #include <log.h>
 #include <values.h>
 #include <utils.h>
-
 namespace autov {
 extern unsigned long mono_lens_id;
 extern std::set<string> interest_list;
@@ -17,13 +16,9 @@ static unsigned long get_mono_lens_id() {
 }
 class EvalState;
 
-SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f, bool apply_anno);
-
-using rule_ret_t = std::pair<SpecNode *, bool>;
+#ifdef CONDITIONAL_SPEC
 std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, Definition *spec, vector<Definition*>* low_specs);
-rule_ret_t rule_keep_fields_of_interest(Project *proj, SpecNode *spec);
-rule_ret_t rule_simplify_lens(Project *proj, SpecNode *spec);
-rule_ret_t replace_spec_name(Project *proj, SpecNode *spec, unordered_map<string, string> &name_map);
+#endif
 
 bool spec_is_pure(Project *proj, SpecNode *spec, bool &has_if);
 bool spec_needs_state(Project *proj, SpecNode *spec);
@@ -55,23 +50,23 @@ enum class RuleID {
 /** FIXME:
  * rule_simplify_lens
  */
-using smart_rule_ret_t = std::pair<std::unique_ptr<SpecNode>, bool>;
+using rule_ret_t = std::pair<std::unique_ptr<SpecNode>, bool>;
 
 class SpecRules {
 private:
     Project *proj;
-    std::unique_ptr<SpecNode> rec_apply_smart(std::unique_ptr<SpecNode> spec,
+    std::unique_ptr<SpecNode> rec_apply(std::unique_ptr<SpecNode> spec,
                                               const std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)>& f,
                                               bool apply_anno);
-    smart_rule_ret_t simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::shared_ptr<EvalState> state);
-    smart_rule_ret_t simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<EvalState> state);
-    smart_rule_ret_t simple_match_by_z3(std::unique_ptr<Match> spec, std::shared_ptr<EvalState> state);
-    smart_rule_ret_t simple_expr_by_z3(std::unique_ptr<Expr> expr, std::shared_ptr<EvalState> state);
+    rule_ret_t simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::shared_ptr<EvalState> state);
+    rule_ret_t simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<EvalState> state);
+    rule_ret_t simple_match_by_z3(std::unique_ptr<Match> spec, std::shared_ptr<EvalState> state);
+    rule_ret_t simple_expr_by_z3(std::unique_ptr<Expr> expr, std::shared_ptr<EvalState> state);
 public: 
-    using rule_t = std::function<smart_rule_ret_t(std::unique_ptr<SpecNode>)>;
+    using rule_t = std::function<rule_ret_t(std::unique_ptr<SpecNode>)>;
     struct SpecRule {
         RuleID id;
-        std::function<smart_rule_ret_t(std::unique_ptr<SpecNode>)> call;
+        std::function<rule_ret_t(std::unique_ptr<SpecNode>)> call;
     };
     std::vector<SpecRule> rules_group1;
     std::vector<SpecRule> rules_group2;
@@ -100,26 +95,31 @@ public:
         } {}
 
     // Rules as member functions
-    smart_rule_ret_t rule_eliminate_let(std::unique_ptr<SpecNode> spec);
-    smart_rule_ret_t rule_eliminate_when(std::unique_ptr<SpecNode> spec);
-    smart_rule_ret_t rule_eliminate_if(std::unique_ptr<SpecNode> spec);
-    smart_rule_ret_t rule_eliminate_match_simple(std::unique_ptr<SpecNode> spec);
-    smart_rule_ret_t rule_subst_match_src_with_content(std::unique_ptr<SpecNode> spec);
-    smart_rule_ret_t rule_simple_builtin_functions(std::unique_ptr<SpecNode> spec);
-    smart_rule_ret_t rule_simple_record_get_set(std::unique_ptr<SpecNode> spec);
-    smart_rule_ret_t rule_move_rely_out_when(std::unique_ptr<SpecNode> spec);
-    smart_rule_ret_t rule_move_when_out_when(std::unique_ptr<SpecNode> spec);
-    smart_rule_ret_t rule_move_if_out_match(std::unique_ptr<SpecNode> spec);
-    smart_rule_ret_t rule_move_if_out_expr(std::unique_ptr<SpecNode> spec);
-    smart_rule_ret_t rule_move_match_out_expr(std::unique_ptr<SpecNode> spec);
-    smart_rule_ret_t rule_unfold_specs(std::unique_ptr<SpecNode> spec);
+    rule_ret_t rule_eliminate_let(std::unique_ptr<SpecNode> spec);
+    rule_ret_t rule_eliminate_when(std::unique_ptr<SpecNode> spec);
+    rule_ret_t rule_eliminate_if(std::unique_ptr<SpecNode> spec);
+    rule_ret_t rule_eliminate_match_simple(std::unique_ptr<SpecNode> spec);
+    rule_ret_t rule_subst_match_src_with_content(std::unique_ptr<SpecNode> spec);
+    rule_ret_t rule_simple_builtin_functions(std::unique_ptr<SpecNode> spec);
+    rule_ret_t rule_simple_record_get_set(std::unique_ptr<SpecNode> spec);
+    rule_ret_t rule_move_rely_out_when(std::unique_ptr<SpecNode> spec);
+    rule_ret_t rule_move_when_out_when(std::unique_ptr<SpecNode> spec);
+    rule_ret_t rule_move_if_out_match(std::unique_ptr<SpecNode> spec);
+    rule_ret_t rule_move_if_out_expr(std::unique_ptr<SpecNode> spec);
+    rule_ret_t rule_move_match_out_expr(std::unique_ptr<SpecNode> spec);
+    rule_ret_t rule_unfold_specs(std::unique_ptr<SpecNode> spec);
 
-    smart_rule_ret_t rule_simplify_expr(std::unique_ptr<SpecNode> spec);
-    smart_rule_ret_t rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state);
+    rule_ret_t rule_simplify_expr(std::unique_ptr<SpecNode> spec);
+    rule_ret_t rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state);
+    rule_ret_t rule_keep_fields_of_interest(std::unique_ptr<SpecNode> spec);
+    rule_ret_t rule_simplify_lens(std::unique_ptr<SpecNode> spec);
+
+    rule_ret_t replace_spec_name(std::unique_ptr<SpecNode> spec, std::unordered_map<std::string, std::string>& name_map);
 
     std::unique_ptr<SpecNode> eliminate_ambiguity(std::unique_ptr<SpecNode> spec, std::set<std::string>& prev_symbols, bool& changed);
+    std::unique_ptr<SpecNode> instantiate_prop(std::unique_ptr<SpecNode> spec, std::unique_ptr<SpecNode> instance_st, const std::string& st = "st");
 };
 
-using rule_t = std::function<smart_rule_ret_t(std::unique_ptr<SpecNode>)>;
+using rule_t = std::function<rule_ret_t(std::unique_ptr<SpecNode>)>;
 
 } // namespace autov

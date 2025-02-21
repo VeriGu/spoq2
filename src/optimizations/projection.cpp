@@ -137,14 +137,14 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
         // }
 
         def->body = std::move(new_spec);
-        def->_str = "";
+        def->_str.clear();
 
         if (!changed)
             break;
     }
     Z3Cache.clear();
 
-#define PRIME_SPEC
+// #define PRIME_SPEC
 #ifdef PRIME_SPEC
     bool has_if = false;
     if (unfold && spec_is_pure(proj, def->body.get(), has_if)) {
