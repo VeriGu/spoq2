@@ -838,8 +838,6 @@ bool check_drf_by_traverse(Project *proj, SpecNode *spec, shared_ptr<ProveState>
 
 /** prove_by_traverse:
  * 		works on specs with abstract functions, symbolically check inv path-by-path
- * 1. Normal invariant: instantiate SpecNode *inv
- * 2. Data-race-free: SpecNode *inv = NULL
  * */
 bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<ProveState> state, std::deque<Definition *> *deps) {
     if (auto e = instance_of(spec, Expr)) {
@@ -920,9 +918,6 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                 }
             }
             verify_fail |= !prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, deps);
-            // if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, deps)) {
-            //     return false;
-            // }
 		}
         return !verify_fail;
     } else if (auto i = instance_of(spec, If)) {
@@ -946,10 +941,6 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
             verify_fail |= !prove_by_traverse(proj, i->else_body.get(), inv, false_state, deps);
             return !verify_fail;
         }
-		// if (!prove_by_traverse(proj, i->then_body.get(), inv, true_state, deps) || 
-		// 	!prove_by_traverse(proj, i->else_body.get(), inv, false_state, deps)) {
-		// 	return false;
-		// }
     } else if (auto r = instance_of(spec, Rely)) {
 		// push cond
 		auto c = z3_expr(proj, r->prop.get(), state);
@@ -1070,7 +1061,7 @@ void spec_prover(Project *proj, Definition *goal_def) {
             def->infer_type(*proj);
             // save queries as reproducible machine-checkable proofs
             proj->query_saver = QueryInfo(query_saver_dir(def->name, d.second->name));
-            proj->query_saver.save_config("./testcase/proof_rcsm.v");
+            proj->query_saver.save_config("./test/rcsm/proof_rcsm.v");
             // invariant by induction
             auto c = z3_expr(proj, inv, state);
             state->add_induction(c->get_z3_value());
@@ -1080,10 +1071,11 @@ void spec_prover(Project *proj, Definition *goal_def) {
                 auto lemma = lemma_def->body.get();
                 auto lemma_expr = z3_expr(proj, lemma, state);
                 state->add_induction(lemma_expr->get_z3_value());
-                // state->conds->push_back(lemma_expr->get_z3_value());
             }
             
             /** TODO: feat: Lemma selection command */
+            /** CRITICAL: must clear z3 expr cache here to apply coi correctly */
+            def->body->clear_z3_eval();
             proj->verified_specs[def->name] = prove_by_traverse(proj, def->body.get(), inv, state, &q);
             if (proj->verified_specs[def->name]) {
                 LOG_INFO << "[spec_prover] Invariant: " << d.first << " is verified for " << def->name << std::endl;
