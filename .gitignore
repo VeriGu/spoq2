@@ -4,8 +4,8 @@
 build/
 dist/
 src/AutoV/Spec/Parser/.antlr/
-AsmGen/_build/
-AsmGen/asmgen.native
+scripts/AsmGen/_build/
+scripts/AsmGen/asmgen.native
 *.vo
 *.vok
 *.vos
@@ -16,6 +16,7 @@ AsmGen/asmgen.native
 *.v~
 *.o
 *.so
+*.log
 llvm
 docs/html/*
 docs/latex/*
