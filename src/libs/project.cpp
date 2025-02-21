@@ -30,8 +30,6 @@ const string Project::LOC_SPEC = "Spec";
 const string Project::LOC_REFPROOF = "RefProof";
 const string Project::LOC_GLOBALDEFS = "GlobalDefs";
 const string Project::LOC_NODEFS = "NoDefs";
-const string Project::PROJ_NAME = "PROJ_NAME";
-const string Project::PROJ_BASE = "PROJ_BASE";
 const string Project::LAYER_PRIMS = "LAYER_PRIMS";
 const string Project::LAYER_CODE = "LAYER_CODE";
 const string Project::LAYER_LOAD = "LAYER_LOAD";
@@ -356,24 +354,6 @@ Project::Project()
     add_definition(make_ptr_offset(), make_shared<loc_t>(Project::LOC_GLOBALDEFS, "", ""));
     add_definition(make_bool_to_int(), make_shared<loc_t>(Project::LOC_GLOBALDEFS, "", ""));
 
-#if 0
-    unordered_map<SymbolKind, string> kind_str = {
-        {SymbolKind::Struct, "Struct"},
-        {SymbolKind::StructElem, "StructElem"},
-        {SymbolKind::StructConstr, "StructConstr"},
-        {SymbolKind::IndType, "IndType"},
-        {SymbolKind::IndConstructor, "IndConstructor"},
-        {SymbolKind::TypeDef, "TypeDef"},
-        {SymbolKind::Decl, "Decl"},
-        {SymbolKind::Def, "Def"},
-    };
-
-    for (const auto &[name, info] : symbols) {
-        LOG_INFO << "Symbol: " << name << " " << kind_str[info.kind] << " " << info.info;
-    }
-
-    exit(0);
-#endif
 }
 
 std::set<string> Project::calc_dependencies(SpecNode *expr) {
@@ -538,91 +518,6 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
 
     return low_specs;
 }
-
-#ifdef MT_TRANSFORM
-static bool collect_transformed_defs(Project *proj, std::set<string> &transformed,
-                                     vector<pid_t> &children, unordered_map<pid_t, int[2]> &pipes,
-                                     unordered_map<pid_t, std::tuple<string, int>> &tasks,
-                                     bool nohang) {
-    int status;
-    pid_t pid = waitpid(-1, &status, nohang ? WNOHANG : 0);
-
-    if (pid == -1) {
-        LOG_ERROR << "waitpid() failed";
-        exit(EXIT_FAILURE);
-    } else if (pid == 0) {
-        return false;
-    }
-
-    auto &task = tasks[pid];
-    auto &fname = std::get<0>(task);
-    int layer_id = std::get<1>(task);
-    auto &_L = proj->layers[layer_id];
-
-    if (WIFEXITED(status)) {
-        if (WEXITSTATUS(status) != 0) {
-            LOG_ERROR << "Child process " << fname << " exited with status " << WEXITSTATUS(status);
-            exit(EXIT_FAILURE);
-        }
-    } else if (WIFSIGNALED(status)) {
-        LOG_ERROR << "Child process " << fname << " killed by signal " << WTERMSIG(status);
-        exit(EXIT_FAILURE);
-    } else {
-        LOG_ERROR << "Child process " << fname << " exited abnormally";
-        exit(EXIT_FAILURE);
-    }
-
-    LOG_INFO << "Reading result for " << fname << std::endl;
-    // Read from pipe
-    FILE* stream = fdopen(pipes[pid][READ_END], "r");
-    __gnu_cxx::stdio_filebuf<char> filebuf(stream, std::ios::in);
-    std::istream is(&filebuf);
-    std::stringstream ss;
-    ss << is.rdbuf();
-
-    string specs = ss.str();
-
-    if (!specs.empty() && specs.back() == '\0') {
-        specs.erase(specs.length() - 1);
-    }
-
-    auto defs = std::any_cast<vector<Definition *>>(parser::parse_light(proj, specs));
-
-    // clean the pipe
-    is.clear();
-    fclose(stream);
-    pipes.erase(pid);
-
-    // Find the child in the vector and remove it
-    auto it = std::find(children.begin(), children.end(), pid);
-    if (it != children.end()) {
-        children.erase(it);
-    } else {
-        LOG_ERROR << "Child not found";
-    }
-
-    for (auto def : defs) {
-        // check if def->name ends with "_low"
-        shared_ptr<loc_t> loc;
-
-        if (def->name.rfind("_low") == def->name.size() - 4) {
-            loc = make_shared<loc_t>(_L->name, fname, Project::LOC_LOWSPEC);
-        } else {
-            loc = make_shared<loc_t>(_L->name, Project::LOC_SPEC, "");
-            proj->deps[def->name] = proj->calc_dependencies(def->body.get());
-        }
-
-        if (is_instance(def, Fixpoint))
-            proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(def)), loc);
-        else
-            proj->add_definition(unique_ptr<Definition>(def), loc);
-
-        transformed.insert(fname);
-    }
-
-    return true;
-}
-#endif
 
 static void merge_keep(Project *proj, std::set<string> &to_keep, string fname) {
     // if (proj->code->functions->find(fname) == proj->code->functions->end())
@@ -958,5 +853,42 @@ void Project::finalize_project()
     LOG_INFO << "Z3 accumulative time: " << z3_accumulative_time.count() << " (s)";
 
 }
+
+
+bool Project::finalize_project_v2() {
+
+    LOG_DEBUG << "Finalizing project" << std::endl;
+
+    if(!load_llvm_module()) return false;
+
+    LOG_DEBUG << "LLVM IR read ok." << std::endl;
+
+    // TODO: llvm IR -> llvm IR preproccesing
+
+    // IRLoader::post_process(
+    
+
+    // if(!control_flow_conversion_v2()) return false;
+
+    return true;
+}
+
+bool Project::load_llvm_module() {
+    // TODO: [hack] make llvm_bc_path a layer-independent option
+    auto buffer = llvm::MemoryBuffer::getFileOrSTDIN(this->code_path);
+    if (!buffer) {
+        llvm::errs() << "Error reading file: " << this->code_path << "\n";
+        return false;
+    } 
+    auto m = llvm::parseBitcodeFile(*buffer.get(), this->llvm_context);
+    if (!m) {
+        llvm::errs() << "Error reading module: " << this->code_path << "\n";
+        return false;
+    }
+    this->llvm_module = std::move(m.get());
+    return true;
+}
+
+
 
 }; // namespace autov

@@ -209,7 +209,10 @@ antlrcpp::Any ProgramVisitor::visitDef(SpecParser::DefContext* ctx) {
         var_anno->push_back((any_cast<shared_ptr<Arg>>(visitVar_anno(arg))));
     }
 
-    if (name == Project::PROJ_NAME) {
+    if (name == Project::PROJ_BC_PATH) {
+        StringConst *str = dynamic_cast<StringConst *>(expr.get());
+        proj.code_path = std::get<string>(str->value);
+    } else if (name == Project::PROJ_NAME) {
         StringConst *proj_name = dynamic_cast<StringConst *>(expr.get());
         proj.name = std::get<string>(proj_name->value);
     } else if (name == Project::PROJ_BASE) {
@@ -344,7 +347,7 @@ antlrcpp::Any ProgramVisitor::visitDef(SpecParser::DefContext* ctx) {
             loc = make_shared<loc_t>(loc_t(Project::LOC_GLOBALDEFS, "", ""));
         }
         proj.add_definition(move(def), loc);
-    }
+    } 
 
     LOG_INFO << "Parsed Definition " << name;
     return std::any();

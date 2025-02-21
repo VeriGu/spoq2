@@ -12,6 +12,11 @@
 #include <fstream>
 #include <rules.h>
 #include <set>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/Support/MemoryBuffer.h>
+#include <llvm/Support/FileSystem.h>
+#include <llvm/Bitcode/BitcodeReader.h>
 namespace fs = std::filesystem;
 
 
@@ -88,14 +93,18 @@ public:
 
 class Project {
 public:
+
+#define DEF_CONFIG_KEYWORD(name) static constexpr std::string_view name = #name;
+    DEF_CONFIG_KEYWORD(PROJ_BC_PATH)
+    DEF_CONFIG_KEYWORD(PROJ_NAME)
+    DEF_CONFIG_KEYWORD(PROJ_BASE)
+
     static const string LOC_DATATYPES;
     static const string LOC_LOWSPEC;
     static const string LOC_SPEC;
     static const string LOC_REFPROOF;
     static const string LOC_GLOBALDEFS;
     static const string LOC_NODEFS;
-    static const string PROJ_NAME;
-    static const string PROJ_BASE;
     static const string LAYER_PRIMS;
     static const string LAYER_CODE;
     static const string LAYER_LOAD;
@@ -119,6 +128,10 @@ public:
     string name;
     string base;
     shared_ptr<IRModule> code;
+
+    std::string code_path;
+    llvm::LLVMContext llvm_context;
+    unique_ptr<llvm::Module> llvm_module;
 
     // Types. RO after parsing.
     unordered_map<string, shared_ptr<Struct>> structs;
@@ -205,6 +218,24 @@ public:
     std::set<string> calc_dependencies(SpecNode *expr);
 
     void finalize_project();
+
+    /**
+     * @brief load llvm module from this->llvm_bc_path
+     * 
+     * @return true load ok
+     * @return false load failure
+     */
+    bool load_llvm_module();
+
+    bool finalize_project_v2();
+
+    /**
+     * @brief control flow conversion algorithm on llvm
+     * 
+     * @return true 
+     * @return false 
+     */
+    bool control_flow_conversion_v2();
 
 };
 

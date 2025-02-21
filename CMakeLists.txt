@@ -30,6 +30,7 @@ include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+llvm_map_components_to_libnames(LLVM_LIBRARIES support core irreader)
 
 
 # ------------------------------------------------------------------------------
@@ -81,7 +82,7 @@ set(IRLOADER_SOURCES
 
 add_library(irloader SHARED ${IRLOADER_SOURCES})
 target_link_libraries(irloader ${Boost_LIBRARIES})
-target_link_libraries(irloader LLVMSupport)
+target_link_libraries(irloader ${LLVM_LIBRARIES})
 target_link_libraries(irloader ${Z3_LIBRARIES})
 
 
@@ -95,7 +96,7 @@ set(JSON2COQ_SOURCES
 add_executable(json2coq ${JSON2COQ_SOURCES})
 target_link_libraries(json2coq ${Boost_LIBRARIES})
 target_link_libraries(json2coq irloader)
-target_link_libraries(json2coq LLVMSupport)
+target_link_libraries(json2coq ${LLVM_LIBRARIES})
 target_link_libraries(json2coq ${Z3_LIBRARIES})
  
 # ------------------------------------------------------------------------------
@@ -143,7 +144,7 @@ set(SOURCES
 add_executable(spoq ${SOURCES})
 
 target_link_libraries(spoq irloader parser antlr4_shared)
-target_link_libraries(spoq LLVMSupport)
+target_link_libraries(spoq ${LLVM_LIBRARIES})
 target_link_libraries(spoq ${Z3_LIBRARIES})
 target_link_libraries(spoq ${Boost_LIBRARIES})
  

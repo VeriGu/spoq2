@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
     autov::log::init();
     autov::log::set_logging_level();
 
-    OPTS.parse_options(argc, argv);
+    if(!OPTS.parse_options(argc, argv)) return 0;
 
     std::unique_ptr<autov::Project> proj = std::make_unique<autov::Project>();
 
@@ -29,7 +29,10 @@ int main(int argc, char *argv[])
 
     // return 0;
 
-    proj->finalize_project();
+    if (OPTS.use_llvm_frontend) 
+        proj->finalize_project_v2();
+    else 
+        proj->finalize_project();
 
     autov::generate_proj(proj.get());
 

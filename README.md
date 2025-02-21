@@ -47,6 +47,61 @@ make -j$(nproc)
 cd ..
 ```
 
+## Workflow
+
+The desired workflow of Spoq3:
+
+```
+LLVM IR  
+  |
+  |[auto: inline/unfold functions]
+  v
+Inlined
+LLVM IR
+  |
+  |[translator]
+  v
+Spoq IR
+w. control structure
+  |
+  v
+Spoq IR --------------[auto]-----------> Gen. Machine Model
+ |   |                                            |          user-defined
+ |   |                         user-provided      |<----------- specs
+ |   +-----+                   memory layout----->|
+ |         |                                      [manual]
+ |         [auto]                                v
+ |         v                            Revised Machine Model
+ |    Layer Config                                |
+ |         |               user-provided          |
+ |         |        ptr abstraction template----->|
+ |         [auto]                                [auto]
+ |         v                                      v
+ +----> Low Spec <-----[auto]---------- Final Machine Model                      
+     w. ptr abstraction                 w. ptr abstraction
+           |                             
+           [auto]
+           v
+        Low Spec 
+    w. more abstraction
+          |
+          [auto: z3/nonz3 transformation rules]
+          |
+          |
+          |
+          v
+       High Spec----[auto:gen_coq]------> coq definition
+          |                                    |
+          |                                    |
+          |          user-defined              |
+          |<--[auto]- invariant   ---[manual]--+---> coq 
+          |                                         proof
+          |                                     
+          v                                     
+       automated                        
+      verification
+```		
+
 ## Features
 
 ### LLVM Translation Algorithm

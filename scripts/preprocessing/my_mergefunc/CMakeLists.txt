@@ -114,8 +114,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib")
 # add_subdirectory(test)
 # add_subdirectory(HelloWorld)
 add_library(MyMergeFunc SHARED MyMergeFunctions.cpp)
-add_library(MyDAE SHARED MyDeadArgumentElimination.cpp)
 # Allow undefined symbols in shared objects on Darwin (this is the default
 # behaviour on Linux)
-target_link_libraries(MyMergeFunc MyDAE
+target_link_libraries(MyMergeFunc
   "$<$<PLATFORM_ID:Darwin>:-undefined dynamic_lookup>")

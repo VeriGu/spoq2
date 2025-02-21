@@ -15,6 +15,7 @@ class SpoqOption {
 public:
     bool conditional_spec = false;
     bool lens = false;
+    bool use_llvm_frontend = false;
     std::string config_file;
     boost::program_options::variables_map vmap;
 
@@ -27,6 +28,7 @@ public:
         std::cout << "  conditional_spec: " << std::boolalpha << conditional_spec << "\n";
         std::cout << "  lens: " << std::boolalpha << lens << "\n";
         std::cout << "  config_file: " << config_file << "\n";
+        std::cout << "  use_llvm_frontend: " << std::boolalpha << use_llvm_frontend << "\n";
         std::cout << std::endl;
     }
 
@@ -43,6 +45,7 @@ public:
         desc.add_options()
             ("help,h", "produce help message")
             ("lens,l", po::bool_switch()->default_value(true), "use lens")
+            ("llvm", po::bool_switch()->default_value(false), "use llvm frontend") 
             ("conditional-spec,c", po::bool_switch()->default_value(false), "automatically generate conditional spec");
         
         po::positional_options_description p;
@@ -60,6 +63,7 @@ public:
         }
 
         if (!vmap.count("input")) {
+            std::cout << desc << std::endl;
             std::cout << "Please provide a .v config file" << std::endl;
             return false;
         }
@@ -67,6 +71,7 @@ public:
         this->conditional_spec = vmap["conditional-spec"].as<bool>();
         this->lens = vmap["lens"].as<bool>();
         this->config_file = vmap["input"].as<std::string>();
+        this->use_llvm_frontend = vmap["llvm"].as<bool>();
 
         report();
 

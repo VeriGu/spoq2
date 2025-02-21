@@ -23,3 +23,4 @@ docs/latex/*
 test/**/coq/
 .history/
 **/z3_queries/
+.cache/*
