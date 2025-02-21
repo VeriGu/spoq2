@@ -1,3 +1,4 @@
+#include <memory>
 #include <project.h>
 #include <iostream>
 #include <post_process.h>
@@ -989,27 +990,16 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
     // auto &L = proj->layers[layer_id];
     unsigned long symbol_order = proj->symbols.size();
 
-    // =========================================================================
-    // Generate high specs
-    // =========================================================================
-    
     for (int i = 0; i < low_specs_name.size(); i++) {
         std::unique_ptr<Definition>& low_def = proj->defs[low_specs_name[i]];
-        if(low_def == nullptr) {
-            LOG_ERROR << "low spec not found: " << low_specs_name[i] << "\n";
-            exit(0);
-        }
-
         auto low_name = low_def->name;
         LOG_DEBUG << "low_name:" << low_name;
-
         auto high_name = name_map[low_name];
 
         // If the high spec is provided, skip
         if (proj->defs.find(high_name) != proj->defs.end()) {
-            std::unique_ptr<Definition>& _def = proj->defs[high_name];
+            auto _def = proj->defs[high_name].get();
             LOG_DEBUG << "High_name: " << high_name;
-
             proj->deps[high_name] = proj->calc_dependencies(_def->body.get());
             LOG_DEBUG << "proj.deps size :" << proj->deps[high_name].size();
 
@@ -1017,7 +1007,7 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
 
             if (_def->body) {
                 LOG_INFO << "Provided: " << high_name << std::endl;
-                proj->symbols[high_name].loc = make_tuple(proj->layers[layer_id]->name, Project::LOC_SPEC, "");
+                proj->update_symbol_loc(high_name, make_shared<loc_t>(proj->layers[layer_id]->name, Project::LOC_SPEC, ""));
                 continue;
             }
         }
@@ -1029,51 +1019,39 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
         unique_ptr<SpecNode> high_body = low_def->body->deep_copy();
 
         if (have_loop || have_sub) {
-            auto [new_high, __changed] =
-                replace_spec_name(proj, high_body.release(), name_map);
-
-            high_body.reset(new_high);
+            auto [new_high, __changed] = proj->rules.replace_spec_name(std::move(high_body), name_map);
+            high_body = std::move(new_high);
         }
 
         auto high_args = make_unique<vector<shared_ptr<Arg>>>();
-        for (auto &arg : *low_def->args)
+        for (auto &arg: *low_def->args)
             high_args->push_back(arg);
 
         Definition *high_def = nullptr;
 
-        // FIXME: do not `get` a unique pointer
         if (is_instance(low_def.get(), Fixpoint)) {
-            // For Fixpoint, we need to add the definition in advance for
-            // z3_eval
-            auto tmp_high_def =
-                new Fixpoint(high_name, proj->defs[low_name]->rettype,
-                             make_unique<vector<shared_ptr<Arg>>>(*high_args));
+            // For Fixpoint, we need to add the definition in advance for z3_eval
+            auto tmp_high_def = new Fixpoint(high_name, proj->defs[low_name]->rettype,
+                                             make_unique<vector<shared_ptr<Arg>>>(*high_args));
 
-            high_def = new Fixpoint(high_name, proj->defs[low_name]->rettype,
-                                    std::move(high_args), std::move(high_body));
-            proj->add_definition(
-                unique_ptr<Fixpoint>(static_cast<Fixpoint *>(tmp_high_def)),
-                make_shared<loc_t>(proj->layers[layer_id]->name, Project::LOC_SPEC, ""),
-                i + symbol_order);
+            high_def = new Fixpoint(high_name, proj->defs[low_name]->rettype, std::move(high_args),
+                                    std::move(high_body));
+            proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(tmp_high_def)),
+                                 make_shared<loc_t>(proj->layers[layer_id]->name, Project::LOC_SPEC, ""), i + symbol_order);
         } else {
-            high_def =
-                new Definition(high_name, proj->defs[low_name]->rettype,
-                               std::move(high_args), std::move(high_body));
+            high_def = new Definition(high_name, proj->defs[low_name]->rettype, std::move(high_args),
+                                      std::move(high_body));
         }
 
         // Transform the low spec to high spec
-        bool no_trans = proj->cmds.NoHighSpec ||
-                        proj->cmds.NoTrans.find(name_map[low_name]) !=
-                            proj->cmds.NoTrans.end();
+        bool no_trans = proj->cmds.NoHighSpec || proj->cmds.NoTrans.find(name_map[low_name]) != proj->cmds.NoTrans.end();
 
         LOG_DEBUG << "NO HIGH SPEC" << proj->cmds.NoHighSpec;
-
+        
         profile_clear();
         if (!no_trans) {
-            spec_transformer(proj, high_def, layer_id,
-                             !is_instance(low_def.get(), Fixpoint), true);
-            std::cout << "Transformed: " << std::endl
-                      << string(*high_def) << std::endl;
+            spec_transformer(proj, high_def, layer_id, !is_instance(low_def.get(), Fixpoint), true);
+            std::cout << "Transformed: " << std::endl << string(*high_def) << std::endl;
         } else {
             LOG_INFO << "No transformation for " << high_name;
         }
@@ -1082,19 +1060,18 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
 
         spec_prover(proj, high_def);
 
+#ifndef MT_TRANSFORM
         proj->deps[high_name] = proj->calc_dependencies(high_def->body.get());
+#endif
         if (is_instance(low_def.get(), Fixpoint))
-            proj->add_definition(
-                unique_ptr<Fixpoint>(static_cast<Fixpoint *>(high_def)),
-                make_shared<loc_t>(proj->layers[layer_id]->name, Project::LOC_SPEC, ""),
-                i + symbol_order);
+            proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(high_def)),
+                                 make_shared<loc_t>(proj->layers[layer_id]->name, Project::LOC_SPEC, ""), i + symbol_order);
         else
-            proj->add_definition(
-                unique_ptr<Definition>(high_def),
-                make_shared<loc_t>(proj->layers[layer_id]->name, Project::LOC_SPEC, ""),
-                i + symbol_order);
+            proj->add_definition(unique_ptr<Definition>(high_def), make_shared<loc_t>(proj->layers[layer_id]->name, Project::LOC_SPEC, ""),
+                                 i + symbol_order);
+
     }
-                
+
 
     // return std::make_tuple(fname, low_specs, nullptr);
     return std::make_tuple(fname, nullptr, nullptr);
