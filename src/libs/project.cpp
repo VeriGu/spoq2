@@ -54,13 +54,13 @@ const string Project::LAYER_PTR_LTB = "LAYER_PTR_LTB";
 const string Project::LAYER_PTR_GTB = "LAYER_PTR_GTB";
 const string Project::LAYER_DATA = "LAYER_DATA";
 const string Project::INV_LAYER = "Invariants";
+const string Project::LEMMA_LAYER = "Lemmas";
 
 
 
-void Project::add_sys_inv(unique_ptr<SpecNode> inv) {
-    SpecNode* invelem = inv.release();
+void Project::add_sys_inv(string name, unique_ptr<SpecNode> inv) {
     //Expr* invexpr = instance_of(invelem, Expr);
-    sys_invs.push_back(unique_ptr<SpecNode>(invelem));
+    sys_invs[name] = std::move(inv);
 }
 
 void Project::add_symbol(string name, SymbolKind kind, string info, shared_ptr<loc_t> loc)
@@ -835,7 +835,6 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         profile_print();
         profile_finalize();
 
-        spec_prover(proj, high_def);
 
 #ifndef MT_TRANSFORM
         proj->deps[high_name] = proj->calc_dependencies(high_def->body.get());
@@ -1020,44 +1019,7 @@ void Project::finalize_project()
         }
     }
 
-
-    //check system invariant
-    if(cmds.CheckInv) {
-        auto &invs = this->sys_invs;
-        SpecNode* conjoined = new BoolConst(true);
-        for(auto &inv: invs) {
-            auto elems = new vector<unique_ptr<SpecNode>>();
-            elems->push_back(unique_ptr<SpecNode>(conjoined));
-            elems->push_back(inv->deep_copy());
-            conjoined = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems));
-        }
-        auto known= make_shared<unordered_map<string, shared_ptr<SpecType>>>();
-        (*known)["st"] = this->layers[0]->abs_data;
-        //type check the conjoined
-        type_inference::infer_type(*this, conjoined, known);
-        
-
-        this->conjoined_sys_inv = unique_ptr<SpecNode>(conjoined);
-        /** TODO: decompose invs */
-        //analyze_invariant_fields(this, conjoined, "invariant");
-        for(auto prim : cmds.invs) {
-            //only check inv for prims in cmds.invs
-            // LOG_DEBUG << "Checking Invariant: " << prim;
-            auto def = this->defs[prim].get();
-            // compute coi and cache it
-            //analyze_cone_of_influence(this, prim, def);
-            auto invariant = conjoined_sys_inv.get();
-            if (check_inv_by_path(this, def, invariant)) {
-                LOG_DEBUG << "Invariant Valid :D :" << prim;
-            } else {
-                LOG_DEBUG << "Invariant not Valid :(" << prim;
-            }
-            // /* META Inv Proof */
-            // if (check_invariant(this, def, conjoined)) {
-            //     LOG_DEBUG << "Invariant Valid :) :" << prim;
-            // };
-        }
-    }
+    spec_prover(this);
 #else
     std::set<string> transformed;
 

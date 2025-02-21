@@ -16,7 +16,7 @@ subst(let x := x + 1 in x, "x", 1) => let x := 1 + 1 in x
 [spec] is freed is subsitution is successful
 [value] is freed by the caller
 */
-static SpecNode* subst(SpecNode *spec, string name, SpecNode *value, bool &succ) {
+SpecNode* subst(SpecNode *spec, string name, SpecNode *value, bool &succ) {
     if (auto s = instance_of(spec, Symbol)) {
         if (s->text != name)
             return spec;
@@ -809,7 +809,6 @@ rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec) {
                     auto pattern_list = make_unique<vector<unique_ptr<SpecNode>>>();
 
                     for (auto &arg: *define->args) {
-                        //LOG_DEBUG << "debug arg name: " + arg->name;
                         pattern_list->push_back(make_unique<Symbol>(arg->name, arg->type));
                     }
 
@@ -890,6 +889,699 @@ static void collect_interest_path(Project *proj) {
         }
     }
 }
+
+
+void back_propogate_interest_dependency(Project* proj, SpecNode *spec, std::unordered_set<string>* fields, bool added = false) {
+    if(auto node = instance_of(spec, Expr)) {
+            if(auto op = std::get_if<Expr::ops>(&node->op)) {
+            if(*op == Expr::ops::RecordGet) {
+                if(node->depend_on_interested_read) {
+                    node->elems->at(0)->depend_on_interested_read = true;
+                    if(!added && node->depends_on_state_read) {
+                        fields->insert(static_cast<Symbol*>(node->elems->at(1).get())->text);
+                        LOG_DEBUG << "add new interested field: " + static_cast<Symbol*>(node->elems->at(1).get())->text;
+                        LOG_DEBUG << "node: " + string(*node);
+                    }
+                    back_propogate_interest_dependency(proj, node->elems->at(0).get(), fields, true);
+                    //this field should be added to temporary growing interest list
+                } else {
+                    back_propogate_interest_dependency(proj, node->elems->at(0).get(), fields, added);
+                }
+            } else if(*op == Expr::ops::GET) {
+                if(node->depend_on_interested_read) {
+                    node->elems->at(0)->depend_on_interested_read = true;
+                    node->elems->at(1)->depend_on_interested_read = true;
+                }
+                back_propogate_interest_dependency(proj, node->elems->at(0).get(), fields, added);
+                back_propogate_interest_dependency(proj, node->elems->at(1).get(), fields, added);
+            } else if(*op == Expr::ops::SET) {
+                if(node->depend_on_interested_read) {
+                    node->elems->at(0)->depend_on_interested_read = true;
+                    node->elems->at(1)->depend_on_interested_read = true;
+                    node->elems->at(2)->depend_on_interested_read = true;
+                }
+                back_propogate_interest_dependency(proj, node->elems->at(0).get(), fields, added);
+                back_propogate_interest_dependency(proj, node->elems->at(1).get(), fields, added);
+                back_propogate_interest_dependency(proj, node->elems->at(2).get(), fields, added);
+            } else if (*op == Expr::ops::RecordSet) {
+                if(node->depend_on_interested_read) {
+                    node->elems->at(0)->depend_on_interested_read = true;
+                    node->elems->back()->depend_on_interested_read = true;
+                }
+                back_propogate_interest_dependency(proj, node->elems->at(0).get(), fields, added);
+                back_propogate_interest_dependency(proj, node->elems->back().get(), fields, added);
+            } else {
+                if(node->depend_on_interested_read) {
+                    for(int i = 0; i < node->elems->size(); i++) {
+                        node->elems->at(i)->depend_on_interested_read = true;
+                    }
+                }
+                if(!op_eq(node->op, Expr::binops::AND)) {
+                    for(int i = 0; i < node->elems->size(); i++) {
+                        back_propogate_interest_dependency(proj, node->elems->at(i).get(), fields, added);
+                    }
+                }
+            }
+            } else {
+                if(node->depend_on_interested_read) {
+                    for(int i = 0; i < node->elems->size(); i++) {
+                        node->elems->at(i)->depend_on_interested_read = true;
+                    }
+                }
+                for(int i = 0; i < node->elems->size(); i++) {
+                    back_propogate_interest_dependency(proj, node->elems->at(i).get(), fields, added);
+                }
+            }
+    } else if(auto node = instance_of(spec, If)) {
+        back_propogate_interest_dependency(proj, node->cond.get(), fields, added);
+        back_propogate_interest_dependency(proj, node->then_body.get(), fields, added);
+        back_propogate_interest_dependency(proj, node->else_body.get(), fields, added);
+    } else if(auto node = instance_of(spec, Match)) {
+        back_propogate_interest_dependency(proj, node->src.get(), fields, added);
+        for (auto &pm: *node->match_list) {
+            back_propogate_interest_dependency(proj, pm->body.get(), fields, added);
+        }
+    } else if(auto node = instance_of(spec, RelyAnno)) {
+        back_propogate_interest_dependency(proj, node->prop.get(), fields, added);
+        back_propogate_interest_dependency(proj, node->body.get(), fields, added);
+    } else if(auto node = instance_of(spec, Symbol)){
+        //do nothing
+    } else if(auto node = instance_of(spec, Const)) {
+
+    } else throw std::runtime_error("unkwnon node" + string(*spec));
+}
+
+
+/* deciding if expr depends on state read, i.e reads from a field from st field, not a pointer*/
+bool depend_on_state_read(Project* proj, SpecNode *spec) {
+    if(spec->depends_on_state_read)
+         return true;
+    if(auto node = instance_of(spec, Expr)) {
+            if(auto op = std::get_if<Expr::ops>(&node->op)) {
+            if(*op == Expr::ops::None)
+                return false;
+            if(*op == Expr::ops::RecordGet) {
+                if(node->elems->at(0)->type == proj->layers[0]->abs_data) {
+                    node->depends_on_state_read = true;
+                    return true;
+                }
+                return depend_on_state_read(proj, node->elems->at(0).get());
+            }
+            else if(*op == Expr::ops::BNOT || *op == Expr::ops::Some || *op == Expr::ops::NOT) {
+                bool res = depend_on_state_read(proj, node->elems->at(0).get());
+                node->depends_on_state_read = res;
+                return res;
+            } else if(*op == Expr::ops::GET) {
+                bool res = depend_on_state_read(proj, node->elems->at(0).get());
+                res = depend_on_state_read(proj, node->elems->at(1).get()) || res;
+                node->depends_on_state_read = res;
+                return res;
+            } else if(*op == Expr::ops::SET) {
+                bool res = depend_on_state_read(proj, node->elems->at(0).get());
+                res = depend_on_state_read(proj, node->elems->at(1).get()) || res;
+                res = depend_on_state_read(proj, node->elems->at(2).get()) || res;
+                node->depends_on_state_read = res;
+                return res;
+            } else if (*op == Expr::ops::RecordSet) {
+                bool res = depend_on_state_read(proj, node->elems->at(0).get());
+                    res = depend_on_state_read(proj, node->elems->back().get()) || res;
+                node->depends_on_state_read = res;
+                return res;
+            } else if (*op == Expr::ops::Tuple) {
+                bool res = false;
+                for(int i = 0; i < node->elems->size(); ++i) {
+                    if(depend_on_state_read(proj, node->elems->at(i).get()))
+                    {
+                        node->depends_on_state_read = true;
+                        res = true;
+                    }
+                }
+                return res;
+            }
+            } else if(auto op = std::get_if<Expr::binops>(&node->op)) {
+                bool res;
+                if(node->elems->size() == 2) {
+                    res = depend_on_state_read(proj, node->elems->at(0).get());
+                    res = depend_on_state_read(proj, node->elems->at(1).get()) || res;
+                } else {
+                    res = depend_on_state_read(proj, node->elems->at(0).get());
+                }
+                node->depends_on_state_read = res;
+                return res;
+            } else {
+                bool res = false;
+                for(int i = 0; i < node->elems->size(); i++) {
+                    if(depend_on_state_read(proj, node->elems->at(i).get())) {
+                        node->depends_on_state_read = true;
+                        res = true;
+                    }
+                }
+                return res;
+            }
+    } else if(auto node = instance_of(spec, If)) {
+        depend_on_state_read(proj, node->cond.get());
+        depend_on_state_read(proj, node->then_body.get());
+        depend_on_state_read(proj, node->else_body.get());       
+        return false;
+    } else if(auto node = instance_of(spec, Match)) {
+        depend_on_state_read(proj, node->src.get());
+            //node->depends_on_state_read = true;
+        for (auto &pm: *node->match_list) {
+            depend_on_state_read(proj, pm->body.get());
+              //node->depends_on_state_read = true
+        }
+        return false;
+    } else if(auto node = instance_of(spec, RelyAnno)) {
+        depend_on_state_read(proj, node->prop.get());
+        depend_on_state_read(proj, node->body.get());
+        return false;
+    }
+    return false;
+}
+
+void mark_interested_read(Project* proj, SpecNode* spec, std::unordered_set<string>* fields, bool debug = false) {
+        if(auto node = instance_of(spec, Expr)) {
+            if(auto op = std::get_if<Expr::ops>(&node->op)) {
+            if(*op == Expr::ops::None)
+                return;
+            if(*op == Expr::ops::RecordGet) {
+                string field = static_cast<Symbol*>(node->elems->back().get())->text;
+                if(interest_list.find(field) != interest_list.end()) {
+                    node->is_interested_read = true;
+                    node->depend_on_interested_read = true;
+                    node->depends_on_state_read = true;
+                }
+                if(fields->find(field) != fields->end()) {
+                    node->depend_on_interested_read = true;
+                }
+                if(node->elems->at(0)->type == proj->layers[0]->abs_data) {
+                    node->depends_on_state_read = true;
+                }
+                if(node->depend_on_interested_read) {
+                    if(debug)
+                        LOG_DEBUG << "mark interested node: " + string(*node);
+                    node->elems->at(0)->depend_on_interested_read = true;
+                    back_propogate_interest_dependency(proj, node->elems->at(0).get(), fields, true);
+                } else {
+                    mark_interested_read(proj, node->elems->at(0).get(), fields, debug);
+                    if(node->elems->at(0).get()->depend_on_interested_read) {
+                        node->depend_on_interested_read = true;
+                        if(debug)
+                        LOG_DEBUG << "mark interested node: " + string(*node);
+                    }
+                }
+            }
+            else if(*op == Expr::ops::BNOT || *op == Expr::ops::Some || *op == Expr::ops::NOT) {
+                mark_interested_read(proj, node->elems->at(0).get(), fields, debug);
+                if(node->elems->at(0).get()->depend_on_interested_read) {
+                    node->depend_on_interested_read = true;
+                    if(debug)
+                        LOG_DEBUG << "mark interested node: " + string(*node);
+                }
+                return;
+            } else if(*op == Expr::ops::GET) {
+                mark_interested_read(proj, node->elems->at(0).get(), fields, debug);
+                mark_interested_read(proj, node->elems->at(1).get(), fields, debug);
+                if(node->elems->at(0).get()->depend_on_interested_read) {
+                    node->depend_on_interested_read = true;
+                    if(debug)
+                        LOG_DEBUG << "mark interested node: " + string(*node);
+                    node->elems->at(1).get()->depend_on_interested_read = true;
+                    back_propogate_interest_dependency(proj, node->elems->at(1).get(), fields);
+                } else if(node->elems->at(1).get()->depend_on_interested_read) {
+                    node->depend_on_interested_read = true;
+                    if(debug)
+                        LOG_DEBUG << "mark interested node: " + string(*node);
+                    node->elems->at(0).get()->depend_on_interested_read = true;
+                    back_propogate_interest_dependency(proj, node->elems->at(0).get(), fields, true);
+                }
+                return;
+            } else if(*op == Expr::ops::SET) {
+                mark_interested_read(proj, node->elems->at(0).get(), fields, debug);
+                mark_interested_read(proj, node->elems->at(1).get(), fields, debug);
+                mark_interested_read(proj, node->elems->at(2).get(), fields, debug);
+                if(node->elems->at(0).get()->depend_on_interested_read) {
+                    node->depend_on_interested_read = true;
+                    if(debug)
+                        LOG_DEBUG << "mark interested node: " + string(*node);
+                    node->elems->at(1).get()->depend_on_interested_read = true;
+                    node->elems->at(2).get()->depend_on_interested_read = true;
+                    back_propogate_interest_dependency(proj, node->elems->at(1).get(), fields);
+                    back_propogate_interest_dependency(proj, node->elems->at(2).get(), fields);
+                } else if(node->elems->at(2).get()->depend_on_interested_read){
+                    //conservatively reveal the map since the value has interested read
+                    node->depend_on_interested_read = true;
+                    if(debug)
+                        LOG_DEBUG << "mark interested node: " + string(*node);
+                    node->elems->at(0).get()->depend_on_interested_read = true;
+                    node->elems->at(1).get()->depend_on_interested_read = true;
+                    back_propogate_interest_dependency(proj, node->elems->at(0).get(), fields);
+                    back_propogate_interest_dependency(proj, node->elems->at(1).get(), fields);
+                } 
+                return;
+            } else if (*op == Expr::ops::RecordSet) {
+                //auto r = false;
+                for(int i = 1; i < node->elems->size()-1; ++i) {
+                    auto field = static_cast<Symbol*>(node->elems->at(i).get())->text;
+                    if(fields->find(field) != fields->end()) {
+                        node->is_interested_write = true;
+                        node->depend_on_interested_write = true;
+                    }
+                }
+                mark_interested_read(proj, node->elems->at(0).get(), fields, debug);
+                if(node->elems->at(0)->depend_on_interested_read) {
+                    node->depend_on_interested_read = true;
+                    if(debug)
+                        LOG_DEBUG << "mark interested node: " + string(*node);
+                    node->elems->back()->depend_on_interested_read = true;
+                    back_propogate_interest_dependency(proj, node->elems->back().get(), fields);
+                } else {
+                    //back might be the interested read, convervatively reveal the record even if
+                    //it is not interested.
+                    mark_interested_read(proj, node->elems->back().get(), fields, debug);
+                    if(node->elems->back()->depend_on_interested_read){
+                        node->depend_on_interested_read = true;
+                        if(debug)
+                            LOG_DEBUG << "mark interested node: " + string(*node);
+                        node->elems->at(0)->depend_on_interested_read = true;
+                        back_propogate_interest_dependency(proj, node->elems->at(0).get(), fields, true);
+                    }
+                }
+                return;
+            } else if (*op == Expr::ops::Tuple) {
+                //auto res = false;
+                for(int i = 0; i < node->elems->size(); ++i) {
+                    mark_interested_read(proj, node->elems->at(i).get(), fields, debug);
+                    if(node->elems->at(i).get()->depend_on_interested_read) {
+                        node->depend_on_interested_read = true;
+                        if(debug)
+                            LOG_DEBUG << "mark interested node: " + string(*node);
+                    }
+                }
+                return;
+            }
+            } else if(auto op = std::get_if<Expr::binops>(&node->op)) {
+                if(node->elems->size() == 2) {
+                    if(!op_eq(node->op, Expr::binops::AND) && !op_eq(node->op, Expr::binops::OR)) {
+                        mark_interested_read(proj, node->elems->at(0).get(), fields, debug);
+                        if(node->elems->at(0).get()->depend_on_interested_read) {
+                            node->depend_on_interested_read = true;
+                            if(debug)
+                            LOG_DEBUG << "mark interested node: " + string(*node);
+                            node->elems->at(1).get()->depend_on_interested_read = true;
+                            back_propogate_interest_dependency(proj, node->elems->at(1).get(), fields);
+                        } else {
+                            mark_interested_read(proj, node->elems->at(1).get(), fields, debug);
+                            if(node->elems->at(1).get()->depend_on_interested_read) {
+                                node->depend_on_interested_read = true;
+                                if(debug)
+                                LOG_DEBUG << "mark interested node: " + string(*node);
+                                node->elems->at(0).get()->depend_on_interested_read = true;
+                                back_propogate_interest_dependency(proj, node->elems->at(0).get(), fields);
+                            }
+                        }
+                    } else {
+                        mark_interested_read(proj, node->elems->at(0).get(), fields, debug);
+                        mark_interested_read(proj, node->elems->at(1).get(), fields, debug);
+                        if(node->elems->at(0)->depend_on_interested_read || node->elems->at(1)->depend_on_interested_read) {
+                            node->depend_on_interested_read = true;
+                            if(debug)
+                            LOG_DEBUG << "mark interested node: " + string(*node);
+                        }
+                    }
+                } else {
+                    mark_interested_read(proj, node->elems->at(0).get(), fields, debug);
+                    if(node->elems->at(0).get()->depend_on_interested_read) {
+                        node->depend_on_interested_read = true;
+                        if(debug)
+                            LOG_DEBUG << "mark interested node: " + string(*node);
+                    }
+                }
+                return;
+            } else if(auto op = std::get_if<unique_ptr<SpecNode>>(&node->op)) {
+                //bool res = false;
+                for(int i = 0; i < node->elems->size(); i++) {
+                    mark_interested_read(proj, node->elems->at(i).get(), fields, debug);
+                    if(node->elems->at(i).get()->depend_on_interested_read) {
+                        if(debug)
+                            LOG_DEBUG << "mark interested node: " + string(*node);
+                        node->depend_on_interested_read = true;
+                    }
+                }
+                return;
+            } else {
+                //the op is string, check the operands
+                //bool res = false;
+                for(int i = 0; i < node->elems->size(); i++) {
+                    mark_interested_read(proj, node->elems->at(i).get(), fields, debug);
+                    if(node->elems->at(i).get()->depend_on_interested_read) {
+                        if(debug)
+                            LOG_DEBUG << "mark interested node: " + string(*node);
+                        node->depend_on_interested_read = true;
+                    }
+                }
+                return;
+            }
+    } else if(auto node = instance_of(spec, If)) {
+            mark_interested_read(proj, node->cond.get(), fields, debug);
+            mark_interested_read(proj, node->then_body.get(), fields, debug);
+            mark_interested_read(proj, node->else_body.get(), fields, debug);
+            //probaly unnecesary
+            if(node->then_body->depend_on_interested_read && node->else_body->depend_on_interested_read) {
+                if(debug)
+                    LOG_DEBUG << "mark interested node: " + string(*node);
+                node->depend_on_interested_read = true;
+            }
+            return;
+    } else if(auto node = instance_of(spec, Match)) {
+        mark_interested_read(proj, node->src.get(), fields, debug); 
+        for (auto &pm: *node->match_list) {
+            mark_interested_read(proj, pm->body.get(), fields, debug);
+        }
+        return;
+    } else if(auto node = instance_of(spec, RelyAnno)) {
+        mark_interested_read(proj, node->prop.get(), fields, debug);
+        mark_interested_read(proj, node->body.get(), fields, debug);
+        //interested fields should be possible to propogated to rely since we need those property that depends
+        //on interested fields
+        return;
+    }
+}
+
+
+// void mark_interested_write(Project* proj, SpecNode *spec, std::unordered_set<string>* fields, bool debug = false) {
+//     if(auto node = instance_of(spec, Expr)) {
+//         if(auto op = std::get_if<Expr::ops>(&node->op)) {
+//             if (*op == Expr::ops::RecordSet) {
+//                 //auto r = false;
+//                 for(int i = 1; i < node->elems->size()-1; ++i) {
+//                     auto field = static_cast<Symbol*>(node->elems->at(i).get())->text;
+//                     if(fields->find(field) != fields->end()) {
+//                         node->is_interested_write = true;
+//                         node->depend_on_interested_write = true;
+//                     }
+//                 }
+//                 back_propogate_interest_dependency(proj, node->elems->back().get(), fields, false);
+//                 mark_interested_write(proj, node->elems->at(0).get(), fields, false);
+//             }
+//         }
+//     } else if(auto node = instance_of(spec, If)) {
+//         mark_interested_write(proj, node->then_body.get(), fields, debug);
+//         mark_interested_write(proj, node->else_body.get(), fields, debug);
+//         mark_interested_write(proj, node->cond.get(), fields, debug);
+//     } else if(auto node = instance_of(spec, RelyAnno)) {
+//         mark_interested_write(proj, node->body.get(), fields, debug);
+//     } else if(auto node = instance_of(spec, Match)) {
+//          mark_interested_write(proj, node->src.get(), fields, debug); 
+//         for (auto &pm: *node->match_list) {
+//             mark_interested_write(proj, pm->body.get(), fields, debug);
+//         }
+//     }
+// }
+
+
+static bool op_is_lens_v(const std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string> &op) {
+    if (auto s = std::get_if<string>(&op))
+        return *s == "lens_v";
+
+    return false;
+}
+
+void add_lens_v_decl(Project* proj) {
+    // Add the lens_v to the global scope
+    if (!proj->is_known_symbol("lens_v")) {
+            //lens_v is a dependently typed function, we currently don't support dependently type, so we first use unknown type,
+            //and hardcoded a type when generating declarations.
+            auto lens = make_unique<Declaration>("lens_v", SpecType::UNKNOWN_TYPE);
+            proj->add_declaration(std::move(lens), make_shared<loc_t>(Project::LOC_GLOBALDEFS, "", ""));
+    }
+}
+
+SpecNode* make_lens_v(shared_ptr<SpecType> type, unsigned long id) {
+    auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+    elems->push_back(make_unique<IntConst>(id));
+    return new Expr("lens_v", std::move(elems), type);
+}
+
+rule_ret_t rule_simplify_dependent_value(Project *proj, SpecNode *spec, bool debug = false) {
+    bool ifchange = false;
+    if(spec->depend_on_interested_read) {
+        return std::make_pair(spec, ifchange);
+    }
+    auto fields_depend_on_interested_field = make_unique<std::unordered_set<string>>();
+    for(auto field : interest_list) {
+        fields_depend_on_interested_field->insert(field);
+    }
+
+    depend_on_state_read(proj, spec);
+    mark_interested_read(proj, spec, fields_depend_on_interested_field.get(), debug);
+    if(debug) {
+        LOG_DEBUG << "marked spec: " + string(*spec);
+    }
+    //back_propogate_interest_dependency(proj, spec, fields_depend_on_interested_field.get());
+    std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
+    /* now e is independent from the interested field*/
+    if(auto e = instance_of(node, Expr)) {
+        if(auto op = std::get_if<Expr::ops>(&e->op)) {
+            /* lens read from a hided field*/
+            if(*op == Expr::ops::RecordGet) {
+               auto field = static_cast<Symbol*>(e->elems->at(1).get())->text;
+               if(!e->depend_on_interested_read && depend_on_state_read(proj, node) && interest_list.find(field) == interest_list.end()) {
+                /* it is an hided read*/
+                LOG_DEBUG << "hide the read with field: " + field;
+                
+                auto new_e = make_lens_v(e->type, get_mono_lens_id());
+                if(debug) {
+                    LOG_DEBUG << "node before: " + string(*node);
+                    LOG_DEBUG << "node after: " + string(*new_e);
+                }
+                if(e->type == nullptr || e->type == SpecType::UNKNOWN_TYPE) {
+                    LOG_ERROR << "unknown type for node: ";
+                    assert(0);
+                }
+                delete e;
+                ifchange = true;
+                add_lens_v_decl(proj);
+                return new_e;
+               } else {
+                if(auto sube = instance_of(e->elems->at(0).get(), Expr)) {
+                    if(op_is_lens_v(sube->op) && interest_list.find(field) == interest_list.end()) {
+                        auto new_e = make_lens_v(e->type, get_mono_lens_id());
+                        if(debug) {
+                          LOG_DEBUG << "node before: " + string(*node);
+                          LOG_DEBUG << "node after: " + string(*new_e);
+                        }
+                        delete e;
+                        ifchange = true;
+                        add_lens_v_decl(proj);
+                        return new_e;
+                    }
+                }
+               }
+            }
+            /* unary operator */
+            else if(*op == Expr::ops::BNOT || *op == Expr::ops::Some || *op == Expr::ops::NOT) {
+                    if(auto sube = instance_of(e->elems->at(0).get(), Expr)) {
+                        if(autov::op_eq(sube->op, "lens_v")) {
+                            auto new_e = make_lens_v(e->type, get_mono_lens_id());
+                            if(debug) {
+                                LOG_DEBUG << "node before: " + string(*node);
+                                LOG_DEBUG << "node after: " + string(*new_e);
+                            }
+                            new_e->depends_on_state_read = true;
+                            delete e;
+                            ifchange = true;
+                            add_lens_v_decl(proj);
+                            return new_e;
+                        }
+                    }
+            } 
+            /* tuple, if all sub-exprs are lens_values, simplify to a new lens_value expr*/
+            else if(*op == Expr::ops::Tuple) {
+                    bool ifalllens = true;
+                    for(auto i = 0; i < e->elems->size(); ++i) {
+                        if(auto m = instance_of(e->elems->at(i).get(), Expr)) {
+                            if(!op_is_lens_v(m->op)) {
+                                ifalllens = false;
+                                break;
+                            }
+                        } else {
+                            ifalllens = false;
+                            break;
+                        }
+                    }
+                    if(ifalllens) {
+                        auto new_e = make_lens_v(e->type, get_mono_lens_id());
+                        new_e->depends_on_state_read = true;
+                        delete e;
+                        ifchange = true;
+                        add_lens_v_decl(proj);
+                        return new_e;
+                    }
+            } else if(*op == Expr::ops::GET) {
+                //m @ ? => lens_v (type_of m.subtype) id
+                //? @ i => lens_v (type_of m.subtype) id
+                if(auto m = instance_of(e->elems->at(0).get(), Expr)) {
+                    if(op_is_lens_v(m->op)) {
+                        auto new_e = make_lens_v(e->type, get_mono_lens_id());
+                        if(debug) {
+                                LOG_DEBUG << "node before: " + string(*node);
+                                LOG_DEBUG << "node after: " + string(*new_e);
+                        }
+                        new_e->depends_on_state_read = true;
+                        delete e;
+                        ifchange = true;
+                        add_lens_v_decl(proj);
+                        return new_e;
+                    }
+                }
+
+                if(auto m = instance_of(e->elems->at(1).get(), Expr)) {
+                    if(op_is_lens_v(m->op) && !e->elems->at(0)->depend_on_interested_read) {
+                        auto new_e = make_lens_v(e->type, get_mono_lens_id());
+                        if(debug) {
+                            LOG_DEBUG << "node before: " + string(*node);
+                            LOG_DEBUG << "node after: " + string(*new_e);
+                        }
+                        new_e->depends_on_state_read = true;
+                        delete e;
+                        ifchange = true;
+                        add_lens_v_decl(proj);
+                    return new_e;
+                    }
+                }
+            } else if(*op == Expr::ops::SET) {
+                //m # i == ? => no hiding
+                //m # ? == v => no hiding
+                //? # i == v => lens_v (type_of m.type) id
+                if(auto sube = instance_of(e->elems->at(0).get(), Expr)) {
+                   if(op_is_lens_v(sube->op)) {
+                        auto new_e = make_lens_v(e->type, get_mono_lens_id());
+                        new_e->depends_on_state_read = true;
+                        if(debug) {
+                            LOG_DEBUG << "node before: " + string(*node);
+                            LOG_DEBUG << "node after: " + string(*new_e);
+                        }
+                        delete e;
+                        ifchange = true;
+                        add_lens_v_decl(proj);
+                        return new_e; 
+                   }
+                }
+            }
+        } else if(auto op = std::get_if<Expr::binops>(&e->op)) {
+            if(auto sube1 = instance_of(e->elems->at(0).get(), Expr)) {
+                if(op_is_lens_v(sube1->op)) {
+                    auto new_e = make_lens_v(e->type, get_mono_lens_id());
+                    new_e->depends_on_state_read = true;
+                    if(debug) {
+                        LOG_DEBUG << "node before: " + string(*node);
+                        LOG_DEBUG << "node after: " + string(*new_e);
+                    }
+                    delete e;
+                    ifchange = true;
+                    add_lens_v_decl(proj);
+                    return new_e;      
+                }      
+            }
+            if(e->elems->size() == 2) { 
+                if(auto sube2 = instance_of(e->elems->at(1).get(), Expr)) {
+                    if(op_is_lens_v(sube2->op)) {
+                    auto new_e = make_lens_v(e->type, get_mono_lens_id());
+                    new_e->depends_on_state_read = true;
+                    if(debug) {
+                        LOG_DEBUG << "node before: " + string(*node);
+                        LOG_DEBUG << "node after: " + string(*new_e);
+                    }
+                    delete e;
+                    ifchange = true;
+                    add_lens_v_decl(proj);
+                    return new_e;
+                    }
+                }
+            }
+        } else if (auto op = std::get_if<unique_ptr<SpecNode>>(&e->op)){
+            //?_1 ?_2 --> ?3
+            //?_1 x --> ?_2
+            //f ?x --> same
+            if(auto f = instance_of((*op).get(), Expr)) {
+                if(op_is_lens_v(f->op)) {
+                    auto new_e = make_lens_v(e->type, get_mono_lens_id());
+                    new_e->depends_on_state_read = true;
+                    if(debug) {
+                            LOG_DEBUG << "node before: " + string(*node);
+                            LOG_DEBUG << "node after: " + string(*new_e);
+                    }
+                    delete e;
+                    ifchange = true;
+                    add_lens_v_decl(proj);
+                    return new_e;
+                }
+            }
+            //else, op is not a lens, no hiding, since f can be a constant
+        }
+
+    }else if(auto node = instance_of(spec, If)) {
+        if(auto then = instance_of(node->then_body.get(), Expr)) {
+            if(auto elseb = instance_of(node->else_body.get(), Expr)) {
+                if(op_is_lens_v(then->op) && op_is_lens_v(elseb->op)) {
+                    auto new_e = make_lens_v(e->type, get_mono_lens_id());
+                    new_e->depends_on_state_read = true;
+                    if(debug) {
+                            LOG_DEBUG << "node before: " + string(*node);
+                            LOG_DEBUG << "node after: " + string(*new_e);
+                    }
+                    delete node;
+                    ifchange = true;
+                    add_lens_v_decl(proj);
+                    return new_e;
+                }
+            }
+        }
+    } else if(auto node = instance_of(spec, Match)) {
+        auto ml = node->match_list.get();
+        bool ifalllens = true;
+        for(int i = 0; i < ml->size(); ++i) {
+            auto pm = ml->at(i).get();
+            if(auto m = instance_of(pm->body.get(), Expr)) {
+                if(!op_is_lens_v(m->op)) {
+                    ifalllens = false;
+                    break;
+                }
+            } else {
+                ifalllens = false;
+                break;
+            }
+        }
+        if(ifalllens) {
+             auto new_e = make_lens_v(e->type, get_mono_lens_id());
+             new_e->depends_on_state_read = true;
+             delete node;
+             ifchange = true;
+             add_lens_v_decl(proj);
+             return new_e;
+        }
+    } else if(auto node = instance_of(spec, RelyAnno)) {
+        // rely x; ? => ?
+        if(auto m = instance_of(node->body.get(), Expr)) {
+            if(op_is_lens_v(m->op)) {
+                ifchange = true;
+                auto new_e = node->body.release();
+                new_e->depends_on_state_read = true;
+                if(debug) {
+                        LOG_DEBUG << "node before: " + string(*node);
+                        LOG_DEBUG << "node after: " + string(*new_e);
+                }
+                delete node;
+                return new_e;
+            }
+        }
+    } 
+    return node;
+    };
+    return std::make_pair(rec_apply(spec, f), ifchange);
+}
+
 
 static bool contains_interest_fields(SpecNode *spec) {
     if (auto s = instance_of(spec, Symbol)) {
@@ -1784,6 +2476,69 @@ rule_ret_t rule_eliminate_let(Project *proj, SpecNode *spec) {
     return std::make_pair(rec_apply(spec, f, false), changed);
 }
 
+
+
+// unique_ptr<SpecNode> rule_simplify_expr(Project* proj, unique_ptr<SpecNode> spec);
+// unique_ptr<SpecNode> rule_eliminate_if(Project* proj, unique_ptr<SpecNode> spec);
+
+unique_ptr<SpecNode> rule_eliminate_rely(Project* proj, unique_ptr<SpecNode> spec) {
+    if(auto r = instance_of(spec.get(), Rely)) {
+        if(auto cons = instance_of(r->prop.get(), BoolConst)) {
+            if(std::get<bool>(cons->value)) {
+                return std::move(r->body);
+            } else {
+                return make_unique<Symbol>("None", spec->type);
+            }
+        }
+    }
+}
+
+// unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec) {
+//     if(auto expr = instance_of(spec.get(), Expr)) {
+//         //will move this to rule_simplify_expr
+//         //unfold, arithmatic expressions
+//         if(op_eq(expr->op, Expr::binops::EQUAL)) {
+//             auto node1 = partial_eval(proj, std::move(expr->elems->at(0)));
+//             auto node2 = partial_eval(proj, std::move(expr->elems->at(1)));
+//             if(auto cons = instance_of(node1.get(), Const)) {
+//             if(auto cons2 = instance_of(node2.get(), Const)){
+//                 return make_unique<BoolConst>((*cons) == *cons2);
+//             }}
+//         } else if(op_eq(expr->op, Expr::AND)) {
+//             auto node1 = partial_eval(proj, std::move(expr->elems->at(0)));
+//             auto node2 = partial_eval(proj, std::move(expr->elems->at(1)));
+//             if(auto cons = instance_of(node1.get(), IntConst)) {
+//             if(auto cons2 = instance_of(node2.get(), IntConst)){
+//                 return make_unique<IntConst>(cons->get_value() + cons2->get_value());
+//             }}
+//         }                                       
+//     } else if(auto ifnode = instance_of(spec.get(), If)) {
+//         //eliminate if
+//         auto cond = partial_eval(proj, std::move(ifnode->cond));
+//         ifnode->cond = std::move(cond);
+//         if(auto cond = instance_of(ifnode->cond.get(), BoolConst)) {
+//             unique_ptr<SpecNode> eliminatif = rule_eliminate_if(proj, std::move(spec));
+//             auto after1 = partial_eval(proj, std::move(eliminatif));
+//             return after1;
+//         }
+//         auto then_b = partial_eval(proj, std::move(ifnode->then_body));
+//         auto else_b = partial_eval(proj, std::move(ifnode->else_body));
+//         ifnode->then_body = std::move(then_b);
+//         ifnode->else_body = std::move(else_b);
+//         return spec;
+//     } else if(auto m = instance_of(spec.get(), Match)) {
+//         //match
+//     } else if(auto m = instance_of(spec.get(), RelyAnno)) {
+//         auto cond = partial_eval(proj, std::move(m->prop));
+
+//         if(auto cond = instance_of(ifnode->cond.get(), BoolConst)) {
+//             unique_ptr<SpecNode> eliminate = rule_eliminate_rely(proj, std::move(spec));
+//             auto after = partial_eval(proj, std::move(eliminate));
+//             return after;
+//         }
+//     }
+// }
+
 static string get_constr(SpecNode *node) {
     if (auto p = instance_of(node, Symbol)) {
         return p->text;
@@ -1883,6 +2638,10 @@ rule_ret_t rule_eliminate_match_simple(Project *proj, SpecNode *spec) {
     std::function<SpecNode*(SpecNode*)> f = [&] (SpecNode *node) -> SpecNode* {
         if (auto m = instance_of(node, Match)) {
             auto possible = false;
+            if(m->match_list->size() == 1 && instance_of(m->match_list->at(0)->pattern.get(), Symbol)) {
+                //let should not be allowed
+                return node;
+            }
             for (int i = 0; i < m->match_list->size(); ++i) {
                 std::unordered_map<string, unique_ptr<SpecNode>> assigns;
                 if (try_match(proj, m->match_list->at(i)->pattern.get(), m->src.get(), assigns, true)) {
@@ -2400,6 +3159,7 @@ rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec) {
 
         if (auto m = instance_of(node, If)) {
             if (auto c = instance_of(m->cond.get(), BoolConst)) {
+                expr_is_changed = true;
                 if (std::get<bool>(c->value)) {
                     return m->then_body.release();
                 } else {
@@ -2424,14 +3184,29 @@ rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec) {
                     auto elems2 = new vector<unique_ptr<SpecNode>>();
                     elems2->push_back(unique_ptr<SpecNode>(left));
                     elems2->push_back(unique_ptr<SpecNode>(right));
-
+                    expr_is_changed = true;
                     return new Expr(ops, unique_ptr<vector<unique_ptr<SpecNode>>>(elems2), node->get_type());
-                } else if (ops == op::ADD && is_const_zero(m->elems->at(0).get())) {
+                } 
+                if (ops == op::ADD && is_const_zero(m->elems->at(0).get())) {
                     expr_is_changed = true;
                     return m->elems->at(1).release();
                 } else if (ops == op::ADD && is_const_zero(m->elems->at(1).get())) {
                     expr_is_changed = true;
                     return m->elems->at(0).release();
+                } else if (ops == op::EQUAL || ops == op::BEQ || ops == op::SEQ) {
+                    if(auto const1 = instance_of(m->elems->at(0).get(), Const)) {
+                        if(auto const2 = instance_of(m->elems->at(1).get(), Const)) {
+                            expr_is_changed = true;
+                            return new BoolConst(*const1 == *const2);
+                        }
+                    }
+                } else if (ops == op::NOT_EQUAL || ops == op::BNE || ops == op::SNE) {
+                    if(auto const1 = instance_of(m->elems->at(0).get(), Const)) {
+                        if(auto const2 = instance_of(m->elems->at(1).get(), Const)) {
+                            expr_is_changed = true;
+                            return new BoolConst(*const1 != *const2);
+                        }
+                    }
                 } else if (ops == op::MINUS && m->elems->size() == 2 && is_const_zero(m->elems->at(1).get())) {
                     expr_is_changed = true;
                     return m->elems->at(0).release();
@@ -2559,6 +3334,7 @@ rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec) {
                                                          {bop::LT, bop::GTE}, {bop::GTE, bop::LT}, {bop::GT, bop::LTE},
                                                          {bop::LTE, bop::GT}, {bop::BGT, bop::BLE}, {bop::BLE, bop::BGT},
                                                          {bop::BLT, bop::BGE}, {bop::BGE, bop::BLT}};
+                                expr_is_changed = true;
                                 return new Expr(rev[elem0op], std::move(elem0->elems), node->get_type());
                             }
                         }
