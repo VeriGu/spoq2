@@ -65,7 +65,7 @@ namespace autov {
     /* Calculate cone of influence */
     std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecNode *inv);
 
-    void spec_prover(Project *proj, Definition *def);
+    void spec_prover(Project *proj);
 
     //typedef std::pair<SpecNode *, path_t> PropagationNode;
 

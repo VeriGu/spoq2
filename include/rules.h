@@ -15,7 +15,7 @@ extern std::set<string> interest_list;
 static unsigned long get_mono_lens_id() {
     return mono_lens_id++;
 }
-SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f, bool apply_anno);
+SpecNode* subst(SpecNode *spec, string name, SpecNode *value, bool &succ);
 
 std::unique_ptr<SpecNode> rec_apply_smart(std::unique_ptr<SpecNode> spec,
                                           const std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)>& f,

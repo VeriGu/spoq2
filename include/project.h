@@ -133,7 +133,7 @@ public:
     vector<string> def_order;
     unordered_map<string, SymbolInfo> symbols;
 
-    //std::set<string> skip_state_specs;
+    std::set<string> skip_state_specs;
 
 
     // coi[spec_name][invariant_name] -> coi
@@ -146,12 +146,12 @@ public:
     QueryInfo query_saver;
 
     unordered_map<string, vector<unique_ptr<SpecNode>>> loop_invs;
-    vector<unique_ptr<SpecNode>> sys_invs;
+    unordered_map<string, unique_ptr<SpecNode>> sys_invs;
     unique_ptr<SpecNode> conjoined_sys_inv;
     
     // cone_of_influence[spec_name][invariant_name] -> coi
     //unordered_map<string, std::unordered_map<string, std::set<field_t>>> cone_of_influence;
-    unordered_map<string, std::set<field_t>> inv_fields;
+   // unordered_map<string, std::set<field_t>> inv_fields;
 
     class cmds {
     public:
@@ -181,7 +181,7 @@ public:
     std::set<string> has_shadow;
 
     Project();
-    void add_sys_inv(unique_ptr<SpecNode> inv);
+    void add_sys_inv(string name, unique_ptr<SpecNode> inv);
     void add_symbol(string symbol, SymbolKind kind, string info, shared_ptr<loc_t> loc);
     void add_symbol(string symbol, SymbolKind kind, string info, shared_ptr<loc_t> loc, unsigned long order);
     void update_symbol_loc(string symbol, shared_ptr<loc_t> loc);
