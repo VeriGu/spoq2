@@ -7,9 +7,7 @@
 #include "antlr4-runtime.h"
 #include "SpecVisitor.h"
 
-
 namespace autov::parser {
-
 /**
  * This class provides an empty implementation of SpecVisitor, which can be
  * extended to create a visitor which only needs to handle a subset of the available methods.
@@ -33,6 +31,10 @@ public:
     return visitChildren(ctx);
   }
 
+  virtual std::any visitInvdef(SpecParser::InvdefContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
   virtual std::any visitDecl(SpecParser::DeclContext *ctx) override {
     return visitChildren(ctx);
   }
@@ -50,6 +52,18 @@ public:
   }
 
   virtual std::any visitCommand(SpecParser::CommandContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
+  virtual std::any visitGlobal_anno(SpecParser::Global_annoContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
+  virtual std::any visitAnno_struct(SpecParser::Anno_structContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
+  virtual std::any visitLoop_inv(SpecParser::Loop_invContext *ctx) override {
     return visitChildren(ctx);
   }
 
@@ -176,4 +190,5 @@ public:
 
 };
 
-}  // namespace autov::parser
+}
+

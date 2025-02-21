@@ -62,6 +62,12 @@ src/optimizations/symbolic.cpp
 
 #### Machine-checkable SMT2 Query Generation 
 
+### Loop Invariant Inductiveness Checking
+
+### Expressive Pre/Post condition
+
+### Decidable-Fragement Checking
+
 ## Development
 
 #### Z3 Overhead Profiling
@@ -84,6 +90,5 @@ watch -n 0.1 'MEMTOTAL=$(awk "/MemTotal/ {print \$2}" /proc/meminfo); \
  ps -eo pid,rss,comm --sort=-rss | head -n 20 | \
  awk -v mt=$MEMTOTAL "NR==1 {printf \"%-8s %10s %10s  %s\\n\",\"PID\",\"RSS(KB)\",\"MemUse(%)\",\"COMMAND\"} NR>1 {usage=(\$2/mt)*100; printf \"%-8s %10d %9.3f%%  %s\\n\",\$1,\$2,usage,\$3}"'
 ```
-
 
 

@@ -15,6 +15,7 @@ extern std::set<string> interest_list;
 static unsigned long get_mono_lens_id() {
     return mono_lens_id++;
 }
+SpecNode *rec_apply(SpecNode *spec, std::function<SpecNode*(SpecNode*)> f, bool apply_anno);
 
 std::unique_ptr<SpecNode> rec_apply_smart(std::unique_ptr<SpecNode> spec,
                                           const std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)>& f,
@@ -41,6 +42,7 @@ rule_ret_t rule_eliminate_if(Project *proj, SpecNode *spec);
 rule_ret_t rule_eliminate_let(Project *proj, SpecNode *spec);
 rule_ret_t rule_eliminate_match_simple(Project *proj, SpecNode *spec);
 rule_ret_t rule_subst_match_src_with_content(Project *proj, SpecNode *spec);
+rule_ret_t rule_simplify_dependent_value(Project *proj, SpecNode *spec, bool debug);
 rule_ret_t rule_simple_builtin_functions(Project* proj, SpecNode *spec);
 rule_ret_t rule_eliminate_when(Project *proj, SpecNode *spec);
 rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec);

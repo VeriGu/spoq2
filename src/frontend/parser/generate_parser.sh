@@ -1,0 +1,1 @@
+java -jar antlr-4.12.0-complete.jar Spec.g4 -Dlanguage=Cpp -visitor -no-listener

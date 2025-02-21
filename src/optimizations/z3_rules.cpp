@@ -111,7 +111,7 @@ rule_ret_t merge_rely(Project* proj, SpecNode* spec, shared_ptr<EvalState> state
                 tmp_conds->insert(tmp_conds->end(), conds.begin() + i + 1, conds.end());
                 auto res = z3_check(make_shared<EvalState>(state->vars, tmp_conds), cond->get_z3_value());
 
-                if (res == Z3Result::Unknown) {
+                if (res == Z3Result::Unknown || res == Z3Result::Sat) {
                     auto new_conds = new vector<unique_ptr<SpecNode>>();
                     new_conds->push_back(unique_ptr<SpecNode>(rely1->prop.release()));
                     new_conds->push_back(unique_ptr<SpecNode>(rely2->prop.release()));
@@ -124,7 +124,7 @@ rule_ret_t merge_rely(Project* proj, SpecNode* spec, shared_ptr<EvalState> state
                     rely1->body.reset(rely2->body.release());
                     delete rely2;
                 }
-                else {
+                else if(res == Z3Result::False) {
                     rely1->prop.reset(new Expr("false", make_unique<vector<unique_ptr<SpecNode>>>(), Prop::PROP));
                     rely1->body.reset(rely2->body.release());
                     delete rely2;
@@ -185,7 +185,7 @@ rule_ret_t simple_rely_by_z3(Project* proj, RelyAnno* spec, shared_ptr<EvalState
         PROFILE_END(z3_rule_check);
         PROFILE_END(rely_rule_check);
 
-        if (res == Z3Result::Unknown) {
+        if (res == Z3Result::Unknown || res == Z3Result::Sat) {
             profile_log_rule_rely_unsolved(string(orig_prop));
             state->conds->push_back(c->get_z3_value());
             auto ret = rule_simple_by_z3(proj, spec->body.release(), state);
@@ -257,7 +257,7 @@ rule_ret_t simple_if_by_z3(Project* proj, If* spec, shared_ptr<EvalState> state)
     PROFILE_END(z3_rule_check);
     PROFILE_END(if_rule_check);
 
-    if (res == Z3Result::Unknown) {
+    if (res == Z3Result::Unknown || res == Z3Result::Sat) {
         profile_log_rule_if_unsolved(string(orig_cond));
         //std::cout << "simple_if_by_z3: unknown condition: " << orig_cond << std::endl;
         auto unknown_value = c->get_z3_value();
@@ -366,7 +366,7 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
             state->conds->push_back(src->get_z3_value() == t->construct(sym->text, {})->get_z3_value());
         }
         else {
-            ((*state->vars))[sym->text] = src;
+            (*state->vars)[sym->text] = src;
         }
     } else if (auto con = instance_of(pat, Const)) {
         if (auto v = std::get_if<unsigned long>(&con->value))
@@ -385,23 +385,17 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
         state->conds->push_back(src->get_z3_value() == z3ctx.string_val(std::get<string>(con->value)));
     } else if (auto expr = instance_of(pat, Expr)) {
         if (op_eq(expr->op, Expr::Some)) {
-            auto t = dynamic_pointer_cast<Option>(src->get_type());
-            auto v = t->elem_type->declare("v", spec->nid);
-            if (auto tuple_type = dynamic_pointer_cast<Tuple>(t->elem_type)) {
-                auto tuple_elems = instance_of(expr->elems->at(0).get(), Expr)->elems.get(); // Seems like a bug here
-                if (tuple_elems->size() == 2) {
-                    // assume the tuple is (symbol, symbol)?
-                    auto sym0 = instance_of(tuple_elems->at(0).get(), Symbol);
-                    auto sym1 = instance_of(tuple_elems->at(1).get(), Symbol);
-                    auto elem0 = sym0->type->declare(sym0->text, sym0->nid); // nid or id?
-                    auto elem1 = sym1->type->declare(sym1->text, sym1->nid); // nid or id?
-                    state->vars->emplace(sym0->text, elem0);
-                    state->vars->emplace(sym1->text, elem1);
-                }
-            }
             auto value = dynamic_pointer_cast<IndValue>(src)->get("value");
+            auto t = dynamic_pointer_cast<Option>(src->get_type());
+            auto idx = t->get_constr_index("Some_" + t->elem_type->name);
+            auto is_some = t->get_z3_type().recognizers()[idx];
+            auto tester = is_some(src->get_z3_value());
+            state->conds->push_back(tester);
             resolve_pattern(proj, spec, expr->elems->at(0).get(), value, state);
         } else if (op_eq(expr->op, Expr::Tuple)) {
+            auto v = dynamic_pointer_cast<Tuple>(src->get_type());
+            auto recog = v->get_z3_type().recognizers()[0];
+            state->conds->push_back(recog(src->get_z3_value()));
             for (int i = 0; i < expr->elems->size(); i++) {
                 resolve_pattern(proj, spec, expr->elems->at(i).get(), dynamic_pointer_cast<StructValue>(src)->get(i), state);
             }
@@ -421,6 +415,10 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
             auto sym = proj->symbols.find(op);
             if (sym != proj->symbols.end() && sym->second.kind == SymbolKind::IndConstructor) {
                 auto t = dynamic_pointer_cast<Inductive>(src->get_type());
+                auto z3_type = src->get_type()->get_z3_type();
+                auto idx = t->get_constr_index(op);
+                auto tester = t->get_z3_type().recognizers()[idx];
+                state->conds->push_back(tester(src->get_z3_value()));
                 std::vector<shared_ptr<SpecValue>> vars;
                 for (int i = 0; i < t->constr[op]->size(); i++) {
                     auto arg = t->constr[op]->at(i);
@@ -452,7 +450,7 @@ rule_ret_t simple_match_by_z3(Project* proj, Match* spec, shared_ptr<EvalState> 
 
     for (auto pm = spec->match_list->begin(); pm != spec->match_list->end(); pm++) {
         auto new_state = state->copy();
-
+        //auto pat = resolve_pattern(proj, spec,(*pm)->pattern.get(), src_val, vars, assigns);
         resolve_pattern(proj, spec, (*pm)->pattern.get(), src_val, new_state);
         if (!__OPT_ON_MATCH) {
             PROFILE_START(match_rule_check);
@@ -932,25 +930,25 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
     PROFILE_END(z3_eval);
 
     unordered_map<unsigned, std::pair<z3::expr, SpecNode*>> subexprs;
-    collect_exprs(spec, subexprs);
-    if ((spec->get_type() == Int::INT || spec->get_type() == Bool::BOOL)
-         && length_of_exp(spec) <= 20) {
-        auto _expr = reconstruct_expr(exp_val->get_z3_value(), subexprs, state);
-        unique_ptr<SpecNode> expr;
-        if (_expr) {
-            expr = _expr->deep_copy();
-        }
+    // collect_exprs(spec, subexprs);
+    // if ((spec->get_type() == Int::INT || spec->get_type() == Bool::BOOL)
+    //      && length_of_exp(spec) <= 20) {
+    //     auto _expr = reconstruct_expr(exp_val->get_z3_value(), subexprs, state);
+    //     unique_ptr<SpecNode> expr;
+    //     if (_expr) {
+    //         expr = _expr->deep_copy();
+    //     }
 
-        for (auto s = subexprs.begin(); s != subexprs.end(); ++s)
-            if (s->second.second != _expr) {
-                delete s->second.second;
-            }
+    //     for (auto s = subexprs.begin(); s != subexprs.end(); ++s)
+    //         if (s->second.second != _expr) {
+    //             delete s->second.second;
+    //         }
 
-        if (expr && length_of_exp(expr.get()) < length_of_exp(spec)) {
-            delete spec;
-            return std::make_pair(expr.release(), true);
-        }
-    }
+    //     if (expr && length_of_exp(expr.get()) < length_of_exp(spec)) {
+    //         delete spec;
+    //         return std::make_pair(expr.release(), true);
+    //     }
+    // }
 
     auto elem0 = instance_of(spec->elems->at(0).get(), Expr);
 
@@ -972,21 +970,8 @@ rule_ret_t simple_expr_by_z3(Project* proj, Expr* spec, shared_ptr<EvalState> st
             z3_check(state, b->get_z3_value() >= 0) == Z3Result::True &&
             z3_check(state, d->get_z3_value() > 0) == Z3Result::True &&
             (z3_check(state, a->get_z3_value() % d->get_z3_value() == 0) == Z3Result::True ||
-             z3_check(state, b->get_z3_value() % d->get_z3_value() == 0) == Z3Result::True));
-        PROFILE_END(z3_rule_check);
-        PROFILE_END(expr_rule_check);
-        if (expr_check_ret) {
-            profile_log_rule_expr_solved(string(orin_spec_str));
-        } else {
-            profile_log_rule_expr_unsolved(string(orin_spec_str));
-        }
+             z3_check(state, b->get_z3_value() % d->get_z3_value() == 0) == Z3Result::True)) {
 
-        if (expr_check_ret) {
-            // if (debug) {
-            //     std::cout << "a: " << a->get_z3_value() << std::endl;
-            //     std::cout << "b: " << b->get_z3_value() << std::endl;
-            //     std::cout << "d: " << d->get_z3_value() << std::endl;
-            // }
             auto elems1 = make_unique<vector<unique_ptr<SpecNode>>>();
             elems1->push_back(std::move(ea));
             elems1->push_back(ed->deep_copy());
@@ -1047,13 +1032,14 @@ rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState
 #endif
 
     state = state->copy();
+    ret = std::make_pair(spec, false);
     if (is_instance(spec, Symbol)) {
         ret = std::make_pair(spec, false);
     } else if (is_instance(spec, Const)) {
         ret = std::make_pair(spec, false);
     } else if (auto expr = instance_of(spec, Expr)) {
         auto orig = string(*spec);
-        ret = simple_expr_by_z3(proj, expr, state);
+        //ret = simple_expr_by_z3(proj, expr, state);
     } else if (auto match = instance_of(spec, Match)) {
         ret = simple_match_by_z3(proj, match, state);
     } else if (auto rely = instance_of(spec, RelyAnno)) {

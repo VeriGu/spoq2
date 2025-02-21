@@ -56,6 +56,7 @@ namespace autov {
     // leaf field: field_t[n-1] 
     typedef std::vector<std::string> field_t;
     typedef std::vector<int> path_t;
+
     typedef std::pair<SpecNode *, path_t> path_node_t;
 
     bool is_invariant_defs(Project *proj, string const &name);
@@ -65,4 +66,14 @@ namespace autov {
     std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecNode *inv);
 
     void spec_prover(Project *proj, Definition *def);
+
+    //typedef std::pair<SpecNode *, path_t> PropagationNode;
+
+    //void rec_analyze_used_fields(Project* proj, SpecNode* node, std::set<field_t> &fields);
+    /* Calculate cone of influence */
+    //void analyze_cone_of_influence(Project *proj, string fname, Definition *def);
+    //void analyze_invariant_fields(Project *proj, SpecNode *inv, string name);
+
+	bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv);
+
 }

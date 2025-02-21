@@ -133,7 +133,7 @@ public:
     vector<string> def_order;
     unordered_map<string, SymbolInfo> symbols;
 
-    std::set<string> skip_state_specs;
+    //std::set<string> skip_state_specs;
 
 
     // coi[spec_name][invariant_name] -> coi
@@ -144,7 +144,14 @@ public:
     unordered_map<string, std::set<Definition *>> inv_lemmas;
     unordered_map<string, bool> verified_specs;
     QueryInfo query_saver;
-    /** autoproof-related variables END */
+
+    unordered_map<string, vector<unique_ptr<SpecNode>>> loop_invs;
+    vector<unique_ptr<SpecNode>> sys_invs;
+    unique_ptr<SpecNode> conjoined_sys_inv;
+    
+    // cone_of_influence[spec_name][invariant_name] -> coi
+    //unordered_map<string, std::unordered_map<string, std::set<field_t>>> cone_of_influence;
+    unordered_map<string, std::set<field_t>> inv_fields;
 
     class cmds {
     public:
@@ -156,8 +163,14 @@ public:
         std::unordered_map<string, vector<string>> AddDep;
         bool NoUnfoldAll = false;
         bool NoHighSpec = false;
+        bool CheckInv = false;
+        bool CheckLoopInv = false;
+        std::set<string> invs;
         std::map<string, vector<unique_ptr<SpecNode>>> InitRely;
+        std::map<string, vector<unique_ptr<SpecNode>>> PreCond;
         std::map<string, vector<unique_ptr<SpecNode>>> PostEnsure;
+        std::map<string, vector<unique_ptr<SpecNode>>> PostCond;  
+        std::set<string> PreserveInv;
         std::unordered_map<string, std::unordered_map<string, string>> StackMap;
     };
     cmds cmds;
@@ -168,11 +181,10 @@ public:
     std::set<string> has_shadow;
 
     Project();
-
+    void add_sys_inv(unique_ptr<SpecNode> inv);
     void add_symbol(string symbol, SymbolKind kind, string info, shared_ptr<loc_t> loc);
     void add_symbol(string symbol, SymbolKind kind, string info, shared_ptr<loc_t> loc, unsigned long order);
     void update_symbol_loc(string symbol, shared_ptr<loc_t> loc);
-
     void add_struct(shared_ptr<Struct> s, shared_ptr<loc_t> loc);
     void add_struct(shared_ptr<Struct> s);
 
@@ -191,6 +203,8 @@ public:
 
     void add_command(unique_ptr<Expr> cmd);
     void add_command(unique_ptr<Expr> cmd, unique_ptr<Layer> layer);
+
+    void add_loop_inv(unique_ptr<Expr> cmd);
 
     bool is_ind_constr(string name);
     bool is_struct_constr(string name);

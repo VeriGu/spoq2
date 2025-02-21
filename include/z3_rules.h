@@ -101,8 +101,9 @@ public:
 };
 
 enum class Z3Result {
-    True,
-    False,
+    True, //!cond unsat
+    False, //cond unsat
+    Sat, //!cond sat
     Unknown
 };
 /*
@@ -126,12 +127,20 @@ Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo
 Z3Result z3_verify_state_sat(shared_ptr<ProveState> state, QueryInfo *qinfo, int timeout = Z3_VERIFY_TIMEOUT);
 Z3Result z3_check(std::shared_ptr<EvalState> state, z3::expr cond, int timeout=Z3_TIMEOUT);
 Z3Result z3_check(shared_ptr<EvalState> state, int timeout=Z3_TIMEOUT);
-shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state);
+Z3Result z3_check_unsat(std::shared_ptr<EvalState> state, z3::expr cond, z3::model& model, int timeout=Z3_TIMEOUT);
+shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state, bool check_loop = false);
+shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state, bool check_loop, bool unfold, set<string>& used_fixpoint);
+rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState> state);
 void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<SpecValue> src, shared_ptr<EvalState> state);
 shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pat, shared_ptr<SpecValue> src,
                                       unordered_map<string, shared_ptr<SpecValue>> &vars,
                                       unordered_map<string, shared_ptr<SpecValue>> &assigns);
-rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState> state);
+bool check_loop_inv(Project* proj, Definition *loop);
+bool check_invariant(Project* proj, Definition* prim, SpecNode* inv);
+unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args);
+unique_ptr<SpecNode> formulate_preserved_function(Project* proj, string fname);
+unique_ptr<SpecNode> formulate_post_condition(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args);
+void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>>& states);
 unsigned long length_of_exp(SpecNode* spec);
 static inline bool op_eq(std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string>& val,
                   std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string> op) {
