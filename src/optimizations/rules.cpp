@@ -2478,20 +2478,22 @@ rule_ret_t rule_eliminate_let(Project *proj, SpecNode *spec) {
 
 
 
+// unique_ptr<SpecNode> rule_eliminate_let(Project *proj, unique_ptr<SpecNode> spec);
 // unique_ptr<SpecNode> rule_simplify_expr(Project* proj, unique_ptr<SpecNode> spec);
 // unique_ptr<SpecNode> rule_eliminate_if(Project* proj, unique_ptr<SpecNode> spec);
+// unique_ptr<SpecNode> rule_eliminate_match_simple(Project* proj, unique_ptr<SpecNode> spec);
 
-unique_ptr<SpecNode> rule_eliminate_rely(Project* proj, unique_ptr<SpecNode> spec) {
-    if(auto r = instance_of(spec.get(), Rely)) {
-        if(auto cons = instance_of(r->prop.get(), BoolConst)) {
-            if(std::get<bool>(cons->value)) {
-                return std::move(r->body);
-            } else {
-                return make_unique<Symbol>("None", spec->type);
-            }
-        }
-    }
-}
+// unique_ptr<SpecNode> rule_eliminate_rely(Project* proj, unique_ptr<SpecNode> spec) {
+//     if(auto r = instance_of(spec.get(), Rely)) {
+//         if(auto cons = instance_of(r->prop.get(), BoolConst)) {
+//             if(std::get<bool>(cons->value)) {
+//                 return std::move(r->body);
+//             } else {
+//                 return make_unique<Symbol>("None", spec->type);
+//             }
+//         }
+//     }
+// }
 
 // unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec) {
 //     if(auto expr = instance_of(spec.get(), Expr)) {
@@ -2527,7 +2529,30 @@ unique_ptr<SpecNode> rule_eliminate_rely(Project* proj, unique_ptr<SpecNode> spe
 //         ifnode->else_body = std::move(else_b);
 //         return spec;
 //     } else if(auto m = instance_of(spec.get(), Match)) {
-//         //match
+//         //follow a call by value semantics
+//         //simple_pattern_match, let_elimination
+//         auto src = partial_eval(proj, std::move(m->src));
+//         if(m->is_let()) {
+//             unique_ptr<SpecNode> eliminate_let = rule_eliminate_let(proj, std::move(spec));
+//         } else {
+//             //check if we can reduce the pattern matching if src is in weak head normal form.
+//             bool ifwhnm = false;
+//             if(auto e = instance_of(src.get(), Expr)) {
+//                 if(std::holds_alternative<string>(e->op)) {
+//                     auto sym = std::get<string>(expr->op);
+//                     auto info = proj->symbols[sym];
+//                     if (info.kind == SymbolKind::IndConstructor) {
+//                         ifwhnm = true;
+//                     }
+//                 }
+//             } else if(auto e = instance_of(src.get(), Symbol)) {
+//                 auto info = proj->symbols[e->text];
+//                 if (info.kind == SymbolKind::IndConstructor) {
+//                     ifwhnm = true;
+//                 }
+//             }
+//             unique_ptr<SpecNode> simple_match = rule_eliminate_match_simple(proj, std::move(spec));
+//         }
 //     } else if(auto m = instance_of(spec.get(), RelyAnno)) {
 //         auto cond = partial_eval(proj, std::move(m->prop));
 
