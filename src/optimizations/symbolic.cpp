@@ -895,13 +895,18 @@ bool check_states_implies_loop_inv(Project* proj, shared_ptr<ProveState> state, 
     }
 
     vc = vc && (*var)[loop->name + "_st_old"]->get_z3_value() == elems.back()->get_z3_value();
-	LOG_INFO << "[Checking Loop Invariant] eq formula" << vc;
-	LOG_INFO << "[Checking Loop Invariant] invariant" << invval->get_z3_value();
+	//LOG_INFO << "[Checking Loop Invariant] eq formula" << vc;
+	//LOG_INFO << "[Checking Loop Invariant] invariant" << invval->get_z3_value();
 	for(auto &cond: *state->conds) {
 		LOG_DEBUG << "Cond:" << cond;
 	}
+    for(auto ind: *state->inductions) {
+        LOG_DEBUG << "Current Induction:" << ind;
+    }
+    auto final_vc = z3::implies(vc, invval->get_z3_value());
+    LOG_DEBUG << "final vc: " << final_vc;
 	z3::model model(z3ctx);
-    auto res = z3_check_unsat(state, z3::implies(vc, invval->get_z3_value()), model, &proj->query_saver, 50000);
+    auto res = z3_check_unsat(state, final_vc , model, &proj->query_saver, 50000);
     if(res == Z3Result::False || res == Z3Result::Unknown || res == Z3Result::Sat) {
 		if(res == Z3Result::Sat) {
 			LOG_ERROR << "Solver return SAT";
@@ -1044,13 +1049,10 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 			}
 			if(proj->defs.find(op) != proj->defs.end()) {
 				if(auto loop = instance_of(proj->defs[op].get(), Fixpoint)){
-                    for(auto ind: *state->inductions) {
-                        LOG_DEBUG << "Current Induction:" << ind;
-                    }
 					if(!check_states_implies_loop_inv(proj, state, op, elems)){
                         return false;
                     }
-                    state->inductions->clear();
+                    //state->inductions->clear();
                     LOG_INFO << "[Checking Loop Invariant] Precondition implies invariant";
                     auto fname = loop->name;
                     auto loop_post_cond = formulate_loop_invariant(proj, fname, expr->elems.get());
@@ -1079,7 +1081,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                         };
 					}
 
-                    state->inductions->clear();
+                    //state->inductions->clear();
 
 					if(proj->cmds.PostCond.find(op) != proj->cmds.PostCond.end()) {
 						//add post condition
@@ -1135,20 +1137,22 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 		}
 		for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 			auto new_state = state->copy();
-			unordered_map<string, shared_ptr<SpecValue>> vars;
-            unordered_map<string, shared_ptr<SpecValue>> assigns;
-			auto pat = resolve_pattern(proj, spec, (*pm)->pattern.get(), src, vars, assigns);
-            auto cond = pat->get_z3_value() == src->get_z3_value();
-            //exists v1,v2..., constructor v1 v2 ... = src.
-            for (auto v = vars.begin(); v != vars.end(); v++) {
-                cond = z3::exists(v->second->get_z3_value(), cond);
-            }
+			//unordered_map<string, shared_ptr<SpecValue>> vars;
+            //unordered_map<string, shared_ptr<SpecValue>> assigns;
+			//auto pat = resolve_pattern(proj, spec, (*pm)->pattern.get(), src, vars, assigns);
+            auto pat = (*pm)->pattern.get();
+            resolve_pattern(proj, m, pat, src, new_state);
+            // auto cond = pat->get_z3_value() == src->get_z3_value();
+            // //exists v1,v2..., constructor v1 v2 ... = src.
+            // for (auto v = vars.begin(); v != vars.end(); v++) {
+            //     cond = z3::exists(v->second->get_z3_value(), cond);
+            // }
 
-			new_state->conds->push_back(cond);
+			//new_state->conds->push_back(cond);
 
-            for (auto v = assigns.begin(); v != assigns.end(); v++) {
-                (*new_state->vars)[v->first] = v->second;
-            }
+            // for (auto v = assigns.begin(); v != assigns.end(); v++) {
+            //     (*new_state->vars)[v->first] = v->second;
+            // }
 
 			if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state,used_abs_funcs)) {
 				return false;

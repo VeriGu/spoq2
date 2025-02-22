@@ -2018,12 +2018,17 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                         used_fixpoint.insert(df->name);
                         z3::expr_vector z3_args(z3ctx);
                         for (const auto &arg : elems) {
-                            z3_args.push_back(arg->get_z3_value());
+                             z3_args.push_back(arg->get_z3_value());
                         }
                         auto app = (loop->absf())(z3_args);
                         return _cache(loop->rettype->from_z3_value(app));
                     }
-                    return _cache(df->absf()->call(elems));
+                        z3::expr_vector z3_args(z3ctx);
+                        for (const auto &arg : elems) {
+                             z3_args.push_back(arg->get_z3_value());
+                        }
+                        auto app = (loop->absf())(z3_args);
+                        return _cache(loop->rettype->from_z3_value(app));
                 } else {
                     if(unfold && proj->cmds.NoUnfold.find(df->name) == proj->cmds.NoUnfold.end()) {
                         z3::expr func = formulate_function(proj, df);
@@ -2158,14 +2163,27 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
     else if (auto forall = instance_of(val, Forall))
     {
         z3::expr_vector vars(z3ctx);
-        for (auto v = forall->vars->begin(); v != forall->vars->end(); v++)
-        {
-            auto var = (*v)->type->declare((*v)->name, val->nid);
-            state->vars->emplace((*v)->name, var);
-            vars.push_back(var->get_z3_value());
+        std::vector<z3::expr> hypos;
+        for (auto v = forall->vars->begin(); v != forall->vars->end(); v++) {
+            if ((*v)->type) {
+                auto var = (*v)->type->declare((*v)->name, val->nid);
+                (*state->vars)[(*v)->name] = var;
+                vars.push_back(var->get_z3_value());
+            } else {
+                // bounded variable v is prop, push into state
+                auto prop = z3_eval(proj, (*v)->expr.get(), state, check_loop, unfold, used_fixpoint);
+                hypos.push_back(prop->get_z3_value());
+            }
         }
-        auto body = z3_eval(proj, forall->body.get(), state,  check_loop, unfold, used_fixpoint);
-        return _cache(make_shared<BoolValue>(z3::forall(vars, body->get_z3_value())));
+        /** bounded variables may have a newer nid over cached z3 values, so we need to clear cached value first  */
+        forall->clear_z3_eval();
+        auto body = z3_eval(proj, forall->body.get(), state, check_loop, unfold, used_fixpoint);
+        auto p = body->get_z3_value();
+
+        for (const auto &h : hypos) {
+            p = z3::implies(h, p);
+        }
+        return _cache(make_shared<BoolValue>(z3::forall(vars, p)));
     }
     else if (auto exsts = instance_of(val, Exists))
     {
