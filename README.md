@@ -77,6 +77,13 @@ src/optimizations/profile.cpp:
 	static bool __PROFILE_ON = false;
 ```
 
+### COMMANDS
+conditional_spec
+check-sys-inv
+check-loop-inv
+check-pre-post
+
+
 #### Memory Leakage Detection 
 
 Option 1. Use Valgrind
