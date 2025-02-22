@@ -216,41 +216,38 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     }
 
     Z3Params.set("timeout", (unsigned int)timeout);
+    z3::solver solver(z3ctx);
+    solver.set(Z3Params);
 
-    Z3Solver.set(Z3Params);
-
-    Z3Solver.push();
+    
 
     for (auto &c : *state->conds) {
-        Z3Solver.add(c);
+        solver.add(c);
     }
     if (auto prover = instance_of(state.get(), ProveState)) {
         for (auto &ind : *prover->inductions) {
-            Z3Solver.add(ind);
+            solver.add(ind);
         }
     }
-    Z3Solver.push();
-    Z3Solver.add(cond);
+    solver.push();
+    solver.add(cond);
 #ifdef Z3_PCACHE
     auto res = z3_pcache_check();
 #else
-    auto res = Z3Solver.check();
+    auto res = solver.check();
 #endif
-    Z3Solver.pop();
-
-
-    Z3Solver.push();
+   
     //Z3Solver.add(!cond);
     z3::expr_vector not_cond_vec(z3ctx);
     not_cond_vec.push_back(!cond);
 #ifdef Z3_PCACHE
     auto not_res = z3_pcache_check(not_cond_vec);
 #else
-    auto not_res = Z3Solver.check(not_cond_vec);
+    auto not_res = solver.check(not_cond_vec);
 #endif
-    Z3Solver.pop();
+ 
 
-    Z3Solver.pop();
+    
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
@@ -299,23 +296,20 @@ Z3Result z3_check(shared_ptr<EvalState> state, int timeout) {
 
 
     Z3Params.set("timeout", (unsigned int)timeout);
+    z3::solver solver(z3ctx);
+    solver.set(Z3Params);
 
-    Z3Solver.set(Z3Params);
-
-    Z3Solver.push();
+    solver.push();
 
     for (auto &c : *state->conds) {
-        Z3Solver.add(c);
+        solver.add(c);
     }
-    Z3Solver.push();
 #ifdef Z3_PCACHE
     auto res = z3_pcache_check();
 #else
-    auto res = Z3Solver.check();
+    auto res = solver.check();
 #endif
-    Z3Solver.pop();
-
-    Z3Solver.pop();
+  
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
@@ -350,24 +344,22 @@ Z3Result z3_check_unsat(shared_ptr<ProveState> state, z3::expr cond, z3::model& 
 
     Z3Params.set("timeout", (unsigned int)timeout);
 
-    Z3Solver.set(Z3Params);
+    z3::solver solver(z3ctx);
+    solver.set(Z3Params);
 
-    Z3Solver.push();
 
     for (auto &c : *state->conds) {
-        Z3Solver.add(c);
+        solver.add(c);
     }
 
     for (auto &ind : *state->inductions) {
-        Z3Solver.add(ind);
+        solver.add(ind);
     }
 
-
-    Z3Solver.push();
     //Z3Solver.add(!cond);
     z3::expr_vector not_cond_vec(z3ctx);
     not_cond_vec.push_back(!cond);
-    auto not_res = Z3Solver.check(not_cond_vec);
+    auto not_res = solver.check(not_cond_vec);
     
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
@@ -383,19 +375,13 @@ Z3Result z3_check_unsat(shared_ptr<ProveState> state, z3::expr cond, z3::model& 
     // std::cout << "-----------------Z3-----------------" << std::endl;
 
     if (not_res == z3::unsat) {
-        Z3Solver.pop();
-        Z3Solver.pop();
         Z3Cache[hash] = Z3Result::True;
         return Z3Result::True;
     } else if (not_res == z3::sat) {
         //obtained the counter example
-        ce = Z3Solver.get_model();
-        Z3Solver.pop();
-        Z3Solver.pop();
+        ce = solver.get_model();
         return Z3Result::Sat;
     } else {
-        Z3Solver.pop();
-        Z3Solver.pop();
         Z3Cache[hash] = Z3Result::Unknown;
         z3_unknowns++;
         return Z3Result::Unknown;

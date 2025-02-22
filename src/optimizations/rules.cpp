@@ -778,7 +778,7 @@ rule_ret_t rule_unfold_specs(Project *proj, SpecNode *spec) {
                 // std::cout << "Unfold definition: " << string(*define) << std::endl;
                 // std::cout << "======================================" << std::endl;
 
-                std::cout << "Unfold definition: " << define->name << std::endl;
+                //std::cout << "Unfold definition: " << define->name << std::endl;
                 if (define->deleyed_type_inference) {
                     define->infer_type(*proj);
                     define->deleyed_type_inference = false;
@@ -3210,33 +3210,6 @@ rule_ret_t rule_simplify_expr(Project *proj, SpecNode *spec) {
                 } else if (ops == op::MINUS && m->elems->size() == 2 && is_const_zero(m->elems->at(1).get())) {
                     expr_is_changed = true;
                     return m->elems->at(0).release();
-                } else if ((ops == op::ADD || ops == op::MINUS) &&
-                            m->elems->size() == 2 &&
-                            (!is_instance(m->elems->at(0).get(), IntConst) ||
-                             !is_instance(m->elems->at(1).get(), IntConst))) {
-                    auto factor = 1;
-                    for (auto i : PRIM_NUMS) {
-                        while (1) {
-                            auto a = try_divide_const_factor(expr.get(), i);
-
-                            if(a == nullptr){
-                                break;
-                            }
-                            factor *= i;
-
-                            expr = unique_ptr<SpecNode>(a);
-                        }
-                    }
-
-                    if (factor > 1) {
-                        auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-                        elems->push_back(make_unique<IntConst>(factor));
-                        elems->push_back(std::move(expr));
-                        //here node is already deleted since expr is pointing to another place.
-                        return new Expr(Expr::binops::MULT, std::move(elems), expr->get_type());
-                    }
-
-                    //here expr is not changed;
                 } else if (ops == op::MINUS && m->elems->size() == 1) {
                     return expr.release();
                 }

@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
         ("help,h", "produce help message")
         ("lens,l", po::bool_switch()->default_value(true), "use lens")
         ("conditional-spec,c", po::bool_switch()->default_value(false), "automatically generate conditional spec")
-        ("check-sys-inv", po::bool_switch()->default_value(false), "checking system invariants")
+        ("check-sys-inv", po::bool_switch()->default_value(true), "checking system invariants")
         ("check-loop-inv", po::bool_switch()->default_value(false), "checking loop invariants")
         ("check-pre-post", po::bool_switch()->default_value(false), "checking pre/post conditions");
 

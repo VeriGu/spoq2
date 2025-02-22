@@ -858,33 +858,31 @@ bool check_states_implies_loop_inv(Project* proj, shared_ptr<ProveState> state, 
                         
                         
     ///aggregate all the invs together into one conjunctives
-    SpecNode* aggreinv = new BoolConst(true);
+    unique_ptr<SpecNode> aggreinv = make_unique<BoolConst>(true);
     for(auto &inv : invs) {
         auto elems = new vector<unique_ptr<SpecNode>>();
-        elems->push_back(unique_ptr<SpecNode>(aggreinv));
+        elems->push_back(std::move(aggreinv));
         elems->push_back(inv->deep_copy());
-        aggreinv = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
+        aggreinv = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
     }
 
-	type_inference::infer_type(*proj, aggreinv, known, Bool::BOOL);
+	type_inference::infer_type(*proj, aggreinv.get(), known, Bool::BOOL);
 
-    SpecNode *before_inv = aggreinv;
+    auto before_inv = std::move(aggreinv);
     //subst invariant inv[ret_x[0]/a' ret_x[1]/b' ret_x[2]/c' ret_x[3]/d']
     for(auto arg : *loop->args) {
                         // if (arg->name != "_N_") {
-        auto sym = new Symbol(loop->name + "_" + arg->name, arg->type);
+        auto sym = make_unique<Symbol>(loop->name + "_" + arg->name, arg->type);
         bool succ;
-        before_inv = subst(before_inv, arg->name, sym, succ);
-        delete sym;
-                        // }
+        before_inv = unique_ptr<SpecNode>(subst(before_inv.release(), arg->name, sym.get(), succ));
     }
-	auto sym = new Symbol(loop->name + "_" + "st_old", loop->args->back()->type);
+	auto sym = make_unique<Symbol>(loop->name + "_" + "st_old", loop->args->back()->type);
 	bool succ;
-	before_inv = subst(before_inv, "st_old", sym, succ);
-	delete sym;
+	before_inv = unique_ptr<SpecNode>(subst(before_inv.release(), "st_old", sym.get(), succ));
+
     auto vc = z3ctx.bool_val(true);
     set<string> used_fix;
-    auto invval = z3_eval(proj, before_inv, make_shared<EvalState>(var, conds), false, true, used_fix);
+    auto invval = z3_eval(proj, before_inv.get(), make_shared<EvalState>(var, conds), false, true, used_fix);
     int i = 0;
     for(auto arg : *loop->args) {
 		if(i != 0) {
@@ -897,11 +895,11 @@ bool check_states_implies_loop_inv(Project* proj, shared_ptr<ProveState> state, 
     }
 
     vc = vc && (*var)[loop->name + "_st_old"]->get_z3_value() == elems.back()->get_z3_value();
-	//LOG_INFO << "[Checking Loop Invariant] eq formula" << vc;
-	//LOG_INFO << "[Checking Loop Invariant] invariant" << invval->get_z3_value();
-	// for(auto &cond: *state->conds) {
-	// 	LOG_DEBUG << "Cond:" << cond;
-	// }
+	LOG_INFO << "[Checking Loop Invariant] eq formula" << vc;
+	LOG_INFO << "[Checking Loop Invariant] invariant" << invval->get_z3_value();
+	for(auto &cond: *state->conds) {
+		LOG_DEBUG << "Cond:" << cond;
+	}
 	z3::model model(z3ctx);
     auto res = z3_check_unsat(state, z3::implies(vc, invval->get_z3_value()), model, &proj->query_saver, 50000);
     if(res == Z3Result::False || res == Z3Result::Unknown || res == Z3Result::Sat) {
@@ -909,9 +907,7 @@ bool check_states_implies_loop_inv(Project* proj, shared_ptr<ProveState> state, 
 			LOG_ERROR << "Solver return SAT";
 			LOG_INFO << "model: " << model;
 		}
-        LOG_ERROR << "Precondition can't infer loop invariant";
-        delete before_inv;
-        delete aggreinv;
+        LOG_ERROR << "Precondition can't infer loop invariant: " << fname;
         return false;
     }
     return true;
@@ -983,6 +979,7 @@ bool check_states_implies_pre_condition(Project* proj, shared_ptr<ProveState> st
             return false;
     }
     LOG_INFO << "[Checking Precondition] Conds imply function precondition" << def->name;
+    return true;
 }
 
 /** prove_by_traverse:
@@ -990,7 +987,7 @@ bool check_states_implies_pre_condition(Project* proj, shared_ptr<ProveState> st
  * 1. Normal invariant: instantiate SpecNode *inv
  * 2. Data-race-free: SpecNode *inv = NULL
  * */
-bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<ProveState> state) {
+bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<ProveState> state, set<string> used_abs_funcs) {
     if (auto expr = instance_of(spec, Expr)) {
         if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
             if (*e_op == Expr::Some) {
@@ -1033,12 +1030,13 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
     } else if (auto m = instance_of(spec, Match)) {
         set<string> used_fix;
         auto src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
-        state->inductions->clear();
+        
 		if(auto expr = instance_of(m->src.get(), Expr)) {
 			if(holds_alternative<string>(expr->op)){
 			auto op = std::get<string>(expr->op);
 			auto info = proj->symbols[op];
 			if (info.kind == SymbolKind::Def) {
+            used_abs_funcs.insert(op);
 			vector<shared_ptr<SpecValue>> elems;
 
 			for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {
@@ -1046,7 +1044,13 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 			}
 			if(proj->defs.find(op) != proj->defs.end()) {
 				if(auto loop = instance_of(proj->defs[op].get(), Fixpoint)){
-					check_states_implies_loop_inv(proj, state, op, elems);
+                    for(auto ind: *state->inductions) {
+                        LOG_DEBUG << "Current Induction:" << ind;
+                    }
+					if(!check_states_implies_loop_inv(proj, state, op, elems)){
+                        return false;
+                    }
+                    state->inductions->clear();
                     LOG_INFO << "[Checking Loop Invariant] Precondition implies invariant";
                     auto fname = loop->name;
                     auto loop_post_cond = formulate_loop_invariant(proj, fname, expr->elems.get());
@@ -1070,8 +1074,12 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 					//normal Definition. Check the precondition and add post condition.
                     auto def = proj->defs[op].get();
 					if(proj->cmds.PreCond.find(op) != proj->cmds.PreCond.end()) {
-						check_states_implies_pre_condition(proj, state, op, elems);
+						if(!check_states_implies_pre_condition(proj, state, op, elems)){
+                            return false;
+                        };
 					}
+
+                    state->inductions->clear();
 
 					if(proj->cmds.PostCond.find(op) != proj->cmds.PostCond.end()) {
 						//add post condition
@@ -1142,7 +1150,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                 (*new_state->vars)[v->first] = v->second;
             }
 
-			if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state)) {
+			if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state,used_abs_funcs)) {
 				return false;
 			}
 		}
@@ -1153,15 +1161,15 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 		auto false_state = state->copy();
 		true_state->conds->push_back(c->get_z3_value());
 		false_state->conds->push_back(!c->get_z3_value());
-		if (!prove_by_traverse(proj, i->then_body.get(), inv, true_state) || 
-			!prove_by_traverse(proj, i->else_body.get(), inv, false_state)) {
+		if (!prove_by_traverse(proj, i->then_body.get(), inv, true_state, used_abs_funcs) || 
+			!prove_by_traverse(proj, i->else_body.get(), inv, false_state, used_abs_funcs)) {
 			return false;
 		}
     } else if (auto r = instance_of(spec, Rely)) {
 		// push cond
 		auto c = z3_eval(proj, r->prop.get(), state);
 		state->conds->push_back(c->get_z3_value());
-        return prove_by_traverse(proj, r->body.get(), inv, state);
+        return prove_by_traverse(proj, r->body.get(), inv, state, used_abs_funcs);
     } else {
 		// pass
 		return true;
@@ -1207,7 +1215,7 @@ static string query_saver_dir(const string &spec_name, const string &inv_name) {
  * 2. Traverse the spec, push control point constriants
  * 3. Arrive return point, push return value constraints, check
  * */ 
-bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv) {
+bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv, set<string> &used_abs_funcs) {
 	auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
 	auto conds = std::make_shared<vector<z3::expr>>();
 	for (auto arg : *def->args) {
@@ -1219,11 +1227,15 @@ bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv) {
     set<string> used_fixpoint;
 	auto c = z3_eval(proj, inv, state, false, true, used_fixpoint);
 	state->conds->push_back(c->get_z3_value());
-	std::cout << "inv body: " << string(*inv) << std::endl;
-	std::cout << "inv value: " << c->get_z3_value() << std::endl;
-		
-	/** TODO: substitute spec_transformer with a spec_walker that detects proved specs that no need for unfolding */
-	bool ret = prove_by_traverse(proj, def->body.get(), inv, state);
+	
+    //also add proved invariant
+    for(auto proved: proj->verified_invariants) {
+        auto pinv = proj->sys_invs[proved].get();
+        auto c = z3_eval(proj, pinv, state, false, true, used_fixpoint);
+        state->conds->push_back(c->get_z3_value());
+    }
+
+	bool ret = prove_by_traverse(proj, def->body.get(), inv, state, used_abs_funcs);
 	return ret;
 }
 
@@ -1236,7 +1248,9 @@ bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv) {
 void spec_prover(Project *proj) {
     static const std::set<string> drf_init_coi = {"e_lock", };
     unique_ptr<SpecNode> conjoined_invs = make_unique<BoolConst>(true);
-    //check system invariant
+    std::set<string> used_abstract_funcs;
+    //check system invariant incrementally. The invariant dependent on another should be defined
+    //after the other invariant.
     if(proj->cmds.CheckInv) {
         for(auto &[name, inv]: proj->sys_invs) {
             for(auto prim : proj->cmds.invs) {
@@ -1245,35 +1259,37 @@ void spec_prover(Project *proj) {
                 auto elems = new vector<unique_ptr<SpecNode>>();
                 elems->push_back(std::move(conjoined_invs));
                 elems->push_back(inv->deep_copy());
-                conjoined_invs = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems));
-
-                std::cout << "[spec_prover] Invariant: " << string(*conjoined_invs) << std::endl;
+                //conjoined_invs = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems));
+                proj->query_saver = QueryInfo(query_saver_dir(goal_def->name, name));
+                //proj->query_saver.save_config("./test/rcsm/proof_rcsm.v");
+                std::cout << "[spec_prover] Invariant: " << string(*inv) << std::endl;
                 //std::deque<Definition *> q = {goal_def};
                 auto coi = analyze_cone_of_influence(proj, goal_def, inv.get());
                 //spec_abstraction(proj, goal_def, coi);
                 //goal_def->infer_type(*proj);
-                // std::cout << "[spec_abstraction] coi set: " << std::endl;
-                // for (auto &c : coi) {
-                //     std::cout << c << std::endl;
-                // }
+                std::cout << "[spec_abstraction] coi set: " << std::endl;
+                for (auto &c : coi) {
+                    std::cout << c << std::endl;
+                }
 
-                if (check_inv_by_path(proj, goal_def, inv.get())) {
-                        LOG_DEBUG << "Invariant" << name << "Valid :D :" << prim;
+                if (check_inv_by_path(proj, goal_def, inv.get(), used_abstract_funcs)) {
+                        LOG_DEBUG << "Invariant " << name << " Valid :D :" << prim;
+                        proj->verified_invariants.insert(name);
                 } else {
-                        LOG_DEBUG << "Invariant" << name << "not Valid :(" << prim;
-                        break;
+                        LOG_DEBUG << "Invariant " << name << " not Valid :(" << prim;
                 }
             }
         }
     }
-    //check abstract function's pre/post condition.
+
+    //check function's pre -> post condition.
     //TODO
     
-    //check loop_invariant
+    //check loop_invariant, only check what's needed.
     if(proj->cmds.CheckLoopInv) {
         //check all the loops that have invariants provided.
         for(auto &[string,inv] : proj->loop_invs) {
-            if(proj->defs.find(string) != proj->defs.end()){
+            if(proj->defs.find(string) != proj->defs.end() && used_abstract_funcs.find(string) != used_abstract_funcs.end()){
                 auto def = proj->defs[string].get();
                 LOG_DEBUG << "Checking Loop Invariant: " << def->name;
                 if(is_instance(def, Fixpoint) && check_loop_inv(proj, def)) {

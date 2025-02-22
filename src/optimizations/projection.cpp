@@ -33,7 +33,7 @@ static vector<rule_ret_t(*)(Project *, SpecNode *)> rules_group2 = {
     rule_eliminate_match_simple,
     //rule_move_if_out_expr,
     rule_simple_record_get_set,
-    rule_eliminate_if
+    rule_eliminate_let
 };
 
 static unordered_map<rule_ret_t(*)(Project *, SpecNode *), string> rule_names = {
@@ -61,7 +61,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
     LOG_INFO << "Transforming " << def->name << ", unfold: " << unfold;
 
 
-    bool debug = unfold && (def->name.rfind("smc_realm_destroy", 0) == 0);
+    bool debug = true && (def->name.rfind("total_root_rtt_refcount_loop348", 0) == 0);
     auto known = std::set<string>();
     auto fname = def->name;
 
@@ -105,8 +105,8 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
 
                 new_spec = new_spec1;
 
-#if 0
-                if (__changed && debug)
+#if 1
+                if (debug)
                     std::cout << "(group1) " << def->name << " new_spec " << rule_names[rule] << ": \n=========================\n"
                         << string(*new_spec) << "\n==============================" << std::endl;
 #endif
@@ -132,7 +132,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
 
                     new_spec = eliminiate_ambiguity(proj, new_spec, prev_symbols, __changed);
                     changed |= __changed;
-#if 1
+#if 0
                     if (__changed && debug)
                         std::cout << "(unfold) " << def->name << " new_spec: \n=========================\n"
                             << string(*new_spec) << "\n==============================" << std::endl;
@@ -162,7 +162,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
 
                 new_spec = new_spec1;
 
-#if 1
+#if 0
                 if (__changed && debug)
                     std::cout << "(group2) " << def->name << " new_spec " << rule_names[rule] << ": \n=========================\n"
                         << string(*new_spec) << "\n==============================" << std::endl;
@@ -178,7 +178,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
             if (__changed && debug)
                 std::cout << def->name << " new_spec simplify_expr" << ": \n=========================\n"
                     << string(*new_spec) << "\n==============================" << std::endl;
-#if 1
+#if 0
             if (__changed && debug)
                 std::cout << "(simplify_expr) " << def->name << " new_spec "<< ": \n=========================\n"
                             << string(*new_spec) << "\n==============================" << std::endl;
@@ -252,7 +252,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
 
             new_spec = __spec;
 
-            // if (debug && def->name == "__find_next_level_idx_spec")
+            if (debug && def->name == "__find_next_level_idx_spec")
                 std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
                     << string(*new_spec) << "\n==============================\n";
 

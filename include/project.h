@@ -143,6 +143,9 @@ public:
     std::set<string> lemmas;
     unordered_map<string, std::set<Definition *>> inv_lemmas;
     unordered_map<string, bool> verified_specs;
+
+    //only added when the spec have proved to satisfy the invariant <name>.
+    std::set<string> verified_invariants;
     QueryInfo query_saver;
 
     unordered_map<string, vector<unique_ptr<SpecNode>>> loop_invs;
