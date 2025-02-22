@@ -12,6 +12,7 @@
 #include <tuple>
 
 #include "SpoqIR.h"
+#include "log.h"
 #include "nodes.h"
 
 //#define MT_TRANSFORM
@@ -866,12 +867,10 @@ bool Project::finalize_project_v2() {
 
     LOG_DEBUG << "Finalizing project" << std::endl;
 
-    if(!load_llvm_module()) return false;
+    if(!spoq_code.load_llvm_module(this->code_path)) return false;
+    spoq_code.load_function_and_convert_all(this);
 
-    LOG_DEBUG << "LLVM IR read ok." << std::endl;
-
-    // TODO: process the llvm module
-    SpoqIRLoader::get_spoq_module(this->spoq_code, this->llvm_module);
+    LOG_DEBUG << "LLVM IR read ok and coverted." << std::endl;
 
     // TODO: IRLoader::post_process(module);
     
@@ -887,7 +886,7 @@ bool Project::finalize_project_v2() {
         L->passthrough = vector<string>(deps.begin(), deps.end());
 
         for (auto &p: L->prims) {
-            auto func = this->llvm_module->getFunction(p);
+            auto func = this->spoq_code.llvm_module->getFunction(p);
             if (func == nullptr || func->isDeclaration()) 
                 continue;
             L->prim_deps[p] = SpoqIRModule::get_func_dependencies(func);
@@ -935,7 +934,7 @@ bool Project::finalize_project_v2() {
         }
 
         for (auto &p: L->prims) {
-            auto func = this->llvm_module->getFunction(p);
+            auto func = this->spoq_code.llvm_module->getFunction(p);
             LOG_DEBUG << "primitive: " << p << "\n";
             if (func == nullptr || func->isDeclaration()) 
                 continue;
@@ -957,35 +956,21 @@ bool Project::finalize_project_v2() {
     return true;
 }
 
-bool Project::load_llvm_module() {
-    // TODO: [hack] make llvm_bc_path a layer-independent option
-    auto buffer = llvm::MemoryBuffer::getFileOrSTDIN(this->code_path);
-    if (!buffer) {
-        llvm::errs() << "Error reading file: " << this->code_path << "\n";
-        return false;
-    } 
-    auto m = llvm::parseBitcodeFile(*buffer.get(), this->llvm_context);
-    if (!m) {
-        llvm::errs() << "Error reading module: " << this->code_path << "\n";
-        return false;
-    }
-    this->llvm_module = std::move(m.get());
-    return true;
-}
 
 std::tuple<string, vector<Definition *> *, vector<unique_ptr<Definition>> *>
 Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
 
     LOG_DEBUG << "Infer spec task: " << fname << std::endl;
 
-    if (proj->llvm_module->getFunction(fname) == nullptr)
-        throw std::runtime_error("Function " + fname + " not found");
-
     std::unordered_map<string, string> name_map; // low_name -> high_name
     bool have_loop = false, have_sub = false;
 
     vector<std::string> low_specs_name;
-    proj->infer_low_spec_v2(layer_id, fname, have_loop, have_sub, name_map, low_specs_name);
+    bool ret = infer_low_spec_v2(proj, layer_id, fname, have_loop, have_sub, name_map, low_specs_name);
+    if(!ret) {
+        LOG_ERROR << "Failed to infer low spec for " << fname << std::endl;
+        return std::make_tuple(fname, nullptr, nullptr);
+    }
 
     // auto &L = proj->layers[layer_id];
     unsigned long symbol_order = proj->symbols.size();
@@ -1077,15 +1062,17 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
     return std::make_tuple(fname, nullptr, nullptr);
 }
 
-bool Project::infer_low_spec_v2(int layer_id, string fname, bool &have_loop,
+bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool &have_loop,
                   bool &have_sub, std::unordered_map<string, string> &name_map,
                   std::vector<std::string>& low_specs) {
 
     auto low_name = fname + "_spec_low";
-    if(this->defs.find(low_name) == this->defs.end()) {
-        LOG_DEBUG << "low spec not found: " << low_name << "\n";
-        return true;
+    if(proj->defs.find(low_name) == proj->defs.end()) {
         // TODO: generate low spec
+        LOG_DEBUG << "low spec not found: " << low_name << "\n";
+        proj->spoq_code.code_to_spec(proj, fname, layer_id, low_specs);
+        // TODO: post process 
+        return true;
     } else {
         LOG_DEBUG << "low spec provided: " << low_name << "\n";
         // The name of the low spec may have three forms: `fname_loop\d+_low`,
@@ -1104,7 +1091,7 @@ bool Project::infer_low_spec_v2(int layer_id, string fname, bool &have_loop,
         // low spec, we cannot directly get the spec Definition object from
         // `proj->defs`. Instead, we need to iterate through all the definitions
         // and check if the name matches the pattern.
-        for (auto &spec_name : this->def_order) {
+        for (auto &spec_name : proj->def_order) {
             bool is_loop = false, is_sub = false;
 
             if (std::regex_match(spec_name, pattern1)) {
@@ -1119,7 +1106,7 @@ bool Project::infer_low_spec_v2(int layer_id, string fname, bool &have_loop,
                 auto high_name = spec_name.substr(0, spec_name.size() - 4);
 
                 low_specs.push_back(spec_name);
-                this->symbols[spec_name].loc = std::make_tuple(this->layers[layer_id]->name, fname, Project::LOC_LOWSPEC);
+                proj->symbols[spec_name].loc = std::make_tuple(proj->layers[layer_id]->name, fname, Project::LOC_LOWSPEC);
 
                 name_map[spec_name] = high_name;
             }

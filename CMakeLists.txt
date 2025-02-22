@@ -30,7 +30,7 @@ include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
-llvm_map_components_to_libnames(LLVM_LIBRARIES support core irreader)
+llvm_map_components_to_libnames(LLVM_LIBRARIES support core irreader analysis passes)
 
 
 # ------------------------------------------------------------------------------
@@ -125,6 +125,7 @@ set(SOURCES
     src/frontend/ir2spec.cpp
     src/frontend/SpoqIRLoader.cpp
     src/frontend/SpoqIRModule.cpp
+    src/frontend/SpoqIRCFG.cpp
     src/optimizations/coi.cpp
     src/optimizations/rules.cpp
     src/optimizations/projection.cpp
