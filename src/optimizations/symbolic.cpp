@@ -11,7 +11,7 @@
 #include <coi.h>
 #include <variant>
 #include <type_inference.h>
-
+#include <cmd.h>
 namespace autov
 {
 
@@ -478,11 +478,11 @@ bool check_states_implies_loop_inv(Project* proj, shared_ptr<ProveState> state, 
                         // if (arg->name != "_N_") {
         auto sym = make_unique<Symbol>(loop->name + "_" + arg->name, arg->type);
         bool succ;
-        before_inv = unique_ptr<SpecNode>(subst(before_inv.release(), arg->name, sym.get(), succ));
+        before_inv = subst(std::move(before_inv), arg->name, sym.get(), succ);
     }
 	auto sym = make_unique<Symbol>(loop->name + "_" + "st_old", loop->args->back()->type);
 	bool succ;
-	before_inv = unique_ptr<SpecNode>(subst(before_inv.release(), "st_old", sym.get(), succ));
+	before_inv = subst(std::move(before_inv), "st_old", sym.get(), succ);
 
     auto vc = z3ctx.bool_val(true);
     set<string> used_fix;
@@ -537,29 +537,27 @@ bool check_states_implies_pre_condition(Project* proj, shared_ptr<ProveState> st
             (*known)[arg->name + "_old"] = arg->type;
         }
     }
-	SpecNode* aggrepres = new BoolConst(true);
+	unique_ptr<SpecNode> aggrepres = make_unique<BoolConst>(true);
 	for(auto &inv : preconds) {
 			auto elems = new vector<unique_ptr<SpecNode>>();
-			elems->push_back(unique_ptr<SpecNode>(aggrepres));
+			elems->push_back(std::move(aggrepres));
 			elems->push_back(inv->deep_copy());
-			aggrepres = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
+			aggrepres = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
 	}
-    type_inference::infer_type(*proj, aggrepres, known, Bool::BOOL);
-    SpecNode *before_inv = aggrepres;
+    type_inference::infer_type(*proj, aggrepres.get(), known, Bool::BOOL);
+    unique_ptr<SpecNode> before_inv = std::move(aggrepres);
                     
     for(auto arg : *def->args) {             
-        auto sym = new Symbol(def->name + "_" + arg->name, arg->type);
+        auto sym = make_unique<Symbol>(def->name + "_" + arg->name, arg->type);
         bool succ;
-        before_inv = subst(before_inv->deep_copy().release(), arg->name, sym, succ);
-        delete sym;
+        before_inv = subst(std::move(before_inv), arg->name, sym.get(), succ);
     }
-    auto sym = new Symbol(def->name + "_" + "st_old", def->args->back()->type);
+    auto sym = make_unique<Symbol>(def->name + "_" + "st_old", def->args->back()->type);
     bool succ;
-    before_inv = subst(before_inv->deep_copy().release(), "st_old", sym, succ);
-    delete sym;
+    before_inv = subst(std::move(before_inv), "st_old", sym.get(), succ);
     auto vc = z3ctx.bool_val(true);
     set<string> used_fix;
-    auto invval = z3_eval(proj, before_inv, make_shared<EvalState>(var, conds), false, true, used_fix);
+    auto invval = z3_eval(proj, before_inv.get(), make_shared<EvalState>(var, conds), false, true, used_fix);
     int i = 0;
     for(auto arg : *def->args) {
         if(i != 0) {
@@ -599,7 +597,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
         if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
             if (*e_op == Expr::Some) {
                 if (auto ret_Some = instance_of(expr->elems->at(0).get(), Expr)) {
-					SpecNode *ret_st = ret_Some;
+					auto ret_st = expr->elems->at(0)->deep_copy();
 					// if the return value is := Some (ret_val, st), then take the last 'st'
 					if (auto ret_op = std::get_if<Expr::ops>(&ret_Some->op)) {
 						if (*ret_op == Expr::Tuple) {
@@ -614,7 +612,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                     //auto z3_ret = z3_verify(state, c->get_z3_value(), &proj->query_saver);
 					//auto p = instantiate_prop(inv->deep_copy().release(), ret_st);
                     set<string> used_fix;
-					auto c = z3_eval(proj, p, state, false, true, used_fix);
+					auto c = z3_eval(proj, p.get(), state, false, true, used_fix);
 					// for(auto &cond: *state->conds) {
 					// 	LOG_DEBUG << "Cond:" << cond;
 					// }
@@ -860,7 +858,9 @@ void spec_prover(Project *proj) {
     std::set<string> used_abstract_funcs;
     //check system invariant incrementally. The invariant dependent on another should be defined
     //after the other invariant.
-    if(proj->cmds.CheckInv) {
+    LOG_DEBUG << "check invariant: " << OPTS.check_inv;
+    OPTS.report();
+    if(OPTS.check_inv) {
         for(auto &[name, inv]: proj->sys_invs) {
             for(auto prim : proj->cmds.invs) {
                 // Prove invariants separately
@@ -894,9 +894,12 @@ void spec_prover(Project *proj) {
 
     //check function's pre -> post condition.
     //TODO
+    if(OPTS.check_pre_post) {
+
+    }
     
     //check loop_invariant, only check what's needed.
-    if(proj->cmds.CheckLoopInv) {
+    if(OPTS.check_loop_inv) {
         //check all the loops that have invariants provided.
         for(auto &[string,inv] : proj->loop_invs) {
             if(proj->defs.find(string) != proj->defs.end() && used_abstract_funcs.find(string) != used_abstract_funcs.end()){
@@ -914,5 +917,4 @@ void spec_prover(Project *proj) {
     }
 
 }
-
 }
