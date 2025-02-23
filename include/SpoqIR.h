@@ -11,31 +11,41 @@
 namespace autov {
 using std::shared_ptr;
 
-typedef std::vector< shared_ptr<llvm::Instruction>> inst_vec_t;
 
 class SpoqInst{ 
 public:
-    bool virtual spoq_only() { return false; }
-    llvm::Instruction* inst = nullptr;
+    SpoqInst() {}
+    virtual ~SpoqInst() = default;
+    bool virtual is_spoq_control() { return false; }
 };
+
+typedef std::vector<unique_ptr<SpoqInst>> spoq_inst_vec_t;
+
+class SpoqLLVMInst : public SpoqInst {
+public:
+    llvm::Instruction* inst = nullptr;
+    bool virtual is_spoq_control() { return false; }
+    SpoqLLVMInst(llvm::Instruction* inst) : inst(inst) {}
+};
+
 
 class SpoqIfInst : public SpoqInst {
 public:
     shared_ptr<llvm::Value> cond;
-    inst_vec_t true_body;
-    inst_vec_t false_body;
-    bool virtual spoq_only() override { return true; }
+    spoq_inst_vec_t true_body;
+    spoq_inst_vec_t false_body;
+    bool virtual is_spoq_control() override { return true; }
 };
 
 class SpoqContBreakInst : public SpoqInst {
 public:
     shared_ptr<std::string> loop;
     shared_ptr<std::string> after;
-    bool virtual spoq_only() override { return true; }
+    bool virtual is_spoq_control() override { return true; }
 };
 
 class SpoqLoopInst : public SpoqInst {
-    inst_vec_t body;
+    spoq_inst_vec_t body;
 };
 
 class SpoqContinueInst: public SpoqContBreakInst { };

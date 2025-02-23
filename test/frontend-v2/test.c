@@ -1,4 +1,12 @@
 int add(int a, int b) {
+    if(a == 0) return 0;
+    else if (b == 1) return 2;
+    a = 123;
+    if(a + b > 100) return 100;
+    else {
+        if(a + b > 50) return 50;
+        else if(a + b > 1) return a + b + 2;
+    }
     return a + b;
 }
 

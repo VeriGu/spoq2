@@ -134,9 +134,6 @@ public:
 
     std::string code_path;
     SpoqIRModule spoq_code;
-    llvm::LLVMContext llvm_context;
-    unique_ptr<llvm::Module> llvm_module;
-
     // Types. RO after parsing.
     unordered_map<string, shared_ptr<Struct>> structs;
     unordered_map<string, shared_ptr<Inductive>> indtypes;
@@ -240,14 +237,6 @@ public:
 
     void finalize_project();
 
-    /**
-     * @brief load llvm module from this->llvm_bc_path
-     * 
-     * @return true load ok
-     * @return false load failure
-     */
-    bool load_llvm_module();
-
     // finalize project with llvm module and SpoqInst
     bool finalize_project_v2();
 
@@ -261,7 +250,7 @@ public:
 
     static std::tuple<string, vector<Definition *> *, vector<unique_ptr<Definition>> *> infer_spec_task_v2(Project* proj, int layer_id, string fname);
 
-    bool infer_low_spec_v2(int layer_id, string fname, bool &have_loop, bool &have_sub, std::unordered_map<string, string> &name_map, 
+    static bool infer_low_spec_v2(Project* proj, int layer_id, string fname, bool &have_loop, bool &have_sub, std::unordered_map<string, string> &name_map, 
     std::vector<std::string>& low_specs);
 };
 

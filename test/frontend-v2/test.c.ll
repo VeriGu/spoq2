@@ -5,8 +5,48 @@ target triple = "x86_64-pc-linux-gnu"
 
 ; Function Attrs: mustprogress nofree noinline norecurse nosync nounwind readnone uwtable willreturn
 define dso_local i32 @add(i32 noundef %0, i32 noundef %1) local_unnamed_addr #0 {
-  %3 = add nsw i32 %1, %0
-  ret i32 %3
+  %3 = icmp eq i32 %0, 0
+  br i1 %3, label %4, label %5
+
+4:                                                ; preds = %2
+  br label %20
+
+5:                                                ; preds = %2
+  %6 = icmp eq i32 %1, 1
+  br i1 %6, label %7, label %8
+
+7:                                                ; preds = %5
+  br label %20
+
+8:                                                ; preds = %5
+  %9 = add nsw i32 %1, 123
+  %10 = icmp sgt i32 %1, -23
+  br i1 %10, label %11, label %12
+
+11:                                               ; preds = %8
+  br label %20
+
+12:                                               ; preds = %8
+  %13 = icmp sgt i32 %1, -73
+  br i1 %13, label %14, label %15
+
+14:                                               ; preds = %12
+  br label %20
+
+15:                                               ; preds = %12
+  %16 = icmp sgt i32 %1, -122
+  br i1 %16, label %17, label %19
+
+17:                                               ; preds = %15
+  %18 = add nsw i32 %1, 125
+  br label %20
+
+19:                                               ; preds = %15
+  br label %20
+
+20:                                               ; preds = %19, %17, %14, %11, %7, %4
+  %.0 = phi i32 [ 0, %4 ], [ 2, %7 ], [ 100, %11 ], [ 50, %14 ], [ %18, %17 ], [ %9, %19 ]
+  ret i32 %.0
 }
 
 ; Function Attrs: mustprogress nofree noinline norecurse nosync nounwind readnone uwtable willreturn
