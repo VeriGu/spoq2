@@ -539,15 +539,13 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     auto args = loop->args.get();
     auto m = instance_of(body, Match);
 
-    SpecNode* inv = new BoolConst(true);
+    unique_ptr<SpecNode> inv = make_unique<BoolConst>(true);
     for(auto &in : invs) {
         auto elems = new vector<unique_ptr<SpecNode>>();
-        elems->push_back(unique_ptr<SpecNode>(inv));
+        elems->push_back(std::move(inv));
         elems->push_back(in->deep_copy());
-        inv = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
+        inv = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
     }
-
-    
 
     //get the loop body
     auto base_case = m->match_list->at(0)->body.get();
@@ -559,14 +557,13 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     auto tuple_pat = instance_of(some_pat->elems->at(0).get(), Expr);
     assert(op_eq(tuple_pat->op, Expr::ops::Tuple));
 
-    auto loop_body = m2->match_list->at(0)->body.get();
+    auto loop_body = m2->match_list->at(0)->body->deep_copy();
     //subst the loop body with correct arguments
     for(int i = 0; i < tuple_pat->elems->size(); i++) {
         auto sym = instance_of(tuple_pat->elems->at(i).get(), Symbol);
         bool succ;
-        auto newsym = new Symbol(args->at(i+1)->name, sym->type);
-        loop_body = subst(loop_body->deep_copy().release(), sym->text, newsym, succ);
-        delete newsym;
+        auto newsym = make_unique<Symbol>(args->at(i+1)->name, sym->type);
+        loop_body = subst(std::move(loop_body), sym->text, newsym.get(), succ);
     }
 
     auto var = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
@@ -586,11 +583,11 @@ bool check_loop_inv(Project* proj, Definition *loop) {
             (*known)[arg->name + "_old"] = arg->type;
         }
     }
-    type_inference::infer_type(*proj, inv, known, Bool::BOOL);
+    type_inference::infer_type(*proj, inv.get(), known, Bool::BOOL);
     //evaluate_inv_before
-    auto inval_before = z3_eval(proj, inv, make_shared<EvalState>(var, conds));
+    auto inval_before = z3_eval(proj, inv.get(), make_shared<EvalState>(var, conds));
     //evaluate_loop_body
-    auto loop_body_val = z3_eval(proj, loop_body, make_shared<EvalState>(
+    auto loop_body_val = z3_eval(proj, loop_body.get(), make_shared<EvalState>(
         make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var), 
         std::make_shared<vector<z3::expr>>(*conds)));
 
@@ -627,7 +624,7 @@ bool check_loop_inv(Project* proj, Definition *loop) {
         full_val_var, 
         make_shared<vector<z3::expr>>(*conds)));
 
-    SpecNode* after_inv = inv;
+    auto after_inv = inv->deep_copy();
     //subst the loop body with correct arguments
     auto after_var = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
     for (auto arg : *args) {
@@ -641,13 +638,12 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     }
 
     for(auto arg : *loop->args) {
-        auto sym = new Symbol(arg->name + "'", arg->type);
+        auto sym = make_unique<Symbol>(arg->name + "'", arg->type);
         bool succ;
-        after_inv = subst(after_inv->deep_copy().release(), arg->name, sym, succ);
-        delete sym;
+        after_inv = subst(std::move(after_inv), arg->name, sym.get(), succ);
     }
     //evaluate inv after
-    auto inv_after = z3_eval(proj, after_inv, make_shared<EvalState>(
+    auto inv_after = z3_eval(proj, after_inv.get(), make_shared<EvalState>(
         after_var, 
         make_shared<vector<z3::expr>>(*conds)));
     
@@ -750,9 +746,9 @@ unique_ptr<SpecNode> formulate_preserved_function(Project* proj, string fname) {
     auto sys_inv = proj->conjoined_sys_inv.get();
     auto inv = sys_inv->deep_copy();
     auto before_inv = inv->deep_copy();
-    auto st_after = new Symbol("st'", proj->layers[0]->abs_data);
+    auto st_after = make_unique<Symbol>("st'", proj->layers[0]->abs_data);
     bool succ;
-    auto after_inv = subst(inv.release(), "st", st_after, succ);
+    auto after_inv = subst(std::move(inv), "st", st_after.get(), succ);
     auto arg_elems = make_unique<vector<unique_ptr<SpecNode>>>();
     auto quantified = make_unique<vector<shared_ptr<Arg>>>();
     //z3::expr_vector args(z3ctx);
@@ -804,7 +800,7 @@ unique_ptr<SpecNode> formulate_preserved_function(Project* proj, string fname) {
 
     auto implieselems = make_unique<vector<unique_ptr<SpecNode>>>();
     implieselems->push_back(unique_ptr<SpecNode>(expr));
-    implieselems->push_back(unique_ptr<SpecNode>(after_inv));
+    implieselems->push_back(std::move(after_inv));
 
     auto implies = new Expr(Expr::binops::IMPLIES, std::move(implieselems), Bool::BOOL);
     auto forall = new Forall(std::move(quantified), unique_ptr<SpecNode>(implies));
@@ -817,12 +813,12 @@ unique_ptr<SpecNode> formulate_preserved_function(Project* proj, string fname) {
 unique_ptr<SpecNode> formulate_post_condition(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args) {
     auto def = proj->defs[fname].get();
     auto &postconds = proj->cmds.PostCond[fname];
-    SpecNode* aggrepost = new BoolConst(true);
+    unique_ptr<SpecNode> aggrepost = make_unique<BoolConst>(true);
 	for(auto &inv : postconds) {
         auto elems = new vector<unique_ptr<SpecNode>>();
-        elems->push_back(unique_ptr<SpecNode>(aggrepost));
+        elems->push_back(std::move(aggrepost));
         elems->push_back(inv->deep_copy());
-        aggrepost = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
+        aggrepost = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
 	}
     
     auto lhselems = make_unique<vector<unique_ptr<SpecNode>>>();
@@ -870,12 +866,12 @@ unique_ptr<SpecNode> formulate_post_condition(Project* proj, string fname, vecto
     //     aggrepost = subst(aggrepost, "st_old", args->back().get(), succ);
 
     // }
-    aggrepost = subst(aggrepost, "st_old", args->back().get(), succ);
+    aggrepost = subst(std::move(aggrepost), "st_old", args->back().get(), succ);
 
 
     auto bodyelems = new vector<unique_ptr<SpecNode>>();
     bodyelems->push_back(unique_ptr<SpecNode>(eqbody));
-    bodyelems->push_back(unique_ptr<SpecNode>(aggrepost));
+    bodyelems->push_back(std::move(aggrepost));
     auto expr = new Expr(Expr::binops::IMPLIES, unique_ptr<vector<unique_ptr<SpecNode>>>(bodyelems), Bool::BOOL);
 
     return unique_ptr<SpecNode>(expr);
@@ -929,33 +925,32 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
     auto eqbody = new Expr(Expr::binops::EQUAL, std::move(elems), Bool::BOOL);
 
 
-    SpecNode* aggreinv = new BoolConst(true);
+    unique_ptr<SpecNode> aggreinv = make_unique<BoolConst>(true);
     for(auto &inv : invs) {
         auto elems = new vector<unique_ptr<SpecNode>>();
-        elems->push_back(unique_ptr<SpecNode>(aggreinv));
+        elems->push_back(std::move(aggreinv));
         elems->push_back(inv->deep_copy());
-        aggreinv = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
+        aggreinv = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
     }
 
-    type_inference::infer_type(*proj, aggreinv, known, Bool::BOOL);
+    type_inference::infer_type(*proj, aggreinv.get(), known, Bool::BOOL);
 
     
     for(auto arg : *def->args) {
         if (arg->name != "_N_") {
-            auto sym = new Symbol(def->name + "_" + arg->name + "'", arg->type);
+            auto sym = make_unique<Symbol>(def->name + "_" + arg->name + "'", arg->type);
             bool succ;
-            aggreinv = subst(aggreinv, arg->name, sym, succ);
-            delete sym;
+            aggreinv = subst(std::move(aggreinv), arg->name, sym.get(), succ);
         }
     }
 
     bool succ;
-    aggreinv = subst(aggreinv, "st_old", args->back().get(), succ);
+    aggreinv = subst(std::move(aggreinv), "st_old", args->back().get(), succ);
 
     auto loop_cond = autov::parser::parseExpr(proj,def->name + "_" + "__break__' = true");
     loop_cond->type = Bool::BOOL;
     auto andelems = new vector<unique_ptr<SpecNode>>();
-    andelems->push_back(unique_ptr<SpecNode>(aggreinv));
+    andelems->push_back(std::move(aggreinv));
     andelems->push_back(unique_ptr<SpecNode>(loop_cond));
     auto loop_condAndInv = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(andelems), Bool::BOOL);
 
@@ -1204,18 +1199,17 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
                             aggreinv = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
                         }
 
-                        SpecNode *before_inv = aggreinv;
+                        unique_ptr<SpecNode> before_inv = aggreinv->deep_copy();
                         //subst invariant inv[ret_x[0]/a' ret_x[1]/b' ret_x[2]/c' ret_x[3]/d']
                         for(auto arg : *loop->args) {
                             if (arg->name != "_N_") {
-                                auto sym = new Symbol(loop->name + "_" + arg->name, arg->type);
+                                auto sym = make_unique<Symbol>(loop->name + "_" + arg->name, arg->type);
                                 bool succ;
-                                before_inv = subst(before_inv->deep_copy().release(), arg->name, sym, succ);
-                                delete sym;
+                                before_inv = subst(std::move(before_inv), arg->name, sym.get(), succ);
                             }
                         }
                         auto vc = z3ctx.bool_val(true);
-                        auto invval = z3_eval(proj, before_inv, make_shared<EvalState>(var, conds));
+                        auto invval = z3_eval(proj, before_inv.get(), make_shared<EvalState>(var, conds));
                         int i = 0;
                         for(auto arg : *loop->args) {
                             auto name = arg->name;
