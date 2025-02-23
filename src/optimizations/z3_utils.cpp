@@ -202,49 +202,47 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
     }
 
     Z3Params.set("timeout", (unsigned int)timeout);
-    z3::solver solver(z3ctx);
-    solver.set(Z3Params);
 
-    
+    Z3Solver.set(Z3Params);
+
+    Z3Solver.push();
 
     for (auto &c : *state->conds) {
-        solver.add(c);
+        Z3Solver.add(c);
     }
     if (auto prover = instance_of(state.get(), ProveState)) {
         for (auto &ind : *prover->inductions) {
-            solver.add(ind);
+            Z3Solver.add(ind);
         }
     }
-    solver.push();
-    solver.add(cond);
+    Z3Solver.push();
+    Z3Solver.add(cond);
 #ifdef Z3_PCACHE
     auto res = z3_pcache_check();
 #else
-    auto res = solver.check();
+    auto res = Z3Solver.check();
 #endif
+    Z3Solver.pop();
 
-    solver.pop();
 
+    Z3Solver.push();
+    //Z3Solver.add(!cond);
     z3::expr_vector not_cond_vec(z3ctx);
     not_cond_vec.push_back(!cond);
 #ifdef Z3_PCACHE
     auto not_res = z3_pcache_check(not_cond_vec);
 #else
-    auto not_res = solver.check(not_cond_vec);
+    auto not_res = Z3Solver.check(not_cond_vec);
 #endif
-    
+    Z3Solver.pop();
 
-
+    Z3Solver.pop();
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
     // std::cout << "-----------------Z3-----------------" << std::endl;
-    // std::cout << "z3 check conditions: \n----------------------------------\n";
-    // for (auto &c : *state->conds) {
-    //     std::cout << c << std::endl;
-    //     std::cout << "----------------------------------" << std::endl;
-    // }
-    // std::cout << "z3 check goal: " << cond << std::endl;
+    // std::cout << "state hash: " << hash << std::endl;
+    // std::cout << "z3 check cond: " << cond << ", hash: " << cond.hash() << std::endl;
     // std::cout << "z3 check res: " << res << std::endl;
     // std::cout << "z3 check not_res: " << not_res << std::endl;
     // std::cout << "-----------------Z3-----------------" << std::endl;
@@ -283,19 +281,23 @@ Z3Result z3_check(shared_ptr<EvalState> state, int timeout) {
 
 
     Z3Params.set("timeout", (unsigned int)timeout);
-    z3::solver solver(z3ctx);
-    solver.set(Z3Params);
+
+    Z3Solver.set(Z3Params);
+
+    Z3Solver.push();
 
     for (auto &c : *state->conds) {
-        solver.add(c);
+        Z3Solver.add(c);
     }
-
+    Z3Solver.push();
 #ifdef Z3_PCACHE
     auto res = z3_pcache_check();
 #else
-    auto res = solver.check();
+    auto res = Z3Solver.check();
 #endif
-  
+    Z3Solver.pop();
+
+    Z3Solver.pop();
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
@@ -361,14 +363,12 @@ Z3Result z3_check_unsat(shared_ptr<ProveState> state, z3::expr cond, z3::model& 
     // std::cout << "-----------------Z3-----------------" << std::endl;
 
     if (not_res == z3::unsat) {
-        Z3Cache[hash] = Z3Result::True;
         return Z3Result::True;
     } else if (not_res == z3::sat) {
         //obtained the counter example
         ce = solver.get_model();
         return Z3Result::Sat;
     } else {
-        Z3Cache[hash] = Z3Result::Unknown;
         z3_unknowns++;
         return Z3Result::Unknown;
     }

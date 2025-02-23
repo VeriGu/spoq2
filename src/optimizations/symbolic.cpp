@@ -859,7 +859,6 @@ void spec_prover(Project *proj) {
     //check system invariant incrementally. The invariant dependent on another should be defined
     //after the other invariant.
     LOG_DEBUG << "check invariant: " << OPTS.check_inv;
-    OPTS.report();
     if(OPTS.check_inv) {
         for(auto &[name, inv]: proj->sys_invs) {
             for(auto prim : proj->cmds.invs) {
