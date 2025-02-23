@@ -726,34 +726,34 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
     auto exp_val = z3_eval(proj, new_spec.get(), state);
     PROFILE_END(z3_eval);
 
-    std::unordered_map<unsigned, std::pair<z3::expr, SpecNode*>> subexprs;
-    collect_exprs(new_spec.get(), subexprs);
-    if ((new_spec->get_type() == Int::INT || new_spec->get_type() == Bool::BOOL)
-        && length_of_exp(new_spec.get()) <= 20) {
-        /** FIXME: tiny leak (< 1 MB) here */
-        auto _expr = reconstruct_expr(exp_val->get_z3_value(), subexprs, state);
+    // std::unordered_map<unsigned, std::pair<z3::expr, SpecNode*>> subexprs;
+    // collect_exprs(new_spec.get(), subexprs);
+    // if ((new_spec->get_type() == Int::INT || new_spec->get_type() == Bool::BOOL)
+    //     && length_of_exp(new_spec.get()) <= 20) {
+    //     /** FIXME: tiny leak (< 1 MB) here */
+    //     auto _expr = reconstruct_expr(exp_val->get_z3_value(), subexprs, state);
 
-        unique_ptr<SpecNode> expr;
-        if (_expr) {
-            expr.reset(_expr);
-        }
+    //     unique_ptr<SpecNode> expr;
+    //     if (_expr) {
+    //         expr.reset(_expr);
+    //     }
 
-        for (auto& [_, sub] : subexprs) {
-            if (sub.second != _expr) {
-                delete sub.second;
-            }
-        }
-        subexprs.clear();
+    //     for (auto& [_, sub] : subexprs) {
+    //         if (sub.second != _expr) {
+    //             delete sub.second;
+    //         }
+    //     }
+    //     subexprs.clear();
 
-        if (expr && length_of_exp(expr.get()) < length_of_exp(new_spec.get())) {
-            return { std::move(expr), true };
-        }
-    }
+    //     if (expr && length_of_exp(expr.get()) < length_of_exp(new_spec.get())) {
+    //         return { std::move(expr), true };
+    //     }
+    // }
 
-    for (auto& [_, sub] : subexprs) {
-        delete sub.second;
-    }
-    subexprs.clear();
+    // for (auto& [_, sub] : subexprs) {
+    //     delete sub.second;
+    // }
+    // subexprs.clear();
 
     if (auto op = std::get_if<Expr::ops>(&new_spec->op)) {
         if (*op == Expr::SET || *op == Expr::GET) {
@@ -789,6 +789,7 @@ rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::sha
         return simple_expr_by_z3(std::unique_ptr<Expr>(static_cast<Expr*>(spec.release())), state);
     }
     else if (auto match = instance_of(spec.get(), Match)) {
+        //return { std::move(spec), false };
         return simple_match_by_z3(std::unique_ptr<Match>(static_cast<Match*>(spec.release())), state);
     }
     else if (auto rely = instance_of(spec.get(), RelyAnno)) {

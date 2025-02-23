@@ -164,6 +164,7 @@ public:
 
     //only added when the spec have proved to satisfy the invariant <name>.
     std::set<string> verified_invariants;
+    string verifying_invariant;
     QueryInfo query_saver;
 
     unordered_map<string, vector<unique_ptr<SpecNode>>> loop_invs;

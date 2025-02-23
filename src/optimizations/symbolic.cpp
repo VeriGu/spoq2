@@ -656,7 +656,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 					if(!check_states_implies_loop_inv(proj, state, op, elems)){
                         return false;
                     }
-                    //state->inductions->clear();
+                    state->inductions->clear();
                     LOG_INFO << "[Checking Loop Invariant] Precondition implies invariant";
                     auto fname = loop->name;
                     auto loop_post_cond = formulate_loop_invariant(proj, fname, expr->elems.get());
@@ -685,7 +685,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                         };
 					}
 
-                    //state->inductions->clear();
+                    state->inductions->clear();
 
 					if(proj->cmds.PostCond.find(op) != proj->cmds.PostCond.end()) {
 						//add post condition
@@ -880,7 +880,7 @@ void spec_prover(Project *proj) {
                 for (auto &c : coi) {
                     std::cout << c << std::endl;
                 }
-
+                proj->verifying_invariant = name;
                 if (check_inv_by_path(proj, goal_def, inv.get(), used_abstract_funcs)) {
                         LOG_DEBUG << "Invariant " << name << " Valid :D :" << prim;
                         proj->verified_invariants.insert(name);

@@ -222,8 +222,9 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
 #else
     auto res = solver.check();
 #endif
-   
-    //Z3Solver.add(!cond);
+
+    solver.pop();
+
     z3::expr_vector not_cond_vec(z3ctx);
     not_cond_vec.push_back(!cond);
 #ifdef Z3_PCACHE
@@ -231,9 +232,9 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
 #else
     auto not_res = solver.check(not_cond_vec);
 #endif
- 
-
     
+
+
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
@@ -285,11 +286,10 @@ Z3Result z3_check(shared_ptr<EvalState> state, int timeout) {
     z3::solver solver(z3ctx);
     solver.set(Z3Params);
 
-    solver.push();
-
     for (auto &c : *state->conds) {
         solver.add(c);
     }
+
 #ifdef Z3_PCACHE
     auto res = z3_pcache_check();
 #else
@@ -743,8 +743,15 @@ void pattern_matching(SpecNode* pattern, SpecNode* spec) {
 
 //forall st st', inv st /\ query_oracle st = Some st' -> inv st'.
 unique_ptr<SpecNode> formulate_preserved_function(Project* proj, string fname) {
-    auto sys_inv = proj->conjoined_sys_inv.get();
-    auto inv = sys_inv->deep_copy();
+    auto proved_inv = proj->verified_invariants;
+    unique_ptr<SpecNode> conjoined = proj->sys_invs[proj->verifying_invariant]->deep_copy();
+    for(auto string: proved_inv) {
+        auto inv = proj->sys_invs[string].get();
+        auto elems = unique_ptr<vector<unique_ptr<SpecNode>>>();
+        elems->push_back(std::move(conjoined));
+        elems->push_back(inv->deep_copy());
+    }
+    auto inv = std::move(conjoined);
     auto before_inv = inv->deep_copy();
     auto st_after = make_unique<Symbol>("st'", proj->layers[0]->abs_data);
     bool succ;
@@ -866,6 +873,9 @@ unique_ptr<SpecNode> formulate_post_condition(Project* proj, string fname, vecto
     //     aggrepost = subst(aggrepost, "st_old", args->back().get(), succ);
 
     // }
+    unique_ptr<SpecNode> sym = make_unique<Symbol>(fname + "_st'", proj->layers[0]->abs_data);
+    aggrepost = subst(std::move(aggrepost), "st", sym.get(), succ);
+
     aggrepost = subst(std::move(aggrepost), "st_old", args->back().get(), succ);
 
 

@@ -130,11 +130,11 @@ src/optimizations/symbolic.cpp
 
 #### Machine-checkable SMT2 Query Generation 
 
-### Loop Invariant Inductiveness Checking
+#### Loop Invariant Inductiveness Checking
 
-### Expressive Pre/Post condition
+#### Expressive Pre/Post condition
 
-### Decidable-Fragement Checking
+#### Decidable-Fragement Checking
 
 ## Development
 
@@ -145,11 +145,27 @@ src/optimizations/profile.cpp:
 	static bool __PROFILE_ON = false;
 ```
 
-### COMMANDS
-conditional_spec
-check-sys-inv
-check-loop-inv
-check-pre-post
+### Commandline Commands -command
+- conditional_spec
+- check-sys-inv
+- check-loop-inv
+- check-pre-post
+- check-drf
+
+
+### Configuration file commands and Syntax
+#### Definitions
+- Definition 
+- Invariant
+- Loop_inv
+- Axiom(TODO)
+
+#### Config Commands
+- Hint Precondition/Postcondition < fname > < Expr >
+- Hint Preserve fname: Assume(rely) fname preserve invariant.
+- Hint CheckInv fname: only check invariant for fname
+
+
 
 
 #### Memory Leakage Detection 
