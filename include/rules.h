@@ -19,7 +19,7 @@ class EvalState;
 #ifdef CONDITIONAL_SPEC
 std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, Definition *spec, vector<Definition*>* low_specs);
 #endif
-
+std::unique_ptr<SpecNode> subst(std::unique_ptr<SpecNode> spec,const std::string& name,SpecNode* value,bool &succ);
 bool spec_is_pure(Project *proj, SpecNode *spec, bool &has_if);
 bool spec_needs_state(Project *proj, SpecNode *spec);
 void spec_remove_state(Project *proj, SpecNode *spec);
@@ -73,7 +73,7 @@ public:
 
     SpecRules(Project *proj) : proj(proj),
         rules_group1 {
-            { RuleID::rule_eliminate_let,           [this](auto spec) { return rule_eliminate_let(std::move(spec)); } },
+            { RuleID::rule_simplify_expr,           [this](auto spec) { return rule_simplify_expr(std::move(spec)); } },
             { RuleID::rule_eliminate_when,          [this](auto spec) { return rule_eliminate_when(std::move(spec)); } },
             { RuleID::rule_eliminate_if,            [this](auto spec) { return rule_eliminate_if(std::move(spec)); } },
             { RuleID::rule_eliminate_match_simple,  [this](auto spec) { return rule_eliminate_match_simple(std::move(spec)); } },
@@ -82,16 +82,16 @@ public:
             { RuleID::rule_simple_record_get_set,   [this](auto spec) { return rule_simple_record_get_set(std::move(spec)); } },
             { RuleID::rule_move_rely_out_when,      [this](auto spec) { return rule_move_rely_out_when(std::move(spec)); } },
             { RuleID::rule_move_when_out_when,      [this](auto spec) { return rule_move_when_out_when(std::move(spec)); } },
-            { RuleID::rule_move_if_out_match,       [this](auto spec) { return rule_move_if_out_match(std::move(spec)); } },
+            //{ RuleID::rule_move_if_out_match,       [this](auto spec) { return rule_move_if_out_match(std::move(spec)); } },
             { RuleID::rule_move_if_out_expr,        [this](auto spec) { return rule_move_if_out_expr(std::move(spec)); } },
             { RuleID::rule_move_match_out_expr,     [this](auto spec) { return rule_move_match_out_expr(std::move(spec)); } }
         },
         rules_group2 {
-            { RuleID::rule_eliminate_let,          [this](auto spec) { return rule_eliminate_let(std::move(spec)); } },
+            //{ RuleID::rule_eliminate_let,          [this](auto spec) { return rule_eliminate_let(std::move(spec)); } },
             { RuleID::rule_eliminate_match_simple, [this](auto spec) { return rule_eliminate_match_simple(std::move(spec)); } },
-            { RuleID::rule_move_if_out_expr,       [this](auto spec) { return rule_move_if_out_expr(std::move(spec)); } },
+            //{ RuleID::rule_move_if_out_expr,       [this](auto spec) { return rule_move_if_out_expr(std::move(spec)); } },
             { RuleID::rule_simple_record_get_set,  [this](auto spec) { return rule_simple_record_get_set(std::move(spec)); } },
-            { RuleID::rule_eliminate_if,           [this](auto spec) { return rule_eliminate_if(std::move(spec)); } }
+            { RuleID::rule_eliminate_let,           [this](auto spec) { return rule_eliminate_let(std::move(spec)); } },
         } {}
 
     // Rules as member functions
