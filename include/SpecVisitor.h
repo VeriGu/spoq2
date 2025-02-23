@@ -9,7 +9,6 @@
 
 
 namespace autov::parser {
-
 /**
  * This class defines an abstract visitor for a parse tree
  * produced by SpecParser.
@@ -28,6 +27,8 @@ public:
 
     virtual std::any visitDef(SpecParser::DefContext *context) = 0;
 
+    virtual std::any visitInvdef(SpecParser::InvdefContext *context) = 0;
+
     virtual std::any visitDecl(SpecParser::DeclContext *context) = 0;
 
     virtual std::any visitFixpoint(SpecParser::FixpointContext *context) = 0;
@@ -37,6 +38,12 @@ public:
     virtual std::any visitInclude(SpecParser::IncludeContext *context) = 0;
 
     virtual std::any visitCommand(SpecParser::CommandContext *context) = 0;
+
+    virtual std::any visitGlobal_anno(SpecParser::Global_annoContext *context) = 0;
+
+    virtual std::any visitAnno_struct(SpecParser::Anno_structContext *context) = 0;
+
+    virtual std::any visitLoop_inv(SpecParser::Loop_invContext *context) = 0;
 
     virtual std::any visitSection_begin(SpecParser::Section_beginContext *context) = 0;
 
@@ -101,4 +108,4 @@ public:
 
 };
 
-}  // namespace autov::parser
+}

@@ -9,18 +9,22 @@
 #include <chrono>
 #include <cmd.h>
 #include <symbolic.h>
+#include <z3_rules.h>
 #include <tuple>
 
 #include "SpoqIR.h"
 #include "nodes.h"
 
 //#define MT_TRANSFORM
+#include <type_inference.h>
 #ifdef MT_TRANSFORM
 #include <unistd.h>
 #include <sys/wait.h>
 #include <cstring>
 #include <parser.h>
 #include <ext/stdio_filebuf.h>
+
+
 
 #define READ_END 0
 #define WRITE_END 1
@@ -54,6 +58,13 @@ const string Project::LAYER_PTR_GTB = "LAYER_PTR_GTB";
 const string Project::LAYER_DATA = "LAYER_DATA";
 const string Project::INV_LAYER = "Invariants";
 const string Project::LEMMA_LAYER = "Lemmas";
+
+
+
+void Project::add_sys_inv(string name, unique_ptr<SpecNode> inv) {
+    //Expr* invexpr = instance_of(invelem, Expr);
+    sys_invs[name] = std::move(inv);
+}
 
 void Project::add_symbol(string name, SymbolKind kind, string info, shared_ptr<loc_t> loc)
 {
@@ -169,6 +180,20 @@ void Project::add_layer(std::unique_ptr<Layer> layer) {
     layers.push_back(std::move(layer));
 }
 
+
+void Project::add_loop_inv(unique_ptr<Expr> inv) {
+    if (std::holds_alternative<string>(inv->op)) {
+        string name = std::get<string>(inv->op);
+         LOG_DEBUG << "Add Loop inv name" + name;
+         LOG_DEBUG << "Add Loop Inv:" + string(*inv);
+        SpecNode* invelem = inv->elems->at(0).release();
+        //Expr* invexpr = instance_of(invelem, Expr);
+        loop_invs[name].push_back(unique_ptr<SpecNode>(invelem));
+    } else {
+        LOG_WARNING << "Illegal Invariant format" << string(*inv);
+    }
+}
+
 void Project::add_command(unique_ptr<Expr> cmd) {
     if (std::holds_alternative<string>(cmd->op)) {
         string op_str = std::get<string>(cmd->op);
@@ -247,6 +272,35 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             // in function `f`, the allocated local_var should point to the st.(stack).(stack_var)
             this->cmds.StackMap[f->text][local_var->text]  = stack_var->text;
             LOG_INFO << "STACKVAR:" << f->text << ":" << local_var->text << "->" << stack_var->text << "\n";
+        } else if(op_str == "CheckInv"){
+            //Check a primitive's invariant
+            assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            this->cmds.invs.insert(s->text);
+        } else if(op_str == "Precondition") {
+            //used for modular function precondition when doing z3 checking
+            assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) &&
+                   dynamic_cast<SpecNode *>(cmd->elems->at(1).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            auto expr = dynamic_cast<SpecNode *>(cmd->elems->at(1).get());
+
+            cmd->elems->at(1).release();
+            this->cmds.PreCond[s->text].push_back(unique_ptr<SpecNode>(expr));
+        } else if(op_str == "Postcondition") {
+            //used for modular function postcondition when doing z3 checking, automatically added when function checked by z3
+            auto s1 = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            LOG_DEBUG << s1->text;
+            assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) &&
+                   dynamic_cast<SpecNode *>(cmd->elems->at(1).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            auto expr = dynamic_cast<SpecNode *>(cmd->elems->at(1).get());
+
+            cmd->elems->at(1).release();
+            this->cmds.PostCond[s->text].push_back(unique_ptr<SpecNode>(expr));
+        } else if(op_str == "Preserve"){
+            assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            this->cmds.PreserveInv.insert(s->text);
         } else {
             LOG_WARNING << "Unknown command " << op_str;
         }
@@ -629,6 +683,9 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
             proj->deps[high_name] = proj->calc_dependencies(_def->body.get());
 
             if (_def->body) {
+                if(_def->deleyed_type_inference) {
+                    _def->infer_type(*proj);
+                }
                 LOG_INFO << "Provided: " << high_name << std::endl;
                 proj->update_symbol_loc(high_name, make_shared<loc_t>(L->name, Project::LOC_SPEC, ""));
                 continue;
@@ -669,11 +726,11 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         // Transform the low spec to high spec
         bool no_trans = proj->cmds.NoHighSpec || proj->cmds.NoTrans.find(name_map[low_name]) != proj->cmds.NoTrans.end();
 
-        LOG_DEBUG << "NO HIGH SPEC" << proj->cmds.NoHighSpec;
+        LOG_DEBUG << "NO HIGH SPEC:" << proj->cmds.NoHighSpec;
         
         profile_clear();
         if (!no_trans) {
-            spec_transformer(proj, high_def, layer_id, !is_instance(low_def, Fixpoint), true);
+            spec_transformer(proj, high_def, layer_id, layer_id, true);
             std::cout << "Transformed: " << std::endl << string(*high_def) << std::endl;
         } else {
             LOG_INFO << "No transformation for " << high_name;
@@ -681,7 +738,6 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         profile_print();
         profile_finalize();
 
-        spec_prover(proj, high_def);
 
 #ifndef MT_TRANSFORM
         proj->deps[high_name] = proj->calc_dependencies(high_def->body.get());
@@ -699,6 +755,7 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         high_specs.push_back(high_def);
 #endif
     }
+
 
 #ifndef MT_TRANSFORM
     return std::make_tuple(fname, low_specs, nullptr);
@@ -820,7 +877,11 @@ void Project::finalize_project()
     filter_only_trans(this);
     collect_lemmas(this);
 
-    for (int i = 1; i < this->layers.size(); i++) {
+#ifndef MT_TRANSFORM
+    for (int i = 0; i < this->layers.size(); i++) {
+        if(this->layers[i]->name == "Bottom"){
+            continue;
+        }
         auto &L = this->layers[i];
         auto &prev_L = this->layers[i - 1];
 
@@ -851,6 +912,8 @@ void Project::finalize_project()
         }
     }
 
+    spec_prover(this);
+
     extern unsigned long z3_unknowns, z3_checks, z3_cache_hits, z3_global_hash_hit, z3_global_hash_total;
     extern std::chrono::duration<double> z3_accumulative_time;
 
@@ -879,6 +942,21 @@ bool Project::finalize_project_v2() {
     std::set<string> deps;
     for (auto it = this->layers.rbegin(); it != this->layers.rend() - 1; it++) {
         auto &L = *it;
+    
+#else
+    std::set<string> transformed;
+
+    for (auto &p: this->layers[0]->prims)
+        transformed.insert(p);
+
+#define NR_PROCS 8
+    std::set<string> untransformed;
+    vector<pid_t> children;
+    unordered_map<pid_t, int[2]> pipes;
+    unordered_map<pid_t, std::tuple<string, int>> tasks;
+
+    for (int i = 1; i < this->layers.size(); i++) {
+        auto &L = this->layers[i];
 
         for (auto &p: L->prims) {
             if (deps.find(p) != deps.end())
@@ -946,7 +1024,7 @@ bool Project::finalize_project_v2() {
     }
 
     LOG_DEBUG << "low spec ok" << "\n";
-
+    spec_prover(this);
     extern unsigned long z3_unknowns, z3_checks, z3_cache_hits, z3_global_hash_hit, z3_global_hash_total;
     extern std::chrono::duration<double> z3_accumulative_time;
 
@@ -1058,7 +1136,7 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
         profile_print();
         profile_finalize();
 
-        spec_prover(proj, high_def);
+        //spec_prover(proj, high_def);
 
 #ifndef MT_TRANSFORM
         proj->deps[high_name] = proj->calc_dependencies(high_def->body.get());

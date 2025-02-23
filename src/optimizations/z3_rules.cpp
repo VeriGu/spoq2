@@ -51,7 +51,7 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
             state->conds->push_back(src->get_z3_value() == t->construct(sym->text, {})->get_z3_value());
         }
         else {
-            ((*state->vars))[sym->text] = src;
+            (*state->vars)[sym->text] = src;
         }
     } else if (auto con = instance_of(pat, Const)) {
         if (auto v = std::get_if<unsigned long>(&con->value))
@@ -70,23 +70,17 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
         state->conds->push_back(src->get_z3_value() == z3ctx.string_val(std::get<string>(con->value)));
     } else if (auto expr = instance_of(pat, Expr)) {
         if (op_eq(expr->op, Expr::Some)) {
-            auto t = dynamic_pointer_cast<Option>(src->get_type());
-            auto v = t->elem_type->declare("v", spec->nid);
-            if (auto tuple_type = dynamic_pointer_cast<Tuple>(t->elem_type)) {
-                auto tuple_elems = instance_of(expr->elems->at(0).get(), Expr)->elems.get(); // Seems like a bug here
-                if (tuple_elems->size() == 2) {
-                    // assume the tuple is (symbol, symbol)?
-                    auto sym0 = instance_of(tuple_elems->at(0).get(), Symbol);
-                    auto sym1 = instance_of(tuple_elems->at(1).get(), Symbol);
-                    auto elem0 = sym0->type->declare(sym0->text, sym0->nid); // nid or id?
-                    auto elem1 = sym1->type->declare(sym1->text, sym1->nid); // nid or id?
-                    state->vars->emplace(sym0->text, elem0);
-                    state->vars->emplace(sym1->text, elem1);
-                }
-            }
             auto value = dynamic_pointer_cast<IndValue>(src)->get("value");
+            auto t = dynamic_pointer_cast<Option>(src->get_type());
+            auto idx = t->get_constr_index("Some_" + t->elem_type->name);
+            auto is_some = t->get_z3_type().recognizers()[idx];
+            auto tester = is_some(src->get_z3_value());
+            state->conds->push_back(tester);
             resolve_pattern(proj, spec, expr->elems->at(0).get(), value, state);
         } else if (op_eq(expr->op, Expr::Tuple)) {
+            auto v = dynamic_pointer_cast<Tuple>(src->get_type());
+            auto recog = v->get_z3_type().recognizers()[0];
+            state->conds->push_back(recog(src->get_z3_value()));
             for (int i = 0; i < expr->elems->size(); i++) {
                 resolve_pattern(proj, spec, expr->elems->at(i).get(), dynamic_pointer_cast<StructValue>(src)->get(i), state);
             }
@@ -106,6 +100,10 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
             auto sym = proj->symbols.find(op);
             if (sym != proj->symbols.end() && sym->second.kind == SymbolKind::IndConstructor) {
                 auto t = dynamic_pointer_cast<Inductive>(src->get_type());
+                auto z3_type = src->get_type()->get_z3_type();
+                auto idx = t->get_constr_index(op);
+                auto tester = t->get_z3_type().recognizers()[idx];
+                state->conds->push_back(tester(src->get_z3_value()));
                 std::vector<shared_ptr<SpecValue>> vars;
                 for (int i = 0; i < t->constr[op]->size(); i++) {
                     auto arg = t->constr[op]->at(i);

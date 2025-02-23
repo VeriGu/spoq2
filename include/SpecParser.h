@@ -9,7 +9,6 @@
 
 namespace autov::parser {
 
-
 class  SpecParser : public antlr4::Parser {
 public:
   enum {
@@ -17,30 +16,32 @@ public:
     T__7 = 8, T__8 = 9, T__9 = 10, T__10 = 11, T__11 = 12, T__12 = 13, T__13 = 14, 
     T__14 = 15, T__15 = 16, T__16 = 17, T__17 = 18, T__18 = 19, T__19 = 20, 
     T__20 = 21, T__21 = 22, T__22 = 23, T__23 = 24, T__24 = 25, T__25 = 26, 
-    MK = 27, INDUC = 28, RECORD = 29, FIXPOINT = 30, SECTION = 31, SECTION_END = 32, 
-    APPEND = 33, CONCAT = 34, ADD = 35, MINUS = 36, MULT = 37, DIV = 38, 
-    MOD = 39, LSHIFT = 40, RSHIFT = 41, BITAND = 42, BITOR = 43, BAND = 44, 
-    BOR = 45, BEQ = 46, BNE = 47, BGT = 48, BLT = 49, BGE = 50, BLE = 51, 
-    SEQ = 52, SNE = 53, GET = 54, SET = 55, NTH = 56, AND = 57, OR = 58, 
-    NOT = 59, BNOT = 60, IMPLIES = 61, IFONLYIF = 62, EQUAL = 63, NOT_EQUAL = 64, 
-    GT = 65, LT = 66, GTE = 67, LTE = 68, LP = 69, RP = 70, IF = 71, THEN = 72, 
-    LET = 73, ELSE = 74, PARAM = 75, DEF = 76, WHEN = 77, FORALL = 78, EXISTS = 79, 
-    MATCH = 80, RETURN = 81, WITH = 82, END = 83, RELY = 84, ANNO = 85, 
-    TRUE = 86, FALSE = 87, NUMBER = 88, STR = 89, ID = 90, COMMENT = 91, 
-    WS = 92
+    T__26 = 27, T__27 = 28, T__28 = 29, T__29 = 30, T__30 = 31, T__31 = 32, 
+    T__32 = 33, MK = 34, INDUC = 35, RECORD = 36, FIXPOINT = 37, SECTION = 38, 
+    SECTION_END = 39, APPEND = 40, CONCAT = 41, ADD = 42, MINUS = 43, MULT = 44, 
+    DIV = 45, MOD = 46, LSHIFT = 47, RSHIFT = 48, BITAND = 49, BITOR = 50, 
+    BAND = 51, BOR = 52, BEQ = 53, BNE = 54, BGT = 55, BLT = 56, BGE = 57, 
+    BLE = 58, SEQ = 59, SNE = 60, GET = 61, SET = 62, NTH = 63, AND = 64, 
+    OR = 65, NOT = 66, BNOT = 67, IMPLIES = 68, IFONLYIF = 69, EQUAL = 70, 
+    NOT_EQUAL = 71, GT = 72, LT = 73, GTE = 74, LTE = 75, LP = 76, RP = 77, 
+    IF = 78, THEN = 79, LET = 80, ELSE = 81, PARAM = 82, DEF = 83, WHEN = 84, 
+    FORALL = 85, EXISTS = 86, MATCH = 87, RETURN = 88, WITH = 89, END = 90, 
+    RELY = 91, ANNO = 92, TRUE = 93, FALSE = 94, NUMBER = 95, STR = 96, 
+    ID = 97, COMMENT = 98, WS = 99
   };
 
   enum {
-    RuleProgram = 0, RuleStatement = 1, RuleTypedef = 2, RuleDef = 3, RuleDecl = 4, 
-    RuleFixpoint = 5, RulePath = 6, RuleInclude = 7, RuleCommand = 8, RuleSection_begin = 9, 
-    RuleSection_end = 10, RuleType = 11, RuleExpr = 12, RuleExpr_op = 13, 
-    RuleTerm = 14, RuleTuple = 15, RuleFunc_call = 16, RuleForall_expr = 17, 
-    RuleExists_expr = 18, RuleVar_anno = 19, RuleLet_stmt = 20, RuleWhen_stmt = 21, 
-    RuleMatch_stmt = 22, RuleMatch_branch = 23, RuleAssert_stmt = 24, RuleAnno_stmt = 25, 
-    RuleIf_stmt = 26, RuleInductive_decl = 27, RuleInduct_arm = 28, RuleRecord_decl = 29, 
-    RuleRecord_fields = 30, RuleRecord_def_stmt = 31, RuleRecord_fields_def = 32, 
-    RuleValue = 33, RuleMk = 34, RuleName = 35, RuleNumber = 36, RuleString = 37, 
-    RuleBool = 38
+    RuleProgram = 0, RuleStatement = 1, RuleTypedef = 2, RuleDef = 3, RuleInvdef = 4, 
+    RuleDecl = 5, RuleFixpoint = 6, RulePath = 7, RuleInclude = 8, RuleCommand = 9, 
+    RuleGlobal_anno = 10, RuleAnno_struct = 11, RuleLoop_inv = 12, RuleSection_begin = 13, 
+    RuleSection_end = 14, RuleType = 15, RuleExpr = 16, RuleExpr_op = 17, 
+    RuleTerm = 18, RuleTuple = 19, RuleFunc_call = 20, RuleForall_expr = 21, 
+    RuleExists_expr = 22, RuleVar_anno = 23, RuleLet_stmt = 24, RuleWhen_stmt = 25, 
+    RuleMatch_stmt = 26, RuleMatch_branch = 27, RuleAssert_stmt = 28, RuleAnno_stmt = 29, 
+    RuleIf_stmt = 30, RuleInductive_decl = 31, RuleInduct_arm = 32, RuleRecord_decl = 33, 
+    RuleRecord_fields = 34, RuleRecord_def_stmt = 35, RuleRecord_fields_def = 36, 
+    RuleValue = 37, RuleMk = 38, RuleName = 39, RuleNumber = 40, RuleString = 41, 
+    RuleBool = 42
   };
 
   explicit SpecParser(antlr4::TokenStream *input);
@@ -64,11 +65,15 @@ public:
   class StatementContext;
   class TypedefContext;
   class DefContext;
+  class InvdefContext;
   class DeclContext;
   class FixpointContext;
   class PathContext;
   class IncludeContext;
   class CommandContext;
+  class Global_annoContext;
+  class Anno_structContext;
+  class Loop_invContext;
   class Section_beginContext;
   class Section_endContext;
   class TypeContext;
@@ -124,11 +129,14 @@ public:
     TypedefContext *typedef_();
     DefContext *def();
     DeclContext *decl();
+    InvdefContext *invdef();
     FixpointContext *fixpoint();
     Inductive_declContext *inductive_decl();
     Record_declContext *record_decl();
     IncludeContext *include();
     CommandContext *command();
+    Global_annoContext *global_anno();
+    Loop_invContext *loop_inv();
 
 
     virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
@@ -169,6 +177,20 @@ public:
   };
 
   DefContext* def();
+
+  class  InvdefContext : public antlr4::ParserRuleContext {
+  public:
+    InvdefContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    NameContext *name();
+    ExprContext *expr();
+
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+   
+  };
+
+  InvdefContext* invdef();
 
   class  DeclContext : public antlr4::ParserRuleContext {
   public:
@@ -241,6 +263,50 @@ public:
   };
 
   CommandContext* command();
+
+  class  Global_annoContext : public antlr4::ParserRuleContext {
+  public:
+    Global_annoContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    NameContext *name();
+    Anno_structContext *anno_struct();
+
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+   
+  };
+
+  Global_annoContext* global_anno();
+
+  class  Anno_structContext : public antlr4::ParserRuleContext {
+  public:
+    SpecParser::NumberContext *base = nullptr;
+    SpecParser::NumberContext *size = nullptr;
+    SpecParser::NumberContext *max_elems = nullptr;
+    Anno_structContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    std::vector<NumberContext *> number();
+    NumberContext* number(size_t i);
+
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+   
+  };
+
+  Anno_structContext* anno_struct();
+
+  class  Loop_invContext : public antlr4::ParserRuleContext {
+  public:
+    Loop_invContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    ExprContext *expr();
+
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+   
+  };
+
+  Loop_invContext* loop_inv();
 
   class  Section_beginContext : public antlr4::ParserRuleContext {
   public:
@@ -790,4 +856,4 @@ public:
 private:
 };
 
-}  // namespace autov::parser
+}

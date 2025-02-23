@@ -75,11 +75,47 @@ antlrcpp::Any ProgramVisitor::visitStatement(SpecParser::StatementContext* ctx) 
         visitSection_begin(ctx->section_begin());
     } else if (ctx->section_end()) {
         visitSection_end(ctx->section_end());
-    } else {
+    } else if (ctx->global_anno()) {
+        visitGlobal_anno(ctx->global_anno());
+    } else if (ctx->loop_inv()){
+        visitLoop_inv(ctx->loop_inv());
+    } else if (ctx->invdef()){
+        visitInvdef(ctx->invdef());
+    }
+    else {
         throw std::runtime_error("Unknown statement: " + ctx->getText());
     }
 
     return std::any();
+}
+
+
+antlrcpp::Any ProgramVisitor::visitLoop_inv(SpecParser::Loop_invContext* ctx) {
+    SpecNode* expr = any_cast<SpecNode*>(visitExpr(ctx->expr()));
+    Expr* exp = dynamic_cast<Expr*>(expr);
+    proj.add_loop_inv(std::move(unique_ptr<Expr>(exp)));
+    return std::any();
+}
+
+antlrcpp::Any ProgramVisitor::visitAnno_struct(SpecParser::Anno_structContext* ctx){
+    return std::any();
+}
+
+antlrcpp::Any ProgramVisitor::visitInvdef(SpecParser::InvdefContext* ctx){
+    std::string name = ctx->name()->getText();
+    SpecNode* expr = any_cast<SpecNode*>(visitExpr(ctx->expr()));
+    proj.add_sys_inv(name, unique_ptr<SpecNode>(expr));
+    return std::any();
+}
+
+
+antlrcpp::Any ProgramVisitor::visitGlobal_anno(SpecParser::Global_annoContext* ctx) {
+    std::string field = ctx->name()->getText();
+    
+    unsigned long base = std::stoul(ctx->anno_struct()->base->getText());
+    unsigned long size = std::stoul(ctx->anno_struct()->size->getText());
+    unsigned long num_elems = std::stoul(ctx->anno_struct()->max_elems->getText());
+    
 }
 
 antlrcpp::Any ProgramVisitor::visitInclude(SpecParser::IncludeContext* ctx) {
@@ -956,6 +992,21 @@ void parse(Project *proj, const std::string& path, Layer *current_layer) {
     std::cout << "Parsing " << path << std::endl;
     visitor.visit(tree);
     std::cout << "Done parsing " << path << std::endl;
+}
+
+SpecNode* parseExpr(Project* proj, string expr_str) {
+    antlr4::ANTLRInputStream input(expr_str);
+    SpecLexer lexer(&input);
+    antlr4::CommonTokenStream tokens(&lexer);
+    SpecParser parser(&tokens);
+    antlr4::tree::ParseTree* tree = parser.expr();
+    ProgramVisitor visitor(*proj, "");
+
+
+    std::cout << "Parsing Expr " << std::endl;
+    SpecNode* spec = any_cast<SpecNode*>(visitor.visit(tree));
+    std::cout << "Done parsing Expr " << std::endl;
+    return spec;
 }
 
 } // namespace autov::parser

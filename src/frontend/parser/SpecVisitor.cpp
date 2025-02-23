@@ -5,5 +5,3 @@
 #include "SpecVisitor.h"
 
 
-using namespace autov::parser;
-

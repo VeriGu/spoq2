@@ -270,7 +270,7 @@ void profile_print()
 }
 
 void profile_update_epoch() {
-	LOG_INFO << "NEW EPOCH! Number " << rule_stats.size() << " " << eval_stats.size();
+	//LOG_INFO << "NEW EPOCH! Number " << rule_stats.size() << " " << eval_stats.size();
 	auto &rule_state = rule_stats.back();
 	auto &eval_state = eval_stats.back();
 	rule_state.check_if_cost = if_rule_check_accumulative_time;
