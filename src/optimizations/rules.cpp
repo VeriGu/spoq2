@@ -621,264 +621,264 @@ SpecNode* make_lens_v(shared_ptr<SpecType> type, unsigned long id) {
     return new Expr("lens_v", std::move(elems), type);
 }
 
-rule_ret_t rule_simplify_dependent_value(Project *proj, SpecNode *spec, bool debug = false) {
-    bool ifchange = false;
-    if(spec->depend_on_interested_read) {
-        return std::make_pair(spec, ifchange);
-    }
-    auto fields_depend_on_interested_field = make_unique<std::unordered_set<string>>();
-    for(auto field : interest_list) {
-        fields_depend_on_interested_field->insert(field);
-    }
+// rule_ret_t rule_simplify_dependent_value(Project *proj, SpecNode *spec, bool debug = false) {
+//     bool ifchange = false;
+//     if(spec->depend_on_interested_read) {
+//         return std::make_pair(spec, ifchange);
+//     }
+//     auto fields_depend_on_interested_field = make_unique<std::unordered_set<string>>();
+//     for(auto field : interest_list) {
+//         fields_depend_on_interested_field->insert(field);
+//     }
 
-    depend_on_state_read(proj, spec);
-    mark_interested_read(proj, spec, fields_depend_on_interested_field.get(), debug);
-    if(debug) {
-        LOG_DEBUG << "marked spec: " + string(*spec);
-    }
-    //back_propogate_interest_dependency(proj, spec, fields_depend_on_interested_field.get());
-    std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
-    /* now e is independent from the interested field*/
-    if(auto e = instance_of(node, Expr)) {
-        if(auto op = std::get_if<Expr::ops>(&e->op)) {
-            /* lens read from a hided field*/
-            if(*op == Expr::ops::RecordGet) {
-               auto field = static_cast<Symbol*>(e->elems->at(1).get())->text;
-               if(!e->depend_on_interested_read && depend_on_state_read(proj, node) && interest_list.find(field) == interest_list.end()) {
-                /* it is an hided read*/
-                LOG_DEBUG << "hide the read with field: " + field;
+//     depend_on_state_read(proj, spec);
+//     mark_interested_read(proj, spec, fields_depend_on_interested_field.get(), debug);
+//     if(debug) {
+//         LOG_DEBUG << "marked spec: " + string(*spec);
+//     }
+//     //back_propogate_interest_dependency(proj, spec, fields_depend_on_interested_field.get());
+//     std::function<SpecNode*(SpecNode*)> f = [&](SpecNode *node) -> SpecNode* {
+//     /* now e is independent from the interested field*/
+//     if(auto e = instance_of(node, Expr)) {
+//         if(auto op = std::get_if<Expr::ops>(&e->op)) {
+//             /* lens read from a hided field*/
+//             if(*op == Expr::ops::RecordGet) {
+//                auto field = static_cast<Symbol*>(e->elems->at(1).get())->text;
+//                if(!e->depend_on_interested_read && depend_on_state_read(proj, node) && interest_list.find(field) == interest_list.end()) {
+//                 /* it is an hided read*/
+//                 LOG_DEBUG << "hide the read with field: " + field;
                 
-                auto new_e = make_lens_v(e->type, get_mono_lens_id());
-                if(debug) {
-                    LOG_DEBUG << "node before: " + string(*node);
-                    LOG_DEBUG << "node after: " + string(*new_e);
-                }
-                if(e->type == nullptr || e->type == SpecType::UNKNOWN_TYPE) {
-                    LOG_ERROR << "unknown type for node: ";
-                    assert(0);
-                }
-                delete e;
-                ifchange = true;
-                add_lens_v_decl(proj);
-                return new_e;
-               } else {
-                if(auto sube = instance_of(e->elems->at(0).get(), Expr)) {
-                    if(op_is_lens_v(sube->op) && interest_list.find(field) == interest_list.end()) {
-                        auto new_e = make_lens_v(e->type, get_mono_lens_id());
-                        if(debug) {
-                          LOG_DEBUG << "node before: " + string(*node);
-                          LOG_DEBUG << "node after: " + string(*new_e);
-                        }
-                        delete e;
-                        ifchange = true;
-                        add_lens_v_decl(proj);
-                        return new_e;
-                    }
-                }
-               }
-            }
-            /* unary operator */
-            else if(*op == Expr::ops::BNOT || *op == Expr::ops::Some || *op == Expr::ops::NOT) {
-                    if(auto sube = instance_of(e->elems->at(0).get(), Expr)) {
-                        if(autov::op_eq(sube->op, "lens_v")) {
-                            auto new_e = make_lens_v(e->type, get_mono_lens_id());
-                            if(debug) {
-                                LOG_DEBUG << "node before: " + string(*node);
-                                LOG_DEBUG << "node after: " + string(*new_e);
-                            }
-                            new_e->depends_on_state_read = true;
-                            delete e;
-                            ifchange = true;
-                            add_lens_v_decl(proj);
-                            return new_e;
-                        }
-                    }
-            } 
-            /* tuple, if all sub-exprs are lens_values, simplify to a new lens_value expr*/
-            else if(*op == Expr::ops::Tuple) {
-                    bool ifalllens = true;
-                    for(auto i = 0; i < e->elems->size(); ++i) {
-                        if(auto m = instance_of(e->elems->at(i).get(), Expr)) {
-                            if(!op_is_lens_v(m->op)) {
-                                ifalllens = false;
-                                break;
-                            }
-                        } else {
-                            ifalllens = false;
-                            break;
-                        }
-                    }
-                    if(ifalllens) {
-                        auto new_e = make_lens_v(e->type, get_mono_lens_id());
-                        new_e->depends_on_state_read = true;
-                        delete e;
-                        ifchange = true;
-                        add_lens_v_decl(proj);
-                        return new_e;
-                    }
-            } else if(*op == Expr::ops::GET) {
-                //m @ ? => lens_v (type_of m.subtype) id
-                //? @ i => lens_v (type_of m.subtype) id
-                if(auto m = instance_of(e->elems->at(0).get(), Expr)) {
-                    if(op_is_lens_v(m->op)) {
-                        auto new_e = make_lens_v(e->type, get_mono_lens_id());
-                        if(debug) {
-                                LOG_DEBUG << "node before: " + string(*node);
-                                LOG_DEBUG << "node after: " + string(*new_e);
-                        }
-                        new_e->depends_on_state_read = true;
-                        delete e;
-                        ifchange = true;
-                        add_lens_v_decl(proj);
-                        return new_e;
-                    }
-                }
+//                 auto new_e = make_lens_v(e->type, get_mono_lens_id());
+//                 if(debug) {
+//                     LOG_DEBUG << "node before: " + string(*node);
+//                     LOG_DEBUG << "node after: " + string(*new_e);
+//                 }
+//                 if(e->type == nullptr || e->type == SpecType::UNKNOWN_TYPE) {
+//                     LOG_ERROR << "unknown type for node: ";
+//                     assert(0);
+//                 }
+//                 delete e;
+//                 ifchange = true;
+//                 add_lens_v_decl(proj);
+//                 return new_e;
+//                } else {
+//                 if(auto sube = instance_of(e->elems->at(0).get(), Expr)) {
+//                     if(op_is_lens_v(sube->op) && interest_list.find(field) == interest_list.end()) {
+//                         auto new_e = make_lens_v(e->type, get_mono_lens_id());
+//                         if(debug) {
+//                           LOG_DEBUG << "node before: " + string(*node);
+//                           LOG_DEBUG << "node after: " + string(*new_e);
+//                         }
+//                         delete e;
+//                         ifchange = true;
+//                         add_lens_v_decl(proj);
+//                         return new_e;
+//                     }
+//                 }
+//                }
+//             }
+//             /* unary operator */
+//             else if(*op == Expr::ops::BNOT || *op == Expr::ops::Some || *op == Expr::ops::NOT) {
+//                     if(auto sube = instance_of(e->elems->at(0).get(), Expr)) {
+//                         if(autov::op_eq(sube->op, "lens_v")) {
+//                             auto new_e = make_lens_v(e->type, get_mono_lens_id());
+//                             if(debug) {
+//                                 LOG_DEBUG << "node before: " + string(*node);
+//                                 LOG_DEBUG << "node after: " + string(*new_e);
+//                             }
+//                             new_e->depends_on_state_read = true;
+//                             delete e;
+//                             ifchange = true;
+//                             add_lens_v_decl(proj);
+//                             return new_e;
+//                         }
+//                     }
+//             } 
+//             /* tuple, if all sub-exprs are lens_values, simplify to a new lens_value expr*/
+//             else if(*op == Expr::ops::Tuple) {
+//                     bool ifalllens = true;
+//                     for(auto i = 0; i < e->elems->size(); ++i) {
+//                         if(auto m = instance_of(e->elems->at(i).get(), Expr)) {
+//                             if(!op_is_lens_v(m->op)) {
+//                                 ifalllens = false;
+//                                 break;
+//                             }
+//                         } else {
+//                             ifalllens = false;
+//                             break;
+//                         }
+//                     }
+//                     if(ifalllens) {
+//                         auto new_e = make_lens_v(e->type, get_mono_lens_id());
+//                         new_e->depends_on_state_read = true;
+//                         delete e;
+//                         ifchange = true;
+//                         add_lens_v_decl(proj);
+//                         return new_e;
+//                     }
+//             } else if(*op == Expr::ops::GET) {
+//                 //m @ ? => lens_v (type_of m.subtype) id
+//                 //? @ i => lens_v (type_of m.subtype) id
+//                 if(auto m = instance_of(e->elems->at(0).get(), Expr)) {
+//                     if(op_is_lens_v(m->op)) {
+//                         auto new_e = make_lens_v(e->type, get_mono_lens_id());
+//                         if(debug) {
+//                                 LOG_DEBUG << "node before: " + string(*node);
+//                                 LOG_DEBUG << "node after: " + string(*new_e);
+//                         }
+//                         new_e->depends_on_state_read = true;
+//                         delete e;
+//                         ifchange = true;
+//                         add_lens_v_decl(proj);
+//                         return new_e;
+//                     }
+//                 }
 
-                if(auto m = instance_of(e->elems->at(1).get(), Expr)) {
-                    if(op_is_lens_v(m->op) && !e->elems->at(0)->depend_on_interested_read) {
-                        auto new_e = make_lens_v(e->type, get_mono_lens_id());
-                        if(debug) {
-                            LOG_DEBUG << "node before: " + string(*node);
-                            LOG_DEBUG << "node after: " + string(*new_e);
-                        }
-                        new_e->depends_on_state_read = true;
-                        delete e;
-                        ifchange = true;
-                        add_lens_v_decl(proj);
-                    return new_e;
-                    }
-                }
-            } else if(*op == Expr::ops::SET) {
-                //m # i == ? => no hiding
-                //m # ? == v => no hiding
-                //? # i == v => lens_v (type_of m.type) id
-                if(auto sube = instance_of(e->elems->at(0).get(), Expr)) {
-                   if(op_is_lens_v(sube->op)) {
-                        auto new_e = make_lens_v(e->type, get_mono_lens_id());
-                        new_e->depends_on_state_read = true;
-                        if(debug) {
-                            LOG_DEBUG << "node before: " + string(*node);
-                            LOG_DEBUG << "node after: " + string(*new_e);
-                        }
-                        delete e;
-                        ifchange = true;
-                        add_lens_v_decl(proj);
-                        return new_e; 
-                   }
-                }
-            }
-        } else if(auto op = std::get_if<Expr::binops>(&e->op)) {
-            if(auto sube1 = instance_of(e->elems->at(0).get(), Expr)) {
-                if(op_is_lens_v(sube1->op)) {
-                    auto new_e = make_lens_v(e->type, get_mono_lens_id());
-                    new_e->depends_on_state_read = true;
-                    if(debug) {
-                        LOG_DEBUG << "node before: " + string(*node);
-                        LOG_DEBUG << "node after: " + string(*new_e);
-                    }
-                    delete e;
-                    ifchange = true;
-                    add_lens_v_decl(proj);
-                    return new_e;      
-                }      
-            }
-            if(e->elems->size() == 2) { 
-                if(auto sube2 = instance_of(e->elems->at(1).get(), Expr)) {
-                    if(op_is_lens_v(sube2->op)) {
-                    auto new_e = make_lens_v(e->type, get_mono_lens_id());
-                    new_e->depends_on_state_read = true;
-                    if(debug) {
-                        LOG_DEBUG << "node before: " + string(*node);
-                        LOG_DEBUG << "node after: " + string(*new_e);
-                    }
-                    delete e;
-                    ifchange = true;
-                    add_lens_v_decl(proj);
-                    return new_e;
-                    }
-                }
-            }
-        } else if (auto op = std::get_if<unique_ptr<SpecNode>>(&e->op)){
-            //?_1 ?_2 --> ?3
-            //?_1 x --> ?_2
-            //f ?x --> same
-            if(auto f = instance_of((*op).get(), Expr)) {
-                if(op_is_lens_v(f->op)) {
-                    auto new_e = make_lens_v(e->type, get_mono_lens_id());
-                    new_e->depends_on_state_read = true;
-                    if(debug) {
-                            LOG_DEBUG << "node before: " + string(*node);
-                            LOG_DEBUG << "node after: " + string(*new_e);
-                    }
-                    delete e;
-                    ifchange = true;
-                    add_lens_v_decl(proj);
-                    return new_e;
-                }
-            }
-            //else, op is not a lens, no hiding, since f can be a constant
-        }
+//                 if(auto m = instance_of(e->elems->at(1).get(), Expr)) {
+//                     if(op_is_lens_v(m->op) && !e->elems->at(0)->depend_on_interested_read) {
+//                         auto new_e = make_lens_v(e->type, get_mono_lens_id());
+//                         if(debug) {
+//                             LOG_DEBUG << "node before: " + string(*node);
+//                             LOG_DEBUG << "node after: " + string(*new_e);
+//                         }
+//                         new_e->depends_on_state_read = true;
+//                         delete e;
+//                         ifchange = true;
+//                         add_lens_v_decl(proj);
+//                     return new_e;
+//                     }
+//                 }
+//             } else if(*op == Expr::ops::SET) {
+//                 //m # i == ? => no hiding
+//                 //m # ? == v => no hiding
+//                 //? # i == v => lens_v (type_of m.type) id
+//                 if(auto sube = instance_of(e->elems->at(0).get(), Expr)) {
+//                    if(op_is_lens_v(sube->op)) {
+//                         auto new_e = make_lens_v(e->type, get_mono_lens_id());
+//                         new_e->depends_on_state_read = true;
+//                         if(debug) {
+//                             LOG_DEBUG << "node before: " + string(*node);
+//                             LOG_DEBUG << "node after: " + string(*new_e);
+//                         }
+//                         delete e;
+//                         ifchange = true;
+//                         add_lens_v_decl(proj);
+//                         return new_e; 
+//                    }
+//                 }
+//             }
+//         } else if(auto op = std::get_if<Expr::binops>(&e->op)) {
+//             if(auto sube1 = instance_of(e->elems->at(0).get(), Expr)) {
+//                 if(op_is_lens_v(sube1->op)) {
+//                     auto new_e = make_lens_v(e->type, get_mono_lens_id());
+//                     new_e->depends_on_state_read = true;
+//                     if(debug) {
+//                         LOG_DEBUG << "node before: " + string(*node);
+//                         LOG_DEBUG << "node after: " + string(*new_e);
+//                     }
+//                     delete e;
+//                     ifchange = true;
+//                     add_lens_v_decl(proj);
+//                     return new_e;      
+//                 }      
+//             }
+//             if(e->elems->size() == 2) { 
+//                 if(auto sube2 = instance_of(e->elems->at(1).get(), Expr)) {
+//                     if(op_is_lens_v(sube2->op)) {
+//                     auto new_e = make_lens_v(e->type, get_mono_lens_id());
+//                     new_e->depends_on_state_read = true;
+//                     if(debug) {
+//                         LOG_DEBUG << "node before: " + string(*node);
+//                         LOG_DEBUG << "node after: " + string(*new_e);
+//                     }
+//                     delete e;
+//                     ifchange = true;
+//                     add_lens_v_decl(proj);
+//                     return new_e;
+//                     }
+//                 }
+//             }
+//         } else if (auto op = std::get_if<unique_ptr<SpecNode>>(&e->op)){
+//             //?_1 ?_2 --> ?3
+//             //?_1 x --> ?_2
+//             //f ?x --> same
+//             if(auto f = instance_of((*op).get(), Expr)) {
+//                 if(op_is_lens_v(f->op)) {
+//                     auto new_e = make_lens_v(e->type, get_mono_lens_id());
+//                     new_e->depends_on_state_read = true;
+//                     if(debug) {
+//                             LOG_DEBUG << "node before: " + string(*node);
+//                             LOG_DEBUG << "node after: " + string(*new_e);
+//                     }
+//                     delete e;
+//                     ifchange = true;
+//                     add_lens_v_decl(proj);
+//                     return new_e;
+//                 }
+//             }
+//             //else, op is not a lens, no hiding, since f can be a constant
+//         }
 
-    }else if(auto node = instance_of(spec, If)) {
-        if(auto then = instance_of(node->then_body.get(), Expr)) {
-            if(auto elseb = instance_of(node->else_body.get(), Expr)) {
-                if(op_is_lens_v(then->op) && op_is_lens_v(elseb->op)) {
-                    auto new_e = make_lens_v(e->type, get_mono_lens_id());
-                    new_e->depends_on_state_read = true;
-                    if(debug) {
-                            LOG_DEBUG << "node before: " + string(*node);
-                            LOG_DEBUG << "node after: " + string(*new_e);
-                    }
-                    delete node;
-                    ifchange = true;
-                    add_lens_v_decl(proj);
-                    return new_e;
-                }
-            }
-        }
-    } else if(auto node = instance_of(spec, Match)) {
-        auto ml = node->match_list.get();
-        bool ifalllens = true;
-        for(int i = 0; i < ml->size(); ++i) {
-            auto pm = ml->at(i).get();
-            if(auto m = instance_of(pm->body.get(), Expr)) {
-                if(!op_is_lens_v(m->op)) {
-                    ifalllens = false;
-                    break;
-                }
-            } else {
-                ifalllens = false;
-                break;
-            }
-        }
-        if(ifalllens) {
-             auto new_e = make_lens_v(e->type, get_mono_lens_id());
-             new_e->depends_on_state_read = true;
-             delete node;
-             ifchange = true;
-             add_lens_v_decl(proj);
-             return new_e;
-        }
-    } else if(auto node = instance_of(spec, RelyAnno)) {
-        // rely x; ? => ?
-        if(auto m = instance_of(node->body.get(), Expr)) {
-            if(op_is_lens_v(m->op)) {
-                ifchange = true;
-                auto new_e = node->body.release();
-                new_e->depends_on_state_read = true;
-                if(debug) {
-                        LOG_DEBUG << "node before: " + string(*node);
-                        LOG_DEBUG << "node after: " + string(*new_e);
-                }
-                delete node;
-                return new_e;
-            }
-        }
-    } 
-    return node;
-    };
-    return std::make_pair(rec_apply(spec, f), ifchange);
-}
+//     }else if(auto node = instance_of(spec, If)) {
+//         if(auto then = instance_of(node->then_body.get(), Expr)) {
+//             if(auto elseb = instance_of(node->else_body.get(), Expr)) {
+//                 if(op_is_lens_v(then->op) && op_is_lens_v(elseb->op)) {
+//                     auto new_e = make_lens_v(e->type, get_mono_lens_id());
+//                     new_e->depends_on_state_read = true;
+//                     if(debug) {
+//                             LOG_DEBUG << "node before: " + string(*node);
+//                             LOG_DEBUG << "node after: " + string(*new_e);
+//                     }
+//                     delete node;
+//                     ifchange = true;
+//                     add_lens_v_decl(proj);
+//                     return new_e;
+//                 }
+//             }
+//         }
+//     } else if(auto node = instance_of(spec, Match)) {
+//         auto ml = node->match_list.get();
+//         bool ifalllens = true;
+//         for(int i = 0; i < ml->size(); ++i) {
+//             auto pm = ml->at(i).get();
+//             if(auto m = instance_of(pm->body.get(), Expr)) {
+//                 if(!op_is_lens_v(m->op)) {
+//                     ifalllens = false;
+//                     break;
+//                 }
+//             } else {
+//                 ifalllens = false;
+//                 break;
+//             }
+//         }
+//         if(ifalllens) {
+//              auto new_e = make_lens_v(e->type, get_mono_lens_id());
+//              new_e->depends_on_state_read = true;
+//              delete node;
+//              ifchange = true;
+//              add_lens_v_decl(proj);
+//              return new_e;
+//         }
+//     } else if(auto node = instance_of(spec, RelyAnno)) {
+//         // rely x; ? => ?
+//         if(auto m = instance_of(node->body.get(), Expr)) {
+//             if(op_is_lens_v(m->op)) {
+//                 ifchange = true;
+//                 auto new_e = node->body.release();
+//                 new_e->depends_on_state_read = true;
+//                 if(debug) {
+//                         LOG_DEBUG << "node before: " + string(*node);
+//                         LOG_DEBUG << "node after: " + string(*new_e);
+//                 }
+//                 delete node;
+//                 return new_e;
+//             }
+//         }
+//     } 
+//     return node;
+//     };
+//     return std::make_pair(rec_apply(spec, f), ifchange);
+// }
 
 
 static bool contains_interest_fields(SpecNode *spec) {
@@ -1489,7 +1489,7 @@ static bool is_const_zero(SpecNode *node) {
  * 
  * @return A unique pointer to the modified SpecNode.
  */
-static std::unique_ptr<SpecNode> subst(
+std::unique_ptr<SpecNode> subst(
     std::unique_ptr<SpecNode> spec,
     const std::string& name,
     SpecNode* value,
@@ -2206,6 +2206,10 @@ rule_ret_t SpecRules::rule_eliminate_match_simple(std::unique_ptr<SpecNode> spec
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {            
         if (auto m = instance_of(node.get(), Match)) {
             auto possible = false;
+            if(m->match_list->size() == 1 && instance_of(m->match_list->at(0)->pattern.get(), Symbol)) {
+                //let should not be allowed
+                return node;
+            }
             for (int i = 0; i < m->match_list->size() ; ++i) {
                 std::unordered_map<string, unique_ptr<SpecNode>> assigns;
                 if (try_match(proj, m->match_list->at(i)->pattern.get(), m->src.get(), assigns, true)) {
@@ -2812,7 +2816,7 @@ rule_ret_t SpecRules::rule_simplify_expr(std::unique_ptr<SpecNode> spec) {
                     return std::move(m->elems->at(1));
                 } else if (ops == op::ADD && is_const_zero(m->elems->at(1).get())) {
                     expr_is_changed = true;
-                    return m->elems->at(0).release();
+                    return std::move(m->elems->at(0));
                 } else if (ops == op::EQUAL || ops == op::BEQ || ops == op::SEQ) {
                     if(auto const1 = instance_of(m->elems->at(0).get(), Const)) {
                         if(auto const2 = instance_of(m->elems->at(1).get(), Const)) {
@@ -2829,7 +2833,7 @@ rule_ret_t SpecRules::rule_simplify_expr(std::unique_ptr<SpecNode> spec) {
                     }
                 } else if (ops == op::MINUS && m->elems->size() == 2 && is_const_zero(m->elems->at(1).get())) {
                     expr_is_changed = true;
-                    return m->elems->at(0).release();
+                    return std::move(m->elems->at(0));
                 } else if (ops == op::MINUS && m->elems->size() == 1) {
                     return expr;
                 }
