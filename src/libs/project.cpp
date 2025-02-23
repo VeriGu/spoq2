@@ -11,7 +11,7 @@
 #include <symbolic.h>
 #include <z3_rules.h>
 #include <tuple>
-
+#include <cmd.h>
 #include "SpoqIR.h"
 #include "nodes.h"
 
@@ -877,7 +877,6 @@ void Project::finalize_project()
     filter_only_trans(this);
     collect_lemmas(this);
 
-#ifndef MT_TRANSFORM
     for (int i = 0; i < this->layers.size(); i++) {
         if(this->layers[i]->name == "Bottom"){
             continue;
@@ -942,21 +941,6 @@ bool Project::finalize_project_v2() {
     std::set<string> deps;
     for (auto it = this->layers.rbegin(); it != this->layers.rend() - 1; it++) {
         auto &L = *it;
-    
-#else
-    std::set<string> transformed;
-
-    for (auto &p: this->layers[0]->prims)
-        transformed.insert(p);
-
-#define NR_PROCS 8
-    std::set<string> untransformed;
-    vector<pid_t> children;
-    unordered_map<pid_t, int[2]> pipes;
-    unordered_map<pid_t, std::tuple<string, int>> tasks;
-
-    for (int i = 1; i < this->layers.size(); i++) {
-        auto &L = this->layers[i];
 
         for (auto &p: L->prims) {
             if (deps.find(p) != deps.end())

@@ -10,7 +10,7 @@
 #include <gen_project.h>
 #include <cmd.h>
 
-
+SpoqOption OPTS;
 /**
  * @brief This is a brief main function here.
  */
@@ -19,53 +19,11 @@ int main(int argc, char *argv[])
     autov::log::init();
     autov::log::set_logging_level();
 
-    po::options_description desc("Allowed options");
-    desc.add_options()
-        ("help,h", "produce help message")
-        ("lens,l", po::bool_switch()->default_value(true), "use lens")
-        ("conditional-spec,c", po::bool_switch()->default_value(false), "automatically generate conditional spec")
-        ("check-sys-inv", po::bool_switch()->default_value(true), "checking system invariants")
-        ("check-loop-inv", po::bool_switch()->default_value(false), "checking loop invariants")
-        ("check-pre-post", po::bool_switch()->default_value(false), "checking pre/post conditions");
-
-    po::positional_options_description p;
-    p.add("input", 1); // The input .v config file is positional and is the first argument
-
-    desc.add_options()
-        ("input", po::value<string>(), "input .v config file(postional)");
-
-    // Parse the command line arguments
-
-    po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), OPT_VM);
-    po::notify(OPT_VM);
-
-    if (OPT_VM.count("help")) {
-        std::cout << desc << std::endl;
-        return 1;
-    }
-
-    if (!OPT_VM.count("input")) {
-        std::cout << "Please provide a .v config file" << std::endl;
-        return 1;
-    }
-
-    if (OPT_VM["conditional-spec"].as<bool>()) {
-        OPTS.conditional_spec = true;
-        LOG_INFO << "Generating conditional spec" << std::endl;
-    }
-
+    if(!OPTS.parse_options(argc, argv)) return 0;
 
     std::unique_ptr<autov::Project> proj = std::make_unique<autov::Project>();
-    if(OPT_VM["check-sys-inv"].as<bool>()) {
-       proj->cmds.CheckInv = true;
-    }
-    if(OPT_VM["check-loop-inv"].as<bool>()) {
-       proj->cmds.CheckLoopInv = true;
-    }
-    if(OPT_VM["check-pre-post"].as<bool>()) {
-       //TODO
-    }
-    autov::parser::parse(proj.get(), OPT_VM["input"].as<string>());
+
+    autov::parser::parse(proj.get(), OPTS.config_file);
 
     // autov::analyze_fields_access(proj.get());
 
