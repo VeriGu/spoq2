@@ -16,6 +16,9 @@ public:
     bool conditional_spec = false;
     bool lens = false;
     bool use_llvm_frontend = false;
+    bool check_inv = false;
+    bool check_loop_inv = false;
+    bool check_pre_post = false;
     std::string config_file;
     boost::program_options::variables_map vmap;
 
@@ -29,6 +32,9 @@ public:
         std::cout << "  lens: " << std::boolalpha << lens << "\n";
         std::cout << "  config_file: " << config_file << "\n";
         std::cout << "  use_llvm_frontend: " << std::boolalpha << use_llvm_frontend << "\n";
+        std::cout << "  check-sys: " << std::boolalpha << check_inv << "\n";
+        std::cout << "  check-loop: " << std::boolalpha << check_loop_inv << "\n";
+        std::cout << "  check-pre-post: " << std::boolalpha << check_pre_post << "\n";
         std::cout << std::endl;
     }
 
@@ -46,24 +52,28 @@ public:
             ("help,h", "produce help message")
             ("lens,l", po::bool_switch()->default_value(true), "use lens")
             ("llvm", po::bool_switch()->default_value(false), "use llvm frontend") 
-            ("conditional-spec,c", po::bool_switch()->default_value(false), "automatically generate conditional spec");
-        
+            ("conditional-spec,c", po::bool_switch()->default_value(false), "automatically generate conditional spec")
+            ("check-sys-inv", po::bool_switch()->default_value(true), "checking system invariants")
+            ("check-loop-inv", po::bool_switch()->default_value(false), "checking loop invariants")
+            ("check-pre-post", po::bool_switch()->default_value(false), "checking pre/post conditions");
+
         po::positional_options_description p;
         p.add("input", 1); // The input .v config file is positional and is the first argument
+
         desc.add_options()
             ("input", po::value<std::string>(), "input .v config file(positional)");
 
         // Parse the command line arguments
+
         po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vmap);
         po::notify(vmap);
-        
+
         if (vmap.count("help")) {
             std::cout << desc << std::endl;
             return false;
         }
 
         if (!vmap.count("input")) {
-            std::cout << desc << std::endl;
             std::cout << "Please provide a .v config file" << std::endl;
             return false;
         }
@@ -72,11 +82,14 @@ public:
         this->lens = vmap["lens"].as<bool>();
         this->config_file = vmap["input"].as<std::string>();
         this->use_llvm_frontend = vmap["llvm"].as<bool>();
-
+        this->check_inv = vmap["check-sys-inv"].as<bool>();
+        this->check_loop_inv = vmap["check-loop-inv"].as<bool>();
+        this->check_pre_post = vmap["check-pre-post"].as<bool>();
+ 
         report();
 
         return true;
     }
 };
 
-static class SpoqOption OPTS;
+extern SpoqOption OPTS;
