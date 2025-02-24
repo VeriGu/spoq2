@@ -640,103 +640,103 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
         set<string> used_fix;
         auto src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
         
-		if(auto expr = instance_of(m->src.get(), Expr)) {
-			if(holds_alternative<string>(expr->op)){
-			auto op = std::get<string>(expr->op);
-			auto info = proj->symbols[op];
-			if (info.kind == SymbolKind::Def) {
-            used_abs_funcs.insert(op);
-			vector<shared_ptr<SpecValue>> elems;
+		if (auto expr = instance_of(m->src.get(), Expr)) {
+			if (holds_alternative<string>(expr->op)){
+                auto op = std::get<string>(expr->op);
+                auto info = proj->symbols[op];
+                if (info.kind == SymbolKind::Def) {
+                    used_abs_funcs.insert(op);
+                    vector<shared_ptr<SpecValue>> elems;
 
-			for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {
-				elems.push_back(z3_eval(proj, e->get(), state));
-			}
-			if(proj->defs.find(op) != proj->defs.end()) {
-				if(auto loop = instance_of(proj->defs[op].get(), Fixpoint)){
-					if(!check_states_implies_loop_inv(proj, state, op, elems)){
-                        return false;
+                    for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {
+                        elems.push_back(z3_eval(proj, e->get(), state));
                     }
-                    state->inductions->clear();
-                    LOG_INFO << "[Checking Loop Invariant] Precondition implies invariant";
-                    auto fname = loop->name;
-                    auto loop_post_cond = formulate_loop_invariant(proj, fname, expr->elems.get());
-					for (auto arg : *loop->args) {
-                        if (arg->name != "_N_") {
-                                (*state->vars)[loop->name + "_" + arg->name + "'"] = arg->type->declare(loop->name + "_" + arg->name + "'", 0); //current
-                        }
-                    }
-					//LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << string(*loop_post_cond);
-                    auto loop_post_val = z3_eval(proj, loop_post_cond.get(), state, false, true, used_fix);
-					auto post = loop_post_val->get_z3_value();
-					for(auto arg : *loop->args) {
-						if (arg->name != "_N_") {
-                            post = z3::forall((*state->vars)[loop->name + "_" + arg->name + "'"]->get_z3_value(), post);
-                        }
-					}
-                    //delete loop_post_cond;
-					LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << op;
-                    state->add_induction(post);
-				} else {
-					//normal Definition. Check the precondition and add post condition.
-                    auto def = proj->defs[op].get();
-					if(proj->cmds.PreCond.find(op) != proj->cmds.PreCond.end()) {
-						if(!check_states_implies_pre_condition(proj, state, op, elems)){
-                            return false;
-                        };
-					}
-
-                    state->inductions->clear();
-
-					if(proj->cmds.PostCond.find(op) != proj->cmds.PostCond.end()) {
-						//add post condition
-                        auto post_cond = formulate_post_condition(proj, op, expr->elems.get());
-                        string tmpname = "__tmp__";
-                        int i = 0;
-                        auto rettype = instance_of(def->rettype.get(), Option);
-                        if(auto rettupletype = instance_of(rettype->elem_type.get(), Tuple)) {
-                            for(auto elemtype : *rettupletype->types) {
-                                if(i != rettupletype->types->size() - 1) {
-                                    (*state->vars)[def->name + tmpname + std::to_string(i)] = elemtype->declare(def->name + tmpname + std::to_string(i), 0); //after
-                                } else {
-                                    (*state->vars)[def->name + "_st'"] = elemtype->declare(def->name + "_st'", 0); //after
-                                }
-                                i++;
+                    if (proj->defs.find(op) != proj->defs.end()) {
+                        if (auto loop = instance_of(proj->defs[op].get(), Fixpoint)){
+                            if (!check_states_implies_loop_inv(proj, state, op, elems)){
+                                return false;
                             }
-                        } else{
-                            (*state->vars)[def->name + "_st'"] = rettype->elem_type->declare(def->name + "_st'", 0);
-                        }
+                            state->inductions->clear();
+                            LOG_INFO << "[Checking Loop Invariant] Precondition implies invariant";
+                            auto fname = loop->name;
+                            auto loop_post_cond = formulate_loop_invariant(proj, fname, expr->elems.get());
+                            for (auto arg : *loop->args) {
+                                if (arg->name != "_N_") {
+                                        (*state->vars)[loop->name + "_" + arg->name + "'"] = arg->type->declare(loop->name + "_" + arg->name + "'", 0); //current
+                                }
+                            }
+                            //LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << string(*loop_post_cond);
+                            auto loop_post_val = z3_eval(proj, loop_post_cond.get(), state, false, true, used_fix);
+                            auto post = loop_post_val->get_z3_value();
+                            for(auto arg : *loop->args) {
+                                if (arg->name != "_N_") {
+                                    post = z3::forall((*state->vars)[loop->name + "_" + arg->name + "'"]->get_z3_value(), post);
+                                }
+                            }
+                            //delete loop_post_cond;
+                            LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << op;
+                            state->add_induction(post);
+                        } else {
+                            //normal Definition. Check the precondition and add post condition.
+                            auto def = proj->defs[op].get();
+                            if (proj->cmds.PreCond.find(op) != proj->cmds.PreCond.end()) {
+                                if (!check_states_implies_pre_condition(proj, state, op, elems)){
+                                    return false;
+                                };
+                            }
 
-                        auto post_val = z3_eval(proj, post_cond.get(), state, false, false, used_fix);
-                        auto post = post_val->get_z3_value();
-                        if(auto rettupletype = instance_of(rettype->elem_type.get(), Tuple)) {
-                            i = 0;
-                            for(auto elemtype : *rettupletype->types) {
-                                if(i != rettupletype->types->size() - 1) {
-                                    post = z3::forall((*state->vars)[def->name + tmpname + std::to_string(i)]->get_z3_value(), post);
+                            state->inductions->clear();
+
+                            if(proj->cmds.PostCond.find(op) != proj->cmds.PostCond.end()) {
+                                //add post condition
+                                auto post_cond = formulate_post_condition(proj, op, expr->elems.get());
+                                string tmpname = "__tmp__";
+                                int i = 0;
+                                auto rettype = instance_of(def->rettype.get(), Option);
+                                if (auto rettupletype = instance_of(rettype->elem_type.get(), Tuple)) {
+                                    for(auto elemtype : *rettupletype->types) {
+                                        if (i != rettupletype->types->size() - 1) {
+                                            (*state->vars)[def->name + tmpname + std::to_string(i)] = elemtype->declare(def->name + tmpname + std::to_string(i), 0); //after
+                                        } else {
+                                            (*state->vars)[def->name + "_st'"] = elemtype->declare(def->name + "_st'", 0); //after
+                                        }
+                                        i++;
+                                    }
+                                } else{
+                                    (*state->vars)[def->name + "_st'"] = rettype->elem_type->declare(def->name + "_st'", 0);
+                                }
+
+                                auto post_val = z3_eval(proj, post_cond.get(), state, false, false, used_fix);
+                                auto post = post_val->get_z3_value();
+                                if (auto rettupletype = instance_of(rettype->elem_type.get(), Tuple)) {
+                                    i = 0;
+                                    for(auto elemtype : *rettupletype->types) {
+                                        if (i != rettupletype->types->size() - 1) {
+                                            post = z3::forall((*state->vars)[def->name + tmpname + std::to_string(i)]->get_z3_value(), post);
+                                        } else {
+                                            post = z3::forall((*state->vars)[def->name + "_st'"]->get_z3_value(), post);
+                                        }
+                                        i++;
+                                    }
                                 } else {
                                     post = z3::forall((*state->vars)[def->name + "_st'"]->get_z3_value(), post);
                                 }
-                                i++;
+                                //delete post_cond;
+                                LOG_DEBUG << "[Adding Post Condition] Adding func postcondition: " << string(*post_cond);
+                                LOG_DEBUG << "[Adding Post Condition] Adding func postcondition: " << post;
+                                state->add_induction(post);
                             }
-                        } else {
-                            post = z3::forall((*state->vars)[def->name + "_st'"]->get_z3_value(), post);
+                            //if it is a preserving function, directly add post condition
+                            if (proj->cmds.PreserveInv.find(op) != proj->cmds.PreserveInv.end()) {
+                                unique_ptr<SpecNode> post_cond = formulate_preserved_function(proj, op);
+                                auto post_val = z3_eval(proj, post_cond.get(), state, false, true, used_fix);
+                                //delete post_cond;
+                                state->add_induction(post_val->get_z3_value());
+                                LOG_DEBUG << "[Adding Post Condition] Adding preserved inv postcondition: " << op;
+                            }
                         }
-                        //delete post_cond;
-                        LOG_DEBUG << "[Adding Post Condition] Adding func postcondition: " << string(*post_cond);
-					    LOG_DEBUG << "[Adding Post Condition] Adding func postcondition: " << post;
-                        state->add_induction(post);
-					}
-                    //if it is a preserving function, directly add post condition
-                    if(proj->cmds.PreserveInv.find(op) != proj->cmds.PreserveInv.end()) {
-                        unique_ptr<SpecNode> post_cond = formulate_preserved_function(proj, op);
-                        auto post_val = z3_eval(proj, post_cond.get(), state, false, true, used_fix);
-                        //delete post_cond;
-                        state->add_induction(post_val->get_z3_value());
-                        LOG_DEBUG << "[Adding Post Condition] Adding preserved inv postcondition: " << op;
                     }
-				}
-			}
-			}
+                }
 			}
 		}
 
