@@ -341,6 +341,48 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             return Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second), spoq_inst_to_spec(proj, vec, num + 1, context));
         }
 
+        if (auto gep = llvm::dyn_cast<llvm::GetElementPtrInst>(spoq_inst->inst)) {
+            auto ptr = context.get_llvm_value_spec(gep->getPointerOperand());
+            unique_ptr<SpecNode> expr = std::make_unique<IntConst>(0);
+            auto source_type = gep->getSourceElementType();
+            std::vector<llvm::Value*> indices;
+            for(auto idx = gep->idx_begin(); idx != gep->idx_end(); ++idx) {
+                llvm::Value* index = *idx;
+                indices.push_back(index);
+                auto elem_type = llvm::GetElementPtrInst::getIndexedType(gep->getSourceElementType(), indices);
+                if(auto sty = llvm::dyn_cast<llvm::StructType>(source_type)) {
+                    assert(index->getType()->isIntegerTy() && "Struct index is not integer");
+                    auto index_val = llvm::dyn_cast<llvm::ConstantInt>(index);
+                    auto offset = context.llvm_dl->getStructLayout(sty)->getElementOffset(index_val->getZExtValue());
+                    auto operands = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
+                    operands->push_back(std::move(expr));
+                    operands->push_back(std::make_unique<IntConst>(offset));
+                    expr = make_unique<Expr>(Expr::binops::ADD, std::move(operands));
+                } else {
+                    int type_size;
+                    if(elem_type->isVectorTy()) type_size = context.llvm_dl->getTypeStoreSize(elem_type);
+                    else type_size = context.llvm_dl->getTypeAllocSize(elem_type);
+                    auto index_value = context.get_llvm_value_spec(index);
+                    auto operands = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
+                    operands->push_back(std::move(index_value));
+                    operands->push_back(std::make_unique<IntConst>(type_size));
+                    auto mul_expr = std::make_unique<Expr>(Expr::binops::MULT,std:: move(operands));
+                    operands = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
+                    operands->push_back(std::move(mul_expr));
+                    operands->push_back(std::move(expr));
+                    expr = make_unique<Expr>(Expr::binops::ADD, std::move(operands));
+                }
+                source_type = elem_type;
+            }
+            auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
+            operands->push_back(context.get_llvm_value_spec(gep->getPointerOperand()));
+            operands->push_back(std::move(expr));
+            expr = std::make_unique<Expr>(context.ptr_off_op_name, std::move(operands));
+            auto sym = context.get_llvm_value_spec(gep);
+            return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
+        }
+
+
         // pointer-integer conversion
         if (auto p2i = llvm::dyn_cast<llvm::PtrToIntInst>(spoq_inst->inst)) {
             auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();

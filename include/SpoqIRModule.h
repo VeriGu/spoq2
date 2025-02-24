@@ -52,7 +52,9 @@ class SpoqAsmProcedure {
             if(layer->ops["ptr2int"] != "") ptr2int_op_name = layer->ops["ptr2int"];
             if(layer->ops["int2ptr"] != "") int2ptr_op_name = layer->ops["int2ptr"];
             if(layer->ops["ptr_eqb"] != "") ptr_eqb_op_name = layer->ops["ptr_eqb"];
+            if(layer->ops["ptr_offset"] != "") ptr_off_op_name = layer->ops["ptr_offset"];
             if(layer->abs_data != nullptr) abs_data_type = layer->abs_data;
+            llvm_dl = &spoq_func.llvm_func->getParent()->getDataLayout();
         }
         int counter = 0;
 
@@ -63,6 +65,7 @@ class SpoqAsmProcedure {
         std::string ptr2int_op_name = "ptr_to_int";
         std::string int2ptr_op_name = "int_to_ptr";
         std::string ptr_eqb_op_name = "ptr_eqb";
+        std::string ptr_off_op_name = "ptr_offset";
 
         vector<Definition> defs;
         vector<string> args;
@@ -71,6 +74,9 @@ class SpoqAsmProcedure {
         bool in_loop;
         bool final_return;
         SpoqFunction& spoq_func;
+
+        const llvm::DataLayout* llvm_dl;
+
 
         shared_ptr<SpecType> abs_data_type;
         shared_ptr<SpecType> rettype = make_shared<SpecType>("Void");
