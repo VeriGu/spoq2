@@ -15,7 +15,7 @@
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
-            "args": ["testcase/proof_debug_of.v"], // Any command-line arguments
+            "args": ["test/rmm/proof_debug_of.v"], // Any command-line arguments
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "CMake: build debug"
         },
