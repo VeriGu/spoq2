@@ -128,7 +128,6 @@ bool SpoqIRModule::control_flow_conversion_DAG(Project *proj, string fname,
                                                SpoqFunction &spoq_func) {
     llvm::ValueToValueMapTy value_map;
     control_flow_clone_and_split(&(spoq_func.llvm_func->getEntryBlock()), nullptr, false, value_map);
-    llvm::errs() << "spoq_func.llvm_func: " << *spoq_func.llvm_func << "\n";
 
     std::vector<llvm::Instruction*> to_erase;
     for(auto &bb : *spoq_func.llvm_func) {

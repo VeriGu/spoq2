@@ -48,8 +48,12 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
 bool SpoqIRModule::validate_for_gen_low_spec(Project* proj, string fname, int layer_id) {
     SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs[fname];
     if (!spoq_func.cfg_converted) return false;
-    if (!spoq_func.spoq_insts_converted) return llvm_ir_to_spoq_ir(spoq_func);
-    return true;
+    if (!spoq_func.spoq_insts_converted) {
+        if(!llvm_ir_to_spoq_ir(spoq_func)) return false;
+        proj->spoq_code.extract_inline_asm(spoq_func);
+        return true;
+    }
+    return false;
 }
 
 
@@ -60,9 +64,7 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
     if (!SpoqIRModule::validate_for_gen_low_spec(proj, fname, layer_id)) return false;
 
     SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs.at(fname);
-    SpoqIRContext context(spoq_func);
-
-    context.abs_data_type = proj->layers[layer_id]->abs_data;
+    SpoqIRContext context(spoq_func, proj->layers[layer_id]);
 
     unique_ptr<vector<shared_ptr<Arg>>> args = std::make_unique<vector<shared_ptr<Arg>>>();
     for(auto &arg : spoq_func.llvm_func->args()) {
@@ -73,7 +75,11 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
     args->push_back(make_shared<Arg>(context.abs_data_name, context.abs_data_type));
 
     unique_ptr<SpecNode> spec = proj->spoq_code.spoq_inst_to_spec(proj, spoq_func.spoq_insts, 0, context);
-    // TODO: introduce rely here
+
+    if(proj->cmds.InitRely.find(fname) != proj->cmds.InitRely.end()) {
+        for(auto & f : proj->cmds.InitRely[fname])
+            spec = std::make_unique<Rely>(f->deep_copy(), std::move(spec));
+    }    
 
     shared_ptr<SpecType> rettype = nullptr;
     if(spoq_func.llvm_func->getType()->isVoidTy()) {

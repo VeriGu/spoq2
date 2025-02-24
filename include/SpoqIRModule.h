@@ -14,9 +14,25 @@
 #include <stack>
 
 #include "SpoqIR.h"
+#include "inline_asm.h"
+#include "llvm.h"
 #include "nodes.h"
 
 namespace autov {
+
+class SpoqAsmProcedure {
+  public:
+    string name;
+    string origin;
+    string objdump;
+    string body;
+
+    SpoqAsmProcedure() = delete;
+    SpoqAsmProcedure(string name, string origin, string objdump, string body)
+        : name(name), origin(origin), objdump(objdump), body(body) {}
+
+    string to_coq() const { return body; }
+};
 
     class SpoqFunction {
     public:
@@ -30,9 +46,23 @@ namespace autov {
     class SpoqIRContext {
     public:
 
-        SpoqIRContext(SpoqFunction& spoq_func_) : spoq_func(spoq_func_) {}
+        SpoqIRContext(SpoqFunction& spoq_func_, unique_ptr<Layer>& layer) : spoq_func(spoq_func_) {
+            if(layer->ops["load"] != "") load_op_name = layer->ops["load"];
+            if(layer->ops["store"] != "") store_op_name = layer->ops["store"];
+            if(layer->ops["ptr2int"] != "") ptr2int_op_name = layer->ops["ptr2int"];
+            if(layer->ops["int2ptr"] != "") int2ptr_op_name = layer->ops["int2ptr"];
+            if(layer->ops["ptr_eqb"] != "") ptr_eqb_op_name = layer->ops["ptr_eqb"];
+            if(layer->abs_data != nullptr) abs_data_type = layer->abs_data;
+        }
         int counter = 0;
+
         const std::string abs_data_name = "st";
+
+        std::string load_op_name = "load_RData";
+        std::string store_op_name = "store_RData";
+        std::string ptr2int_op_name = "ptr_to_int";
+        std::string int2ptr_op_name = "int_to_ptr";
+        std::string ptr_eqb_op_name = "ptr_eqb";
 
         vector<Definition> defs;
         vector<string> args;
@@ -67,7 +97,7 @@ namespace autov {
          * @param value 
          * @return unique_ptr<SpecNode> 
          */
-        unique_ptr<SpecNode> get_llvm_value_spec(llvm::Value* value);
+        unique_ptr<SpecNode> get_llvm_value_spec(llvm::Value* value, llvm::Type* force_sym_type = nullptr);
 
         /**
          * @brief Get the llvm value type. TODO: use pointer abstraction here
@@ -86,9 +116,25 @@ namespace autov {
 
     class SpoqIRModule { 
     public:
+        int iasm_count = 0;
         llvm::LLVMContext llvm_context;
         unique_ptr<llvm::Module> llvm_module;
         std::map<std::string, SpoqFunction> spoq_funcs;
+
+        /**
+         * @brief Contains the inline assembly cannot be automatically solved.
+         */
+        std::map<llvm::Value*, std::string> iasm2func;
+        /**
+         * @brief Contains the solved inline asm with a map objd -> function name
+         * 
+         */
+        std::map<std::string, std::string> iasm_objd_cache;
+        /**
+         * @brief All assembly definition.
+         * TODO: dump them somewhere
+         */
+        std::map<std::string, shared_ptr<SpoqAsmProcedure>> iasm_defs;
 
         /**
          * @brief load llvm module from llvm bitcode file, revise the function name if there is '.' in it.
@@ -188,14 +234,24 @@ namespace autov {
 
         static bool llvm_ir_to_spoq_ir(SpoqFunction &spoq_func);
 
-        // static bool spoq_func_to_spec(Project &proj, std::string fname, SpoqFunction &spoq_func);
-
         static unique_ptr<SpecNode> spoq_inst_to_spec(Project *proj, spoq_inst_vec_t&, int, SpoqIRContext& context);
 
+        static std::pair<unique_ptr<SpecNode>, unique_ptr<SpecNode>> store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context);
 
         static const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> binops_lut;
 
         static const std::unordered_map<llvm::CmpInst::Predicate, Expr::binops> cmpops_lut;
+
+        std::pair<int, int> extract_inline_asm(SpoqFunction& func);
+
+        int find_inline_asm(spoq_inst_vec_t& inst_vec);
+
+        static std::string llvm_ir_type_to_str(llvm::Type* type, bool input);
+
+        SpoqIRIASM parse_inline_asm(string fname, string asm_text, llvm::Type* rettype,
+            vector<llvm::Type*> &arglist, string constraints);
+
+        // SpoqIRIASM parse_inline_asm(s
 
 
     };
