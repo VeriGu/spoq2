@@ -2,6 +2,7 @@
 #include "SpoqIRModule.h"
 #include "ir2spec.h"
 #include "project.h"
+#include <values.h>
 
 namespace autov {
 std::set<string> SpoqIRModule::get_func_dependencies(llvm::Function *func) {
@@ -46,65 +47,58 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
 
 bool SpoqIRModule::validate_for_gen_low_spec(Project* proj, string fname, int layer_id) {
     SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs[fname];
-    if (!spoq_func.cfg_converted || !spoq_func.spoq_insts_converted) return false;
+    if (!spoq_func.cfg_converted) return false;
+    if (!spoq_func.spoq_insts_converted) return llvm_ir_to_spoq_ir(spoq_func);
     return true;
 }
 
-shared_ptr<SpecType> SpoqIRModule::llvm_ir_type_to_spec(llvm::Type* type) {
-    if (type->isIntegerTy(1)) {
-        return Bool::BOOL;
-    } else if(type->isIntegerTy()) {
-        return Int::INT;
-    } else if (type->isPointerTy()) {
-        // TODO: introduc pointer abstraction here
-        //  make_shared<TPtr>(llvm_ir_type_to_spec(type->getPointerElementType()));
-        return Struct::Ptr;
-    } else if (type->isVoidTy()) {
-        // TODO: check if this cause memory leakage
-        return make_shared<SpecType>("Void");
-    } else if (type->isStructTy()) {
-        // TODO: handle struct type
-        throw std::invalid_argument("invalid types: " + type->getStructName().str());
-        // return make_shared<TStruct>(type->getStructName().str());
-    } else if (type->isArrayTy()) {
-        return make_shared<Array>(llvm_ir_type_to_spec(type->getArrayElementType()));
-    } else {
-        throw std::invalid_argument("invalid types: " + type->getStructName().str());
-        return SpecType::UNKNOWN_TYPE;
-    }
-}
 
 bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
-                                   std::vector<std::string> &low_specs) {
+                                   std::vector<std::string> &low_specs,
+                                   std::unordered_map<string, string> &name_map) {
     if (proj == nullptr) return false;
     if (!SpoqIRModule::validate_for_gen_low_spec(proj, fname, layer_id)) return false;
 
     SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs.at(fname);
+    SpoqIRContext context(spoq_func);
 
-    // auto abs_data = proj->layers[layer_id]->abs_data;
+    context.abs_data_type = proj->layers[layer_id]->abs_data;
 
-    // // build arguments
-    // vector<shared_ptr<Arg>> args;
-    // for(auto &arg : llvm_func->args()) {
-    //     auto type = llvm_ir_type_to_spec(arg.getType());
-    //     args.push_back(make_shared<Arg>(arg.getName(), type));
-    // }
-    // args.push_back(make_shared<Arg>("st", abs_data));
+    unique_ptr<vector<shared_ptr<Arg>>> args = std::make_unique<vector<shared_ptr<Arg>>>();
+    for(auto &arg : spoq_func.llvm_func->args()) {
+        auto sym = context.get_llvm_value_spec(&arg);
+        auto symbol = dynamic_cast<Symbol*>(sym.get());
+        args->push_back(std::make_shared<Arg> (symbol->text, symbol->type));
+    }
+    args->push_back(make_shared<Arg>(context.abs_data_name, context.abs_data_type));
 
-    // auto ret_type = llvm_ir_type_to_spec(llvm_func->getReturnType());
-    // if (ret_type) {
-    //     ret_type = std::make_shared<Option>(abs_data);
-    // } else {
-    //     auto vec = std::make_shared<vector<shared_ptr<SpecType>>>(
-    //         vector<shared_ptr<SpecType>> {ret_type, abs_data}
-    //     );
-    //     ret_type = std::make_shared<Option>(std::make_shared<Tuple>(vec));
-    // }
+    unique_ptr<SpecNode> spec = proj->spoq_code.spoq_inst_to_spec(proj, spoq_func.spoq_insts, 0, context);
+    // TODO: introduce rely here
 
-    // std::map<string, shared_ptr<SpecType>> func_types;
-    // func_types["st"] = abs_data;
+    shared_ptr<SpecType> rettype = nullptr;
+    if(spoq_func.llvm_func->getType()->isVoidTy()) {
+        rettype = std::make_shared<Option>(context.abs_data_type);
+    } else {
+        auto children = std::make_shared<vector<shared_ptr<SpecType>>>();
+        children->push_back(context.rettype);
+        children->push_back(context.abs_data_type);
+        rettype = std::make_shared<Option>(make_shared<Tuple>(children));
+    }
 
-    // shared_ptr<SpecNode> body = spoq_func_body_to_spec(proj, spoq_func, func_types);
+    auto spec_name = fname + "_spec_low";
+    low_specs.push_back(spec_name);
+
+    name_map[spec_name] = fname + "_spec";
+    auto def = new Definition(spec_name, rettype, std::move(args), std::move(spec));
+
+    auto loc = make_shared<loc_t>(proj->layers[layer_id]->name, fname, Project::LOC_LOWSPEC);
+    proj->add_definition(std::unique_ptr<Definition>(def), loc);
+
+    // TODO: introduce other dependencies
+    proj->deps[def->name] = SpoqIRModule::get_func_dependencies(spoq_func.llvm_func);
+
+    // std::cout << "Generated low spec: " << spec_name << std::endl;
+    // std::cout << string(*proj->defs[spec_name]) << "\n";
 
     return true;
 }

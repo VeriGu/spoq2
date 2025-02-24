@@ -29,8 +29,10 @@ int main(int argc, char *argv[])
 
     // return 0;
 
-    if (OPTS.use_llvm_frontend) 
+    if (OPTS.use_llvm_frontend) {
         proj->finalize_project_v2();
+        autov::generate_proj(proj.get());
+    }
     else {
         proj->finalize_project();
         autov::generate_proj(proj.get());

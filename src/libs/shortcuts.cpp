@@ -1,4 +1,7 @@
+#include "nodes.h"
+#include <memory>
 #include <shortcuts.h>
+#include <values.h>
 
 namespace autov {
 SpecNode* _Let(string name, SpecNode* val, SpecNode* body) {
@@ -52,4 +55,42 @@ SpecNode* _name(string name, unordered_map<string, shared_ptr<SpecType>> *types)
         return new Symbol(name, autov::SpecType::UNKNOWN_TYPE);
     }
 }
+
+unique_ptr<SpecNode> Shortcut::_Some_u(unique_ptr<SpecNode> val) {
+    auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
+    vec->push_back(std::move(val));
+    auto expr = make_unique<Expr>(Expr::ops::Some, std::move(vec));
+    return std::move(expr);
+}
+
+unique_ptr<SpecNode> Shortcut::_Tuple_u(unique_ptr<vector<unique_ptr<SpecNode>>> vec) {
+    return make_unique<Expr>(Expr::ops::Tuple, std::move(vec));
+}
+
+unique_ptr<SpecNode> Shortcut::_Let_u(unique_ptr<SpecNode> sym, unique_ptr<SpecNode> val, unique_ptr<SpecNode> body) {
+    auto vec = std::make_unique<vector<unique_ptr<PatternMatch>>>();
+    vec->push_back(make_unique<PatternMatch>(std::move(sym), std::move(body)));
+    return std::make_unique<Match>(std::move(val), std::move(vec));
+}
+
+unique_ptr<SpecNode> Shortcut::_When_u(unique_ptr<SpecNode> pat, unique_ptr<SpecNode> val, unique_ptr<SpecNode> body) {
+    auto somepat = std::make_unique<vector<unique_ptr<SpecNode>>>();
+    somepat->push_back(std::move(pat));
+
+    auto none_symbol = make_unique<Symbol>("None");
+    unique_ptr<PatternMatch> none = make_unique<PatternMatch>(
+        make_unique<Expr>(Expr::ops::None, make_unique<vector<unique_ptr<SpecNode>>>()),
+        std::move(none_symbol));
+
+    unique_ptr<PatternMatch> some = make_unique<PatternMatch>(make_unique<Expr>(Expr::ops::Some, std::move(somepat)), std::move(body));
+
+    auto pats = make_unique<vector<unique_ptr<PatternMatch>>>();
+
+    pats->push_back(std::move(some));
+    pats->push_back(std::move(none));
+
+    return make_unique<Match>(std::move(val), std::move(pats));
+}
+
+
 }

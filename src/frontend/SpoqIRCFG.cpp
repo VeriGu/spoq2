@@ -6,6 +6,7 @@
 #include <llvm-14/llvm/IR/Instructions.h>
 #include <llvm-14/llvm/IR/Value.h>
 #include <llvm-14/llvm/Support/Casting.h>
+#include <llvm-14/llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm-14/llvm/Transforms/Utils/ValueMapper.h>
 #include <stdexcept>
 
@@ -94,8 +95,8 @@ bool SpoqIRModule::control_flow_clone_and_split(
             for (int i = 0; i < br->getNumSuccessors(); i++) {
                 auto succ = br->getSuccessor(i);
                 if (llvm::pred_size(succ) >= 2) {
-                    auto cloned = llvm::CloneBasicBlock(succ, value_map, ".clone", bb->getParent());
                     llvm::ValueToValueMapTy value_map_duplicate;
+                    auto cloned = llvm::CloneBasicBlock(succ, value_map_duplicate, ".clone", bb->getParent());
                     value_map_duplicate[succ] = cloned;
                     control_flow_clone_and_split(cloned, succ, true, value_map_duplicate);
                     br->setSuccessor(i, cloned);
@@ -127,6 +128,7 @@ bool SpoqIRModule::control_flow_conversion_DAG(Project *proj, string fname,
                                                SpoqFunction &spoq_func) {
     llvm::ValueToValueMapTy value_map;
     control_flow_clone_and_split(&(spoq_func.llvm_func->getEntryBlock()), nullptr, false, value_map);
+    llvm::errs() << "spoq_func.llvm_func: " << *spoq_func.llvm_func << "\n";
 
     std::vector<llvm::Instruction*> to_erase;
     for(auto &bb : *spoq_func.llvm_func) {
