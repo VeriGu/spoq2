@@ -1,6 +1,7 @@
 #include <boost/filesystem.hpp>
 #include <fstream>
 #include <gen_code.h>
+#include <cmd.h>
 
 namespace autov
 {
@@ -107,6 +108,9 @@ void print_module(IRModule *ir, string out_path)
 
 unique_ptr<vector<string>> generate_code(Project *p)
 {
+    if(OPTS.use_llvm_frontend) {
+        return std::make_unique<vector<string>>();
+    }
     boost::filesystem::path dir(p->base);
     boost::filesystem::path file("Code.v");
     print_module(p->code.get(), (dir / file).string());

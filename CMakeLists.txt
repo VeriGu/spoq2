@@ -126,6 +126,7 @@ set(SOURCES
     src/frontend/SpoqIRLoader.cpp
     src/frontend/SpoqIRModule.cpp
     src/frontend/SpoqIRCFG.cpp
+    src/frontend/SpoqIRTranslator.cpp
     src/optimizations/coi.cpp
     src/optimizations/rules.cpp
     src/optimizations/projection.cpp

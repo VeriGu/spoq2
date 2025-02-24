@@ -1,4 +1,4 @@
-int add(int a, int b) {
+unsigned int add(unsigned int a, unsigned int b) {
     if(a == 0) return 0;
     else if (b == 1) return 2;
     a = 123;
@@ -10,7 +10,7 @@ int add(int a, int b) {
     return a + b;
 }
 
-int add_one(int a) {
+unsigned add_one(unsigned int a) {
     return add(a, 1);
 }
 

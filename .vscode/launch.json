@@ -2,29 +2,11 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(lldb) Launch Spoq proof_rtt",
-            "type": "lldb",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
-            "args": ["testcase/proof_rtt.v"], // Any command-line arguments
-            "cwd": "${workspaceFolder}",
-            "preLaunchTask": "CMake: build debug"
-        },
-        {
-            "name": "(lldb) Launch Spoq proof_debug_of",
-            "type": "lldb",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
-            "args": ["test/rmm/proof_debug_of.v"], // Any command-line arguments
-            "cwd": "${workspaceFolder}",
-            "preLaunchTask": "CMake: build debug"
-        },
-        {
             "name": "(lldb) Launch Spoq rcsm",
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
-            "args": ["testcase/proof_rcsm.v"], // Any command-line arguments
+            "args": ["test/rcsm/proof_rcsm.v"], // Any command-line arguments
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "CMake: build debug"
         },
@@ -38,20 +20,11 @@
             "preLaunchTask": "CMake: build debug"
         },
         {
-            "name": "(lldb) Launch json2coq",
-            "type": "lldb",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/json2coq", // Path to your CMake target executable
-            "args": ["${workspaceFolder}/testcase/rmm.json"], // Any command-line arguments
-            "cwd": "${workspaceFolder}",
-            "preLaunchTask": "CMake: build debug"
-        },
-        {
-            "name": "(lldb) Launch Spoq example",
+            "name": "(lldb) Launch Spoq proof_debug_of",
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
-            "args": ["examples/proof.v"], // Any command-line arguments
+            "args": ["test/rmm/proof_debug_of.v"], // Any command-line arguments
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "CMake: build debug"
         },

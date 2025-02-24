@@ -1032,6 +1032,8 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
     if(!ret) {
         LOG_ERROR << "Failed to infer low spec for " << fname << std::endl;
         return std::make_tuple(fname, nullptr, nullptr);
+    } else {
+        LOG_DEBUG << "Infer low spec for " << fname << " ok" << std::endl;
     }
 
     // auto &L = proj->layers[layer_id];
@@ -1130,10 +1132,49 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
 
     auto low_name = fname + "_spec_low";
     if(proj->defs.find(low_name) == proj->defs.end()) {
-        // TODO: generate low spec
         LOG_DEBUG << "low spec not found: " << low_name << "\n";
-        proj->spoq_code.code_to_spec(proj, fname, layer_id, low_specs);
-        // TODO: post process 
+        std::string suffix = "_low";
+        bool ret = proj->spoq_code.code_to_spec(proj, fname, layer_id, low_specs, name_map);
+        if(!ret) { 
+            LOG_ERROR << "fail to generate low spec for: " << fname << "\n";
+            return false; 
+        }
+        auto subs_defs_low = new vector<Definition*>();
+        for(auto &def_name: low_specs) {
+            auto def = proj->defs[def_name].get();
+
+            // spec transformer
+            profile_clear();
+            spec_transformer(proj, def, layer_id, false, true);
+            profile_finalize();
+            profile_print();
+
+            // conditional spec
+            if (OPTS.conditional_spec) {
+                auto subs_defs = new vector<Definition*>();
+                if(!is_instance(def, Fixpoint)) {
+                    LOG_WARNING << "Clean-version conditional spec is not supported for now";
+                    // rule_conditional_spec(proj, def, subs_defs);
+                }
+
+                for(auto sub_def : * subs_defs) {
+                    proj->symbols[def->name].order = proj->symbols[sub_def->name].order + 1;
+                    auto sub_name = sub_def->name;
+                    LOG_DEBUG << "sub_name: " << sub_name;
+                    auto high_name = sub_name.substr(0, sub_name.size() - 4);
+                    subs_defs_low->push_back(sub_def);
+                    //proj->add_definition(unique_ptr<Definition>(sub_def), loc);
+                    //proj->update_symbol_loc(sub_name, make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
+                    name_map[sub_name] = high_name;
+                }
+            }
+
+            if (is_instance(def, Fixpoint))
+                have_loop = true;
+        }
+        for(auto sub : *subs_defs_low) {
+            low_specs.push_back(sub->name);
+        }
         return true;
     } else {
         LOG_DEBUG << "low spec provided: " << low_name << "\n";

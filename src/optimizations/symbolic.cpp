@@ -739,25 +739,26 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 			}
 			}
 		}
+
+        auto abst_spec = abst_transition(proj, m->src.get()); 
+        SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
+
 		for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 			auto new_state = state->copy();
-			//unordered_map<string, shared_ptr<SpecValue>> vars;
-            //unordered_map<string, shared_ptr<SpecValue>> assigns;
-			//auto pat = resolve_pattern(proj, spec, (*pm)->pattern.get(), src, vars, assigns);
             auto pat = (*pm)->pattern.get();
             resolve_pattern(proj, m, pat, src, new_state);
-            // auto cond = pat->get_z3_value() == src->get_z3_value();
-            // //exists v1,v2..., constructor v1 v2 ... = src.
-            // for (auto v = vars.begin(); v != vars.end(); v++) {
-            //     cond = z3::exists(v->second->get_z3_value(), cond);
-            // }
 
-			//new_state->conds->push_back(cond);
-
-            // for (auto v = assigns.begin(); v != assigns.end(); v++) {
-            //     (*new_state->vars)[v->first] = v->second;
-            // }
-
+            if (!std::holds_alternative<std::nullptr_t>(abst_spec)) {            
+                SpecNode *st_ret = extract_st_from_expr(proj, pat);
+                if (st_input && st_ret) {
+                    for (auto const &l : proj->lemmas) {
+                        auto lemma_body = proj->defs[l]->body.get();
+                        auto lemma = proj->rules.instantiate_prop(lemma_body->deep_copy(), st_ret->deep_copy());
+                        auto lemma_expr = z3_expr(proj, lemma.get(), new_state);
+                        new_state->add_induction(lemma_expr->get_z3_value());
+                    }
+                }
+            }
 			if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state,used_abs_funcs)) {
 				return false;
 			}
@@ -835,6 +836,13 @@ bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv, set<string
 	auto c = z3_eval(proj, inv, state, false, true, used_fixpoint);
 	state->conds->push_back(c->get_z3_value());
 	
+    // instantiate parameter-related invariants
+    for (auto const &l : proj->lemmas) {
+        auto lemma_body = proj->defs[l]->body.get();
+        auto lemma_expr = z3_expr(proj, lemma_body, state);
+        state->add_induction(lemma_expr->get_z3_value());
+    }
+
     //also add proved invariant
     for(auto proved: proj->verified_invariants) {
         auto pinv = proj->sys_invs[proved].get();
@@ -873,7 +881,7 @@ void spec_prover(Project *proj) {
                 std::cout << "[spec_prover] Invariant: " << string(*inv) << std::endl;
                 //std::deque<Definition *> q = {goal_def};
                 auto coi = analyze_cone_of_influence(proj, goal_def, inv.get());
-                //spec_abstraction(proj, goal_def, coi);
+                spec_abstraction(proj, goal_def, coi);
                 //goal_def->infer_type(*proj);
                 std::cout << "[spec_abstraction] coi set: " << std::endl;
                 for (auto &c : coi) {

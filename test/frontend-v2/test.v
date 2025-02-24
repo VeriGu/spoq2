@@ -10,6 +10,7 @@ Record RData :=
   }.
 
 Section Bottom.
+  Definition LAYER_DATA := RData.
   Definition LAYER_CODE : string := "./test.json".
   Definition LAYER_PRIMS: list string :=
     "main" ::
@@ -23,6 +24,31 @@ Section Layer1.
   Definition LAYER_PRIMS: list string :=
     "add" ::
     nil.
+
+  Definition fold_add_spec_low (v_0: Z) (v_1: Z) (st: RData) : (option (Z * RData)) :=
+    let v_2 := (v_0 =? (0)) in
+    if v_2
+    then (Some (0, st))
+    else (
+      let v_3 := (v_1 =? (1)) in
+      if v_3
+      then (Some (2, st))
+      else (
+        let v_4 := (v_1 + (123)) in
+        let v_5 := (v_1 >? ((-23))) in
+        if v_5
+        then (Some (100, st))
+        else (
+          let v_6 := (v_1 >? ((-73))) in
+          if v_6
+          then (Some (50, st))
+          else (
+            let v_7 := (v_1 >? (18446744073709551494)) in
+            if v_7
+            then (
+              let v_8 := (v_1 + (125)) in
+              (Some (v_8, st)))
+            else (Some (v_4, st)))))).
 
   (* Definition add_spec_low (v_0: Z) (v_1: Z) (st: RData) : option (Z * RData) :=
     Some (v_0 + v_1, st). *)

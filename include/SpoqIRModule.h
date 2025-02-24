@@ -1,6 +1,7 @@
 #pragma once
 
 #include <llvm-14/llvm/IR/BasicBlock.h>
+#include <llvm-14/llvm/IR/Instruction.h>
 #include <string>
 #include <irtypes.h>
 #include <irvalues.h>
@@ -10,8 +11,10 @@
 #include <llvm/IR/Instructions.h>
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
+#include <stack>
 
 #include "SpoqIR.h"
+#include "nodes.h"
 
 namespace autov {
 
@@ -26,12 +29,59 @@ namespace autov {
 
     class SpoqIRContext {
     public:
+
+        SpoqIRContext(SpoqFunction& spoq_func_) : spoq_func(spoq_func_) {}
+        int counter = 0;
+        const std::string abs_data_name = "st";
+
         vector<Definition> defs;
         vector<string> args;
         int current;
         std::string suffix;
         bool in_loop;
         bool final_return;
+        SpoqFunction& spoq_func;
+
+        shared_ptr<SpecType> abs_data_type;
+        shared_ptr<SpecType> rettype = make_shared<SpecType>("Void");
+
+        std::map<llvm::Value*, std::string> value_map;
+        std::map<llvm::Value*, shared_ptr<SpecType>> type_map;
+
+        inline std::string get_llvm_value_name(llvm::Value* value) {
+            if(value_map[value] != "") return value_map[value];
+            auto name = value->getName().str();
+            if(name == "") name = "v_" + std::to_string(counter++);
+            value_map[value] = name;
+            return name;
+        }
+
+        inline unique_ptr<SpecNode> get_abs_data() {
+            assert(abs_data_type != nullptr && "abs_data_type is nullptr");
+            return std::make_unique<Symbol>(abs_data_name, abs_data_type);
+        }
+
+        /**
+         * @brief Get the llvm value spec unique_ptr object. 
+         * 
+         * @param value 
+         * @return unique_ptr<SpecNode> 
+         */
+        unique_ptr<SpecNode> get_llvm_value_spec(llvm::Value* value);
+
+        /**
+         * @brief Get the llvm value type. TODO: use pointer abstraction here
+         * 
+         * @param value 
+         * @param context 
+         * @return shared_ptr<SpecType> 
+        */
+        shared_ptr<SpecType> get_llvm_value_type(llvm::Value* value);
+
+
+        // These are used only during translation
+        std::stack< shared_ptr<std::vector<llvm::Value*>> > pass_stack;
+        std::vector<llvm::Value*> return_list;
     };
 
     class SpoqIRModule { 
@@ -56,7 +106,7 @@ namespace autov {
          * @param layer_id 
          * @param low_specs the name for the generated low_specs
          */
-        static bool code_to_spec(Project* proj, string fname, int layer_id, std::vector<std::string> &low_specs);
+        static bool code_to_spec(Project* proj, string fname, int layer_id, std::vector<std::string> &low_specs, std::unordered_map<string, string> &name_map);
 
         /**
          * @brief Check if the SpoqFunction is ready for generating low spec.
@@ -123,15 +173,30 @@ namespace autov {
         bool load_function_and_convert_all(Project* proj);
 
         /**
-         * @brief convert llvm::Type into SpecTYpe
-         * 
+         * @brief convert llvm::Type into SpecType. This is a pure translation without 
+         * using any pointer abstraction.
          * @param type SpecTYpe
          * @return shared_ptr<SpecType> 
          */
-        static shared_ptr<SpecType> llvm_ir_type_to_spec(llvm::Type* type);
+        static shared_ptr<SpecType> llvm_ir_type_to_spec_pure(llvm::Type* type);
+
 
         // static shared_ptr<SpecNode> spoq_ir_vec_to_spec(Project* proj, string fname, int layer_id,
             // spoq_inst_vec_t& body, SpoqIRContext& context);
+
+        static void dfs_llvm_ir_to_spoq_inst_vec(llvm::BasicBlock* block, spoq_inst_vec_t& vec);
+
+        static bool llvm_ir_to_spoq_ir(SpoqFunction &spoq_func);
+
+        // static bool spoq_func_to_spec(Project &proj, std::string fname, SpoqFunction &spoq_func);
+
+        static unique_ptr<SpecNode> spoq_inst_to_spec(Project *proj, spoq_inst_vec_t&, int, SpoqIRContext& context);
+
+
+        static const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> binops_lut;
+
+        static const std::unordered_map<llvm::CmpInst::Predicate, Expr::binops> cmpops_lut;
+
 
     };
 }

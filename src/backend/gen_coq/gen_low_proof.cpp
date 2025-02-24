@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <gen_low_proof.h>
 #include <regex>
+#include <cmd.h>
 
 namespace fs = std::filesystem;
 
@@ -270,6 +271,9 @@ void gen_low_proof_proc(Project *p, int i, string fname, string path)
 
 unique_ptr<vector<string>> generate_low_proof(Project *p)
 {
+    if(OPTS.use_llvm_frontend) {
+        return std::make_unique<vector<string>>();
+    }
     auto files = unique_ptr<vector<string>>(new vector<string>());
     int i = 0;
     for (auto const &L : p->layers) {
