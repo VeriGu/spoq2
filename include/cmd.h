@@ -51,6 +51,7 @@ public:
         desc.add_options()
             ("help,h", "produce help message")
             ("lens,l", po::bool_switch()->default_value(true), "use lens")
+            ("no-lens,nl", po::bool_switch()->default_value(true), "do not use lens")
             ("llvm", po::bool_switch()->default_value(false), "use llvm frontend") 
             ("conditional-spec,c", po::bool_switch()->default_value(false), "automatically generate conditional spec")
             ("check-sys-inv", po::bool_switch()->default_value(true), "checking system invariants")
@@ -85,6 +86,9 @@ public:
         this->check_inv = vmap["check-sys-inv"].as<bool>();
         this->check_loop_inv = vmap["check-loop-inv"].as<bool>();
         this->check_pre_post = vmap["check-pre-post"].as<bool>();
+        if (vmap.count("no-lens")) {
+            this->lens = false;
+        }
  
         report();
 

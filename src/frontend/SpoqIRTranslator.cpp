@@ -246,11 +246,22 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             unique_ptr<vector<unique_ptr<SpecNode>>> operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
             operands->push_back(context.get_llvm_value_spec(bi->getOperand(0)));
             operands->push_back(context.get_llvm_value_spec(bi->getOperand(1)));
-            if(binops_lut.find(bi->getOpcode()) == binops_lut.end()) {
+            unique_ptr<Expr> expr = nullptr;
+            if(binops_lut.find(bi->getOpcode()) != binops_lut.end()) {
+                expr = std::make_unique<Expr>(binops_lut.at(bi->getOpcode()), std::move(operands));
+            }
+            if (bi->getOpcode() == llvm::Instruction::BinaryOps::Xor) {
+                operands->push_back(context.get_abs_data());
+                if(bi->getOperand(0)->getType()->isIntegerTy(1)) {
+                    expr = std::make_unique<Expr>("xorb", std::move(operands));
+                } else {
+                    expr = std::make_unique<Expr>("Z.lxor", std::move(operands));
+                }
+            }
+            if (expr == nullptr) {
                 llvm::errs() << "Binary operation not supported: " << *bi << "\n";
                 assert(false && "Binary operation not supported");
             }
-            unique_ptr<Expr> expr = std::make_unique<Expr>(binops_lut.at(bi->getOpcode()), std::move(operands));
             unique_ptr<SpecNode> sym = context.get_llvm_value_spec(bi);
             auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
             auto _let =  Shortcut::_Let_u(std::move(sym), std::move(expr), std::move(remain));
@@ -335,7 +346,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             }
         }
 
-        // TODO: memory access support(load, store, getelementptr)
+        // TODO: memory access support(store)
         if (auto load = llvm::dyn_cast<llvm::LoadInst>(spoq_inst->inst)) {
             auto rhs = store_load_to_spec(spoq_inst->inst, context);
             return Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second), spoq_inst_to_spec(proj, vec, num + 1, context));
@@ -399,7 +410,25 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
         }
 
         // TODO: bitwise binary operations (shl, lshr, ashr, and, or, xor)
+
         // TODO: other conversion operations
+        if (auto bc = llvm::dyn_cast<llvm::CastInst>(spoq_inst->inst)) {
+            auto src = bc->getSrcTy();
+            auto dst = bc->getDestTy();
+            if (src->isPointerTy() && dst->isPointerTy()) {
+                auto sym = context.get_llvm_value_spec(bc);
+                auto expr = context.get_llvm_value_spec(bc->getOperand(0));
+                return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
+            }
+            if (src->isIntegerTy() && dst->isIntegerTy()) {
+                // TODO: overflow / underflow check
+                auto sym = context.get_llvm_value_spec(bc);
+                auto expr = context.get_llvm_value_spec(bc->getOperand(0));
+                return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
+            }
+        }
+
+
         llvm::errs() << "Unsupported SpoqIR instruction [LLVM]: " << *spoq_inst->inst << "\n";
         assert(false && "Unsupported SpoqIR instruction [LLVM]");
     } else if (auto inst = Shortcut::dyn_cast_u<SpoqIfInst>(vec[num])) {
