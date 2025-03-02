@@ -1194,6 +1194,13 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
         std::regex pattern2(fname + "_\\d+_low");
         string low_name = fname + "_spec_low";
 
+        unique_ptr<SpecNode> spec = std::move(proj->defs[low_name]->body);
+        if(proj->cmds.InitRely.find(fname) != proj->cmds.InitRely.end()) {
+            for(auto & f : proj->cmds.InitRely[fname])
+                spec = std::make_unique<Rely>(f->deep_copy(), std::move(spec));
+        }    
+        proj->defs[low_name]->body = std::move(spec);
+
         // TODO: function types
         // auto func = this->code->functions->at(fname);
         // func->types = make_unique<unordered_map<string, shared_ptr<SpecType>>>();

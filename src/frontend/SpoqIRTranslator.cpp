@@ -144,8 +144,11 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
                 if (data->getType()->isIntegerTy()) {
                     // TODO: should we emit a warning here?
                     return std::make_unique<IntConst>(0);
+                } else if (data->getType()->isArrayTy()) {
+                    // TODO: check array element is integer
+                    return std::make_unique<Symbol>("undef_zmap", this->get_llvm_value_type(undef));
                 }
-            }
+            } 
         } else if (auto expr = llvm::dyn_cast<llvm::ConstantExpr>(value)) {
             if (expr->getOpcode() == llvm::AddrSpaceCastInst::CastOps::PtrToInt) {
               auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
@@ -204,7 +207,7 @@ shared_ptr<SpecType> SpoqIRModule::llvm_ir_type_to_spec_pure(llvm::Type* type) {
         return make_shared<SpecType>(type->getStructName().str());
     } else if (type->isArrayTy()) {
         auto elem_type = llvm_ir_type_to_spec_pure(type->getArrayElementType());
-        llvm::errs() << "elem type: " << string(*elem_type) << "\n";
+        assert(elem_type != SpecType::UNKNOWN_TYPE && "array element type is unknown");
         return make_shared<ZMap>(elem_type);
     } else {
         throw std::invalid_argument("invalid types: " + type->getStructName().str());
@@ -569,6 +572,18 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             }
             auto expr = std::make_unique<Expr>(Expr::ops::GET, std::move(operands));
             auto sym = context.get_llvm_value_spec(ex);
+            return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
+        } else if (auto in = llvm::dyn_cast<llvm::InsertValueInst>(spoq_inst->inst)) {
+            assert(in->getNumIndices() == 1 && "ExtractValueInst with 0 or multiple indices not supported");
+            auto array = in->getAggregateOperand();
+            auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
+            operands->push_back(context.get_llvm_value_spec(array));
+            for(auto index: in->getIndices()) {
+                operands->push_back(std::make_unique<IntConst>(index));
+            }
+            operands->push_back(context.get_llvm_value_spec(in->getInsertedValueOperand()));
+            auto expr = std::make_unique<Expr>(Expr::ops::SET, std::move(operands));
+            auto sym = context.get_llvm_value_spec(in);
             return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
         }
 
