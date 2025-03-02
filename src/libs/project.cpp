@@ -69,13 +69,13 @@ void Project::add_sys_inv(string name, unique_ptr<SpecNode> inv) {
 
 void Project::add_symbol(string name, SymbolKind kind, string info, shared_ptr<loc_t> loc)
 {
-    std::cout << "Adding symbol " << name << ", loc: " << std::get<0>(*loc) << ", " << std::get<1>(*loc) << ", " << std::get<2>(*loc) << std::endl;
+    // std::cout << "Adding symbol " << name << ", loc: " << std::get<0>(*loc) << ", " << std::get<1>(*loc) << ", " << std::get<2>(*loc) << std::endl;
     symbols[name] = SymbolInfo{kind, info, *loc, symbols.size()};
 }
 
 void Project::add_symbol(string name, SymbolKind kind, string info, shared_ptr<loc_t> loc, unsigned long order)
 {
-    std::cout << "Adding symbol " << name << ", loc: " << std::get<0>(*loc) << ", " << std::get<1>(*loc) << ", " << std::get<2>(*loc) << std::endl;
+    // std::cout << "Adding symbol " << name << ", loc: " << std::get<0>(*loc) << ", " << std::get<1>(*loc) << ", " << std::get<2>(*loc) << std::endl;
     symbols[name] = SymbolInfo{kind, info, *loc, order};
 }
 
@@ -138,7 +138,7 @@ void Project::add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc, 
     defs[name] = std::move(def);
     this->add_symbol(defs[name]->name, SymbolKind::Def, "", loc, order);
 
-    LOG_DEBUG << "Adding definition " << name;
+    // LOG_DEBUG << "Adding definition " << name;
     try {
         def_->infer_type(*this);
     } catch (std::exception &e) {
@@ -156,10 +156,10 @@ void Project::add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc) 
 
     defs[name] = std::move(def);
 
-    LOG_DEBUG << "name: " << defs[name]->name;
+    // LOG_DEBUG << "name: " << defs[name]->name;
     this->add_symbol(defs[name]->name, SymbolKind::Def, "", loc);
 
-    LOG_DEBUG << "Adding definition " << name;
+    // LOG_DEBUG << "Adding definition " << name;
     try {
         def_->infer_type(*this);
     } catch (std::exception &e) {
@@ -272,7 +272,7 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             auto stack_var = dynamic_cast<Symbol *>(cmd->elems->at(2).get());
             // in function `f`, the allocated local_var should point to the st.(stack).(stack_var)
             this->cmds.StackMap[f->text][local_var->text]  = stack_var->text;
-            LOG_INFO << "STACKVAR:" << f->text << ":" << local_var->text << "->" << stack_var->text << "\n";
+            // LOG_INFO << "STACKVAR:" << f->text << ":" << local_var->text << "->" << stack_var->text << "\n";
         } else if(op_str == "CheckInv"){
             //Check a primitive's invariant
             assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
@@ -930,12 +930,22 @@ bool Project::finalize_project_v2() {
     LOG_DEBUG << "Finalizing project" << std::endl;
 
     if(!spoq_code.load_llvm_module(this->code_path)) return false;
+
+    shared_ptr<SpecType> abs_data_type = nullptr;
+    for (auto it = this->layers.begin(); it != this->layers.end(); it++) {
+        auto &L = *it;
+        if (L->abs_data == nullptr) {
+            assert(abs_data_type != nullptr && "abs_data_type is not set nor can be inferred");
+            L->abs_data = abs_data_type;
+        } else {
+            abs_data_type = L->abs_data;
+        }
+    }
+
     spoq_code.load_function_and_convert_all(this);
 
     LOG_DEBUG << "LLVM IR read ok and coverted." << std::endl;
 
-    // TODO: IRLoader::post_process(module);
-    
     // Step2: reconstruct the control flow graph on LLVM IR
     std::set<string> deps;
     for (auto it = this->layers.rbegin(); it != this->layers.rend() - 1; it++) {

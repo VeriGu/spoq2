@@ -47,7 +47,7 @@ antlrcpp::Any ProgramVisitor::visitSection_end(SpecParser::Section_endContext* c
     if (current_layer == nullptr) {
         throw std::runtime_error("No layer" + ctx->name()->getText() + "to close");
     } else {
-        LOG_INFO << "Parsed Layer: " << current_layer->name;
+        // LOG_INFO << "Parsed Layer: " << current_layer->name;
         proj.add_layer(std::unique_ptr<autov::Layer>(current_layer));
         current_layer = nullptr;
     }
@@ -133,7 +133,7 @@ antlrcpp::Any ProgramVisitor::visitInclude(SpecParser::IncludeContext* ctx) {
 
 antlrcpp::Any ProgramVisitor::visitTypedef(SpecParser::TypedefContext* ctx) {
     string name = ctx->name()->getText();
-    LOG_DEBUG << "Visiting typedef: " << name;
+    // LOG_DEBUG << "Visiting typedef: " << name;
     auto t = any_cast<shared_ptr<SpecType>>(visitType(ctx->type()));
 
     if (name == Project::LAYER_DATA) {
@@ -207,7 +207,7 @@ antlrcpp::Any ProgramVisitor::visitType(SpecParser::TypeContext* ctx) {
         return static_pointer_cast<SpecType>(make_shared<ZMap>(any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)))));
     } else if (ctx->name()) {
         std::string name = ctx->name()->getText();
-        LOG_DEBUG << "Visiting type: " << name;
+        // LOG_DEBUG << "Visiting type: " << name;
         autov::SymbolInfo &info = proj.symbols.at(name);
 
         if (info.kind == autov::SymbolKind::Struct) {
@@ -239,7 +239,7 @@ antlrcpp::Any ProgramVisitor::visitDef(SpecParser::DefContext* ctx) {
     unique_ptr<vector<shared_ptr<Arg>>> var_anno = make_unique<vector<shared_ptr<Arg>>>();
     auto rettype = any_cast<shared_ptr<SpecType>>(visitType(ctx->type()));
 
-    LOG_DEBUG << "Visiting def: " << name;
+    // LOG_DEBUG << "Visiting def: " << name;
 
     for (auto arg : ctx->var_anno()) {
         var_anno->push_back((any_cast<shared_ptr<Arg>>(visitVar_anno(arg))));
@@ -275,7 +275,7 @@ antlrcpp::Any ProgramVisitor::visitDef(SpecParser::DefContext* ctx) {
                std::get<Expr::binops>(prims_list->op) == Expr::APPEND) {
             StringConst *prim = dynamic_cast<StringConst *>(prims_list->elems->at(0).get());
 
-            LOG_DEBUG << "Parsed prim: " << std::get<string>(prim->value);
+            // LOG_DEBUG << "Parsed prim: " << std::get<string>(prim->value);
             if (!prim) {
                 throw std::runtime_error("Prims must be a list of strings");
             }
@@ -291,78 +291,78 @@ antlrcpp::Any ProgramVisitor::visitDef(SpecParser::DefContext* ctx) {
             path = this->path.substr(0, this->path.rfind('/') + 1) + path;
         }
 
-        LOG_DEBUG << "Parsed code: " << path;
+        // LOG_DEBUG << "Parsed code: " << path;
         current_layer->code = path;
     } else if (name == Project::LAYER_LOAD) {
         string load = string_from_StringConst(expr, "Load must be a string literal");
 
-        LOG_DEBUG << "Parsed load: " << load;
+        // LOG_DEBUG << "Parsed load: " << load;
 
         current_layer->ops.emplace("load", load);
     } else if (name == Project::LAYER_STORE) {
         string store = string_from_StringConst(expr, "Store must be a string literal");
 
-        LOG_DEBUG << "Parsed store: " << store;
+        // LOG_DEBUG << "Parsed store: " << store;
         current_layer->ops.emplace("store", store);
     } else if (name == Project::LAYER_NEW_FRAME) {
         string new_frame = string_from_StringConst(expr, "New frame must be a string literal");
 
-        LOG_DEBUG << "Parsed new_frame: " << new_frame;
+        // LOG_DEBUG << "Parsed new_frame: " << new_frame;
         current_layer->ops.emplace("new_frame", new_frame);
     } else if (name == Project::LAYER_ALLOC) {
         string alloc = string_from_StringConst(expr, "Alloc must be a string literal");
 
-        LOG_DEBUG << "Parsed alloc: " << alloc;
+        // LOG_DEBUG << "Parsed alloc: " << alloc;
         current_layer->ops.emplace("alloc", alloc);
     } else if (name == Project::LAYER_FREE) {
         string free = string_from_StringConst(expr, "Free must be a string literal");
 
-        LOG_DEBUG << "Parsed free: " << free;
+        // LOG_DEBUG << "Parsed free: " << free;
         current_layer->ops.emplace("free", free);
     } else if (name == Project::LAYER_GET_REG) {
         string get_reg = string_from_StringConst(expr, "Get reg must be a string literal");
 
-        LOG_DEBUG << "Parsed get_reg: " << get_reg;
+        // LOG_DEBUG << "Parsed get_reg: " << get_reg;
         current_layer->ops.emplace("get_reg", get_reg);
     } else if (name == Project::LAYER_SET_REG) {
         string set_reg = string_from_StringConst(expr, "Set reg must be a string literal");
 
-        LOG_DEBUG << "Parsed set_reg: " << set_reg;
+        // LOG_DEBUG << "Parsed set_reg: " << set_reg;
         current_layer->ops.emplace("set_reg", set_reg);
     } else if (name == Project::LAYER_GET_FLAG) {
         string get_flag = string_from_StringConst(expr, "Get flag must be a string literal");
 
-        LOG_DEBUG << "Parsed get_flag: " << get_flag;
+        // LOG_DEBUG << "Parsed get_flag: " << get_flag;
         current_layer->ops.emplace("get_flag",get_flag);
     } else if (name == Project::LAYER_SET_FLAG) {
         string set_flag = string_from_StringConst(expr, "Set flag must be a string literal");
 
-        LOG_DEBUG << "Parsed set_flag: " << set_flag;
+        // LOG_DEBUG << "Parsed set_flag: " << set_flag;
         current_layer->ops.emplace("set_flag", set_flag);
     } else if (name == Project::LAYER_PTR2INT) {
         string ptr2int = string_from_StringConst(expr, "Ptr2int must be a string literal");
 
-        LOG_DEBUG << "Parsed ptr2int: " << ptr2int;
+        // LOG_DEBUG << "Parsed ptr2int: " << ptr2int;
         current_layer->ops.emplace("ptr2int", ptr2int);
     } else if (name == Project::LAYER_INT2PTR) {
         string int2ptr = string_from_StringConst(expr, "Int2ptr must be a string literal");
 
-        LOG_DEBUG << "Parsed int2ptr: " << int2ptr;
+        // LOG_DEBUG << "Parsed int2ptr: " << int2ptr;
         current_layer->ops.emplace("int2ptr", int2ptr);
     } else if (name == Project::LAYER_PTR_EQB) {
         string ptr_eqb = string_from_StringConst(expr, "Ptr_eqb must be a string literal");
 
-        LOG_DEBUG << "Parsed ptr_eqb: " << ptr_eqb;
+        // LOG_DEBUG << "Parsed ptr_eqb: " << ptr_eqb;
         current_layer->ops.emplace("ptr_eqb", ptr_eqb);
     } else if (name == Project::LAYER_PTR_LTB) {
         string ptr_ltb = string_from_StringConst(expr, "Ptr_ltb must be a string literal");
 
-        LOG_DEBUG << "Parsed ptr_ltb: " << ptr_ltb;
+        // LOG_DEBUG << "Parsed ptr_ltb: " << ptr_ltb;
         current_layer->ops.emplace("ptr_ltb", ptr_ltb);
     } else if (name == Project::LAYER_PTR_GTB) {
         string ptr_gtb = string_from_StringConst(expr, "Ptr_gtb must be a string literal");
 
-        LOG_DEBUG << "Parsed ptr_gtb: " << ptr_gtb;
+        // LOG_DEBUG << "Parsed ptr_gtb: " << ptr_gtb;
         current_layer->ops.emplace("ptr_gtb", ptr_gtb);
     } else {
         shared_ptr<loc_t> loc;
@@ -385,7 +385,7 @@ antlrcpp::Any ProgramVisitor::visitDef(SpecParser::DefContext* ctx) {
         proj.add_definition(move(def), loc);
     } 
 
-    LOG_INFO << "Parsed Definition " << name;
+    // LOG_INFO << "Parsed Definition " << name;
     return std::any();
 }
 
@@ -402,7 +402,7 @@ antlrcpp::Any ProgramVisitor::visitDecl(SpecParser::DeclContext* ctx) {
 
     proj.add_declaration(make_unique<Declaration>(name, type), loc);
 
-    LOG_INFO << "Parsed Declaration " << name;
+    // LOG_INFO << "Parsed Declaration " << name;
 
     return std::any();
 }
@@ -435,7 +435,7 @@ antlrcpp::Any ProgramVisitor::visitFixpoint(SpecParser::FixpointContext* ctx) {
 
     proj.add_definition(make_unique<Fixpoint>(name, rettype, std::move(var_anno), std::move(expr)), loc);
 
-    LOG_INFO << "Parsed Fixpoint " << name;
+    // LOG_INFO << "Parsed Fixpoint " << name;
 
     return std::any();
 }
@@ -450,7 +450,7 @@ antlrcpp::Any ProgramVisitor::visitInductive_decl(SpecParser::Inductive_declCont
 
     proj.add_indtype(make_shared<Inductive>(name, std::move(arms)));
 
-    LOG_INFO << "Parsed Inductive " << name;
+    // LOG_INFO << "Parsed Inductive " << name;
 
     return std::any();
 }
@@ -460,10 +460,10 @@ antlrcpp::Any ProgramVisitor::visitInduct_arm(SpecParser::Induct_armContext* ctx
     auto var_anno = make_unique<vector<shared_ptr<Arg>>>();
     auto vars = ctx->var_anno();
 
-    LOG_DEBUG << "Visiting induct_arm: " << name;
+    // LOG_DEBUG << "Visiting induct_arm: " << name;
 
     for (auto anno : vars) {
-        LOG_DEBUG << "Visiting var_anno: " << anno->getText();
+        // LOG_DEBUG << "Visiting var_anno: " << anno->getText();
         var_anno->push_back(any_cast<shared_ptr<Arg>>(visitVar_anno(anno)));
     }
 
@@ -494,7 +494,7 @@ antlrcpp::Any ProgramVisitor::visitRecord_decl(SpecParser::Record_declContext* c
     auto fields = any_cast<shared_ptr<vector<shared_ptr<Arg>>>>(visitRecord_fields(ctx->record_fields()));
 
     proj.add_struct(make_shared<Struct>(name, fields));
-    LOG_INFO << "Parsed Record " << name;
+    // LOG_INFO << "Parsed Record " << name;
     return std::any();
 }
 
@@ -965,6 +965,7 @@ antlrcpp::Any ProgramVisitor::visitVar_anno(SpecParser::Var_annoContext* ctx) {
 }
 
 void parse(Project *proj, const std::string& path) {
+    std::cout << "Parsing " << path << std::endl;
     std::ifstream stream(path);
     antlr4::ANTLRInputStream input(stream);
     SpecLexer lexer(&input);
@@ -973,7 +974,6 @@ void parse(Project *proj, const std::string& path) {
     antlr4::tree::ParseTree* tree = parser.program();
     ProgramVisitor visitor(*proj, path);
 
-    std::cout << "Parsing " << path << std::endl;
     visitor.visit(tree);
     std::cout << "Done parsing " << path << std::endl;
 
@@ -981,6 +981,7 @@ void parse(Project *proj, const std::string& path) {
 }
 
 void parse(Project *proj, const std::string& path, Layer *current_layer) {
+    std::cout << "Parsing " << path << std::endl;
     std::ifstream stream(path);
     antlr4::ANTLRInputStream input(stream);
     SpecLexer lexer(&input);
@@ -989,7 +990,6 @@ void parse(Project *proj, const std::string& path, Layer *current_layer) {
     antlr4::tree::ParseTree* tree = parser.program();
     ProgramVisitor visitor(*proj, path, current_layer);
 
-    std::cout << "Parsing " << path << std::endl;
     visitor.visit(tree);
     std::cout << "Done parsing " << path << std::endl;
 }

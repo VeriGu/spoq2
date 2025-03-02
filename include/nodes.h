@@ -234,21 +234,42 @@ private:
 class IntConst : public Const {
 public:
     IntConst() { throw std::invalid_argument("IntConst must have a value"); }
-    IntConst(unsigned long value) : Const(value, Int::INT) {}
+    IntConst(unsigned long value, bool sign = false) : Const(value, Int::INT) , sign(sign) {}
     //IntConst(unsigned long value, SpecType type) : Const(value, type) {}
     
-    unsigned long get_value() {
+    unsigned long get_value() const {
         return std::get<unsigned long>(this->value);
     }
     ~IntConst() {}
+    bool is_signed() { return sign; }
+
+    // The function is used to set the integer sign **smartly**. Only if the argument is `true` and the value is `negative` under int64, will the sign be set to true.
+    void smart_set_sign(bool sign) { 
+        if (sign && (long)get_value() < 0) {
+            this->sign = sign; 
+        }
+    }
+
+    void deep_copy(unique_ptr<SpecNode> &p) const {
+        p = make_unique<IntConst>(this->get_value(), this->sign);
+    }
+
+    unique_ptr<SpecNode> deep_copy() const {
+        return make_unique<IntConst>(this->get_value(), this->sign);
+    }
+
 private:
     const string to_string() const {
-        long long v = std::get<unsigned long>(this->value);
-        if (v > -100 && v < 0) {
-            return "(-" + std::to_string(-v) + ")";
-        } else
+        if (!sign) {
+            long long v = std::get<unsigned long>(this->value);
             return std::to_string((unsigned long)v);
+        } else {
+            long long v = std::get<unsigned long>(this->value);
+            return "(" + std::to_string(v) + ")";
+        }
     }
+
+    bool sign;
 };
 
 class StringConst : public Const {
@@ -1347,7 +1368,9 @@ namespace IRLoader{
 class Layer {
 public:
     string name;
-    shared_ptr<SpecType> abs_data;
+
+    // If not specified, the abs_data is assumed to be the same as the previous layer. Bottom layer must have the abs_data explictly declared.
+    shared_ptr<SpecType> abs_data = nullptr;
     unordered_map<string, string> ops;
     vector<string> prims;
     string code; // Temp until we ported the IRModule class

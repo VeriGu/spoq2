@@ -1488,7 +1488,8 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         }
     } else if (auto con = instance_of(val, Const)) {
         if (auto intc = std::get_if<unsigned long>(&con->value)) {
-            return make_shared<IntValue>(*intc);
+            auto icon = instance_of(val, IntConst);
+            return make_shared<IntValue>(*intc, icon->is_signed());
         } else if (auto boolc = std::get_if<bool>(&con->value)) {
             return make_shared<BoolValue>(*boolc);
         } else if (auto strc = std::get_if<string>(&con->value)) {

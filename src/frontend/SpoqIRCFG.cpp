@@ -10,15 +10,6 @@
 #include <llvm-14/llvm/Transforms/Utils/ValueMapper.h>
 #include <stdexcept>
 
-#include "llvm/Analysis/LoopInfo.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/PassManager.h"
-#include "llvm/Passes/PassBuilder.h"
-#include "llvm/Support/MemoryBuffer.h"
-#include "llvm/Support/SourceMgr.h"
-#include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Utils/Cloning.h"
 
 namespace autov {
 
@@ -124,9 +115,47 @@ bool SpoqIRModule::control_flow_clone_and_split(
     return true;
 }
 
+bool SpoqIRModule::control_flow_elinminate_select(llvm::Function* func) {
+    assert(func && "func is nullptr for control_flow_eliniminate_select");
+    for (auto &bb: *func) {
+        for(auto &inst: bb) {
+            if (auto select = llvm::dyn_cast<llvm::SelectInst>(&inst)) {
+                auto cond = select->getCondition();
+
+                auto true_val = select->getTrueValue();
+                auto false_val = select->getFalseValue();
+
+                auto suffix_bb = bb.splitBasicBlock(select);
+
+                auto true_bb = llvm::BasicBlock::Create(func->getContext(), "select.true.bb", func);
+                llvm::BranchInst::Create(suffix_bb, true_bb);
+                auto false_bb = llvm::BasicBlock::Create(func->getContext(), "select.false.bb", func);
+                llvm::BranchInst::Create(suffix_bb, false_bb);
+
+                auto term = bb.getTerminator();
+                term->eraseFromParent();
+
+                llvm::BranchInst::Create(true_bb, false_bb, cond, &bb);
+
+                auto new_phi = llvm::PHINode::Create(true_val->getType(), 2, "phi");
+                new_phi->addIncoming(true_val, true_bb);
+                new_phi->addIncoming(false_val, false_bb);
+                suffix_bb->getInstList().push_front(new_phi);
+
+                select->replaceAllUsesWith(new_phi);
+                select->eraseFromParent();
+                control_flow_elinminate_select(func);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 bool SpoqIRModule::control_flow_conversion_DAG(Project *proj, string fname,
                                                SpoqFunction &spoq_func) {
     llvm::ValueToValueMapTy value_map;
+    control_flow_elinminate_select((spoq_func.llvm_func));
     control_flow_clone_and_split(&(spoq_func.llvm_func->getEntryBlock()), nullptr, false, value_map);
 
     std::vector<llvm::Instruction*> to_erase;

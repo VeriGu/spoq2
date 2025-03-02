@@ -18,6 +18,20 @@
 #include "llvm.h"
 #include "nodes.h"
 
+#include "llvm/Analysis/LoopInfo.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/Passes/PassBuilder.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/SourceMgr.h"
+#include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/LowerSwitch.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/Transforms/Scalar/SROA.h"
+
+
 namespace autov {
 
 class SpoqAsmProcedure {
@@ -54,12 +68,13 @@ class SpoqAsmProcedure {
             if(layer->ops["ptr_eqb"] != "") ptr_eqb_op_name = layer->ops["ptr_eqb"];
             if(layer->ops["ptr_offset"] != "") ptr_off_op_name = layer->ops["ptr_offset"];
             if(layer->abs_data != nullptr) abs_data_type = layer->abs_data;
+            else assert(false && "abs_data_type is nullptr");
             llvm_dl = &spoq_func.llvm_func->getParent()->getDataLayout();
         }
         int counter = 0;
 
         const std::string abs_data_name = "st";
-
+        shared_ptr<SpecType> abs_data_type = nullptr;
         std::string load_op_name = "load_RData";
         std::string store_op_name = "store_RData";
         std::string ptr2int_op_name = "ptr_to_int";
@@ -78,7 +93,6 @@ class SpoqAsmProcedure {
         const llvm::DataLayout* llvm_dl;
 
 
-        shared_ptr<SpecType> abs_data_type;
         shared_ptr<SpecType> rettype = make_shared<SpecType>("Void");
 
         std::map<llvm::Value*, std::string> value_map;
@@ -95,6 +109,12 @@ class SpoqAsmProcedure {
         inline unique_ptr<SpecNode> get_abs_data() {
             assert(abs_data_type != nullptr && "abs_data_type is nullptr");
             return std::make_unique<Symbol>(abs_data_name, abs_data_type);
+        }
+
+        // This function gives a temporary name for the middle value in case a pointer is read from memory directly.
+        inline unique_ptr<SpecNode> get_llvm_value_spec_ptr_in_Z(llvm::Value* value) {
+            auto name = get_llvm_value_name(value) + "_ptr_in_Z";
+            return std::make_unique<Symbol>(name, Int::INT);
         }
 
         /**
@@ -194,6 +214,17 @@ class SpoqAsmProcedure {
         static bool control_flow_clone_and_split(llvm::BasicBlock* bb, llvm::BasicBlock* ori, bool to_duplicate, llvm::ValueToValueMapTy &value_map);
 
         /**
+         * @brief Eliminate select instruction in the function. Replace the original
+         basic block with [ inst_list :: br select_cond]  --> 
+         [Block 0: v0 = s0]  [Block 1: v1 = s1] --> [ phi_node :: inst_list ]
+         * 
+         * @param func 
+         * @return true The func is changed
+         * @return false 
+         */
+        static bool control_flow_elinminate_select(llvm::Function* func);
+
+        /**
          * @brief Convert DAG into a tree-like CFG on LLVM IR. 
          * 
          * @param proj 
@@ -244,7 +275,12 @@ class SpoqAsmProcedure {
 
         static std::pair<unique_ptr<SpecNode>, unique_ptr<SpecNode>> store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context);
 
+        /** Handle both GEP expr and GEP inst*/
+        static std::pair<unique_ptr<SpecNode>, unique_ptr<SpecNode>> gep_inst_to_spec(llvm::Value* gep_inst_or_expr, SpoqIRContext& context);
+
         static const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> binops_lut;
+
+        static const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> bool_binops_lut;
 
         static const std::unordered_map<llvm::CmpInst::Predicate, Expr::binops> cmpops_lut;
 
@@ -257,8 +293,11 @@ class SpoqAsmProcedure {
         SpoqIRIASM parse_inline_asm(string fname, string asm_text, llvm::Type* rettype,
             vector<llvm::Type*> &arglist, string constraints);
 
-        // SpoqIRIASM parse_inline_asm(s
-
+        /**
+         * @brief Preprocess the llvm module to fix function and global variable names. It runs LowerSwitchPass and SROA pass to simplify the llvm module. (Should we run SROA here?)
+         * 
+         */
+        void preprocess_llvm_module();
 
     };
 }

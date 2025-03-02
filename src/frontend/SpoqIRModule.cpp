@@ -2,7 +2,9 @@
 #include "SpoqIRModule.h"
 #include "ir2spec.h"
 #include "project.h"
-#include <values.h>
+#include "values.h"
+#include "shortcuts.h"
+
 
 namespace autov {
 std::set<string> SpoqIRModule::get_func_dependencies(llvm::Function *func) {
@@ -51,6 +53,16 @@ bool SpoqIRModule::validate_for_gen_low_spec(Project* proj, string fname, int la
     if (!spoq_func.spoq_insts_converted) {
         if(!llvm_ir_to_spoq_ir(spoq_func)) return false;
         proj->spoq_code.extract_inline_asm(spoq_func);
+        for(auto iasm: proj->spoq_code.iasm_defs) {
+            if (proj->defs.find(iasm.first + "_spec") == proj->defs.end()) {
+                LOG_ERROR << "cannot find iasm definition, please provide it manually " << iasm.first + "_spec" << std::endl;
+                for(auto i2f : proj->spoq_code.iasm2func) {
+                    if (i2f.second == iasm.first)
+                        llvm::errs() << *(i2f.first) << " -> " << i2f.second << "\n";
+                }
+                assert(false && "cannot find iasm definition");
+            }
+        }
         return true;
     }
     return false;
@@ -82,7 +94,7 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
     }    
 
     shared_ptr<SpecType> rettype = nullptr;
-    if(spoq_func.llvm_func->getType()->isVoidTy()) {
+    if(spoq_func.llvm_func->getReturnType()->isVoidTy()) {
         rettype = std::make_shared<Option>(context.abs_data_type);
     } else {
         auto children = std::make_shared<vector<shared_ptr<SpecType>>>();
@@ -105,6 +117,7 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
 
     // std::cout << "Generated low spec: " << spec_name << std::endl;
     // std::cout << string(*proj->defs[spec_name]) << "\n";
+    assert(context.rettype != SpecType::UNKNOWN_TYPE && string("return type for is unknown").c_str());
 
     return true;
 }
@@ -121,13 +134,50 @@ bool SpoqIRModule::load_llvm_module(std::string code_path) {
         return false;
     }
     this->llvm_module = std::move(m.get());
+    preprocess_llvm_module();
+    return true;
+}
+
+
+void SpoqIRModule::preprocess_llvm_module() {
+    LOG_DEBUG << "llvm module preprocessing" << std::endl;
+    llvm::LoopAnalysisManager LAM;
+    llvm::FunctionAnalysisManager FAM;
+    llvm::CGSCCAnalysisManager CGAM;
+    llvm::ModuleAnalysisManager MAM;
+
+    llvm::PassBuilder PB;
+
+    PB.registerModuleAnalyses(MAM);
+    PB.registerCGSCCAnalyses(CGAM);
+    PB.registerFunctionAnalyses(FAM);
+    PB.registerLoopAnalyses(LAM);
+    PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+    llvm::ModulePassManager MPM;
+    // TODO: there is a chance that LowerSwitchPass use jump table instead of br.
+    // If that is the case, we should use a manually written pass to convert switch to if-else.
+    MPM.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::LowerSwitchPass()));
+    MPM.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::SROAPass()));
+    MPM.run((*llvm_module), MAM);
+    LOG_DEBUG << "llvm module preprocessing ok" << std::endl;
+
     for (auto &func : *this->llvm_module) {
+        // fix up function name
         std::string oldName = func.getName().str();
-        std::string newName = oldName;
-        std::replace(newName.begin(), newName.end(), '.', '_');
+        std::string newName = Shortcut::replace_dot(oldName);
         if (oldName != newName) func.setName(newName);
     }
-    return true;
+    for (auto &gv : this->llvm_module->globals()) {
+        if (!gv.hasName()) {
+            llvm::errs() << "global variable without name\n" << " " << gv << "\n";
+            assert(false && "global variable without name");
+        }
+        // Construct a new name for the global variable
+        std::string oldName = gv.getName().str();
+        std::string newName = Shortcut::replace_dot(oldName);
+        if (oldName != newName) gv.setName(newName);
+    }
 }
 
 
