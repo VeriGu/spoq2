@@ -34,6 +34,42 @@ inline std::string ruleid_to_string(RuleID rule) {
     }
 }
 
+
+void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfold, bool low_spec) {
+    LOG_INFO << "Transforming " << def->name << ", unfold: " << unfold;
+    auto known = std::set<string>();
+    auto fname = def->name;
+    auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+    auto conds = std::make_shared<vector<z3::expr>>();
+    for (auto arg : *def->args) {
+        (*vars)[arg->name] = arg->type->declare(arg->name, 0);
+    }
+
+    for (auto arg : *def->args) {
+        known.insert(arg->name);
+    }
+
+    converged_spec.clear();
+    while(true) {
+        profile_clear_epoch();
+        auto spec = partial_eval(proj, std::move(def->body), 0, make_shared<EvalState>(vars, conds), known, unfold);
+        profile_print_transrule();
+        std::cout << "after_partial_eval:" << string(*spec);
+
+        bool changed;
+        auto unam = proj->rules.eliminate_ambiguity(std::move(spec), known, changed);
+
+        auto [eliminate_let, el_changed] = proj->rules.rule_eliminate_let(std::move(unam), true);
+
+        auto [after_z3, z3_changed] = proj->rules.rule_simple_by_z3(std::move(eliminate_let), make_shared<EvalState>(vars, conds));
+        def->body = std::move(after_z3);
+        if(!z3_changed) {
+            break;
+        }
+    }
+}
+
+
 void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold, bool low_spec) {
     LOG_INFO << "Transforming " << def->name << ", unfold: " << unfold;
 
@@ -81,7 +117,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
 
 
         if (unfold && !proj->cmds.NoUnfoldAll) {
-            auto [__spec, __unfolded] = proj->rules.rule_unfold_specs(std::move(new_spec));
+            auto [__spec, __unfolded] = proj->rules.rule_unfold_specs(std::move(new_spec),true);
             new_spec = std::move(__spec);
             changed |= __unfolded;
 
@@ -116,7 +152,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                 //         << string(*tmp_spec.get()) << "\n==============================\n";
 
             }
-            auto [__spec, __changed] = proj->rules.rule_simplify_expr(std::move(tmp_spec));
+            auto [__spec, __changed] = proj->rules.rule_simplify_expr(std::move(tmp_spec), true);
             this_changed |= __changed;
             changed |= __changed;
             new_spec = std::move(__spec);
