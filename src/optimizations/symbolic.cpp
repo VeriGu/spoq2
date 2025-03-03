@@ -675,7 +675,8 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                             }
                             //delete loop_post_cond;
                             LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << op;
-                            state->add_induction(post);
+                            LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << post;
+                            state->conds->push_back(post);
                         } else {
                             //normal Definition. Check the precondition and add post condition.
                             auto def = proj->defs[op].get();
@@ -724,7 +725,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                                 //delete post_cond;
                                 LOG_DEBUG << "[Adding Post Condition] Adding func postcondition: " << string(*post_cond);
                                 LOG_DEBUG << "[Adding Post Condition] Adding func postcondition: " << post;
-                                state->add_induction(post);
+                                state->conds->push_back(post);
                             }
                             //if it is a preserving function, directly add post condition
                             if (proj->cmds.PreserveInv.find(op) != proj->cmds.PreserveInv.end()) {
@@ -880,13 +881,13 @@ void spec_prover(Project *proj) {
                 //proj->query_saver.save_config("./test/rcsm/proof_rcsm.v");
                 std::cout << "[spec_prover] Invariant: " << string(*inv) << std::endl;
                 //std::deque<Definition *> q = {goal_def};
-                auto coi = analyze_cone_of_influence(proj, goal_def, inv.get());
-                spec_abstraction(proj, goal_def, coi);
+                //auto coi = analyze_cone_of_influence(proj, goal_def, inv.get());
+                //spec_abstraction(proj, goal_def, coi);
                 //goal_def->infer_type(*proj);
-                std::cout << "[spec_abstraction] coi set: " << std::endl;
-                for (auto &c : coi) {
-                    std::cout << c << std::endl;
-                }
+                // std::cout << "[spec_abstraction] coi set: " << std::endl;
+                // for (auto &c : coi) {
+                //     std::cout << c << std::endl;
+                // }
                 proj->verifying_invariant = name;
                 if (check_inv_by_path(proj, goal_def, inv.get(), used_abstract_funcs)) {
                         LOG_DEBUG << "Invariant " << name << " Valid :D :" << prim;
