@@ -19,6 +19,7 @@ public:
     bool check_inv = false;
     bool check_loop_inv = false;
     bool check_pre_post = false;
+    bool new_trans = false;
     std::string config_file;
     boost::program_options::variables_map vmap;
 
@@ -34,6 +35,7 @@ public:
         std::cout << "  use_llvm_frontend: " << std::boolalpha << use_llvm_frontend << "\n";
         std::cout << "  check-sys: " << std::boolalpha << check_inv << "\n";
         std::cout << "  check-loop: " << std::boolalpha << check_loop_inv << "\n";
+        std::cout << "  new-trans: " << std::boolalpha << new_trans << "\n";
         std::cout << "  check-pre-post: " << std::boolalpha << check_pre_post << "\n";
         std::cout << std::endl;
     }
@@ -51,7 +53,8 @@ public:
         desc.add_options()
             ("help,h", "produce help message")
             ("lens,l", po::bool_switch()->default_value(true), "use lens")
-            ("llvm", po::bool_switch()->default_value(false), "use llvm frontend") 
+            ("llvm", po::bool_switch()->default_value(false), "use llvm frontend")
+            ("new-trans", po::bool_switch()->default_value(false), "use new transformation") 
             ("conditional-spec,c", po::bool_switch()->default_value(false), "automatically generate conditional spec")
             ("check-sys-inv", po::bool_switch()->default_value(true), "checking system invariants")
             ("check-loop-inv", po::bool_switch()->default_value(false), "checking loop invariants")
@@ -85,6 +88,7 @@ public:
         this->check_inv = vmap["check-sys-inv"].as<bool>();
         this->check_loop_inv = vmap["check-loop-inv"].as<bool>();
         this->check_pre_post = vmap["check-pre-post"].as<bool>();
+        this->new_trans = vmap["new-trans"].as<bool>();
  
         report();
 

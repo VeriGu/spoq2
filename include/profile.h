@@ -18,7 +18,7 @@ namespace autov {
 extern std::chrono::duration<double> z3_eval_accumulative_time;
 extern std::chrono::duration<double> eval_check_accumulative_time;
 extern std::chrono::duration<double> z3_rule_check_accumulative_time;
-
+extern bool __PROFILE_ON;
 extern int z3_eval_cnt;
 extern int eval_check_cnt;
 extern int z3_rule_check_cnt;
@@ -96,6 +96,34 @@ extern int if_eval_check_hit_meta;
 extern int match_eval_check_hit_meta;
 extern int expr_eval_check_hit_meta;
 
+
+
+extern int eliminate_rely_cnt;
+extern int eliminate_rely_cnt_meta;
+extern std::chrono::duration<double> eliminate_rely_accumulative_time;
+
+#define PROFILE_VAR_INIT(label) \
+    extern int label##_cnt; \
+    extern int label##_cnt_meta; \
+    extern std::chrono::duration<double> label##_accumulative_time; \
+    extern std::chrono::duration<double> label##_accumulative_time_meta;
+
+
+
+PROFILE_VAR_INIT(eliminate_rely);
+PROFILE_VAR_INIT(move_when);
+PROFILE_VAR_INIT(eliminate_move_rely);
+PROFILE_VAR_INIT(move_if_out_match);
+PROFILE_VAR_INIT(eliminate_match);
+PROFILE_VAR_INIT(eliminate_let);
+PROFILE_VAR_INIT(eliminate_if);
+PROFILE_VAR_INIT(move_if_out_expr);
+PROFILE_VAR_INIT(move_match_out_expr);
+PROFILE_VAR_INIT(eliminate_am);
+PROFILE_VAR_INIT(unfold);
+PROFILE_VAR_INIT(simplify_getset);
+PROFILE_VAR_INIT(simplify_expr);
+
 /** Functions: */
 
 #define PROFILE_START(label) \
@@ -115,6 +143,7 @@ extern int expr_eval_check_hit_meta;
 
 void profile_clear();
 void profile_print();
+void profile_print_transrule();
 
 void profile_finalize();
 void profile_clear_epoch();

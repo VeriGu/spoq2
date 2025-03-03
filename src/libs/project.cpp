@@ -501,7 +501,14 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
                 proj->add_definition(unique_ptr<Definition>(def), loc);
 
             profile_clear();
-            spec_transformer(proj, def, layer_id, false, true);
+            if(OPTS.new_trans) {
+                spec_transformer_v2(proj, def, layer_id, false, true);
+            } else {
+                spec_transformer(proj, def, layer_id, false, true);
+            }
+            if(!def->body) {
+                LOG_ERROR << "def is null";
+            }
             profile_finalize();
             profile_print();
 
@@ -731,7 +738,11 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         
         profile_clear();
         if (!no_trans) {
-            spec_transformer(proj, high_def, layer_id, layer_id, true);
+            if(OPTS.new_trans) {
+                spec_transformer_v2(proj, high_def, layer_id, layer_id, true);
+            } else {
+                spec_transformer(proj, high_def, layer_id, layer_id, true);
+            }
             std::cout << "Transformed: " << std::endl << string(*high_def) << std::endl;
         } else {
             LOG_INFO << "No transformation for " << high_name;
@@ -807,7 +818,7 @@ static void collect_lemmas(Project *proj) {
             lemma_def->deleyed_type_inference = false;
         }
         profile_clear();
-        spec_transformer(proj, pure_lemma, 0, !is_instance(lemma_def, Fixpoint), true);
+        spec_transformer_v2(proj, pure_lemma, 0, !is_instance(lemma_def, Fixpoint), true);
         profile_finalize();
         profile_print();
         proj->defs[def.first].reset(pure_lemma);
@@ -1099,7 +1110,11 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
         
         profile_clear();
         if (!no_trans) {
-            spec_transformer(proj, high_def, layer_id, !is_instance(low_def.get(), Fixpoint), true);
+            if(OPTS.new_trans) {
+                spec_transformer_v2(proj, high_def, layer_id, !is_instance(low_def.get(), Fixpoint), true);
+            } else {
+                spec_transformer(proj, high_def, layer_id, !is_instance(low_def.get(), Fixpoint), true);
+            }
             std::cout << "Transformed: " << std::endl << string(*high_def) << std::endl;
         } else {
             LOG_INFO << "No transformation for " << high_name;
@@ -1145,7 +1160,11 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
 
             // spec transformer
             profile_clear();
-            spec_transformer(proj, def, layer_id, false, true);
+            if(OPTS.new_trans) {
+                spec_transformer_v2(proj, def, layer_id, false, true);
+            } else {
+                spec_transformer(proj, def, layer_id, false, true);
+            }
             profile_finalize();
             profile_print();
 

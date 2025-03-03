@@ -761,10 +761,19 @@ void Anno::infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>>
 // ----------------------------------------------------------------------------
 const string If::to_string() const {
     std::ostringstream oss;
-    string then_body = string(*(this->then_body));
-    string else_body = string(*(this->else_body));
+    string then_body;
+    string else_body;
+    if(!this->then_body) {
+        then_body = "null";
+    } else {
+        then_body = string(*(this->then_body));
+    }
+    if(!this->else_body) {
+        else_body = "null";
+    } else {
+        else_body = string(*(this->else_body));
+    }
     string cond = string(*(this->cond));
-
     if (cond.find("\n") != string::npos) {
         cond = "(\n" + add_indent(cond, 2) + ")";
     }

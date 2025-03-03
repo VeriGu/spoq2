@@ -9,7 +9,43 @@
 namespace autov
 {
 
-static bool __PROFILE_ON = false;
+bool __PROFILE_ON = true;
+
+
+#define PROFILE_VAR_INIT_VAL(label) \
+    int label##_cnt = 0; \
+    int label##_cnt_meta = 0; \
+    std::chrono::duration<double> label##_accumulative_time; \
+    std::chrono::duration<double> label##_accumulative_time_meta
+
+
+
+#define PROFILE_PRINT_RULE(label) \
+	LOG_DEBUG << "\"" #label "_cnt\"" << label##_cnt; \
+	LOG_DEBUG << "\"" #label "_cnt_meta\"" << label##_cnt_meta; \
+	LOG_DEBUG << "\"" #label "_accumulative_time\"" << label##_accumulative_time.count(); \
+	LOG_DEBUG << "\"" #label "_accumulative_time_meta\"" << label##_accumulative_time_meta.count()
+
+
+
+#define PROFILE_CLEAR_RULE_EPOCH(label) \
+	label##_cnt = 0; \
+	label##_accumulative_time = std::chrono::duration<double>(0);
+
+
+PROFILE_VAR_INIT_VAL(eliminate_rely);
+PROFILE_VAR_INIT_VAL(move_when);
+PROFILE_VAR_INIT_VAL(eliminate_move_rely);
+PROFILE_VAR_INIT_VAL(move_if_out_match);
+PROFILE_VAR_INIT_VAL(eliminate_match);
+PROFILE_VAR_INIT_VAL(eliminate_let);
+PROFILE_VAR_INIT_VAL(eliminate_if);
+PROFILE_VAR_INIT_VAL(move_if_out_expr);
+PROFILE_VAR_INIT_VAL(move_match_out_expr);
+PROFILE_VAR_INIT_VAL(eliminate_am);
+PROFILE_VAR_INIT_VAL(unfold);
+PROFILE_VAR_INIT_VAL(simplify_getset);
+PROFILE_VAR_INIT_VAL(simplify_expr);
 // Z3 profiling
 // z3_eval: (double)each z3_eval,
 // eval_check: (double)z3_check inside z3_eval
@@ -214,7 +250,62 @@ void profile_clear_epoch()
     if_eval_check_hit = 0;
     match_eval_check_hit = 0;
     expr_eval_check_hit = 0;
+
+
+	PROFILE_CLEAR_RULE_EPOCH(eliminate_rely);
+	PROFILE_CLEAR_RULE_EPOCH(move_when);
+	PROFILE_CLEAR_RULE_EPOCH(eliminate_move_rely);
+	PROFILE_CLEAR_RULE_EPOCH(move_if_out_match);
+	PROFILE_CLEAR_RULE_EPOCH(eliminate_match);
+	PROFILE_CLEAR_RULE_EPOCH(eliminate_let);
+	PROFILE_CLEAR_RULE_EPOCH(eliminate_if);
+	PROFILE_CLEAR_RULE_EPOCH(move_if_out_expr);
+	PROFILE_CLEAR_RULE_EPOCH(move_match_out_expr);
+	PROFILE_CLEAR_RULE_EPOCH(eliminate_am);
+	PROFILE_CLEAR_RULE_EPOCH(unfold);
+	PROFILE_CLEAR_RULE_EPOCH(simplify_getset);
+	PROFILE_CLEAR_RULE_EPOCH(simplify_expr);
 }
+
+void profile_print_transrule() {
+	PROFILE_PRINT_RULE(eliminate_rely);
+	PROFILE_PRINT_RULE(move_when);
+	PROFILE_PRINT_RULE(eliminate_move_rely);
+	PROFILE_PRINT_RULE(move_if_out_match);
+	PROFILE_PRINT_RULE(eliminate_match);
+	PROFILE_PRINT_RULE(eliminate_let);
+	PROFILE_PRINT_RULE(eliminate_if);
+	PROFILE_PRINT_RULE(move_if_out_expr);
+	PROFILE_PRINT_RULE(move_match_out_expr);
+	PROFILE_PRINT_RULE(eliminate_am);
+	PROFILE_PRINT_RULE(unfold);
+	PROFILE_PRINT_RULE(simplify_getset);
+	PROFILE_PRINT_RULE(simplify_expr);
+	LOG_INFO << "=========== Meta Report ===========";
+    LOG_INFO << "z3_eval accumulative time: " << z3_eval_accumulative_time_meta.count() << " (s)";
+    LOG_INFO << "Z3 check in [z3_eval] accumulative time: " << eval_check_accumulative_time_meta.count() << " (s)";
+    LOG_INFO << "Z3 check in [z3 rule] accumulative time: " << z3_rule_check_accumulative_time_meta.count() << " (s)";
+	LOG_INFO << "If rule check accumulative time: " << if_rule_check_accumulative_time_meta.count() << " (s)";
+	LOG_INFO << "If rule check count: " << if_rule_check_cnt_meta;
+	LOG_INFO << "Rely rule check accumulative time: " << rely_rule_check_accumulative_time_meta.count() << " (s)";
+	LOG_INFO << "Rely rule check count: " << rely_rule_check_cnt_meta;
+	
+	LOG_INFO << "====== z3_eval check time ======";
+    LOG_INFO << "Rely eval check accumulative time: " << rely_eval_check_accumulative_time_meta.count() << " (s)";
+    LOG_INFO << "If eval check accumulative time: " << if_eval_check_accumulative_time_meta.count() << " (s)";
+    LOG_INFO << "===================================";
+
+
+	LOG_INFO << "Rely eval check count: " << rely_eval_check_cnt_meta;
+    LOG_INFO << "If eval check count: " << if_eval_check_cnt_meta;
+
+	LOG_INFO << "Rely rule check solve: " << rely_rule_check_hit_meta;
+    LOG_INFO << "If rule check solve: " << if_rule_check_hit_meta;
+    LOG_INFO << "===================================";
+    LOG_INFO << "Rely rule check solve rate: " << (double)(rely_rule_check_cnt_meta == 0 ? 0.0 : (double)rely_rule_check_hit_meta / (double)rely_rule_check_cnt_meta);
+    LOG_INFO << "If rule check solve rate: " << (double)(if_rule_check_cnt_meta == 0 ? 0.0 : (double)if_rule_check_hit_meta / (double)if_rule_check_cnt_meta);
+}
+
 void profile_print()
 {
 	if (!__PROFILE_ON) return;
