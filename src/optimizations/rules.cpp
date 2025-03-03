@@ -1223,92 +1223,372 @@ std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, D
 #endif
 
 
+rule_ret_t SpecRules::rule_eliminate_rely(unique_ptr<SpecNode> spec, bool rec) {
+    auto changed = false;
+    auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+        if(auto r = instance_of(node.get(), Rely)) {
+            if(auto cons = instance_of(r->prop.get(), BoolConst)) {
+                changed = true;
+                if(std::get<bool>(cons->value)) {
+                    return std::move(r->body);
+                } else {
+                    return make_unique<Symbol>("None", node->type);
+                }
+            }
+        }
+    };
+    auto new_spec = f(std::move(spec));
 
-// unique_ptr<SpecNode> rule_eliminate_let(Project *proj, unique_ptr<SpecNode> spec);
-// unique_ptr<SpecNode> rule_simplify_expr(Project* proj, unique_ptr<SpecNode> spec);
-// unique_ptr<SpecNode> rule_eliminate_if(Project* proj, unique_ptr<SpecNode> spec);
-// unique_ptr<SpecNode> rule_eliminate_match_simple(Project* proj, unique_ptr<SpecNode> spec);
+    return { std::move(new_spec), changed };
+}
 
-// unique_ptr<SpecNode> rule_eliminate_rely(Project* proj, unique_ptr<SpecNode> spec) {
-//     if(auto r = instance_of(spec.get(), Rely)) {
-//         if(auto cons = instance_of(r->prop.get(), BoolConst)) {
-//             if(std::get<bool>(cons->value)) {
-//                 return std::move(r->body);
-//             } else {
-//                 return make_unique<Symbol>("None", spec->type);
-//             }
-//         }
-//     }
-// }
 
-// unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec) {
-//     if(auto expr = instance_of(spec.get(), Expr)) {
-//         //will move this to rule_simplify_expr
-//         //unfold, arithmatic expressions
-//         if(op_eq(expr->op, Expr::binops::EQUAL)) {
-//             auto node1 = partial_eval(proj, std::move(expr->elems->at(0)));
-//             auto node2 = partial_eval(proj, std::move(expr->elems->at(1)));
-//             if(auto cons = instance_of(node1.get(), Const)) {
-//             if(auto cons2 = instance_of(node2.get(), Const)){
-//                 return make_unique<BoolConst>((*cons) == *cons2);
-//             }}
-//         } else if(op_eq(expr->op, Expr::AND)) {
-//             auto node1 = partial_eval(proj, std::move(expr->elems->at(0)));
-//             auto node2 = partial_eval(proj, std::move(expr->elems->at(1)));
-//             if(auto cons = instance_of(node1.get(), IntConst)) {
-//             if(auto cons2 = instance_of(node2.get(), IntConst)){
-//                 return make_unique<IntConst>(cons->get_value() + cons2->get_value());
-//             }}
-//         }                                       
-//     } else if(auto ifnode = instance_of(spec.get(), If)) {
-//         //eliminate if
-//         auto cond = partial_eval(proj, std::move(ifnode->cond));
-//         ifnode->cond = std::move(cond);
-//         if(auto cond = instance_of(ifnode->cond.get(), BoolConst)) {
-//             unique_ptr<SpecNode> eliminatif = rule_eliminate_if(proj, std::move(spec));
-//             auto after1 = partial_eval(proj, std::move(eliminatif));
-//             return after1;
-//         }
-//         auto then_b = partial_eval(proj, std::move(ifnode->then_body));
-//         auto else_b = partial_eval(proj, std::move(ifnode->else_body));
-//         ifnode->then_body = std::move(then_b);
-//         ifnode->else_body = std::move(else_b);
-//         return spec;
-//     } else if(auto m = instance_of(spec.get(), Match)) {
-//         //follow a call by value semantics
-//         //simple_pattern_match, let_elimination
-//         auto src = partial_eval(proj, std::move(m->src));
-//         if(m->is_let()) {
-//             unique_ptr<SpecNode> eliminate_let = rule_eliminate_let(proj, std::move(spec));
-//         } else {
-//             //check if we can reduce the pattern matching if src is in weak head normal form.
-//             bool ifwhnm = false;
-//             if(auto e = instance_of(src.get(), Expr)) {
-//                 if(std::holds_alternative<string>(e->op)) {
-//                     auto sym = std::get<string>(expr->op);
-//                     auto info = proj->symbols[sym];
-//                     if (info.kind == SymbolKind::IndConstructor) {
-//                         ifwhnm = true;
-//                     }
-//                 }
-//             } else if(auto e = instance_of(src.get(), Symbol)) {
-//                 auto info = proj->symbols[e->text];
-//                 if (info.kind == SymbolKind::IndConstructor) {
-//                     ifwhnm = true;
-//                 }
-//             }
-//             unique_ptr<SpecNode> simple_match = rule_eliminate_match_simple(proj, std::move(spec));
-//         }
-//     } else if(auto m = instance_of(spec.get(), RelyAnno)) {
-//         auto cond = partial_eval(proj, std::move(m->prop));
 
-//         if(auto cond = instance_of(ifnode->cond.get(), BoolConst)) {
-//             unique_ptr<SpecNode> eliminate = rule_eliminate_rely(proj, std::move(spec));
-//             auto after = partial_eval(proj, std::move(eliminate));
-//             return after;
-//         }
-//     }
-// }
+unordered_map<size_t, bool> converged_spec;
+unordered_map<size_t, string> spec_hash_collisions;
+unsigned long z3_global_hash_hit = 0;
+unsigned long z3_global_hash_total = 0;
+//#define Z3_OPT_CACHE
+
+
+//key step to avoid nontermination. Ensures every recursive call has substructured spec, meaning
+//that there is a partial order assigning on the F(node) and each recursive call has a order that is
+//less than spec argument
+unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int level, shared_ptr<EvalState> state, set<string>& used_symbols, bool unfold) {
+    #ifdef Z3_OPT_CACHE
+        z3_global_hash_total++;
+        
+        size_t hash = boost::hash<std::string>()(std::string(*spec));
+        if (converged_spec.find(hash) != converged_spec.end()) {
+            z3_global_hash_hit++;
+            return spec;
+        }
+        auto cache = [&](unique_ptr<SpecNode> return_val) {
+                size_t hash = boost::hash<std::string>()(std::string(*return_val));
+                converged_spec[hash] = true;
+                return return_val;
+        };
+    #else
+        auto cache = [&](unique_ptr<SpecNode> return_val) {
+                return return_val;
+        };
+    #endif
+    
+    if(auto expr = instance_of(spec.get(), Expr)) {
+        //will move this to rule_simplify_expr
+        //unfold, arithmatic expressions
+        PROFILE_START(move_if_out_expr);
+        auto [__spec, changed] = proj->rules.rule_move_if_out_expr(std::move(spec), false);
+        PROFILE_END(move_if_out_expr);
+        if(changed) {
+            auto __spec1 = cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
+            PROFILE_START(move_match_out_expr);
+            auto [__spec2, changed] = proj->rules.rule_move_match_out_expr(std::move(__spec1), false);
+            PROFILE_END(move_match_out_expr);
+            if(changed) {
+                return cache(partial_eval(proj, std::move(__spec2), level, state, used_symbols, unfold));
+            } else {
+                return std::move(__spec2);
+            }
+        } else {
+            spec = std::move(__spec);
+            expr = instance_of(spec.get(), Expr);
+        }
+        int size = expr->elems->size();
+        for(int i = 0; i < size; ++i) {
+                auto elem = string(*expr->elems->at(i));
+                auto __spec = cache(partial_eval(proj, std::move(expr->elems->at(i)), level + 1, state, used_symbols, unfold));
+                (*expr->elems)[i] = std::move(__spec);
+        }
+        if(std::holds_alternative<Expr::binops>(expr->op)) {
+            PROFILE_START(simplify_expr);
+            auto [__spec, changed] = proj->rules.rule_simplify_expr(std::move(spec),false);
+            PROFILE_END(simplify_expr);
+            if(changed) {
+                if(level == 0) {
+                    //LOG_DEBUG << "before simplify expr:" << string(*spec);
+                }
+                return cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
+            }
+            
+            spec = std::move(__spec);
+            expr = instance_of(spec.get(), Expr);
+        } else if(std::holds_alternative<Expr::ops>(expr->op)) {
+            if(op_eq(expr->op, Expr::RecordGet) || op_eq(expr->op, Expr::RecordSet)) {
+                //LOG_DEBUG << "before get set:------------------------" << string(*spec);
+                PROFILE_START(simplify_getset);
+                auto [__spec, changed] = proj->rules.rule_simple_record_get_set(std::move(spec),false);
+                PROFILE_END(simplify_getset);
+                if(changed) {
+                    if(level == 0) {
+                        //LOG_DEBUG << "after get set:--------------------------" << string(*__spec);
+                    }
+                    return cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
+                }
+                spec = std::move(__spec);
+                expr = instance_of(spec.get(), Expr);
+            }
+        } else if(std::holds_alternative<string>(expr->op)) {
+            auto op = std::get<string>(expr->op);
+            if(proj->is_known_symbol(op)) {
+                auto info = proj->symbols[op];
+                if(info.kind == SymbolKind::Def && unfold) {
+                    //a definition, the total number definitions strictly decreaes
+                    PROFILE_START(unfold);
+                    auto [node, changed] = proj->rules.rule_unfold_specs(std::move(spec), false);
+                    PROFILE_END(unfold);
+                    if(changed) {
+                        if(level == 0) {
+                            //LOG_DEBUG << "after UNFOLD:--------------------------\n" << string(*node);
+                        }
+                        // PROFILE_START(eliminate_am);
+                        // auto unam = proj->rules.eliminate_ambiguity(std::move(node), used_symbols, changed);
+                        // PROFILE_END(eliminate_am);
+                        // if(level == 0) {
+                        //     LOG_DEBUG << "after Eliminate_Ambuguity:--------------------------\n" << string(*unam);
+                        // }
+                        return cache(partial_eval(proj, std::move(node), level, state, used_symbols, unfold));
+                    }
+                    spec = std::move(node);
+                    expr = instance_of(spec.get(), Expr);
+                }
+            }
+        }
+        
+        return std::move(spec);                                       
+    } else if(auto ifnode = instance_of(spec.get(), If)) {
+        //eliminate if
+        auto cond = cache(partial_eval(proj, std::move(ifnode->cond), level + 1, state, used_symbols, unfold));
+        ifnode->cond = std::move(cond);
+        // PROFILE_START(z3_eval);
+        // PROFILE_START(if_eval_check);
+        // auto c = z3_eval(proj, ifnode->cond.get(), state->copy());
+        // PROFILE_END(z3_eval);
+        // PROFILE_END(if_eval_check);
+        unique_ptr<SpecNode> tmp_spec;
+        PROFILE_START(eliminate_if);
+        auto [__spec, __changed] = proj->rules.rule_eliminate_if(std::move(spec),false);
+        PROFILE_END(eliminate_if);
+        //LOG_DEBUG << "after rule_eliminate_if:--------------------------\n" << string(*__spec);
+        if(__changed) {
+            auto after1 = cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
+            return after1;
+        }
+        spec = std::move(__spec);
+        ifnode = instance_of(spec.get(), If);
+       
+        // PROFILE_START(z3_rule_check);
+        // PROFILE_START(if_rule_check);
+        // auto res = z3_check(state, c->get_z3_value());
+        // PROFILE_END(if_rule_check);
+        // PROFILE_END(z3_rule_check);
+        // if(res == Z3Result::True) {
+        //     PROFILE_HIT(if_rule_check);
+        //     auto __then = cache(partial_eval(proj, std::move(ifnode->then_body), level, state, used_symbols, unfold));
+        //     //LOG_DEBUG << "after simple_if_by_z3:--------------------------" << string(*__then);
+        //     return __then;
+        // } else if(res == Z3Result::False){
+        //     PROFILE_HIT(if_rule_check);
+        //     auto __else = cache(partial_eval(proj, std::move(ifnode->else_body), level, state, used_symbols, unfold));
+        //     //LOG_DEBUG << "after simple_if_by_z3:--------------------------\n" << string(*__else);
+        //     return __else;
+        // }
+        //profile_log_rule_if_unsolved(string(*ifnode->cond));
+        //state->conds->push_back(c->get_z3_value());
+        ifnode->then_body = cache(partial_eval(proj, std::move(ifnode->then_body), level, state, used_symbols, unfold));
+        //state->conds->back() = !(c->get_z3_value());
+        ifnode->else_body = cache(partial_eval(proj, std::move(ifnode->else_body), level, state, used_symbols, unfold));
+        //state->conds->pop_back(); //let's backtracking instead of copying nodes
+        if(auto c = instance_of(ifnode->then_body.get(), BoolConst)) {
+            if(auto c2 = instance_of(ifnode->else_body.get(), BoolConst)) {
+                if(*c == *c2) {
+                    return std::move(ifnode->then_body);
+                } else if(std::get<bool>(c->value) == true) {
+                    return std::move(ifnode->cond);
+                } else {
+                    auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                    elems->push_back(std::move(ifnode->cond));
+                    return std::move(make_unique<Expr>(Expr::NOT, std::move(elems), Bool::BOOL));
+                }
+            }
+        }
+
+        #ifdef Z3_OPT_CACHE
+        size_t spechash = boost::hash<std::string>()(std::string(*ifnode));
+        converged_spec[spechash] = true;
+        #endif
+        return spec;
+    } else if(auto m = instance_of(spec.get(), Match)) {
+        //follow a call by value semantics
+        //simple_pattern_match, let_elimination
+        if (instance_of(m->src.get(), If)) { 
+                    //LOG_DEBUG << "before move_if_out:" << string(*m);
+                    PROFILE_START(move_if_out_match);
+                    auto [__spec, __changed] = proj->rules.rule_move_if_out_match(std::move(spec), false);
+                    PROFILE_END(move_if_out_match);
+                    if(!__spec) {
+                        LOG_ERROR << "null spec";
+                    }
+                    //LOG_DEBUG << "after move_if_out:" << string(*__spec);
+                    return cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
+                } else if(instance_of(m->src.get(), Rely)) {
+                    //LOG_DEBUG << "before move_rely_out:" << string(*m);
+                    PROFILE_START(eliminate_move_rely);
+                    auto [__spec, __changed] = proj->rules.rule_move_rely_out_when(std::move(spec), false);
+                    PROFILE_END(eliminate_move_rely);
+                    if(!__spec) {
+                        LOG_ERROR << "null spec";
+                    }
+                    //LOG_DEBUG << "after move_rely_out:" << string(*__spec);
+                    return cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
+                } else if(instance_of(m->src.get(), Match)) {
+                    //LOG_DEBUG << "before move_when_out:" << string(*m);
+                    PROFILE_START(move_when);
+                    auto [__spec, __changed] = proj->rules.rule_move_when_out_when(std::move(spec), false);
+                    PROFILE_END(move_when);
+                    if(!__spec) {
+                        LOG_ERROR << "null spec";
+                    }
+                    //LOG_DEBUG << "after move_when_out:" << string(*__spec);
+                    if(__changed)
+                        return cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
+                    spec = std::move(__spec);
+                    m = instance_of(spec.get(), Match);
+                }
+        //if src is a control flow, move it out. This decrease average number of if/rely expression in a match, ensuring termination
+        auto src = cache(partial_eval(proj, std::move(m->src), level + 1, state, used_symbols, unfold));
+        if(!src) {
+            LOG_ERROR << "spec is null";
+        }
+        m->src = std::move(src);
+        bool whnf = false;
+        if(auto e = instance_of(m->src.get(), Expr)) {
+            if(std::holds_alternative<string>(e->op)) {
+                auto sym = std::get<string>(e->op);
+                if(proj->is_known_symbol(sym)) {
+                    auto info = proj->symbols[sym];
+                    if (info.kind == SymbolKind::IndConstructor || info.kind == SymbolKind::StructConstr) {
+                        whnf = true;
+                    }
+                }
+            } else if(std::holds_alternative<Expr::ops>(e->op)) {
+                if (op_eq(e->op, Expr::ops::Some) || op_eq(e->op, Expr::ops::None) || op_eq(e->op, Expr::ops::Tuple)) {
+                    whnf = true;
+                }
+            }
+        } else if(auto e = instance_of(m->src.get(), Symbol)) {
+            if(proj->is_known_symbol(e->text)) {
+                auto info = proj->symbols[e->text];
+                if (info.kind == SymbolKind::IndConstructor) {
+                    whnf = true;
+                }
+            } else {
+                whnf = true;
+            }
+        } else if(auto e = instance_of(m->src.get(), Const)) {
+            whnf = true;
+        }
+
+        if(m->match_list->size() == 1 && instance_of(m->match_list->at(0)->pattern.get(), Symbol)) {
+            // PROFILE_START(eliminate_let);
+            // auto [__spec, __changed] = proj->rules.rule_eliminate_let(std::move(spec), false);
+            // PROFILE_END(eliminate_let);
+            //here let is guarantee to be eliminated, ensuring the _spec is smaller.
+            //if(level == 0)
+            //LOG_DEBUG << "after let--------------------\n" << string(*__spec);
+            auto body = cache(partial_eval(proj, std::move(m->match_list->at(0)->body), level, state, used_symbols, unfold));
+            m->match_list->at(0)->body = std::move(body);
+            return spec;
+            //return spec;
+        } else {
+            if(whnf) {
+                PROFILE_START(eliminate_match);
+                auto [__spec, __changed] = proj->rules.rule_eliminate_match_simple(std::move(spec),false);
+                PROFILE_END(eliminate_match);
+               
+                // LOG_DEBUG << "after match simple:" << string(*__spec);
+                if(__changed)
+                    return cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
+                //return std::move(__spec);
+                spec = std::move(__spec);
+                m = instance_of(spec.get(), Match);
+            } 
+                //src is done simplifying, just need to simplify bodies
+                //integrate z3 here to simplify matches.
+                 std::function<void(SpecNode*,std::set<string>& symbols)> collect_symbols = [&](SpecNode *pattern, std::set<string>& symbols) {
+                    if (auto s = instance_of(pattern, Symbol))
+                            symbols.insert(s->text);
+                    else if (auto e = instance_of(pattern, Expr)) {
+                        for (auto &elem : *e->elems)
+                            collect_symbols(elem.get(), symbols);
+                    }
+                };
+
+                //auto src_val = z3_eval(proj, m->src.get(), state->copy());
+                auto match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
+                for(auto &pm: *m->match_list) {
+                    auto new_state = state->copy();
+                    //resolve_pattern(proj, spec.get(), pm->pattern.get(), src_val, new_state);
+                    set<string> symbols;
+                    collect_symbols(pm->pattern.get(), symbols);
+                    // auto res = z3_check(new_state);
+                    // if(res == Z3Result::False) {
+                    //     continue;
+                    // }
+                    auto new_symbols = set<string>(used_symbols);
+                    new_symbols.insert(symbols.begin(), symbols.end());
+                    auto body = cache(partial_eval(proj, std::move(pm->body), level + 1, state, new_symbols, unfold));
+
+                    pm->body = std::move(body);
+                }
+
+                #ifdef Z3_OPT_CACHE
+                size_t spechash = boost::hash<std::string>()(std::string(*spec));
+                converged_spec[spechash] = true;
+                #endif
+                return spec;
+        }
+    } else if(auto m = instance_of(spec.get(), RelyAnno)) {
+        auto cond = partial_eval(proj, std::move(m->prop), level + 1, state, used_symbols, unfold);
+        m->prop = std::move(cond);
+        // PROFILE_START(z3_eval);
+        // PROFILE_START(rely_eval_check);
+        // auto c = z3_eval(proj, m->prop.get(), state->copy());
+        // PROFILE_END(z3_eval);
+        // PROFILE_END(rely_eval_check);
+        if(auto cond = instance_of(m->prop.get(), BoolConst)) {
+            PROFILE_START(eliminate_rely);
+            auto [__spec, __changed] = proj->rules.rule_eliminate_rely(std::move(spec),false);
+            PROFILE_END(eliminate_rely);
+            if(!__spec) {
+                LOG_ERROR << "null spec";
+            }
+            auto after = partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold);
+            return after;
+        } else {
+            // PROFILE_START(z3_rule_check);
+            // PROFILE_START(rely_rule_check);
+            // auto res = z3_check(state, c->get_z3_value());
+            // PROFILE_END(rely_rule_check);
+            // PROFILE_END(z3_rule_check);
+            // if(res == Z3Result::True) {
+            //     PROFILE_HIT(rely_rule_check);
+            //     return partial_eval(proj, std::move(m->body), level, state, used_symbols);
+            // } else if(res == Z3Result::False) {
+            //     PROFILE_HIT(rely_rule_check);
+            //     return partial_eval(proj, make_unique<Symbol>("None", m->get_type()), level, state, used_symbols, unfold);
+            // }
+            //profile_log_rule_rely_unsolved(string(*m->prop));
+        }
+        //state->conds->push_back(c->get_z3_value());
+        auto body = partial_eval(proj, std::move(m->body), level, state, used_symbols, unfold );
+        m->body = std::move(body);
+        //state->conds->pop_back();
+        return spec;
+    }
+
+    return spec;
+}
 
 static string get_constr(SpecNode *node) {
     if (auto p = instance_of(node, Symbol)) {
@@ -1624,6 +1904,334 @@ std::unique_ptr<SpecNode> subst(
     return spec;
 }
 
+/** spec should not be copied, spec should be borrowed to free_vars, and free_vars will not modify spec**/
+void free_vars(Project* proj, SpecNode* spec, std::set<std::string>& free) {
+    if (auto s = instance_of(spec, Symbol)) {
+        if (!proj->is_known_symbol(s->text)) {
+            free.insert(s->text);
+        }
+    } else if (auto m = instance_of(spec, Match)) {
+        free_vars(proj, m->src.get(), free);
+        for (const auto& pm : *m->match_list) {
+            free_vars(proj, pm->body.get(), free);
+            std::set<std::string> symbols;
+            std::function<void(SpecNode*)> collect_symbols = [&](SpecNode* pattern) {
+                if (auto s = instance_of(pattern, Symbol))
+                    symbols.insert(s->text);
+                else if (auto e = instance_of(pattern, Expr)) {
+                    for (auto &elem : *e->elems)
+                        collect_symbols(elem.get());
+                }
+            };
+
+            collect_symbols(pm->pattern.get());
+            for (const auto &sym : symbols) {
+                free.erase(sym);
+            }
+        }
+
+    } else if (auto fe = instance_of(spec, ForallExists)) {
+        auto body = fe->body->deep_copy();
+        auto vars = std::make_unique<std::vector<std::shared_ptr<Arg>>>(*fe->vars);
+        free_vars(proj, body.get(), free);
+
+        for (const auto &arg : *vars) {
+            free.erase(arg->name);
+        }
+
+    } else if (auto e = instance_of(spec, Expr)) {
+        for (int i = 0 ; i < e->elems->size(); i++) {
+            free_vars(proj, e->elems->at(i).get(), free);
+        }
+    } else if (auto r = instance_of(spec, RelyAnno)) {
+        free_vars(proj, r->prop.get(), free);
+        free_vars(proj, r->body.get(), free);
+    } else if (auto i = instance_of(spec, If)) {
+        free_vars(proj, i->cond.get(), free);
+        free_vars(proj, i->then_body.get(), free);
+        free_vars(proj, i->else_body.get(), free);
+    }
+}
+
+/**
+ * @brief Recursively multi-substitutes [names] with [values] in [spec].
+ * 
+ * spec[s1\v1, s2\v2...].
+ * strictly follow the capture-avoiding substitution with variable renaming, which is hard to get right
+ * @cond the vector must have the same length
+ * @param spec   The specification node in which substitution occurs.
+ * @param name   The name to be replaced.
+ * @param value  The value to replace occurrences of [name].
+ * 
+ * @return A unique pointer to the modified SpecNode.
+ */
+/*
+
+by Wei Q.
+*/
+std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec, vector<std::string>* names, vector<SpecNode*>* values) {
+    if (!spec) {
+        return spec; 
+    }
+
+    if (auto s = instance_of(spec.get(), Symbol)) {
+        auto ind = std::find(names->begin(), names->end(), s->text);
+        
+        if (ind == names->end()) {
+            return spec;
+        }
+        int index = ind - names->begin();
+        auto new_value = values->at(index)->deep_copy();
+        if (is_instance(new_value.get(), Symbol)) {
+            new_value->set_type(s->type);
+        }
+
+        return new_value;
+    } else if (auto e = instance_of(spec.get(), Expr)) {
+        auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+        for (auto &elem : *e->elems) {
+            elems->push_back(subst_v2(proj, std::move(elem), names, values));
+        }
+        return std::visit([&](auto &&arg) -> std::unique_ptr<SpecNode> {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, std::unique_ptr<SpecNode>>) {
+                // If op is a unique_ptr<SpecNode>, we substitute recursively
+                auto new_op = subst_v2(proj, std::move(arg), names, values);
+                auto new_expr = std::make_unique<Expr>(std::move(new_op), std::move(elems), e->type);
+                return new_expr;
+            } else {
+                // If op is something else (e.g. int, string, etc.)
+                auto new_expr = std::make_unique<Expr>(arg, std::move(elems), e->type);
+                return new_expr;
+            }
+        },
+        e->op);
+    } else if (auto m = instance_of(spec.get(), Match)) {
+        std::function<void(SpecNode*,std::unordered_map<string, shared_ptr<SpecType>>& symbols)> collect_symbols = [&](SpecNode *pattern, std::unordered_map<string, shared_ptr<SpecType>>& symbols) {
+            if (auto s = instance_of(pattern, Symbol))
+                symbols[s->text] = s->get_type();
+            else if (auto e = instance_of(pattern, Expr)) {
+                for (auto &elem : *e->elems)
+                    collect_symbols(elem.get(), symbols);
+            }
+        };
+
+        auto new_src = subst_v2(proj, std::move(m->src), names, values);
+        m->src = std::move(new_src);
+        auto matches = make_unique<vector<unique_ptr<PatternMatch>>>();
+
+        for (auto &pm : *(m->match_list)) {
+            //x not in fv_body - {pattern_symbols} U fv_value
+            std::unordered_map<string, shared_ptr<SpecType>> symbols;
+            std::set<string> fv_body;
+            free_vars(proj, pm->body.get(), fv_body);
+            collect_symbols(pm->pattern.get(), symbols);
+            for(auto [sym,_]: symbols) {
+                fv_body.erase(sym);
+            }
+
+            std::set<string> ps = fv_body;
+            std::vector<string> filtered_names;
+            std::vector<SpecNode*> filtered_values;
+            for(int i = 0; i < names->size(); ++i) {
+                auto value = values->at(i);
+                auto name = names->at(i);
+                if(symbols.find(name) != symbols.end())
+                    continue;
+                filtered_names.push_back(name);
+                filtered_values.push_back(value);
+                std::set<string> fv_value;
+                free_vars(proj, value, fv_value);
+                ps.insert(fv_value.begin(), fv_value.end());
+            }
+            vector<string> subst_names;
+            vector<SpecNode*> subst_new_names;
+            for(auto [sym, typ]: symbols) {
+                if(sym == "_")
+                    continue;
+                if (!proj->is_known_symbol(sym)) {
+                    std::set<string> temp = std::set<string>(ps);
+                    for(auto [osym,_]: symbols) {
+                        if(sym != osym) {
+                            temp.insert(osym);
+                        }
+                    }
+                    auto new_name = pick_new_name(sym, temp);
+                    ps.insert(new_name);
+                    if(new_name != sym) {
+                        //subst the pattern and the body
+                        subst_names.push_back(sym);
+                        unique_ptr<SpecNode> new_sym = make_unique<Symbol>(new_name, typ);
+                        subst_new_names.push_back(new_sym->deep_copy().release());
+                    }
+                }
+            }
+            pm->pattern = subst_v2(proj, std::move(pm->pattern), &subst_names, &subst_new_names);
+            pm->body = subst_v2(proj, std::move(pm->body), &subst_names, &subst_new_names);
+            pm->body = subst_v2(proj, std::move(pm->body), &filtered_names, &filtered_values);
+        }
+
+        
+        return spec;
+    } else if (auto r = instance_of(spec.get(), Rely)) {
+        auto new_prop = subst_v2(proj, std::move(r->prop), names, values);
+        auto new_body = subst_v2(proj, std::move(r->body), names, values);
+        auto new_rely = std::make_unique<Rely>(std::move(new_prop), std::move(new_body));
+        new_rely->type = r->type;
+        return new_rely;
+    } else if (auto r = instance_of(spec.get(), Anno)) {
+        auto new_prop = subst_v2(proj, std::move(r->prop), names, values);
+        auto new_body = subst_v2(proj, std::move(r->body), names, values);
+        auto new_anno = std::make_unique<Anno>(std::move(new_prop), std::move(new_body));
+        new_anno->type = r->type;
+        return new_anno;
+    } else if (auto i = instance_of(spec.get(), If)) {
+        auto new_cond = subst_v2(proj, std::move(i->cond), names, values);
+        auto new_then = subst_v2(proj, std::move(i->then_body), names, values);
+        auto new_else = subst_v2(proj, std::move(i->else_body), names, values);
+        auto new_if = std::make_unique<If>(std::move(new_cond), std::move(new_then), std::move(new_else));
+        new_if->type = i->type;
+        return new_if;
+    } else if (auto fe = instance_of(spec.get(), Forall)) {
+        auto vars = std::make_unique<std::vector<std::shared_ptr<Arg>>>(*fe->vars);
+        std::unordered_map<string, shared_ptr<SpecType>> symbols;
+        for (auto &v : *vars) {
+            symbols[v->name] = v->type;
+            if (v->expr) {
+                auto new_expr = subst_v2(proj, std::move(v->expr), names, values);
+                auto casted_expr = dynamic_cast<Expr*>(new_expr.release());
+                if (casted_expr) {
+                    v->expr = std::unique_ptr<Expr>(casted_expr);
+                } else {
+                    // v->expr.reset();
+                    throw std::runtime_error("[subst] Failed to cast to Expr!");
+                }
+            }
+        }
+        std::set<string> fv_body;
+        free_vars(proj, fe->body.get(), fv_body);
+        std::vector<string> filtered_names;
+        std::vector<SpecNode*> filtered_values;
+        std::set<string> ps = fv_body;
+        for(int i = 0; i < names->size(); ++i) {
+            auto value = values->at(i);
+            auto name = names->at(i);
+            if(symbols.find(name) != symbols.end())
+                continue;
+            filtered_names.push_back(name);
+            filtered_values.push_back(value);
+            std::set<string> fv_value;
+            free_vars(proj, value, fv_value);
+            ps.insert(fv_value.begin(), fv_value.end());
+        }
+        vector<string> subst_names;
+        vector<SpecNode*> subst_new_names;
+        int i = 0;
+        for(auto [sym, typ]: symbols) {
+            if(sym == "_")
+                continue;
+            if (!proj->is_known_symbol(sym)) {
+                std::set<string> temp = std::set<string>(ps);
+                for(auto [osym,_]: symbols) {
+                    if(sym != osym) {
+                        temp.insert(osym);
+                    }
+                }
+                auto new_name = pick_new_name(sym, temp);
+                vars->at(i)->name = new_name;
+                ps.insert(new_name);
+                if(new_name != sym) {
+                    //subst the pattern and the body
+                    subst_names.push_back(sym);
+                    unique_ptr<SpecNode> new_sym = make_unique<Symbol>(new_name, typ);
+                    subst_new_names.push_back(new_sym.get());
+                }
+            }
+            i++;
+        }
+        auto new_body = subst_v2(proj, std::move(fe->body), &subst_names, &subst_new_names);
+        new_body = subst_v2(proj, std::move(new_body), &filtered_names, &filtered_values);
+        fe->body = std::move(new_body);
+        return spec;
+    } else if (auto fe = instance_of(spec.get(), Exists)) {
+        auto vars = std::make_unique<std::vector<std::shared_ptr<Arg>>>(*fe->vars);
+        std::unordered_map<string, shared_ptr<SpecType>> symbols;
+        for (auto &v : *vars) {
+            symbols[v->name] = v->type;
+            if (v->expr) {
+                auto new_expr = subst_v2(proj, std::move(v->expr), names, values);
+                auto casted_expr = dynamic_cast<Expr*>(new_expr.release());
+                if (casted_expr) {
+                    v->expr = std::unique_ptr<Expr>(casted_expr);
+                } else {
+                    throw std::runtime_error("[subst] Failed to cast to Expr!");
+                }
+            }
+        }
+        std::set<string> fv_body;
+        free_vars(proj, fe->body.get(), fv_body);
+        std::vector<string> filtered_names;
+        std::vector<SpecNode*> filtered_values;
+        std::set<string> ps = fv_body;
+        for(int i = 0; i < names->size(); ++i) {
+            auto value = values->at(i);
+            auto name = names->at(i);
+            if(symbols.find(name) != symbols.end())
+                continue;
+            filtered_names.push_back(name);
+            filtered_values.push_back(value);
+            std::set<string> fv_value;
+            free_vars(proj, value, fv_value);
+            ps.insert(fv_value.begin(), fv_value.end());
+        }
+        vector<string> subst_names;
+        vector<SpecNode*> subst_new_names;
+        int i = 0;
+        for(auto [sym, typ]: symbols) {
+            if(sym == "_")
+                    continue;
+            if (!proj->is_known_symbol(sym)) {
+                std::set<string> temp = std::set<string>(ps);
+                for(auto [osym,_]: symbols) {
+                    if(sym != osym) {
+                        temp.insert(osym);
+                    }
+                }
+                auto new_name = pick_new_name(sym, temp);
+                vars->at(i)->name = new_name;
+                ps.insert(new_name);
+                if(new_name != sym) {
+                    //subst the pattern and the body
+                    subst_names.push_back(sym);
+                    unique_ptr<SpecNode> new_sym = make_unique<Symbol>(new_name, typ);
+                    subst_new_names.push_back(new_sym.get());
+                }
+            }
+            i++;
+        }
+        auto new_body = subst_v2(proj, std::move(fe->body), &subst_names, &subst_new_names);
+        new_body = subst_v2(proj, std::move(new_body), &filtered_names, &filtered_values);
+        fe->body = std::move(new_body);
+        return spec;
+    } else if (is_instance(spec.get(), Const)) {
+        // pass
+    } else {
+        throw std::runtime_error("Unknown SpecNode type: " + string(*spec->get_type()));
+    }
+    return spec;
+}
+
+//all raw pointer is borrowed and should not be freed in side the function.
+//a simple wrap up for single substitution
+std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec, std::string name, SpecNode* value) {
+    vector<string> names;
+    vector<SpecNode*> values;
+    names.push_back(name);
+    values.push_back(value);
+
+    return subst_v2(proj, std::move(spec), &names, &values);
+}
+
 
 /*
 substitute [expr] with [var] in [spec]
@@ -1719,55 +2327,6 @@ std::unique_ptr<SpecNode> subst_expr(
     return spec;
 }
 
-/** free_vars should use a deep-copied version specs since it will be freed after use */
-void free_vars(Project* proj, const std::unique_ptr<SpecNode>& spec, std::set<std::string>& free) {
-    if (auto s = instance_of(spec.get(), Symbol)) {
-        if (!proj->is_known_symbol(s->text)) {
-            free.insert(s->text);
-        }
-    } else if (auto m = instance_of(spec.get(), Match)) {
-        free_vars(proj, m->src, free);
-        for (const auto& pm : *m->match_list) {
-            free_vars(proj, pm->body, free);
-            std::set<std::string> symbols;
-            std::function<void(SpecNode*)> collect_symbols = [&](SpecNode* pattern) {
-                if (auto s = instance_of(pattern, Symbol))
-                    symbols.insert(s->text);
-                else if (auto e = instance_of(pattern, Expr)) {
-                    for (auto &elem : *e->elems)
-                        collect_symbols(elem.get());
-                }
-            };
-
-            collect_symbols(pm->pattern.get());
-            for (const auto &sym : symbols) {
-                free.erase(sym);
-            }
-        }
-
-    } else if (auto fe = instance_of(spec.get(), ForallExists)) {
-        auto body = fe->body->deep_copy();
-        auto vars = std::make_unique<std::vector<std::shared_ptr<Arg>>>(*fe->vars);
-        free_vars(proj, body, free);
-
-        for (const auto &arg : *vars) {
-            free.erase(arg->name);
-        }
-
-    } else if (auto e = instance_of(spec.get(), Expr)) {
-        for (int i = 0 ; i < e->elems->size(); i++) {
-            free_vars(proj, e->elems->at(i), free);
-        }
-    } else if (auto r = instance_of(spec.get(), RelyAnno)) {
-        free_vars(proj, r->prop, free);
-        free_vars(proj, r->body, free);
-    } else if (auto i = instance_of(spec.get(), If)) {
-        free_vars(proj, i->cond, free);
-        free_vars(proj, i->then_body, free);
-        free_vars(proj, i->else_body, free);
-    }
-}
-
 std::unique_ptr<SpecNode> SpecRules::eliminate_ambiguity(
     std::unique_ptr<SpecNode> spec,
     std::set<std::string>& prev_symbols,
@@ -1793,7 +2352,7 @@ std::unique_ptr<SpecNode> SpecRules::eliminate_ambiguity(
     } else if (auto m = instance_of(spec.get(), Match)) {
         auto src = eliminate_ambiguity(std::move(m->src), prev_symbols, changed);
         std::set<string> src_free;
-        free_vars(proj, src->deep_copy(), src_free);
+        free_vars(proj, src.get(), src_free);
         auto matches = make_unique<vector<unique_ptr<PatternMatch>>>();
         for (auto &pm : *m->match_list) {
             std::unordered_map<string, shared_ptr<SpecType>> symbols;
@@ -1812,7 +2371,7 @@ std::unique_ptr<SpecNode> SpecRules::eliminate_ambiguity(
             auto body = pm->body->deep_copy();
 
             std::set<string> body_free;
-            free_vars(proj, pm->body->deep_copy(), body_free);
+            free_vars(proj, pm->body.get(), body_free);
 
             for (auto [sym,_] : symbols) {
                 body_free.erase(sym);   
@@ -1894,7 +2453,7 @@ std::unique_ptr<SpecNode> SpecRules::eliminate_ambiguity(
         auto vars = std::make_unique<std::vector<std::shared_ptr<Arg>>>(*fe->vars);
 
         auto free = std::set<string>();
-        free_vars(proj, body->deep_copy(), free);
+        free_vars(proj, body.get(), free);
 
         for (const auto& arg : *vars) {
             free.erase(arg->name);
@@ -2043,7 +2602,7 @@ std::unique_ptr<SpecNode> SpecRules::rec_apply(std::unique_ptr<SpecNode> spec,
     }
 }
 
-rule_ret_t SpecRules::rule_eliminate_let(std::unique_ptr<SpecNode> spec) {
+rule_ret_t SpecRules::rule_eliminate_let(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         if (!node) {
@@ -2067,8 +2626,13 @@ rule_ret_t SpecRules::rule_eliminate_let(std::unique_ptr<SpecNode> spec) {
         }
         return node;
     };
-    auto new_root = rec_apply(std::move(spec), f, false);
-    return { std::move(new_root), changed };
+    if(rec) {
+        auto new_root = rec_apply(std::move(spec), f, false);
+        return { std::move(new_root), changed };
+    } else {
+        auto new_root = f(std::move(spec));
+        return { std::move(new_root), changed };
+    }
 }
 
 
@@ -2076,7 +2640,7 @@ rule_ret_t SpecRules::rule_eliminate_let(std::unique_ptr<SpecNode> spec) {
 when X == (if c then (Some Y) else (Some Z)); body
 => if c then (match Y with X => body) else (match Z with X => body)
 */
-rule_ret_t SpecRules::rule_eliminate_when(std::unique_ptr<SpecNode> spec) {
+rule_ret_t SpecRules::rule_eliminate_when(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
     std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)> f =
         [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
@@ -2154,8 +2718,13 @@ rule_ret_t SpecRules::rule_eliminate_when(std::unique_ptr<SpecNode> spec) {
                 return node;
             }
         };
-    auto new_spec = rec_apply(std::move(spec), f, false);
-    return { std::move(new_spec), changed };
+   if(rec) {
+        auto new_root = rec_apply(std::move(spec), f, false);
+        return { std::move(new_root), changed };
+    } else {
+        auto new_root = f(std::move(spec));
+        return { std::move(new_root), changed };
+    }
 }
 
 /*
@@ -2166,7 +2735,7 @@ if ... then [body] else [body] ===> [body]
 The following simplification may not actually simplify the expression
 if A then [then_body] else (if B then [then_body] else [else_body]) ===> if (A || B) then [then_body] else [else_body]
 */
-rule_ret_t SpecRules::rule_eliminate_if(std::unique_ptr<SpecNode> spec) {
+rule_ret_t SpecRules::rule_eliminate_if(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         if (!node) {
@@ -2197,11 +2766,16 @@ rule_ret_t SpecRules::rule_eliminate_if(std::unique_ptr<SpecNode> spec) {
         }
         return node;
     };
-    auto new_root = rec_apply(std::move(spec), f, false);
-    return { std::move(new_root), changed };
+    if(rec) {
+        auto new_root = rec_apply(std::move(spec), f, false);
+        return { std::move(new_root), changed };
+    } else {
+        auto new_root = f(std::move(spec));
+        return { std::move(new_root), changed };
+    }
 }
 
-rule_ret_t SpecRules::rule_eliminate_match_simple(std::unique_ptr<SpecNode> spec) {
+rule_ret_t SpecRules::rule_eliminate_match_simple(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {            
         if (auto m = instance_of(node.get(), Match)) {
@@ -2234,11 +2808,16 @@ rule_ret_t SpecRules::rule_eliminate_match_simple(std::unique_ptr<SpecNode> spec
         }
 
     };
-    auto new_spec = rec_apply(std::move(spec), f, false);
-    return { std::move(new_spec), changed };
+    if(rec) {
+        auto new_root = rec_apply(std::move(spec), f, false);
+        return { std::move(new_root), changed };
+    } else {
+        auto new_root = f(std::move(spec));
+        return { std::move(new_root), changed };
+    }
 }
 
-rule_ret_t SpecRules::rule_subst_match_src_with_content(std::unique_ptr<SpecNode> spec) {
+rule_ret_t SpecRules::rule_subst_match_src_with_content(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         if (auto s = instance_of(node.get(), Match)) {
@@ -2262,11 +2841,16 @@ rule_ret_t SpecRules::rule_subst_match_src_with_content(std::unique_ptr<SpecNode
         }
         return node;
     };
-    auto new_spec = rec_apply(std::move(spec), f, false);
-    return { std::move(new_spec), changed };
+    if(rec) {
+        auto new_root = rec_apply(std::move(spec), f, false);
+        return { std::move(new_root), changed };
+    } else {
+        auto new_root = f(std::move(spec));
+        return { std::move(new_root), changed };
+    }
 }
 
-rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> spec) {
+rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         if (auto s = instance_of(node.get(), Expr)) {
@@ -2294,11 +2878,16 @@ rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> sp
         }
         return node;
     };
-    auto new_root = rec_apply(std::move(spec), f, false);
-    return { std::move(new_root), changed };
+    if(rec) {
+        auto new_root = rec_apply(std::move(spec), f, false);
+        return { std::move(new_root), changed };
+    } else {
+        auto new_root = f(std::move(spec));
+        return { std::move(new_root), changed };
+    }
 }
 
-rule_ret_t SpecRules::rule_simple_record_get_set(std::unique_ptr<SpecNode> spec) {
+rule_ret_t SpecRules::rule_simple_record_get_set(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         auto e = instance_of(node.get(), Expr);
@@ -2507,11 +3096,16 @@ rule_ret_t SpecRules::rule_simple_record_get_set(std::unique_ptr<SpecNode> spec)
         return node;
 
     };
-    auto new_root = rec_apply(std::move(spec), f, false);
-    return { std::move(new_root), changed };
+    if(rec) {
+        auto new_root = rec_apply(std::move(spec), f, false);
+        return { std::move(new_root), changed };
+    } else {
+        auto new_root = f(std::move(spec));
+        return { std::move(new_root), changed };
+    }
 }
 
-rule_ret_t SpecRules::rule_move_rely_out_when(std::unique_ptr<SpecNode> spec) {
+rule_ret_t SpecRules::rule_move_rely_out_when(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         if (auto m = instance_of(node.get(), Match)) {
@@ -2530,8 +3124,13 @@ rule_ret_t SpecRules::rule_move_rely_out_when(std::unique_ptr<SpecNode> spec) {
         }
         return node;
     };
-    auto new_root = rec_apply(std::move(spec), f, false);
-    return { std::move(new_root), changed };
+    if(rec) {
+        auto new_root = rec_apply(std::move(spec), f, false);
+        return { std::move(new_root), changed };
+    } else {
+        auto new_root = f(std::move(spec));
+        return { std::move(new_root), changed };
+    }
 }
 
 
@@ -2550,7 +3149,7 @@ match [src->match_list->at(0)->body] with
   [match_list]
 end
 */
-rule_ret_t SpecRules::rule_move_when_out_when(std::unique_ptr<SpecNode> spec) {
+rule_ret_t SpecRules::rule_move_when_out_when(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
 
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
@@ -2579,14 +3178,19 @@ rule_ret_t SpecRules::rule_move_when_out_when(std::unique_ptr<SpecNode> spec) {
         return node;
     };
 
-    auto new_spec = rec_apply(std::move(spec), f, false);
-    return { std::move(new_spec), changed };
+    if(rec) {
+        auto new_root = rec_apply(std::move(spec), f, false);
+        return { std::move(new_root), changed };
+    } else {
+        auto new_root = f(std::move(spec));
+        return { std::move(new_root), changed };
+    }
 }
 
 /*
 match (if c then A else B) with { ... } -> if c then (match A with { ... }) else (match B with { ... })
 */
-rule_ret_t SpecRules::rule_move_if_out_match(std::unique_ptr<SpecNode> spec) {
+rule_ret_t SpecRules::rule_move_if_out_match(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
 
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
@@ -2604,11 +3208,16 @@ rule_ret_t SpecRules::rule_move_if_out_match(std::unique_ptr<SpecNode> spec) {
         return node;
     };
 
-    auto new_spec = rec_apply(std::move(spec), f, false);
-    return { std::move(new_spec), changed };
+    if(rec) {
+        auto new_root = rec_apply(std::move(spec), f, false);
+        return { std::move(new_root), changed };
+    } else {
+        auto new_root = f(std::move(spec));
+        return { std::move(new_root), changed };
+    }
 }
 
-rule_ret_t SpecRules::rule_move_if_out_expr(std::unique_ptr<SpecNode> spec) {
+rule_ret_t SpecRules::rule_move_if_out_expr(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         if (auto e = instance_of(node.get(), Expr)) {
@@ -2640,11 +3249,16 @@ rule_ret_t SpecRules::rule_move_if_out_expr(std::unique_ptr<SpecNode> spec) {
         }
         return node;
     };
-    auto new_spec = rec_apply(std::move(spec), f, false);
-    return { std::move(new_spec), changed };
+    if(rec) {
+        auto new_root = rec_apply(std::move(spec), f, false);
+        return { std::move(new_root), changed };
+    } else {
+        auto new_root = f(std::move(spec));
+        return { std::move(new_root), changed };
+    }
 }
 
-rule_ret_t SpecRules::rule_move_match_out_expr(std::unique_ptr<SpecNode> spec) {
+rule_ret_t SpecRules::rule_move_match_out_expr(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         if (auto e = instance_of(node.get(), Expr)) {
@@ -2702,12 +3316,16 @@ rule_ret_t SpecRules::rule_move_match_out_expr(std::unique_ptr<SpecNode> spec) {
         return node;
     };
 
-    auto new_spec = rec_apply(std::move(spec), f, false);
-    return { std::move(new_spec), changed };
-
+    if(rec) {
+        auto new_root = rec_apply(std::move(spec), f, false);
+        return { std::move(new_root), changed };
+    } else {
+        auto new_root = f(std::move(spec));
+        return { std::move(new_root), changed };
+    }
 }
 
-rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec) {
+rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec) {
     bool unfolded = false;
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
@@ -2716,16 +3334,16 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec) {
         if (auto e = instance_of(node.get(), Expr)) {
             if (auto op = std::get_if<string>(&e->op)) {
                 if (proj->defs.find(*op) == proj->defs.end())
-                    return node;
+                    return std::move(node);
 
                 if (proj->cmds.NoUnfold.find(*op) != proj->cmds.NoUnfold.end() &&
                     proj->cmds.Unfold.find(*op) == proj->cmds.Unfold.end())
-                    return node;
+                    return std::move(node);
 
                 auto define = proj->defs[*op].get();
 
                 if (is_instance(define, Fixpoint))
-                    return node;
+                    return std::move(node);
 
                 std::cout << "Unfold definition (smart): " << define->name << std::endl;
                 if (define->deleyed_type_inference) {
@@ -2744,6 +3362,7 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec) {
                 if (e->elems->size() == 0) {
                     return body;
                 } else if (e->elems->size() == 1) {
+                    //used_symbols.insert(define->args->at(0)->name);
                     return std::unique_ptr<SpecNode>(Match::raw_let(define->args->at(0)->name, 
                                                         std::move(e->elems->at(0)), 
                                                         std::move(body),
@@ -2759,6 +3378,7 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec) {
 
                     auto pattern_list = std::make_unique<std::vector<std::unique_ptr<SpecNode>>>();
                     for (auto &arg : *define->args) {
+                        //used_symbols.insert(arg->name);
                         pattern_list->push_back(std::make_unique<Symbol>(arg->name, arg->type));
                     }
 
@@ -2772,13 +3392,18 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec) {
             }
         }
 
-        return node;
+        return std::move(node);
     };
-    auto new_spec = rec_apply(std::move(spec), f, false);
-    return { std::move(new_spec), changed };
+    if(rec) { 
+        auto new_spec = rec_apply(std::move(spec), f, false); 
+        return { std::move(new_spec), changed };
+    } else { 
+        auto new_spec = f(std::move(spec)); 
+        return { std::move(new_spec), changed };
+    }
 }
 
-rule_ret_t SpecRules::rule_simplify_expr(std::unique_ptr<SpecNode> spec) {
+rule_ret_t SpecRules::rule_simplify_expr(std::unique_ptr<SpecNode> spec, bool rec) {
     bool expr_is_changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         unique_ptr<SpecNode> expr = node->deep_copy();
@@ -2957,8 +3582,14 @@ rule_ret_t SpecRules::rule_simplify_expr(std::unique_ptr<SpecNode> spec) {
         }
         return expr;
     };
-    auto new_spec = rec_apply(std::move(spec), f, false);
-    return { std::move(new_spec), expr_is_changed };
+  
+    if(rec) {
+        auto new_spec = rec_apply(std::move(spec), f, false);
+        return { std::move(new_spec), expr_is_changed };
+    } else {
+        auto new_spec = f(std::move(spec));
+        return { std::move(new_spec), expr_is_changed };
+    }
 }
 
 rule_ret_t SpecRules::rule_keep_fields_of_interest(std::unique_ptr<SpecNode> spec) {
