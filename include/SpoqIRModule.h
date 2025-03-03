@@ -14,9 +14,39 @@
 #include <stack>
 
 #include "SpoqIR.h"
+#include "inline_asm.h"
+#include "llvm.h"
 #include "nodes.h"
 
+#include "llvm/Analysis/LoopInfo.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/Passes/PassBuilder.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/SourceMgr.h"
+#include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/LowerSwitch.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/Transforms/Scalar/SROA.h"
+
+
 namespace autov {
+
+class SpoqAsmProcedure {
+  public:
+    string name;
+    string origin;
+    string objdump;
+    string body;
+
+    SpoqAsmProcedure() = delete;
+    SpoqAsmProcedure(string name, string origin, string objdump, string body)
+        : name(name), origin(origin), objdump(objdump), body(body) {}
+
+    string to_coq() const { return body; }
+};
 
     class SpoqFunction {
     public:
@@ -30,9 +60,27 @@ namespace autov {
     class SpoqIRContext {
     public:
 
-        SpoqIRContext(SpoqFunction& spoq_func_) : spoq_func(spoq_func_) {}
+        SpoqIRContext(SpoqFunction& spoq_func_, unique_ptr<Layer>& layer) : spoq_func(spoq_func_) {
+            if(layer->ops["load"] != "") load_op_name = layer->ops["load"];
+            if(layer->ops["store"] != "") store_op_name = layer->ops["store"];
+            if(layer->ops["ptr2int"] != "") ptr2int_op_name = layer->ops["ptr2int"];
+            if(layer->ops["int2ptr"] != "") int2ptr_op_name = layer->ops["int2ptr"];
+            if(layer->ops["ptr_eqb"] != "") ptr_eqb_op_name = layer->ops["ptr_eqb"];
+            if(layer->ops["ptr_offset"] != "") ptr_off_op_name = layer->ops["ptr_offset"];
+            if(layer->abs_data != nullptr) abs_data_type = layer->abs_data;
+            else assert(false && "abs_data_type is nullptr");
+            llvm_dl = &spoq_func.llvm_func->getParent()->getDataLayout();
+        }
         int counter = 0;
+
         const std::string abs_data_name = "st";
+        shared_ptr<SpecType> abs_data_type = nullptr;
+        std::string load_op_name = "load_RData";
+        std::string store_op_name = "store_RData";
+        std::string ptr2int_op_name = "ptr_to_int";
+        std::string int2ptr_op_name = "int_to_ptr";
+        std::string ptr_eqb_op_name = "ptr_eqb";
+        std::string ptr_off_op_name = "ptr_offset";
 
         vector<Definition> defs;
         vector<string> args;
@@ -42,7 +90,9 @@ namespace autov {
         bool final_return;
         SpoqFunction& spoq_func;
 
-        shared_ptr<SpecType> abs_data_type;
+        const llvm::DataLayout* llvm_dl;
+
+
         shared_ptr<SpecType> rettype = make_shared<SpecType>("Void");
 
         std::map<llvm::Value*, std::string> value_map;
@@ -61,13 +111,19 @@ namespace autov {
             return std::make_unique<Symbol>(abs_data_name, abs_data_type);
         }
 
+        // This function gives a temporary name for the middle value in case a pointer is read from memory directly.
+        inline unique_ptr<SpecNode> get_llvm_value_spec_ptr_in_Z(llvm::Value* value) {
+            auto name = get_llvm_value_name(value) + "_ptr_in_Z";
+            return std::make_unique<Symbol>(name, Int::INT);
+        }
+
         /**
          * @brief Get the llvm value spec unique_ptr object. 
          * 
          * @param value 
          * @return unique_ptr<SpecNode> 
          */
-        unique_ptr<SpecNode> get_llvm_value_spec(llvm::Value* value);
+        unique_ptr<SpecNode> get_llvm_value_spec(llvm::Value* value, llvm::Type* force_sym_type = nullptr);
 
         /**
          * @brief Get the llvm value type. TODO: use pointer abstraction here
@@ -86,9 +142,25 @@ namespace autov {
 
     class SpoqIRModule { 
     public:
+        int iasm_count = 0;
         llvm::LLVMContext llvm_context;
         unique_ptr<llvm::Module> llvm_module;
         std::map<std::string, SpoqFunction> spoq_funcs;
+
+        /**
+         * @brief Contains the inline assembly cannot be automatically solved.
+         */
+        std::map<llvm::Value*, std::string> iasm2func;
+        /**
+         * @brief Contains the solved inline asm with a map objd -> function name
+         * 
+         */
+        std::map<std::string, std::string> iasm_objd_cache;
+        /**
+         * @brief All assembly definition.
+         * TODO: dump them somewhere
+         */
+        std::map<std::string, shared_ptr<SpoqAsmProcedure>> iasm_defs;
 
         /**
          * @brief load llvm module from llvm bitcode file, revise the function name if there is '.' in it.
@@ -142,6 +214,17 @@ namespace autov {
         static bool control_flow_clone_and_split(llvm::BasicBlock* bb, llvm::BasicBlock* ori, bool to_duplicate, llvm::ValueToValueMapTy &value_map);
 
         /**
+         * @brief Eliminate select instruction in the function. Replace the original
+         basic block with [ inst_list :: br select_cond]  --> 
+         [Block 0: v0 = s0]  [Block 1: v1 = s1] --> [ phi_node :: inst_list ]
+         * 
+         * @param func 
+         * @return true The func is changed
+         * @return false 
+         */
+        static bool control_flow_elinminate_select(llvm::Function* func);
+
+        /**
          * @brief Convert DAG into a tree-like CFG on LLVM IR. 
          * 
          * @param proj 
@@ -188,15 +271,33 @@ namespace autov {
 
         static bool llvm_ir_to_spoq_ir(SpoqFunction &spoq_func);
 
-        // static bool spoq_func_to_spec(Project &proj, std::string fname, SpoqFunction &spoq_func);
-
         static unique_ptr<SpecNode> spoq_inst_to_spec(Project *proj, spoq_inst_vec_t&, int, SpoqIRContext& context);
 
+        static std::pair<unique_ptr<SpecNode>, unique_ptr<SpecNode>> store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context);
+
+        /** Handle both GEP expr and GEP inst*/
+        static std::pair<unique_ptr<SpecNode>, unique_ptr<SpecNode>> gep_inst_to_spec(llvm::Value* gep_inst_or_expr, SpoqIRContext& context);
 
         static const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> binops_lut;
 
+        static const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> bool_binops_lut;
+
         static const std::unordered_map<llvm::CmpInst::Predicate, Expr::binops> cmpops_lut;
 
+        std::pair<int, int> extract_inline_asm(SpoqFunction& func);
+
+        int find_inline_asm(spoq_inst_vec_t& inst_vec);
+
+        static std::string llvm_ir_type_to_str(llvm::Type* type, bool input);
+
+        SpoqIRIASM parse_inline_asm(string fname, string asm_text, llvm::Type* rettype,
+            vector<llvm::Type*> &arglist, string constraints);
+
+        /**
+         * @brief Preprocess the llvm module to fix function and global variable names. It runs LowerSwitchPass and SROA pass to simplify the llvm module. (Should we run SROA here?)
+         * 
+         */
+        void preprocess_llvm_module();
 
     };
 }

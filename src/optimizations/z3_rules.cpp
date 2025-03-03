@@ -1,3 +1,4 @@
+#include <memory>
 #include <nodes.h>
 #include <any>
 #include <variant>
@@ -63,7 +64,12 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
         else
             throw std::runtime_error("Unknown const type: " + string(*pat));
     } else if (auto con = instance_of(pat, IntConst)) {
-        state->conds->push_back(src->get_z3_value() == z3ctx.int_val((long)std::get<unsigned long>(con->value)));
+        if(con->is_signed())  {
+            state->conds->push_back(src->get_z3_value() == z3ctx.int_val( (long)(con->get_value())) );
+        }
+        else {
+            state->conds->push_back(src->get_z3_value() == z3ctx.int_val((long)std::get<unsigned long>(con->value)));
+        }
     } else if (auto con = instance_of(pat, BoolConst)) {
         state->conds->push_back(src->get_z3_value() == z3ctx.bool_val(std::get<bool>(con->value)));
     } else if (auto con = instance_of(pat, StringConst)) {
@@ -396,6 +402,7 @@ SpecNode* reconstruct_zmap(Project* proj, SpecNode* spec, shared_ptr<EvalState> 
     auto elem0 = instance_of(expr->elems->at(0).get(), Expr); // ZMap
     auto elem1 = expr->elems->at(1).get(); // index
 
+    if (!elem0) return nullptr;
     if (elem0 && elem0->elems->size() > 1 && is_instance(elem0->elems->at(1).get(), Symbol))
         return nullptr;
 

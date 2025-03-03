@@ -17,6 +17,11 @@ namespace autov {
 	class Shortcut {
 	public:
 
+	  inline static std::string replace_dot(std::string str) {
+		std::replace(str.begin(), str.end(), '.', '_');
+		return str;
+	  }
+
 	  static unique_ptr<SpecNode> _Let_u(unique_ptr<SpecNode> sym, unique_ptr<SpecNode> val, unique_ptr<SpecNode> body);
 	  /**
 	   * @brief The unique_ptr version of shortcut _Tuple.
