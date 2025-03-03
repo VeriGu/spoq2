@@ -460,11 +460,11 @@ SpecNode* reconstruct_zmap(Project* proj, SpecNode* spec, shared_ptr<EvalState> 
     return nullptr;
 }
 
-unordered_map<size_t, bool> converged_spec;
-unordered_map<size_t, string> spec_hash_collisions;
-unsigned long z3_global_hash_hit = 0;
-unsigned long z3_global_hash_total = 0;
-#define Z3_OPT_CACHE
+// unordered_map<size_t, bool> converged_spec;
+// unordered_map<size_t, string> spec_hash_collisions;
+// unsigned long z3_global_hash_hit = 0;
+// unsigned long z3_global_hash_total = 0;
+// #define Z3_OPT_CACHE
 
 rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::shared_ptr<EvalState> state) {
     bool changed = false;
@@ -772,14 +772,14 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
 rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state) {
     bool changed = false;
 
-#ifdef Z3_OPT_CACHE
-    z3_global_hash_total++;
-    size_t spec_hash = boost::hash<std::string>()(std::string(*spec));
-    if (converged_spec.find(spec_hash) != converged_spec.end()) {
-        z3_global_hash_hit++;
-        return { std::move(spec), false };
-    }
-#endif
+// #ifdef Z3_OPT_CACHE
+//     z3_global_hash_total++;
+//     size_t spec_hash = boost::hash<std::string>()(std::string(*spec));
+//     if (converged_spec.find(spec_hash) != converged_spec.end()) {
+//         z3_global_hash_hit++;
+//         return { std::move(spec), false };
+//     }
+// #endif
 
     state = state->copy();
     if (is_instance(spec.get(), Symbol) || is_instance(spec.get(), Const)) {
@@ -824,11 +824,11 @@ rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::sha
         throw std::runtime_error("Unknown node type: " + std::string(typeid(*spec).name()));
     }
 
-#ifdef Z3_OPT_CACHE
-    if (!changed) {
-        converged_spec.emplace(spec_hash, true);
-    }
-#endif
+// #ifdef Z3_OPT_CACHE
+//     if (!changed) {
+//         converged_spec.emplace(spec_hash, true);
+//     }
+// #endif
     return { std::move(spec), changed };
 }
 
