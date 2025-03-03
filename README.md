@@ -147,10 +147,11 @@ src/optimizations/profile.cpp:
 
 ### Commandline Commands -command
 - conditional_spec
-- check-sys-inv
-- check-loop-inv
-- check-pre-post
-- check-drf
+- check-sys-inv: check system invariants defined by "Invariants"
+- check-loop-inv: check loop invariants defined by "Loop_inv"
+- check-pre-post: check precondition implies post condition
+- check-drf: check if the spec is drf. 
+- new-trans: use new transformations defined.
 
 
 ### Configuration file commands and Syntax
