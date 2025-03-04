@@ -53,7 +53,6 @@ public:
         desc.add_options()
             ("help,h", "produce help message")
             ("lens,l", po::bool_switch()->default_value(true), "use lens")
-            ("llvm", po::bool_switch()->default_value(false), "use llvm frontend")
             ("new-trans", po::bool_switch()->default_value(false), "use new transformation") 
             ("no-lens,nl", po::bool_switch()->default_value(true), "do not use lens")
             ("llvm", po::bool_switch()->default_value(false), "use llvm frontend") 
