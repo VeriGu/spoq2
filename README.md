@@ -140,7 +140,12 @@ src/optimizations/symbolic.cpp
 
 #### Z3 Overhead Profiling
 
+The profiler is by default on (`-profile`). Use `--no-profile` to turn it off.
+
 ```
+cmd.h: Line 101
+  autov::—__PROFILE_ON = this->profile;
+
 src/optimizations/profile.cpp:
 	static bool __PROFILE_ON = false;
 ```
