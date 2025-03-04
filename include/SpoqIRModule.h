@@ -194,7 +194,7 @@ class SpoqAsmProcedure {
             if (step_count == -1) return header_map[bb] == nullptr;
             else {
                 if (header_map[bb] != header) return false;
-                if (header_map[bb] == header || header_map[bb] == jump[header]) return false;
+                if (bb == postheader || bb == loopheader ) return false;
                 return true;
             }
         }
@@ -276,6 +276,15 @@ class SpoqAsmProcedure {
             }
         }
 
+        inline bool can_remove(llvm::BasicBlock* bb) {
+            for(auto &pair: jump) {
+                if(pair.first == bb) return false;
+                if(pair.second == bb) return false;
+            }
+            return true;
+        }
+
+
         inline void set_jump(llvm::BasicBlock* pre, llvm::BasicBlock* post) {
             jump[pre] = post;
             steps.push_back(pre);
@@ -294,11 +303,7 @@ class SpoqAsmProcedure {
             if (step_count < steps.size()) {
                 preheader = steps[step_count];
                 loopheader = preheader->getUniqueSuccessor();
-                // if(!loopheader) {
-                    // llvm::errs() << *preheader->getParent() << "\n";
-                    // llvm::errs() << "preheader: " << *preheader << "\n";
-                // }
-                assert(loopheader);
+                assert(loopheader && "loopheader does not exist");
                 postheader = jump[preheader];
                 return true;
             }

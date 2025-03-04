@@ -33,7 +33,6 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
         auto name = func.getName().str();
         SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs[name];
         spoq_func.llvm_func = &func; // llvm_func;
-        // if(name != "map_mem0") continue;
         bool ret = control_flow_conversion_v2(proj, name, spoq_func);
         if(ret) {
             succ++;

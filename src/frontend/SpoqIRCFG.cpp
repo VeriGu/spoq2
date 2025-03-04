@@ -16,18 +16,20 @@ void SpoqIRModule::control_flow_merge_bridge(llvm::BasicBlock* bb, std::set<llvm
         if(br->getNumSuccessors() == 1 && br->getSuccessor(0)->hasNPredecessors(1)) {
             // no self-loop with only one predecessor
             auto succ = br->getSuccessor(0); 
-            bb->getInstList().splice(bb->end(), succ->getInstList());
-            for(auto pred: llvm::predecessors(succ)) {
-                pred->replaceSuccessorsPhiUsesWith(succ, bb);
+            if (context.can_remove(succ)) {
+                bb->getInstList().splice(bb->end(), succ->getInstList());
+                for(auto pred: llvm::predecessors(succ)) {
+                    pred->replaceSuccessorsPhiUsesWith(succ, bb);
+                }
+                br->eraseFromParent();
+                succ->eraseFromParent();
+                control_flow_merge_bridge(bb, skip, context);
+                return;
             }
-            br->eraseFromParent();
-            succ->eraseFromParent();
-            control_flow_merge_bridge(bb, skip, context);
-        } else {
-            skip.insert(bb);
-            for(int i = 0; i < br->getNumSuccessors(); i++) {
-                control_flow_merge_bridge(br->getSuccessor(i), skip, context);
-            }
+        } 
+        skip.insert(bb);
+        for(int i = 0; i < br->getNumSuccessors(); i++) {
+            control_flow_merge_bridge(br->getSuccessor(i), skip, context);
         }
     } 
 }
