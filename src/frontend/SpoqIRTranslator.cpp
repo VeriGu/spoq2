@@ -154,7 +154,12 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
               auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
               vec->push_back(this->get_llvm_value_spec(expr->getOperand(0)));
               return std::make_unique<Expr>(this->ptr2int_op_name, std::move(vec));
-            }  else if (expr->getOpcode() == llvm::Instruction::GetElementPtr) {
+            } else if (expr->getOpcode() == llvm::AddrSpaceCastInst::CastOps::IntToPtr) {
+              auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
+              vec->push_back(this->get_llvm_value_spec(expr->getOperand(0)));
+              return std::make_unique<Expr>(this->int2ptr_op_name, std::move(vec));
+            }
+            else if (expr->getOpcode() == llvm::Instruction::GetElementPtr) {
                 auto res = SpoqIRModule::gep_inst_to_spec(expr, *this);
                 return std::move(res.second);
             } else if (expr->getOpcode() == llvm::AddrSpaceCastInst::CastOps::BitCast) {
@@ -252,6 +257,7 @@ SpoqIRModule::gep_inst_to_spec (llvm::Value* gep_inst_or_expr, SpoqIRContext& co
     assert(source_ptr_type && "source pointer type is not a pointer type for GEP");
     auto source_type = source_ptr_type->getPointerElementType();
     auto const c_source_type = source_type;
+    // TODO: fix me like the gep instruction, use pointer type first
     // getSourceElementType();
     std::vector<llvm::Value*> indices;
     for(int i = 1; i < gep->getNumOperands(); i++) {
@@ -524,15 +530,18 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
         if (auto gep = llvm::dyn_cast<llvm::GetElementPtrInst>(spoq_inst->inst)) {
             auto ptr = context.get_llvm_value_spec(gep->getPointerOperand());
             unique_ptr<SpecNode> expr = std::make_unique<IntConst>(0);
-            auto source_type = gep->getSourceElementType();
+            auto source_element_type = gep->getPointerOperandType();
             std::vector<llvm::Value*> indices;
             for(auto idx = gep->idx_begin(); idx != gep->idx_end(); ++idx) {
                 llvm::Value* index = *idx;
                 indices.push_back(index);
                 auto elem_type = llvm::GetElementPtrInst::getIndexedType(gep->getSourceElementType(), indices);
-                if(auto sty = llvm::dyn_cast<llvm::StructType>(source_type)) {
+                if(auto sty = llvm::dyn_cast<llvm::StructType>(source_element_type)) {
                     assert(index->getType()->isIntegerTy() && "Struct index is not integer");
                     auto index_val = llvm::dyn_cast<llvm::ConstantInt>(index);
+                    // llvm::errs() << *gep << "\n";
+                    // llvm::errs() << "*index_val: " << *index << "\n";
+                    assert(index_val && "index is not a constant integer");
                     auto offset = context.llvm_dl->getStructLayout(sty)->getElementOffset(index_val->getZExtValue());
                     auto operands = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
                     operands->push_back(std::move(expr));
@@ -552,7 +561,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     operands->push_back(std::move(expr));
                     expr = make_unique<Expr>(Expr::binops::ADD, std::move(operands));
                 }
-                source_type = elem_type;
+                source_element_type = elem_type;
             }
             auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
             operands->push_back(context.get_llvm_value_spec(gep->getPointerOperand()));

@@ -1,115 +1,96 @@
 #include "SpoqIR.h"
 #include "SpoqIRModule.h"
 #include "log.h"
-#include <llvm-14/llvm/IR/BasicBlock.h>
-#include <llvm-14/llvm/IR/CFG.h>
-#include <llvm-14/llvm/IR/Instructions.h>
-#include <llvm-14/llvm/IR/Value.h>
-#include <llvm-14/llvm/Support/Casting.h>
-#include <llvm-14/llvm/Transforms/Utils/BasicBlockUtils.h>
-#include <llvm-14/llvm/Transforms/Utils/ValueMapper.h>
-#include <stdexcept>
-
+#include "project.h"
 
 namespace autov {
 
-void SpoqIRModule::control_flow_merge_bridge(llvm::BasicBlock* bb, std::set<llvm::BasicBlock*>& skip) {
+void SpoqIRModule::control_flow_merge_bridge(llvm::BasicBlock* bb, std::set<llvm::BasicBlock*>& skip, SpoqLoopContext& context) {
     if(skip.find(bb) != skip.end()) return;
+    if(auto target = context.require_jump(bb)) {
+        control_flow_merge_bridge(target, skip, context);
+        return;
+    }
     auto last = bb->getTerminator();
     if (auto br = llvm::dyn_cast<llvm::BranchInst>(last)) {
         if(br->getNumSuccessors() == 1 && br->getSuccessor(0)->hasNPredecessors(1)) {
-            auto succ = br->getSuccessor(0); // no self-loop with only one predecessor
+            // no self-loop with only one predecessor
+            auto succ = br->getSuccessor(0); 
             bb->getInstList().splice(bb->end(), succ->getInstList());
             for(auto pred: llvm::predecessors(succ)) {
                 pred->replaceSuccessorsPhiUsesWith(succ, bb);
             }
             br->eraseFromParent();
             succ->eraseFromParent();
-            control_flow_merge_bridge(bb, skip);
+            control_flow_merge_bridge(bb, skip, context);
         } else {
             skip.insert(bb);
             for(int i = 0; i < br->getNumSuccessors(); i++) {
-                control_flow_merge_bridge(br->getSuccessor(i), skip);
+                control_flow_merge_bridge(br->getSuccessor(i), skip, context);
             }
         }
-    } else if(auto sw = llvm::dyn_cast<llvm::SwitchInst>(last)) {
-        skip.insert(bb);
-        for(int i = 0; i < sw->getNumSuccessors(); i++) {
-            control_flow_merge_bridge(sw->getSuccessor(i), skip);
-        }
-    }
+    } 
 }
 
-bool SpoqIRModule::control_flow_clone_and_split(
-    llvm::BasicBlock *bb, llvm::BasicBlock *ori, bool to_duplicate,
-    llvm::ValueToValueMapTy &value_map) {
-    if (to_duplicate) {
-      std::map<llvm::BasicBlock *, bool> is_cloned;
-      llvm::SmallVector<llvm::BasicBlock *, 10> cloned_vec;
-      std::queue<llvm::BasicBlock *> q;
-      q.push(bb);
-      while (!q.empty()) {
-          auto cur = q.front();
-          q.pop();
-          auto last = cur->getTerminator();
-          if (auto br = llvm::dyn_cast<llvm::BranchInst>(last)) {
-              for (int i = 0; i < br->getNumSuccessors(); i++) {
-                  auto succ = br->getSuccessor(i);
-                  if (is_cloned.count(succ) > 0)
-                      continue;
-                  is_cloned[succ] = true;
-                  q.push(succ);
-                  auto cloned = llvm::CloneBasicBlock(succ, value_map, ".dup",
-                                                      succ->getParent());
-                  cloned_vec.push_back(cloned);
-                  value_map[succ] = cloned;
-              }
-          } else if (auto sw = llvm::dyn_cast<llvm::SwitchInst>(last)) {
-              for (int i = 0; i < sw->getNumSuccessors(); i++) {
-                  auto succ = sw->getSuccessor(i);
-                  if (is_cloned.count(succ) > 0)
-                      continue;
-                  is_cloned[succ] = true;
-                  q.push(succ);
-                  auto cloned = llvm::CloneBasicBlock(succ, value_map, ".dup",
-                                                      succ->getParent());
-                  cloned_vec.push_back(cloned);
-                  value_map[succ] = cloned;
-              }
-          }
-      }
-      cloned_vec.push_back(bb);
-      llvm::remapInstructionsInBlocks(cloned_vec, value_map);
-    } else {
-        auto last = bb->getTerminator();
+bool SpoqIRModule::control_flow_duplicate(llvm::BasicBlock *bb,
+                                          llvm::BasicBlock *ori,
+                                          llvm::ValueToValueMapTy &value_map,
+                                          SpoqLoopContext &context) {
+    std::map<llvm::BasicBlock *, bool> is_cloned;
+    llvm::SmallVector<llvm::BasicBlock *, 10> cloned_vec;
+
+    std::queue<llvm::BasicBlock *> q;
+    q.push(bb);
+
+    while (!q.empty()) {
+        auto cur = q.front(); q.pop();
+        auto last = cur->getTerminator();
         if (auto br = llvm::dyn_cast<llvm::BranchInst>(last)) {
             for (int i = 0; i < br->getNumSuccessors(); i++) {
                 auto succ = br->getSuccessor(i);
-                if (llvm::pred_size(succ) >= 2) {
-                    llvm::ValueToValueMapTy value_map_duplicate;
-                    auto cloned = llvm::CloneBasicBlock(succ, value_map_duplicate, ".clone", bb->getParent());
-                    value_map_duplicate[succ] = cloned;
-                    control_flow_clone_and_split(cloned, succ, true, value_map_duplicate);
-                    br->setSuccessor(i, cloned);
-                    control_flow_clone_and_split(cloned, nullptr, false, value_map);
-                }  else {
-                    control_flow_clone_and_split(succ, nullptr, false, value_map);
-                }
+                if (!context.require_clone(succ)) continue;
+                if (is_cloned.count(succ) > 0)
+                    continue;
+                is_cloned[succ] = true;
+                q.push(succ);
+                auto cloned = llvm::CloneBasicBlock(succ, value_map, ".dup", succ->getParent());
+                context.fix_loop_header(succ, cloned, value_map);
+                cloned_vec.push_back(cloned);
+                value_map[succ] = cloned;
             }
-        } else if(auto sw = llvm::dyn_cast<llvm::SwitchInst>(last)) {
-            for (int i = 0; i < sw->getNumSuccessors(); i++) {
-                auto succ = sw->getSuccessor(i);
-                if (llvm::pred_size(succ) >= 2) {
-                    auto cloned = llvm::CloneBasicBlock(succ, value_map, ".clone", bb->getParent());
-                    llvm::ValueToValueMapTy value_map_duplicate;
-                    value_map_duplicate[succ] = cloned;
-                    control_flow_clone_and_split(cloned, succ, true, value_map_duplicate);
-                    sw->setSuccessor(i, cloned);
-                    control_flow_clone_and_split(cloned, nullptr, false, value_map);
-                }  else {
-                    control_flow_clone_and_split(succ, nullptr, false, value_map);
-                }
+        }
+    }
+
+    cloned_vec.push_back(bb);
+    llvm::remapInstructionsInBlocks(cloned_vec, value_map);
+    context.update_jump(value_map);
+    return true;
+}
+
+bool SpoqIRModule::control_flow_clone_and_split(llvm::BasicBlock *bb, SpoqLoopContext &context) {
+    if (bb == context.postheader) return true;
+    if (auto target = context.require_jump(bb))  {
+        // llvm::errs() << "target: " << *target << "\n";
+        return control_flow_clone_and_split(target, context);
+    }
+
+    auto last = bb->getTerminator();
+    if (auto br = llvm::dyn_cast<llvm::BranchInst>(last)) {
+        for (int i = 0; i < br->getNumSuccessors(); i++) {
+            auto succ = br->getSuccessor(i);
+            if (context.require_split(succ)) {
+                llvm::ValueToValueMapTy value_map_duplicate;
+                auto cloned = llvm::CloneBasicBlock(succ, value_map_duplicate, ".clone", bb->getParent());
+                value_map_duplicate[succ] = cloned;
+                context.fix_loop_header(succ, cloned, value_map_duplicate);
+                control_flow_duplicate(cloned, succ, value_map_duplicate, context);
+                br->setSuccessor(i, cloned);
+                context.travel_all();
+                succ = cloned;
             }
+            // TODO: fix me. Use other way to check for backward edge
+            if (bb == context.preheader || context.require_clone(succ))
+                control_flow_clone_and_split(succ, context);
         }
     }
     return true;
@@ -152,35 +133,42 @@ bool SpoqIRModule::control_flow_elinminate_select(llvm::Function* func) {
     return false;
 }
 
-bool SpoqIRModule::control_flow_conversion_DAG(Project *proj, string fname,
-                                               SpoqFunction &spoq_func) {
-    llvm::ValueToValueMapTy value_map;
+bool SpoqIRModule::control_flow_conversion_DAG(Project *proj, string fname, SpoqFunction &spoq_func, SpoqLoopContext& context) {
     control_flow_elinminate_select((spoq_func.llvm_func));
-    control_flow_clone_and_split(&(spoq_func.llvm_func->getEntryBlock()), nullptr, false, value_map);
 
-    std::vector<llvm::Instruction*> to_erase;
-    for(auto &bb : *spoq_func.llvm_func) {
-        for(auto &inst : bb) {
-            if(auto phi = llvm::dyn_cast<llvm::PHINode>(&inst)) {
-                if(bb.hasNPredecessors(1)) {
-                    auto predecesor = bb.getUniquePredecessor();
-                    auto block = phi->getIncomingValueForBlock(predecesor);
-                    phi->replaceAllUsesWith(block);
-                    to_erase.push_back(phi);
-                } else {
-                    // This should never happen.
-                    llvm::errs() << "phi: " << *phi << "\n";
-                    exit(0);
+    context.init(spoq_func.llvm_func);
+    while (context.step()) {
+        control_flow_clone_and_split(context.preheader, context);
+
+        std::vector<llvm::Instruction *> to_erase;
+        for (auto &bb : *spoq_func.llvm_func) {
+            for (auto &inst : bb) {
+                if (!context.require_fix(&bb))
+                    continue;
+                if (auto phi = llvm::dyn_cast<llvm::PHINode>(&inst)) {
+                    if (bb.hasNPredecessors(1)) {
+                        auto predecesor = bb.getUniquePredecessor();
+                        auto block = phi->getIncomingValueForBlock(predecesor);
+                        phi->replaceAllUsesWith(block);
+                        to_erase.push_back(phi);
+                    } else {
+                        assert(false && "some PHI are not eliminated but required so");
+                        llvm::errs() << "phi: " << *phi << "\n";
+                        continue;
+                    }
                 }
             }
         }
-    }
-    for(auto inst : to_erase) {
-        inst->eraseFromParent();
+        for (auto inst : to_erase) {
+            inst->eraseFromParent();
+        }
     }
 
-    std::set<llvm::BasicBlock *> skip;
-    control_flow_merge_bridge(&spoq_func.llvm_func->getEntryBlock(), skip);
+    context.init(spoq_func.llvm_func);
+    while(context.step()) {
+        std::set<llvm::BasicBlock *> skip;
+        control_flow_merge_bridge(context.preheader, skip, context);
+    }
     return true;
 }
 
@@ -194,11 +182,88 @@ bool SpoqIRModule::control_flow_conversion_v2(Project *proj, string fname,
     PB.registerFunctionAnalyses(FAM);
     PB.registerLoopAnalyses(LAM);
     llvm::LoopInfo &LI = FAM.getResult<llvm::LoopAnalysis>(*llvm_func);
+    SpoqLoopContext context;
     if (!LI.empty()) {
-        // TODO: eliminate loop.
+
+        auto loops = LI.getLoopsInPreorder();
+        // llvm::errs() << "fname: " << fname << "\n";
+        // Start from the outter loop first
+        for(auto loop: loops) {
+
+            auto preheader = loop->getLoopPreheader();
+            assert(preheader && "loop does not have a loop header");
+
+            llvm::SmallVector<llvm::BasicBlock*, 10> exits;
+            loop->getExitingBlocks(exits);
+            if (exits.size() == 0) {
+                auto header = loop->getHeader();
+                auto last = header->getTerminator();
+                auto real = header->splitBasicBlock(last, "realloop");
+                auto fake = llvm::BasicBlock::Create(llvm_func->getContext(), "fakeexit", llvm_func);
+                loop->addBlockEntry(real);
+                assert(!loop->contains(fake) && "Fake block is mistakenly in the loop");
+
+                llvm::IRBuilder<> builder(header);
+                builder.CreateCondBr(builder.getTrue(), real, fake);
+                builder.SetInsertPoint(fake);
+                assert(llvm_func->getReturnType()->isVoidTy() && "infinite loop return non-void");
+                builder.CreateRetVoid();
+
+                exits.push_back(header);
+            }
+            llvm::BasicBlock* postheader = llvm::BasicBlock::Create(llvm_func->getContext(), "postheader", llvm_func);
+            llvm::IRBuilder<> builder(postheader);
+
+            std::vector<std::pair<llvm::ConstantInt*, llvm::BasicBlock*>> phi_map;
+            std::map<llvm::BasicBlock*, llvm::BasicBlock*> pred_map;
+            auto phi = builder.CreatePHI(llvm::Type::getInt32Ty(llvm_func->getContext()), 0);
+
+            for(int e_id = 0; e_id < exits.size(); e_id++) {
+                auto e = exits[e_id];
+                auto last = e->getTerminator();
+                if (auto ret = llvm::dyn_cast<llvm::ReturnInst>(last)){
+                    e->splitBasicBlock(last, "ret.shadow");
+                }
+                auto br = llvm::dyn_cast_or_null<llvm::BranchInst>(last);
+                assert(br && "exit block does not have a branch terminator");
+                bool set = false;
+                for(int i = 0; i < br->getNumSuccessors(); i++) {
+                    if (loop->contains(br->getSuccessor(i))) continue;
+                    assert(!set && "a exit has multiple outgoing edges");
+
+                    set = true;
+                    auto v = llvm::ConstantInt::get(llvm_func->getContext(), llvm::APInt(32, e_id));
+
+                    phi_map.push_back(std::make_pair(v, br->getSuccessor(i)));
+                    pred_map[br->getSuccessor(i)] = e;
+                    phi->addIncoming(v, e);
+                    br->setSuccessor(i, postheader);
+                }
+            }
+            context.set_jump(preheader, postheader);
+
+            auto size = phi_map.size();
+            assert(size > 0 && "a post header should have at least one outcoming edge");
+            for(int i = 1; i < size; i++) {
+                auto shadow_bb = llvm::BasicBlock::Create(builder.getContext(), "postprocess.shadow", llvm_func);
+                phi_map[i].second->replacePhiUsesWith(pred_map[phi_map[i].second], postheader);
+                auto cmp = builder.CreateICmpEQ(phi, phi_map[i].first);
+                builder.CreateCondBr(cmp, phi_map[i].second, shadow_bb);
+                postheader = shadow_bb;
+                builder.SetInsertPoint(shadow_bb);
+            }
+            builder.CreateBr(phi_map[0].second);
+            phi_map[0].second->replacePhiUsesWith(pred_map[phi_map[0].second], postheader);
+
+        }
+        context.travel_all();
+
+        spoq_func.cfg_converted = control_flow_conversion_DAG(proj, fname, spoq_func, context);
+        // context.debug_jump();
+
         return false;
     } else {
-        spoq_func.cfg_converted = control_flow_conversion_DAG(proj, fname, spoq_func);
+        spoq_func.cfg_converted = control_flow_conversion_DAG(proj, fname, spoq_func, context);
         return spoq_func.cfg_converted;
     }
 }

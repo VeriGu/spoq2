@@ -1,7 +1,4 @@
 #pragma once
-
-#include <llvm-14/llvm/IR/BasicBlock.h>
-#include <llvm-14/llvm/IR/Instruction.h>
 #include <string>
 #include <irtypes.h>
 #include <irvalues.h>
@@ -30,6 +27,13 @@
 #include "llvm/Transforms/Utils/LowerSwitch.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Transforms/Scalar/SROA.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/IR/Verifier.h"
+#include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/CFG.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/Support/FileSystem.h"
 
 
 namespace autov {
@@ -140,6 +144,175 @@ class SpoqAsmProcedure {
         std::vector<llvm::Value*> return_list;
     };
 
+    class SpoqLoopContext {
+        // jump from the loop preheader to the loop guard
+        public:
+        llvm::BasicBlock* preheader = nullptr;
+        llvm::BasicBlock* postheader = nullptr;
+        llvm::BasicBlock* loopheader = nullptr;
+
+        void debug_jump() {
+            for(auto &pair: jump) {
+                llvm::errs() << "jump from: " << *pair.first << "\njump to: " << *pair.second << "\n";
+            }
+        }
+
+        void fix_loop_header(llvm::BasicBlock* src, llvm::BasicBlock* cloned, llvm::ValueToValueMapTy &value_map) {
+            if(loopheader) {
+                for(auto& phi: loopheader->phis()) {
+                    for(int i = 0; i < phi.getNumIncomingValues(); i++) {
+                        if(phi.getIncomingBlock(i) == src) {
+                            auto val = phi.getIncomingValue(i);
+                            if (value_map[val] != nullptr ) val = value_map[val];
+                            phi.addIncoming(val, cloned);
+                        }
+                    }
+                }
+            }
+            if(postheader) {
+                for(auto& phi: postheader->phis()) {
+                    for(int i = 0; i < phi.getNumIncomingValues(); i++) {
+                        if(phi.getIncomingBlock(i) == src) {
+                            auto val = phi.getIncomingValue(i);
+                            if (value_map[val] != nullptr ) val = value_map[val];
+                            phi.addIncoming(val, cloned);
+                        }
+                    }
+                }
+            }
+        }
+
+        /**
+         * @brief Check whether this block may changes during control_flow_conversion
+         * 
+         * @param bb 
+         * @param header The current loop (or the top-level function) under revising
+         * @return true The basic block is in the current processing loop (or top-level function) and should be revised.
+         * @return false 
+         */
+        inline bool require_fix(llvm::BasicBlock* bb, llvm::BasicBlock* header) {
+            if (step_count == -1) return header_map[bb] == nullptr;
+            else {
+                if (header_map[bb] != header) return false;
+                if (header_map[bb] == header || header_map[bb] == jump[header]) return false;
+                return true;
+            }
+        }
+
+        inline bool require_fix(llvm::BasicBlock* bb) {
+            return require_fix(bb, this->preheader);
+        }
+
+        inline bool require_clone(llvm::BasicBlock* bb) {
+            if( bb == preheader || bb == postheader) return false;
+            // TODO: Fix me. Use other ways to find the loop header.
+            if (step_count >= 0 && preheader->getUniqueSuccessor() == bb) return false;
+            assert(header_map[bb] || step_count == -1);
+            return true;
+        }
+
+        inline bool require_split(llvm::BasicBlock* bb) {
+            if (bb == preheader || bb == postheader) return false;
+            // TODO: Fix me. Use other ways to find the loop header.
+            if (step_count >= 0 && preheader->getUniqueSuccessor() == bb) return false;
+            return llvm::pred_size(bb) >= 2;
+        }
+
+        inline llvm::BasicBlock* require_jump(llvm::BasicBlock* bb) {
+            if(step_count >= 0 && bb == preheader) return nullptr;
+            if(jump.find(bb) != jump.end()) return jump[bb];
+            return nullptr;
+        }
+
+        inline void update_jump(llvm::ValueToValueMapTy &value_map) {
+            std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*>> records;
+            for (auto &pair: jump) {
+                auto v1 = llvm::dyn_cast_or_null<llvm::BasicBlock>(value_map[pair.first]);
+                auto v2 = llvm::dyn_cast_or_null<llvm::BasicBlock>(value_map[pair.second]);
+                assert(((!v1)== (!v2)) && "only one of the jump start and target is duplicated");
+                if (v1 && v2) {
+                    records.push_back(std::make_pair(v1, v2));
+                } 
+            }
+            for (auto &pair: records) {
+                jump[pair.first] = pair.second;
+            }
+            for (auto &pair: records) {
+                steps.push_back(pair.first);
+            }
+            travel_all();
+        }
+
+        void travel(llvm::BasicBlock* pre, llvm::BasicBlock* post) {
+            std::queue<llvm::BasicBlock*> q;
+            std::map<llvm::BasicBlock*, bool> visited;
+            q.push(pre);
+            while (!q.empty()) {
+                auto cur = q.front(); q.pop();
+                visited[cur] = true;
+                if (cur == post) continue;
+
+                auto last = cur->getTerminator();
+                if (auto br = llvm::dyn_cast<llvm::BranchInst>(last)) {
+                    for (int i = 0; i < br->getNumSuccessors(); i++) {
+                        auto succ = br->getSuccessor(i);
+                        if (visited[succ]) continue;
+                        if (jump.find(succ) != jump.end()) {
+                            succ = jump[succ];
+                        }
+                        else {
+                            header_map[succ] = pre;
+                        }
+                        q.push(succ);
+                    }
+                }
+            }
+            header_map[pre] = pre;
+        }
+
+        void travel_all() {
+            for(auto &pair: jump) {
+                travel(pair.first, pair.second);
+            }
+        }
+
+        inline void set_jump(llvm::BasicBlock* pre, llvm::BasicBlock* post) {
+            jump[pre] = post;
+            steps.push_back(pre);
+            travel(pre, post);
+        }
+
+        void init(llvm::Function* func) {
+            step_count = -2;
+            preheader = &func->getEntryBlock();
+            postheader = nullptr;
+        }
+
+        bool step() {
+            ++step_count;
+            if (step_count == -1) return true; // Top level function
+            if (step_count < steps.size()) {
+                preheader = steps[step_count];
+                loopheader = preheader->getUniqueSuccessor();
+                // if(!loopheader) {
+                    // llvm::errs() << *preheader->getParent() << "\n";
+                    // llvm::errs() << "preheader: " << *preheader << "\n";
+                // }
+                assert(loopheader);
+                postheader = jump[preheader];
+                return true;
+            }
+            return false;
+        }
+
+        private:
+        std::map<llvm::BasicBlock*, llvm::BasicBlock*> jump;
+        std::map<llvm::BasicBlock*, llvm::BasicBlock*> header_map;
+
+        std::vector<llvm::BasicBlock*> steps;
+        int step_count = -2;
+    };
+
     class SpoqIRModule { 
     public:
         int iasm_count = 0;
@@ -196,22 +369,19 @@ class SpoqAsmProcedure {
          * @param bb the entry basic block
          * @param skip the set of basic blocks that should be skipped
          */
-        static void control_flow_merge_bridge(llvm::BasicBlock* bb, std::set<llvm::BasicBlock*>& skip);
+        static void control_flow_merge_bridge(llvm::BasicBlock* bb, std::set<llvm::BasicBlock*>& skip, SpoqLoopContext& context);
 
         /**
          * @brief Similar to Rule 4 and 4' in Spoq 1/2, clone and split the branches on LLVM IR by repeatedly 
          * (1) cloneing the basic block with multiple predecessors, and (2) duplicating all its (in)direct 
          * successors. The current version in only valid on DAG.
-         * 
-         * @param bb 
-         * @param ori 
-         * @param to_duplicate 
-         * @param value_map 
          * @return true 
          * @return false 
          */
 
-        static bool control_flow_clone_and_split(llvm::BasicBlock* bb, llvm::BasicBlock* ori, bool to_duplicate, llvm::ValueToValueMapTy &value_map);
+        static bool control_flow_clone_and_split(llvm::BasicBlock* bb, SpoqLoopContext& );
+
+        static bool control_flow_duplicate(llvm::BasicBlock* bb, llvm::BasicBlock* ori, llvm::ValueToValueMapTy &value_map, SpoqLoopContext& );
 
         /**
          * @brief Eliminate select instruction in the function. Replace the original
@@ -227,13 +397,10 @@ class SpoqAsmProcedure {
         /**
          * @brief Convert DAG into a tree-like CFG on LLVM IR. 
          * 
-         * @param proj 
-         * @param fname 
-         * @param spoq_func 
          * @return true success
          * @return false 
          */
-        static bool control_flow_conversion_DAG(Project* proj, string fname,  SpoqFunction& spoq_func);
+        static bool control_flow_conversion_DAG(Project* proj, string fname,  SpoqFunction& spoq_func, SpoqLoopContext& );
 
         /**
          * @brief Converr any CFG into a form that ready for spoq_inst translation. Set the ``spoq_func.cfg_converted`` to true if success. TODO: support loop.
@@ -298,6 +465,15 @@ class SpoqAsmProcedure {
          * 
          */
         void preprocess_llvm_module();
+
+        bool store_llvm_module(std::string code_path = "converted.ll") {
+            std::error_code EC;
+            llvm::raw_fd_ostream OS(code_path, EC, llvm::sys::fs::OF_Text);
+            if (EC || !llvm_module) return false;
+            llvm_module->print(OS, nullptr);
+            OS.flush();
+            return true;
+        }
 
     };
 }

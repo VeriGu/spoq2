@@ -954,6 +954,8 @@ bool Project::finalize_project_v2() {
     }
 
     spoq_code.load_function_and_convert_all(this);
+    spoq_code.store_llvm_module();
+    // assert(false);
 
     LOG_DEBUG << "LLVM IR read ok and coverted." << std::endl;
 

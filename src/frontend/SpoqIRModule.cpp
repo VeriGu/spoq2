@@ -33,6 +33,7 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
         auto name = func.getName().str();
         SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs[name];
         spoq_func.llvm_func = &func; // llvm_func;
+        // if(name != "map_mem0") continue;
         bool ret = control_flow_conversion_v2(proj, name, spoq_func);
         if(ret) {
             succ++;
@@ -140,6 +141,8 @@ bool SpoqIRModule::load_llvm_module(std::string code_path) {
 
 
 void SpoqIRModule::preprocess_llvm_module() {
+    llvm::StripDebugInfo(*llvm_module);
+
     LOG_DEBUG << "llvm module preprocessing" << std::endl;
     llvm::LoopAnalysisManager LAM;
     llvm::FunctionAnalysisManager FAM;
@@ -163,7 +166,8 @@ void SpoqIRModule::preprocess_llvm_module() {
     LOG_DEBUG << "llvm module preprocessing ok" << std::endl;
 
     for (auto &func : *this->llvm_module) {
-        // fix up function name
+        // TODO: fix me, what to do with the intrinsic function.
+        // if (func.isIntrinsic()) continue;
         std::string oldName = func.getName().str();
         std::string newName = Shortcut::replace_dot(oldName);
         if (oldName != newName) func.setName(newName);
