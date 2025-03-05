@@ -108,12 +108,12 @@ namespace autov
 	 * @details	The simulation proof will admits all invariants, lemmas, and post conditions without checking. 
 	 * 			It should be performed after checking all of things above.
 	 * 
-	 * 			Theoretically, although the simulation proof is a hyperproperty, we can still self-decompose the 2-safety version to pre-/post- conds as
+	 * 			Theoretically, the simulation property can also be formulated as pre-/post- conds:
 	 * 
 	 * 				P_relate(st, spec) : Prop := 
-	 * 					forall st', (rel st st') /\ (exists st_1, Some st_1 = spec(st)) /\ (exists st'_1, Some st'_1 = spec(st')) => (rel st_1 st'_1)
+	 * 					forall st', (rel st st') /\ (forall st_1, Some st_1 = spec(st)) /\ (forall st'_1, Some st'_1 = spec(st')) => (rel st_1 st'_1)
 	 * 
-	 * 			However, letting z3 solve the exists quantifiers above are not efficient enough. 
+	 * 			However, letting z3 solve the quantifiers above are not efficient enough. 
 	 * 			So we compute the witness st_1 and st'_1 by traversing the spec(st) and spec(st') respectively.
 	 * 
 	 * 			Following previous works (CAL, CCA, etc.), we perform downward (forward) simulations here. 

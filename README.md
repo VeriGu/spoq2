@@ -115,7 +115,7 @@ include/z3_rules.h
 src/optimizations/z3_utils.cpp
 ```
 
-### Automated Verification
+### Automated Verification for Trace Property 
 
 ```
 include/symbolic.h
@@ -136,7 +136,23 @@ src/optimizations/symbolic.cpp
 
 #### Decidable-Fragement Checking
 
+### Automated Verification for Simulation and Hyperproperty 
+```
+include/simulate.h
+src/optimizations/simulate.cpp
+```
+#### Witness Instantiation
+
 ## Development
+
+### Commandline Commands -command
+- conditional_spec
+- check-sys-inv: check system invariants defined by "Invariants"
+- check-loop-inv: check loop invariants defined by "Loop_inv"
+- check-pre-post: check precondition implies post condition
+- check-simulation: check relational simulation for specs
+- check-drf: check if the spec is drf. 
+- new-trans: use new transformations defined.
 
 #### Z3 Overhead Profiling
 
@@ -149,15 +165,6 @@ cmd.h: Line 101
 src/optimizations/profile.cpp:
 	static bool __PROFILE_ON = false;
 ```
-
-### Commandline Commands -command
-- conditional_spec
-- check-sys-inv: check system invariants defined by "Invariants"
-- check-loop-inv: check loop invariants defined by "Loop_inv"
-- check-pre-post: check precondition implies post condition
-- check-drf: check if the spec is drf. 
-- new-trans: use new transformations defined.
-
 
 ### Configuration file commands and Syntax
 #### Definitions
