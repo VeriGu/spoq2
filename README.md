@@ -117,6 +117,8 @@ src/optimizations/z3_utils.cpp
 
 ### Automated Verification for Trace Property 
 
+We perform invariant satisfiability check for security invariants, loop invariants, etc.
+
 ```
 include/symbolic.h
 src/optimizations/symbolic.cpp
@@ -136,7 +138,10 @@ src/optimizations/symbolic.cpp
 
 #### Decidable-Fragement Checking
 
-### Automated Verification for Simulation and Hyperproperty 
+### Automated Verification for Relational Property 
+
+We perform downward simulation for given relations in Section Relations.
+
 ```
 include/simulate.h
 src/optimizations/simulate.cpp

@@ -16,6 +16,6 @@ namespace autov
 	inline string get_sim_name(string name) {
 		return name + "_sim";
 	}
-	// verify the simulation hyper-property by traversing the project
+	// verify the relational property by traversing the project
 	bool check_hprop_by_path(Project *proj, Definition *spec);
 }

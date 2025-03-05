@@ -209,7 +209,7 @@ namespace autov
 	}
 
 	/**
-	 * @brief Check hyperproperties for relational systems
+	 * @brief Check relational property
 	 * 
 	 * @param proj		The project
 	 * @param def		The definition of the systems (specs)
