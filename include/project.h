@@ -127,6 +127,7 @@ public:
     static const string LAYER_DATA;
     static const string INV_LAYER;
     static const string LEMMA_LAYER;
+    static const string RELATE_LAYER;
 
     string name;
     string base;
@@ -161,6 +162,7 @@ public:
     std::set<string> lemmas;
     unordered_map<string, std::set<Definition *>> inv_lemmas;
     unordered_map<string, bool> verified_specs;
+    std::set<string> relations;
 
     //only added when the spec have proved to satisfy the invariant <name>.
     std::set<string> verified_invariants;
@@ -233,6 +235,7 @@ public:
     shared_ptr<SpecType> get_indtype_by_constr(string name);
 
     bool is_known_symbol(string name);
+    bool is_state_type(shared_ptr<SpecType> t);
 
     std::set<string> calc_dependencies(SpecNode *expr);
 

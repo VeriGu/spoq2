@@ -135,6 +135,7 @@ set(SOURCES
     src/optimizations/z3_rules.cpp
     src/optimizations/z3_utils.cpp
     src/optimizations/profile.cpp
+    src/optimizations/simulate.cpp
     src/optimizations/symbolic.cpp
     src/backend/gen_coq/gen_code.cpp
     src/backend/gen_coq/gen_data.cpp

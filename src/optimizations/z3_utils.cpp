@@ -158,27 +158,24 @@ Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo
  *  used for check the satisfiability of current symbolic path 
  * Usage: 
  * 1. Check None-path for drf invariant
- * 2. TODO 
+ * 2. Check deterministic path for simulation
  * */
 Z3Result z3_verify_state_sat(shared_ptr<ProveState> state, QueryInfo *qinfo, int timeout) {
     auto start = std::chrono::high_resolution_clock::now();
-    Z3Params.set("relevancy", (unsigned int)2);
-    Z3Params.set("case_split", (unsigned int)2);
-    Z3Params.set("timeout", (unsigned int)timeout);
+    z3::solver solve(z3ctx);
 
-    Z3Solver.push();
+    Z3Params.set("timeout", (unsigned int)timeout);
+    solve.set(Z3Params);
+
     for (auto &c : *state->conds) {
-        Z3Solver.add(c);
+        solve.add(c);
     }
     for (auto &ind : *state->inductions) {
-        Z3Solver.add(ind);
+        solve.add(ind);
     }
-    Z3Solver.push();
-    auto res = Z3Solver.check();
+    auto res = solve.check();
     if (qinfo)
-        qinfo->dump(Z3Solver.to_smt2());
-    Z3Solver.pop();
-    Z3Solver.pop();
+        qinfo->dump(solve.to_smt2());
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
@@ -338,10 +335,10 @@ Z3Result z3_check_unsat(shared_ptr<ProveState> state, z3::expr cond, z3::model& 
         solver.add(ind);
     }
 
-    //Z3Solver.add(!cond);
-    z3::expr_vector not_cond_vec(z3ctx);
-    not_cond_vec.push_back(!cond);
-    auto not_res = solver.check(not_cond_vec);
+    solver.add(!cond);
+    auto not_res = solver.check();
+    if (qinfo)
+        qinfo->dump(solver.to_smt2());
     
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
@@ -1920,28 +1917,8 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         if (op_eq(expr->op, Expr::binops::IMPLIES))
             return _cache(static_pointer_cast<BoolValue>(elems[0])->implies(static_pointer_cast<BoolValue>(elems[1])));
         else if (op_eq(expr->op, Expr::GET)) {
-            if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
-                if (op_eq(e->op, Expr::SET)) {
-                    auto z3_res = z3_check(state, z3_eval(proj, e->elems->at(1).get(), state,  check_loop, unfold, used_fixpoint)->get_z3_value() == elems[1]->get_z3_value());
-                    if (z3_res == Z3Result::True) {
-                        return _cache(z3_eval(proj, e->elems->at(2).get(), state,  check_loop, unfold, used_fixpoint));
-                    } else if (z3_res == Z3Result::False) {
-                        return _cache(static_pointer_cast<ZMapValue>(z3_eval(proj, e->elems->at(0).get(), state,  check_loop, unfold, used_fixpoint))->get(static_pointer_cast<IntValue>(elems[1])));
-                    }
-                }
-            }
-            //std::cout << "expr: " << string(*expr) << std::endl;
             return _cache(static_pointer_cast<ZMapValue>(elems[0])->get(static_pointer_cast<IntValue>(elems[1])));
         } else if (op_eq(expr->op, Expr::SET)) {
-            if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
-                if (op_eq(e->op, Expr::SET)) {
-                    auto z3_res = z3_check(state, z3_eval(proj, e->elems->at(1).get(), state,  check_loop, unfold, used_fixpoint)->get_z3_value() == elems[1]->get_z3_value());
-                    if (z3_res == Z3Result::True) {
-                        elems[0] = z3_eval(proj, e->elems->at(0).get(), state,  check_loop, unfold, used_fixpoint);
-                    }
-                }
-            }
-
             return _cache(static_pointer_cast<ZMapValue>(elems[0])->set(static_pointer_cast<IntValue>(elems[1]), elems[2]));
         } else if (op_eq(expr->op, Expr::RecordGet)) {
             // expr.elem[0]: record

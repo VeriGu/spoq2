@@ -49,20 +49,17 @@ namespace autov {
     typedef std::vector<int> path_t;
 
     typedef std::pair<SpecNode *, path_t> path_node_t;
+    typedef std::variant<Definition*, Declaration *, std::nullptr_t> abst_t;
 
     bool is_invariant_defs(Project *proj, string const &name);
     bool is_lemma_defs(Project *proj, const string &name);
-
+    bool is_relation_defs(Project *proj, const string &name);
+    
+    abst_t abst_transition(Project *proj, SpecNode *spec);
+    SpecNode *extract_st_from_expr(Project *proj, SpecNode *expr);
 
     void spec_prover(Project *proj);
 
-    //typedef std::pair<SpecNode *, path_t> PropagationNode;
-
-    //void rec_analyze_used_fields(Project* proj, SpecNode* node, std::set<field_t> &fields);
-    /* Calculate cone of influence */
-    //void analyze_cone_of_influence(Project *proj, string fname, Definition *def);
-    //void analyze_invariant_fields(Project *proj, SpecNode *inv, string name);
-
-	bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv);
+	bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv, std::set<std::string> &used_abs_funcs);
 
 }
