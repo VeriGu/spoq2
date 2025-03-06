@@ -870,6 +870,7 @@ void spec_prover(Project *proj) {
     LOG_DEBUG << "check invariant: " << OPTS.check_inv;
     if(OPTS.check_inv) {
         for(auto &[name, inv]: proj->sys_invs) {
+            bool valid = false;
             for(auto prim : proj->cmds.invs) {
                 // Prove invariants separately
                 auto goal_def = proj->defs[prim].get();
@@ -890,20 +891,22 @@ void spec_prover(Project *proj) {
                 // }
                 proj->verifying_invariant = name;
                 if (check_inv_by_path(proj, goal_def, inv.get(), used_abstract_funcs)) {
-                        LOG_DEBUG << "Invariant " << name << " Valid :D :" << prim;
-                        proj->verified_invariants.insert(name);
+                    valid = true;
+                    LOG_DEBUG << "Invariant " << name << " Valid :D :" << prim;
                 } else {
-                        LOG_DEBUG << "Invariant " << name << " not Valid :(" << prim;
+                    LOG_DEBUG << "Invariant " << name << " not Valid :(" << prim;
                 }
             }
+            if(valid)
+                proj->verified_invariants.insert(name);
         }
     }
     //check drf condition, separated out
-
+    
     //check function's pre -> post condition.
     //TODO
     if(OPTS.check_pre_post) {
-
+        
     }
     
     //check loop_invariant, only check what's needed.

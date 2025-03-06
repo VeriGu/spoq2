@@ -1275,8 +1275,13 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
     #endif
     
     if(auto expr = instance_of(spec.get(), Expr)) {
-        //will move this to rule_simplify_expr
-        //unfold, arithmatic expressions
+        //first do evaluation, then do transformation(call by value)
+        int size = expr->elems->size();
+        for(int i = 0; i < size; ++i) {
+                auto elem = string(*expr->elems->at(i));
+                auto __spec = cache(partial_eval(proj, std::move(expr->elems->at(i)), level + 1, state, used_symbols, unfold));
+                (*expr->elems)[i] = std::move(__spec);
+        }
         PROFILE_START(move_if_out_expr);
         auto [__spec, changed] = proj->rules.rule_move_if_out_expr(std::move(spec), false);
         PROFILE_END(move_if_out_expr);
@@ -1293,12 +1298,6 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
         } else {
             spec = std::move(__spec);
             expr = instance_of(spec.get(), Expr);
-        }
-        int size = expr->elems->size();
-        for(int i = 0; i < size; ++i) {
-                auto elem = string(*expr->elems->at(i));
-                auto __spec = cache(partial_eval(proj, std::move(expr->elems->at(i)), level + 1, state, used_symbols, unfold));
-                (*expr->elems)[i] = std::move(__spec);
         }
         if(std::holds_alternative<Expr::binops>(expr->op)) {
             PROFILE_START(simplify_expr);
@@ -1344,9 +1343,6 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
                         // PROFILE_START(eliminate_am);
                         // auto unam = proj->rules.eliminate_ambiguity(std::move(node), used_symbols, changed);
                         // PROFILE_END(eliminate_am);
-                        // if(level == 0) {
-                        //     LOG_DEBUG << "after Eliminate_Ambuguity:--------------------------\n" << string(*unam);
-                        // }
                         return cache(partial_eval(proj, std::move(node), level, state, used_symbols, unfold));
                     }
                     spec = std::move(node);
@@ -1413,14 +1409,16 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
             }
         }
 
-        #ifdef Z3_OPT_CACHE
-        size_t spechash = boost::hash<std::string>()(std::string(*ifnode));
-        converged_spec[spechash] = true;
-        #endif
         return spec;
     } else if(auto m = instance_of(spec.get(), Match)) {
         //follow a call by value semantics
-        //simple_pattern_match, let_elimination
+        //if src is a control flow, move it out. This decrease average number of if/rely expression in a match, ensuring termination
+        auto src = cache(partial_eval(proj, std::move(m->src), level + 1, state, used_symbols, unfold));
+        if(!src) {
+            LOG_ERROR << "spec is null";
+        }
+        m->src = std::move(src);
+        //move control flow out of src
         if (instance_of(m->src.get(), If)) { 
                     //LOG_DEBUG << "before move_if_out:" << string(*m);
                     PROFILE_START(move_if_out_match);
@@ -1431,7 +1429,7 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
                     }
                     //LOG_DEBUG << "after move_if_out:" << string(*__spec);
                     return cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
-                } else if(instance_of(m->src.get(), Rely)) {
+        } else if(instance_of(m->src.get(), Rely)) {
                     //LOG_DEBUG << "before move_rely_out:" << string(*m);
                     PROFILE_START(eliminate_move_rely);
                     auto [__spec, __changed] = proj->rules.rule_move_rely_out_when(std::move(spec), false);
@@ -1441,7 +1439,7 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
                     }
                     //LOG_DEBUG << "after move_rely_out:" << string(*__spec);
                     return cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
-                } else if(instance_of(m->src.get(), Match)) {
+        } else if(instance_of(m->src.get(), Match)) {
                     //LOG_DEBUG << "before move_when_out:" << string(*m);
                     PROFILE_START(move_when);
                     auto [__spec, __changed] = proj->rules.rule_move_when_out_when(std::move(spec), false);
@@ -1454,13 +1452,7 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
                         return cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
                     spec = std::move(__spec);
                     m = instance_of(spec.get(), Match);
-                }
-        //if src is a control flow, move it out. This decrease average number of if/rely expression in a match, ensuring termination
-        auto src = cache(partial_eval(proj, std::move(m->src), level + 1, state, used_symbols, unfold));
-        if(!src) {
-            LOG_ERROR << "spec is null";
         }
-        m->src = std::move(src);
         bool whnf = false;
         if(auto e = instance_of(m->src.get(), Expr)) {
             if(std::holds_alternative<string>(e->op)) {
@@ -1496,10 +1488,12 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
             //here let is guarantee to be eliminated, ensuring the _spec is smaller.
             //if(level == 0)
             //LOG_DEBUG << "after let--------------------\n" << string(*__spec);
+            auto sym = instance_of(m->match_list->at(0)->pattern.get(), Symbol);
+            used_symbols.insert(sym->text);
             auto body = cache(partial_eval(proj, std::move(m->match_list->at(0)->body), level, state, used_symbols, unfold));
+            used_symbols.erase(sym->text);
             m->match_list->at(0)->body = std::move(body);
             return spec;
-            //return spec;
         } else {
             if(whnf) {
                 PROFILE_START(eliminate_match);
@@ -3105,21 +3099,22 @@ rule_ret_t SpecRules::rule_simple_record_get_set(std::unique_ptr<SpecNode> spec,
     }
 }
 
+//rule_move_rely_out_of_match
 rule_ret_t SpecRules::rule_move_rely_out_when(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         if (auto m = instance_of(node.get(), Match)) {
             if (auto r = instance_of(m->src.get(), Rely)) {
-                if (instance_of(m->type.get(), Option)) {
-                    for (auto &pm : *m->match_list) {
-                        if (string(*pm->pattern) == "None" && string(*pm->body) == "None") {
+                //if (instance_of(m->type.get(), Option)) {
+                    // for (auto &pm : *m->match_list) {
+                        //if (string(*pm->pattern) == "None" && string(*pm->body) == "None") {
                             changed = true;
                             return std::make_unique<Rely>(std::move(r->prop),
                                                             std::make_unique<Match>(std::move(r->body), std::move(m->match_list)));
-                        }
-                    }
-                    return node;
-                }
+                        //}
+                    // }
+                    //return node;
+                //}
             }
         }
         return node;
