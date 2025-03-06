@@ -10,7 +10,7 @@ namespace autov
 		p = subst(p->deep_copy(), rel_name_2, st_impl, succ);
 		auto rel_expr = z3_eval(proj, p.get(), state);
 		z3::model model(z3ctx);
-		auto z3_ret = z3_check_unsat(state, rel_expr->get_z3_value(), model, nullptr, Z3_VERIFY_TIMEOUT);
+		auto z3_ret = z3_check_unsat(state, rel_expr->get_z3_value(), model, nullptr, Z3_SIMULATE_TIMEOUT);
 		return std::make_pair(z3_ret == Z3Result::True, rel_expr->get_z3_value());
 	}
 	/**
@@ -72,20 +72,19 @@ namespace autov
 					}
 				}
 				// for non-abst func here, check state validity here
-				auto res = z3_verify_state_sat(state, nullptr);
-				if (res == Z3Result::True) {
-					return forward_simulation(proj, (*pm)->body.get(), state);
-				} else if (res == Z3Result::False) {
+				std::cout << "[forward_simulation] Checking match pattern: " << string(*pat) << std::endl;
+				auto res = z3_verify_state_sat(state, nullptr, Z3_SIMULATE_TIMEOUT);
+				if (res == Z3Result::False) {
 					continue;
 				} else {
-					LOG_WARNING << "forward_simulation: UNKNOWN Matched state!: " << string(*pat);
-					break;
+					return forward_simulation(proj, (*pm)->body.get(), state);
 				}
 			}
 
 		} else if (auto i = instance_of(impl, If)) {
 			auto cond = z3_eval(proj, i->cond.get(), state);
-			auto res = z3_check(state, cond->get_z3_value());
+			auto res = z3_check(state, cond->get_z3_value(), Z3_SIMULATE_TIMEOUT);
+			std::cout << "[forward_simulation] Checking if condition: " << string(*i->cond) << std::endl;
 			if (res == Z3Result::True) {
 				state->conds->push_back(cond->get_z3_value());
 				return forward_simulation(proj, i->then_body.get(), state);
@@ -173,11 +172,10 @@ namespace autov
 						auto [st_sim, impl_rest] = forward_simulation(proj, impl, new_state);
 						auto [is_relate, expr_relate] = check_relation(proj, rel, st_ret, st_sim.get(), new_state);
 						
-						if (is_relate) {
-							new_state->conds->push_back(expr_relate);
-						} else {
-							LOG_WARNING << "[simulate_by_traverse] Simulation relation can not be proved for states\n" << string(*st_ret) << " and " << string(*st_sim.get()) << std::endl;
+						if (!is_relate) {
+							LOG_INFO << "[simulate_by_traverse] Prove relation between "  << string(*st_ret) << " and " << string(*st_sim.get()) << " later by verifying sub-specs." << std::endl;
 						}
+						new_state->conds->push_back(expr_relate);
 						return simulate_by_traverse(proj, (*pm)->body.get(), impl_rest, rel, new_state);
 					}
 				}
@@ -212,12 +210,13 @@ namespace autov
 	 * @brief Check relational property
 	 * 
 	 * @param proj		The project
-	 * @param def		The definition of the systems (specs)
+	 * @param spec		The first trace
+	 * @param impl		The first trace
 	 * @param rel		The relation type
 	 * @return true		If the relation is proved
 	 * @return false	If the relation is not proved
 	 */
-	bool check_hprop_by_path(Project *proj, Definition *spec) {
+	bool check_hprop_by_path(Project *proj, Definition *spec, Definition *impl) {
 		auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
 		auto conds = std::make_shared<vector<z3::expr>>();
 		for (auto arg : *spec->args) {
@@ -227,7 +226,14 @@ namespace autov
 		auto induction = std::make_shared<vector<z3::expr>>();
 		auto state = std::make_shared<ProveState>(vars, conds, induction);
 		
-		auto impl = proj->rules.build_simulate_spec(spec->body->deep_copy());
+		SpecNode* impl_body = nullptr, *spec_body = nullptr;
+
+		spec_body = spec->body.get();
+		if (!impl) {
+			impl_body = proj->rules.build_simulate_spec(spec->body->deep_copy()).release();
+		} else {
+			impl_body = impl->body.get();
+		}
 
 		bool proved = false;
 		for (auto &r : proj->relations) {
@@ -242,9 +248,9 @@ namespace autov
 			auto rel_body = proj->defs[r]->body.get();
 			auto [_, rel_expr] = check_relation(proj, rel_body->deep_copy().get(), st_sym_1.get(), st_sym_2.get(), state);
 			state->conds->push_back(rel_expr);
-			spec->body->clear_z3_eval();
-			impl->clear_z3_eval();
-			proved |= simulate_by_traverse(proj, spec->body.get(), impl.get(), rel_body, state);
+			spec_body->clear_z3_eval();
+			impl_body->clear_z3_eval();
+			proved |= simulate_by_traverse(proj, spec_body, impl_body, rel_body, state);
 		}
 		return proved;
 	}

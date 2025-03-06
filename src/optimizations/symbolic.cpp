@@ -887,8 +887,8 @@ void spec_prover(Project *proj) {
                 //proj->query_saver.save_config("./test/rcsm/proof_rcsm.v");
                 std::cout << "[spec_prover] Invariant: " << string(*inv) << std::endl;
                 //std::deque<Definition *> q = {goal_def};
-                //auto coi = analyze_cone_of_influence(proj, goal_def, inv.get());
-                //spec_abstraction(proj, goal_def, coi);
+                auto coi = analyze_cone_of_influence(proj, goal_def, inv.get());
+                spec_abstraction(proj, goal_def, coi);
                 //goal_def->infer_type(*proj);
                 // std::cout << "[spec_abstraction] coi set: " << std::endl;
                 // for (auto &c : coi) {
@@ -937,9 +937,9 @@ void spec_prover(Project *proj) {
                 continue;
             }
             if (check_hprop_by_path(proj, def)) {
-                LOG_DEBUG << "Hyperproperty for " << def->name << " is valid :D";
+                LOG_DEBUG << "Relational Property for " << def->name << " is valid :D";
             } else {
-                LOG_DEBUG << "Hyperproperty for " << def->name << " is not valid :(";
+                LOG_DEBUG << "Relational Property for " << def->name << " is not valid :(";
             }
         }
     }
