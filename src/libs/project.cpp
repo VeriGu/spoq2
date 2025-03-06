@@ -57,9 +57,10 @@ const string Project::LAYER_PTR_EQB = "LAYER_PTR_EQB";
 const string Project::LAYER_PTR_LTB = "LAYER_PTR_LTB";
 const string Project::LAYER_PTR_GTB = "LAYER_PTR_GTB";
 const string Project::LAYER_DATA = "LAYER_DATA";
+/** Auto-proof layers */
 const string Project::INV_LAYER = "Invariants";
 const string Project::LEMMA_LAYER = "Lemmas";
-
+const string Project::RELATE_LAYER = "Relations";
 
 
 void Project::add_sys_inv(string name, unique_ptr<SpecNode> inv) {
@@ -349,6 +350,10 @@ shared_ptr<SpecType> Project::get_indtype_by_constr(string name) {
 
 bool Project::is_known_symbol(string name) {
     return (symbols.find(name) != symbols.end()) or is_ind_constr(name) or is_struct_constr(name);
+}
+
+bool Project::is_state_type(shared_ptr<SpecType> t) {
+    return t == layers[0]->abs_data;
 }
 
 static inline unique_ptr<Definition> make_ptr_offset(void) {
@@ -786,6 +791,34 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
 #endif
 }
 
+static void collect_relations(Project *proj) {
+    for (auto const &def: proj->defs) {
+        if (!is_relation_defs(proj, def.first)) {
+            continue;
+        }
+        proj->relations.insert(def.first);
+        auto rel_def = def.second.get();
+
+        Definition *pure_rel = nullptr;
+        auto l_args = make_unique<vector<shared_ptr<Arg>>>();
+        for (auto &arg: *rel_def->args)
+            l_args->push_back(arg);
+        if (is_instance(rel_def, Fixpoint)) {
+            throw std::runtime_error("[collect_relations] Fixpoint rel not supported for now\n");
+        } else {
+            pure_rel = new Definition(rel_def->name, rel_def->rettype, std::move(l_args),
+                                      rel_def->body->deep_copy());
+        }
+        if (rel_def->deleyed_type_inference) {
+            pure_rel->infer_type(*proj);
+            rel_def->deleyed_type_inference = false;
+        }
+        spec_transformer(proj, pure_rel, 0, !is_instance(rel_def, Fixpoint), true);
+        proj->defs[def.first].reset(pure_rel);
+        std::cout << "Pure Relation: " << string(*(proj->defs[def.first])) << std::endl;
+    }
+}
+
 static void collect_lemmas(Project *proj) {
     std::vector<string> invs;
     for (auto const &def: proj->defs) {
@@ -887,6 +920,7 @@ void Project::finalize_project()
     this->layers[0]->prims.assign(deps.begin(), deps.end());
 
     filter_only_trans(this);
+    collect_relations(this);
     collect_lemmas(this);
 
     for (int i = 0; i < this->layers.size(); i++) {
@@ -954,6 +988,7 @@ bool Project::finalize_project_v2() {
     }
 
     spoq_code.load_function_and_convert_all(this);
+    // spoq_code.store_llvm_module();
 
     LOG_DEBUG << "LLVM IR read ok and coverted." << std::endl;
 

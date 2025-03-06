@@ -188,8 +188,8 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
             changed |= __changed;
             new_spec = std::move(__spec);
             
-            std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
-                    << string(*new_spec.get()) << "\n==============================\n";
+            // std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
+                    // << string(*new_spec.get()) << "\n==============================\n";
         // }
 
         def->body = std::move(new_spec);

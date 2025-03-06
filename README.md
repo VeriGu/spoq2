@@ -115,7 +115,9 @@ include/z3_rules.h
 src/optimizations/z3_utils.cpp
 ```
 
-### Automated Verification
+### Automated Verification for Trace Property 
+
+We perform invariant satisfiability check for security invariants, loop invariants, etc.
 
 ```
 include/symbolic.h
@@ -136,23 +138,38 @@ src/optimizations/symbolic.cpp
 
 #### Decidable-Fragement Checking
 
+### Automated Verification for Relational Property 
+
+We perform downward simulation for given relations in Section Relations.
+
+```
+include/simulate.h
+src/optimizations/simulate.cpp
+```
+#### Witness Instantiation
+
 ## Development
-
-#### Z3 Overhead Profiling
-
-```
-src/optimizations/profile.cpp:
-	static bool __PROFILE_ON = false;
-```
 
 ### Commandline Commands -command
 - conditional_spec
 - check-sys-inv: check system invariants defined by "Invariants"
 - check-loop-inv: check loop invariants defined by "Loop_inv"
 - check-pre-post: check precondition implies post condition
+- check-simulation: check relational simulation for specs
 - check-drf: check if the spec is drf. 
 - new-trans: use new transformations defined.
 
+#### Z3 Overhead Profiling
+
+The profiler is by default on (`-profile`). Use `--no-profile` to turn it off.
+
+```
+cmd.h: Line 101
+  autov::—__PROFILE_ON = this->profile;
+
+src/optimizations/profile.cpp:
+	static bool __PROFILE_ON = false;
+```
 
 ### Configuration file commands and Syntax
 #### Definitions

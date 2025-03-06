@@ -8,6 +8,7 @@
 #include <rules.h>
 #include <z3_rules.h>
 #include <symbolic.h>
+#include <simulate.h>
 #include <coi.h>
 #include <variant>
 #include <type_inference.h>
@@ -21,6 +22,10 @@ bool is_invariant_defs(Project *proj, const string &name) {
 
 bool is_lemma_defs(Project *proj, const string &name) {
     return proj->symbols[name].loc == autov::loc_t("Lemmas", "Spec", "");
+}
+
+bool is_relation_defs(Project *proj, const string &name) {
+    return proj->symbols[name].loc == autov::loc_t("Relations", "Spec", "");
 }
 
 /** Separate prove-stage z3 translator from the specgen-stage one */
@@ -851,6 +856,7 @@ bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv, set<string
         state->conds->push_back(c->get_z3_value());
     }
 
+    def->body->clear_z3_eval();
 	bool ret = prove_by_traverse(proj, def->body.get(), inv, state, used_abs_funcs);
 	return ret;
 }
@@ -882,8 +888,8 @@ void spec_prover(Project *proj) {
                 //proj->query_saver.save_config("./test/rcsm/proof_rcsm.v");
                 std::cout << "[spec_prover] Invariant: " << string(*inv) << std::endl;
                 //std::deque<Definition *> q = {goal_def};
-                //auto coi = analyze_cone_of_influence(proj, goal_def, inv.get());
-                //spec_abstraction(proj, goal_def, coi);
+                auto coi = analyze_cone_of_influence(proj, goal_def, inv.get());
+                spec_abstraction(proj, goal_def, coi);
                 //goal_def->infer_type(*proj);
                 // std::cout << "[spec_abstraction] coi set: " << std::endl;
                 // for (auto &c : coi) {
@@ -927,5 +933,18 @@ void spec_prover(Project *proj) {
         }
     }
 
+    if (OPTS.check_simulation) {
+        for (auto &d : proj->defs) {
+            auto def = d.second.get();
+            if (verify_spec_names.find(def->name) == verify_spec_names.end()) {
+                continue;
+            }
+            if (check_hprop_by_path(proj, def)) {
+                LOG_DEBUG << "Relational Property for " << def->name << " is valid :D";
+            } else {
+                LOG_DEBUG << "Relational Property for " << def->name << " is not valid :(";
+            }
+        }
+    }
 }
 }

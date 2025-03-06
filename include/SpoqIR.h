@@ -6,7 +6,9 @@
 #include <utils.h>
 #include <stdio.h>
 #include <unordered_set>
-#include <llvm/IR/Instructions.h>
+
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/BasicBlock.h"
 
 namespace autov {
 using std::shared_ptr;
@@ -20,7 +22,6 @@ public:
     virtual void print() { std::cout << "SpoqInst" << std::endl; }
 };
 
-typedef std::vector<unique_ptr<SpoqInst>> spoq_inst_vec_t;
 
 class SpoqLLVMInst : public SpoqInst {
 public:
@@ -31,6 +32,8 @@ public:
     llvm::Instruction* get_llvm_inst() override { return inst; }
     void print() override { llvm::errs() << "SpoqLLVMInst: " << *inst << "\n"; }
 };
+
+typedef std::vector<unique_ptr<SpoqInst>> spoq_inst_vec_t;
 
 
 class SpoqIfInst : public SpoqInst {
@@ -50,19 +53,25 @@ public:
     }
 };
 
-class SpoqContBreakInst : public SpoqInst {
+class SpoqLoopInst : public SpoqInst {
 public:
-    shared_ptr<std::string> loop;
-    shared_ptr<std::string> after;
+    SpoqLoopInst(llvm::BasicBlock* source_block) : preheader_block(source_block) {}
+    spoq_inst_vec_t body;
+    llvm::BasicBlock* preheader_block;
     bool virtual is_spoq_control() override { return true; }
 };
 
-class SpoqLoopInst : public SpoqInst {
-    spoq_inst_vec_t body;
+class SpoqContinueInst: public SpoqInst { 
+public:
+    SpoqContinueInst(llvm::BasicBlock* source_block) : latch_block(source_block) {}
+    llvm::BasicBlock* latch_block;
+    bool virtual is_spoq_control() override { return true; }
 };
 
-class SpoqContinueInst: public SpoqContBreakInst { };
-
-class SpoqBreakInst: public SpoqContBreakInst { };
-
+class SpoqBreakInst: public SpoqInst { 
+public:
+    SpoqBreakInst(llvm::BasicBlock* source_block) : exiting_block(source_block) {}
+    llvm::BasicBlock* exiting_block;
+    bool virtual is_spoq_control() override { return true; }
+};
 }

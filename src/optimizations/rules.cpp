@@ -3,6 +3,7 @@
 #include <utils.h>
 #include <shortcuts.h>
 #include <project.h>
+#include <simulate.h>
 #include <cassert>
 #include <utility>
 #include <rules.h>
@@ -2538,7 +2539,7 @@ std::unique_ptr<SpecNode> SpecRules::rec_apply(std::unique_ptr<SpecNode> spec,
         auto new_matches = make_unique<vector<unique_ptr<PatternMatch>>>();
         if (m->match_list) {
             for (auto &pm : *(m->match_list)) {
-                auto pm_copy = std::make_unique<PatternMatch>(std::move(pm->pattern), rec_apply(std::move(pm->body), f, apply_anno));
+                auto pm_copy = std::make_unique<PatternMatch>(rec_apply((std::move(pm->pattern)), f, apply_anno), rec_apply(std::move(pm->body), f, apply_anno));
                 new_matches->push_back(std::move(pm_copy));
             }
         }
@@ -3854,6 +3855,25 @@ std::unique_ptr<SpecNode> SpecRules::instantiate_prop(std::unique_ptr<SpecNode> 
     return rec_apply(std::move(spec), f, false);
 }
 
+/**
+ * @brief Replace all instances of a symbol with a new symbol with a postfix
+ * 
+ * @details This function is used to replace all instances of a symbol with a new symbol with a postfix.
+ *          In future it can be optimized by using a new nid. But now the nid is just a mess.
+ * 
+ */
+std::unique_ptr<SpecNode> SpecRules::build_simulate_spec(std::unique_ptr<SpecNode> spec) {
+    auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+        if (auto s = instance_of(node.get(), Symbol)) {
+            // if (s->type == proj->layers[0]->abs_data)
+            if (proj->is_state_type(s->type)) {
+                return std::make_unique<Symbol>(get_sim_name(s->text), s->type);
+            }
+        }
+        return node;  
+    };
+    return rec_apply(std::move(spec), f, false);
+}
 
 bool spec_is_pure(Project *proj, SpecNode *spec, bool &has_if) {
     if (auto e = instance_of(spec, Expr)) {

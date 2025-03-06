@@ -1,6 +1,7 @@
 #pragma once
 #include <boost/program_options.hpp>
 #include <iostream>
+#include <profile.h>
 
 namespace po = boost::program_options;
 
@@ -19,7 +20,10 @@ public:
     bool check_inv = false;
     bool check_loop_inv = false;
     bool check_pre_post = false;
+    bool profile = false;
     bool new_trans = false;
+    bool check_simulation = false;
+
     std::string config_file;
     boost::program_options::variables_map vmap;
 
@@ -37,6 +41,8 @@ public:
         std::cout << "  check-loop: " << std::boolalpha << check_loop_inv << "\n";
         std::cout << "  new-trans: " << std::boolalpha << new_trans << "\n";
         std::cout << "  check-pre-post: " << std::boolalpha << check_pre_post << "\n";
+        std::cout << "  profile: " << std::boolalpha << profile << "\n";
+        std::cout << "  check-simulation: " << std::boolalpha << check_simulation << "\n";
         std::cout << std::endl;
     }
 
@@ -53,14 +59,17 @@ public:
         desc.add_options()
             ("help,h", "produce help message")
             ("lens,l", po::bool_switch()->default_value(true), "use lens")
-            ("llvm", po::bool_switch()->default_value(false), "use llvm frontend")
+            ("no-lens", po::bool_switch()->default_value(false), "do not use lens (ovrride --lens)")
             ("new-trans", po::bool_switch()->default_value(false), "use new transformation") 
-            ("no-lens,nl", po::bool_switch()->default_value(true), "do not use lens")
             ("llvm", po::bool_switch()->default_value(false), "use llvm frontend") 
             ("conditional-spec,c", po::bool_switch()->default_value(false), "automatically generate conditional spec")
             ("check-sys-inv", po::bool_switch()->default_value(true), "checking system invariants")
             ("check-loop-inv", po::bool_switch()->default_value(false), "checking loop invariants")
-            ("check-pre-post", po::bool_switch()->default_value(false), "checking pre/post conditions");
+            ("check-pre-post", po::bool_switch()->default_value(false), "checking pre/post conditions")
+            ("check-simulation", po::bool_switch()->default_value(true), "checking relational simulation")
+            ("check-pre-post", po::bool_switch()->default_value(false), "checking pre/post conditions")
+            ("profile", po::bool_switch()->default_value(true), "use profile (default on)")
+            ("no-profile", po::bool_switch()->default_value(false), "do not profile (override --profile)");
 
         po::positional_options_description p;
         p.add("input", 1); // The input .v config file is positional and is the first argument
@@ -91,6 +100,14 @@ public:
         this->check_loop_inv = vmap["check-loop-inv"].as<bool>();
         this->check_pre_post = vmap["check-pre-post"].as<bool>();
         this->new_trans = vmap["new-trans"].as<bool>();
+        this->profile = vmap["profile"].as<bool>();
+
+        this->lens = !vmap["no-lens"].as<bool>();
+        this->profile = !vmap["no-profile"].as<bool>();
+        autov::__PROFILE_ON = this->profile;
+
+        this->check_simulation = vmap["check-simulation"].as<bool>();
+
         if (vmap.count("no-lens")) {
             this->lens = false;
         }

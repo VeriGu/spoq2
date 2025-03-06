@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <profile.h>
+#include <cmd.h>
 
 namespace autov
 {

@@ -104,9 +104,13 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
     }
 
     auto spec_name = fname + "_spec_low";
+    name_map[spec_name] = fname + "_spec";
+    for(auto &loop: context.loop_spec_name) {
+        low_specs.push_back(loop.second);
+        name_map[loop.second] = loop.second.substr(0, loop.second.size() - 4);
+    }
     low_specs.push_back(spec_name);
 
-    name_map[spec_name] = fname + "_spec";
     auto def = new Definition(spec_name, rettype, std::move(args), std::move(spec));
 
     auto loc = make_shared<loc_t>(proj->layers[layer_id]->name, fname, Project::LOC_LOWSPEC);
@@ -115,8 +119,11 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
     // TODO: introduce other dependencies
     proj->deps[def->name] = SpoqIRModule::get_func_dependencies(spoq_func.llvm_func);
 
-    // std::cout << "Generated low spec: " << spec_name << std::endl;
-    // std::cout << string(*proj->defs[spec_name]) << "\n";
+    // for (auto &spec_name: low_specs) {
+        // std::cout << "Generated low spec: " << spec_name << std::endl;
+        // std::cout << string(*proj->defs[spec_name]) << "\n";
+    // }
+
     assert(context.rettype != SpecType::UNKNOWN_TYPE && string("return type for is unknown").c_str());
 
     return true;
@@ -140,6 +147,8 @@ bool SpoqIRModule::load_llvm_module(std::string code_path) {
 
 
 void SpoqIRModule::preprocess_llvm_module() {
+    llvm::StripDebugInfo(*llvm_module);
+
     LOG_DEBUG << "llvm module preprocessing" << std::endl;
     llvm::LoopAnalysisManager LAM;
     llvm::FunctionAnalysisManager FAM;
@@ -163,7 +172,8 @@ void SpoqIRModule::preprocess_llvm_module() {
     LOG_DEBUG << "llvm module preprocessing ok" << std::endl;
 
     for (auto &func : *this->llvm_module) {
-        // fix up function name
+        // TODO: fix me, what to do with the intrinsic function.
+        // if (func.isIntrinsic()) continue;
         std::string oldName = func.getName().str();
         std::string newName = Shortcut::replace_dot(oldName);
         if (oldName != newName) func.setName(newName);
