@@ -8,7 +8,11 @@
 #include <SpoqIRModule.h>
 #include <regex>
 
+
+#include "SpoqIR.h"
+
 #include "llvm/IR/InlineAsm.h"
+
 
 using namespace std::string_literals;
 
@@ -117,9 +121,14 @@ int SpoqIRModule::find_inline_asm(spoq_inst_vec_t &insts) {
         } else if (auto if_inst = dynamic_cast<SpoqIfInst *>(in.get())) {
             failed += find_inline_asm(if_inst->true_body);
             failed += find_inline_asm(if_inst->false_body);
+        } else if (auto loop_inst = dynamic_cast<SpoqLoopInst *>(in.get())) {
+            failed += find_inline_asm(loop_inst->body);
+        } else if (auto c = dynamic_cast<SpoqContinueInst *>(in.get())) {
+            continue;
+        } else if (auto b = dynamic_cast<SpoqBreakInst *>(in.get())) {
+            continue;
         } else {
-            assert(false && "inline asm does not support loop for now");
-            // failed += find_inline_asm(*loop_inst->body);
+            assert(false && "Unsupported SpoqIR instruction");
         }
     }
 

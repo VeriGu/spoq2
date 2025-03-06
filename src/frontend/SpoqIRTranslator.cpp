@@ -47,6 +47,7 @@ const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> SpoqIRModul
     {llvm::Instruction::BinaryOps::Mul, Expr::binops::MULT},
     {llvm::Instruction::BinaryOps::SDiv, Expr::binops::DIV},
     {llvm::Instruction::BinaryOps::SRem, Expr::binops::MOD},
+    {llvm::Instruction::BinaryOps::URem, Expr::binops::MOD},
     {llvm::Instruction::BinaryOps::Shl, Expr::binops::LSHIFT},
     {llvm::Instruction::BinaryOps::LShr, Expr::binops::RSHIFT}, // FIXME: we use RSHIFT(arithmetic) for both LShr
     {llvm::Instruction::BinaryOps::AShr, Expr::binops::RSHIFT},
@@ -78,24 +79,70 @@ const std::unordered_map<llvm::CmpInst::Predicate, Expr::binops> SpoqIRModule::c
 };
 
 
-void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec(llvm::BasicBlock* block, spoq_inst_vec_t& vec) {
+void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec (llvm::BasicBlock* block, llvm::BasicBlock* parent, spoq_inst_vec_t& vec, SpoqLoopContext& context) { 
+
+    if (context.is_backward(parent, block)) {
+        vec.push_back(std::make_unique<SpoqContinueInst>(parent));
+        return;
+    }
+
+    if (context.is_exiting(parent, block)) {
+        vec.push_back(std::make_unique<SpoqBreakInst>(parent));
+        return;
+    }
+
+    assert (block != context.get_postheader() && "Postheader should not be visited. All exits blcoked before.");
+
+    // This block is a loop preheader. 
+    // The preheader's all instructions excpet for the last unconditional branch are put in the current vec.
+    // The postheader's all instructions except for PHIs should be put in the current vec
+    if (auto target = context.require_jump(block)) {
+        assert(!context.has_loop_inst_for_jump(block));
+
+        for (auto &inst: *block) {
+            if (inst.isTerminator()) continue;
+            vec.push_back(std::make_unique<SpoqLLVMInst>(&inst));
+        }
+
+        
+        auto v = std::make_unique<SpoqLoopInst>(block);
+        context.set_loop_inst_for_jump(block, v->body);
+        vec.push_back(std::move(v));
+
+        dfs_llvm_ir_to_spoq_inst_vec(target, nullptr, vec, context);
+        return;
+    } 
+
+
+    // Non preheader
     for(auto &inst: *block) {
+        if(auto phi = llvm::dyn_cast<llvm::PHINode>(&inst)) {
+            assert( (block == context.get_loopheader() || context.postheader_with_phi(block)) && "PHI node is not in the loop header or postheader");
+            if (block == context.get_loopheader()) {
+                context.add_header_phi(phi);
+            }
+            continue;
+            // This phi nodes of postheader belongs to the loop we jump.
+            // It will be processed when we process that loop.
+        }
+        
         if(auto br = llvm::dyn_cast<llvm::BranchInst>(&inst)) {
             if(br->isConditional()) {
                 auto cond = br->getCondition();
                 auto true_block = br->getSuccessor(0);
                 auto false_block = br->getSuccessor(1);
                 SpoqIfInst spoq_inst(cond);
-                dfs_llvm_ir_to_spoq_inst_vec(true_block, spoq_inst.true_body);
-                dfs_llvm_ir_to_spoq_inst_vec(false_block, spoq_inst.false_body);
+                dfs_llvm_ir_to_spoq_inst_vec(true_block, block, spoq_inst.true_body, context);
+                dfs_llvm_ir_to_spoq_inst_vec(false_block, block, spoq_inst.false_body, context);
                 vec.push_back(std::make_unique<SpoqIfInst>(std::move(spoq_inst)));
             } else {
-                dfs_llvm_ir_to_spoq_inst_vec(br->getSuccessor(0), vec);
+                dfs_llvm_ir_to_spoq_inst_vec(br->getSuccessor(0), block, vec, context);
             }
             return; // A br is the last instruction in a block (for a valid llvm module)
         }  
-        // TODO : switch instruction
         else {
+            // These functions are added before
+            if (block == context.get_preheader()) continue;
             vec.push_back(std::make_unique<SpoqLLVMInst>(&inst));
         }
     }
@@ -103,7 +150,20 @@ void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec(llvm::BasicBlock* block, spoq_in
 
 bool SpoqIRModule::llvm_ir_to_spoq_ir(SpoqFunction &spoq_func) {
     if(!spoq_func.cfg_converted) return false;
-    dfs_llvm_ir_to_spoq_inst_vec(&spoq_func.llvm_func->getEntryBlock(), spoq_func.spoq_insts);
+
+    spoq_func.loop_context.init(spoq_func.llvm_func);
+    while(spoq_func.loop_context.step()) {
+        if ( !spoq_func.loop_context.context_in_loop() ) 
+            dfs_llvm_ir_to_spoq_inst_vec(spoq_func.loop_context.get_start(), nullptr, spoq_func.spoq_insts, spoq_func.loop_context);
+        else {
+            dfs_llvm_ir_to_spoq_inst_vec(spoq_func.loop_context.get_start(), nullptr, spoq_func.loop_context.get_loop_inst_for_jump(), spoq_func.loop_context);
+            // Update the postheader_phi 
+            for (auto &inst: spoq_func.loop_context.get_postheader()->phis()) {
+                spoq_func.loop_context.add_postheader_phi(&inst);
+            }
+        }
+    }
+
     spoq_func.spoq_insts_converted = true;
     return true;
 }
@@ -143,7 +203,7 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
             } else if (auto undef = llvm::dyn_cast<llvm::UndefValue>(data)) {
                 if (data->getType()->isIntegerTy()) {
                     // TODO: should we emit a warning here?
-                    return std::make_unique<IntConst>(0);
+                    return std::make_unique<IntConst>(-10);
                 } else if (data->getType()->isArrayTy()) {
                     // TODO: check array element is integer
                     return std::make_unique<Symbol>("undef_zmap", this->get_llvm_value_type(undef));
@@ -220,25 +280,43 @@ shared_ptr<SpecType> SpoqIRModule::llvm_ir_type_to_spec_pure(llvm::Type* type) {
     }
 }
 
+unique_ptr<SpecNode> construct_return_spec(Project *proj,
+                                           SpoqIRContext &context) {
+    if (context.continue_return) {
+        auto v = std::move(context.continue_return);
+        context.continue_return = nullptr;
+        return v;
+    }
 
-unique_ptr<SpecNode> construct_return_spec(Project* proj, SpoqIRContext& context) {
-    if(context.pass_stack.size() == 0) {
-        unique_ptr<std::vector<unique_ptr<SpecNode>>> tuple = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
-        assert(context.return_list.size() <= 1 && "multiple return value not support yet");
-        if (context.return_list.size() >= 1)  {
-            for (int i = 0; i < context.return_list.size(); i++) {
-                tuple->push_back(context.get_llvm_value_spec(context.return_list[i]));
-            }
+    unique_ptr<std::vector<unique_ptr<SpecNode>>> tuple =
+        std::make_unique<std::vector<unique_ptr<SpecNode>>>();
+    if (context.pass_stack.size() == 0)
+        assert(context.return_list.size() <= 1 &&
+               "multiple return value only supported for loop component");
+
+    if (context.return_list.size() >= 1) {
+        for (int i = 0; i < context.return_list.size(); i++) {
+            tuple->push_back(
+                context.get_llvm_value_spec(context.return_list[i]));
+        }
+        if (context.return_list.size() == 1)
             context.rettype = tuple->at(0)->type;
-            context.return_list.clear();
-            tuple->push_back(std::make_unique<Symbol>(context.abs_data_name, context.abs_data_type));
-            return Shortcut::_Some_u(Shortcut::_Tuple_u(std::move(tuple)));
-        } else {
-            return Shortcut::_Some_u(context.get_abs_data());
-        } 
+        else {
+            std::shared_ptr<std::vector<shared_ptr<SpecType>>> children_type =
+                std::make_shared<std::vector<shared_ptr<SpecType>>>();
+            for (int i = 0; i < context.return_list.size(); i++) {
+                children_type->push_back(
+                    context.get_llvm_value_type(context.return_list[i]));
+            }
+            context.rettype = std::make_shared<Tuple>(children_type);
+        }
+
+        context.return_list.clear();
+        tuple->push_back(std::make_unique<Symbol>(context.abs_data_name,
+                                                  context.abs_data_type));
+        return Shortcut::_Some_u(Shortcut::_Tuple_u(std::move(tuple)));
     } else {
-        assert(false && "pass_stack.size() > 0, Not implemented yet");
-        // TODO: This is not the final return. Construct a tuple with the return value and the pass_stack.
+        return Shortcut::_Some_u(context.get_abs_data());
     }
 }
 std::pair<unique_ptr<SpecNode>, unique_ptr<SpecNode>> 
@@ -629,6 +707,13 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             }
         }
 
+        if (auto phi = llvm::dyn_cast<llvm::PHINode>(spoq_inst->inst)) {
+            // PHI nodes in loopheader are translated as loop spec arguments.
+            // PHI nodes in postheaders are translated as a _When for the loop spec call
+            // PHI nodes are not in any other blocks.
+            // TODO: sanity check
+            return spoq_inst_to_spec(proj, vec, num + 1, context);
+        }
 
         llvm::errs() << "Unsupported SpoqIR instruction [LLVM]: " << *spoq_inst->inst << "\n";
         assert(false && "Unsupported SpoqIR instruction [LLVM]");
@@ -642,13 +727,53 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 std::move(cond), std::move(then_body), std::move(else_body));
             return std::move(if_inst);
         } else {
-            // TODO: This is not a final return. Modify the context to have correct return values.
-            assert(false && "Not implemented yet - if-else but not final return");
+            assert(false && "A if-else should always a final return");
             return nullptr;
         }
+    } else if (auto inst = Shortcut::dyn_cast_u<SpoqLoopInst>(vec[num])) {
+
+        // Generate the loop body spec
+        context.pass_stack.push(inst->preheader_block);
+        auto spec = spoq_inst_to_spec(proj, inst->body, 0, context);
+        context.pass_stack.pop();
+
+        auto name = context.get_loop_spec_name(inst->preheader_block);
+        auto argtype = context.compute_loop_spec_arg(inst->preheader_block);
+        auto rettype = context.compute_loop_return_type(inst->preheader_block);
+        // context.spoq_func.loop_context.debug_jump();
+
+        auto def = new Fixpoint(name, rettype, std::move(argtype), std::move(spec));
+        auto loc = make_shared<loc_t>(proj->layers[context.layer_id]->name, context.fname(), Project::LOC_LOWSPEC);
+        proj->add_definition(std::unique_ptr<Fixpoint>(def), loc);
+
+        auto arg_list = context.compute_loop_continue_arg_list(inst->preheader_block, inst->preheader_block);
+        auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
+        for(auto arg: arg_list) {
+            v->push_back(context.get_llvm_value_spec(arg));
+        }
+        v->push_back(context.get_abs_data());
+        auto src_loop = std::make_unique<Expr>(context.get_loop_spec_name(inst->preheader_block), std::move(v));
+
+        auto pass_out_list = Shortcut::_Tuple_u(context.compute_loop_break_return_list(inst->preheader_block));
+        return Shortcut::_When_u(std::move(pass_out_list), std::move(src_loop), spoq_inst_to_spec(proj, vec, num + 1, context));
+    } else if (auto inst = Shortcut::dyn_cast_u<SpoqContinueInst>(vec[num])) {
+        assert(num == vec.size() - 1 && "continue is not the last instruction");
+        auto arg_list = context.compute_loop_continue_arg_list(inst->latch_block);
+        auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
+        for(auto arg: arg_list) {
+            v->push_back(context.get_llvm_value_spec(arg));
+        }
+        v->push_back(context.get_abs_data());
+        context.continue_return = std::make_unique<Expr>(context.get_loop_spec_name(), std::move(v));
+        auto typevec = context.compute_loop_return_type(context.pass_stack.top());
+        context.continue_return->type = typevec;
+        return spoq_inst_to_spec(proj, vec, num + 1, context);
+    } else if (auto inst = Shortcut::dyn_cast_u<SpoqBreakInst>(vec[num])) {
+        assert(num == vec.size() - 1 && "continue is not the last instruction");
+        context.update_loop_break_return_list(inst->exiting_block);
+        return spoq_inst_to_spec(proj, vec, num + 1, context);
     } else {
         assert(false && "Unsupported SpoqIR instruction [LOOP]");
-        // TODO: SpoqLoop, SpoqContinue, SpoqBreak
         return nullptr;
     }
 }

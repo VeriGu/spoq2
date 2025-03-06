@@ -56,7 +56,7 @@ bool SpoqIRModule::control_flow_duplicate(llvm::BasicBlock *bb,
                 is_cloned[succ] = true;
                 q.push(succ);
                 auto cloned = llvm::CloneBasicBlock(succ, value_map, ".dup", succ->getParent());
-                context.fix_loop_header(succ, cloned, value_map);
+                context.fix_headers(succ, cloned, value_map);
                 cloned_vec.push_back(cloned);
                 value_map[succ] = cloned;
             }
@@ -70,9 +70,8 @@ bool SpoqIRModule::control_flow_duplicate(llvm::BasicBlock *bb,
 }
 
 bool SpoqIRModule::control_flow_clone_and_split(llvm::BasicBlock *bb, SpoqLoopContext &context) {
-    if (bb == context.postheader) return true;
+    if (bb == context.get_postheader()) return true;
     if (auto target = context.require_jump(bb))  {
-        // llvm::errs() << "target: " << *target << "\n";
         return control_flow_clone_and_split(target, context);
     }
 
@@ -84,14 +83,14 @@ bool SpoqIRModule::control_flow_clone_and_split(llvm::BasicBlock *bb, SpoqLoopCo
                 llvm::ValueToValueMapTy value_map_duplicate;
                 auto cloned = llvm::CloneBasicBlock(succ, value_map_duplicate, ".clone", bb->getParent());
                 value_map_duplicate[succ] = cloned;
-                context.fix_loop_header(succ, cloned, value_map_duplicate);
+                context.fix_headers(succ, cloned, value_map_duplicate);
                 control_flow_duplicate(cloned, succ, value_map_duplicate, context);
                 br->setSuccessor(i, cloned);
                 context.travel_all();
                 succ = cloned;
             }
             // TODO: fix me. Use other way to check for backward edge
-            if (bb == context.preheader || context.require_clone(succ))
+            if (bb == context.get_preheader() || context.require_clone(succ))
                 control_flow_clone_and_split(succ, context);
         }
     }
@@ -140,7 +139,7 @@ bool SpoqIRModule::control_flow_conversion_DAG(Project *proj, string fname, Spoq
 
     context.init(spoq_func.llvm_func);
     while (context.step()) {
-        control_flow_clone_and_split(context.preheader, context);
+        control_flow_clone_and_split(context.get_start(), context);
 
         std::vector<llvm::Instruction *> to_erase;
         for (auto &bb : *spoq_func.llvm_func) {
@@ -169,9 +168,46 @@ bool SpoqIRModule::control_flow_conversion_DAG(Project *proj, string fname, Spoq
     context.init(spoq_func.llvm_func);
     while(context.step()) {
         std::set<llvm::BasicBlock *> skip;
-        control_flow_merge_bridge(context.preheader, skip, context);
+        control_flow_merge_bridge(context.get_start(), skip, context);
     }
+    context.travel_all();
     return true;
+}
+
+void SpoqIRModule::pass_analysis(llvm::BasicBlock* block, std::vector<llvm::BasicBlock*>& stack,
+        SpoqLoopContext& context) {
+
+   if (auto target = context.require_jump_no_step(block)) {
+       if (stack.size()) context.update_parent(block, *stack.rbegin());
+        stack.push_back(block);
+        assert(block->getUniqueSuccessor() && "preheader does not have a unique successor");
+        pass_analysis(block->getUniqueSuccessor(), stack, context);
+        stack.pop_back();
+        pass_analysis(target, stack, context);
+        return;
+    }
+
+    if (stack.size() && context.require_jump_no_step(*stack.rbegin()) == block) {
+        return;
+    }
+
+    for (auto& inst: *block) {
+        if (llvm::dyn_cast<llvm::PHINode>(&inst)) continue;
+        for (auto& ops: inst.operands()) {
+            if (auto op = llvm::dyn_cast<llvm::Instruction>(ops)) {
+                auto op_header = context.real_header(op);
+                context.recursive_update_pass(op_header, stack, op);
+            }
+            if (auto op = llvm::dyn_cast<llvm::Argument>(ops)) {
+                context.recursive_update_pass(nullptr, stack, op);
+            }
+        }
+    }
+
+    for (auto succ: llvm::successors(block)) {
+        if (stack.size() && context.is_backward(block, succ, *stack.rbegin())) continue;
+        pass_analysis(succ, stack, context);
+    }
 }
 
 bool SpoqIRModule::control_flow_conversion_v2(Project *proj, string fname,
@@ -184,11 +220,11 @@ bool SpoqIRModule::control_flow_conversion_v2(Project *proj, string fname,
     PB.registerFunctionAnalyses(FAM);
     PB.registerLoopAnalyses(LAM);
     llvm::LoopInfo &LI = FAM.getResult<llvm::LoopAnalysis>(*llvm_func);
-    SpoqLoopContext context;
+    SpoqLoopContext& context = spoq_func.loop_context;
     if (!LI.empty()) {
 
         auto loops = LI.getLoopsInPreorder();
-        // llvm::errs() << "fname: " << fname << "\n";
+        // llvm::errs() << "function with loop: " << fname << " " << llvm_func->getBasicBlockList().size() << "\n";
         // Start from the outter loop first
         for(auto loop: loops) {
 
@@ -259,11 +295,14 @@ bool SpoqIRModule::control_flow_conversion_v2(Project *proj, string fname,
 
         }
         context.travel_all();
-
         spoq_func.cfg_converted = control_flow_conversion_DAG(proj, fname, spoq_func, context);
+
+        context.travel_all();
+        std::vector<llvm::BasicBlock*> loop_stack;
+        pass_analysis(&spoq_func.llvm_func->getEntryBlock(), loop_stack, context);
         // context.debug_jump();
 
-        return false;
+        return spoq_func.cfg_converted;
     } else {
         spoq_func.cfg_converted = control_flow_conversion_DAG(proj, fname, spoq_func, context);
         return spoq_func.cfg_converted;
