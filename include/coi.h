@@ -12,7 +12,7 @@
 namespace autov {
     /** elements in white list will be added into coi set initially */
     static std::set<string> coi_whitelist = {
-        "g_norm",
+        "",
     };
 
     /** elements in white list will be removed from coi set eventually  */

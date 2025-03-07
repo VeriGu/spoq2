@@ -13,6 +13,8 @@
 #include <variant>
 #include <type_inference.h>
 #include <cmd.h>
+#include <decompose.h>
+
 namespace autov
 {
 
@@ -944,6 +946,13 @@ void spec_prover(Project *proj) {
             } else {
                 LOG_DEBUG << "Relational Property for " << def->name << " is not valid :(";
             }
+        }
+    }
+
+    if(OPTS.decompose_check_simulation) {
+        //overloading the command CheckInv
+        for(auto prim : proj->cmds.invs) {
+            decompose(proj, proj->defs[prim].get());
         }
     }
 }

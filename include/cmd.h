@@ -23,7 +23,7 @@ public:
     bool profile = false;
     bool new_trans = false;
     bool check_simulation = false;
-
+    bool decompose_check_simulation = false;
     std::string config_file;
     boost::program_options::variables_map vmap;
 
@@ -66,10 +66,11 @@ public:
             ("check-sys-inv", po::bool_switch()->default_value(true), "checking system invariants")
             ("check-loop-inv", po::bool_switch()->default_value(false), "checking loop invariants")
             ("check-pre-post", po::bool_switch()->default_value(false), "checking pre/post conditions")
-            ("check-simulation", po::bool_switch()->default_value(true), "checking relational simulation")
+            ("check-simulation", po::bool_switch()->default_value(false),"checking relational simulation")
             ("check-pre-post", po::bool_switch()->default_value(false), "checking pre/post conditions")
             ("profile", po::bool_switch()->default_value(true), "use profile (default on)")
-            ("no-profile", po::bool_switch()->default_value(false), "do not profile (override --profile)");
+            ("no-profile", po::bool_switch()->default_value(false), "do not profile (override --profile)")
+            ("decom-check-simul",po::bool_switch()->default_value(false), "checking relational simulation");
 
         po::positional_options_description p;
         p.add("input", 1); // The input .v config file is positional and is the first argument
@@ -107,6 +108,7 @@ public:
         autov::__PROFILE_ON = this->profile;
 
         this->check_simulation = vmap["check-simulation"].as<bool>();
+        this->decompose_check_simulation = vmap["decom-check-simul"].as<bool>();
 
         if (vmap.count("no-lens")) {
             this->lens = false;
