@@ -55,8 +55,13 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
             (*state->vars)[sym->text] = src;
         }
     } else if (auto con = instance_of(pat, Const)) {
-        if (auto v = std::get_if<unsigned long>(&con->value))
-            state->conds->push_back(src->get_z3_value() == z3ctx.int_val((long)*v));
+        if (auto v = std::get_if<unsigned long>(&con->value)) {
+            auto icon = dynamic_pointer_cast<IntConst>(src);
+            if (icon && icon->is_signed())
+                state->conds->push_back(src->get_z3_value() == z3ctx.int_val((long)(int64_t)*v));
+            else
+                state->conds->push_back(src->get_z3_value() == z3ctx.int_val((unsigned long)*v));
+        }
         else if (auto v = std::get_if<bool>(&con->value))
             state->conds->push_back(src->get_z3_value() == z3ctx.bool_val(*v));
         else if (auto v = std::get_if<string>(&con->value))
@@ -65,10 +70,10 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
             throw std::runtime_error("Unknown const type: " + string(*pat));
     } else if (auto con = instance_of(pat, IntConst)) {
         if(con->is_signed())  {
-            state->conds->push_back(src->get_z3_value() == z3ctx.int_val( (long)(con->get_value())) );
+            state->conds->push_back(src->get_z3_value() == z3ctx.int_val((long)(con->get_value())) );
         }
         else {
-            state->conds->push_back(src->get_z3_value() == z3ctx.int_val((long)std::get<unsigned long>(con->value)));
+            state->conds->push_back(src->get_z3_value() == z3ctx.int_val((unsigned long)std::get<unsigned long>(con->value)));
         }
     } else if (auto con = instance_of(pat, BoolConst)) {
         state->conds->push_back(src->get_z3_value() == z3ctx.bool_val(std::get<bool>(con->value)));
