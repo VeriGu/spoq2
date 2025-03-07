@@ -401,6 +401,18 @@ public:
     op_t op;
     unique_ptr<vector<unique_ptr<SpecNode>>> elems;
 
+    static bool is_str_op(unique_ptr<SpecNode>& ptr, const string& str) {
+        auto _ptr = dynamic_cast<Expr*>(ptr.get());
+        if (!_ptr) return false;
+        if (std::holds_alternative<string>(_ptr->op)) {
+            auto s = std::get<string>(_ptr->op);
+            if (s == str) return true;
+            return false;
+        } else {
+            return false;
+        }
+    }
+
     bool ends_with_lens(const std::string& str) {
         if (str.length() >= 4) {
             return str.rfind("lens") == str.length() - 4;

@@ -61,5 +61,15 @@ namespace autov {
 	  static inline T* dyn_cast_u(const std::unique_ptr<SpoqInst>& ptr) {
 		return dynamic_cast<T*>(ptr.get());
 	  }
+
+	  static unique_ptr<SpecNode> _field_u(unique_ptr<SpecNode> val, string field) {
+		auto record = make_unique<vector<unique_ptr<SpecNode>>>();
+
+		record->push_back(std::move(val));
+		record->push_back(make_unique<Symbol>(field));
+	
+		return make_unique<Expr>(Expr::RecordGet, std::move(record));
+	  }
+
 	};
 }

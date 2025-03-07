@@ -530,6 +530,33 @@ namespace autov {
         std::map<llvm::Value*, std::string> value_map;
         std::map<llvm::Value*, shared_ptr<SpecType>> type_map;
 
+        std::map<llvm::Value*, std::unique_ptr<SpecNode>> value_cache;
+
+        std::unique_ptr<SpecNode> is_ptr_to_int(llvm::Value* value) {
+            if (auto expr = llvm::dyn_cast<llvm::ConstantExpr>(value)) {
+                if (expr->getOpcode() == llvm::Instruction::PtrToInt) {
+                    return get_llvm_value_spec(value);
+                }
+                return nullptr;
+            } 
+            else if (auto inst = llvm::dyn_cast<llvm::PtrToIntInst>(value)) {
+                auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                operands->push_back(get_llvm_value_spec(inst->getPointerOperand()));
+                return std::make_unique<Expr>(ptr2int_op_name, std::move(operands));
+            } 
+            else if (auto inst = llvm::dyn_cast<llvm::CastInst>(value)) {
+                return is_ptr_to_int(inst->getOperand(0));
+            }
+            return nullptr;
+        }
+
+        std::unique_ptr<SpecNode> ptr2int_to_field(unique_ptr<SpecNode>& ptr, std::string field) {
+            auto ptr2int = dynamic_cast<Expr*>(ptr.get());
+            assert(ptr2int && ptr2int->elems->size() == 1 && "ptr2int has <>1 element");
+            auto record = ptr2int->elems->at(0)->deep_copy();
+            return Shortcut::_field_u(std::move(record), field);
+        }
+
         SpoqLoopContext& get_loop_context() {
             return spoq_func.loop_context;
         }

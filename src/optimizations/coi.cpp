@@ -322,8 +322,8 @@ void collect_init_nodes_in(SpecNode *spec, path_t p, std::set<path_node_t> &init
 }
 
 /* Collect accessed fields in invariants */
-inline void analyze_invariant_fields(Project *proj, SpecNode *inv, string name) {
-    rec_analyze_used_fields(proj, inv, proj->inv_fields[name]);
+inline void analyze_invariant_fields(Project *proj, SpecNode *inv, std::set<field_t> &fields) {
+    rec_analyze_used_fields(proj, inv, fields);
 }
 
 /** backward_propagation: 
@@ -355,10 +355,8 @@ std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecN
     collect_init_nodes_in(spec, p, nodes);
 
     // initial propagation field: inv-related fields
-    string inv_name = "invariant";
-    analyze_invariant_fields(proj, inv, inv_name);
-    auto f = proj->inv_fields[inv_name];
-    std::set<field_t> coi_fields = f;
+    std::set<field_t> coi_fields = {};
+    analyze_invariant_fields(proj, inv, coi_fields);
     std::cout << "[analyze_cone_of_influence] Initial COI fields: " << std::endl;
     for (auto &c : coi_fields) {
         print_field(c);
@@ -395,7 +393,6 @@ std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecN
             continue;
         }
         coi_ret.insert(c.front());
-        proj->coi[def->name][inv_name].insert(c.front());
     }
     return coi_ret;
 }

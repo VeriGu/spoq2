@@ -451,8 +451,41 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
         // Binary Operation
         if (auto bi = llvm::dyn_cast<llvm::BinaryOperator>(spoq_inst->inst)) {
             unique_ptr<vector<unique_ptr<SpecNode>>> operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
-            operands->push_back(context.get_llvm_value_spec(bi->getOperand(0)));
-            operands->push_back(context.get_llvm_value_spec(bi->getOperand(1)));
+            auto op0 = context.get_llvm_value_spec(bi->getOperand(0));
+            auto op1 = context.get_llvm_value_spec(bi->getOperand(1));
+
+            auto ptr0 = context.is_ptr_to_int(bi->getOperand(0));
+            auto ptr1 = context.is_ptr_to_int(bi->getOperand(1));
+
+            bool reduce = bi->getOpcode() == llvm::Instruction::BinaryOps::Add && (ptr0 || ptr1);
+            reduce |= bi->getOpcode() == llvm::Instruction::BinaryOps::Sub && ptr0;
+
+            std::unique_ptr<Expr> rely_expr = nullptr;
+            auto rely_operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
+
+            if ( reduce && (ptr0 || ptr1) ) {
+                if (ptr0) {
+                    rely_operands->push_back(context.ptr2int_to_field(ptr0, "pbase"));
+                    operands->push_back(context.ptr2int_to_field(ptr0, "poffset"));
+                } else {
+                    rely_operands->push_back(context.get_llvm_value_spec(bi->getOperand(0)));
+                    operands->push_back(std::move(op0));
+                }
+                if (ptr1) {
+                    rely_operands->push_back(context.ptr2int_to_field(ptr1, "pbase"));
+                    operands->push_back(context.ptr2int_to_field(ptr1, "poffset"));
+                } else {
+                    rely_operands->push_back(context.get_llvm_value_spec(bi->getOperand(1)));
+                    operands->push_back(std::move(op1));
+                }
+                if (ptr0 && ptr1) {
+                    rely_expr = std::make_unique<Expr>(Expr::EQUAL, std::move(rely_operands));
+                }
+            } else {
+                operands->push_back(std::move(op0));
+                operands->push_back(std::move(op1));
+            }
+
             unique_ptr<Expr> expr = nullptr;
 
             if (bi->getOperand(0)->getType()->isIntegerTy(1)) {
@@ -473,10 +506,15 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 llvm::errs() << "Binary operation not supported: " << *bi << "\n";
                 assert(false && "Binary operation not supported");
             }
+
             unique_ptr<SpecNode> sym = context.get_llvm_value_spec(bi);
             auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
             auto _let =  Shortcut::_Let_u(std::move(sym), std::move(expr), std::move(remain));
-            return _let;
+            if (rely_expr) {
+                return std::make_unique<Rely>(std::move(rely_expr), std::move(_let));
+            } else {
+                return _let;
+            }
         } else if(auto cmp = llvm::dyn_cast<llvm::CmpInst>(spoq_inst->inst)) {
             unique_ptr<vector<unique_ptr<SpecNode>>> operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
             operands->push_back(context.get_llvm_value_spec(cmp->getOperand(0)));
@@ -527,12 +565,15 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                         ret = Shortcut::_Tuple_u(std::move(children));
                     }
 
-                    auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
 
                     // TODO: re-introduce post ensure here
 
                     auto callee_name = callee->getName().str() + "_spec";
-                    return Shortcut::_When_u(std::move(ret), std::make_unique<Expr>(callee_name, std::move(args)), std::move(remain));
+                    auto expr = std::make_unique<Expr>(callee_name, std::move(args));
+
+                    auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
+
+                    return Shortcut::_When_u(std::move(ret), std::move(expr), std::move(remain));
                 }
             } else if (call->isInlineAsm()) {
                     auto iasm = llvm::dyn_cast<llvm::InlineAsm>(call->getCalledOperand());
@@ -554,10 +595,12 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                         ret = Shortcut::_Tuple_u(std::move(children));
                     }
 
-                    auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
 
                     auto callee_name = proj->spoq_code.iasm2func[call] + "_spec";
-                    return Shortcut::_When_u(std::move(ret), std::make_unique<Expr>(callee_name, std::move(args)), std::move(remain));
+                    auto expr = std::make_unique<Expr>(callee_name, std::move(args));
+
+                    auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
+                    return Shortcut::_When_u(std::move(ret), std::move(expr), std::move(remain));
             }
             else {
                 llvm::errs() << "No inline asm && No called function found: " << *call << "\n";
