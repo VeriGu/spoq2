@@ -137,6 +137,7 @@ set(SOURCES
     src/optimizations/profile.cpp
     src/optimizations/simulate.cpp
     src/optimizations/symbolic.cpp
+    src/optimizations/decompose.cpp
     src/backend/gen_coq/gen_code.cpp
     src/backend/gen_coq/gen_data.cpp
     src/backend/gen_coq/gen_high_proof.cpp
