@@ -161,9 +161,9 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                 tmp_spec = std::move(__spec);
                 this_changed |= __changed;
                 changed |= __changed;
-                if(__changed)
-                    std::cout << "group2 rule:" << ruleid_to_string(r.id) << def->name << " new_spec: \n=========================\n"
-                        << string(*tmp_spec.get()) << "\n==============================\n";
+                // if(__changed)
+                    // std::cout << "group2 rule:" << ruleid_to_string(r.id) << def->name << " new_spec: \n=========================\n"
+                        // << string(*tmp_spec.get()) << "\n==============================\n";
 
             }
             auto [__spec, __changed] = proj->rules.rule_simplify_expr(std::move(tmp_spec), true);

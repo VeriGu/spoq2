@@ -71,5 +71,9 @@ namespace autov {
 		return make_unique<Expr>(Expr::RecordGet, std::move(record));
 	  }
 
+	  static bool _type_eq(shared_ptr<SpecType> t1, shared_ptr<SpecType> t2) {
+		return t1 == t2 || *t1 == *t2;
+	  }
+
 	};
 }

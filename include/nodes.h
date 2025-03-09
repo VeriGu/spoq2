@@ -490,6 +490,18 @@ public:
         }
     }
 
+    op_t deep_copy_op() const {
+        if (std::holds_alternative<string>(this->op)) {
+            return std::get<string>(this->op);
+        } else if (std::holds_alternative<ops>(this->op)) {
+            return std::get<ops>(this->op);
+        } else if (std::holds_alternative<binops>(this->op)) {
+            return std::get<binops>(this->op);
+        } else {
+            return std::get<unique_ptr<SpecNode>>(this->op)->deep_copy();
+        }
+    }
+
     unique_ptr<Expr> deep_copy_down() const {
         // deep copy elems
         unique_ptr<vector<unique_ptr<SpecNode>>> new_elems = make_unique<vector<unique_ptr<SpecNode>>>();

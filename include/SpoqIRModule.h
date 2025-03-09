@@ -42,6 +42,63 @@
 
 namespace autov {
 
+    class SpoqAbstraction {
+    public:
+        unique_ptr<SpecNode> get_raw_node() { return raw_expr->deep_copy_down(); }
+        unique_ptr<SpecNode> get_abs_node() { return abs_expr->deep_copy_down(); }
+
+        std::string raw_core_name = "raw";
+        unique_ptr<Expr> raw_expr;
+        std::string abs_core_name = "abs";
+        unique_ptr<Expr> abs_expr;
+
+        std::string raw_spec_name;
+        std::string abs_spec_name;
+    };
+
+    class SpoqAbstractionContext {
+      public:
+        SpoqAbstractionContext(SpoqAbstraction& abs) : abs(abs) {}
+
+        SpoqAbstraction& abs;
+
+        std::map<std::string, unique_ptr<SpecNode>> core_map;
+
+        std::stack<unique_ptr<SpecNode>> stack;
+
+        bool is_raw_core(std::string name) {
+            return name == abs.raw_core_name;
+        }
+
+        bool is_abs_core(std::string name) {
+            return name == abs.abs_core_name;
+        }
+
+        bool add_core_map(const Symbol* symbol, unique_ptr<SpecNode>& value) {
+            if (core_map.find(symbol->text) != core_map.end()) {
+                if (core_map[symbol->text] != value) {
+                    return false;
+                }
+                return true;
+            }
+            core_map[symbol->text] = value->deep_copy();
+            return true;
+        }
+
+        unique_ptr<SpecNode> get_cache(std::string name) {
+            // TODO: support multiple core
+            if (name == abs.abs_core_name) name = abs.raw_core_name;
+            else assert(false && "only support abs_core_name");
+            if (core_map.find(name) != core_map.end()) {
+                return core_map[name]->deep_copy();
+            }
+            assert(false && "missing core map");
+            return nullptr;
+        }
+
+
+    };
+
 
     class SpoqAsmProcedure {
       public:
@@ -489,7 +546,7 @@ namespace autov {
      class SpoqIRContext {
     public:
 
-        SpoqIRContext(SpoqFunction& spoq_func_, unique_ptr<Layer>& layer) : spoq_func(spoq_func_) {
+        SpoqIRContext(SpoqFunction& spoq_func_, unique_ptr<Layer>& layer, int id, std::vector<SpoqAbstraction>& abs_config) :  abs_config(abs_config), spoq_func(spoq_func_) {
             if(layer->ops["load"] != "") load_op_name = layer->ops["load"];
             if(layer->ops["store"] != "") store_op_name = layer->ops["store"];
             if(layer->ops["ptr2int"] != "") ptr2int_op_name = layer->ops["ptr2int"];
@@ -499,9 +556,11 @@ namespace autov {
             if(layer->abs_data != nullptr) abs_data_type = layer->abs_data;
             else assert(false && "abs_data_type is nullptr");
             llvm_dl = &spoq_func.llvm_func->getParent()->getDataLayout();
+            layer_id = id;
         }
         int counter = 0;
 
+        std::vector<SpoqAbstraction>& abs_config;
         const std::string abs_data_name = "st";
         shared_ptr<SpecType> abs_data_type = nullptr;
         std::string load_op_name = "load_RData";
@@ -514,7 +573,7 @@ namespace autov {
         vector<Definition> defs;
         vector<string> args;
         int current;
-        int layer_id;
+        int layer_id = 0;
         std::string suffix;
         bool in_loop;
         bool final_return;
@@ -529,8 +588,33 @@ namespace autov {
 
         std::map<llvm::Value*, std::string> value_map;
         std::map<llvm::Value*, shared_ptr<SpecType>> type_map;
+        std::map<llvm::Value*, shared_ptr<SpecType>> abs_type_map;
 
         std::map<llvm::Value*, std::unique_ptr<SpecNode>> value_cache;
+
+        std::string arg_require_abstraction(llvm::Function* func, int arg) {
+            if (func == nullptr) return "";
+            auto arg_name = "arg_" + std::to_string(arg);
+            auto metanode = func->getMetadata(arg_name);
+            if (metanode == nullptr) return "";
+            if (auto metastr = llvm::dyn_cast_or_null<llvm::MDString>(metanode->getOperand(0))) {
+                auto str = metastr->getString();
+                return str.str();
+            }
+            return "";
+        }
+
+        std::string ret_require_abstraction(llvm::Function* func, int arg) {
+            if (func == nullptr) return "";
+            auto arg_name = "ret_" + std::to_string(arg);
+            auto metanode = func->getMetadata(arg_name);
+            if (metanode == nullptr) return "";
+            if (auto metastr = llvm::dyn_cast_or_null<llvm::MDString>(metanode->getOperand(0))) {
+                auto str = metastr->getString();
+                return str.str();
+            }
+            return "";
+        }
 
         std::unique_ptr<SpecNode> is_ptr_to_int(llvm::Value* value) {
             if (auto expr = llvm::dyn_cast<llvm::ConstantExpr>(value)) {
@@ -587,7 +671,7 @@ namespace autov {
          * @param value 
          * @return unique_ptr<SpecNode> 
          */
-        unique_ptr<SpecNode> get_llvm_value_spec(llvm::Value* value, llvm::Type* force_sym_type = nullptr);
+        unique_ptr<SpecNode> get_llvm_value_spec(llvm::Value* value, llvm::Type* force_sym_type = nullptr, bool abstraction = true);
 
         /**
          * @brief Get the llvm value type. TODO: use pointer abstraction here
@@ -730,6 +814,42 @@ namespace autov {
         std::vector<llvm::Value*> return_list;
 
         std::unique_ptr<SpecNode> continue_return;
+
+        bool check_abstraction_pattern(unique_ptr<SpecNode>& value, unique_ptr<SpecNode>& raw, SpoqAbstractionContext& abs_context);
+
+        unique_ptr<SpecNode> construct_abstraction_pattern(unique_ptr<SpecNode> raw, SpoqAbstractionContext& abs_context); 
+
+        unique_ptr<SpecNode> apply_abstraction(unique_ptr<SpecNode> spec);
+
+        std::map<std::string, unique_ptr<SpecNode>> let_cache;
+
+        bool try_add_cache(std::string value, unique_ptr<SpecNode>& spec) {
+            if (let_cache.find(value) != let_cache.end()) return false;
+            let_cache[value] = spec->deep_copy();
+            return true;
+        }
+
+        void add_cache(std::string value, unique_ptr<SpecNode>& spec) {
+            let_cache[value] = spec->deep_copy();
+        }
+
+        void add_cache(std::string value, unique_ptr<Expr>& spec) {
+            let_cache[value] = spec->deep_copy();
+        }
+
+        unique_ptr<SpecNode> get_cache(std::string value) {
+            if (let_cache.find(value) == let_cache.end()) return nullptr;
+            return let_cache[value]->deep_copy();
+        }
+
+        unique_ptr<SpecNode> get_unique_cache(std::string value) {
+            if (let_cache.find(value) == let_cache.end()) return nullptr;
+            return std::move(let_cache[value]);
+        }
+
+
+
+
     };
 
 

@@ -13,6 +13,7 @@
 #include <tuple>
 #include <cmd.h>
 #include "SpoqIR.h"
+#include "SpoqIRModule.h"
 #include "log.h"
 #include "nodes.h"
 
@@ -274,6 +275,23 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             // in function `f`, the allocated local_var should point to the st.(stack).(stack_var)
             this->cmds.StackMap[f->text][local_var->text]  = stack_var->text;
             // LOG_INFO << "STACKVAR:" << f->text << ":" << local_var->text << "->" << stack_var->text << "\n";
+        } else if (op_str == "Abstract") {
+            assert(cmd->elems->size() == 3 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) 
+                   && dynamic_cast<Symbol *>(cmd->elems->at(1).get())
+                   && dynamic_cast<Symbol *>(cmd->elems->at(2).get()) );
+            auto func = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            auto arg = dynamic_cast<Symbol *>(cmd->elems->at(1).get());
+            auto type = dynamic_cast<Symbol *>(cmd->elems->at(2).get());
+
+            this->abs_var[func->text][arg->text] = type->text;
+        } else if (op_str == "AbstractPattern") {
+            assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) 
+                   && dynamic_cast<Symbol *>(cmd->elems->at(1).get()));
+
+            this->abs_config.push_back(SpoqAbstraction());
+            auto &abs = this->abs_config.back();
+            abs.raw_spec_name = dynamic_cast<Symbol *>(cmd->elems->at(0).get())->text;
+            abs.abs_spec_name = dynamic_cast<Symbol *>(cmd->elems->at(1).get())->text;
         } else if(op_str == "CheckInv"){
             //Check a primitive's invariant
             assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
@@ -992,6 +1010,8 @@ bool Project::finalize_project_v2() {
 
     LOG_DEBUG << "LLVM IR read ok and coverted." << std::endl;
 
+    prepare_abstraction();
+
     // Step2: reconstruct the control flow graph on LLVM IR
     std::set<string> deps;
     for (auto it = this->layers.rbegin(); it != this->layers.rend() - 1; it++) {
@@ -1286,6 +1306,68 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
             }
         }
         return true;
+    }
+}
+
+void Project::prepare_abstraction() {
+    // TODO: complete the abstraction configruation and extract unique_ptr<Expr>
+    
+    for (auto &abs: this->abs_config) {
+        auto& raw_def = this->defs[abs.raw_spec_name];
+        assert(raw_def && "raw_def is null for abstraction");
+        auto& abs_def = this->defs[abs.abs_spec_name];
+        assert(abs_def && "abs_def is null for abstraction");
+
+        if (auto expr = dynamic_cast<Expr*>(raw_def->body.get())) {
+            abs.raw_expr = expr->deep_copy_down();
+        } else {
+            std::cout << "*raw_def: " << string(*raw_def) << std::endl;
+            assert(false && "raw_def is not an Expr");
+        }
+
+        // abs.abs_expr = abs_def->body->deep_copy();
+        if (auto expr = dynamic_cast<Expr*>(abs_def->body.get())) {
+            abs.abs_expr = expr->deep_copy_down();
+        } else {
+            std::cout << "*abs_def: " << string(*abs_def) << std::endl;
+            assert(false && "abs_def is not an Expr");
+        }
+        // TODO: support custom raw_core_name and abs_core_name
+    }
+
+    auto& context = this->spoq_code.llvm_module->getContext();
+    std::regex arg_pattern(R"(arg_(\d+))");
+    std::regex ret_pattern(R"(ret_(\d+))");
+    for  (auto &pair: this->abs_var) {
+        std::cout << "Function: " << pair.first << std::endl;
+        auto func = spoq_code.llvm_module->getFunction(pair.first);
+        if (func == nullptr || func->isDeclaration())  {
+            std::cout << "[no function]Abstraction is not usedfor function: " << pair.first << std::endl;
+            continue;
+        }
+        for(auto &var: pair.second) {
+            std::smatch match;
+            if (std::regex_match(var.first, match, arg_pattern)) {
+                int number = std::stoi(match[1].str());
+                if (func->arg_size() <= number) {
+                    std::cout << "[arg number]Abstraction is not usedfor function: " << pair.first << " " << var.first << std::endl;
+                    continue;
+                }
+            } else if (std::regex_match(var.first, match, ret_pattern)) {
+                if (func->getReturnType()->isVoidTy()) {
+                    std::cout << "[return type]Abstraction is not usedfor function: " << pair.first << " " << var.first << std::endl;
+                    continue;
+                }
+            } else {
+                // TODO: support return value abstraction
+                std::cout << "Abstraction: " << var.first << " " << var.second << " " << "[" << pair.first << "]" << std::endl;
+                assert(false && "unsupported assertion variable");
+            }
+            llvm::MDString *meta_str = llvm::MDString::get(context, var.second);
+            llvm::MDNode *meta_node = llvm::MDNode::get(context, meta_str);
+            func->setMetadata(var.first, meta_node);
+            LOG_DEBUG << "Abstraction: " << var.first << " " << var.second << " " << "[" << pair.first << "]" << std::endl;
+        }
     }
 }
 

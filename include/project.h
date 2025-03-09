@@ -136,6 +136,9 @@ public:
     std::string code_path;
     SpoqIRModule spoq_code;
     // Types. RO after parsing.
+    std::vector<SpoqAbstraction> abs_config;
+    std::map<std::string, std::map<std::string, std::string>> abs_var;
+
     unordered_map<string, shared_ptr<Struct>> structs;
     unordered_map<string, shared_ptr<Inductive>> indtypes;
     unordered_map<string, shared_ptr<SpecType>> typedefs;
@@ -251,6 +254,8 @@ public:
      * @return false 
      */
     bool control_flow_conversion_v2();
+
+    void prepare_abstraction();
 
     static std::tuple<string, vector<Definition *> *, vector<unique_ptr<Definition>> *> infer_spec_task_v2(Project* proj, int layer_id, string fname);
 

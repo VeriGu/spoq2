@@ -2849,9 +2849,45 @@ rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> sp
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         if (auto s = instance_of(node.get(), Expr)) {
-            if (holds_alternative<string>(s->op) && std::get<string>(s->op) == "ptr_to_int") {
+            if (holds_alternative<string>(s->op) && std::get<string>(s->op) == "Z_to_PA") {
                 if (auto e = instance_of(s->elems->at(0).get(), Expr)) {
-                    if (holds_alternative<string>(e->op) && std::get<string>(e->op) == "int_to_ptr") {
+                    if (holds_alternative<string>(e->op) && std::get<string>(e->op) == "PA_to_Z") {
+                        auto new_expr = std::move(e->elems->at(0));
+                        changed = true;
+                        return new_expr;
+                    }
+                }
+            }
+        }
+
+        if (auto s = instance_of(node.get(), Expr)) {
+            if (holds_alternative<string>(s->op) && std::get<string>(s->op) == "PTE_to_Z") {
+                if (auto e = instance_of(s->elems->at(0).get(), Expr)) {
+                    if (holds_alternative<string>(e->op) && std::get<string>(e->op) == "Z_to_PTE") {
+                        auto new_expr = std::move(e->elems->at(0));
+                        changed = true;
+                        return new_expr;
+                    }
+                }
+            }
+        }
+
+        if (auto s = instance_of(node.get(), Expr)) {
+            if (holds_alternative<string>(s->op) && std::get<string>(s->op) == "Z_to_PTE") {
+                if (auto e = instance_of(s->elems->at(0).get(), Expr)) {
+                    if (holds_alternative<string>(e->op) && std::get<string>(e->op) == "PTE_to_Z") {
+                        auto new_expr = std::move(e->elems->at(0));
+                        changed = true;
+                        return new_expr;
+                    }
+                }
+            }
+        }
+
+        if (auto s = instance_of(node.get(), Expr)) {
+            if (holds_alternative<string>(s->op) && std::get<string>(s->op) == "PA_to_Z") {
+                if (auto e = instance_of(s->elems->at(0).get(), Expr)) {
+                    if (holds_alternative<string>(e->op) && std::get<string>(e->op) == "Z_to_PA") {
                         auto new_expr = std::move(e->elems->at(0));
                         changed = true;
                         return new_expr;
@@ -2864,6 +2900,18 @@ rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> sp
             if (holds_alternative<string>(s->op) && std::get<string>(s->op) == "int_to_ptr") {
                 if (auto e = instance_of(s->elems->at(0).get(), Expr)) {
                     if (holds_alternative<string>(e->op) && std::get<string>(e->op) == "ptr_to_int") {
+                        auto new_expr = std::move(e->elems->at(0));
+                        changed = true;
+                        return new_expr;
+                    }
+                }
+            }
+        }
+
+        if (auto s = instance_of(node.get(), Expr)) {
+            if (holds_alternative<string>(s->op) && std::get<string>(s->op) == "ptr_to_int") {
+                if (auto e = instance_of(s->elems->at(0).get(), Expr)) {
+                    if (holds_alternative<string>(e->op) && std::get<string>(e->op) == "int_to_ptr") {
                         auto new_expr = std::move(e->elems->at(0));
                         changed = true;
                         return new_expr;
