@@ -616,6 +616,17 @@ namespace autov {
             return "";
         }
 
+        std::string symbol_require_abstraction(llvm::Function* func, std::string name) {
+            if (func == nullptr) return "";
+            auto metanode = func->getMetadata(name);
+            if (metanode == nullptr) return "";
+            if (auto metastr = llvm::dyn_cast_or_null<llvm::MDString>(metanode->getOperand(0))) {
+                auto str = metastr->getString();
+                return str.str();
+            }
+            return "";
+        }
+
         std::unique_ptr<SpecNode> is_ptr_to_int(llvm::Value* value) {
             if (auto expr = llvm::dyn_cast<llvm::ConstantExpr>(value)) {
                 if (expr->getOpcode() == llvm::Instruction::PtrToInt) {
@@ -830,10 +841,12 @@ namespace autov {
         }
 
         void add_cache(std::string value, unique_ptr<SpecNode>& spec) {
+            std::cout << "Add cache: " << value << " " << string(*spec.get()) << "\n";
             let_cache[value] = spec->deep_copy();
         }
 
         void add_cache(std::string value, unique_ptr<Expr>& spec) {
+            std::cout << "Add cache: " << value << " " << string(*spec.get()) << "\n";
             let_cache[value] = spec->deep_copy();
         }
 

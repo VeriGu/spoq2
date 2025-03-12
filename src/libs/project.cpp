@@ -1358,10 +1358,6 @@ void Project::prepare_abstraction() {
                     std::cout << "[return type]Abstraction is not usedfor function: " << pair.first << " " << var.first << std::endl;
                     continue;
                 }
-            } else {
-                // TODO: support return value abstraction
-                std::cout << "Abstraction: " << var.first << " " << var.second << " " << "[" << pair.first << "]" << std::endl;
-                assert(false && "unsupported assertion variable");
             }
             llvm::MDString *meta_str = llvm::MDString::get(context, var.second);
             llvm::MDNode *meta_node = llvm::MDNode::get(context, meta_str);

@@ -34,6 +34,7 @@ namespace autov {
             }
         } else if (auto con = dynamic_cast<Const*>(raw_raw)) {
             auto _con = dynamic_cast<Const*>(value.get());
+            if (!_con) return false;
             return (*_con) == (*con);
         } else if (auto expr = dynamic_cast<Expr*>(raw_raw)) {
             if (auto symbol = dynamic_cast<Symbol*>(value.get())) {
@@ -49,12 +50,26 @@ namespace autov {
                     if (!match) return false;
                 }
                 return match;
+            } else if (std::holds_alternative<Expr::binops>(expr->op)) {
+                // std::cout << "expr match: " << string(*raw.get()) << std::endl;
+                if (std::get<Expr::binops>(expr->op) == Expr::binops::MINUS) {
+                    assert(expr->elems->size() == 1 && "Negation should have only one element");
+                    if (auto _expr_con = dynamic_cast<IntConst *>(expr->elems->at(0).get())) {
+                        // std::cout << "raw match: " << _expr_con->get_value() << std::endl;
+                        if (auto _value_con = dynamic_cast<IntConst *>(value.get())) {
+                            // std::cout << "Negation match: " << _value_con->get_value() << std::endl;
+                            if (-_value_con->get_value() == _expr_con->get_value()) {
+                                return true;
+                            }
+                        }
+                    }
+                }
             } 
-            return false;
         } else {
             std::cout << string(*raw.get()) << std::endl;
             assert(false && "Abstraction pattern only support Symbol and Expr");
         }
+        return false;
     }
 
     unique_ptr<SpecNode> SpoqIRContext::construct_abstraction_pattern(unique_ptr<SpecNode> abs, SpoqAbstractionContext& context) {
