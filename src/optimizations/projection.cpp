@@ -56,8 +56,10 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
         profile_print_transrule();
         std::cout << def->name << "------------------after_partial_eval:----------------------\n" << string(*spec);
         unique_ptr<SpecNode> __tmp_spec;
+
         // auto [__spec, __changed] = proj->rules.rule_unfold_specs(std::move(spec), true);
         // std::cout << def->name <<  "------------------after unfold:----------------------\n" << string(*__spec);
+
         bool changed;
         __tmp_spec = proj->rules.eliminate_ambiguity(std::move(spec), known, changed);
 

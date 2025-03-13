@@ -1338,16 +1338,14 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
                     auto [node, changed] = proj->rules.rule_unfold_specs(std::move(spec), false);
                     PROFILE_END(unfold);
                     if(changed) {
-                        if(level == 0) {
-                            //LOG_DEBUG << "after UNFOLD:--------------------------\n" << string(*node);
-                        }
-                        // PROFILE_START(eliminate_am);
-                        // auto unam = proj->rules.eliminate_ambiguity(std::move(node), used_symbols, changed);
-                        // PROFILE_END(eliminate_am);
-                        return cache(partial_eval(proj, std::move(node), level, state, used_symbols, unfold));
+                        PROFILE_START(eliminate_am);
+                        auto unam = proj->rules.eliminate_ambiguity(std::move(node), used_symbols, changed);
+                        PROFILE_END(eliminate_am);
+                        return cache(partial_eval(proj, std::move(unam), level, state, used_symbols, unfold));
                     }
                     spec = std::move(node);
                     expr = instance_of(spec.get(), Expr);
+                    return spec;
                 }
             }
         }
