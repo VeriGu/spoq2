@@ -269,6 +269,7 @@ void profile_clear_epoch()
 }
 
 void profile_print_transrule() {
+	if (!__PROFILE_ON) return;
 	PROFILE_PRINT_RULE(eliminate_rely);
 	PROFILE_PRINT_RULE(move_when);
 	PROFILE_PRINT_RULE(eliminate_move_rely);
@@ -282,29 +283,6 @@ void profile_print_transrule() {
 	PROFILE_PRINT_RULE(unfold);
 	PROFILE_PRINT_RULE(simplify_getset);
 	PROFILE_PRINT_RULE(simplify_expr);
-	LOG_INFO << "=========== Meta Report ===========";
-    LOG_INFO << "z3_eval accumulative time: " << z3_eval_accumulative_time_meta.count() << " (s)";
-    LOG_INFO << "Z3 check in [z3_eval] accumulative time: " << eval_check_accumulative_time_meta.count() << " (s)";
-    LOG_INFO << "Z3 check in [z3 rule] accumulative time: " << z3_rule_check_accumulative_time_meta.count() << " (s)";
-	LOG_INFO << "If rule check accumulative time: " << if_rule_check_accumulative_time_meta.count() << " (s)";
-	LOG_INFO << "If rule check count: " << if_rule_check_cnt_meta;
-	LOG_INFO << "Rely rule check accumulative time: " << rely_rule_check_accumulative_time_meta.count() << " (s)";
-	LOG_INFO << "Rely rule check count: " << rely_rule_check_cnt_meta;
-	
-	LOG_INFO << "====== z3_eval check time ======";
-    LOG_INFO << "Rely eval check accumulative time: " << rely_eval_check_accumulative_time_meta.count() << " (s)";
-    LOG_INFO << "If eval check accumulative time: " << if_eval_check_accumulative_time_meta.count() << " (s)";
-    LOG_INFO << "===================================";
-
-
-	LOG_INFO << "Rely eval check count: " << rely_eval_check_cnt_meta;
-    LOG_INFO << "If eval check count: " << if_eval_check_cnt_meta;
-
-	LOG_INFO << "Rely rule check solve: " << rely_rule_check_hit_meta;
-    LOG_INFO << "If rule check solve: " << if_rule_check_hit_meta;
-    LOG_INFO << "===================================";
-    LOG_INFO << "Rely rule check solve rate: " << (double)(rely_rule_check_cnt_meta == 0 ? 0.0 : (double)rely_rule_check_hit_meta / (double)rely_rule_check_cnt_meta);
-    LOG_INFO << "If rule check solve rate: " << (double)(if_rule_check_cnt_meta == 0 ? 0.0 : (double)if_rule_check_hit_meta / (double)if_rule_check_cnt_meta);
 }
 
 void profile_print()
