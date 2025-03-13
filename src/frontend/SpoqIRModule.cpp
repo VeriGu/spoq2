@@ -76,12 +76,13 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
     if (!SpoqIRModule::validate_for_gen_low_spec(proj, fname, layer_id)) return false;
 
     SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs.at(fname);
-    SpoqIRContext context(spoq_func, proj->layers[layer_id]);
+    SpoqIRContext context(spoq_func, proj->layers[layer_id], layer_id, proj->abs_config);
 
     unique_ptr<vector<shared_ptr<Arg>>> args = std::make_unique<vector<shared_ptr<Arg>>>();
     for(auto &arg : spoq_func.llvm_func->args()) {
-        auto sym = context.get_llvm_value_spec(&arg);
+        auto sym = context.get_llvm_value_spec(&arg, nullptr, false);
         auto symbol = dynamic_cast<Symbol*>(sym.get());
+        assert(symbol && "arg is not a symbol without abstraction");
         args->push_back(std::make_shared<Arg> (symbol->text, symbol->type));
     }
     args->push_back(make_shared<Arg>(context.abs_data_name, context.abs_data_type));
@@ -119,10 +120,10 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
     // TODO: introduce other dependencies
     proj->deps[def->name] = SpoqIRModule::get_func_dependencies(spoq_func.llvm_func);
 
-    // for (auto &spec_name: low_specs) {
-        // std::cout << "Generated low spec: " << spec_name << std::endl;
-        // std::cout << string(*proj->defs[spec_name]) << "\n";
-    // }
+    for (auto &spec_name: low_specs) {
+        std::cout << "Generated low spec: " << spec_name << std::endl;
+        std::cout << string(*proj->defs[spec_name]) << "\n";
+    }
 
     assert(context.rettype != SpecType::UNKNOWN_TYPE && string("return type for is unknown").c_str());
 

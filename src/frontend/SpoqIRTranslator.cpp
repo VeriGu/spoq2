@@ -170,7 +170,7 @@ bool SpoqIRModule::llvm_ir_to_spoq_ir(SpoqFunction &spoq_func) {
 
 // Spoq IR <----> Spoq Coq Low Spec
 
-unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm::Type* force_sym_type) {
+unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm::Type* force_sym_type, bool abstraction) {
     if (value == nullptr) assert(false && "llvm value is nullptr");
     if (force_sym_type != nullptr) {
         type_map[value] = SpoqIRModule::llvm_ir_type_to_spec_pure(force_sym_type);
@@ -230,18 +230,81 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
         } 
         llvm::errs() << "unsupport llvm constant: " << *value << "\n";
         assert(false && "unsupport llvm constant");
-    } else if (llvm::dyn_cast<llvm::Argument>(value)) {
+    } else if (auto arg = llvm::dyn_cast<llvm::Argument>(value)) {
         if (type_map.find(value) == type_map.end()) {
             type_map[value] = this->get_llvm_value_type(value);
         }
-        return std::make_unique<Symbol>(get_llvm_value_name(value),
-                                        type_map[value]);
-    } else if (llvm::dyn_cast<llvm::Instruction>(value)) {
+        auto symbol = std::make_unique<Symbol>(get_llvm_value_name(value),
+                                            type_map[value]);
+        auto abs = arg_require_abstraction(arg->getParent(), arg->getArgNo());
+        if (abstraction && abs != "") {
+            assert(type_map[value]->name == "Z" && "only support Z type for abstraction");
+            // std::cout << "abstraction: " << abs << std::endl;
+            auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
+            vec->push_back(std::move(symbol));
+            auto expr = std::make_unique<Expr>("Z_to_" + abs, std::move(vec));
+            expr->type = make_shared<SpecType>(abs);
+            // std::cout << "abstraction: " << string(*expr) << std::endl;
+
+            auto vec2 = std::make_unique<vector<unique_ptr<SpecNode>>>();
+            vec2->push_back(std::move(expr));
+            auto expr2 = std::make_unique<Expr>(abs + "_to_Z", std::move(vec2));
+            expr2->type = Int::INT;
+            return expr2;
+        } else {
+            return symbol;
+        }
+    } else if (auto inst = llvm::dyn_cast<llvm::Instruction>(value)) {
         if (type_map.find(value) == type_map.end()) {
             type_map[value] = this->get_llvm_value_type(value);
         }
-        return std::make_unique<Symbol>(get_llvm_value_name(value),
+        auto symbol = std::make_unique<Symbol>(get_llvm_value_name(value),
                                         type_map[value]);
+        auto call = llvm::dyn_cast<llvm::CallInst>(value);
+        if (call && abstraction) {
+            auto abs = ret_require_abstraction(call->getCalledFunction(), 0);
+            if (abs != "") {
+                // std::cout << string(*symbol) << " " << string(*type_map[value]) << std::endl;
+                assert(type_map[value]->name == "Z" &&
+                       "only support Z type for abstraction");
+                // std::cout << "abstraction: " << abs << std::endl;
+                auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                vec->push_back(std::move(symbol));
+                auto expr =
+                    std::make_unique<Expr>("Z_to_" + abs, std::move(vec));
+                expr->type = make_shared<SpecType>(abs);
+                // std::cout << "abstraction: " << string(*expr) << std::endl;
+
+                auto vec2 = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                vec2->push_back(std::move(expr));
+                auto expr2 =
+                    std::make_unique<Expr>(abs + "_to_Z", std::move(vec2));
+                expr2->type = Int::INT;
+                return expr2;
+            }
+        }
+        auto load = llvm::dyn_cast<llvm::LoadInst>(value);
+        if (load && abstraction) {
+            auto abs = symbol_require_abstraction(load->getParent()->getParent(), symbol->text);
+            if (abs != "") {
+                assert(type_map[value]->name == "Z" &&
+                       "only support Z type for abstraction");
+                auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                vec->push_back(std::move(symbol));
+                auto expr =
+                    std::make_unique<Expr>("Z_to_" + abs, std::move(vec));
+                expr->type = make_shared<SpecType>(abs);
+                std::cout << "abstraction: " << string(*expr) << std::endl;
+
+                auto vec2 = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                vec2->push_back(std::move(expr));
+                auto expr2 =
+                    std::make_unique<Expr>(abs + "_to_Z", std::move(vec2));
+                expr2->type = Int::INT;
+                return expr2;
+            }
+        }
+        return symbol;
     } else {
         llvm::errs() << "unsupport llvm value: " << *value << " " << *(value->getType()) << "\n";
         assert(false && "unsupport llvm value");
@@ -394,7 +457,7 @@ SpoqIRModule::store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context
 
         auto children = std::make_unique<vector<unique_ptr<SpecNode>>>();
         if (value_type->isIntegerTy()) {
-            children->push_back(context.get_llvm_value_spec(load));
+            children->push_back(context.get_llvm_value_spec(load, nullptr, false));
         }
         else if (value_type->isPointerTy()) {
             children->push_back(context.get_llvm_value_spec_ptr_in_Z(load));
@@ -495,7 +558,6 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             } else if(binops_lut.find(bi->getOpcode()) != binops_lut.end()) {
                 expr = std::make_unique<Expr>(binops_lut.at(bi->getOpcode()), std::move(operands));
             } else if (bi->getOpcode() == llvm::Instruction::BinaryOps::Xor) {
-                operands->push_back(context.get_abs_data());
                 if(bi->getOperand(0)->getType()->isIntegerTy(1)) {
                     expr = std::make_unique<Expr>("xorb", std::move(operands));
                 } else {
@@ -508,8 +570,10 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             }
 
             unique_ptr<SpecNode> sym = context.get_llvm_value_spec(bi);
+            context.add_cache(context.get_llvm_value_name(bi), expr);
             auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
-            auto _let =  Shortcut::_Let_u(std::move(sym), std::move(expr), std::move(remain));
+            auto new_expr = context.apply_abstraction(std::move(expr));
+            auto _let =  Shortcut::_Let_u(std::move(sym), std::move(new_expr), std::move(remain));
             if (rely_expr) {
                 return std::make_unique<Rely>(std::move(rely_expr), std::move(_let));
             } else {
@@ -533,7 +597,9 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 assert(false && "Binary operation not supported");
             }
             unique_ptr<SpecNode> sym = context.get_llvm_value_spec(cmp);
-            return Shortcut::_Let_u(context.get_llvm_value_spec(cmp), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
+            context.add_cache(context.get_llvm_value_name(cmp), expr);
+            auto new_expr = context.apply_abstraction(std::move(expr));
+            return Shortcut::_Let_u(context.get_llvm_value_spec(cmp), std::move(new_expr), spoq_inst_to_spec(proj, vec, num + 1, context));
         } 
 
         // function call
@@ -560,7 +626,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                         ret = context.get_abs_data();
                     } else {
                         auto children = std::make_unique<vector<unique_ptr<SpecNode>>>();
-                        children->push_back(context.get_llvm_value_spec(call));
+                        children->push_back(context.get_llvm_value_spec(call, nullptr, false));
                         children->push_back(context.get_abs_data());
                         ret = Shortcut::_Tuple_u(std::move(children));
                     }
@@ -570,10 +636,11 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
 
                     auto callee_name = callee->getName().str() + "_spec";
                     auto expr = std::make_unique<Expr>(callee_name, std::move(args));
+                    auto new_expr = context.apply_abstraction(std::move(expr));
 
                     auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
 
-                    return Shortcut::_When_u(std::move(ret), std::move(expr), std::move(remain));
+                    return Shortcut::_When_u(std::move(ret), std::move(new_expr), std::move(remain));
                 }
             } else if (call->isInlineAsm()) {
                     auto iasm = llvm::dyn_cast<llvm::InlineAsm>(call->getCalledOperand());
@@ -618,7 +685,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 children->push_back(context.get_llvm_value_spec_ptr_in_Z(load));
                 auto i2p_v = std::make_unique<Expr>(context.int2ptr_op_name, std::move(children));
 
-                auto remain_expr = Shortcut::_Let_u(context.get_llvm_value_spec(load), std::move(i2p_v), spoq_inst_to_spec(proj, vec, num + 1, context));
+                auto remain_expr = Shortcut::_Let_u(context.get_llvm_value_spec(load, nullptr, false), std::move(i2p_v), spoq_inst_to_spec(proj, vec, num + 1, context));
                 return Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second), std::move(remain_expr));
             } else {
                 return Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second), spoq_inst_to_spec(proj, vec, num + 1, context));
@@ -645,6 +712,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             children->push_back(make_unique<StringConst>(stack_var));
             children->push_back(make_unique<IntConst>(0));
             auto mkptr = std::make_unique<Expr>("mkPtr", std::move(children));
+            context.add_cache(context.get_llvm_value_name(alloc), mkptr);
             return Shortcut::_Let_u(context.get_llvm_value_spec(alloc), std::move(mkptr), spoq_inst_to_spec(proj, vec, num + 1, context));
         }
 
@@ -689,6 +757,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             operands->push_back(std::move(expr));
             expr = std::make_unique<Expr>(context.ptr_off_op_name, std::move(operands));
             auto sym = context.get_llvm_value_spec(gep);
+            context.add_cache(context.get_llvm_value_name(gep), expr);
             return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
         }
 
@@ -702,6 +771,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             }
             auto expr = std::make_unique<Expr>(Expr::ops::GET, std::move(operands));
             auto sym = context.get_llvm_value_spec(ex);
+            context.add_cache(context.get_llvm_value_name(spoq_inst->inst), expr);
             return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
         } else if (auto in = llvm::dyn_cast<llvm::InsertValueInst>(spoq_inst->inst)) {
             assert(in->getNumIndices() == 1 && "ExtractValueInst with 0 or multiple indices not supported");
@@ -714,6 +784,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             operands->push_back(context.get_llvm_value_spec(in->getInsertedValueOperand()));
             auto expr = std::make_unique<Expr>(Expr::ops::SET, std::move(operands));
             auto sym = context.get_llvm_value_spec(in);
+            context.add_cache(context.get_llvm_value_name(in), expr);
             return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
         }
 
@@ -724,12 +795,14 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             operands->push_back(context.get_llvm_value_spec(p2i->getPointerOperand()));
             auto expr = std::make_unique<Expr>(context.ptr2int_op_name, std::move(operands));
             auto sym = context.get_llvm_value_spec(p2i);
+            context.add_cache(context.get_llvm_value_name(p2i), expr);
             return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
         } else if (auto i2p = llvm::dyn_cast<llvm::IntToPtrInst>(spoq_inst->inst)) {
             auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
             operands->push_back(context.get_llvm_value_spec(i2p->getOperand(0)));
             auto expr = std::make_unique<Expr>(context.int2ptr_op_name, std::move(operands));
             auto sym = context.get_llvm_value_spec(i2p);
+            context.add_cache(context.get_llvm_value_name(i2p), expr);
             return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
         }
 
@@ -740,12 +813,14 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             if (src->isPointerTy() && dst->isPointerTy()) {
                 auto sym = context.get_llvm_value_spec(bc);
                 auto expr = context.get_llvm_value_spec(bc->getOperand(0));
+                context.add_cache(context.get_llvm_value_name(bc), expr);
                 return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
             }
             if (src->isIntegerTy() && dst->isIntegerTy()) {
                 // TODO: overflow / underflow check
                 auto sym = context.get_llvm_value_spec(bc);
                 auto expr = context.get_llvm_value_spec(bc->getOperand(0));
+                context.add_cache(context.get_llvm_value_name(bc), expr);
                 return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
             }
         }

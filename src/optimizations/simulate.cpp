@@ -1,4 +1,5 @@
 #include <simulate.h>
+#include <coi.h>
 // TODO: Implement simulation-aux functions, maybe integrated into prove_by_traverse in future
 namespace autov
 {
@@ -10,7 +11,7 @@ namespace autov
 		p = subst(p->deep_copy(), rel_name_2, st_impl, succ);
 		auto rel_expr = z3_eval(proj, p.get(), state);
 		z3::model model(z3ctx);
-		auto z3_ret = z3_check_unsat(state, rel_expr->get_z3_value(), model, nullptr, Z3_SIMULATE_TIMEOUT);
+		auto z3_ret = z3_check_unsat(state, rel_expr->get_z3_value(), model, &proj->query_saver, Z3_SIMULATE_TIMEOUT);
 		return std::make_pair(z3_ret == Z3Result::True, rel_expr->get_z3_value());
 	}
 	/**
@@ -72,8 +73,7 @@ namespace autov
 					}
 				}
 				// for non-abst func here, check state validity here
-				std::cout << "[forward_simulation] Checking match pattern: " << string(*pat) << std::endl;
-				auto res = z3_verify_state_sat(state, nullptr, Z3_SIMULATE_TIMEOUT);
+				auto res = z3_verify_state_sat(state, &proj->query_saver, Z3_SIMULATE_TIMEOUT);
 				if (res == Z3Result::False) {
 					continue;
 				} else {
@@ -84,7 +84,6 @@ namespace autov
 		} else if (auto i = instance_of(impl, If)) {
 			auto cond = z3_eval(proj, i->cond.get(), state);
 			auto res = z3_check(state, cond->get_z3_value(), Z3_SIMULATE_TIMEOUT);
-			std::cout << "[forward_simulation] Checking if condition: " << string(*i->cond) << std::endl;
 			if (res == Z3Result::True) {
 				state->conds->push_back(cond->get_z3_value());
 				return forward_simulation(proj, i->then_body.get(), state);
@@ -236,7 +235,17 @@ namespace autov
 		}
 
 		bool proved = false;
+		auto query_saver_dir = [](const std::string &spec_name, const std::string &inv_name) -> std::string {
+			return "./container/z3_queries/" + spec_name + "/" + inv_name;
+		};
+
 		for (auto &r : proj->relations) {
+			auto& def_local = proj->defs["relate_misc"];
+		 	auto coi = analyze_cone_of_influence(proj, spec, def_local->body.get());
+
+			proj->query_saver = QueryInfo(query_saver_dir(spec->name, r));
+			proj->query_saver.save_config("./test/rcsm/proof_rcsm.v");
+			
 			auto last_arg = spec->args->back();
 			auto st_sym_1 = make_shared<Symbol>(last_arg->name, last_arg->type);
 			auto st_sym_2 = make_shared<Symbol>(get_sim_name(last_arg->name), last_arg->type);
