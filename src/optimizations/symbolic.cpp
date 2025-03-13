@@ -597,6 +597,26 @@ bool check_states_implies_pre_condition(Project* proj, shared_ptr<ProveState> st
     return true;
 }
 
+
+// z3::expr formulate_loop_invariant_z3(Project proj*, string fname){
+//     auto loop_post_cond = formulate_loop_invariant(proj, fname, expr->elems.get());
+//     for (auto arg : *loop->args) {
+//         if (arg->name != "_N_") {
+//             (*state->vars)[loop->name + "_" + arg->name + "'"] = arg->type->declare(loop->name + "_" + arg->name + "'", 0); //current
+//         }
+//     }
+//     //LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << string(*loop_post_cond);
+//     auto loop_post_val = z3_eval(proj, loop_post_cond.get(), state, false, true, used_fix);
+//     auto post = loop_post_val->get_z3_value();
+//     for(auto arg : *loop->args) {
+//         if (arg->name != "_N_") {
+//             post = z3::forall((*state->vars)[loop->name + "_" + arg->name + "'"]->get_z3_value(), post);
+//         }
+//     }
+
+
+//     return post;
+// }
 /** prove_by_traverse:
  * 		works on specs with abstract functions, symbolically check inv path-by-path
  * */
@@ -740,7 +760,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                                 unique_ptr<SpecNode> post_cond = formulate_preserved_function(proj, op);
                                 auto post_val = z3_eval(proj, post_cond.get(), state, false, true, used_fix);
                                 //delete post_cond;
-                                state->add_induction(post_val->get_z3_value());
+                                state->conds->push_back(post_val->get_z3_value());
                                 LOG_DEBUG << "[Adding Post Condition] Adding preserved inv postcondition: " << op;
                             }
                         }
@@ -893,11 +913,11 @@ void spec_prover(Project *proj) {
                 //std::deque<Definition *> q = {goal_def};
                 auto coi = analyze_cone_of_influence(proj, goal_def, inv.get());
                 spec_abstraction(proj, goal_def, coi);
-                //goal_def->infer_type(*proj);
-                // std::cout << "[spec_abstraction] coi set: " << std::endl;
-                // for (auto &c : coi) {
-                //     std::cout << c << std::endl;
-                // }
+                goal_def->infer_type(*proj);
+                std::cout << "[spec_abstraction] coi set: " << std::endl;
+                for (auto &c : coi) {
+                    std::cout << c << std::endl;
+                }
                 proj->verifying_invariant = name;
                 if (check_inv_by_path(proj, goal_def, inv.get(), used_abstract_funcs)) {
                     valid = true;

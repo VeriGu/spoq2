@@ -1771,21 +1771,22 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
     {
         z3::expr_vector vars(z3ctx);
         std::vector<z3::expr> hypos;
+        auto new_state = state->copy();
         for (auto v = forall->vars->begin(); v != forall->vars->end(); v++)
         {
             if ((*v)->type) {
                 auto var = (*v)->type->declare((*v)->name, val->nid);
-                (*state->vars)[(*v)->name] = var;
+                (*new_state->vars)[(*v)->name] = var;
                 vars.push_back(var->get_z3_value());
             } else {
                 // bounded variable v is prop, push into state
-                auto prop = z3_eval(proj, (*v)->expr.get(), state, check_loop);
+                auto prop = z3_eval(proj, (*v)->expr.get(), new_state, check_loop);
                 hypos.push_back(prop->get_z3_value());
             }
         }
         /** bounded variables may have a newer nid over cached z3 values, so we need to clear cached value first  */
         forall->clear_z3_eval();
-        auto body = z3_eval(proj, forall->body.get(), state, check_loop);
+        auto body = z3_eval(proj, forall->body.get(), new_state, check_loop);
         auto p = body->get_z3_value();
 
         for (const auto &h : hypos) {
@@ -1797,14 +1798,15 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
     else if (auto exsts = instance_of(val, Exists))
     {
         z3::expr_vector vars(z3ctx);
+        auto new_state = state->copy();
         for (auto v = exsts->vars->begin(); v != exsts->vars->end(); v++)
         {
             auto var = (*v)->type->declare((*v)->name, val->nid);
-            (*state->vars)[(*v)->name] = var;
+            (*new_state->vars)[(*v)->name] = var;
             vars.push_back(var->get_z3_value());
         }
         exsts->clear_z3_eval();
-        auto body = z3_eval(proj, exsts->body.get(), state,  check_loop);
+        auto body = z3_eval(proj, exsts->body.get(), new_state, check_loop);
         return _cache(make_shared<BoolValue>(z3::exists(vars, body->value)));
     }
 
@@ -2095,7 +2097,9 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         auto cond = z3_eval(proj, rely->prop.get(), state,  check_loop, unfold, used_fixpoint);
         auto res = z3_check(state, cond->get_z3_value());
         if (res == Z3Result::Unknown || res == Z3Result::Sat) {
-            auto body = z3_eval(proj, rely->body.get(), state,  check_loop, unfold, used_fixpoint);
+            auto new_state = state->copy();
+            new_state->conds->push_back(cond->get_z3_value());
+            auto body = z3_eval(proj, rely->body.get(), new_state,  check_loop, unfold, used_fixpoint);
             auto none = static_pointer_cast<Option>(val->get_type())->construct("None", {});
 
             auto z3_val = z3::ite(cond->get_z3_value(), body->get_z3_value(), none->get_z3_value());
@@ -2136,20 +2140,21 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
     {
         z3::expr_vector vars(z3ctx);
         std::vector<z3::expr> hypos;
+        auto new_state = state->copy();
         for (auto v = forall->vars->begin(); v != forall->vars->end(); v++) {
             if ((*v)->type) {
                 auto var = (*v)->type->declare((*v)->name, val->nid);
-                (*state->vars)[(*v)->name] = var;
+                (*new_state->vars)[(*v)->name] = var;
                 vars.push_back(var->get_z3_value());
             } else {
                 // bounded variable v is prop, push into state
-                auto prop = z3_eval(proj, (*v)->expr.get(), state, check_loop, unfold, used_fixpoint);
+                auto prop = z3_eval(proj, (*v)->expr.get(), new_state, check_loop, unfold, used_fixpoint);
                 hypos.push_back(prop->get_z3_value());
             }
         }
         /** bounded variables may have a newer nid over cached z3 values, so we need to clear cached value first  */
         forall->clear_z3_eval();
-        auto body = z3_eval(proj, forall->body.get(), state, check_loop, unfold, used_fixpoint);
+        auto body = z3_eval(proj, forall->body.get(), new_state, check_loop, unfold, used_fixpoint);
         auto p = body->get_z3_value();
 
         for (const auto &h : hypos) {
@@ -2160,13 +2165,14 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
     else if (auto exsts = instance_of(val, Exists))
     {
         z3::expr_vector vars(z3ctx);
+        auto new_state = state->copy();
         for (auto v = exsts->vars->begin(); v != exsts->vars->end(); v++)
         {
             auto var = (*v)->type->declare((*v)->name, val->nid);
-            state->vars->emplace((*v)->name, var);
+            (*new_state->vars)[(*v)->name] = var;
             vars.push_back(var->get_z3_value());
         }
-        auto body = z3_eval(proj, exsts->body.get(), state,  check_loop, unfold, used_fixpoint);
+        auto body = z3_eval(proj, exsts->body.get(), new_state,  check_loop, unfold, used_fixpoint);
         return _cache(make_shared<BoolValue>(z3::exists(vars, body->value)));
     }
 
