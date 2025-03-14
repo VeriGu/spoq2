@@ -60,26 +60,25 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
         // auto [__spec, __changed] = proj->rules.rule_unfold_specs(std::move(spec), true);
         // std::cout << def->name <<  "------------------after unfold:----------------------\n" << string(*__spec);
 
-        bool changed;
+        bool changed = false;
         __tmp_spec = proj->rules.eliminate_ambiguity(std::move(spec), known, changed);
 
     
         auto [__tmp_spec1, le_changed] = proj->rules.rule_eliminate_let(std::move(__tmp_spec), true);
-
+        changed = le_changed |= changed;
         //std::cout << def->name << "----------------after_let_elimination:---------------------\n" << string(*__tmp_spec1);
         
 
         auto [__tmp_spec2, we_changed] = proj->rules.rule_eliminate_when(std::move(__tmp_spec1), true);
         //std::cout << def->name << "----------------after_when_elimination:---------------------\n" << string(*__tmp_spec2);
-       
-
+        changed = we_changed |= changed;
         auto [__tmp_spec3, z3_changed] = proj->rules.rule_simple_by_z3(std::move(__tmp_spec2), make_shared<EvalState>(vars, conds));
+        //std::cout << def->name << "--------------------after_z3---------------------------\n:" << string(*__tmp_spec3);
+        changed = z3_changed |= changed;
         profile_update_epoch();
 
-        //std::cout << def->name << "--------------------after_z3---------------------------\n:" << string(*__tmp_spec3);
-
         def->body = std::move(__tmp_spec3);
-        if(!we_changed) {
+        if(!changed) {
             break;
         }
     }
@@ -163,9 +162,9 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                 tmp_spec = std::move(__spec);
                 this_changed |= __changed;
                 changed |= __changed;
-                // if(__changed)
-                    // std::cout << "group2 rule:" << ruleid_to_string(r.id) << def->name << " new_spec: \n=========================\n"
-                        // << string(*tmp_spec.get()) << "\n==============================\n";
+                if(__changed)
+                    std::cout << "group2 rule:" << ruleid_to_string(r.id) << def->name << " new_spec: \n=========================\n"
+                        << string(*tmp_spec.get()) << "\n==============================\n";
 
             }
             auto [__spec, __changed] = proj->rules.rule_simplify_expr(std::move(tmp_spec), true);
@@ -190,8 +189,8 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
             changed |= __changed;
             new_spec = std::move(__spec);
             
-            // std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
-                    // << string(*new_spec.get()) << "\n==============================\n";
+            std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
+                    << string(*new_spec.get()) << "\n==============================\n";
         // }
 
         def->body = std::move(new_spec);

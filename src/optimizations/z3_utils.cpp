@@ -739,9 +739,10 @@ unique_ptr<SpecNode> formulate_preserved_function(Project* proj, string fname) {
     unique_ptr<SpecNode> conjoined = proj->sys_invs[proj->verifying_invariant]->deep_copy();
     for(auto string: proved_inv) {
         auto inv = proj->sys_invs[string].get();
-        auto elems = unique_ptr<vector<unique_ptr<SpecNode>>>();
+        auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
         elems->push_back(std::move(conjoined));
         elems->push_back(inv->deep_copy());
+        conjoined = make_unique<Expr>(Expr::AND, std::move(elems));
     }
     auto inv = std::move(conjoined);
     auto before_inv = inv->deep_copy();
