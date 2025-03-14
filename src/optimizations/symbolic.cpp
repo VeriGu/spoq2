@@ -645,11 +645,11 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 					// 	LOG_DEBUG << "Cond:" << cond;
 					// }
 					z3::model model(z3ctx);
-					auto z3_ret = z3_check_unsat(state, c->get_z3_value(), model, &proj->query_saver, 2000);
+					auto z3_ret = z3_check_unsat(state, c->get_z3_value(), model, &proj->query_saver, Z3_VERIFY_TIMEOUT);
 
 					// std::cout << "----------------------------------" << std::endl;
-					// std::cout << "prove_by_traverse: Final State\n" << string(*ret_st) << std::endl;
-					//std::cout << "prove_by_traverse: Goal Query\n" << c->get_z3_value() << std::endl;
+					// std::cout << "prove_by_traverse: Final State\n" << ret_st_str << std::endl;
+					// std::cout << "prove_by_traverse: Goal Query\n" << c->get_z3_value() << std::endl;
 					// std::cout << "----------------------------------" << std::endl;
 					if (z3_ret == Z3Result::Sat) {
 						LOG_WARNING << "[prove_by_traverse] Invariant is violated for state\n" << string(*ret_st) << std::endl;
@@ -684,7 +684,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                             if (!check_states_implies_loop_inv(proj, state, op, elems)){
                                 return false;
                             }
-                            state->inductions->clear();
+                            // state->inductions->clear();
                             LOG_INFO << "[Checking Loop Invariant] Precondition implies invariant";
                             auto fname = loop->name;
                             auto loop_post_cond = formulate_loop_invariant(proj, fname, expr->elems.get());
@@ -714,7 +714,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                                 };
                             }
 
-                            state->inductions->clear();
+                            // state->inductions->clear();
 
                             if(proj->cmds.PostCond.find(op) != proj->cmds.PostCond.end()) {
                                 //add post condition
@@ -758,7 +758,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                             //if it is a preserving function, directly add post condition
                             if (proj->cmds.PreserveInv.find(op) != proj->cmds.PreserveInv.end()) {
                                 unique_ptr<SpecNode> post_cond = formulate_preserved_function(proj, op);
-                                auto post_val = z3_eval(proj, post_cond.get(), state, false, true, used_fix);
+                                auto post_val = z3_eval(proj, post_cond.get(), state->copy(), false, true, used_fix);
                                 //delete post_cond;
                                 state->conds->push_back(post_val->get_z3_value());
                                 LOG_DEBUG << "[Adding Post Condition] Adding preserved inv postcondition: " << op;
@@ -780,6 +780,19 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
             if (!std::holds_alternative<std::nullptr_t>(abst_spec)) {            
                 SpecNode *st_ret = extract_st_from_expr(proj, pat);
                 if (st_input && st_ret) {
+                    auto p_input = proj->rules.instantiate_prop(inv->deep_copy(), st_input->deep_copy());
+                    auto precond = z3_expr(proj, p_input.get(), new_state);
+                    auto z3_ret = z3_verify(new_state, precond->get_z3_value(), &proj->query_saver);
+                    if (z3_ret == Z3Result::Unknown || z3_ret == Z3Result::False) {
+                        LOG_WARNING << "[prove_by_traverse] Pre-cond Invariant is violated for state\n" << string(*st_input) << std::endl;
+                        // return false; // even pre-conditon is failed, the lemma may still strong enough to ensure post-cond inv
+                    } else {
+                    }
+                    auto p_ret = proj->rules.instantiate_prop(inv->deep_copy(), st_ret->deep_copy());
+                    auto postcond = z3_expr(proj, p_ret.get(), new_state);
+                    new_state->inductions->clear();
+                    new_state->add_induction(postcond->get_z3_value());
+
                     for (auto const &l : proj->lemmas) {
                         auto lemma_body = proj->defs[l]->body.get();
                         auto lemma = proj->rules.instantiate_prop(lemma_body->deep_copy(), st_ret->deep_copy());
@@ -788,7 +801,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                     }
                 }
             }
-			if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state,used_abs_funcs)) {
+			if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs)) {
 				return false;
 			}
 		}

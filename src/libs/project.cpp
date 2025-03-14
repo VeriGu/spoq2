@@ -869,7 +869,7 @@ static void collect_lemmas(Project *proj) {
             lemma_def->deleyed_type_inference = false;
         }
         profile_clear();
-        spec_transformer_v2(proj, pure_lemma, 0, !is_instance(lemma_def, Fixpoint), true);
+        spec_transformer(proj, pure_lemma, 0, !is_instance(lemma_def, Fixpoint), true);
         profile_finalize();
         profile_print();
         proj->defs[def.first].reset(pure_lemma);
