@@ -632,13 +632,25 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     }
 
 
-                    // TODO: re-introduce post ensure here
-
                     auto callee_name = callee->getName().str() + "_spec";
                     auto expr = std::make_unique<Expr>(callee_name, std::move(args));
                     auto new_expr = context.apply_abstraction(std::move(expr));
 
                     auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
+
+                    if (proj->cmds.PostEnsure.find(callee->getName().str()) != proj->cmds.PostEnsure.end()) {
+                        auto ret_st = context.get_abs_data();
+                        for (auto & prop : proj->cmds.PostEnsure[callee->getName().str()]) {
+                            auto p = prop->deep_copy();
+                            if (call->getType()->isVoidTy()) {
+                                Shortcut::subst_expression(p.get(), "ret_0", context.abs_data_name);
+                            } else{
+                                Shortcut::subst_expression(p.get(), "ret_0", context.get_llvm_value_name(call));
+                                Shortcut::subst_expression(p.get(), "ret_1", context.abs_data_name);
+                            }
+                            remain = std::make_unique<Rely>(std::move(p), std::move(remain));
+                        }
+                    } 
 
                     return Shortcut::_When_u(std::move(ret), std::move(new_expr), std::move(remain));
                 }

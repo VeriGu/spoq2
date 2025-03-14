@@ -75,5 +75,27 @@ namespace autov {
 		return t1 == t2 || *t1 == *t2;
 	  }
 
+	  static bool subst_expression(SpecNode *spec, string oldname, string newname) {
+		if (auto s = instance_of(spec, Symbol)) {
+			if (s->text != oldname)
+				return false;
+			s->text = newname;
+			return true;
+		} else if (auto e = instance_of(spec, Expr)) {
+			bool find = false;
+			for (auto &elem : *e->elems) {
+				if (subst_expression(elem.get(), oldname, newname)) {
+					find = true;
+				}
+			}
+			return find;
+		} else if (is_instance(spec, Const)) {
+			return false;
+			// pass
+		} else {
+			throw std::runtime_error("Unknown spec type for subst_expression" + string(*spec));
+		}
+	}
+
 	};
 }
