@@ -862,10 +862,6 @@ unique_ptr<SpecNode> formulate_post_condition(Project* proj, string fname, vecto
     auto eqbody = new Expr(Expr::binops::EQUAL, std::move(elems), Bool::BOOL);
 
     bool succ;
-    // for(auto arg: *def->args) {
-    //     aggrepost = subst(aggrepost, "st_old", args->back().get(), succ);
-
-    // }
     unique_ptr<SpecNode> sym = make_unique<Symbol>(fname + "_st'", proj->layers[0]->abs_data);
     aggrepost = subst(std::move(aggrepost), "st", sym.get(), succ);
 

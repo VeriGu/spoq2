@@ -23,8 +23,8 @@ std::unique_ptr<SpecNode> subst(std::unique_ptr<SpecNode> spec,const std::string
 bool spec_is_pure(Project *proj, SpecNode *spec, bool &has_if);
 bool spec_needs_state(Project *proj, SpecNode *spec);
 void spec_remove_state(Project *proj, SpecNode *spec);
-std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec, std::string name, SpecNode* value);
-std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec, vector<std::string>* names, vector<SpecNode*>* values);
+std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec, std::string name, unique_ptr<SpecNode> value);
+std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec, vector<std::string>* names, vector<unique_ptr<SpecNode>>* values);
 unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int level, shared_ptr<EvalState> state, std::set<string>& used_symbols, bool unfold = false);
 inline void set_interest_list(const std::set<string> &coi) {
     interest_list.clear();

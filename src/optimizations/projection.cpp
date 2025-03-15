@@ -7,6 +7,7 @@
 #include <cmd.h>
 #include <symbolic.h>
 #include <profile.h>
+#include <type_inference.h>
 namespace autov {
 
 extern unordered_map<unsigned long, bool> converged_spec;
@@ -51,36 +52,47 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
 
     converged_spec.clear();
     while(true) {
-        profile_clear_epoch();
-        auto spec = partial_eval(proj, std::move(def->body), 0, make_shared<EvalState>(vars, conds), known, unfold);
-        profile_print_transrule();
-        std::cout << def->name << "------------------after_partial_eval:----------------------\n" << string(*spec);
-        unique_ptr<SpecNode> __tmp_spec;
+            profile_clear_epoch();
+            auto spec = partial_eval(proj, std::move(def->body), 0, make_shared<EvalState>(vars, conds), known, unfold);
+            profile_print_transrule();
+            LOG_DEBUG << def->name << "------------------after_partial_eval:----------------------\n" << string(*spec);
+            unique_ptr<SpecNode> __tmp_spec;
+            bool changed = false;
+            //type_inference::check_well_typed(*proj, spec.get(), known);
+            
 
-        // auto [__spec, __changed] = proj->rules.rule_unfold_specs(std::move(spec), true);
-        // std::cout << def->name <<  "------------------after unfold:----------------------\n" << string(*__spec);
+            auto [__spec, __changed] = proj->rules.rule_unfold_specs(std::move(spec), true);
+            //LOG_DEBUG << def->name <<  "------------------after unfold:----------------------\n" << string(*__spec);
+            changed |= __changed;
 
-        bool changed = false;
-        __tmp_spec = proj->rules.eliminate_ambiguity(std::move(spec), known, changed);
+            //type_inference::check_well_typed(*proj, __spec.get(), known);
 
-    
-        auto [__tmp_spec1, le_changed] = proj->rules.rule_eliminate_let(std::move(__tmp_spec), true);
-        changed = le_changed |= changed;
-        //std::cout << def->name << "----------------after_let_elimination:---------------------\n" << string(*__tmp_spec1);
+            bool um_changed = false;
+            __tmp_spec = proj->rules.eliminate_ambiguity(std::move(__spec), known, um_changed);
+            changed |= um_changed;
+
+            //type_inference::check_well_typed(*proj, __tmp_spec.get(), known);
+
         
+            auto [__tmp_spec1, le_changed] = proj->rules.rule_eliminate_let(std::move(__tmp_spec), true);
+            changed |= le_changed;
+            //type_inference::check_well_typed(*proj, __tmp_spec1.get(), known);
+            //LOG_DEBUG << def->name << "----------------after_let_elimination:---------------------\n" << string(*__tmp_spec1);
+            
 
-        auto [__tmp_spec2, we_changed] = proj->rules.rule_eliminate_when(std::move(__tmp_spec1), true);
-        //std::cout << def->name << "----------------after_when_elimination:---------------------\n" << string(*__tmp_spec2);
-        changed = we_changed |= changed;
-        auto [__tmp_spec3, z3_changed] = proj->rules.rule_simple_by_z3(std::move(__tmp_spec2), make_shared<EvalState>(vars, conds));
-        //std::cout << def->name << "--------------------after_z3---------------------------\n:" << string(*__tmp_spec3);
-        changed = z3_changed |= changed;
-        profile_update_epoch();
-
-        def->body = std::move(__tmp_spec3);
-        if(!changed) {
-            break;
-        }
+            auto [__tmp_spec2, we_changed] = proj->rules.rule_eliminate_when(std::move(__tmp_spec1), true);
+            //LOG_DEBUG << def->name << "----------------after_when_elimination:---------------------\n" << string(*__tmp_spec2);
+            changed |= we_changed;
+            //type_inference::check_well_typed(*proj, __tmp_spec2.get(), known);
+            auto [__tmp_spec3, z3_changed] = proj->rules.rule_simple_by_z3(std::move(__tmp_spec2), make_shared<EvalState>(vars, conds));
+            LOG_DEBUG << def->name << "--------------------after_z3---------------------------\n:" << string(*__tmp_spec3);
+            changed |= z3_changed;
+            profile_update_epoch();
+            //type_inference::check_well_typed(*proj, __tmp_spec3.get(), known);
+            def->body = std::move(__tmp_spec3);
+            if(!z3_changed) {
+                break;
+            }
     }
 }
 
@@ -120,9 +132,10 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                 tmp_spec = std::move(__spec);
                 this_changed |= __changed;
                 changed |= __changed;
-                if(__changed)
-                    std::cout << "group1 rule:" << ruleid_to_string(r.id) << def->name << " new_spec: \n=========================\n"
-                        << string(*tmp_spec.get()) << "\n==============================\n";
+                if(__changed) {
+                    // std::cout << "group1 rule:" << ruleid_to_string(r.id) << def->name << " new_spec: \n=========================\n"
+                    //     << string(*tmp_spec.get()) << "\n==============================\n";
+                }
                 auto new_spec_str = string(*tmp_spec.get());
             }
             new_spec = std::move(tmp_spec);
@@ -162,9 +175,10 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                 tmp_spec = std::move(__spec);
                 this_changed |= __changed;
                 changed |= __changed;
-                if(__changed)
-                    std::cout << "group2 rule:" << ruleid_to_string(r.id) << def->name << " new_spec: \n=========================\n"
-                        << string(*tmp_spec.get()) << "\n==============================\n";
+                if(__changed) {
+                    // std::cout << "group2 rule:" << ruleid_to_string(r.id) << def->name << " new_spec: \n=========================\n"
+                    //     << string(*tmp_spec.get()) << "\n==============================\n";
+                }
 
             }
             auto [__spec, __changed] = proj->rules.rule_simplify_expr(std::move(tmp_spec), true);
@@ -189,8 +203,8 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
             changed |= __changed;
             new_spec = std::move(__spec);
             
-            std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
-                    << string(*new_spec.get()) << "\n==============================\n";
+            // std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
+            //         << string(*new_spec.get()) << "\n==============================\n";
         // }
 
         def->body = std::move(new_spec);

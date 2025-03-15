@@ -812,10 +812,10 @@ public:
         auto vec = make_unique<vector<unique_ptr<SpecNode>>>();
         vec->push_back(std::move(pattern));
 
-        unique_ptr<Expr> some = make_unique<Expr>(Expr::Some, std::move(vec));
+        unique_ptr<Expr> some = make_unique<Expr>(Expr::Some, std::move(vec), body->type);
         auto body_type = body->get_type();
         unique_ptr<PatternMatch> some_arm = make_unique<PatternMatch>(std::move(some), std::move(body));
-        unique_ptr<PatternMatch> none_arm = make_unique<PatternMatch>(make_unique<Expr>(Expr::None,  make_unique<vector<unique_ptr<SpecNode>>>()), make_unique<Symbol>("None", body_type));
+        unique_ptr<PatternMatch> none_arm = make_unique<PatternMatch>(make_unique<Expr>(Expr::None,  make_unique<vector<unique_ptr<SpecNode>>>(), body_type), make_unique<Symbol>("None", body_type));
         unique_ptr<vector<unique_ptr<PatternMatch>>> match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
 
         match_list->push_back(std::move(some_arm));
