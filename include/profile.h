@@ -123,6 +123,7 @@ PROFILE_VAR_INIT(eliminate_am);
 PROFILE_VAR_INIT(unfold);
 PROFILE_VAR_INIT(simplify_getset);
 PROFILE_VAR_INIT(simplify_expr);
+PROFILE_VAR_INIT(simplify_built_in);
 
 /** Functions: */
 

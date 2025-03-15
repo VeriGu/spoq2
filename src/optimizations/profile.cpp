@@ -47,6 +47,7 @@ PROFILE_VAR_INIT_VAL(eliminate_am);
 PROFILE_VAR_INIT_VAL(unfold);
 PROFILE_VAR_INIT_VAL(simplify_getset);
 PROFILE_VAR_INIT_VAL(simplify_expr);
+PROFILE_VAR_INIT_VAL(simplify_built_in);
 // Z3 profiling
 // z3_eval: (double)each z3_eval,
 // eval_check: (double)z3_check inside z3_eval

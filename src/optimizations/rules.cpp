@@ -1288,32 +1288,36 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
         auto [__spec, changed] = proj->rules.rule_move_if_out_expr(std::move(spec), false);
         PROFILE_END(move_if_out_expr);
         if(changed) {
-            auto __spec1 = cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
-            PROFILE_START(move_match_out_expr);
-            auto [__spec2, changed] = proj->rules.rule_move_match_out_expr(std::move(__spec1), false);
-            PROFILE_END(move_match_out_expr);
-            if(changed) {
-                return cache(partial_eval(proj, std::move(__spec2), level, state, used_symbols, unfold));
-            } else {
-                return std::move(__spec2);
-            }
+            return cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
         } else {
             spec = std::move(__spec);
             expr = instance_of(spec.get(), Expr);
         }
+        PROFILE_START(move_match_out_expr);
+        auto [__spec2, changed2] = proj->rules.rule_move_match_out_expr(std::move(spec), false);
+        PROFILE_END(move_match_out_expr);
+        if(changed2) {
+            return cache(partial_eval(proj, std::move(__spec2), level, state, used_symbols, unfold));
+        } else {
+            return std::move(__spec2);
+        }
+        PROFILE_START(simplify_built_in);
+        auto [__spec3, changed3] = proj->rules.rule_simple_builtin_functions(std::move(spec), false);
+        PROFILE_END(simplify_built_in);
+        if(changed3) {
+            return cache(partial_eval(proj, std::move(__spec3), level, state, used_symbols, unfold));
+        } else {
+            return std::move(__spec3);
+        }
         if(std::holds_alternative<Expr::binops>(expr->op)) {
-            // PROFILE_START(simplify_expr);
-            // auto [__spec, changed] = proj->rules.rule_simplify_expr(std::move(spec),false);
-            // PROFILE_END(simplify_expr);
-            // if(changed) {
-            //     if(level == 0) {
-            //         //LOG_DEBUG << "before simplify expr:" << string(*spec);
-            //     }
-            //     return cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
-            // }
-            
-            // spec = std::move(__spec);
-            // expr = instance_of(spec.get(), Expr);
+            PROFILE_START(simplify_expr);
+            auto [__spec, changed] = proj->rules.rule_simplify_expr(std::move(spec),false);
+            PROFILE_END(simplify_expr);
+            if(changed) {
+                return cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
+            }
+            spec = std::move(__spec);
+            expr = instance_of(spec.get(), Expr);
         } else if(std::holds_alternative<Expr::ops>(expr->op)) {
             if(op_eq(expr->op, Expr::RecordGet) || op_eq(expr->op, Expr::RecordSet)) {
                 //LOG_DEBUG << "before get set:------------------------" << string(*spec);
@@ -1321,9 +1325,6 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
                 auto [__spec, changed] = proj->rules.rule_simple_record_get_set(std::move(spec),false);
                 PROFILE_END(simplify_getset);
                 if(changed) {
-                    if(level == 0) {
-                        //LOG_DEBUG << "after get set:--------------------------" << string(*__spec);
-                    }
                     return cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
                 }
                 spec = std::move(__spec);
@@ -1335,17 +1336,17 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
                 auto info = proj->symbols[op];
                 if(info.kind == SymbolKind::Def && unfold) {
                     //a definition, the total number definitions strictly decreaes
-                    // PROFILE_START(unfold);
-                    // auto [node, changed] = proj->rules.rule_unfold_specs(std::move(spec), false);
-                    // PROFILE_END(unfold);
-                    // if(changed) {
-                    //     PROFILE_START(eliminate_am);
-                    //     auto unam = proj->rules.eliminate_ambiguity(std::move(node), used_symbols, changed);
-                    //     PROFILE_END(eliminate_am);
-                    //     return cache(partial_eval(proj, std::move(unam), level, state, used_symbols, unfold));
-                    // }
-                    // spec = std::move(node);
-                    // expr = instance_of(spec.get(), Expr);
+                    PROFILE_START(unfold);
+                    auto [node, changed] = proj->rules.rule_unfold_specs(std::move(spec), false);
+                    PROFILE_END(unfold);
+                    if(changed) {
+                        PROFILE_START(eliminate_am);
+                        auto unam = proj->rules.eliminate_ambiguity(std::move(node), used_symbols, changed);
+                        PROFILE_END(eliminate_am);
+                        return cache(partial_eval(proj, std::move(unam), level, state, used_symbols, unfold));
+                    }
+                    spec = std::move(node);
+                    expr = instance_of(spec.get(), Expr);
                 }
             }
         }
@@ -1488,9 +1489,9 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
             //if(level == 0)
             //LOG_DEBUG << "after let--------------------\n" << string(*__spec);
             auto sym = instance_of(m->match_list->at(0)->pattern.get(), Symbol);
-            used_symbols.insert(sym->text);
-            auto body = cache(partial_eval(proj, std::move(m->match_list->at(0)->body), level, state, used_symbols, unfold));
-            used_symbols.erase(sym->text);
+            set<string> new_symbols = set<string>(used_symbols);
+            new_symbols.insert(sym->text);
+            auto body = cache(partial_eval(proj, std::move(m->match_list->at(0)->body), level, state, new_symbols, unfold));
             m->match_list->at(0)->body = std::move(body);
             return spec;
         } else {
