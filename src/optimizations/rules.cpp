@@ -1299,7 +1299,8 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
         if(changed2) {
             return cache(partial_eval(proj, std::move(__spec2), level, state, used_symbols, unfold));
         } else {
-            return std::move(__spec2);
+            spec = std::move(__spec2);
+            expr = instance_of(spec.get(), Expr);
         }
         PROFILE_START(simplify_built_in);
         auto [__spec3, changed3] = proj->rules.rule_simple_builtin_functions(std::move(spec), false);
@@ -1307,7 +1308,8 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
         if(changed3) {
             return cache(partial_eval(proj, std::move(__spec3), level, state, used_symbols, unfold));
         } else {
-            return std::move(__spec3);
+            spec = std::move(__spec3);
+            expr = instance_of(spec.get(), Expr);
         }
         if(std::holds_alternative<Expr::binops>(expr->op)) {
             PROFILE_START(simplify_expr);
@@ -1336,17 +1338,17 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
                 auto info = proj->symbols[op];
                 if(info.kind == SymbolKind::Def && unfold) {
                     //a definition, the total number definitions strictly decreaes
-                    PROFILE_START(unfold);
-                    auto [node, changed] = proj->rules.rule_unfold_specs(std::move(spec), false);
-                    PROFILE_END(unfold);
-                    if(changed) {
-                        PROFILE_START(eliminate_am);
-                        auto unam = proj->rules.eliminate_ambiguity(std::move(node), used_symbols, changed);
-                        PROFILE_END(eliminate_am);
-                        return cache(partial_eval(proj, std::move(unam), level, state, used_symbols, unfold));
-                    }
-                    spec = std::move(node);
-                    expr = instance_of(spec.get(), Expr);
+                    // PROFILE_START(unfold);
+                    // auto [node, changed] = proj->rules.rule_unfold_specs(std::move(spec), false);
+                    // PROFILE_END(unfold);
+                    // if(changed) {
+                    //     PROFILE_START(eliminate_am);
+                    //     auto unam = proj->rules.eliminate_ambiguity(std::move(node), used_symbols, changed);
+                    //     PROFILE_END(eliminate_am);
+                    //     return cache(partial_eval(proj, std::move(unam), level, state, used_symbols, unfold));
+                    // }
+                    // spec = std::move(node);
+                    // expr = instance_of(spec.get(), Expr);
                 }
             }
         }

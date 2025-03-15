@@ -61,20 +61,20 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             //type_inference::check_well_typed(*proj, spec.get(), known);
             
 
-            //auto [__spec, __changed] = proj->rules.rule_unfold_specs(std::move(spec), true);
-            //LOG_DEBUG << def->name <<  "------------------after unfold:----------------------\n" << string(*__spec);
-            //changed |= __changed;
+            auto [__spec, __changed] = proj->rules.rule_unfold_specs(std::move(spec), true);
+            LOG_DEBUG << def->name <<  "------------------after unfold:----------------------\n" << string(*__spec);
+            changed |= __changed;
 
             //type_inference::check_well_typed(*proj, __spec.get(), known);
 
-            // bool um_changed = false;
-            // __tmp_spec = proj->rules.eliminate_ambiguity(std::move(__spec), known, um_changed);
-            // changed |= um_changed;
+            bool um_changed = false;
+            __tmp_spec = proj->rules.eliminate_ambiguity(std::move(__spec), known, um_changed);
+            changed |= um_changed;
 
             //type_inference::check_well_typed(*proj, __tmp_spec.get(), known);
 
         
-            auto [__tmp_spec1, le_changed] = proj->rules.rule_eliminate_let(std::move(spec), true);
+            auto [__tmp_spec1, le_changed] = proj->rules.rule_eliminate_let(std::move(__tmp_spec), true);
             changed |= le_changed;
             //type_inference::check_well_typed(*proj, __tmp_spec1.get(), known);
             //LOG_DEBUG << def->name << "----------------after_let_elimination:---------------------\n" << string(*__tmp_spec1);
