@@ -771,6 +771,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 
         auto abst_spec = abst_transition(proj, m->src.get()); 
         SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
+        auto verify_success = true;
 
 		for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 			auto new_state = state->copy();
@@ -801,10 +802,12 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                     }
                 }
             }
-			if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs)) {
-				return false;
-			}
+            verify_success &= prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs);
+			// if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs)) {
+				// return false;
+			// }
 		}
+        return verify_success;
     } else if (auto i = instance_of(spec, If)) {
 		// push cond
 		auto c = z3_eval(proj, i->cond.get(), state);
@@ -812,10 +815,14 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 		auto false_state = state->copy();
 		true_state->conds->push_back(c->get_z3_value());
 		false_state->conds->push_back(!c->get_z3_value());
-		if (!prove_by_traverse(proj, i->then_body.get(), inv, true_state, used_abs_funcs) || 
-			!prove_by_traverse(proj, i->else_body.get(), inv, false_state, used_abs_funcs)) {
-			return false;
-		}
+        auto verify_success = true;
+        verify_success &= prove_by_traverse(proj, i->then_body.get(), inv, true_state, used_abs_funcs);
+        verify_success &= prove_by_traverse(proj, i->else_body.get(), inv, false_state, used_abs_funcs);
+        return verify_success;
+		// if (!prove_by_traverse(proj, i->then_body.get(), inv, true_state, used_abs_funcs) || 
+			// !prove_by_traverse(proj, i->else_body.get(), inv, false_state, used_abs_funcs)) {
+			// return false;
+		// }
     } else if (auto r = instance_of(spec, Rely)) {
 		// push cond
 		auto c = z3_eval(proj, r->prop.get(), state);
@@ -921,18 +928,24 @@ void spec_prover(Project *proj) {
                 elems->push_back(inv->deep_copy());
                 //conjoined_invs = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems));
                 proj->query_saver = QueryInfo(query_saver_dir(goal_def->name, name));
-                //proj->query_saver.save_config("./test/rcsm/proof_rcsm.v");
+                proj->query_saver.save_config("./test/rcsm/proof_rcsm.v");
                 std::cout << "[spec_prover] Invariant: " << string(*inv) << std::endl;
                 //std::deque<Definition *> q = {goal_def};
-                auto coi = analyze_cone_of_influence(proj, goal_def, inv.get());
-                spec_abstraction(proj, goal_def, coi);
-                goal_def->infer_type(*proj);
+
+                auto l_args = make_unique<vector<shared_ptr<Arg>>>();
+                for (auto arg : *goal_def->args) {
+                    l_args->push_back(arg);
+                }
+                auto spec_def = new Definition(goal_def->name, goal_def->rettype, std::move(l_args), goal_def->body->deep_copy());
+                auto coi = analyze_cone_of_influence(proj, spec_def, inv.get());
+                spec_abstraction(proj, spec_def, coi);
+                spec_def->infer_type(*proj);
                 std::cout << "[spec_abstraction] coi set: " << std::endl;
                 for (auto &c : coi) {
                     std::cout << c << std::endl;
                 }
                 proj->verifying_invariant = name;
-                if (check_inv_by_path(proj, goal_def, inv.get(), used_abstract_funcs)) {
+                if (check_inv_by_path(proj, spec_def, inv.get(), used_abstract_funcs)) {
                     valid = true;
                     LOG_DEBUG << "Invariant " << name << " Valid :D :" << prim;
                 } else {
