@@ -201,7 +201,10 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
                 expr->type = Struct::Ptr;
                 return expr;
             } else if (auto undef = llvm::dyn_cast<llvm::UndefValue>(data)) {
-                if (data->getType()->isIntegerTy()) {
+                if (data->getType()->isIntegerTy(1)) {
+                    return std::make_unique<BoolConst>(true);
+                }
+                else if (data->getType()->isIntegerTy()) {
                     // TODO: should we emit a warning here?
                     return std::make_unique<IntConst>(-10);
                 } else if (data->getType()->isArrayTy()) {
@@ -639,7 +642,6 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
 
                     if (proj->cmds.PostEnsure.find(callee->getName().str()) != proj->cmds.PostEnsure.end()) {
-                        auto ret_st = context.get_abs_data();
                         for (auto & prop : proj->cmds.PostEnsure[callee->getName().str()]) {
                             auto p = prop->deep_copy();
                             if (call->getType()->isVoidTy()) {
