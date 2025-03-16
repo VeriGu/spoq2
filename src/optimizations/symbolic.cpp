@@ -864,7 +864,7 @@ static void spec_abstraction(Project *proj, Definition *def, std::set<string> &c
 }
 
 static string query_saver_dir(const string &spec_name, const string &inv_name) {
-    return "./container/z3_queries/" + spec_name + "/" + inv_name;
+    return "./llvm.container/z3_queries/" + spec_name + "/" + inv_name;
 }
 
 /** check_inv_by_path: 

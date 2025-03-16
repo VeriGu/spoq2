@@ -1,3 +1,4 @@
+#include <symbolic.h>
 #include <simulate.h>
 #include <coi.h>
 // TODO: Implement simulation-aux functions, maybe integrated into prove_by_traverse in future
@@ -39,7 +40,7 @@ namespace autov
 	 * 
 	 * @return [spec(st'), its following spec body] 
 	 */
-	std::pair<unique_ptr<SpecNode>, SpecNode *> forward_simulation(Project *proj, SpecNode *impl, shared_ptr<ProveState> state) {
+	std::pair<unique_ptr<SpecNode>, SpecNode *> forward_simulation(Project *proj, SpecNode *impl, shared_ptr<ProveState> state, const path_t &path, int i, bool det) {
 		if (auto expr = instance_of(impl, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -62,6 +63,8 @@ namespace autov
 			}
 			auto abst_spec = abst_transition(proj, m->src.get()); 
 			SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
+
+			int cnt = 0;
 			for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 				auto pat = (*pm)->pattern.get();
 				resolve_pattern(proj, m, pat, src, state);
@@ -72,30 +75,42 @@ namespace autov
 						return std::make_pair(st_ret->deep_copy(), (*pm)->body.get());
 					}
 				}
-				// for non-abst func here, check state validity here
-				auto res = z3_verify_state_sat(state, &proj->query_saver, Z3_SIMULATE_TIMEOUT);
+
+				// for non-abst func here (match-as-branch), check state validity here
+				Z3Result res = Z3Result::Unknown;
+				if (det) {
+					res = (path[i] == cnt++) ? Z3Result::True : Z3Result::False;	
+				} else {
+					res = z3_verify_state_sat(state, &proj->query_saver, Z3_SIMULATE_TIMEOUT);
+				}
+
 				if (res == Z3Result::False) {
 					continue;
 				} else {
-					return forward_simulation(proj, (*pm)->body.get(), state);
+					return forward_simulation(proj, (*pm)->body.get(), state, path, i+1, det);
 				}
 			}
 
-		} else if (auto i = instance_of(impl, If)) {
-			auto cond = z3_eval(proj, i->cond.get(), state);
-			auto res = z3_check(state, cond->get_z3_value(), Z3_SIMULATE_TIMEOUT);
+		} else if (auto iff = instance_of(impl, If)) {
+			auto cond = z3_eval(proj, iff->cond.get(), state);
+			Z3Result res = Z3Result::Unknown;
+			if (det) {
+				res = (path[i] == 1) ? Z3Result::True : Z3Result::False;
+			} else {
+				res = z3_check(state, cond->get_z3_value(), Z3_SIMULATE_TIMEOUT);
+			}
 			if (res == Z3Result::True) {
 				state->conds->push_back(cond->get_z3_value());
-				return forward_simulation(proj, i->then_body.get(), state);
+				return forward_simulation(proj, iff->then_body.get(), state, path, i+1, det);
 			} else if (res == Z3Result::False) {
 				state->conds->push_back(!cond->get_z3_value());
-				return forward_simulation(proj, i->else_body.get(), state);
+				return forward_simulation(proj, iff->else_body.get(), state, path, i+1, det);
 			}
 
 		} else if (auto r = instance_of(impl, Rely)) {
 			auto c = z3_eval(proj, r->prop.get(), state);
 			state->conds->push_back(c->get_z3_value());
-			return forward_simulation(proj, r->body.get(), state);
+			return forward_simulation(proj, r->body.get(), state, path, i, det);
 		}
 		throw std::runtime_error("[forward_simulation] Deterministic simulation path cannot be solved for spec body: " + string(*impl));
 	}
@@ -121,11 +136,13 @@ namespace autov
 	 * @param impl		The implementation of the system
 	 * @param rel		The relation definition, takes two RData type variable as arguments
 	 * @param state		A state stack that stores z3 constriants
+	 * @param p			The path of current traverse
+	 * @param det		Whether the simulation is deterministic (i.e. st st' takes same branch)
 	 * 
 	 * @return true if the specification relation is proved
 	 * @return false if the specification relation is not proved
 	 */
-	bool simulate_by_traverse(Project *proj, SpecNode *spec, SpecNode *impl, SpecNode *rel, shared_ptr<ProveState> state) {
+	bool simulate_by_traverse(Project *proj, SpecNode *spec, SpecNode *impl, SpecNode *rel, shared_ptr<ProveState> state, path_t p, bool det) {
 		if (auto expr = instance_of(spec, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -137,8 +154,13 @@ namespace autov
 								st_ret = ret_Some->elems->back()->deep_copy();
 							}
 						}
-						auto [st_sim, impl_rest] = forward_simulation(proj, impl, state);
+						auto [st_sim, impl_rest] = forward_simulation(proj, impl, state, p, 0, det);
 						auto [is_relate, expr_relate] = check_relation(proj, rel, st_ret.get(), st_sim.get(), state);
+						std::cout << "----------------------------------" << std::endl;
+						std::cout << "simulate_by_traverse: Final State\n" << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << std::endl;
+						std::cout << "simulate_by_traverse: current path: " << std::endl;
+						print_path(p);
+						std::cout << "----------------------------------" << std::endl;
 						return is_relate;
 					}
 				}
@@ -153,7 +175,12 @@ namespace autov
 
 			auto abst_spec = abst_transition(proj, m->src.get()); 
 			SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
+
+			int cnt = 0;
 			for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
+				path_t p_match = p;
+				p_match.push_back(cnt++);
+
 				auto new_state = state->copy();
 				auto pat = (*pm)->pattern.get();
 				resolve_pattern(proj, m, pat, src, new_state);
@@ -168,18 +195,24 @@ namespace autov
 							/** TODO: add instantiated invariants */
 						}
 						// build constraint (st_ret ~ st_sim)
-						auto [st_sim, impl_rest] = forward_simulation(proj, impl, new_state);
+						auto [st_sim, impl_rest] = forward_simulation(proj, impl, new_state, p_match, 0, det);
 						auto [is_relate, expr_relate] = check_relation(proj, rel, st_ret, st_sim.get(), new_state);
-						
+
+						std::cout << "----------------------------------" << std::endl;
+						std::cout << "simulate_by_traverse: Match State\n" << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << std::endl;
+						std::cout << "simulate_by_traverse: current path: " << std::endl;
+						print_path(p);
+						std::cout << "----------------------------------" << std::endl;
+
 						if (!is_relate) {
-							LOG_INFO << "[simulate_by_traverse] Prove relation between "  << string(*st_ret) << " and " << string(*st_sim.get()) << " later by verifying sub-specs." << std::endl;
+							LOG_INFO << "[simulate_by_traverse] Prove relation between "  << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << " later by verifying sub-specs." << std::endl;
 						}
 						new_state->conds->push_back(expr_relate);
-						return simulate_by_traverse(proj, (*pm)->body.get(), impl_rest, rel, new_state);
+						return simulate_by_traverse(proj, (*pm)->body.get(), impl_rest, rel, new_state, p_match, det);
 					}
 				}
 				// instantiate the rest of implementation
-				if (!simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, new_state)) {
+				if (!simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, new_state, p_match, det)) {
 					return false;
 				}
 			}
@@ -190,15 +223,18 @@ namespace autov
 			auto false_state = state->copy();
 			true_state->conds->push_back(c->get_z3_value());
 			false_state->conds->push_back(!c->get_z3_value());
-			if (!simulate_by_traverse(proj, i->then_body.get(), impl, rel, true_state) || 
-				!simulate_by_traverse(proj, i->else_body.get(), impl, rel, false_state)) {
+			path_t p_then = p, p_else = p;
+			p_then.push_back(1);
+			p_else.push_back(0);
+			if (!simulate_by_traverse(proj, i->then_body.get(), impl, rel, true_state, p_then, det) || 
+				!simulate_by_traverse(proj, i->else_body.get(), impl, rel, false_state, p_else, det)) {
 				return false;
 			}
 		} else if (auto r = instance_of(spec, Rely)) {
 			// push cond
 			auto c = z3_eval(proj, r->prop.get(), state);
 			state->conds->push_back(c->get_z3_value());
-			return simulate_by_traverse(proj, r->body.get(), impl, rel, state);
+			return simulate_by_traverse(proj, r->body.get(), impl, rel, state, p, det);
 		} else {
 			// pass
 		}
@@ -236,13 +272,10 @@ namespace autov
 
 		bool proved = false;
 		auto query_saver_dir = [](const std::string &spec_name, const std::string &inv_name) -> std::string {
-			return "./container/z3_queries/" + spec_name + "/" + inv_name;
+			return "./llvm.container/z3_queries/" + spec_name + "/" + inv_name;
 		};
 
 		for (auto &r : proj->relations) {
-			auto& def_local = proj->defs["relate_misc"];
-		 	auto coi = analyze_cone_of_influence(proj, spec, def_local->body.get());
-
 			proj->query_saver = QueryInfo(query_saver_dir(spec->name, r));
 			proj->query_saver.save_config("./test/rcsm/proof_rcsm.v");
 			
@@ -259,7 +292,11 @@ namespace autov
 			state->conds->push_back(rel_expr);
 			spec_body->clear_z3_eval();
 			impl_body->clear_z3_eval();
-			proved |= simulate_by_traverse(proj, spec_body, impl_body, rel_body, state);
+			
+			path_t p = {};
+			bool det = true;
+			// set check for deterministic simulation
+			proved |= simulate_by_traverse(proj, spec_body, impl_body, rel_body, state, p, det);
 		}
 		return proved;
 	}
