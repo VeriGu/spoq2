@@ -38,7 +38,6 @@ inline std::string ruleid_to_string(RuleID rule) {
 
 void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfold, bool low_spec) {
     LOG_INFO << "Transforming " << def->name << ", unfold: " << unfold;
-    auto known = std::set<string>();
     auto fname = def->name;
     auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
     auto conds = std::make_shared<vector<z3::expr>>();
@@ -46,13 +45,14 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
 
-    for (auto arg : *def->args) {
-        known.insert(arg->name);
-    }
-
+    
     converged_spec.clear();
     while(true) {
             profile_clear_epoch();
+            auto known = std::set<string>();
+            for (auto arg : *def->args) {
+                known.insert(arg->name);
+            }
             auto spec = partial_eval(proj, std::move(def->body), 0, make_shared<EvalState>(vars, conds), known, unfold);
             profile_print_transrule();
             LOG_DEBUG << def->name << "------------------after_partial_eval:----------------------\n" << string(*spec);
