@@ -1969,6 +1969,8 @@ std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec
     if (!spec) {
         return spec; 
     }
+    if(names->size() == 0)
+        return spec;
 
     if (auto s = instance_of(spec.get(), Symbol)) {
         auto ind = std::find(names->begin(), names->end(), s->text);
@@ -2046,7 +2048,7 @@ std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec
             vector<string> subst_names;
             vector<unique_ptr<SpecNode>> subst_new_names;
             for(auto [sym, typ]: symbols) {
-                if(sym == "_")
+                if(sym == "_" || std::find(filtered_names.begin(), filtered_names.end(), sym) != filtered_names.end())
                     continue;
                 if (!proj->is_known_symbol(sym)) {
                     std::set<string> temp = std::set<string>(ps);
@@ -2059,6 +2061,7 @@ std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec
                     ps.insert(new_name);
                     if(new_name != sym) {
                         //subst the pattern and the body
+                        //LOG_DEBUG << "old name: " << sym << "， new_name:" << new_name;
                         subst_names.push_back(sym);
                         subst_new_names.push_back(make_unique<Symbol>(new_name, typ));
                     }
@@ -2126,7 +2129,7 @@ std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec
         vector<unique_ptr<SpecNode>> subst_new_names;
         int i = 0;
         for(auto [sym, typ]: symbols) {
-            if(sym == "_")
+            if(sym == "_" || std::find(filtered_names.begin(), filtered_names.end(), sym) != filtered_names.end())
                 continue;
             if (!proj->is_known_symbol(sym)) {
                 std::set<string> temp = std::set<string>(ps);
@@ -2185,7 +2188,7 @@ std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec
         vector<unique_ptr<SpecNode>> subst_new_names;
         int i = 0;
         for(auto [sym, typ]: symbols) {
-            if(sym == "_")
+            if(sym == "_" || std::find(filtered_names.begin(), filtered_names.end(), sym) != filtered_names.end())
                     continue;
             if (!proj->is_known_symbol(sym)) {
                 std::set<string> temp = std::set<string>(ps);
