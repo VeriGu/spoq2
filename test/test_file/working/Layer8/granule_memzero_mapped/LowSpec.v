@@ -1,0 +1,21 @@
+Require Import Bottom.Spec.
+Require Import Code.
+Require Import CommonDeps.
+Require Import DataTypes.
+Require Import GlobalDefs.
+
+Local Open Scope string_scope.
+Local Open Scope Z_scope.
+
+Section Layer8_granule_memzero_mapped_LowSpec.
+
+  Context `{int_ptr: IntPtrCast}.
+
+  Definition granule_memzero_mapped_spec_low (v_0: Ptr) (st: RData) : (option RData) :=
+    when v_2, st == ((memset_spec v_0 0 4096 st));
+    let __return__ := true in
+    (Some st).
+
+End Layer8_granule_memzero_mapped_LowSpec.
+
+#[global] Hint Unfold granule_memzero_mapped_spec_low: spec.

@@ -13,6 +13,11 @@
 
 namespace autov {
 
+    enum ProveMode {
+        PREPOST,
+        LOOP,
+        SYS
+    };
 
     static std::set<std::string> verify_spec_names = {
         "smc_system_interface_version_spec",

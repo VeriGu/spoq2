@@ -578,11 +578,7 @@ bool check_states_implies_pre_condition(Project* proj, shared_ptr<ProveState> st
     }
 
     vc = vc && (*var)[def->name + "_st_old"]->get_z3_value() == elems.back()->get_z3_value();
-                        //LOG_INFO << "[Checking Precondition] eq formula" << vc;
-                        //LOG_INFO << "[Checking Preconditon] invariant" << invval->get_z3_value();
-                        // for(auto &cond: *state->conds) {
-                        // 	LOG_DEBUG << "Cond:" << cond;
-                        // }
+
     z3::model model(z3ctx);
     auto res = z3_check_unsat(state, z3::implies(vc, invval->get_z3_value()), model, &proj->query_saver, 50000);
     if(res == Z3Result::False || res == Z3Result::Unknown || res == Z3Result::Sat) {
@@ -598,29 +594,70 @@ bool check_states_implies_pre_condition(Project* proj, shared_ptr<ProveState> st
 }
 
 
-// z3::expr formulate_loop_invariant_z3(Project proj*, string fname){
-//     auto loop_post_cond = formulate_loop_invariant(proj, fname, expr->elems.get());
-//     for (auto arg : *loop->args) {
-//         if (arg->name != "_N_") {
-//             (*state->vars)[loop->name + "_" + arg->name + "'"] = arg->type->declare(loop->name + "_" + arg->name + "'", 0); //current
-//         }
-//     }
-//     //LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << string(*loop_post_cond);
-//     auto loop_post_val = z3_eval(proj, loop_post_cond.get(), state, false, true, used_fix);
-//     auto post = loop_post_val->get_z3_value();
-//     for(auto arg : *loop->args) {
-//         if (arg->name != "_N_") {
-//             post = z3::forall((*state->vars)[loop->name + "_" + arg->name + "'"]->get_z3_value(), post);
-//         }
-//     }
+z3::expr formulate_loop_invariant_z3(Project* proj, std::string fname, SpecNode* fun_call, shared_ptr<ProveState> state){
+    auto expr = instance_of(fun_call, Expr);
+    auto loop = proj->defs[fname].get();
+    auto loop_post_cond = formulate_loop_invariant(proj, fname, expr->elems.get());
+    for (auto arg : *loop->args) {
+        if (arg->name != "_N_") {
+            (*state->vars)[loop->name + "_" + arg->name + "'"] = arg->type->declare(loop->name + "_" + arg->name + "'", 0); //current
+        }
+    }
+    //LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << string(*loop_post_cond);
+    set<string> used_fix;
+    auto loop_post_val = z3_eval(proj, loop_post_cond.get(), state, false, true, used_fix);
+    auto post = loop_post_val->get_z3_value();
+    for(auto arg : *loop->args) {
+        if (arg->name != "_N_") {
+            post = z3::forall((*state->vars)[loop->name + "_" + arg->name + "'"]->get_z3_value(), post);
+        }
+    }
+    return post;
+}
 
+z3::expr formulate_post_cond_z3(Project* proj, std::string fname, SpecNode* func_call, shared_ptr<ProveState> state) {
+    auto def = proj->defs[fname].get();
+    auto expr = instance_of(func_call, Expr);
+    auto post_cond = formulate_post_condition(proj, fname, expr->elems.get());
+    string tmpname = "_ret_";
+    int i = 0;
+    auto rettype = instance_of(def->rettype.get(), Option);
+    if (auto rettupletype = instance_of(rettype->elem_type.get(), Tuple)) {
+        for(auto elemtype : *rettupletype->types) {
+            if (i != rettupletype->types->size() - 1) {
+                (*state->vars)[def->name + tmpname + std::to_string(i)] = elemtype->declare(def->name + tmpname + std::to_string(i), 0); //after
+            } else {
+                (*state->vars)[def->name + "_st_new_"] = elemtype->declare(def->name + "_st_new_", 0); //after
+            }
+            i++;
+        }
+    } else{
+        (*state->vars)[def->name + "_st_new_"] = rettype->elem_type->declare(def->name + "_st_new_", 0);
+    }
+    set<string> used_fix;
+    auto post_val = z3_eval(proj, post_cond.get(), state, false, false, used_fix);
+    auto post = post_val->get_z3_value();
+    if (auto rettupletype = instance_of(rettype->elem_type.get(), Tuple)) {
+        i = 0;
+        for(auto elemtype : *rettupletype->types) {
+            if (i != rettupletype->types->size() - 1) {
+                post = z3::forall((*state->vars)[def->name + tmpname + std::to_string(i)]->get_z3_value(), post);
+            } else {
+                post = z3::forall((*state->vars)[def->name + "_st_new_"]->get_z3_value(), post);
+            }
+            i++;
+        }
+    } else {
+        post = z3::forall((*state->vars)[def->name + "_st_new_"]->get_z3_value(), post);
+    }
+    return post;
+}
 
-//     return post;
-// }
 /** prove_by_traverse:
  * 		works on specs with abstract functions, symbolically check inv path-by-path
+ *      It is a general function that can check pre condition implies post condition or system invariant is preserved
  * */
-bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<ProveState> state, set<string> used_abs_funcs) {
+bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<ProveState> state, std::unordered_set<string> used_abs_funcs, ProveMode mode, string fname) {
     if (auto expr = instance_of(spec, Expr)) {
         if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
             if (*e_op == Expr::Some) {
@@ -635,12 +672,44 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 					// Prove the return state maintains the invariant
 					// construct new invariants
                     auto ret_st_str = string(*ret_st);
-					auto p = proj->rules.instantiate_prop(inv->deep_copy(), std::move(ret_st));
+                    unique_ptr<SpecNode> prop;
+                    if(mode == ProveMode::SYS) {
+					    prop = proj->rules.instantiate_prop(inv->deep_copy(), std::move(ret_st));
+                    } else if(mode == ProveMode::PREPOST){
+                        vector<string> names;
+                        vector<unique_ptr<SpecNode>> elems;
+                        auto name = "_ret_";
+                        for(int i = 0; i < ret_Some->elems->size(); i++) {
+                            if(i != ret_Some->elems->size()-1){
+                                names.push_back(name + std::to_string(i));
+                                elems.push_back(ret_Some->elems->at(i)->deep_copy());
+                            }
+                        }
+                        names.push_back("st");
+                        elems.push_back(std::move(ret_st));
+                        
+                        prop = subst_v2(proj, inv->deep_copy(), &names, &elems);
+                    } else if(mode == ProveMode::LOOP) {
+                        vector<string> names;
+                        vector<unique_ptr<SpecNode>> elems;
+                        auto loop = proj->defs[fname].get();
+                        for(int i = 0; i < ret_Some->elems->size(); i++) {
+                            if(i != ret_Some->elems->size()-1){
+                                auto arg_name = loop->args->at(i)->name;
+                                names.push_back(arg_name);
+                                elems.push_back(ret_Some->elems->at(i)->deep_copy());
+                            }
+                        }
+                        names.push_back("st");
+                        elems.push_back(std::move(ret_st));
+                        
+                        prop = subst_v2(proj, inv->deep_copy(), &names, &elems);
+                    }
 					//auto c = z3_expr(proj, p.get(), state);
                     //auto z3_ret = z3_verify(state, c->get_z3_value(), &proj->query_saver);
 					//auto p = instantiate_prop(inv->deep_copy().release(), ret_st);
                     set<string> used_fix;
-					auto c = z3_eval(proj, p.get(), state, false, true, used_fix);
+					auto c = z3_eval(proj, prop.get(), state, false, true, used_fix);
 					// for(auto &cond: *state->conds) {
 					// 	LOG_DEBUG << "Cond:" << cond;
 					// }
@@ -652,13 +721,13 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 					// std::cout << "prove_by_traverse: Goal Query\n" << c->get_z3_value() << std::endl;
 					// std::cout << "----------------------------------" << std::endl;
 					if (z3_ret == Z3Result::Sat) {
-						LOG_WARNING << "[prove_by_traverse] Invariant is violated for state\n" << string(*ret_st) << std::endl;
+						LOG_WARNING << "[prove_by_traverse] Condition is violated for state\n" << string(*ret_st) << std::endl;
 						return false;
 					} else if (z3_ret == Z3Result::Unknown) {
-						LOG_WARNING << "[prove_by_traverse] Invariant is unknown for state\n" << ret_st_str << std::endl;
+						LOG_WARNING << "[prove_by_traverse] Condition is unknown for state\n" << ret_st_str << std::endl;
 						return false;
 					} else {
-						LOG_INFO << "[prove_by_traverse] Invariant is proved for state\n" << ret_st_str << std::endl;
+						LOG_INFO << "[prove_by_traverse] Condition is proved for state\n" << ret_st_str << std::endl;
 						return true;
 					}
                 }
@@ -687,21 +756,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                             // state->inductions->clear();
                             LOG_INFO << "[Checking Loop Invariant] Precondition implies invariant";
                             auto fname = loop->name;
-                            auto loop_post_cond = formulate_loop_invariant(proj, fname, expr->elems.get());
-                            for (auto arg : *loop->args) {
-                                if (arg->name != "_N_") {
-                                        (*state->vars)[loop->name + "_" + arg->name + "'"] = arg->type->declare(loop->name + "_" + arg->name + "'", 0); //current
-                                }
-                            }
-                            //LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << string(*loop_post_cond);
-                            auto loop_post_val = z3_eval(proj, loop_post_cond.get(), state, false, true, used_fix);
-                            auto post = loop_post_val->get_z3_value();
-                            for(auto arg : *loop->args) {
-                                if (arg->name != "_N_") {
-                                    post = z3::forall((*state->vars)[loop->name + "_" + arg->name + "'"]->get_z3_value(), post);
-                                }
-                            }
-                            //delete loop_post_cond;
+                            auto post = formulate_loop_invariant_z3(proj, fname, expr, state);
                             LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << op;
                             LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << post;
                             state->conds->push_back(post);
@@ -713,45 +768,10 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                                     return false;
                                 };
                             }
-
-                            // state->inductions->clear();
-
                             if(proj->cmds.PostCond.find(op) != proj->cmds.PostCond.end()) {
-                                //add post condition
-                                auto post_cond = formulate_post_condition(proj, op, expr->elems.get());
-                                string tmpname = "__tmp__";
-                                int i = 0;
-                                auto rettype = instance_of(def->rettype.get(), Option);
-                                if (auto rettupletype = instance_of(rettype->elem_type.get(), Tuple)) {
-                                    for(auto elemtype : *rettupletype->types) {
-                                        if (i != rettupletype->types->size() - 1) {
-                                            (*state->vars)[def->name + tmpname + std::to_string(i)] = elemtype->declare(def->name + tmpname + std::to_string(i), 0); //after
-                                        } else {
-                                            (*state->vars)[def->name + "_st'"] = elemtype->declare(def->name + "_st'", 0); //after
-                                        }
-                                        i++;
-                                    }
-                                } else{
-                                    (*state->vars)[def->name + "_st'"] = rettype->elem_type->declare(def->name + "_st'", 0);
-                                }
-
-                                auto post_val = z3_eval(proj, post_cond.get(), state, false, false, used_fix);
-                                auto post = post_val->get_z3_value();
-                                if (auto rettupletype = instance_of(rettype->elem_type.get(), Tuple)) {
-                                    i = 0;
-                                    for(auto elemtype : *rettupletype->types) {
-                                        if (i != rettupletype->types->size() - 1) {
-                                            post = z3::forall((*state->vars)[def->name + tmpname + std::to_string(i)]->get_z3_value(), post);
-                                        } else {
-                                            post = z3::forall((*state->vars)[def->name + "_st'"]->get_z3_value(), post);
-                                        }
-                                        i++;
-                                    }
-                                } else {
-                                    post = z3::forall((*state->vars)[def->name + "_st'"]->get_z3_value(), post);
-                                }
-                                //delete post_cond;
-                                LOG_DEBUG << "[Adding Post Condition] Adding func postcondition: " << string(*post_cond);
+                                auto fname = def->name;
+                                auto post = formulate_post_cond_z3(proj, fname, expr, state);
+                                //LOG_DEBUG << "[Adding Post Condition] Adding func postcondition: " << string(*post_cond);
                                 LOG_DEBUG << "[Adding Post Condition] Adding func postcondition: " << post;
                                 state->conds->push_back(post);
                             }
@@ -802,7 +822,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                     }
                 }
             }
-            verify_success &= prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs);
+            verify_success &= prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs, mode, fname);
 			// if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs)) {
 				// return false;
 			// }
@@ -816,8 +836,8 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 		true_state->conds->push_back(c->get_z3_value());
 		false_state->conds->push_back(!c->get_z3_value());
         auto verify_success = true;
-        verify_success &= prove_by_traverse(proj, i->then_body.get(), inv, true_state, used_abs_funcs);
-        verify_success &= prove_by_traverse(proj, i->else_body.get(), inv, false_state, used_abs_funcs);
+        verify_success &= prove_by_traverse(proj, i->then_body.get(), inv, true_state, used_abs_funcs, mode, fname);
+        verify_success &= prove_by_traverse(proj, i->else_body.get(), inv, false_state, used_abs_funcs, mode, fname);
         return verify_success;
 		// if (!prove_by_traverse(proj, i->then_body.get(), inv, true_state, used_abs_funcs) || 
 			// !prove_by_traverse(proj, i->else_body.get(), inv, false_state, used_abs_funcs)) {
@@ -827,7 +847,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 		// push cond
 		auto c = z3_eval(proj, r->prop.get(), state);
 		state->conds->push_back(c->get_z3_value());
-        return prove_by_traverse(proj, r->body.get(), inv, state, used_abs_funcs);
+        return prove_by_traverse(proj, r->body.get(), inv, state, used_abs_funcs, mode, fname);
     } else {
 		// pass
 		return true;
@@ -872,7 +892,7 @@ static string query_saver_dir(const string &spec_name, const string &inv_name) {
  * 2. Traverse the spec, push control point constriants
  * 3. Arrive return point, push return value constraints, check
  * */ 
-bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv, set<string> &used_abs_funcs) {
+bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv, std::unordered_set<string> &used_abs_funcs) {
 	auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
 	auto conds = std::make_shared<vector<z3::expr>>();
 	for (auto arg : *def->args) {
@@ -900,10 +920,84 @@ bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv, set<string
     }
 
     def->body->clear_z3_eval();
-	bool ret = prove_by_traverse(proj, def->body.get(), inv, state, used_abs_funcs);
+	bool ret = prove_by_traverse(proj, def->body.get(), inv, state, used_abs_funcs, ProveMode::SYS, def->name);
 	return ret;
 }
 
+//this version will treat loop as recursive functions.
+bool check_loop_inv_v2(Project* proj, Definition *loop, std::unordered_set<string>& used_abs) {
+    auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+	auto conds = std::make_shared<vector<z3::expr>>();
+
+    if(proj->loop_invs.find(loop->name) == proj->loop_invs.end()) {
+        LOG_ERROR << "loop invariant not specified: " << loop->name;
+    }
+    std::vector<unique_ptr<SpecNode>>& invs = proj->loop_invs[loop->name];
+    assert(instance_of(loop, Fixpoint));
+    auto body = loop->body.get();
+    auto args = loop->args.get();
+
+    unique_ptr<SpecNode> inv = make_unique<BoolConst>(true);
+    for(auto &in : invs) {
+        auto elems = new vector<unique_ptr<SpecNode>>();
+        elems->push_back(std::move(inv));
+        elems->push_back(in->deep_copy());
+        inv = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
+    }
+
+    for(auto arg : *loop->args) {
+        (*vars)[arg->name] = arg->type->declare(arg->name, 0);
+    }
+    auto induction = std::make_shared<vector<z3::expr>>();
+    auto state = make_shared<ProveState>(vars, conds, induction);
+    set<string> used_fixpoint;
+    auto c = z3_eval(proj, inv.get(), state, false, true, used_fixpoint);
+    state->conds->push_back(c->get_z3_value());
+    bool res = prove_by_traverse(proj, loop->body.get(), inv.get(), state, used_abs, ProveMode::LOOP, loop->name);
+
+    //must remove name of itself
+    used_abs.erase(loop->name);
+    return res;
+}
+
+
+//check precondition implies post condition
+bool check_pre_post(Project* proj, Definition *def, std::unordered_set<string>& used_abs) {
+    auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+	auto conds = std::make_shared<vector<z3::expr>>();
+
+    for(auto arg : *def->args) {
+        (*vars)[arg->name] = arg->type->declare(arg->name, 0);
+    }
+
+    auto &preconds = proj->cmds.PreCond[def->name];
+    auto &postconds = proj->cmds.PostCond[def->name];
+
+
+    unique_ptr<SpecNode> precond = make_unique<BoolConst>(true);
+    for(auto &in : preconds) {
+        auto elems = new vector<unique_ptr<SpecNode>>();
+        elems->push_back(std::move(precond));
+        elems->push_back(in->deep_copy());
+        precond = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
+    }
+
+    unique_ptr<SpecNode> postcond = make_unique<BoolConst>(true);
+    for(auto &in : postconds) {
+        auto elems = new vector<unique_ptr<SpecNode>>();
+        elems->push_back(std::move(postcond));
+        elems->push_back(in->deep_copy());
+        postcond = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
+    }
+    auto induction = std::make_shared<vector<z3::expr>>();
+    auto state = make_shared<ProveState>(vars, conds, induction);
+    set<string> used_fixpoint;
+    auto c = z3_eval(proj, precond.get(), state, false, true, used_fixpoint);
+
+    bool res = prove_by_traverse(proj, def->body.get(), postcond.get(), state, used_abs, ProveMode::PREPOST, def->name);
+
+    return res;
+}
 /**
  * spec_prover:
  *  1. Prove invariants separately 
@@ -913,7 +1007,7 @@ bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv, set<string
 void spec_prover(Project *proj) {
     static const std::set<string> drf_init_coi = {"e_lock", };
     unique_ptr<SpecNode> conjoined_invs = make_unique<BoolConst>(true);
-    std::set<string> used_abstract_funcs;
+    std::unordered_set<string> used_abstract_funcs;
     //check system invariant incrementally. The invariant dependent on another should be defined
     //after the other invariant.
     LOG_DEBUG << "check invariant: " << OPTS.check_inv;
@@ -956,28 +1050,29 @@ void spec_prover(Project *proj) {
                 proj->verified_invariants.insert(name);
         }
     }
-    //check drf condition, separated out
-    
-    //check function's pre -> post condition.
-    //TODO
-    if(OPTS.check_pre_post) {
-        
-    }
-    
+
     //check loop_invariant, only check what's needed.
-    if(OPTS.check_loop_inv) {
+    if(OPTS.check_loop_inv || OPTS.check_pre_post) {
         //check all the loops that have invariants provided.
-        for(auto &[string,inv] : proj->loop_invs) {
-            if(proj->defs.find(string) != proj->defs.end() && used_abstract_funcs.find(string) != used_abstract_funcs.end()){
-                auto def = proj->defs[string].get();
+        while(used_abstract_funcs.size() > 0) {
+            auto func = *(used_abstract_funcs.begin());
+            used_abstract_funcs.erase(used_abstract_funcs.begin());
+            if(proj->defs.find(func) != proj->defs.end()){
+                auto def = proj->defs[func].get();
                 LOG_DEBUG << "Checking Loop Invariant: " << def->name;
-                if(is_instance(def, Fixpoint) && check_loop_inv(proj, def)) {
-                    LOG_DEBUG << "loop invariant: " << string << " is inductive :)";
-                } else {
-                    LOG_ERROR << "loop invariant: " << string << "is not inductive! :(";
+                if(is_instance(def, Fixpoint) && OPTS.check_loop_inv) {
+                    if(check_loop_inv_v2(proj, def, used_abstract_funcs))
+                        LOG_DEBUG << "loop invariant: " << func << " is inductive :)";
+                    else
+                        LOG_ERROR << "loop invariant: " << func << "is not inductive! :(";
+                } else if(is_instance(def, Definition) && OPTS.check_pre_post){
+                    if(check_pre_post(proj, def, used_abstract_funcs))
+                        LOG_ERROR << "Precondition imply post condition :) " << func;
+                    else
+                        LOG_ERROR << "Precondition does not imply post condition :( " << func;
                 }
             } else {
-                LOG_ERROR << "no loop named:" << string;
+                LOG_ERROR << "no definition named:" << func;
             }
         }
     }
