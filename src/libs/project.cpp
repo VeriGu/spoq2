@@ -1044,6 +1044,7 @@ bool Project::finalize_project_v2() {
     this->layers[0]->prims.assign(deps.begin(), deps.end());
 
     filter_only_trans(this);
+    collect_relations(this);
     collect_lemmas(this);
 
     LOG_DEBUG << "filter and lemma ok" << "\n";
@@ -1083,7 +1084,12 @@ bool Project::finalize_project_v2() {
     }
 
     LOG_DEBUG << "low spec ok" << "\n";
+
+    auto start = std::chrono::high_resolution_clock::now();
     spec_prover(this);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto proof_cost = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+    
     extern unsigned long z3_unknowns, z3_checks, z3_cache_hits, z3_global_hash_hit, z3_global_hash_total;
     extern std::chrono::duration<double> z3_accumulative_time;
 
@@ -1091,6 +1097,7 @@ bool Project::finalize_project_v2() {
     LOG_INFO << "Z3 cache hits: " << z3_cache_hits << "/" << z3_checks << std::endl;
     LOG_INFO << "Z3 global hash hit: " << z3_global_hash_hit << "/" << z3_global_hash_total << std::endl;
     LOG_INFO << "Z3 accumulative time: " << z3_accumulative_time.count() << " (s)";
+    LOG_INFO << "Automated verification time: " << proof_cost.count() << " (s)";
     return true;
 }
 
