@@ -845,7 +845,7 @@ unique_ptr<SpecNode> formulate_post_condition(Project* proj, string fname, vecto
                 aggrepost = subst_v2(proj, std::move(aggrepost), tmpname + std::to_string(i), make_unique<Symbol>(fname + tmpname + std::to_string(i)));
             } else {
                 //(*var)["st'"] = elemtype->declare("st'", 0); //after
-                tupleelems->push_back(unique_ptr<SpecNode>(new Symbol(fname + "st_new_", elemtype)));
+                tupleelems->push_back(unique_ptr<SpecNode>(new Symbol(fname + "_st_new_", elemtype)));
             }
             i++;
         }
@@ -853,7 +853,7 @@ unique_ptr<SpecNode> formulate_post_condition(Project* proj, string fname, vecto
         auto rhstuple = new Expr(Expr::ops::Tuple, std::move(tupleelems), instance_of(def->body->type.get(), Option)->elem_type);      
         rhselems->push_back(unique_ptr<SpecNode>(rhstuple));
     } else if(rettype->elem_type == proj->layers[0]->abs_data) {
-        rhselems->push_back(unique_ptr<SpecNode>(new Symbol(fname + "st_new_", proj->layers[0]->abs_data)));
+        rhselems->push_back(unique_ptr<SpecNode>(new Symbol(fname + "_st_new_", proj->layers[0]->abs_data)));
     }                                                            
     auto rhsbody = new Expr(Expr::ops::Some, std::move(rhselems), def->body->type);
 
@@ -863,7 +863,7 @@ unique_ptr<SpecNode> formulate_post_condition(Project* proj, string fname, vecto
     auto eqbody = new Expr(Expr::binops::EQUAL, std::move(elems), Bool::BOOL);
 
     bool succ;
-    unique_ptr<SpecNode> sym = make_unique<Symbol>(fname + "st_new_", proj->layers[0]->abs_data);
+    unique_ptr<SpecNode> sym = make_unique<Symbol>(fname + "_st_new_", proj->layers[0]->abs_data);
     aggrepost = subst(std::move(aggrepost), "st", sym.get(), succ);
 
     aggrepost = subst(std::move(aggrepost), "st_old", args->back().get(), succ);

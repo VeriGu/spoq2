@@ -69,6 +69,10 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 spec = std::move(__spec);
             }
 
+            known = std::set<string>();
+            for (auto arg : *def->args) {
+                known.insert(arg->name);
+            }
             bool um_changed = false;
             __tmp_spec = proj->rules.eliminate_ambiguity(std::move(spec), known, um_changed);
             changed |= um_changed;
