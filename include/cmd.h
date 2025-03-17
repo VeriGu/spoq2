@@ -24,6 +24,7 @@ public:
     bool new_trans = false;
     bool check_simulation = false;
     bool decompose_check_simulation = false;
+    std::string query_path;
     std::string config_file;
     boost::program_options::variables_map vmap;
 
@@ -43,6 +44,7 @@ public:
         std::cout << "  check-pre-post: " << std::boolalpha << check_pre_post << "\n";
         std::cout << "  profile: " << std::boolalpha << profile << "\n";
         std::cout << "  check-simulation: " << std::boolalpha << check_simulation << "\n";
+        std::cout << "  check-simulation-with-decompose: " << std::boolalpha << decompose_check_simulation << "\n";
         std::cout << std::endl;
     }
 
@@ -70,7 +72,8 @@ public:
             ("check-pre-post", po::bool_switch()->default_value(false), "checking pre/post conditions")
             ("profile", po::bool_switch()->default_value(true), "use profile (default on)")
             ("no-profile", po::bool_switch()->default_value(false), "do not profile (override --profile)")
-            ("decom-check-simul",po::bool_switch()->default_value(false), "checking relational simulation");
+            ("decom-check-simul",po::bool_switch()->default_value(false), "checking relational simulation")
+            ("query-path",po::value<std::string>(&query_path)->default_value("./llvm.container/z3_queries/"),"set query path");
 
         po::positional_options_description p;
         p.add("input", 1); // The input .v config file is positional and is the first argument
