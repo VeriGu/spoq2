@@ -68,8 +68,8 @@ public:
             ("check-pre-post", po::bool_switch()->default_value(false), "checking pre/post conditions")
             ("check-simulation", po::bool_switch()->default_value(false),"checking relational simulation")
             ("check-pre-post", po::bool_switch()->default_value(false), "checking pre/post conditions")
-            ("profile", po::bool_switch()->default_value(true), "use profile (default on)")
-            ("no-profile", po::bool_switch()->default_value(false), "do not profile (override --profile)")
+            ("profile", po::bool_switch()->default_value(false), "use profile (default on)")
+            ("no-profile", po::bool_switch()->default_value(true), "do not profile (override --profile)")
             ("decom-check-simul",po::bool_switch()->default_value(false), "checking relational simulation");
 
         po::positional_options_description p;
@@ -104,7 +104,11 @@ public:
         this->profile = vmap["profile"].as<bool>();
 
         this->lens = !vmap["no-lens"].as<bool>();
-        this->profile = !vmap["no-profile"].as<bool>();
+        if (vmap["no-profile"].as<bool>()) {
+            this->profile = false;
+        } else {
+            this->profile = vmap["profile"].as<bool>();
+        }
         autov::__PROFILE_ON = this->profile;
 
         this->check_simulation = vmap["check-simulation"].as<bool>();
