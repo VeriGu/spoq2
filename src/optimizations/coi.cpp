@@ -336,9 +336,9 @@ inline void analyze_invariant_fields(Project *proj, SpecNode *inv, std::set<fiel
  * 
  *  Give an expression and a set of interested fields, backward propagate to all the dependent fields (its definition)
  */
-std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecNode *inv) {
+std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecNode *inv, std::set<string> whitelist, std::set<string> blacklist) {
     std::set<string> coi_ret = {};
-    for (auto c : coi_whitelist) {
+    for (auto c : whitelist) {
         coi_ret.insert(c);
     }
 
@@ -389,7 +389,7 @@ std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecN
         }   
     }
     for (auto &c : coi_fields) {
-        if (coi_blacklist.find(c.front()) != coi_blacklist.end()) {
+        if (blacklist.find(c.front()) != blacklist.end()) {
             continue;
         }
         coi_ret.insert(c.front());
