@@ -1083,10 +1083,18 @@ void spec_prover(Project *proj) {
             if (verify_spec_names.find(def->name) == verify_spec_names.end()) {
                 continue;
             }
-            if (check_hprop_by_path(proj, def)) {
-                LOG_DEBUG << "Relational Property for " << def->name << " is valid :D";
-            } else {
-                LOG_DEBUG << "Relational Property for " << def->name << " is not valid :(";
+
+            for (auto &r : proj->relations) {
+    			proj->query_saver = QueryInfo(query_saver_dir(def->name, r));
+    			proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
+
+                auto rel = proj->defs[r]->body->deep_copy();
+                
+                if (check_hprop_by_path(proj, std::move(rel), def)) {
+                    LOG_DEBUG << "Relational Property for " << def->name << " is valid :D";
+                } else {
+                    LOG_DEBUG << "Relational Property for " << def->name << " is not valid :(";
+                }
             }
         }
     }

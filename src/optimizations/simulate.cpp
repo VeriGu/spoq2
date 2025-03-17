@@ -5,12 +5,16 @@
 namespace autov
 {
 
-	std::pair<bool, z3::expr> check_relation(Project *proj, SpecNode *rel, SpecNode *st_spec, SpecNode *st_impl, shared_ptr<ProveState> state) {
+	shared_ptr<SpecValue> formulate_relation(Project *proj, SpecNode *rel, SpecNode *st_spec, SpecNode *st_impl, shared_ptr<ProveState> state) {
 		static const string rel_name_1 = "sec", rel_name_2 = "norm";
 		bool succ;
 		auto p = subst(rel->deep_copy(), rel_name_1, st_spec, succ);
 		p = subst(p->deep_copy(), rel_name_2, st_impl, succ);
-		auto rel_expr = z3_eval(proj, p.get(), state);
+		return z3_eval(proj, p.get(), state);
+	}
+
+	std::pair<bool, z3::expr> check_relation(Project *proj, SpecNode *rel, SpecNode *st_spec, SpecNode *st_impl, shared_ptr<ProveState> state) {
+		auto rel_expr = formulate_relation(proj, rel, st_spec, st_impl, state);
 		z3::model model(z3ctx);
 		auto z3_ret = z3_check_unsat(state, rel_expr->get_z3_value(), model, &proj->query_saver, Z3_SIMULATE_TIMEOUT);
 		return std::make_pair(z3_ret == Z3Result::True, rel_expr->get_z3_value());
@@ -257,13 +261,13 @@ namespace autov
 	 * @brief Check relational property
 	 * 
 	 * @param proj		The project
+	 * @param rel		The simulation relation
 	 * @param spec		The first trace
-	 * @param impl		The first trace
-	 * @param rel		The relation type
+	 * @param impl		The second trace
 	 * @return true		If the relation is proved
 	 * @return false	If the relation is not proved
 	 */
-	bool check_hprop_by_path(Project *proj, Definition *spec, Definition *impl) {
+	bool check_hprop_by_path(Project *proj, unique_ptr<SpecNode> rel, Definition *spec, Definition *impl) {
 		auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
 		auto conds = std::make_shared<vector<z3::expr>>();
 		for (auto arg : *spec->args) {
@@ -282,34 +286,20 @@ namespace autov
 			impl_body = impl->body.get();
 		}
 
-		bool proved = false;
-		auto query_saver_dir = [](const std::string &spec_name, const std::string &inv_name) -> std::string {
-			return "./llvm.container/z3_queries/" + spec_name + "/" + inv_name;
-		};
-
-		for (auto &r : proj->relations) {
-			proj->query_saver = QueryInfo(query_saver_dir(spec->name, r));
-			proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
-			
-			auto last_arg = spec->args->back();
-			auto st_sym_1 = make_shared<Symbol>(last_arg->name, last_arg->type);
-			auto st_sym_2 = make_shared<Symbol>(get_sim_name(last_arg->name), last_arg->type);
-
-			if (!proj->is_state_type(last_arg->type)) {
-				LOG_ERROR << "[check_hprop_by_path] The last argument of the spec should be a state type!";
-			}
-
-			auto rel_body = proj->defs[r]->body.get();
-			auto [_, rel_expr] = check_relation(proj, rel_body->deep_copy().get(), st_sym_1.get(), st_sym_2.get(), state);
-			state->conds->push_back(rel_expr);
-			spec_body->clear_z3_eval();
-			impl_body->clear_z3_eval();
-			
-			path_t p = {};
-			bool det = true;
-			// set check for deterministic simulation
-			proved |= simulate_by_traverse(proj, spec_body, impl_body, rel_body, state, p, true);
+		auto last_arg = spec->args->back();
+		auto st_sym_1 = make_shared<Symbol>(last_arg->name, last_arg->type);
+		auto st_sym_2 = make_shared<Symbol>(get_sim_name(last_arg->name), last_arg->type);
+		if (!proj->is_state_type(last_arg->type)) {
+			LOG_ERROR << "[check_hprop_by_path] The last argument of the spec should be a state type!";
 		}
-		return proved;
+		auto rel_body = rel.get();
+		auto rel_expr = formulate_relation(proj, rel_body->deep_copy().get(), st_sym_1.get(), st_sym_2.get(), state);
+		state->conds->push_back(rel_expr->get_z3_value());
+		spec_body->clear_z3_eval();
+		impl_body->clear_z3_eval();
+		path_t p = {};
+		bool det = true;
+		/** TODO: set check for deterministic simulation */
+		return simulate_by_traverse(proj, spec_body, impl_body, rel_body, state, p, true);
 	}
 }
