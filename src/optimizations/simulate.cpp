@@ -5,12 +5,16 @@
 namespace autov
 {
 
-	std::pair<bool, z3::expr> check_relation(Project *proj, SpecNode *rel, SpecNode *st_spec, SpecNode *st_impl, shared_ptr<ProveState> state) {
+	shared_ptr<SpecValue> formulate_relation(Project *proj, SpecNode *rel, SpecNode *st_spec, SpecNode *st_impl, shared_ptr<ProveState> state) {
 		static const string rel_name_1 = "sec", rel_name_2 = "norm";
 		bool succ;
 		auto p = subst(rel->deep_copy(), rel_name_1, st_spec, succ);
 		p = subst(p->deep_copy(), rel_name_2, st_impl, succ);
-		auto rel_expr = z3_eval(proj, p.get(), state);
+		return z3_eval(proj, p.get(), state);
+	}
+
+	std::pair<bool, z3::expr> check_relation(Project *proj, SpecNode *rel, SpecNode *st_spec, SpecNode *st_impl, shared_ptr<ProveState> state) {
+		auto rel_expr = formulate_relation(proj, rel, st_spec, st_impl, state);
 		z3::model model(z3ctx);
 		auto z3_ret = z3_check_unsat(state, rel_expr->get_z3_value(), model, &proj->query_saver, Z3_SIMULATE_TIMEOUT);
 		return std::make_pair(z3_ret == Z3Result::True, rel_expr->get_z3_value());
@@ -156,11 +160,16 @@ namespace autov
 						}
 						auto [st_sim, impl_rest] = forward_simulation(proj, impl, state, p, 0, det);
 						auto [is_relate, expr_relate] = check_relation(proj, rel, st_ret.get(), st_sim.get(), state);
-						std::cout << "----------------------------------" << std::endl;
-						std::cout << "simulate_by_traverse: Final State\n" << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << std::endl;
-						std::cout << "simulate_by_traverse: current path: " << std::endl;
-						print_path(p);
-						std::cout << "----------------------------------" << std::endl;
+						// std::cout << "----------------------------------" << std::endl;
+						// std::cout << "simulate_by_traverse: Final State\n" << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << std::endl;
+						// std::cout << "simulate_by_traverse: current path: " << std::endl;
+						// print_path(p);
+						// std::cout << "----------------------------------" << std::endl;
+						if (is_relate) {
+							LOG_INFO << "[simulate_by_traverse] Relation is proved between\n"  << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << std::endl;
+						} else {
+							LOG_WARNING << "[simulate_by_traverse] Relation can not be proved between\n"  << string(*st_ret) << "\nand\n" << string(*st_sim.get())  << std::endl;
+						}
 						return is_relate;
 					}
 				}
@@ -177,6 +186,7 @@ namespace autov
 			SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
 
 			int cnt = 0;
+			auto success = true;
 			for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 				path_t p_match = p;
 				p_match.push_back(cnt++);
@@ -198,11 +208,11 @@ namespace autov
 						auto [st_sim, impl_rest] = forward_simulation(proj, impl, new_state, p_match, 0, det);
 						auto [is_relate, expr_relate] = check_relation(proj, rel, st_ret, st_sim.get(), new_state);
 
-						std::cout << "----------------------------------" << std::endl;
-						std::cout << "simulate_by_traverse: Match State\n" << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << std::endl;
-						std::cout << "simulate_by_traverse: current path: " << std::endl;
-						print_path(p);
-						std::cout << "----------------------------------" << std::endl;
+						// std::cout << "----------------------------------" << std::endl;
+						// std::cout << "simulate_by_traverse: Match State\n" << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << std::endl;
+						// std::cout << "simulate_by_traverse: current path: " << std::endl;
+						// print_path(p);
+						// std::cout << "----------------------------------" << std::endl;
 
 						if (!is_relate) {
 							LOG_INFO << "[simulate_by_traverse] Prove relation between "  << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << " later by verifying sub-specs." << std::endl;
@@ -211,11 +221,13 @@ namespace autov
 						return simulate_by_traverse(proj, (*pm)->body.get(), impl_rest, rel, new_state, p_match, det);
 					}
 				}
+				success &= simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, new_state, p_match, det);
 				// instantiate the rest of implementation
-				if (!simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, new_state, p_match, det)) {
-					return false;
-				}
+				// if (!simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, new_state, p_match, det)) {
+					// return false;
+				// }
 			}
+			return success;
 		} else if (auto i = instance_of(spec, If)) {
 			// push cond
 			auto c = z3_eval(proj, i->cond.get(), state);
@@ -226,10 +238,14 @@ namespace autov
 			path_t p_then = p, p_else = p;
 			p_then.push_back(1);
 			p_else.push_back(0);
-			if (!simulate_by_traverse(proj, i->then_body.get(), impl, rel, true_state, p_then, det) || 
-				!simulate_by_traverse(proj, i->else_body.get(), impl, rel, false_state, p_else, det)) {
-				return false;
-			}
+			auto success = true;
+			success &= simulate_by_traverse(proj, i->then_body.get(), impl, rel, true_state, p_then, det);
+			success &= simulate_by_traverse(proj, i->else_body.get(), impl, rel, false_state, p_else, det);
+			return success;
+			// if (!simulate_by_traverse(proj, i->then_body.get(), impl, rel, true_state, p_then, det) || 
+			// 	!simulate_by_traverse(proj, i->else_body.get(), impl, rel, false_state, p_else, det)) {
+			// 	return false;
+			// }
 		} else if (auto r = instance_of(spec, Rely)) {
 			// push cond
 			auto c = z3_eval(proj, r->prop.get(), state);
@@ -245,13 +261,13 @@ namespace autov
 	 * @brief Check relational property
 	 * 
 	 * @param proj		The project
+	 * @param rel		The simulation relation
 	 * @param spec		The first trace
-	 * @param impl		The first trace
-	 * @param rel		The relation type
+	 * @param impl		The second trace
 	 * @return true		If the relation is proved
 	 * @return false	If the relation is not proved
 	 */
-	bool check_hprop_by_path(Project *proj, Definition *spec, Definition *impl) {
+	bool check_hprop_by_path(Project *proj, unique_ptr<SpecNode> rel, Definition *spec, Definition *impl) {
 		auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
 		auto conds = std::make_shared<vector<z3::expr>>();
 		for (auto arg : *spec->args) {
@@ -270,34 +286,20 @@ namespace autov
 			impl_body = impl->body.get();
 		}
 
-		bool proved = false;
-		auto query_saver_dir = [](const std::string &spec_name, const std::string &inv_name) -> std::string {
-			return "./llvm.container/z3_queries/" + spec_name + "/" + inv_name;
-		};
-
-		for (auto &r : proj->relations) {
-			proj->query_saver = QueryInfo(query_saver_dir(spec->name, r));
-			proj->query_saver.save_config("./test/rcsm/proof_rcsm.v");
-			
-			auto last_arg = spec->args->back();
-			auto st_sym_1 = make_shared<Symbol>(last_arg->name, last_arg->type);
-			auto st_sym_2 = make_shared<Symbol>(get_sim_name(last_arg->name), last_arg->type);
-
-			if (!proj->is_state_type(last_arg->type)) {
-				LOG_ERROR << "[check_hprop_by_path] The last argument of the spec should be a state type!";
-			}
-
-			auto rel_body = proj->defs[r]->body.get();
-			auto [_, rel_expr] = check_relation(proj, rel_body->deep_copy().get(), st_sym_1.get(), st_sym_2.get(), state);
-			state->conds->push_back(rel_expr);
-			spec_body->clear_z3_eval();
-			impl_body->clear_z3_eval();
-			
-			path_t p = {};
-			bool det = true;
-			// set check for deterministic simulation
-			proved |= simulate_by_traverse(proj, spec_body, impl_body, rel_body, state, p, det);
+		auto last_arg = spec->args->back();
+		auto st_sym_1 = make_shared<Symbol>(last_arg->name, last_arg->type);
+		auto st_sym_2 = make_shared<Symbol>(get_sim_name(last_arg->name), last_arg->type);
+		if (!proj->is_state_type(last_arg->type)) {
+			LOG_ERROR << "[check_hprop_by_path] The last argument of the spec should be a state type!";
 		}
-		return proved;
+		auto rel_body = rel.get();
+		auto rel_expr = formulate_relation(proj, rel_body->deep_copy().get(), st_sym_1.get(), st_sym_2.get(), state);
+		state->conds->push_back(rel_expr->get_z3_value());
+		spec_body->clear_z3_eval();
+		impl_body->clear_z3_eval();
+		path_t p = {};
+		bool det = true;
+		/** TODO: set check for deterministic simulation */
+		return simulate_by_traverse(proj, spec_body, impl_body, rel_body, state, p, true);
 	}
 }

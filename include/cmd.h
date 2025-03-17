@@ -107,7 +107,11 @@ public:
         this->profile = vmap["profile"].as<bool>();
 
         this->lens = !vmap["no-lens"].as<bool>();
-        this->profile = !vmap["no-profile"].as<bool>();
+        if (vmap["no-profile"].as<bool>()) {
+            this->profile = false;
+        } else {
+            this->profile = vmap["profile"].as<bool>();
+        }
         autov::__PROFILE_ON = this->profile;
 
         this->check_simulation = vmap["check-simulation"].as<bool>();

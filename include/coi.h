@@ -28,5 +28,7 @@ namespace autov {
 
     void print_path(const path_t &p);
     /* Calculate cone of influence */
-    std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecNode *inv);
+    std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecNode *inv, 
+                                               std::set<string> whitelist = {}, 
+                                               std::set<string> blacklist = {});
 }

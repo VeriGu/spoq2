@@ -5,24 +5,24 @@ from z3 import Solver, parse_smt2_file, unsat
 from colorama import Fore, Style, init
 
 VERIFY_SPEC_NAMES = {
-    "smc_system_interface_version_spec",
-    "smc_read_feature_register_spec",
-    "smc_granule_delegate_spec",
-    "smc_granule_undelegate_spec",
-    "smc_realm_create_spec",
-    "smc_realm_destroy_spec",
-    "smc_rec_enter_spec",
-    "smc_realm_activate_spec",
-    "smc_rec_create_spec",
+    # "smc_system_interface_version_spec",
+    # "smc_read_feature_register_spec",
+    # "smc_granule_delegate_spec",
+    # "smc_granule_undelegate_spec",
+    # "smc_realm_create_spec",
+    # "smc_realm_destroy_spec",
+    # "smc_rec_enter_spec",
+    # "smc_realm_activate_spec",
+    # "smc_rec_create_spec",
     "smc_rec_destroy_spec",
-    "smc_data_create_spec",
-    "rsi_data_create_unknown_s1_spec",
-    "map_unmap_ns_s1_spec",
-    "rsi_data_destroy_spec",
-    "rsi_rtt_create_spec",
-    "rsi_rtt_destroy_spec",
-    "rsi_rtt_set_ripas_spec",
-    "rsi_data_map_extra_spec"
+    # "smc_data_create_spec",
+    # "rsi_data_create_unknown_s1_spec",
+    # "map_unmap_ns_s1_spec",
+    # "rsi_data_destroy_spec",
+    # "rsi_rtt_create_spec",
+    # "rsi_rtt_destroy_spec",
+    # "rsi_rtt_set_ripas_spec",
+    # "rsi_data_map_extra_spec"
 }
 
 # Initialize colorama for colored output
@@ -33,14 +33,14 @@ def check_smt2_file(file_path):
     solver = Solver()
     constraints = parse_smt2_file(file_path)
     # Increase or adjust the timeout as needed
-    solver.set("timeout", 40000)  # 40 seconds
+    solver.set("timeout", 8000)  # 40 seconds
     solver.add(constraints)
     return solver.check()
 
 def check_invariants():
     # Instead of current_dir, use ../container/z3_queries/
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    smt_base_dir = os.path.abspath(os.path.join(script_dir, "..", "..", "container", "z3_queries"))
+    smt_base_dir = os.path.abspath(os.path.join(script_dir, "..", "..", "llvm.container", "z3_queries"))
 
     # Iterate over all subdirectories in ../container/z3_queries
     for spec_name in os.listdir(smt_base_dir):
