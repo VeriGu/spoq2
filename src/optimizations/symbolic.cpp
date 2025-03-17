@@ -1022,7 +1022,7 @@ void spec_prover(Project *proj) {
                 elems->push_back(inv->deep_copy());
                 //conjoined_invs = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems));
                 proj->query_saver = QueryInfo(query_saver_dir(goal_def->name, name));
-                proj->query_saver.save_config("./test/rcsm/proof_rcsm.v");
+                proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
                 std::cout << "[spec_prover] Invariant: " << string(*inv) << std::endl;
                 //std::deque<Definition *> q = {goal_def};
 
@@ -1031,7 +1031,7 @@ void spec_prover(Project *proj) {
                     l_args->push_back(arg);
                 }
                 auto spec_def = new Definition(goal_def->name, goal_def->rettype, std::move(l_args), goal_def->body->deep_copy());
-                auto coi = analyze_cone_of_influence(proj, spec_def, inv.get());
+                auto coi = analyze_cone_of_influence(proj, spec_def, inv.get(), autov::coi_whitelist, autov::coi_blacklist);
                 spec_abstraction(proj, spec_def, coi);
                 spec_def->infer_type(*proj);
                 std::cout << "[spec_abstraction] coi set: " << std::endl;
