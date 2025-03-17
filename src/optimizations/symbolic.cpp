@@ -30,6 +30,10 @@ bool is_relation_defs(Project *proj, const string &name) {
     return proj->symbols[name].loc == autov::loc_t("Relations", "Spec", "");
 }
 
+bool is_sec_relation_defs(Project *proj, const string &name) {
+    return proj->symbols[name].loc == autov::loc_t("SecureRelations", "Spec", "");
+}
+
 /** Separate prove-stage z3 translator from the specgen-stage one */
 shared_ptr<SpecValue> z3_expr(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
     if (val->cached_eval) return val->cached_eval;
@@ -884,7 +888,7 @@ static void spec_abstraction(Project *proj, Definition *def, std::set<string> &c
 }
 
 static string query_saver_dir(const string &spec_name, const string &inv_name) {
-    return "./llvm.container/z3_queries/" + spec_name + "/" + inv_name;
+    return OPTS.query_path + spec_name + "/" + inv_name;
 }
 
 /** check_inv_by_path: 
@@ -1094,7 +1098,11 @@ void spec_prover(Project *proj) {
     if(OPTS.decompose_check_simulation) {
         //overloading the command CheckInv
         for(auto prim : proj->cmds.invs) {
-            decompose(proj, proj->defs[prim].get());
+            if(decompose(proj, proj->defs[prim].get())) {
+                LOG_DEBUG << "Relational Property for " << prim << "is Valid! :D";
+            } else {
+                LOG_DEBUG << "Relational Property for " << prim << "is not Valid! :D";
+            }
         }
     }
 }
