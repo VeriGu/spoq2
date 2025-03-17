@@ -156,11 +156,16 @@ namespace autov
 						}
 						auto [st_sim, impl_rest] = forward_simulation(proj, impl, state, p, 0, det);
 						auto [is_relate, expr_relate] = check_relation(proj, rel, st_ret.get(), st_sim.get(), state);
-						std::cout << "----------------------------------" << std::endl;
-						std::cout << "simulate_by_traverse: Final State\n" << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << std::endl;
-						std::cout << "simulate_by_traverse: current path: " << std::endl;
-						print_path(p);
-						std::cout << "----------------------------------" << std::endl;
+						// std::cout << "----------------------------------" << std::endl;
+						// std::cout << "simulate_by_traverse: Final State\n" << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << std::endl;
+						// std::cout << "simulate_by_traverse: current path: " << std::endl;
+						// print_path(p);
+						// std::cout << "----------------------------------" << std::endl;
+						if (is_relate) {
+							LOG_INFO << "[simulate_by_traverse] Relation is proved between\n"  << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << std::endl;
+						} else {
+							LOG_WARNING << "[simulate_by_traverse] Relation can not be proved between\n"  << string(*st_ret) << "\nand\n" << string(*st_sim.get())  << std::endl;
+						}
 						return is_relate;
 					}
 				}
@@ -177,6 +182,7 @@ namespace autov
 			SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
 
 			int cnt = 0;
+			auto success = true;
 			for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 				path_t p_match = p;
 				p_match.push_back(cnt++);
@@ -198,11 +204,11 @@ namespace autov
 						auto [st_sim, impl_rest] = forward_simulation(proj, impl, new_state, p_match, 0, det);
 						auto [is_relate, expr_relate] = check_relation(proj, rel, st_ret, st_sim.get(), new_state);
 
-						std::cout << "----------------------------------" << std::endl;
-						std::cout << "simulate_by_traverse: Match State\n" << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << std::endl;
-						std::cout << "simulate_by_traverse: current path: " << std::endl;
-						print_path(p);
-						std::cout << "----------------------------------" << std::endl;
+						// std::cout << "----------------------------------" << std::endl;
+						// std::cout << "simulate_by_traverse: Match State\n" << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << std::endl;
+						// std::cout << "simulate_by_traverse: current path: " << std::endl;
+						// print_path(p);
+						// std::cout << "----------------------------------" << std::endl;
 
 						if (!is_relate) {
 							LOG_INFO << "[simulate_by_traverse] Prove relation between "  << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << " later by verifying sub-specs." << std::endl;
@@ -211,11 +217,13 @@ namespace autov
 						return simulate_by_traverse(proj, (*pm)->body.get(), impl_rest, rel, new_state, p_match, det);
 					}
 				}
+				success &= simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, new_state, p_match, det);
 				// instantiate the rest of implementation
-				if (!simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, new_state, p_match, det)) {
-					return false;
-				}
+				// if (!simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, new_state, p_match, det)) {
+					// return false;
+				// }
 			}
+			return success;
 		} else if (auto i = instance_of(spec, If)) {
 			// push cond
 			auto c = z3_eval(proj, i->cond.get(), state);
@@ -226,10 +234,14 @@ namespace autov
 			path_t p_then = p, p_else = p;
 			p_then.push_back(1);
 			p_else.push_back(0);
-			if (!simulate_by_traverse(proj, i->then_body.get(), impl, rel, true_state, p_then, det) || 
-				!simulate_by_traverse(proj, i->else_body.get(), impl, rel, false_state, p_else, det)) {
-				return false;
-			}
+			auto success = true;
+			success &= simulate_by_traverse(proj, i->then_body.get(), impl, rel, true_state, p_then, det);
+			success &= simulate_by_traverse(proj, i->else_body.get(), impl, rel, false_state, p_else, det);
+			return success;
+			// if (!simulate_by_traverse(proj, i->then_body.get(), impl, rel, true_state, p_then, det) || 
+			// 	!simulate_by_traverse(proj, i->else_body.get(), impl, rel, false_state, p_else, det)) {
+			// 	return false;
+			// }
 		} else if (auto r = instance_of(spec, Rely)) {
 			// push cond
 			auto c = z3_eval(proj, r->prop.get(), state);
@@ -277,7 +289,7 @@ namespace autov
 
 		for (auto &r : proj->relations) {
 			proj->query_saver = QueryInfo(query_saver_dir(spec->name, r));
-			proj->query_saver.save_config("./test/rcsm/proof_rcsm.v");
+			proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
 			
 			auto last_arg = spec->args->back();
 			auto st_sym_1 = make_shared<Symbol>(last_arg->name, last_arg->type);
@@ -296,7 +308,7 @@ namespace autov
 			path_t p = {};
 			bool det = true;
 			// set check for deterministic simulation
-			proved |= simulate_by_traverse(proj, spec_body, impl_body, rel_body, state, p, det);
+			proved |= simulate_by_traverse(proj, spec_body, impl_body, rel_body, state, p, true);
 		}
 		return proved;
 	}
