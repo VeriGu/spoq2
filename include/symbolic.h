@@ -59,6 +59,7 @@ namespace autov {
     bool is_invariant_defs(Project *proj, string const &name);
     bool is_lemma_defs(Project *proj, const string &name);
     bool is_relation_defs(Project *proj, const string &name);
+    bool is_sec_relation_defs(Project *proj, const string &name);
     
     abst_t abst_transition(Project *proj, SpecNode *spec);
     SpecNode *extract_st_from_expr(Project *proj, SpecNode *expr);

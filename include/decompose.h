@@ -5,5 +5,5 @@
 #include <nodes.h>
 
 namespace autov {
-void decompose(Project* proj, Definition* def);
+bool decompose(Project* proj, Definition* def, string secret = "g_norm");
 }

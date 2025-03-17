@@ -811,10 +811,14 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
 
 static void collect_relations(Project *proj) {
     for (auto const &def: proj->defs) {
-        if (!is_relation_defs(proj, def.first)) {
+        if (!is_relation_defs(proj, def.first) || !is_sec_relation_defs(proj, def.first)) {
             continue;
         }
-        proj->relations.insert(def.first);
+        if(is_relation_defs(proj, def.first)) {
+            proj->relations.insert(def.first);
+        } else {
+            proj->sec_relations.insert(def.first);
+        }
         auto rel_def = def.second.get();
 
         Definition *pure_rel = nullptr;
