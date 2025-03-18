@@ -31,6 +31,7 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
         ++func_def;
         auto original_size = func.size();
         auto name = func.getName().str();
+        if (name == "xlat_init_tables_ctx" ) continue;
         SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs[name];
         spoq_func.llvm_func = &func; // llvm_func;
         bool ret = control_flow_conversion_v2(proj, name, spoq_func);
@@ -83,6 +84,7 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
         auto sym = context.get_llvm_value_spec(&arg, nullptr, false);
         auto symbol = dynamic_cast<Symbol*>(sym.get());
         assert(symbol && "arg is not a symbol without abstraction");
+        std::cout << symbol->text << " " << symbol->type << "\n";
         args->push_back(std::make_shared<Arg> (symbol->text, symbol->type));
     }
     args->push_back(make_shared<Arg>(context.abs_data_name, context.abs_data_type));
@@ -112,7 +114,9 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
     }
     low_specs.push_back(spec_name);
 
+    std::cout << string(*spec.get()) << "\n";
     auto def = new Definition(spec_name, rettype, std::move(args), std::move(spec));
+    std::cout << string(*def) << "\n";
 
     auto loc = make_shared<loc_t>(proj->layers[layer_id]->name, fname, Project::LOC_LOWSPEC);
     proj->add_definition(std::unique_ptr<Definition>(def), loc);

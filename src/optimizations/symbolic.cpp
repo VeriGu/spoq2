@@ -1017,6 +1017,7 @@ void spec_prover(Project *proj) {
             for(auto prim : proj->cmds.invs) {
                 // Prove invariants separately
                 auto goal_def = proj->defs[prim].get();
+                if (goal_def == nullptr) continue;
                 auto elems = new vector<unique_ptr<SpecNode>>();
                 elems->push_back(std::move(conjoined_invs));
                 elems->push_back(inv->deep_copy());

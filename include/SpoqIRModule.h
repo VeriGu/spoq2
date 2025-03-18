@@ -195,7 +195,7 @@ namespace autov {
             if (step_count == -1) return header_map[bb] == nullptr;
             else {
                 if (header_map[bb] != header) return false;
-                if (bb == postheader || bb == loopheader ) return false;
+                if (bb == preheader || bb == postheader || bb == loopheader ) return false;
                 return true;
             }
         }
