@@ -40,7 +40,9 @@ bool decompose(Project* proj, Definition* def, string secret) {
         relation = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
 	}
     if(!instance_of(relation.get(), BoolConst)) {
-        if(!check_hprop_by_path(proj, std::move(relation), def)) {
+        auto rel = proj->defs[*proj->relations.begin()].get();
+        auto rel_def = make_unique<Definition>("_relate",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), relation->deep_copy());
+        if(!check_hprop_by_path(proj, rel_def.get(), def)) {
             LOG_DEBUG << "secret interfere other fields";
             return false;
         }
@@ -72,8 +74,10 @@ bool decompose(Project* proj, Definition* def, string secret) {
         sec_relation = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
 	}
 
-    if(!instance_of(relation.get(), BoolConst)) {
-        if(!check_hprop_by_path(proj, std::move(sec_relation), def)) {
+    if(!instance_of(sec_relation.get(), BoolConst)) {
+        auto rel = proj->defs[*proj->sec_relations.begin()].get();
+        auto rel_def = make_unique<Definition>("_relate_sec",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), sec_relation->deep_copy());
+        if(!check_hprop_by_path(proj, rel_def.get(), def)) {
             LOG_DEBUG << "other fields interfere secret.";
             return false;
         } else {

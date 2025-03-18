@@ -1089,9 +1089,9 @@ void spec_prover(Project *proj) {
     			proj->query_saver = QueryInfo(query_saver_dir(def->name, r));
     			proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
 
-                auto rel = proj->defs[r]->body->deep_copy();
+                auto rel = proj->defs[r].get();
                 
-                if (check_hprop_by_path(proj, std::move(rel), def)) {
+                if (check_hprop_by_path(proj, rel, def)) {
                     LOG_DEBUG << "Relational Property for " << def->name << " is valid :D";
                 } else {
                     LOG_DEBUG << "Relational Property for " << def->name << " is not valid :(";
