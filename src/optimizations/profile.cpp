@@ -33,7 +33,8 @@ bool __PROFILE_ON = true;
 	label##_cnt = 0; \
 	label##_accumulative_time = std::chrono::duration<double>(0);
 
-
+PROFILE_VAR_INIT_VAL(simulation);
+PROFILE_VAR_INIT_VAL(decom_simulation);
 PROFILE_VAR_INIT_VAL(eliminate_rely);
 PROFILE_VAR_INIT_VAL(move_when);
 PROFILE_VAR_INIT_VAL(eliminate_move_rely);
@@ -354,6 +355,13 @@ void profile_update_epoch() {
 	eval_state.check_rely_cost = rely_eval_check_accumulative_time;
 	eval_state.check_expr_cost = expr_eval_check_accumulative_time;
 }
+
+void profile_print_simulation() {
+	if (!__PROFILE_ON) return;
+	PROFILE_PRINT_RULE(decom_simulation);
+	PROFILE_PRINT_RULE(simulation);
+}
+
 void profile_print_epoch()
 {
 	LOG_INFO << "=========== Epoch Report ===========";
