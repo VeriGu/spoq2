@@ -75,6 +75,9 @@ namespace autov
 					SpecNode *st_ret = extract_st_from_expr(proj, pat);
 					if (st_input && st_ret) {
 						/** TODO: add lemmas and invariants here */
+						/** TODO: check weak induction pre-condition: 
+						 * 		st_input ~ st_sim_input
+						 */
 						return std::make_pair(st_ret->deep_copy(), (*pm)->body.get());
 					}
 				}
@@ -205,19 +208,11 @@ namespace autov
 						}
 						// build constraint (st_ret ~ st_sim)
 						auto [st_sim, impl_rest] = forward_simulation(proj, impl, new_state, p_match, 0, det);
-						auto [is_relate, expr_relate] = check_relation(proj, rel, st_ret, st_sim.get(), new_state);
+						auto expr_relate = formulate_relation(proj, rel, st_ret, st_sim.get(), new_state);
 
-						// std::cout << "----------------------------------" << std::endl;
-						// std::cout << "simulate_by_traverse: Match State\n" << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << std::endl;
-						// std::cout << "simulate_by_traverse: current path: " << std::endl;
-						// print_path(p);
-						// std::cout << "----------------------------------" << std::endl;
-
-						if (!is_relate) {
-							LOG_INFO << "[simulate_by_traverse] Prove relation between "  << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << " later by verifying sub-specs." << std::endl;
-						}
-						new_state->conds->push_back(expr_relate);
-						return simulate_by_traverse(proj, (*pm)->body.get(), impl_rest, rel, new_state, p_match, det);
+						new_state->conds->push_back(expr_relate->get_z3_value());
+						path_t p_rest = {};
+						return simulate_by_traverse(proj, (*pm)->body.get(), impl_rest, rel, new_state, p_rest, det);
 					}
 				}
 				success &= simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, new_state, p_match, det);
@@ -298,6 +293,6 @@ namespace autov
 		path_t p = {};
 		bool det = true;
 		/** TODO: set check for deterministic simulation */
-		return simulate_by_traverse(proj, spec_body, impl_body, rel, state, p, true);
+		return simulate_by_traverse(proj, spec_body, impl_body, rel, state, p, det);
 	}
 }

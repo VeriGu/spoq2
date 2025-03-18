@@ -153,8 +153,10 @@ bool SpoqIRModule::control_flow_conversion_DAG(Project *proj, string fname, Spoq
                         phi->replaceAllUsesWith(block);
                         to_erase.push_back(phi);
                     } else {
-                        assert(false && "some PHI are not eliminated but required so");
+                        context.debug_jump();
+                        llvm::errs() << "*func: " << *spoq_func.llvm_func << "\n";
                         llvm::errs() << "phi: " << *phi << "\n";
+                        assert(false && "some PHI are not eliminated but required so");
                         continue;
                     }
                 }
@@ -230,6 +232,7 @@ bool SpoqIRModule::control_flow_conversion_v2(Project *proj, string fname,
 
             auto preheader = loop->getLoopPreheader();
             assert(preheader && "loop does not have a loop header");
+            assert(preheader->getUniqueSuccessor() && "preheader does not have a unique successor");
 
             llvm::SmallVector<llvm::BasicBlock*, 10> exits;
             loop->getExitingBlocks(exits);
@@ -244,6 +247,10 @@ bool SpoqIRModule::control_flow_conversion_v2(Project *proj, string fname,
                 llvm::IRBuilder<> builder(header);
                 builder.CreateCondBr(builder.getTrue(), real, fake);
                 builder.SetInsertPoint(fake);
+                if (!llvm_func->getReturnType()->isVoidTy()) {
+                    LOG_ERROR << "infinite loop detected in " << fname << "\n";
+                    return false;
+                }
                 assert(llvm_func->getReturnType()->isVoidTy() && "infinite loop return non-void");
                 builder.CreateRetVoid();
 
@@ -253,7 +260,7 @@ bool SpoqIRModule::control_flow_conversion_v2(Project *proj, string fname,
             llvm::IRBuilder<> builder(postheader);
 
             std::vector<std::pair<llvm::ConstantInt*, llvm::BasicBlock*>> phi_map;
-            std::map<llvm::BasicBlock*, llvm::BasicBlock*> pred_map;
+            std::map<llvm::Value*, llvm::BasicBlock*> pred_map;
             auto phi = builder.CreatePHI(llvm::Type::getInt32Ty(llvm_func->getContext()), 0);
 
             for(int e_id = 0; e_id < exits.size(); e_id++) {
@@ -273,7 +280,7 @@ bool SpoqIRModule::control_flow_conversion_v2(Project *proj, string fname,
                     auto v = llvm::ConstantInt::get(llvm_func->getContext(), llvm::APInt(32, e_id));
 
                     phi_map.push_back(std::make_pair(v, br->getSuccessor(i)));
-                    pred_map[br->getSuccessor(i)] = e;
+                    pred_map[v] = e; // unique v
                     phi->addIncoming(v, e);
                     br->setSuccessor(i, postheader);
                 }
@@ -284,14 +291,14 @@ bool SpoqIRModule::control_flow_conversion_v2(Project *proj, string fname,
             assert(size > 0 && "a post header should have at least one outcoming edge");
             for(int i = 1; i < size; i++) {
                 auto shadow_bb = llvm::BasicBlock::Create(builder.getContext(), "postprocess.shadow", llvm_func);
-                phi_map[i].second->replacePhiUsesWith(pred_map[phi_map[i].second], postheader);
+                phi_map[i].second->replacePhiUsesWith(pred_map[phi_map[i].first], postheader);
                 auto cmp = builder.CreateICmpEQ(phi, phi_map[i].first);
                 builder.CreateCondBr(cmp, phi_map[i].second, shadow_bb);
                 postheader = shadow_bb;
                 builder.SetInsertPoint(shadow_bb);
             }
             builder.CreateBr(phi_map[0].second);
-            phi_map[0].second->replacePhiUsesWith(pred_map[phi_map[0].second], postheader);
+            phi_map[0].second->replacePhiUsesWith(pred_map[phi_map[0].first], postheader);
 
         }
         context.travel_all();
