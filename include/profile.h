@@ -109,7 +109,8 @@ extern std::chrono::duration<double> eliminate_rely_accumulative_time;
     extern std::chrono::duration<double> label##_accumulative_time_meta;
 
 
-
+PROFILE_VAR_INIT(simulation);
+PROFILE_VAR_INIT(decom_simulation);
 PROFILE_VAR_INIT(eliminate_rely);
 PROFILE_VAR_INIT(move_when);
 PROFILE_VAR_INIT(eliminate_move_rely);
@@ -150,6 +151,7 @@ void profile_finalize();
 void profile_clear_epoch();
 void profile_update_epoch();
 void profile_print_epoch();
+void profile_print_simulation();
 
 void profile_log_rule_if_solved(const string &msg);
 void profile_log_rule_match_solved(const string &msg);

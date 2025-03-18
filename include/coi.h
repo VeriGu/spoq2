@@ -31,4 +31,5 @@ namespace autov {
     std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecNode *inv, 
                                                std::set<string> whitelist = {}, 
                                                std::set<string> blacklist = {});
+    void analyze_invariant_fields(Project *proj, SpecNode *inv, std::set<field_t> &fields);
 }

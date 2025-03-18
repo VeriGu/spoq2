@@ -1081,13 +1081,10 @@ void spec_prover(Project *proj) {
         }
     }
 
+    PROFILE_START(simulation);
     if (OPTS.check_simulation) {
-        for (auto &d : proj->defs) {
-            auto def = d.second.get();
-            if (verify_spec_names.find(def->name) == verify_spec_names.end()) {
-                continue;
-            }
-
+        for(auto prim : proj->cmds.invs) {
+            auto def = proj->defs[prim].get();
             for (auto &r : proj->relations) {
     			proj->query_saver = QueryInfo(query_saver_dir(def->name, r));
     			proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
@@ -1102,16 +1099,20 @@ void spec_prover(Project *proj) {
             }
         }
     }
+    PROFILE_END(simulation);
 
+    PROFILE_START(decom_simulation);
     if(OPTS.decompose_check_simulation) {
         //overloading the command CheckInv
         for(auto prim : proj->cmds.invs) {
             if(decompose(proj, proj->defs[prim].get())) {
-                LOG_DEBUG << "Relational Property for " << prim << "is Valid! :D";
+                LOG_DEBUG << "Decom Relational Property for " << prim << "is Valid! :D";
             } else {
-                LOG_DEBUG << "Relational Property for " << prim << "is not Valid! :D";
+                LOG_DEBUG << "Decom Relational Property for " << prim << "is not Valid! :D";
             }
         }
     }
+    PROFILE_END(decom_simulation);
+    profile_print_simulation();
 }
 }
