@@ -56,6 +56,8 @@ namespace autov {
     typedef std::pair<SpecNode *, path_t> path_node_t;
     typedef std::variant<Definition*, Declaration *, std::nullptr_t> abst_t;
 
+    class ProveState;
+
     bool is_invariant_defs(Project *proj, string const &name);
     bool is_lemma_defs(Project *proj, const string &name);
     bool is_relation_defs(Project *proj, const string &name);
@@ -68,4 +70,7 @@ namespace autov {
 
 	bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv, std::set<std::string> &used_abs_funcs);
     void spec_abstraction(Project *proj, Definition *def, std::set<string> &coi);
+
+    
+    z3::expr formulate_post_cond_z3(Project* proj, std::string fname, SpecNode* func_call, shared_ptr<ProveState> state);
 }

@@ -45,7 +45,7 @@ namespace autov
 	 * @return [result, its following spec body] 
 	 * 		   We assume that abstract function will not occur in multiple branches. otherwise the return value should be std::pair<bool, std::set<SpecNode *>>
 	 */
-	std::pair<bool, SpecNode *> forward_simulation(Project *proj, SpecNode *st_check, SpecNode *impl, Definition *rel, shared_ptr<ProveState> state, 
+	bool forward_simulation(Project *proj, SpecNode *st_check, SpecNode *impl, Definition *rel, shared_ptr<ProveState> state, 
 																   bool det = false, const path_t &path = {}, int i = 0) {
 		if (auto expr = instance_of(impl, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
@@ -64,7 +64,7 @@ namespace autov
 						} else {
 							LOG_WARNING << "[forward_simulation] Relation can not be proved between\n"  << string(*st_check) << "\nand\n" << string(*st_ret.get())  << std::endl;
 						}
-						return std::make_pair(is_relate, nullptr);
+						return is_relate;
 					}
 				}
 			}
@@ -73,6 +73,26 @@ namespace autov
 			auto src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
 			if (auto expr = instance_of(m->src.get(), Expr)) {
 				/** TODO: add post-conds and loop-invs */
+				if (holds_alternative<string>(expr->op)){
+					auto op = std::get<string>(expr->op);
+					auto info = proj->symbols[op];
+					if (info.kind == SymbolKind::Def) {
+						vector<shared_ptr<SpecValue>> elems;
+
+						for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {
+							elems.push_back(z3_eval(proj, e->get(), state));
+						}
+						if (proj->defs.find(op) != proj->defs.end()) {
+                            auto def = proj->defs[op].get();
+                            if(proj->cmds.PostCond.find(op) != proj->cmds.PostCond.end()) {
+                                auto fname = def->name;
+                                auto post = formulate_post_cond_z3(proj, fname, expr, state);
+                                LOG_DEBUG << "[Adding Post Condition (fwd)] Adding func postcondition: " << post;
+                                state->conds->push_back(post);
+                            }
+						}
+					}
+				}
 			}
 			auto abst_spec = abst_transition(proj, m->src.get()); 
 			SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
@@ -92,12 +112,6 @@ namespace autov
 						/** TODO: check weak induction pre-condition: 
 						 * 		st_input ~ st_sim_input
 						 */
-						// check pre-condition here
-						// add inductive assumption
-						auto expr_relate = formulate_relation(proj, rel, st_check, st_ret, pm_state);
-						pm_state->conds->push_back(expr_relate->get_z3_value());
-						*state = *pm_state;
-						return std::make_pair(true, (*pm)->body.get());
 					}
 				}
 
@@ -112,17 +126,10 @@ namespace autov
 				if (res == Z3Result::False) {
 					continue;
 				} else {
-					auto [is_relate_match, match_body] = forward_simulation(proj, st_check, (*pm)->body.get(), rel, pm_state, det, path, i+1);
-					is_relate &= is_relate_match;
-					
-					if (impl_rest) {
-						throw std::runtime_error("[forward_simulation] Multiple abstract function found in: " + string(*impl));
-					} 
-					impl_rest = match_body;
-					*state = *pm_state;
+					is_relate &= forward_simulation(proj, st_check, (*pm)->body.get(), rel, pm_state, det, path, i+1);
 				}
 			}
-			return std::make_pair(is_relate, impl_rest);
+			return is_relate;
 
 		} else if (auto iff = instance_of(impl, If)) {
 			auto cond = z3_eval(proj, iff->cond.get(), state);
@@ -144,26 +151,19 @@ namespace autov
 				auto else_state = state->copy();
 				then_state->conds->push_back(cond->get_z3_value());
 				else_state->conds->push_back(!cond->get_z3_value());
-				auto [is_relate_then, rest_then] = forward_simulation(proj, st_check, iff->then_body.get(), rel, then_state, det, path, i+1);
-				auto [is_relate_else, rest_else] = forward_simulation(proj, st_check, iff->else_body.get(), rel, else_state, det, path, i+1);
-				
-				// we should also copy the states and inductive conditions that added in recursive forward_simulation
-				if (rest_then && rest_else) {
-					throw std::runtime_error("[forward_simulation] Multiple abstract function found in:  " + string(*impl));
-				} else if (rest_then) {
-					*state = *then_state;
-				} else if (rest_else) {
-					*state = *else_state;
-				}
-				return std::make_pair((is_relate_then && is_relate_else), (rest_then ? rest_then : rest_else));
+				auto is_relate_then = forward_simulation(proj, st_check, iff->then_body.get(), rel, then_state, det, path, i+1);
+				auto is_relate_else = forward_simulation(proj, st_check, iff->else_body.get(), rel, else_state, det, path, i+1);
+				return (is_relate_then && is_relate_else);
 			}
 
 		} else if (auto r = instance_of(impl, Rely)) {
 			auto c = z3_eval(proj, r->prop.get(), state);
 			state->conds->push_back(c->get_z3_value());
 			return forward_simulation(proj, st_check, r->body.get(), rel, state, det, path, i);
+		} else {
+			/** NOTE: In general we only prove relation between non-halt values (Some _) */
+			return true;
 		}
-		throw std::runtime_error("[forward_simulation] Deterministic simulation path cannot be solved for spec body: " + string(*impl));
 	}
 
 	/**
@@ -205,8 +205,7 @@ namespace autov
 								st_ret = ret_Some->elems->back()->deep_copy();
 							}
 						}
-						auto [is_relate, _] = forward_simulation(proj, st_ret.get(), impl, rel, state, det, p, 0);
-						return is_relate;
+						return forward_simulation(proj, st_ret.get(), impl, rel, state, det, p, 0);
 					}
 				}
 				
@@ -216,6 +215,25 @@ namespace autov
 			auto src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
 			if (auto expr = instance_of(m->src.get(), Expr)) {
 				/** TODO: formulate the post-conds and add them */
+				if (holds_alternative<string>(expr->op)){
+					auto op = std::get<string>(expr->op);
+					auto info = proj->symbols[op];
+					if (info.kind == SymbolKind::Def) {
+						vector<shared_ptr<SpecValue>> elems;
+
+						for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {
+							elems.push_back(z3_eval(proj, e->get(), state));
+						}
+						if (proj->defs.find(op) != proj->defs.end()) {
+                            auto def = proj->defs[op].get();
+                            if(proj->cmds.PostCond.find(op) != proj->cmds.PostCond.end()) {
+                                auto fname = def->name;
+                                auto post = formulate_post_cond_z3(proj, fname, expr, state);
+                                state->conds->push_back(post);
+                            }
+						}
+					}
+				}
 			}
 
 			auto abst_spec = abst_transition(proj, m->src.get()); 
@@ -230,21 +248,6 @@ namespace autov
 				auto new_state = state->copy();
 				auto pat = (*pm)->pattern.get();
 				resolve_pattern(proj, m, pat, src, new_state);
-				
-				if (!std::holds_alternative<std::nullptr_t>(abst_spec)) {
-					SpecNode *st_ret = extract_st_from_expr(proj, pat);
-					if (st_input && st_ret) {
-						for (auto const &l : proj->lemmas) {
-							/** TODO: add instantiated lemmas */
-						}
-						for (auto const &inv : proj->verified_invariants) {
-							/** TODO: add instantiated invariants */
-						}
-						path_t p_rest = {};
-						auto [_, impl_rest] = forward_simulation(proj, st_ret, impl, rel, new_state, det, p_match, 0);
-						return simulate_by_traverse(proj, (*pm)->body.get(), impl_rest, rel, new_state, p_rest, det);
-					}
-				}
 				success &= simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, new_state, p_match, det);
 			}
 			return success;
