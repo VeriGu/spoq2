@@ -859,7 +859,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 	return true;
 }
 
-static void spec_abstraction(Project *proj, Definition *def, std::set<string> &coi) {
+void spec_abstraction(Project *proj, Definition *def, std::set<string> &coi) {
     set_interest_list(coi);
 
     auto spec = std::move(def->body);
@@ -1092,7 +1092,8 @@ void spec_prover(Project *proj) {
 
                 auto rel = proj->defs[r].get();
                 
-                if (check_hprop_by_path(proj, rel, def)) {
+                bool det = false;
+                if (check_hprop_by_path(proj, rel, def, nullptr, det)) {
                     LOG_DEBUG << "Relational Property for " << def->name << " is valid :D";
                 } else {
                     LOG_DEBUG << "Relational Property for " << def->name << " is not valid :(";
