@@ -1002,6 +1002,58 @@ bool check_pre_post(Project* proj, Definition *def, std::unordered_set<string>& 
 
     return res;
 }
+
+bool simulate(Project* proj) {
+	unique_ptr<SpecNode> relation = make_unique<BoolConst>(true);
+	for (auto &r : proj->relations) {
+		auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+		elems->push_back(proj->defs[r]->body->deep_copy());
+		elems->push_back(std::move(relation));
+		relation = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
+	}
+	if(!instance_of(relation.get(), BoolConst)) {
+		auto rel = proj->defs[*proj->relations.begin()].get();
+		auto rel_def = make_unique<Definition>("_relate_RData",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), relation->deep_copy());
+		for(auto prim : proj->cmds.invs) {
+			auto def = proj->defs[prim].get();
+			proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_RData"));
+			proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
+
+			if (check_hprop_by_path(proj, rel_def.get(), def)) {
+				LOG_DEBUG << "Relate Other " << def->name << " is valid :D";
+			} else {
+				LOG_DEBUG << "Relate Other " << def->name << " is not valid :(";
+				return false;
+			}    
+		}
+	}
+
+	unique_ptr<SpecNode> sec_relation = make_unique<BoolConst>(true);
+	for (auto &r : proj->sec_relations) {
+		auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+		elems->push_back(proj->defs[r]->body->deep_copy());
+		elems->push_back(std::move(sec_relation));
+		sec_relation = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
+	}
+	if(!instance_of(sec_relation.get(), BoolConst)) {
+		auto rel = proj->defs[*proj->sec_relations.begin()].get();
+		auto rel_def = make_unique<Definition>("_relate_secret",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), sec_relation->deep_copy());
+		for(auto prim : proj->cmds.invs) {
+			auto def = proj->defs[prim].get();
+			proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_secure"));
+			proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
+
+			if (check_hprop_by_path(proj, rel_def.get(), def)) {
+				LOG_DEBUG << "Relate Secure" << def->name << " is valid :D";
+				return true;
+			} else {
+				LOG_DEBUG << "Relate Secure" << def->name << " is not valid :(";
+				return false;
+			}    
+		}
+	}
+}
+
 /**
  * spec_prover:
  *  1. Prove invariants separately 
@@ -1084,20 +1136,10 @@ void spec_prover(Project *proj) {
 
     PROFILE_START(simulation);
     if (OPTS.check_simulation) {
-        for(auto prim : proj->cmds.invs) {
-            auto def = proj->defs[prim].get();
-            for (auto &r : proj->relations) {
-    			proj->query_saver = QueryInfo(query_saver_dir(def->name, r));
-    			proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
-
-                auto rel = proj->defs[r].get();
-                
-                if (check_hprop_by_path(proj, rel, def)) {
-                    LOG_DEBUG << "Relational Property for " << def->name << " is valid :D";
-                } else {
-                    LOG_DEBUG << "Relational Property for " << def->name << " is not valid :(";
-                }
-            }
+        if(simulate(proj)) {
+            LOG_DEBUG << "Relational Property Valid! :D";
+        } else {
+            LOG_DEBUG << "Relational Property not Valid! :D";
         }
     }
     PROFILE_END(simulation);
