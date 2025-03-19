@@ -888,6 +888,16 @@ static void collect_lemmas(Project *proj) {
     }
 }
 
+void trans_inv(Project *proj) {
+    auto known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
+    (*known)["st"] = proj->layers.at(0)->abs_data;
+    for(auto &[name, inv] : proj->sys_invs) {
+        type_inference::infer_type(*proj, inv.get(), known, Bool::BOOL);
+        auto new_node = spec_transformer_v2(proj, std::move(inv), 0, true, true);
+        proj->sys_invs[name] = std::move(new_node);
+    }
+}
+
 /**
  * @brief finalize the project
  * 
@@ -944,6 +954,7 @@ void Project::finalize_project()
     filter_only_trans(this);
     collect_relations(this);
     collect_lemmas(this);
+    trans_inv(this);
 
     for (int i = 0; i < this->layers.size(); i++) {
         if(this->layers[i]->name == "Bottom"){
@@ -1050,6 +1061,7 @@ bool Project::finalize_project_v2() {
     filter_only_trans(this);
     collect_relations(this);
     collect_lemmas(this);
+    trans_inv(this);
 
     LOG_DEBUG << "filter and lemma ok" << "\n";
     LOG_DEBUG << "layer: " << this->layers.size() << "\n";
@@ -1187,9 +1199,9 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
         profile_clear();
         if (!no_trans) {
             if(OPTS.new_trans) {
-                spec_transformer_v2(proj, high_def, layer_id, !is_instance(low_def.get(), Fixpoint), true);
+                spec_transformer_v2(proj, high_def, layer_id, layer_id, true);
             } else {
-                spec_transformer(proj, high_def, layer_id, !is_instance(low_def.get(), Fixpoint), true);
+                spec_transformer(proj, high_def, layer_id, layer_id, true);
             }
             std::cout << "Transformed: " << std::endl << string(*high_def) << std::endl;
         } else {
