@@ -887,7 +887,7 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
 
     int i = 0;
     for(auto arg : *def->args) {
-        if(i != 0)
+        // if(i != 0)
         vars->push_back(make_shared<Arg>(def->name + "_" + arg->name + "_new_", arg->type));
     }
     
@@ -905,10 +905,10 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
     i = 0;
     auto known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
     for(auto arg: *def->args) {
-        if(i != 0) {
+        // if(i != 0) {
             tupleelems->push_back(make_unique<Symbol>(def->name + "_" + arg->name + "_new_"));
             (*known)[arg->name] = arg->type;
-        }
+        // }
         if(arg->name == "st") {
             (*known)[arg->name + "_old"] = arg->type;
         }

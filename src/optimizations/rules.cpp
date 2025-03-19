@@ -1502,7 +1502,7 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
                 auto [__spec, __changed] = proj->rules.rule_eliminate_match_simple(std::move(spec),false);
                 PROFILE_END(eliminate_match);
                
-                // LOG_DEBUG << "after match simple:" << string(*__spec);
+                //LOG_DEBUG << "after match simple:" << string(*__spec);
                 if(__changed)
                     return cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
                 //return std::move(__spec);
@@ -1581,6 +1581,8 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
         m->body = std::move(body);
         //state->conds->pop_back();
         return spec;
+    } else if(auto m = instance_of(spec.get(), ForallExists)) {
+        m->body = partial_eval(proj, std::move(m->body), level + 1, state, used_symbols, unfold);
     }
 
     return spec;

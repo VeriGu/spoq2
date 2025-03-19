@@ -8,6 +8,7 @@
 #include <symbolic.h>
 #include <profile.h>
 #include <type_inference.h>
+#include <rules.h>
 namespace autov {
 
 extern unordered_map<unsigned long, bool> converged_spec;
@@ -35,6 +36,74 @@ inline std::string ruleid_to_string(RuleID rule) {
     }
 }
 
+
+unique_ptr<SpecNode> spec_transformer_v2(Project *proj, unique_ptr<SpecNode> node, int layer_id, bool unfold, bool low_spec) {
+    std::map<string, Symbol*> fvars;
+    std::set<string> free;
+    free_vars_map(proj, node.get(), free, fvars);
+    auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+    auto conds = std::make_shared<vector<z3::expr>>();
+    for (auto [name, sym] : fvars) {
+        (*vars)[name] = sym->type->declare(name, 0);
+    }
+
+    converged_spec.clear();
+    unique_ptr<SpecNode> spec = std::move(node);
+    while(true) {
+        profile_clear_epoch();
+        auto known = std::set<string>();
+        for (auto [arg, _] : fvars) {
+            known.insert(arg);
+        }
+        auto spec1 = partial_eval(proj, std::move(spec), 0, make_shared<EvalState>(vars, conds), known, unfold);
+        profile_print_transrule();
+        LOG_DEBUG << "------------------after_partial_eval:----------------------\n" << string(*spec1);
+        unique_ptr<SpecNode> __tmp_spec;
+        bool changed = false;
+        //type_inference::check_well_typed(*proj, spec.get(), known);
+        
+
+        if(unfold && !proj->cmds.NoUnfoldAll) {
+            auto [__spec, __changed] = proj->rules.rule_unfold_specs(std::move(spec1), true);
+            //LOG_DEBUG <<  "------------------after unfold:----------------------\n" << string(*__spec);
+            changed |= __changed;
+            //type_inference::check_well_typed(*proj, __spec.get(), known);
+            spec1 = std::move(__spec);
+        }
+
+        known = std::set<string>();
+        for (auto [arg, _] : fvars) {
+            known.insert(arg);
+        }
+        bool um_changed = false;
+        __tmp_spec = proj->rules.eliminate_ambiguity(std::move(spec1), known, um_changed);
+        changed |= um_changed;
+
+        //type_inference::check_well_typed(*proj, __tmp_spec.get(), known);
+
+    
+        auto [__tmp_spec1, le_changed] = proj->rules.rule_eliminate_let(std::move(__tmp_spec), true);
+        changed |= le_changed;
+        //type_inference::check_well_typed(*proj, __tmp_spec1.get(), known);
+        LOG_DEBUG << "----------------after_let_elimination:---------------------\n" << string(*__tmp_spec1);
+        
+
+        auto [__tmp_spec2, we_changed] = proj->rules.rule_eliminate_when(std::move(__tmp_spec1), true);
+        //LOG_DEBUG << "----------------after_when_elimination:---------------------\n" << string(*__tmp_spec2);
+        changed |= we_changed;
+        //type_inference::check_well_typed(*proj, __tmp_spec2.get(), known);
+        auto [__tmp_spec3, z3_changed] = proj->rules.rule_simple_by_z3(std::move(__tmp_spec2), make_shared<EvalState>(vars, conds));
+        //LOG_DEBUG << "--------------------after_z3---------------------------\n:" << string(*__tmp_spec3);
+        changed |= z3_changed;
+        profile_update_epoch();
+        //type_inference::check_well_typed(*proj, __tmp_spec3.get(), known);
+        spec = std::move(__tmp_spec3);
+        if(!changed) {
+            break;
+        }
+    }
+    return spec;
+}
 
 void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfold, bool low_spec) {
     LOG_INFO << "Transforming " << def->name << ", unfold: " << unfold;
