@@ -41,9 +41,11 @@ namespace autov
 	 * Lemma 1 (skip None): (st ~ st') /\ (Some st1 = spec(st)) => (Some st1' = spec(st'))
 	 * Lemma 2 (Inductive Simulation): (st ~ st') /\ (Some st1 = spec(st)) => (spec(st) ~ spec(st'))
 	 * 
-	 * @return [spec(st'), its following spec body] 
+	 * @return [result, its following spec body] 
+	 * 		   We assume that abstract function will not occur in multiple branches. otherwise the return value should be std::pair<bool, std::set<SpecNode *>>
 	 */
-	std::pair<unique_ptr<SpecNode>, SpecNode *> forward_simulation(Project *proj, SpecNode *impl, shared_ptr<ProveState> state, const path_t &path, int i, bool det) {
+	std::pair<bool, SpecNode *> forward_simulation(Project *proj, SpecNode *st_check, SpecNode *impl, Definition *rel, shared_ptr<ProveState> state, 
+																   bool det = false, const path_t &path = {}, int i = 0) {
 		if (auto expr = instance_of(impl, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -54,7 +56,14 @@ namespace autov
 								st_ret = ret_Some->elems->back()->deep_copy();
 							}
 						}
-						return std::make_pair(std::move(st_ret), nullptr);
+						// double check here
+						auto [is_relate, expr_relate] = check_relation(proj, rel, st_check, st_ret.get(), state);
+						if (is_relate) {
+							LOG_INFO << "[forward_simulation] Relation is proved between\n"  << string(*st_check) << "\nand\n" << string(*st_ret.get()) << std::endl;
+						} else {
+							LOG_WARNING << "[forward_simulation] Relation can not be proved between\n"  << string(*st_check) << "\nand\n" << string(*st_ret.get())  << std::endl;
+						}
+						return std::make_pair(is_relate, nullptr);
 					}
 				}
 			}
@@ -67,10 +76,14 @@ namespace autov
 			auto abst_spec = abst_transition(proj, m->src.get()); 
 			SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
 
+			bool is_relate = true;
+			SpecNode *impl_rest = nullptr;
+
 			int cnt = 0;
 			for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
+				auto pm_state = state->copy();
 				auto pat = (*pm)->pattern.get();
-				resolve_pattern(proj, m, pat, src, state);
+				resolve_pattern(proj, m, pat, src, pm_state);
 				if (!std::holds_alternative<std::nullptr_t>(abst_spec)) {
 					SpecNode *st_ret = extract_st_from_expr(proj, pat);
 					if (st_input && st_ret) {
@@ -78,7 +91,12 @@ namespace autov
 						/** TODO: check weak induction pre-condition: 
 						 * 		st_input ~ st_sim_input
 						 */
-						return std::make_pair(st_ret->deep_copy(), (*pm)->body.get());
+						// check pre-condition here
+						// add inductive assumption
+						auto expr_relate = formulate_relation(proj, rel, st_check, st_ret, pm_state);
+						pm_state->conds->push_back(expr_relate->get_z3_value());
+						*state = *pm_state;
+						return std::make_pair(true, (*pm)->body.get());
 					}
 				}
 
@@ -87,15 +105,23 @@ namespace autov
 				if (det) {
 					res = (path[i] == cnt++) ? Z3Result::True : Z3Result::False;	
 				} else {
-					res = z3_verify_state_sat(state, &proj->query_saver, Z3_SIMULATE_TIMEOUT);
+					res = z3_verify_state_sat(pm_state, nullptr, Z3_SIMULATE_TIMEOUT);
 				}
 
 				if (res == Z3Result::False) {
 					continue;
 				} else {
-					return forward_simulation(proj, (*pm)->body.get(), state, path, i+1, det);
+					auto [is_relate_match, match_body] = forward_simulation(proj, st_check, (*pm)->body.get(), rel, pm_state, det, path, i+1);
+					is_relate &= is_relate_match;
+					
+					if (impl_rest) {
+						throw std::runtime_error("[forward_simulation] Multiple abstract function found in: " + string(*impl));
+					} 
+					impl_rest = match_body;
+					*state = *pm_state;
 				}
 			}
+			return std::make_pair(is_relate, impl_rest);
 
 		} else if (auto iff = instance_of(impl, If)) {
 			auto cond = z3_eval(proj, iff->cond.get(), state);
@@ -107,16 +133,34 @@ namespace autov
 			}
 			if (res == Z3Result::True) {
 				state->conds->push_back(cond->get_z3_value());
-				return forward_simulation(proj, iff->then_body.get(), state, path, i+1, det);
+				return forward_simulation(proj, st_check, iff->then_body.get(), rel, state, det, path, i+1);
 			} else if (res == Z3Result::False) {
 				state->conds->push_back(!cond->get_z3_value());
-				return forward_simulation(proj, iff->else_body.get(), state, path, i+1, det);
+				return forward_simulation(proj, st_check, iff->else_body.get(), rel, state, det, path, i+1);
+			} else {
+				// O(N^2) simulation search 
+				auto then_state = state->copy();
+				auto else_state = state->copy();
+				then_state->conds->push_back(cond->get_z3_value());
+				else_state->conds->push_back(!cond->get_z3_value());
+				auto [is_relate_then, rest_then] = forward_simulation(proj, st_check, iff->then_body.get(), rel, then_state, det, path, i+1);
+				auto [is_relate_else, rest_else] = forward_simulation(proj, st_check, iff->else_body.get(), rel, else_state, det, path, i+1);
+				
+				// we should also copy the states and inductive conditions that added in recursive forward_simulation
+				if (rest_then && rest_else) {
+					throw std::runtime_error("[forward_simulation] Multiple abstract function found in:  " + string(*impl));
+				} else if (rest_then) {
+					*state = *then_state;
+				} else if (rest_else) {
+					*state = *else_state;
+				}
+				return std::make_pair((is_relate_then && is_relate_else), (rest_then ? rest_then : rest_else));
 			}
 
 		} else if (auto r = instance_of(impl, Rely)) {
 			auto c = z3_eval(proj, r->prop.get(), state);
 			state->conds->push_back(c->get_z3_value());
-			return forward_simulation(proj, r->body.get(), state, path, i, det);
+			return forward_simulation(proj, st_check, r->body.get(), rel, state, det, path, i);
 		}
 		throw std::runtime_error("[forward_simulation] Deterministic simulation path cannot be solved for spec body: " + string(*impl));
 	}
@@ -160,18 +204,7 @@ namespace autov
 								st_ret = ret_Some->elems->back()->deep_copy();
 							}
 						}
-						auto [st_sim, impl_rest] = forward_simulation(proj, impl, state, p, 0, det);
-						auto [is_relate, expr_relate] = check_relation(proj, rel, st_ret.get(), st_sim.get(), state);
-						// std::cout << "----------------------------------" << std::endl;
-						// std::cout << "simulate_by_traverse: Final State\n" << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << std::endl;
-						// std::cout << "simulate_by_traverse: current path: " << std::endl;
-						// print_path(p);
-						// std::cout << "----------------------------------" << std::endl;
-						if (is_relate) {
-							LOG_INFO << "[simulate_by_traverse] Relation is proved between\n"  << string(*st_ret) << "\nand\n" << string(*st_sim.get()) << std::endl;
-						} else {
-							LOG_WARNING << "[simulate_by_traverse] Relation can not be proved between\n"  << string(*st_ret) << "\nand\n" << string(*st_sim.get())  << std::endl;
-						}
+						auto [is_relate, _] = forward_simulation(proj, st_ret.get(), impl, rel, state, det, p, 0);
 						return is_relate;
 					}
 				}
@@ -206,20 +239,12 @@ namespace autov
 						for (auto const &inv : proj->verified_invariants) {
 							/** TODO: add instantiated invariants */
 						}
-						// build constraint (st_ret ~ st_sim)
-						auto [st_sim, impl_rest] = forward_simulation(proj, impl, new_state, p_match, 0, det);
-						auto expr_relate = formulate_relation(proj, rel, st_ret, st_sim.get(), new_state);
-
-						new_state->conds->push_back(expr_relate->get_z3_value());
 						path_t p_rest = {};
+						auto [_, impl_rest] = forward_simulation(proj, st_ret, impl, rel, new_state, det, p_match, 0);
 						return simulate_by_traverse(proj, (*pm)->body.get(), impl_rest, rel, new_state, p_rest, det);
 					}
 				}
 				success &= simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, new_state, p_match, det);
-				// instantiate the rest of implementation
-				// if (!simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, new_state, p_match, det)) {
-					// return false;
-				// }
 			}
 			return success;
 		} else if (auto i = instance_of(spec, If)) {
@@ -236,10 +261,6 @@ namespace autov
 			success &= simulate_by_traverse(proj, i->then_body.get(), impl, rel, true_state, p_then, det);
 			success &= simulate_by_traverse(proj, i->else_body.get(), impl, rel, false_state, p_else, det);
 			return success;
-			// if (!simulate_by_traverse(proj, i->then_body.get(), impl, rel, true_state, p_then, det) || 
-			// 	!simulate_by_traverse(proj, i->else_body.get(), impl, rel, false_state, p_else, det)) {
-			// 	return false;
-			// }
 		} else if (auto r = instance_of(spec, Rely)) {
 			// push cond
 			auto c = z3_eval(proj, r->prop.get(), state);
@@ -291,7 +312,8 @@ namespace autov
 		spec_body->clear_z3_eval();
 		impl_body->clear_z3_eval();
 		path_t p = {};
-		bool det = true;
+		bool det = false;
+		// bool det = true;
 		/** TODO: set check for deterministic simulation */
 		return simulate_by_traverse(proj, spec_body, impl_body, rel, state, p, det);
 	}

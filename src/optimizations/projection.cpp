@@ -55,7 +55,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             }
             auto spec = partial_eval(proj, std::move(def->body), 0, make_shared<EvalState>(vars, conds), known, unfold);
             profile_print_transrule();
-            LOG_DEBUG << def->name << "------------------after_partial_eval:----------------------\n" << string(*spec);
+            // LOG_DEBUG << def->name << "------------------after_partial_eval:----------------------\n" << string(*spec);
             unique_ptr<SpecNode> __tmp_spec;
             bool changed = false;
             //type_inference::check_well_typed(*proj, spec.get(), known);
@@ -63,7 +63,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
 
             if(unfold && !proj->cmds.NoUnfoldAll) {
                 auto [__spec, __changed] = proj->rules.rule_unfold_specs(std::move(spec), true);
-                LOG_DEBUG << def->name <<  "------------------after unfold:----------------------\n" << string(*__spec);
+                // LOG_DEBUG << def->name <<  "------------------after unfold:----------------------\n" << string(*__spec);
                 changed |= __changed;
                 //type_inference::check_well_typed(*proj, __spec.get(), known);
                 spec = std::move(__spec);
@@ -83,15 +83,15 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             auto [__tmp_spec1, le_changed] = proj->rules.rule_eliminate_let(std::move(__tmp_spec), true);
             changed |= le_changed;
             //type_inference::check_well_typed(*proj, __tmp_spec1.get(), known);
-            LOG_DEBUG << def->name << "----------------after_let_elimination:---------------------\n" << string(*__tmp_spec1);
+            // LOG_DEBUG << def->name << "----------------after_let_elimination:---------------------\n" << string(*__tmp_spec1);
             
 
             auto [__tmp_spec2, we_changed] = proj->rules.rule_eliminate_when(std::move(__tmp_spec1), true);
-            LOG_DEBUG << def->name << "----------------after_when_elimination:---------------------\n" << string(*__tmp_spec2);
+            // LOG_DEBUG << def->name << "----------------after_when_elimination:---------------------\n" << string(*__tmp_spec2);
             changed |= we_changed;
             //type_inference::check_well_typed(*proj, __tmp_spec2.get(), known);
             auto [__tmp_spec3, z3_changed] = proj->rules.rule_simple_by_z3(std::move(__tmp_spec2), make_shared<EvalState>(vars, conds));
-            LOG_DEBUG << def->name << "--------------------after_z3---------------------------\n:" << string(*__tmp_spec3);
+            // LOG_DEBUG << def->name << "--------------------after_z3---------------------------\n:" << string(*__tmp_spec3);
             changed |= z3_changed;
             profile_update_epoch();
             //type_inference::check_well_typed(*proj, __tmp_spec3.get(), known);
