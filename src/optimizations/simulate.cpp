@@ -16,7 +16,7 @@ namespace autov
 	std::pair<bool, z3::expr> check_relation(Project *proj, Definition *rel, SpecNode *st_spec, SpecNode *st_impl, shared_ptr<ProveState> state) {
 		auto rel_expr = formulate_relation(proj, rel, st_spec, st_impl, state);
 		z3::model model(z3ctx);
-		auto z3_ret = z3_check_unsat(state, rel_expr->get_z3_value(), model, &proj->query_saver, Z3_SIMULATE_TIMEOUT);
+		auto z3_ret = z3_check_unsat(state, rel_expr->get_z3_value(), model, &proj->query_saver, Z3_VERIFY_TIMEOUT);
 		return std::make_pair(z3_ret == Z3Result::True, rel_expr->get_z3_value());
 	}
 	/**
@@ -295,9 +295,21 @@ namespace autov
 		
 		SpecNode* impl_body = nullptr, *spec_body = nullptr;
 
-		spec_body = spec->body.get();
+		auto l_args = make_unique<vector<shared_ptr<Arg>>>();
+		for (auto arg : *spec->args) {
+			l_args->push_back(arg);
+		}
+		auto spec_def = new Definition(spec->name, spec->rettype, std::move(l_args), spec->body->deep_copy());
+		auto coi = analyze_cone_of_influence(proj, spec_def, rel->body.get(), autov::coi_whitelist, autov::coi_blacklist);
+		spec_abstraction(proj, spec_def, coi);
+		std::cout << "[spec_abstraction] coi set: " << std::endl;
+		for (auto &c : coi) {
+			std::cout << c << std::endl;
+		}
+		spec_body = spec_def->body.get();
+		// spec_body = spec->body.get();
 		if (!impl) {
-			impl_body = proj->rules.build_simulate_spec(spec->body->deep_copy()).release();
+			impl_body = proj->rules.build_simulate_spec(spec_body->deep_copy()).release();
 		} else {
 			impl_body = impl->body.get();
 		}
@@ -313,7 +325,6 @@ namespace autov
 		spec_body->clear_z3_eval();
 		impl_body->clear_z3_eval();
 		path_t p = {};
-		// bool det = true;
 		/** TODO: set check for deterministic simulation */
 		return simulate_by_traverse(proj, spec_body, impl_body, rel, state, p, det);
 	}

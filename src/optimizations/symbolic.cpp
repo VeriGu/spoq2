@@ -859,7 +859,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 	return true;
 }
 
-static void spec_abstraction(Project *proj, Definition *def, std::set<string> &coi) {
+void spec_abstraction(Project *proj, Definition *def, std::set<string> &coi) {
     set_interest_list(coi);
 
     auto spec = std::move(def->body);
@@ -1018,8 +1018,8 @@ bool simulate(Project* proj) {
 			auto def = proj->defs[prim].get();
 			proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_RData"));
 			proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
-
-			if (check_hprop_by_path(proj, rel_def.get(), def)) {
+            bool det = false;
+			if (check_hprop_by_path(proj, rel_def.get(), def, nullptr, det)) {
 				LOG_DEBUG << "Relate Other " << def->name << " is valid :D";
 			} else {
 				LOG_DEBUG << "Relate Other " << def->name << " is not valid :(";
@@ -1042,8 +1042,8 @@ bool simulate(Project* proj) {
 			auto def = proj->defs[prim].get();
 			proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_secure"));
 			proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
-
-			if (check_hprop_by_path(proj, rel_def.get(), def)) {
+            bool det = false;
+			if (check_hprop_by_path(proj, rel_def.get(), def, nullptr, det)) {
 				LOG_DEBUG << "Relate Secure" << def->name << " is valid :D";
 				return true;
 			} else {

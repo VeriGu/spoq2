@@ -883,6 +883,9 @@ SpecNode* make_lens_v(shared_ptr<SpecType> type, unsigned long id) {
 
 
 static bool contains_interest_fields(SpecNode *spec) {
+
+    std::cout << "[contains_interest_fields] try visiting:\n " << string(*spec) << std::endl;
+
     if (auto s = instance_of(spec, Symbol)) {
         if (std::find(interest_list.begin(), interest_list.end(), s->text) != interest_list.end()) {
             return true;
@@ -904,9 +907,14 @@ static bool contains_interest_fields(SpecNode *spec) {
                     }
                 }
 
-                // If the field is a ZMap, we need to check the subfields of the Record in the ZMap
-                if (is_instance(e->elems->back()->get_type().get(), ZMap))
-                    return contains_interest_fields(e->elems->back().get());
+                if (is_instance(e->elems->back()->get_type().get(), ZMap)) {
+                    if (contains_interest_fields(e->elems->back().get())) {
+                        return true;
+                    }
+                }
+                if (contains_interest_fields(e->elems->at(0).get())) {
+                    return true;
+                }
 
                 return likely_contains;
             } else if (*op == Expr::SET) {
@@ -916,6 +924,9 @@ static bool contains_interest_fields(SpecNode *spec) {
                     return contains_interest_fields(v);
 
                 return false;
+            } else if (*op == Expr::GET) {
+                return contains_interest_fields(e->elems->at(0).get()) ||
+                       contains_interest_fields(e->elems->at(1).get());
             }
             return false;
         }
