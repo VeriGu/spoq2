@@ -841,12 +841,10 @@ namespace autov {
         }
 
         void add_cache(std::string value, unique_ptr<SpecNode>& spec) {
-            std::cout << "Add cache: " << value << " " << string(*spec.get()) << "\n";
             let_cache[value] = spec->deep_copy();
         }
 
         void add_cache(std::string value, unique_ptr<Expr>& spec) {
-            std::cout << "Add cache: " << value << " " << string(*spec.get()) << "\n";
             let_cache[value] = spec->deep_copy();
         }
 

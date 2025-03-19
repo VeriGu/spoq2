@@ -322,7 +322,7 @@ void collect_init_nodes_in(SpecNode *spec, path_t p, std::set<path_node_t> &init
 }
 
 /* Collect accessed fields in invariants */
-inline void analyze_invariant_fields(Project *proj, SpecNode *inv, std::set<field_t> &fields) {
+void analyze_invariant_fields(Project *proj, SpecNode *inv, std::set<field_t> &fields) {
     rec_analyze_used_fields(proj, inv, fields);
 }
 
