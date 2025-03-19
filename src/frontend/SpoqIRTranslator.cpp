@@ -59,7 +59,7 @@ const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> SpoqIRModul
 const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> SpoqIRModule::bool_binops_lut = {
     {llvm::Instruction::BinaryOps::And, Expr::binops::BAND},
     {llvm::Instruction::BinaryOps::Or, Expr::binops::BOR},
-    // FIXME: {llvm::Instruction::BinaryOps::Xor, Expr::binops::BITOR},
+    {llvm::Instruction::BinaryOps::Xor, Expr::binops::NOT_EQUAL},
 };
 
 
@@ -831,6 +831,14 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
             }
             if (src->isIntegerTy() && dst->isIntegerTy()) {
+                if (llvm::dyn_cast<llvm::ZExtInst>(bc) && src->isIntegerTy(1)) {
+                    auto sym = context.get_llvm_value_spec(bc);
+                    auto args = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                    args->push_back(context.get_llvm_value_spec(bc->getOperand(0)));
+                    auto expr = std::make_unique<Expr>("spoq_zext_spec", std::move(args));
+                    context.add_cache(context.get_llvm_value_name(bc), expr);
+                    return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
+                } 
                 // TODO: overflow / underflow check
                 auto sym = context.get_llvm_value_spec(bc);
                 auto expr = context.get_llvm_value_spec(bc->getOperand(0));
