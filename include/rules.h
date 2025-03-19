@@ -26,6 +26,8 @@ void spec_remove_state(Project *proj, SpecNode *spec);
 std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec, std::string name, unique_ptr<SpecNode> value);
 std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec, vector<std::string>* names, vector<unique_ptr<SpecNode>>* values);
 unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int level, shared_ptr<EvalState> state, std::set<string>& used_symbols, bool unfold = false);
+void free_vars(Project* proj, SpecNode* spec, std::set<std::string>& free);
+void free_vars_map(Project *proj, SpecNode *spec, std::set<string> &free, std::map<string, Symbol*> &map);
 inline void set_interest_list(const std::set<string> &coi) {
     interest_list.clear();
     interest_list.insert(coi.begin(), coi.end());
