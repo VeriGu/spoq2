@@ -231,8 +231,18 @@ bool SpoqIRModule::control_flow_conversion_v2(Project *proj, string fname,
         for(auto loop: loops) {
 
             auto preheader = loop->getLoopPreheader();
+            llvm::BasicBlock* skip_preheader = nullptr;
             assert(preheader && "loop does not have a loop header");
             assert(preheader->getUniqueSuccessor() && "preheader does not have a unique successor");
+
+            if (!preheader->phis().empty()) {
+                // in case, two loops share preheaader / header
+                auto last = preheader->getTerminator();
+                auto real = preheader->splitBasicBlock(last, "realpreheader");
+                loop->addBlockEntry(real);
+                skip_preheader = preheader;
+                preheader = real;
+            }
 
             llvm::SmallVector<llvm::BasicBlock*, 10> exits;
             loop->getExitingBlocks(exits);
@@ -273,7 +283,7 @@ bool SpoqIRModule::control_flow_conversion_v2(Project *proj, string fname,
                 assert(br && "exit block does not have a branch terminator");
                 bool set = false;
                 for(int i = 0; i < br->getNumSuccessors(); i++) {
-                    if (loop->contains(br->getSuccessor(i))) continue;
+                    if (loop->contains(br->getSuccessor(i)) && skip_preheader != br->getSuccessor(i)) continue;
                     assert(!set && "a exit has multiple outgoing edges");
 
                     set = true;
