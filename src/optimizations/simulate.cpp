@@ -87,7 +87,6 @@ namespace autov
                             if(proj->cmds.PostCond.find(op) != proj->cmds.PostCond.end()) {
                                 auto fname = def->name;
                                 auto post = formulate_post_cond_z3(proj, fname, expr, state);
-                                LOG_DEBUG << "[Adding Post Condition (fwd)] Adding func postcondition: " << post;
                                 state->conds->push_back(post);
                             }
 						}

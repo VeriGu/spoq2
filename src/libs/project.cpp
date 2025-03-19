@@ -1199,9 +1199,9 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
         profile_clear();
         if (!no_trans) {
             if(OPTS.new_trans) {
-                spec_transformer_v2(proj, high_def, layer_id, layer_id, true);
+                spec_transformer_v2(proj, high_def, layer_id, !is_instance(low_def.get(), Fixpoint), true);
             } else {
-                spec_transformer(proj, high_def, layer_id, layer_id, true);
+                spec_transformer(proj, high_def, layer_id, !is_instance(low_def.get(), Fixpoint), true);
             }
             std::cout << "Transformed: " << std::endl << string(*high_def) << std::endl;
         } else {
