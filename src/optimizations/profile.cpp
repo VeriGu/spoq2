@@ -33,7 +33,8 @@ bool __PROFILE_ON = true;
 	label##_cnt = 0; \
 	label##_accumulative_time = std::chrono::duration<double>(0);
 
-PROFILE_VAR_INIT_VAL(simulation);
+PROFILE_VAR_INIT_VAL(simulation_det);
+PROFILE_VAR_INIT_VAL(simulation_non_det);
 PROFILE_VAR_INIT_VAL(decom_simulation);
 PROFILE_VAR_INIT_VAL(eliminate_rely);
 PROFILE_VAR_INIT_VAL(move_when);
@@ -359,7 +360,8 @@ void profile_update_epoch() {
 void profile_print_simulation() {
 	if (!__PROFILE_ON) return;
 	PROFILE_PRINT_RULE(decom_simulation);
-	PROFILE_PRINT_RULE(simulation);
+	PROFILE_PRINT_RULE(simulation_det);
+	PROFILE_PRINT_RULE(simulation_non_det);
 }
 
 void profile_print_epoch()
