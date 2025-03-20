@@ -1003,7 +1003,7 @@ bool check_pre_post(Project* proj, Definition *def, std::unordered_set<string>& 
     return res;
 }
 
-bool simulate(Project* proj) {
+bool simulate(Project* proj, bool det) {
 	unique_ptr<SpecNode> relation = make_unique<BoolConst>(true);
 	for (auto &r : proj->relations) {
 		auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
@@ -1011,6 +1011,7 @@ bool simulate(Project* proj) {
 		elems->push_back(std::move(relation));
 		relation = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
 	}
+    auto start = std::chrono::high_resolution_clock::now();
 	if(!instance_of(relation.get(), BoolConst)) {
 		auto rel = proj->defs[*proj->relations.begin()].get();
 		auto rel_def = make_unique<Definition>("_relate_RData",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), relation->deep_copy());
@@ -1027,6 +1028,8 @@ bool simulate(Project* proj) {
 			}    
 		}
 	}
+    auto end = std::chrono::high_resolution_clock::now();
+    LOG_DEBUG << "Relate Other time: " << std::chrono::duration<double>(end-start).count();
 
 	unique_ptr<SpecNode> sec_relation = make_unique<BoolConst>(true);
 	for (auto &r : proj->sec_relations) {
@@ -1035,6 +1038,7 @@ bool simulate(Project* proj) {
 		elems->push_back(std::move(sec_relation));
 		sec_relation = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
 	}
+    start = std::chrono::high_resolution_clock::now();
 	if(!instance_of(sec_relation.get(), BoolConst)) {
 		auto rel = proj->defs[*proj->sec_relations.begin()].get();
 		auto rel_def = make_unique<Definition>("_relate_secret",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), sec_relation->deep_copy());
@@ -1042,16 +1046,20 @@ bool simulate(Project* proj) {
 			auto def = proj->defs[prim].get();
 			proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_secure"));
 			proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
-            bool det = false;
-			if (check_hprop_by_path(proj, rel_def.get(), def, nullptr, det)) {
+			if (check_hprop_by_path(proj, rel_def.get(), def, nullptr, false)) {
 				LOG_DEBUG << "Relate Secure" << def->name << " is valid :D";
+                end = std::chrono::high_resolution_clock::now();
+                LOG_DEBUG << "Relate Secure time: " << std::chrono::duration<double>(end-start).count();
 				return true;
 			} else {
 				LOG_DEBUG << "Relate Secure" << def->name << " is not valid :(";
+                end = std::chrono::high_resolution_clock::now();
+                LOG_DEBUG << "Relate Secure time: " << std::chrono::duration<double>(end-start).count();
 				return false;
 			}    
 		}
 	}
+    return true;
 }
 
 /**
@@ -1134,16 +1142,28 @@ void spec_prover(Project *proj) {
         }
     }
 
-    PROFILE_START(simulation);
+    Z3Cache.clear();
+    PROFILE_START(simulation_det);
     if (OPTS.check_simulation) {
-        if(simulate(proj)) {
+        if(simulate(proj, true)) {
             LOG_DEBUG << "Relational Property Valid! :D";
         } else {
             LOG_DEBUG << "Relational Property not Valid! :D";
         }
     }
-    PROFILE_END(simulation);
-
+    PROFILE_END(simulation_det);
+    Z3Cache.clear();
+    
+    PROFILE_START(simulation_non_det);
+    if (OPTS.check_simulation) {
+        if(simulate(proj, false)) {
+            LOG_DEBUG << "Relational Property Valid! :D";
+        } else {
+            LOG_DEBUG << "Relational Property not Valid! :D";
+        }
+    }
+    PROFILE_END(simulation_non_det);
+    
     PROFILE_START(decom_simulation);
     if(OPTS.decompose_check_simulation) {
         //overloading the command CheckInv
