@@ -883,9 +883,6 @@ SpecNode* make_lens_v(shared_ptr<SpecType> type, unsigned long id) {
 
 
 static bool contains_interest_fields(SpecNode *spec) {
-
-    std::cout << "[contains_interest_fields] try visiting:\n " << string(*spec) << std::endl;
-
     if (auto s = instance_of(spec, Symbol)) {
         if (std::find(interest_list.begin(), interest_list.end(), s->text) != interest_list.end()) {
             return true;

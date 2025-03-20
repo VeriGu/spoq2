@@ -775,8 +775,6 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                             if(proj->cmds.PostCond.find(op) != proj->cmds.PostCond.end()) {
                                 auto fname = def->name;
                                 auto post = formulate_post_cond_z3(proj, fname, expr, state);
-                                //LOG_DEBUG << "[Adding Post Condition] Adding func postcondition: " << string(*post_cond);
-                                LOG_DEBUG << "[Adding Post Condition] Adding func postcondition: " << post;
                                 state->conds->push_back(post);
                             }
                             //if it is a preserving function, directly add post condition
@@ -785,7 +783,6 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                                 auto post_val = z3_eval(proj, post_cond.get(), state->copy(), false, true, used_fix);
                                 //delete post_cond;
                                 state->conds->push_back(post_val->get_z3_value());
-                                LOG_DEBUG << "[Adding Post Condition] Adding preserved inv postcondition: " << op;
                             }
                         }
                     }
@@ -1004,61 +1001,54 @@ bool check_pre_post(Project* proj, Definition *def, std::unordered_set<string>& 
 }
 
 bool simulate(Project* proj, bool det) {
-	unique_ptr<SpecNode> relation = make_unique<BoolConst>(true);
-	for (auto &r : proj->relations) {
-		auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-		elems->push_back(proj->defs[r]->body->deep_copy());
-		elems->push_back(std::move(relation));
-		relation = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
-	}
-    auto start = std::chrono::high_resolution_clock::now();
-	if(!instance_of(relation.get(), BoolConst)) {
-		auto rel = proj->defs[*proj->relations.begin()].get();
-		auto rel_def = make_unique<Definition>("_relate_RData",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), relation->deep_copy());
-		for(auto prim : proj->cmds.invs) {
-			auto def = proj->defs[prim].get();
-			proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_RData"));
-			proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
-            bool det = false;
-			if (check_hprop_by_path(proj, rel_def.get(), def, nullptr, det)) {
-				LOG_DEBUG << "Relate Other " << def->name << " is valid :D";
-			} else {
-				LOG_DEBUG << "Relate Other " << def->name << " is not valid :(";
-				return false;
-			}    
-		}
-	}
-    auto end = std::chrono::high_resolution_clock::now();
-    LOG_DEBUG << "Relate Other time: " << std::chrono::duration<double>(end-start).count();
+    if (!proj->relations.empty()) {
+        unique_ptr<SpecNode> relation = make_unique<BoolConst>(true);
+        for (auto &r : proj->relations) {
+            auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+            elems->push_back(proj->defs[r]->body->deep_copy());
+            elems->push_back(std::move(relation));
+            relation = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
+        }
+        auto rel = proj->defs[*proj->relations.begin()].get();
+        auto rel_def = make_unique<Definition>("_relate_RData",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), relation->deep_copy());
+        for(auto prim : proj->cmds.invs) {
+            auto def = proj->defs[prim].get();
+            proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_RData"));
+            proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
 
-	unique_ptr<SpecNode> sec_relation = make_unique<BoolConst>(true);
-	for (auto &r : proj->sec_relations) {
-		auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-		elems->push_back(proj->defs[r]->body->deep_copy());
-		elems->push_back(std::move(sec_relation));
-		sec_relation = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
-	}
-    start = std::chrono::high_resolution_clock::now();
-	if(!instance_of(sec_relation.get(), BoolConst)) {
-		auto rel = proj->defs[*proj->sec_relations.begin()].get();
-		auto rel_def = make_unique<Definition>("_relate_secret",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), sec_relation->deep_copy());
-		for(auto prim : proj->cmds.invs) {
-			auto def = proj->defs[prim].get();
-			proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_secure"));
-			proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
-			if (check_hprop_by_path(proj, rel_def.get(), def, nullptr, false)) {
-				LOG_DEBUG << "Relate Secure" << def->name << " is valid :D";
-                end = std::chrono::high_resolution_clock::now();
-                LOG_DEBUG << "Relate Secure time: " << std::chrono::duration<double>(end-start).count();
-				return true;
-			} else {
-				LOG_DEBUG << "Relate Secure" << def->name << " is not valid :(";
-                end = std::chrono::high_resolution_clock::now();
-                LOG_DEBUG << "Relate Secure time: " << std::chrono::duration<double>(end-start).count();
-				return false;
-			}    
-		}
-	}
+            if (check_hprop_by_path(proj, rel_def.get(), def, nullptr, det)) {
+                LOG_DEBUG << "Relate Other " << def->name << " is valid :D";
+            } else {
+                LOG_DEBUG << "Relate Other " << def->name << " is not valid :(";
+                return false;
+            }    
+        }
+    }
+
+    if (!proj->sec_relations.empty()) {
+        unique_ptr<SpecNode> sec_relation = make_unique<BoolConst>(true);
+        for (auto &r : proj->sec_relations) {
+            auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+            elems->push_back(proj->defs[r]->body->deep_copy());
+            elems->push_back(std::move(sec_relation));
+            sec_relation = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
+        }
+        auto rel = proj->defs[*proj->sec_relations.begin()].get();
+        auto rel_def = make_unique<Definition>("_relate_secret",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), sec_relation->deep_copy());
+        for(auto prim : proj->cmds.invs) {
+            auto def = proj->defs[prim].get();
+            proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_secure"));
+            proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
+            bool det = false;
+            if (check_hprop_by_path(proj, rel_def.get(), def, nullptr, false)) {
+                LOG_DEBUG << "Relate Secure" << def->name << " is valid :D";
+                return true;
+            } else {
+                LOG_DEBUG << "Relate Secure" << def->name << " is not valid :(";
+                return false;
+            }    
+        }
+    }
     return true;
 }
 
@@ -1069,7 +1059,8 @@ bool simulate(Project* proj, bool det) {
  *  3. Prove inv path-by-path, recursively check abst function
  */
 void spec_prover(Project *proj) {
-    static const std::set<string> drf_init_coi = {"e_lock", };
+    std::unordered_map<string, double> inv_costs;
+
     unique_ptr<SpecNode> conjoined_invs = make_unique<BoolConst>(true);
     std::unordered_set<string> used_abstract_funcs;
     //check system invariant incrementally. The invariant dependent on another should be defined
@@ -1077,6 +1068,7 @@ void spec_prover(Project *proj) {
     LOG_DEBUG << "check invariant: " << OPTS.check_inv;
     if(OPTS.check_inv) {
         for(auto &[name, inv]: proj->sys_invs) {
+            auto begin = std::chrono::high_resolution_clock::now();
             bool valid = false;
             for(auto prim : proj->cmds.invs) {
                 // Prove invariants separately
@@ -1111,6 +1103,8 @@ void spec_prover(Project *proj) {
                     LOG_DEBUG << "Invariant " << name << " not Valid :(" << prim;
                 }
             }
+            auto end = std::chrono::high_resolution_clock::now();
+            inv_costs[name] = std::chrono::duration<double>(end - begin).count();
             if(valid)
                 proj->verified_invariants.insert(name);
         }
@@ -1146,9 +1140,9 @@ void spec_prover(Project *proj) {
     PROFILE_START(simulation_det);
     if (OPTS.check_simulation) {
         if(simulate(proj, true)) {
-            LOG_DEBUG << "Relational Property Valid! :D";
+            LOG_DEBUG << "Det Relational Property Valid! :D";
         } else {
-            LOG_DEBUG << "Relational Property not Valid! :D";
+            LOG_DEBUG << "Det Relational Property not Valid! :D";
         }
     }
     PROFILE_END(simulation_det);
@@ -1157,9 +1151,9 @@ void spec_prover(Project *proj) {
     PROFILE_START(simulation_non_det);
     if (OPTS.check_simulation) {
         if(simulate(proj, false)) {
-            LOG_DEBUG << "Relational Property Valid! :D";
+            LOG_DEBUG << "Nondet Relational Property Valid! :D";
         } else {
-            LOG_DEBUG << "Relational Property not Valid! :D";
+            LOG_DEBUG << "Nondet Relational Property not Valid! :D";
         }
     }
     PROFILE_END(simulation_non_det);
@@ -1176,6 +1170,10 @@ void spec_prover(Project *proj) {
         }
     }
     PROFILE_END(decom_simulation);
+
+    for (auto &inv : inv_costs) {
+        LOG_INFO << "Invariant " << inv.first << " takes " << inv.second << " (s)";
+    }
     profile_print_simulation();
 }
 }
