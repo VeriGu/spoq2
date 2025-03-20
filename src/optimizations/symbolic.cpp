@@ -725,7 +725,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 					// std::cout << "prove_by_traverse: Goal Query\n" << c->get_z3_value() << std::endl;
 					// std::cout << "----------------------------------" << std::endl;
 					if (z3_ret == Z3Result::Sat) {
-						LOG_WARNING << "[prove_by_traverse] Condition is violated for state\n" << string(*ret_st) << std::endl;
+						LOG_WARNING << "[prove_by_traverse] Condition is violated for state\n" << ret_st_str << std::endl;
 						return false;
 					} else if (z3_ret == Z3Result::Unknown) {
 						LOG_WARNING << "[prove_by_traverse] Condition is unknown for state\n" << ret_st_str << std::endl;
