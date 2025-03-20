@@ -389,6 +389,9 @@ std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecN
         }   
     }
     for (auto &c : coi_fields) {
+        if (c.empty()) {
+            continue;
+        }
         if (blacklist.find(c.front()) != blacklist.end()) {
             continue;
         }
