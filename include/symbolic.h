@@ -73,4 +73,5 @@ namespace autov {
 
     
     z3::expr formulate_post_cond_z3(Project* proj, std::string fname, SpecNode* func_call, shared_ptr<ProveState> state);
+    string query_saver_dir(const string &spec_name, const string &inv_name);
 }

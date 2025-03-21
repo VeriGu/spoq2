@@ -881,7 +881,7 @@ void spec_abstraction(Project *proj, Definition *def, std::set<string> &coi) {
     std::cout << "[spec_abstraction] Abstracted (Lensified) spec:\n" << string(*def) << std::endl;
 }
 
-static string query_saver_dir(const string &spec_name, const string &inv_name) {
+string query_saver_dir(const string &spec_name, const string &inv_name) {
     return OPTS.query_path + spec_name + "/" + inv_name;
 }
 

@@ -176,7 +176,7 @@ public:
     QueryInfo query_saver;
 
     unordered_map<string, vector<unique_ptr<SpecNode>>> loop_invs;
-    unordered_map<string, unique_ptr<SpecNode>> sys_invs;
+    std::map<string, unique_ptr<SpecNode>> sys_invs;
     unique_ptr<SpecNode> conjoined_sys_inv;
     
     // cone_of_influence[spec_name][invariant_name] -> coi
