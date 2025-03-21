@@ -726,6 +726,9 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 						return false;
 					} else if (z3_ret == Z3Result::Unknown) {
 						LOG_WARNING << "[prove_by_traverse] Condition is unknown for state\n" << ret_st_str << std::endl;
+                        for(auto &cond: *state->conds) {
+					        LOG_DEBUG << "Cond:" << cond;
+					    }
 						return false;
 					} else {
 						LOG_INFO << "[prove_by_traverse] Condition is proved for state\n" << ret_st_str << std::endl;
@@ -1022,6 +1025,11 @@ bool simulate(Project* proj, bool det) {
         }
     }
 
+    return true;
+}
+
+
+bool simulate_secure(Project* proj) {
     if (!proj->sec_relations.empty()) {
         unique_ptr<SpecNode> sec_relation = make_unique<BoolConst>(true);
         for (auto &r : proj->sec_relations) {
@@ -1048,7 +1056,6 @@ bool simulate(Project* proj, bool det) {
     }
     return true;
 }
-
 /**
  * spec_prover:
  *  1. Prove invariants separately 
@@ -1086,8 +1093,8 @@ void spec_prover(Project *proj) {
                 }
                 auto spec_def = new Definition(goal_def->name, goal_def->rettype, std::move(l_args), goal_def->body->deep_copy());
                 auto coi = analyze_cone_of_influence(proj, spec_def, inv.get(), autov::coi_whitelist, autov::coi_blacklist);
-                spec_abstraction(proj, spec_def, coi);
-                spec_def->infer_type(*proj);
+                //spec_abstraction(proj, spec_def, coi);
+                //spec_def->infer_type(*proj);
                 std::cout << "[spec_abstraction] coi set: " << std::endl;
                 for (auto &c : coi) {
                     std::cout << c << std::endl;
@@ -1138,6 +1145,7 @@ void spec_prover(Project *proj) {
     if (OPTS.check_simulation) {
         if(simulate(proj, true)) {
             LOG_DEBUG << "Det Relational Property Valid! :D";
+            simulate_secure(proj);
         } else {
             LOG_DEBUG << "Det Relational Property not Valid! :D";
         }
@@ -1149,11 +1157,14 @@ void spec_prover(Project *proj) {
     if (OPTS.check_simulation) {
         if(simulate(proj, false)) {
             LOG_DEBUG << "Nondet Relational Property Valid! :D";
+            simulate_secure(proj);
         } else {
             LOG_DEBUG << "Nondet Relational Property not Valid! :D";
         }
     }
     PROFILE_END(simulation_non_det);
+
+
     
     PROFILE_START(decom_simulation);
     if(OPTS.decompose_check_simulation) {
