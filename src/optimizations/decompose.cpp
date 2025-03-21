@@ -2,6 +2,7 @@
 #include <coi.h>
 #include <decompose.h>
 #include <simulate.h>
+#include <symbolic.h>
 
 namespace autov
 {
@@ -42,6 +43,8 @@ bool decompose(Project* proj, Definition* def, string secret) {
     if(!instance_of(relation.get(), BoolConst)) {
         auto rel = proj->defs[*proj->relations.begin()].get();
         auto rel_def = make_unique<Definition>("_relate",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), relation->deep_copy());
+        proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_RData"));
+
         if(!check_hprop_by_path(proj, rel_def.get(), def, nullptr, true)) {
             LOG_DEBUG << "secret interfere other fields";
             return false;
@@ -77,6 +80,8 @@ bool decompose(Project* proj, Definition* def, string secret) {
     if(!instance_of(sec_relation.get(), BoolConst)) {
         auto rel = proj->defs[*proj->sec_relations.begin()].get();
         auto rel_def = make_unique<Definition>("_relate_sec",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), sec_relation->deep_copy());
+        proj->query_saver =  QueryInfo(query_saver_dir(def->name, "relate_secure"));
+
         if(!check_hprop_by_path(proj, rel_def.get(), def, nullptr, false)) {
             LOG_DEBUG << "other fields interfere secret.";
             return false;
