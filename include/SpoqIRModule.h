@@ -763,10 +763,10 @@ namespace autov {
         std::unique_ptr<std::vector<std::unique_ptr<SpecNode>>> compute_loop_break_return_list(llvm::BasicBlock* preheader) {
             auto ret = std::make_unique<std::vector<std::unique_ptr<SpecNode>>>();
             for(auto &val: spoq_func.loop_context.pass_in[preheader]) {
-                ret->push_back(get_llvm_value_spec(val));
+                ret->push_back(std::make_unique<Symbol>(get_llvm_value_name(val) + "_after", get_llvm_value_type(val)));
             }
             for(auto &val: spoq_func.loop_context.header_phi[preheader]) {
-                ret->push_back(get_llvm_value_spec(val));
+                ret->push_back(std::make_unique<Symbol>(get_llvm_value_name(val) + "_after", get_llvm_value_type(val)));
             }
             for(auto &phi: spoq_func.loop_context.pass_out[preheader]) {
                 ret->push_back(get_llvm_value_spec(phi));
