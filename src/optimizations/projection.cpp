@@ -123,7 +123,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 known.insert(arg->name);
             }
             auto spec = partial_eval(proj, std::move(def->body), 0, make_shared<EvalState>(vars, conds), known, unfold);
-            profile_print_transrule();
+            //profile_print_transrule();
             // LOG_DEBUG << def->name << "------------------after_partial_eval:----------------------\n" << string(*spec);
             unique_ptr<SpecNode> __tmp_spec;
             bool changed = false;
@@ -208,8 +208,8 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                 this_changed |= __changed;
                 changed |= __changed;
                 if(__changed) {
-                    // std::cout << "group1 rule:" << ruleid_to_string(r.id) << def->name << " new_spec: \n=========================\n"
-                    //     << string(*tmp_spec.get()) << "\n==============================\n";
+                    std::cout << "group1 rule:" << ruleid_to_string(r.id) << def->name << " new_spec: \n=========================\n"
+                        << string(*tmp_spec.get()) << "\n==============================\n";
                 }
                 auto new_spec_str = string(*tmp_spec.get());
             }
@@ -251,8 +251,8 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                 this_changed |= __changed;
                 changed |= __changed;
                 if(__changed) {
-                    // std::cout << "group2 rule:" << ruleid_to_string(r.id) << def->name << " new_spec: \n=========================\n"
-                    //     << string(*tmp_spec.get()) << "\n==============================\n";
+                    std::cout << "group2 rule:" << ruleid_to_string(r.id) << def->name << " new_spec: \n=========================\n"
+                        << string(*tmp_spec.get()) << "\n==============================\n";
                 }
 
             }
@@ -278,8 +278,8 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
             changed |= __changed;
             new_spec = std::move(__spec);
             
-            // std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
-            //         << string(*new_spec.get()) << "\n==============================\n";
+            std::cout << "(Z3) " << def->name << " new_spec: \n=========================\n"
+                    << string(*new_spec.get()) << "\n==============================\n";
         // }
 
         def->body = std::move(new_spec);
