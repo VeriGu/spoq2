@@ -1000,7 +1000,7 @@ bool check_pre_post(Project* proj, Definition *def, std::unordered_set<string>& 
     return res;
 }
 
-bool simulate(Project* proj, bool det) {
+bool simulate(Project* proj, bool det, bool check_sec = true) {
     if (!proj->relations.empty()) {
         unique_ptr<SpecNode> relation = make_unique<BoolConst>(true);
         for (auto &r : proj->relations) {
@@ -1025,7 +1025,8 @@ bool simulate(Project* proj, bool det) {
         }
     }
 
-    if (!proj->sec_relations.empty()) {
+    if (!proj->sec_relations.empty() && check_sec) {
+        auto start = std::chrono::high_resolution_clock::now();
         unique_ptr<SpecNode> sec_relation = make_unique<BoolConst>(true);
         for (auto &r : proj->sec_relations) {
             auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
@@ -1040,7 +1041,10 @@ bool simulate(Project* proj, bool det) {
             proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_secure"));
             proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
             bool det = false;
-            if (check_hprop_by_path(proj, rel_def.get(), def, nullptr, false)) {
+            PROFILE_START(relate_secure);
+            auto res = check_hprop_by_path(proj, rel_def.get(), def, nullptr, false);
+            PROFILE_END(relate_secure);
+            if (res) {
                 LOG_DEBUG << "Relate Secure" << def->name << " is valid :D";
                 return true;
             } else {
@@ -1138,17 +1142,6 @@ void spec_prover(Project *proj) {
     }
 
     Z3Cache.clear();
-    PROFILE_START(simulation_det);
-    if (OPTS.check_simulation) {
-        if(simulate(proj, true)) {
-            LOG_DEBUG << "Det Relational Property Valid! :D";
-        } else {
-            LOG_DEBUG << "Det Relational Property not Valid! :D";
-        }
-    }
-    PROFILE_END(simulation_det);
-    Z3Cache.clear();
-    
     PROFILE_START(simulation_non_det);
     if (OPTS.check_simulation) {
         if(simulate(proj, false)) {
@@ -1158,6 +1151,18 @@ void spec_prover(Project *proj) {
         }
     }
     PROFILE_END(simulation_non_det);
+
+    Z3Cache.clear();
+    PROFILE_START(simulation_det);
+    if (OPTS.check_simulation) {
+        // we do not need to prove secure relation again
+        if(simulate(proj, true, false)) {
+            LOG_DEBUG << "Det Relational Property Valid! :D";
+        } else {
+            LOG_DEBUG << "Det Relational Property not Valid! :D";
+        }
+    }
+    PROFILE_END(simulation_det);
     
     PROFILE_START(decom_simulation);
     if(OPTS.decompose_check_simulation) {
