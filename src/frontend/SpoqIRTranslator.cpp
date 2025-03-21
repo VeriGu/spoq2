@@ -203,13 +203,15 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
             } else if (auto undef = llvm::dyn_cast<llvm::UndefValue>(data)) {
                 if (data->getType()->isIntegerTy(1)) {
                     return std::make_unique<BoolConst>(true);
-                }
-                else if (data->getType()->isIntegerTy()) {
+                } else if (data->getType()->isIntegerTy()) {
                     // TODO: should we emit a warning here?
-                    return std::make_unique<IntConst>(-10);
+                    // return std::make_unique<IntConst>(-10);
+                    return std::make_unique<Symbol>("undef_val", this->get_llvm_value_type(undef));
                 } else if (data->getType()->isArrayTy()) {
                     // TODO: check array element is integer
                     return std::make_unique<Symbol>("undef_zmap", this->get_llvm_value_type(undef));
+                } else if (data->getType()->isPointerTy()) {
+                    return std::make_unique<Symbol>("undef_ptr", this->get_llvm_value_type(undef));
                 }
             } 
         } else if (auto expr = llvm::dyn_cast<llvm::ConstantExpr>(value)) {
