@@ -23,6 +23,18 @@
             "preLaunchTask": "CMake: build debug"
         },
         {
+            "name": "(lldb) Launch Spoq artifact",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["test.v", "--llvm", "--new-trans" , "--no-profile"
+            // "--check-simulation",
+            // "--decom-check-simul",
+            ], // Any command-line arguments
+            "cwd": "${workspaceFolder}/spoq3-artifacts/rcsm-llvm/",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
             "name": "(lldb) Launch Spoq proof_sekvm",
             "type": "lldb",
             "request": "launch",
@@ -35,6 +47,7 @@
             "name": "(lldb) Launch Spoq proof_debug_of",
             "type": "lldb",
             "request": "launch",
+
             "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
             "args": ["test/rmm/proof_debug_of.v"], // Any command-line arguments
             "cwd": "${workspaceFolder}",
