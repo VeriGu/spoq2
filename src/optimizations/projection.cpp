@@ -56,7 +56,7 @@ unique_ptr<SpecNode> spec_transformer_v2(Project *proj, unique_ptr<SpecNode> nod
             known.insert(arg);
         }
         auto spec1 = partial_eval(proj, std::move(spec), 0, make_shared<EvalState>(vars, conds), known, unfold);
-        profile_print_transrule();
+        // profile_print_transrule();
         LOG_DEBUG << "------------------after_partial_eval:----------------------\n" << string(*spec1);
         unique_ptr<SpecNode> __tmp_spec;
         bool changed = false;

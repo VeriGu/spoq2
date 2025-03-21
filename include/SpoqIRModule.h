@@ -701,6 +701,12 @@ namespace autov {
          */
         shared_ptr<SpecType> compute_loop_return_type(llvm::BasicBlock* preheader) {
             std::shared_ptr<std::vector<std::shared_ptr<SpecType>>> ret = std::make_shared<std::vector<std::shared_ptr<SpecType>>>();
+            for(auto &val: spoq_func.loop_context.pass_in[preheader]) {
+                ret->push_back(get_llvm_value_type(val));
+            }
+            for(auto &val: spoq_func.loop_context.header_phi[preheader]) {
+                ret->push_back(get_llvm_value_type(val));
+            }
             for(auto &phi: spoq_func.loop_context.pass_out[preheader]) {
                 ret->push_back(get_llvm_value_type(phi));
             }
@@ -726,9 +732,15 @@ namespace autov {
             llvm::PassBuilder PB;
             PB.registerFunctionAnalyses(FAM);
             llvm::DominatorTree& dt = FAM.getResult<llvm::DominatorTreeAnalysis>(*preheader->getParent());
+            for(auto &val: spoq_func.loop_context.pass_in[preheader]) {
+                return_list.push_back(val);
+            }
+            for(auto &val: spoq_func.loop_context.header_phi[preheader]) {
+                return_list.push_back(val);
+            }
             for(auto &phi: spoq_func.loop_context.pass_out[preheader]) {
                 if (auto inst = llvm::dyn_cast<llvm::Instruction>(phi)) {
-                   if (!dt.dominates(inst, exiting)) {
+                   if (!dt.dominates(inst, exiting) && inst->getParent() != exiting) {
                         return_list.push_back(llvm::UndefValue::get(phi->getType()));
                         continue;
                     }
@@ -750,6 +762,12 @@ namespace autov {
          */
         std::unique_ptr<std::vector<std::unique_ptr<SpecNode>>> compute_loop_break_return_list(llvm::BasicBlock* preheader) {
             auto ret = std::make_unique<std::vector<std::unique_ptr<SpecNode>>>();
+            for(auto &val: spoq_func.loop_context.pass_in[preheader]) {
+                ret->push_back(std::make_unique<Symbol>(get_llvm_value_name(val) + "_after", get_llvm_value_type(val)));
+            }
+            for(auto &val: spoq_func.loop_context.header_phi[preheader]) {
+                ret->push_back(std::make_unique<Symbol>(get_llvm_value_name(val) + "_after", get_llvm_value_type(val)));
+            }
             for(auto &phi: spoq_func.loop_context.pass_out[preheader]) {
                 ret->push_back(get_llvm_value_spec(phi));
             }
@@ -775,6 +793,15 @@ namespace autov {
             for(auto &val: spoq_func.loop_context.header_phi[preheader]) {
                 arg_list->push_back(std::make_shared<Arg>(get_llvm_value_name(val), get_llvm_value_type(val)));
             }
+            int i = 0;
+            for(auto &out: spoq_func.loop_context.pass_out[preheader]) {
+                arg_list->push_back(std::make_shared<Arg>("arg_dummy" + std::to_string(i), get_llvm_value_type(out)));
+                ++i;
+            }
+            for(auto &out: spoq_func.loop_context.postheader_phi[preheader]) {
+                arg_list->push_back(std::make_shared<Arg>("arg_dummy" + std::to_string(i), get_llvm_value_type(out)));
+                ++i;
+            }
             arg_list->push_back(std::make_shared<Arg>(abs_data_name, abs_data_type));
             return arg_list;
         }
@@ -786,7 +813,7 @@ namespace autov {
          * @param preheader 
          * @return std::vector<llvm::Value*> 
          */
-        std::vector<llvm::Value*> compute_loop_continue_arg_list(llvm::BasicBlock* latch, llvm::BasicBlock* preheader = nullptr) {
+        std::vector<llvm::Value*> compute_loop_continue_arg_list(llvm::BasicBlock* latch, llvm::BasicBlock* preheader = nullptr, int *guard = nullptr) {
             std::vector<llvm::Value*> arg_list;
             if (!preheader) {
                 assert(!pass_stack.empty() && "pass_stack is empty, break but not in loop");
@@ -799,6 +826,13 @@ namespace autov {
                 auto val = phi->getIncomingValueForBlock(latch);
                 arg_list.push_back(val);
             }
+            for(auto &out: spoq_func.loop_context.pass_out[preheader]) {
+                arg_list.push_back(llvm::UndefValue::get(out->getType()));
+            }
+            for(auto &out: spoq_func.loop_context.postheader_phi[preheader]) {
+                arg_list.push_back(llvm::UndefValue::get(out->getType()));
+            }
+            if (guard) *guard = spoq_func.loop_context.pass_in[preheader].size() + spoq_func.loop_context.header_phi[preheader].size();
             return arg_list;
         }
 

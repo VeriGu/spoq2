@@ -15,7 +15,10 @@
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
-            "args": ["test/rcsm-llvm/test.v", "--llvm", "--new-trans", "--check-simulation"], // Any command-line arguments
+            "args": ["test/rcsm-llvm/test.v", "--llvm", "--new-trans", 
+            "--check-simulation",
+            // "--decom-check-simul",
+            ], // Any command-line arguments
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "CMake: build debug"
         },

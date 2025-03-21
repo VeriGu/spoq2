@@ -731,7 +731,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 					    }
 						return false;
 					} else {
-						LOG_INFO << "[prove_by_traverse] Condition is proved for state\n" << ret_st_str << std::endl;
+						// LOG_INFO << "[prove_by_traverse] Condition is proved for state\n" << ret_st_str << std::endl;
 						return true;
 					}
                 }
