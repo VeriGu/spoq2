@@ -887,7 +887,6 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
 
     int i = 0;
     for(auto arg : *def->args) {
-        // if(i != 0)
         vars->push_back(make_shared<Arg>(def->name + "_" + arg->name + "_new_", arg->type));
     }
     
@@ -905,10 +904,8 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
     i = 0;
     auto known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
     for(auto arg: *def->args) {
-        // if(i != 0) {
-            tupleelems->push_back(make_unique<Symbol>(def->name + "_" + arg->name + "_new_"));
-            (*known)[arg->name] = arg->type;
-        // }
+        tupleelems->push_back(make_unique<Symbol>(def->name + "_" + arg->name + "_new_"));
+        (*known)[arg->name] = arg->type;
         if(arg->name == "st") {
             (*known)[arg->name + "_old"] = arg->type;
         }
@@ -937,26 +934,24 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
 
     
     for(auto arg : *def->args) {
-        if (arg->name != "_N_") {
-            auto sym = make_unique<Symbol>(def->name + "_" + arg->name + "'", arg->type);
-            bool succ;
-            aggreinv = subst(std::move(aggreinv), arg->name, sym.get(), succ);
-        }
+        auto sym = make_unique<Symbol>(def->name + "_" + arg->name + "_new_", arg->type);
+        bool succ;
+        aggreinv = subst(std::move(aggreinv), arg->name, sym.get(), succ);
     }
 
     bool succ;
     aggreinv = subst(std::move(aggreinv), "st_old", args->back().get(), succ);
 
-    auto loop_cond = autov::parser::parseExpr(proj,def->name + "_" + "__break__' = true");
-    loop_cond->type = Bool::BOOL;
-    auto andelems = new vector<unique_ptr<SpecNode>>();
-    andelems->push_back(std::move(aggreinv));
-    andelems->push_back(unique_ptr<SpecNode>(loop_cond));
-    auto loop_condAndInv = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(andelems), Bool::BOOL);
+    //auto loop_cond = autov::parser::parseExpr(proj,def->name + "_" + "__break__' = true");
+    //loop_cond->type = Bool::BOOL;
+    // auto andelems = new vector<unique_ptr<SpecNode>>();
+    // andelems->push_back(std::move(aggreinv));
+    // andelems->push_back(unique_ptr<SpecNode>(loop_cond));
+    // auto loop_condAndInv = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(andelems), Bool::BOOL);
 
     auto bodyelems = new vector<unique_ptr<SpecNode>>();
     bodyelems->push_back(unique_ptr<SpecNode>(eqbody));
-    bodyelems->push_back(unique_ptr<SpecNode>(loop_condAndInv));
+    bodyelems->push_back(std::move(aggreinv));
     auto expr = new Expr(Expr::binops::IMPLIES, unique_ptr<vector<unique_ptr<SpecNode>>>(bodyelems), Bool::BOOL);
 
 
