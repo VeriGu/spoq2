@@ -754,16 +754,19 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                     }
                     if (proj->defs.find(op) != proj->defs.end()) {
                         if (auto loop = instance_of(proj->defs[op].get(), Fixpoint)){
-                            if (!check_states_implies_loop_inv(proj, state, op, elems)){
-                                return false;
+                            if(proj->loop_invs.find(op) != proj->loop_invs.end()) {
+                                if (!check_states_implies_loop_inv(proj, state, op, elems)){
+                                    return false;
+                                }
+                                // state->inductions->clear();
+                                LOG_INFO << "[Checking Loop Invariant] Precondition implies invariant";
+            
+                                auto fname = loop->name;
+                                auto post = formulate_loop_invariant_z3(proj, fname, expr, state);
+                                LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << op;
+                                LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << post;
+                                state->conds->push_back(post);
                             }
-                            // state->inductions->clear();
-                            LOG_INFO << "[Checking Loop Invariant] Precondition implies invariant";
-                            auto fname = loop->name;
-                            auto post = formulate_loop_invariant_z3(proj, fname, expr, state);
-                            LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << op;
-                            LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << post;
-                            state->conds->push_back(post);
                         } else {
                             //normal Definition. Check the precondition and add post condition.
                             auto def = proj->defs[op].get();

@@ -1617,16 +1617,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                 return _cache(static_pointer_cast<Inductive>(val->get_type())->construct(sym, elems));
             } else if (info.kind == SymbolKind::Def) {
                 auto df = proj->defs[sym].get();
-                if(auto loop = instance_of(df, Fixpoint)) {
-                        z3::expr_vector z3_args(z3ctx);
-                        for (const auto &arg : elems) {
-                            z3_args.push_back(arg->get_z3_value());
-                        }
-                        auto app = (loop->absf())(z3_args);
-                        return _cache(loop->rettype->from_z3_value(app));
-                } else {
-                    return _cache(df->absf()->call(elems));
-                }
+                return _cache(df->absf()->call(elems));
             } else if (info.kind == SymbolKind::Decl) {
                 if(sym != "lens_v") {
                     auto df = proj->decls[sym].get();
@@ -1978,24 +1969,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             } else if (info.kind == SymbolKind::Def) {
                 auto df = proj->defs[sym].get();
                 if(auto loop = instance_of(df, Fixpoint)) {
-					auto& invs = proj->loop_invs[loop->name];
-                    //no loop invariant provided
-                    //if treated as recursive function, need to add the definition
-                    if(unfold && proj->cmds.NoUnfold.find(loop->name) == proj->cmds.NoUnfold.end()) {
-                        used_fixpoint.insert(df->name);
-                        z3::expr_vector z3_args(z3ctx);
-                        for (const auto &arg : elems) {
-                             z3_args.push_back(arg->get_z3_value());
-                        }
-                        auto app = (loop->absf())(z3_args);
-                        return _cache(loop->rettype->from_z3_value(app));
-                    }
-                        z3::expr_vector z3_args(z3ctx);
-                        for (const auto &arg : elems) {
-                             z3_args.push_back(arg->get_z3_value());
-                        }
-                        auto app = (loop->absf())(z3_args);
-                        return _cache(loop->rettype->from_z3_value(app));
+                    return _cache(df->absf()->call(elems));
                 } else {
                     if(unfold && proj->cmds.NoUnfold.find(df->name) == proj->cmds.NoUnfold.end()) {
                         z3::expr func = formulate_function(proj, df);
