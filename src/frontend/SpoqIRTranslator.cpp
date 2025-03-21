@@ -205,13 +205,17 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
                     return std::make_unique<BoolConst>(true);
                 } else if (data->getType()->isIntegerTy()) {
                     // TODO: should we emit a warning here?
-                    // return std::make_unique<IntConst>(-10);
-                    return std::make_unique<Symbol>("undef_val", this->get_llvm_value_type(undef));
+                    return std::make_unique<IntConst>(0);
                 } else if (data->getType()->isArrayTy()) {
                     // TODO: check array element is integer
                     return std::make_unique<Symbol>("undef_zmap", this->get_llvm_value_type(undef));
                 } else if (data->getType()->isPointerTy()) {
-                    return std::make_unique<Symbol>("undef_ptr", this->get_llvm_value_type(undef));
+                    auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                    vec->push_back(std::make_unique<StringConst>("null"));
+                    vec->push_back(std::make_unique<IntConst>(0));
+                    auto expr = std::make_unique<Expr>("mkPtr", std::move(vec));
+                    expr->type = Struct::Ptr;
+                    return expr;
                 }
             } 
         } else if (auto expr = llvm::dyn_cast<llvm::ConstantExpr>(value)) {
@@ -900,10 +904,16 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
         return Shortcut::_When_u(std::move(pass_out_list), std::move(src_loop), spoq_inst_to_spec(proj, vec, num + 1, context));
     } else if (auto inst = Shortcut::dyn_cast_u<SpoqContinueInst>(vec[num])) {
         assert(num == vec.size() - 1 && "continue is not the last instruction");
-        auto arg_list = context.compute_loop_continue_arg_list(inst->latch_block);
+        int guard = 0, i = 0;
+        auto arg_list = context.compute_loop_continue_arg_list(inst->latch_block, nullptr, &guard);
         auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
         for(auto arg: arg_list) {
-            v->push_back(context.get_llvm_value_spec(arg));
+            if (i >= guard) {
+                v->push_back(std::make_unique<Symbol>("arg_dummy" + std::to_string(i - guard), context.get_llvm_value_type(arg)));
+            } else {
+                v->push_back(context.get_llvm_value_spec(arg));
+            }
+            ++i;
         }
         v->push_back(context.get_abs_data());
         context.continue_return = std::make_unique<Expr>(context.get_loop_spec_name(), std::move(v));

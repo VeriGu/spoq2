@@ -813,7 +813,7 @@ namespace autov {
          * @param preheader 
          * @return std::vector<llvm::Value*> 
          */
-        std::vector<llvm::Value*> compute_loop_continue_arg_list(llvm::BasicBlock* latch, llvm::BasicBlock* preheader = nullptr) {
+        std::vector<llvm::Value*> compute_loop_continue_arg_list(llvm::BasicBlock* latch, llvm::BasicBlock* preheader = nullptr, int *guard = nullptr) {
             std::vector<llvm::Value*> arg_list;
             if (!preheader) {
                 assert(!pass_stack.empty() && "pass_stack is empty, break but not in loop");
@@ -832,6 +832,7 @@ namespace autov {
             for(auto &out: spoq_func.loop_context.postheader_phi[preheader]) {
                 arg_list.push_back(llvm::UndefValue::get(out->getType()));
             }
+            if (guard) *guard = spoq_func.loop_context.pass_in[preheader].size() + spoq_func.loop_context.header_phi[preheader].size();
             return arg_list;
         }
 
