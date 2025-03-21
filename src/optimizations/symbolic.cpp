@@ -602,19 +602,16 @@ z3::expr formulate_loop_invariant_z3(Project* proj, std::string fname, SpecNode*
     auto expr = instance_of(fun_call, Expr);
     auto loop = proj->defs[fname].get();
     auto loop_post_cond = formulate_loop_invariant(proj, fname, expr->elems.get());
+    //LOG_DEBUG << "loop invariant post: " << string(*loop_post_cond);
     for (auto arg : *loop->args) {
-        if (arg->name != "_N_") {
-            (*state->vars)[loop->name + "_" + arg->name + "_new_"] = arg->type->declare(loop->name + "_" + arg->name + "_new_", 0); //current
-        }
+        (*state->vars)[loop->name + "_" + arg->name + "_new_"] = arg->type->declare(loop->name + "_" + arg->name + "_new_", 0); //current
     }
     //LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << string(*loop_post_cond);
     set<string> used_fix;
     auto loop_post_val = z3_eval(proj, loop_post_cond.get(), state, false, true, used_fix);
     auto post = loop_post_val->get_z3_value();
     for(auto arg : *loop->args) {
-        if (arg->name != "_N_") {
-            post = z3::forall((*state->vars)[loop->name + "_" + arg->name + "_new_"]->get_z3_value(), post);
-        }
+        post = z3::forall((*state->vars)[loop->name + "_" + arg->name + "_new_"]->get_z3_value(), post);
     }
     return post;
 }
