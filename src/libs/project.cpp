@@ -67,6 +67,7 @@ const string Project::RELATE_LAYER = "Relations";
 void Project::add_sys_inv(string name, unique_ptr<SpecNode> inv) {
     //Expr* invexpr = instance_of(invelem, Expr);
     sys_invs[name] = std::move(inv);
+    sys_inv_order[sys_inv_order.size()] = name;
 }
 
 void Project::add_symbol(string name, SymbolKind kind, string info, shared_ptr<loc_t> loc)
