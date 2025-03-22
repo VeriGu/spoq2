@@ -304,6 +304,8 @@ namespace autov
 		auto spec_def = new Definition(spec->name, spec->rettype, std::move(l_args), spec->body->deep_copy());
 		auto coi = analyze_cone_of_influence(proj, spec_def, rel->body.get(), autov::coi_whitelist, autov::coi_blacklist);
 		spec_abstraction(proj, spec_def, coi);
+		spec_def->infer_type(*proj);
+
 		std::cout << "[spec_abstraction] coi set: " << std::endl;
 		for (auto &c : coi) {
 			std::cout << c << std::endl;
