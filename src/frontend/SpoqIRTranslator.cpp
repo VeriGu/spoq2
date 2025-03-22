@@ -596,6 +596,12 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             if (cmp->getOperand(0)->getType()->isPointerTy()) {
                 if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_EQ) {
                     expr = std::make_unique<Expr>(context.ptr_eqb_op_name, std::move(operands));
+                } 
+                else if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_NE) {
+                    expr = std::make_unique<Expr>(context.ptr_eqb_op_name, std::move(operands));
+                    operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                    operands->push_back(std::move(expr));
+                    expr = std::make_unique<Expr>(Expr::ops::BNOT, std::move(operands));
                 }
             }
             else if(cmpops_lut.find(cmp->getPredicate()) != cmpops_lut.end()) {
