@@ -1096,8 +1096,8 @@ void spec_prover(Project *proj) {
                 }
                 auto spec_def = new Definition(goal_def->name, goal_def->rettype, std::move(l_args), goal_def->body->deep_copy());
                 auto coi = analyze_cone_of_influence(proj, spec_def, inv, autov::coi_whitelist, autov::coi_blacklist);
-                //spec_abstraction(proj, spec_def, coi);
-                //spec_def->infer_type(*proj);
+                spec_abstraction(proj, spec_def, coi);
+                spec_def->infer_type(*proj);
                 std::cout << "[spec_abstraction] coi set: " << std::endl;
                 for (auto &c : coi) {
                     std::cout << c << std::endl;
