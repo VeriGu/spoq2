@@ -60,7 +60,7 @@ namespace autov
 						// double check here
 						auto [is_relate, expr_relate] = check_relation(proj, rel, st_check, st_ret.get(), state);
 						if (is_relate) {
-							// LOG_INFO << "[forward_simulation] Relation is proved between\n"  << string(*st_check) << "\nand\n" << string(*st_ret.get()) << std::endl;
+							LOG_INFO << "[forward_simulation] Relation is proved between\n"  << string(*st_check) << "\nand\n" << string(*st_ret.get()) << std::endl;
 						} else {
 							LOG_WARNING << "[forward_simulation] Relation can not be proved between\n"  << string(*st_check) << "\nand\n" << string(*st_ret.get())  << std::endl;
 						}
@@ -326,6 +326,18 @@ namespace autov
 		}
 		auto rel_expr = formulate_relation(proj, rel, st_sym_1.get(), st_sym_2.get(), state);
 		state->conds->push_back(rel_expr->get_z3_value());
+		// add invariants for both
+	    set<string> used_fixpoint;
+		for (auto proved : proj->verified_invariants) {
+			auto inv_for_spec = proj->sys_invs[proved].get();
+			auto inv_for_impl = proj->rules.build_simulate_spec(proj->sys_invs[proved]->deep_copy()).release();
+			// std::cout << "[check_hprop_by_path] Proved invariant: " << string(*inv_for_spec) << std::endl;
+			// std::cout << "[check_hprop_by_path] Simulated invariant: " << string(*inv_for_impl) << std::endl;
+			auto e_spec = z3_eval(proj, inv_for_spec, state, false, true, used_fixpoint);
+			auto e_impl = z3_eval(proj, inv_for_impl, state, false, true, used_fixpoint);
+			state->conds->push_back(e_spec->get_z3_value());
+			state->conds->push_back(e_impl->get_z3_value());
+		}
 		spec_body->clear_z3_eval();
 		impl_body->clear_z3_eval();
 		path_t p = {};
