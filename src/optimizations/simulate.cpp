@@ -5,6 +5,7 @@
 // TODO: Implement simulation-aux functions, maybe integrated into prove_by_traverse in future
 namespace autov
 {
+	int Z3_SIM_TIMEOUT = 500; // 10s
 
 	shared_ptr<SpecValue> formulate_relation(Project *proj, Definition *rel, SpecNode *st_spec, SpecNode *st_impl, shared_ptr<ProveState> state) {
 		bool succ;
@@ -119,7 +120,7 @@ namespace autov
 				if (det) {
 					res = (path[i] == cnt++) ? Z3Result::True : Z3Result::False;	
 				} else {
-					res = z3_verify_state_sat(pm_state, nullptr, Z3_SIMULATE_TIMEOUT);
+					res = z3_verify_state_sat(pm_state, nullptr, Z3_SIM_TIMEOUT);
 				}
 
 				if (res == Z3Result::False) {
@@ -136,7 +137,7 @@ namespace autov
 			if (det) {
 				res = (path[i] == 1) ? Z3Result::True : Z3Result::False;
 			} else {
-				res = z3_check(state, cond->get_z3_value(), Z3_SIMULATE_TIMEOUT);
+				res = z3_check(state, cond->get_z3_value(), Z3_SIM_TIMEOUT);
 			}
 			if (res == Z3Result::True) {
 				state->conds->push_back(cond->get_z3_value());

@@ -976,6 +976,7 @@ bool check_pre_post(Project* proj, Definition *def, std::unordered_set<string>& 
 }
 
 bool simulate(Project* proj, bool det, bool check_sec = true) {
+    Z3_SIM_TIMEOUT = Z3_SOLVE_RDATA_TIMEOUT;
     if (!proj->relations.empty()) {
         unique_ptr<SpecNode> relation = make_unique<BoolConst>(true);
         for (auto &r : proj->relations) {
@@ -999,7 +1000,7 @@ bool simulate(Project* proj, bool det, bool check_sec = true) {
             }    
         }
     }
-
+    Z3_SIM_TIMEOUT = Z3_SOLVE_SECURE_TIMEOUT;
     if (!proj->sec_relations.empty() && check_sec) {
         auto start = std::chrono::high_resolution_clock::now();
         unique_ptr<SpecNode> sec_relation = make_unique<BoolConst>(true);
@@ -1148,9 +1149,12 @@ void spec_prover(Project *proj) {
     }
     PROFILE_END(decom_simulation);
 
+    double inv_total = 0;
     for (auto &inv : inv_costs) {
         LOG_INFO << "Invariant " << inv.first << " takes " << inv.second << " (s)";
+        inv_total += inv.second;
     }
+    LOG_INFO << "Total time for invariant checking: " << inv_total << " (s)";
     profile_print_simulation();
 }
 }
