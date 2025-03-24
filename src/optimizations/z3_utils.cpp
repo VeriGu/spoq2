@@ -1656,7 +1656,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             for (auto v = vars.begin(); v != vars.end(); v++) {
                 cond = z3::exists(v->second->get_z3_value(), cond);
             }
-            if (!__OPT_ON_MATCH) {
+            if (!OPTS.__OPT_ON_MATCH) {
                 // LOG_INFO << "[PROFILE]" << "z3_eval: z3_check: match stands: " << string(*val);
                 PROFILE_START(match_eval_check);
                 PROFILE_START(eval_check);

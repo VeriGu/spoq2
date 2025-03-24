@@ -12,12 +12,13 @@
 namespace autov {
     /** elements in white list will be added into coi set initially */
     static std::set<string> coi_whitelist = {
-        // "g_norm",
+        "meta_af", "meta_PA",
+        "meta_desc_type", "meta_granule_offset", "meta_mem_attr", "meta_ripas",
+        "pbase", "poffset", 
     };
 
     /** elements in white list will be removed from coi set eventually  */
     static std::set<string> coi_blacklist = {
-        "pbase", "poffset", "meta_PA", "meta_desc_type", "meta_granule_offset", "meta_mem_attr", "meta_ripas",
         "e_1", "e_2", "e_3", 
     };
     // State field is composed of a list of accessed fields
@@ -28,8 +29,9 @@ namespace autov {
 
     void print_path(const path_t &p);
     /* Calculate cone of influence */
-    std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecNode *inv, 
+    std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, SpecNode *inv, 
                                                std::set<string> whitelist = {}, 
                                                std::set<string> blacklist = {});
     void analyze_invariant_fields(Project *proj, SpecNode *inv, std::set<field_t> &fields);
+    void coi_reduction(Project *proj, Definition *def, SpecNode *inv);
 }

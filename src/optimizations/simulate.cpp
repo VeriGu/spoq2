@@ -163,6 +163,7 @@ namespace autov
 			/** NOTE: In general we only prove relation between non-halt values (Some _) */
 			return true;
 		}
+		return true;
 	}
 
 	/**
@@ -302,16 +303,9 @@ namespace autov
 			l_args->push_back(arg);
 		}
 		auto spec_def = new Definition(spec->name, spec->rettype, std::move(l_args), spec->body->deep_copy());
-		auto coi = analyze_cone_of_influence(proj, spec_def, rel->body.get(), autov::coi_whitelist, autov::coi_blacklist);
-		spec_abstraction(proj, spec_def, coi);
-		spec_def->infer_type(*proj);
+		coi_reduction(proj, spec_def, rel->body.get());
 
-		std::cout << "[spec_abstraction] coi set: " << std::endl;
-		for (auto &c : coi) {
-			std::cout << c << std::endl;
-		}
 		spec_body = spec_def->body.get();
-		// spec_body = spec->body.get();
 		if (!impl) {
 			impl_body = proj->rules.build_simulate_spec(spec_body->deep_copy()).release();
 		} else {
@@ -327,7 +321,7 @@ namespace autov
 		auto rel_expr = formulate_relation(proj, rel, st_sym_1.get(), st_sym_2.get(), state);
 		state->conds->push_back(rel_expr->get_z3_value());
 		// add invariants for both
-	    set<string> used_fixpoint;
+		set<string> used_fixpoint;
 		for (auto proved : proj->verified_invariants) {
 			auto inv_for_spec = proj->sys_invs[proved].get();
 			auto inv_for_impl = proj->rules.build_simulate_spec(proj->sys_invs[proved]->deep_copy()).release();

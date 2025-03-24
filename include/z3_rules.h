@@ -87,7 +87,7 @@ public:
     }
 
     void add_induction(z3::expr cond) {
-        if (__OPT_ON_INDUCTION) {
+        if (OPTS.__OPT_ON_INDUCTION) {
             this->inductions->push_back(cond);
         } else {
             this->conds->push_back(cond);
@@ -108,8 +108,8 @@ enum class Z3Result {
 };
 
 #define Z3_TIMEOUT 50
-#define Z3_VERIFY_TIMEOUT 20000
-#define Z3_SIMULATE_TIMEOUT 500
+#define Z3_VERIFY_TIMEOUT 100000
+#define Z3_SIMULATE_TIMEOUT 1000
 extern unordered_map<size_t, Z3Result> Z3Cache;
 Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo, int timeout = Z3_VERIFY_TIMEOUT);
 Z3Result z3_verify_state_sat(shared_ptr<ProveState> state, QueryInfo *qinfo, int timeout = Z3_VERIFY_TIMEOUT);

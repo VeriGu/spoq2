@@ -278,7 +278,7 @@ static SpecNode* reconstruct_expr(z3::expr z3_val,
 
             if (z3_e_val_length > z3_val_length)
                 continue;
-            if (!__OPT_ON_ARITH) {
+            if (!OPTS.__OPT_ON_ARITH) {
                 if (z3::eq(e_val.get_sort(), z3_val.get_sort())) {
                     // LOG_INFO << "[PROFILE]" << "reconstruct: z3_check: equivalency check";
                     PROFILE_START(expr_rule_check);
@@ -402,6 +402,73 @@ static SpecNode* __simplify_zmap_init(Project* proj, Expr* expr, shared_ptr<Eval
     return elem0->elems->at(0).release();
 }
 
+/**
+ * Use z3 to reduce: 
+ * 1. Expr::Set:  x # y = (x' @ y) ==> (if (x @ y) = (x' @ y)) ==> (x)
+ * 2. Expr::RecordSet: x.[f] :< y ==> (if (x.(f) = y)) ==> (x) 
+ */
+std::pair<unique_ptr<SpecNode>, bool> reduce_id_write(Project *proj, unique_ptr<Expr> spec, shared_ptr<EvalState> state) {
+    static int Z3_REDUCE_TIMEOUT = 300;
+    bool changed = false;
+    if (OPTS.__OPT_ON_ARITH) {
+        return { std::move(spec), changed }; // skip if arithmetic simplification is enabled
+    }
+
+    if (auto op = std::get_if<Expr::ops>(&spec.get()->op)) {
+        if (*op == Expr::SET) {
+            //  ((x # y) == (x' @ y)) ==> (if (x @ y) = (x' @ y)) ==> (x)
+            auto src = instance_of(spec->elems->at(0).get(), Expr); // x
+            auto idx = instance_of(spec->elems->at(1).get(), Expr); // y
+            auto val = instance_of(spec->elems->at(2).get(), Expr); // (x' @ y)
+            if (!src || !idx || !val) 
+                return { std::move(spec), changed }; 
+
+            if (auto v_op = std::get_if<Expr::ops>(&val->op)) {
+                if (*v_op == Expr::GET) {
+                    // check if (x @ y) = (x' @ y)
+                    auto expr_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                    expr_elems->push_back(src->deep_copy());
+                    expr_elems->push_back(idx->deep_copy());
+                    auto v1 = (SpecNode *)(new Expr(Expr::GET, std::move(expr_elems), val->get_type())); // construct (x @ y)
+
+                    auto v1_e = z3_eval(proj, v1, state);
+                    auto v2_e = z3_eval(proj, val, state);
+                    auto check = z3_check(state, v1_e->get_z3_value() == v2_e->get_z3_value(), Z3_REDUCE_TIMEOUT);
+
+                    if (check == Z3Result::True) {
+                        // if (x @ y) = (x' @ y), then return x
+                        changed = true;
+                        return { std::move(src->deep_copy()), changed };
+                    } 
+                }
+            }
+        } else if (*op == Expr::RecordSet) {
+            // x.[f1][...][fn] :< y ==> (if (x.(f1).(...).(fn) = y)) ==> (x)
+            auto rec = spec->elems->at(0).get(); // x
+            vector<string> fields;
+            auto old_value = rec->deep_copy();
+            for (int i = 1 ; i < spec->elems->size() - 1 ; i++) {
+                auto f = static_cast<Symbol *>(spec->elems->at(i).get())->text;
+                auto get_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                fields.push_back(f);
+                get_elems->push_back(std::move(old_value));
+                get_elems->push_back(make_unique<Symbol>(f));
+                old_value = make_unique<Expr>(Expr::RecordGet, std::move(get_elems));
+            }
+            auto val = spec->elems->back().get(); // y
+            auto v1_e = z3_eval(proj, old_value.get(), state);
+            auto v2_e = z3_eval(proj, val, state);
+            auto check = z3_check(state, v1_e->get_z3_value() == v2_e->get_z3_value(), Z3_REDUCE_TIMEOUT);
+            if (check == Z3Result::True) {
+                // if (x.(f1).(...).(fn) = y), then return x
+                changed = true;
+                return { std::move(rec->deep_copy()), changed };
+            }
+        }
+    }
+    return { std::move(spec), changed }; 
+}
+
 SpecNode* reconstruct_zmap(Project* proj, SpecNode* spec, shared_ptr<EvalState> state) {
     auto expr = instance_of(spec, Expr);
     auto elem0 = instance_of(expr->elems->at(0).get(), Expr); // ZMap
@@ -496,7 +563,7 @@ rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::sha
     PROFILE_END(z3_eval);
 
 
-    if (__OPT_ON_RELY) {
+    if (OPTS.__OPT_ON_RELY) {
         state->conds->push_back(c->get_z3_value());
         auto rule_ret = this->rule_simple_by_z3(std::move(spec->body), state);
         state->conds->pop_back();
@@ -519,7 +586,7 @@ rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::sha
         PROFILE_END(rely_rule_check);
 
         if (res == Z3Result::Unknown) {
-            profile_log_rule_rely_unsolved(string(orig_prop));
+            // profile_log_rule_rely_unsolved(string(orig_prop));
 
             state->conds->push_back(c->get_z3_value());
             auto ret = this->rule_simple_by_z3(std::move(spec->body), state);
@@ -537,12 +604,12 @@ rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::sha
             }
 
         } else if (res == Z3Result::True) {
-            profile_log_rule_rely_solved(string(orig_prop));
+            // profile_log_rule_rely_solved(string(orig_prop));
             auto body_ret = this->rule_simple_by_z3(std::move(spec->body), state);
             changed |= body_ret.second;
             return { std::move(body_ret.first), true };
         } else {
-            profile_log_rule_rely_solved(string(orig_prop));
+            // profile_log_rule_rely_solved(string(orig_prop));
             return std::make_pair(nullptr, true);
 
         }
@@ -569,7 +636,7 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
     PROFILE_END(if_rule_check);
 
     if (res == Z3Result::Unknown) {
-        profile_log_rule_if_unsolved(string(orig_cond));
+        // profile_log_rule_if_unsolved(string(orig_cond));
         auto unknown_value = c->get_z3_value();
 
         state->conds->push_back(unknown_value);
@@ -620,11 +687,11 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
         };
 
     } else if (res == Z3Result::True) {
-        profile_log_rule_if_solved(string(orig_cond));
+        // profile_log_rule_if_solved((orig_cond));
         auto ret = this->rule_simple_by_z3(std::move(spec->then_body), state);
         return { std::move(ret.first), true };
     } else {
-        profile_log_rule_if_solved(string(orig_cond));
+        // profile_log_rule_if_solved((orig_cond));
         auto ret = this->rule_simple_by_z3(std::move(spec->else_body), state);
         return { std::move(ret.first), true };
     }
@@ -649,7 +716,7 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
     for (auto pm = spec->match_list->begin(); pm != spec->match_list->end(); pm++) {
         auto new_state = state->copy();
         resolve_pattern(proj, spec.get(), (*pm)->pattern.get(), src_val, new_state);
-        if (!__OPT_ON_MATCH) {
+        if (!OPTS.__OPT_ON_MATCH) {
             // skip unnecessary reconstruct check        
         }
         auto body_ret = this->rule_simple_by_z3(std::move((*pm)->body), new_state);
@@ -767,18 +834,24 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
     // }
     // subexprs.clear();
 
-    if (auto op = std::get_if<Expr::ops>(&new_spec->op)) {
-        if (*op == Expr::SET || *op == Expr::GET) {
-            /** FIXME: tiny leak (< 1 MB) here */
-            auto new_zmap = reconstruct_zmap(proj, new_spec->deep_copy().release(), state);
+    auto res = reduce_id_write(proj, std::move(new_spec), state);
+    auto reduced_spec = std::move(res.first);
+    changed |= res.second;
 
-            if (new_zmap) {
-                return { std::unique_ptr<SpecNode>(new_zmap), true };
+    if (auto reduced_expr = instance_of(reduced_spec.get(), Expr)) {
+        if (auto op = std::get_if<Expr::ops>(&reduced_expr->op)) {
+            if (*op == Expr::SET || *op == Expr::GET) {
+                /** FIXME: tiny leak (< 1 MB) here */
+                auto new_zmap = reconstruct_zmap(proj, reduced_spec->deep_copy().release(), state);
+
+                if (new_zmap) {
+                    return { std::unique_ptr<SpecNode>(new_zmap), true };
+                }
             }
         }
     }
 
-    return { std::move(new_spec), changed };
+    return { std::move(reduced_spec), changed };
 }
 
 rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state) {
