@@ -110,14 +110,18 @@ bool SpoqIRModule::control_flow_elinminate_select(llvm::Function* func) {
                 auto suffix_bb = bb.splitBasicBlock(select);
 
                 auto true_bb = llvm::BasicBlock::Create(func->getContext(), "select.true.bb", func);
+                auto true_bridge = llvm::BasicBlock::Create(func->getContext(), "select.true.bridge", func);
                 llvm::BranchInst::Create(suffix_bb, true_bb);
+                llvm::BranchInst::Create(true_bb, true_bridge);
                 auto false_bb = llvm::BasicBlock::Create(func->getContext(), "select.false.bb", func);
+                auto false_bridge = llvm::BasicBlock::Create(func->getContext(), "select.false.bridge", func);
                 llvm::BranchInst::Create(suffix_bb, false_bb);
+                llvm::BranchInst::Create(false_bb, false_bridge);
 
                 auto term = bb.getTerminator();
                 term->eraseFromParent();
 
-                llvm::BranchInst::Create(true_bb, false_bb, cond, &bb);
+                llvm::BranchInst::Create(true_bridge, false_bridge, cond, &bb);
 
                 auto new_phi = llvm::PHINode::Create(true_val->getType(), 2, "phi");
                 new_phi->addIncoming(true_val, true_bb);
@@ -135,7 +139,7 @@ bool SpoqIRModule::control_flow_elinminate_select(llvm::Function* func) {
 }
 
 bool SpoqIRModule::control_flow_conversion_DAG(Project *proj, string fname, SpoqFunction &spoq_func, SpoqLoopContext& context) {
-    control_flow_elinminate_select((spoq_func.llvm_func));
+    
 
     context.init(spoq_func.llvm_func);
     while (context.step()) {
@@ -221,6 +225,7 @@ bool SpoqIRModule::control_flow_conversion_v2(Project *proj, string fname,
     llvm::PassBuilder PB;
     PB.registerFunctionAnalyses(FAM);
     PB.registerLoopAnalyses(LAM);
+    control_flow_elinminate_select(llvm_func);
     llvm::LoopInfo &LI = FAM.getResult<llvm::LoopAnalysis>(*llvm_func);
     SpoqLoopContext& context = spoq_func.loop_context;
     if (!LI.empty()) {

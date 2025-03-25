@@ -69,8 +69,6 @@ namespace autov {
     void spec_prover(Project *proj);
 
 	bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv, std::set<std::string> &used_abs_funcs);
-    void spec_abstraction(Project *proj, Definition *def, std::set<string> &coi);
-
     
     z3::expr formulate_post_cond_z3(Project* proj, std::string fname, SpecNode* func_call, shared_ptr<ProveState> state);
     string query_saver_dir(const string &spec_name, const string &inv_name);

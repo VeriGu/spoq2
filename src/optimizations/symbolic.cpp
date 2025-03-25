@@ -722,16 +722,16 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 					// std::cout << "prove_by_traverse: Goal Query\n" << c->get_z3_value() << std::endl;
 					// std::cout << "----------------------------------" << std::endl;
 					if (z3_ret == Z3Result::Sat) {
-						LOG_WARNING << "[prove_by_traverse] Condition is violated for state\n" << ret_st_str << std::endl;
+						LOG_WARNING << "[prove_by_traverse] Invariant is violated for state\n" << ret_st_str << std::endl;
 						return false;
 					} else if (z3_ret == Z3Result::Unknown) {
-						LOG_WARNING << "[prove_by_traverse] Condition is unknown for state\n" << ret_st_str << std::endl;
+						LOG_WARNING << "[prove_by_traverse] Invariant is unknown for state\n" << ret_st_str << std::endl;
                         for(auto &cond: *state->conds) {
 					        LOG_DEBUG << "Cond:" << cond;
 					    }
 						return false;
 					} else {
-						// LOG_INFO << "[prove_by_traverse] Condition is proved for state\n" << ret_st_str << std::endl;
+						LOG_INFO << "[prove_by_traverse] Invariant is proved for state\n" << ret_st_str << std::endl;
 						return true;
 					}
                 }
@@ -859,34 +859,6 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 	return true;
 }
 
-void spec_abstraction(Project *proj, Definition *def, std::set<string> &coi) {
-    set_interest_list(coi);
-
-    auto spec = std::move(def->body);
-    while (true) {
-        bool changed = false;
-        do {
-            auto [__spec, __changed] = proj->rules.rule_keep_fields_of_interest(std::move(spec));
-            spec = std::move(__spec);
-            changed |= __changed;
-        } while (false);
-
-        do {
-            auto [__spec, __changed] = proj->rules.rule_simplify_lens(std::move(spec));
-            spec = std::move(__spec);
-            changed |= __changed;
-        } while (false);
-
-        if (!changed) {
-            break;
-        }
-    }
-    def->body = std::move(spec);
-    def->_str.clear();
-
-    // std::cout << "[spec_abstraction] Abstracted (Lensified) spec:\n" << string(*def) << std::endl;
-}
-
 string query_saver_dir(const string &spec_name, const string &inv_name) {
     return OPTS.query_path + spec_name + "/" + inv_name;
 }
@@ -1004,6 +976,7 @@ bool check_pre_post(Project* proj, Definition *def, std::unordered_set<string>& 
 }
 
 bool simulate(Project* proj, bool det, bool check_sec = true) {
+    Z3_SIM_TIMEOUT = Z3_SOLVE_RDATA_TIMEOUT;
     if (!proj->relations.empty()) {
         unique_ptr<SpecNode> relation = make_unique<BoolConst>(true);
         for (auto &r : proj->relations) {
@@ -1027,7 +1000,7 @@ bool simulate(Project* proj, bool det, bool check_sec = true) {
             }    
         }
     }
-
+    Z3_SIM_TIMEOUT = Z3_SOLVE_SECURE_TIMEOUT;
     if (!proj->sec_relations.empty() && check_sec) {
         auto start = std::chrono::high_resolution_clock::now();
         unique_ptr<SpecNode> sec_relation = make_unique<BoolConst>(true);
@@ -1065,6 +1038,8 @@ bool simulate(Project* proj, bool det, bool check_sec = true) {
  *  3. Prove inv path-by-path, recursively check abst function
  */
 void spec_prover(Project *proj) {
+    OPTS.__OPT_ON_ARITH = false; // disable arithmetic simplification to simplify the proof
+
     std::unordered_map<string, double> inv_costs;
 
     unique_ptr<SpecNode> conjoined_invs = make_unique<BoolConst>(true);
@@ -1095,13 +1070,8 @@ void spec_prover(Project *proj) {
                     l_args->push_back(arg);
                 }
                 auto spec_def = new Definition(goal_def->name, goal_def->rettype, std::move(l_args), goal_def->body->deep_copy());
-                auto coi = analyze_cone_of_influence(proj, spec_def, inv, autov::coi_whitelist, autov::coi_blacklist);
-                //spec_abstraction(proj, spec_def, coi);
-                //spec_def->infer_type(*proj);
-                std::cout << "[spec_abstraction] coi set: " << std::endl;
-                for (auto &c : coi) {
-                    std::cout << c << std::endl;
-                }
+                coi_reduction(proj, spec_def, inv);
+
                 proj->verifying_invariant = name;
                 if (check_inv_by_path(proj, spec_def, inv, used_abstract_funcs)) {
                     valid = true;
@@ -1179,9 +1149,12 @@ void spec_prover(Project *proj) {
     }
     PROFILE_END(decom_simulation);
 
+    double inv_total = 0;
     for (auto &inv : inv_costs) {
         LOG_INFO << "Invariant " << inv.first << " takes " << inv.second << " (s)";
+        inv_total += inv.second;
     }
+    LOG_INFO << "Total time for invariant checking: " << inv_total << " (s)";
     profile_print_simulation();
 }
 }

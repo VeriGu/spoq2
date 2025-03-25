@@ -13,6 +13,7 @@
 
 namespace autov 
 {
+	extern int Z3_SIM_TIMEOUT;
 	inline string get_sim_name(string name) {
 		return name + "_sim";
 	}

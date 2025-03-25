@@ -13,7 +13,14 @@ namespace autov
 bool decompose(Project* proj, Definition* def, string secret) {
     for (auto &r : proj->relations) {
         auto rel = proj->defs[r].get();
-        auto coi = analyze_cone_of_influence(proj, def, rel->body.get());
+        auto coi_fields = analyze_cone_of_influence(proj, def, rel->body.get());
+        std::set<string> coi = {};
+        for (auto &c : coi_fields) {
+            if (!c.empty()) {
+                coi.insert(c.front());
+            }
+        }
+
         LOG_DEBUG << def->name << ":";
         for(auto c: coi) { 
             LOG_DEBUG << def->name << ":" << r << "_coi:" << c;
@@ -56,7 +63,14 @@ bool decompose(Project* proj, Definition* def, string secret) {
     unique_ptr<SpecNode> sec_relation = make_unique<BoolConst>(true);
     for (auto &r : proj->sec_relations) {
         auto rel = proj->defs[r].get();
-        auto coi = analyze_cone_of_influence(proj, def, rel->body.get());
+        auto coi_fields = analyze_cone_of_influence(proj, def, rel->body.get());
+        std::set<string> coi = {};
+        for (auto &c : coi_fields) {
+            if (!c.empty()) {
+                coi.insert(c.front());
+            }
+        }
+        
         LOG_DEBUG << def->name << ":";
         for(auto c: coi) { 
             LOG_DEBUG << def->name << ":" << r << "_coi:" << c;

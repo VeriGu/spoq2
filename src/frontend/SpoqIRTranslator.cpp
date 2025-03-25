@@ -359,6 +359,9 @@ unique_ptr<SpecNode> construct_return_spec(Project *proj,
         context.continue_return = nullptr;
         return v;
     }
+    if (context.return_none) {
+        return make_unique<Symbol>("None");
+    }
 
     unique_ptr<std::vector<unique_ptr<SpecNode>>> tuple =
         std::make_unique<std::vector<unique_ptr<SpecNode>>>();
@@ -519,6 +522,11 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             if(auto rv = ret->getReturnValue()) context.return_list.push_back(rv);
             return spoq_inst_to_spec(proj, vec, num + 1, context);
         } 
+        if (auto ret = llvm::dyn_cast<llvm::UnreachableInst>(spoq_inst->inst)) {
+            assert(num == vec.size() - 1 && "unreachable is not the last inst");
+            context.return_none = true;
+            return spoq_inst_to_spec(proj, vec, num + 1, context);
+        }
 
         // Binary Operation
         if (auto bi = llvm::dyn_cast<llvm::BinaryOperator>(spoq_inst->inst)) {
@@ -596,6 +604,15 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             if (cmp->getOperand(0)->getType()->isPointerTy()) {
                 if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_EQ) {
                     expr = std::make_unique<Expr>(context.ptr_eqb_op_name, std::move(operands));
+                } 
+                if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_ULT) {
+                    expr = std::make_unique<Expr>(context.ptr_ltb_op_name, std::move(operands));
+                }
+                else if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_NE) {
+                    expr = std::make_unique<Expr>(context.ptr_eqb_op_name, std::move(operands));
+                    operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                    operands->push_back(std::move(expr));
+                    expr = std::make_unique<Expr>(Expr::ops::BNOT, std::move(operands));
                 }
             }
             else if(cmpops_lut.find(cmp->getPredicate()) != cmpops_lut.end()) {

@@ -52,6 +52,39 @@ bool has_proper_subfield(const std::set<field_t> &fields, const field_t &f) {
     return false;
 }
 
+/** 
+ * Consider the record as a tree, then for a write field F and a interested field G, there can be only 4 cases on the structure tree
+ *  1. F = G (F identical with G)
+ *  2. G < F (G is a prefix-vector of F)
+ *  3. F < G (F is a prefix-vector of G)
+ *  4. F and G are disjoint
+ * Only in the disjoint case (case 4) can we mask the write.
+ */
+bool is_prefix(const field_t &prefix, const field_t &full) {
+    if (prefix.size() > full.size())
+        return false;
+    for (size_t i = 0; i < prefix.size(); i++) {
+        if (prefix[i] != full[i])
+            return false;
+    }
+    return true;
+}
+
+bool useless_write(const field_t &f_check, const field_t &f_interested) {
+    if (!is_prefix(f_check, f_interested) && !is_prefix(f_interested, f_check))
+        return true;
+    return false;
+}
+
+bool is_irrelevant_field_update(const field_t &f_check, const std::set<field_t> &fields) {
+    for (const auto &vec : fields) {
+        if (contains_field(vec, f_check) || contains_field(f_check, vec)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void rec_analyze_used_fields(Project* proj, SpecNode* node, std::set<field_t> &fields);
 /** get_access_field
  *      return the access field chain of the given expr
@@ -336,12 +369,7 @@ void analyze_invariant_fields(Project *proj, SpecNode *inv, std::set<field_t> &f
  * 
  *  Give an expression and a set of interested fields, backward propagate to all the dependent fields (its definition)
  */
-std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecNode *inv, std::set<string> whitelist, std::set<string> blacklist) {
-    std::set<string> coi_ret = {};
-    for (auto c : whitelist) {
-        coi_ret.insert(c);
-    }
-
+std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, SpecNode *inv, std::set<string> whitelist, std::set<string> blacklist) {
     auto args = def->args.get();
     auto spec = def->body.get();
     std::set<string> arg_symbols = {};
@@ -388,6 +416,11 @@ std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecN
             }
         }   
     }
+
+    std::set<field_t> coi_ret = {};
+    for (auto c : whitelist) {
+        coi_ret.insert({c});
+    }
     for (auto &c : coi_fields) {
         if (c.empty()) {
             continue;
@@ -395,9 +428,78 @@ std::set<string> analyze_cone_of_influence(Project *proj, Definition *def, SpecN
         if (blacklist.find(c.front()) != blacklist.end()) {
             continue;
         }
-        coi_ret.insert(c.front());
+        coi_ret.insert(c);
+    }
+    std::cout << "[analyze_cone_of_influence] Final COI fields: " << std::endl;
+    for (auto &c : coi_ret) {
+        print_field(c);
     }
     return coi_ret;
+}
+
+rule_ret_t SpecRules::hide_write(std::unique_ptr<SpecNode> spec, std::set<field_t> coi_fields) {
+    bool changed = false;
+    auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+        if (auto e = instance_of(node.get(), Expr)) {
+            if (auto op = std::get_if<Expr::ops>(&e->op)) {
+                if (*op == Expr::ops::RecordSet) {
+                    field_t set_field = {};
+                    auto f = e->elems->at(e->elems->size() - 2).get();
+                    if (auto s = instance_of(f, Symbol)) {
+                        set_field.push_back(s->text);
+                    }
+                    if (is_irrelevant_field_update(set_field, coi_fields)) {
+                        changed = true;
+                        return e->elems->at(0).get()->deep_copy(); // hide the write, return the value
+                    }
+                }
+            }
+        }
+        return node; // keep the original node if no change
+    };
+    auto new_root = rec_apply(std::move(spec), f, false);
+    return { std::move(new_root), changed };
+}
+
+void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
+    if (!OPTS.coi) 
+        return;
+    // std::cout << "[COI] Raw (original) spec:\n" << string(*def) << std::endl;
+    auto coi_fields = analyze_cone_of_influence(proj, def, inv, autov::coi_whitelist, autov::coi_blacklist);
+
+    auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+    auto conds = std::make_shared<vector<z3::expr>>();
+    for (auto arg : *def->args) {
+        (*vars)[arg->name] = arg->type->declare(arg->name, 0);
+    }
+    auto spec = std::move(def->body);
+
+    while (true) {
+        spec->clear_z3_eval();
+        bool changed = false;
+        
+        do {
+            auto [__spec, __changed] = proj->rules.hide_write(std::move(spec), coi_fields);
+            spec = std::move(__spec);
+            changed |= __changed;
+        } while (false);
+
+        do {
+            auto [__spec, __changed] = proj->rules.rule_simple_by_z3(std::move(spec), make_shared<EvalState>(vars, conds));
+            spec = std::move(__spec);
+            changed |= __changed;
+        } while (false);
+
+        if (!changed) {
+            break;
+        }
+    }
+
+    def->body = std::move(spec);
+    def->_str.clear();
+    def->body->clear_z3_eval();
+    def->infer_type(*proj);
+    std::cout << "[COI] spec after COI-reduction:\n" << string(*def) << std::endl;
 }
 
 }

@@ -552,6 +552,7 @@ namespace autov {
             if(layer->ops["ptr2int"] != "") ptr2int_op_name = layer->ops["ptr2int"];
             if(layer->ops["int2ptr"] != "") int2ptr_op_name = layer->ops["int2ptr"];
             if(layer->ops["ptr_eqb"] != "") ptr_eqb_op_name = layer->ops["ptr_eqb"];
+            if(layer->ops["ptr_ltb"] != "") ptr_ltb_op_name = layer->ops["ptr_ltb"];
             if(layer->ops["ptr_offset"] != "") ptr_off_op_name = layer->ops["ptr_offset"];
             if(layer->abs_data != nullptr) abs_data_type = layer->abs_data;
             else assert(false && "abs_data_type is nullptr");
@@ -568,6 +569,7 @@ namespace autov {
         std::string ptr2int_op_name = "ptr_to_int";
         std::string int2ptr_op_name = "int_to_ptr";
         std::string ptr_eqb_op_name = "ptr_eqb";
+        std::string ptr_ltb_op_name = "ptr_ltb";
         std::string ptr_off_op_name = "ptr_offset";
 
         vector<Definition> defs;
@@ -856,6 +858,7 @@ namespace autov {
         // A preheader -> SpecNode map for all loop_spec
         // std::map<llvm::BasicBlock*, unique_ptr<SpecNode>> loop_spec;
 
+        bool return_none = false;
         std::vector<llvm::Value*> return_list;
 
         std::unique_ptr<SpecNode> continue_return;
