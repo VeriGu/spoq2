@@ -1365,21 +1365,21 @@ public:
         Definition(name, rettype, std::move(args)) {}
     Fixpoint(Fixpoint &other) : Definition(other) {}
 
-    z3::func_decl absf() const {
+    // z3::func_decl absf() const {
 
-         z3::sort_vector sorts(z3ctx);
-         //z3::expr_vector args(z3ctx);
-         auto arg_list = make_shared<vector<shared_ptr<SpecType>>>();
-         for(auto arg: *this->args) { 
-            sorts.push_back(arg->type->get_z3_type());
-            arg_list->push_back(arg->type);
-         }
+    //      z3::sort_vector sorts(z3ctx);
+    //      //z3::expr_vector args(z3ctx);
+    //      auto arg_list = make_shared<vector<shared_ptr<SpecType>>>();
+    //      for(auto arg: *this->args) { 
+    //         sorts.push_back(arg->type->get_z3_type());
+    //         arg_list->push_back(arg->type);
+    //      }
         
-        auto rec_fun = z3ctx.recfun(this->name.c_str(), sorts, this->rettype->get_z3_type());
-        //auto func = make_shared<Function>(this->rettype, arg_list);
-        // func has to be wrapped in a shared_ptr because SpecType inherit from enable_shared_from_this
-        return rec_fun;
-    }
+    //     auto rec_fun = z3ctx.recfun(this->name.c_str(), sorts, this->rettype->get_z3_type());
+    //     //auto func = make_shared<Function>(this->rettype, arg_list);
+    //     // func has to be wrapped in a shared_ptr because SpecType inherit from enable_shared_from_this
+    //     return rec_fun;
+    // }
 
 private:
     const string to_string() const;
