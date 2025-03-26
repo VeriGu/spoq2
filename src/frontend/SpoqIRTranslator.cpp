@@ -537,15 +537,17 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             auto ptr0 = context.is_ptr_to_int(bi->getOperand(0));
             auto ptr1 = context.is_ptr_to_int(bi->getOperand(1));
 
-            bool reduce = bi->getOpcode() == llvm::Instruction::BinaryOps::Add && (ptr0 || ptr1);
-            reduce |= bi->getOpcode() == llvm::Instruction::BinaryOps::Sub && ptr0;
+            bool movein = bi->getOpcode() == llvm::Instruction::BinaryOps::Add && ((!ptr0) != (!ptr1));
+            std::unique_ptr<SpecNode> movein_base = nullptr;
+            bool reduce = bi->getOpcode() == llvm::Instruction::BinaryOps::Sub && ptr0;
 
             std::unique_ptr<Expr> rely_expr = nullptr;
             auto rely_operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
 
-            if ( reduce && (ptr0 || ptr1) ) {
+            if ( reduce || movein ) {
                 if (ptr0) {
                     rely_operands->push_back(context.ptr2int_to_field(ptr0, "pbase"));
+                    if (movein) movein_base = context.ptr2int_to_field(ptr0, "pbase");
                     operands->push_back(context.ptr2int_to_field(ptr0, "poffset"));
                 } else {
                     rely_operands->push_back(context.get_llvm_value_spec(bi->getOperand(0)));
@@ -553,6 +555,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 }
                 if (ptr1) {
                     rely_operands->push_back(context.ptr2int_to_field(ptr1, "pbase"));
+                    if (movein) movein_base = context.ptr2int_to_field(ptr1, "pbase");
                     operands->push_back(context.ptr2int_to_field(ptr1, "poffset"));
                 } else {
                     rely_operands->push_back(context.get_llvm_value_spec(bi->getOperand(1)));
@@ -584,6 +587,17 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             if (expr == nullptr) {
                 llvm::errs() << "Binary operation not supported: " << *bi << "\n";
                 assert(false && "Binary operation not supported");
+            }
+
+            if (movein) {
+                assert(movein_base != nullptr && "move offset into the base");
+                auto children = make_unique<vector<unique_ptr<SpecNode>>>();
+                children->push_back(movein_base->deep_copy());
+                children->push_back(std::move(expr));
+                auto mkptr = std::make_unique<Expr>("mkPtr", std::move(children));
+                auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                operands->push_back(std::move(mkptr));
+                expr = std::make_unique<Expr>(context.ptr2int_op_name, std::move(operands));
             }
 
             unique_ptr<SpecNode> sym = context.get_llvm_value_spec(bi);
