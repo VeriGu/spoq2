@@ -910,18 +910,27 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
     } else if (auto inst = Shortcut::dyn_cast_u<SpoqLoopInst>(vec[num])) {
 
         // Generate the loop body spec
-        context.pass_stack.push(inst->preheader_block);
-        auto spec = spoq_inst_to_spec(proj, inst->body, 0, context);
-        context.pass_stack.pop();
+       auto name = context.get_loop_spec_name(inst->preheader_block);
 
-        auto name = context.get_loop_spec_name(inst->preheader_block);
-        auto argtype = context.compute_loop_spec_arg(inst->preheader_block);
-        auto rettype = context.compute_loop_return_type(inst->preheader_block);
-        // context.spoq_func.loop_context.debug_jump();
+       // context.spoq_func.loop_context.debug_jump();
+        if (proj->defs.find(name) != proj->defs.end()) {
+            LOG_DEBUG << "skip loop spec: " << name << " already exists\n";
+        } else {
+            context.pass_stack.push(inst->preheader_block);
+            auto spec = spoq_inst_to_spec(proj, inst->body, 0, context);
+            context.pass_stack.pop();
 
-        auto def = new Fixpoint(name, rettype, std::move(argtype), std::move(spec));
-        auto loc = make_shared<loc_t>(proj->layers[context.layer_id]->name, context.fname(), Project::LOC_LOWSPEC);
-        proj->add_definition(std::unique_ptr<Fixpoint>(def), loc);
+            if(proj->cmds.InitRely.find(name) != proj->cmds.InitRely.end()) {
+                for(auto & f : proj->cmds.InitRely[name])
+                    spec = std::make_unique<Rely>(f->deep_copy(), std::move(spec));
+            }    
+ 
+            auto argtype = context.compute_loop_spec_arg(inst->preheader_block);
+            auto rettype = context.compute_loop_return_type(inst->preheader_block);
+            auto def = new Fixpoint(name, rettype, std::move(argtype), std::move(spec));
+            auto loc = make_shared<loc_t>(proj->layers[context.layer_id]->name, context.fname(), Project::LOC_LOWSPEC);
+            proj->add_definition(std::unique_ptr<Fixpoint>(def), loc);
+        }
 
         auto arg_list = context.compute_loop_continue_arg_list(inst->preheader_block, inst->preheader_block);
         auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
@@ -929,7 +938,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             v->push_back(context.get_llvm_value_spec(arg));
         }
         v->push_back(context.get_abs_data());
-        auto src_loop = std::make_unique<Expr>(context.get_loop_spec_name(inst->preheader_block), std::move(v));
+        auto src_loop = std::make_unique<Expr>(name, std::move(v));
 
         auto pass_out_list = Shortcut::_Tuple_u(context.compute_loop_break_return_list(inst->preheader_block));
         return Shortcut::_When_u(std::move(pass_out_list), std::move(src_loop), spoq_inst_to_spec(proj, vec, num + 1, context));
