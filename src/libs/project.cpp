@@ -1288,7 +1288,7 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
         LOG_DEBUG << "low spec provided: " << low_name << "\n";
         // The name of the low spec may have three forms: `fname_loop\d+_low`,
         // `fname_\d+_low`, "fname_spec_low"
-        std::regex pattern1(fname + "_loop\\d+_low");
+        std::regex pattern1(fname + "_loop_\\d+_low");
         std::regex pattern2(fname + "_\\d+_low");
         string low_name = fname + "_spec_low";
 

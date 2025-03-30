@@ -907,6 +907,7 @@ bool check_loop_inv_v2(Project* proj, Definition *loop, std::unordered_set<strin
 
     if(proj->loop_invs.find(loop->name) == proj->loop_invs.end()) {
         LOG_ERROR << "loop invariant not specified: " << loop->name;
+        return false;
     }
     std::vector<unique_ptr<SpecNode>>& invs = proj->loop_invs[loop->name];
     assert(instance_of(loop, Fixpoint));
