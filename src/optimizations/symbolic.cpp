@@ -658,7 +658,7 @@ z3::expr formulate_post_cond_z3(Project* proj, std::string fname, SpecNode* func
  * 		works on specs with abstract functions, symbolically check inv path-by-path
  *      It is a general function that can check pre condition implies post condition or system invariant is preserved
  * */
-bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<ProveState> state, std::unordered_set<string> used_abs_funcs, ProveMode mode, string fname) {
+bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<ProveState> state, std::unordered_set<string> &used_abs_funcs, ProveMode mode, string fname) {
     if (auto expr = instance_of(spec, Expr)) {
         if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
             if (*e_op == Expr::Some) {
