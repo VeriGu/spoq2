@@ -464,7 +464,9 @@ bool check_states_implies_loop_inv(Project* proj, shared_ptr<ProveState> state, 
     for (auto arg : *loop->args) {
         if (arg->name != "_N_") {
             (*var)[loop->name + "_" + arg->name] = arg->type->declare(loop->name + "_" + arg->name, 0); //current
+            (*var)[loop->name + "_" + arg->name + "_old"] = arg->type->declare(loop->name + "_" + arg->name + "_old", 0);
 			(*known)[arg->name] = arg->type;
+            (*known)[arg->name + "_old"] = arg->type;
         }
         if(arg->name == "st") {
             (*var)[loop->name + "_" + arg->name + "_old"] = arg->type->declare(loop->name + "_" + arg->name + "_old", 0);
@@ -489,8 +491,10 @@ bool check_states_implies_loop_inv(Project* proj, shared_ptr<ProveState> state, 
     for(auto arg : *loop->args) {
                         // if (arg->name != "_N_") {
         auto sym = make_unique<Symbol>(loop->name + "_" + arg->name, arg->type);
+        auto sym_old = make_unique<Symbol>(loop->name + "_" + arg->name + "_old", arg->type);
         bool succ;
         before_inv = subst(std::move(before_inv), arg->name, sym.get(), succ);
+        before_inv = subst(std::move(before_inv), arg->name + "_old", sym_old.get(), succ);
     }
 	auto sym = make_unique<Symbol>(loop->name + "_" + "st_old", loop->args->back()->type);
 	bool succ;
@@ -505,7 +509,8 @@ bool check_states_implies_loop_inv(Project* proj, shared_ptr<ProveState> state, 
 			auto name = arg->name;
 			//instantiate variable to each element
 			auto z3_eq_expr = elems.at(i)->get_z3_value() == (*var)[loop->name + "_" + name]->get_z3_value();
-			vc = vc && z3_eq_expr;
+            auto z3_eq_expr2 = elems.at(i)->get_z3_value() == (*var)[loop->name + "_" + name + "_old"]->get_z3_value();
+			vc = vc && z3_eq_expr && z3_eq_expr2;
 		}
 		i++;
     }
@@ -659,7 +664,15 @@ z3::expr formulate_post_cond_z3(Project* proj, std::string fname, SpecNode* func
  *      It is a general function that can check pre condition implies post condition or system invariant is preserved
  * */
 bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<ProveState> state, std::unordered_set<string> &used_abs_funcs, ProveMode mode, string fname) {
-    if (auto expr = instance_of(spec, Expr)) {
+    if(auto sym = instance_of(spec, Symbol)) {
+        if(sym->text == "None") {
+            for(auto cond: *state->conds) {
+                LOG_DEBUG << "Path condition: " << cond;
+            }
+            LOG_ERROR << "Reached None Branch";
+            return false;
+        }
+    } else if (auto expr = instance_of(spec, Expr)) {
         if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
             if (*e_op == Expr::Some) {
                 if (auto ret_Some = instance_of(expr->elems->at(0).get(), Expr)) {
@@ -749,6 +762,13 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                     used_abs_funcs.insert(op);
                     vector<shared_ptr<SpecValue>> elems;
 
+                    //here should assume that abstraction does not return None, will check individually
+                    auto t = dynamic_pointer_cast<Option>(src->get_type());
+                    auto idx = t->get_constr_index("Some_" + t->elem_type->name);
+                    auto is_some = t->get_z3_type().recognizers()[idx];
+                    auto tester = is_some(src->get_z3_value());
+                    state->conds->push_back(tester);
+                    
                     for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {
                         elems.push_back(z3_eval(proj, e->get(), state));
                     }
@@ -801,7 +821,10 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 			auto new_state = state->copy();
             auto pat = (*pm)->pattern.get();
             resolve_pattern(proj, m, pat, src, new_state);
-
+            auto res = z3_check(new_state, 500);
+            if(res == Z3Result::False) {
+                continue;
+            }
             if (!std::holds_alternative<std::nullptr_t>(abst_spec)) {            
                 SpecNode *st_ret = extract_st_from_expr(proj, pat);
                 if (st_input && st_ret) {
@@ -835,23 +858,35 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
     } else if (auto i = instance_of(spec, If)) {
 		// push cond
 		auto c = z3_eval(proj, i->cond.get(), state);
-		auto true_state = state->copy();
-		auto false_state = state->copy();
-		true_state->conds->push_back(c->get_z3_value());
-		false_state->conds->push_back(!c->get_z3_value());
-        auto verify_success = true;
-        verify_success &= prove_by_traverse(proj, i->then_body.get(), inv, true_state, used_abs_funcs, mode, fname);
-        verify_success &= prove_by_traverse(proj, i->else_body.get(), inv, false_state, used_abs_funcs, mode, fname);
-        return verify_success;
-		// if (!prove_by_traverse(proj, i->then_body.get(), inv, true_state, used_abs_funcs) || 
-			// !prove_by_traverse(proj, i->else_body.get(), inv, false_state, used_abs_funcs)) {
-			// return false;
-		// }
+        auto res = z3_check(state, c->get_z3_value(), 500);
+        if(res == Z3Result::Unknown) {
+            auto true_state = state->copy();
+            auto false_state = state->copy();
+            true_state->conds->push_back(c->get_z3_value());
+            false_state->conds->push_back(!c->get_z3_value());
+            auto verify_success = true;
+            verify_success &= prove_by_traverse(proj, i->then_body.get(), inv, true_state, used_abs_funcs, mode, fname);
+            verify_success &= prove_by_traverse(proj, i->else_body.get(), inv, false_state, used_abs_funcs, mode, fname);
+            return verify_success;
+        } else if(res == Z3Result::True) {
+            return prove_by_traverse(proj, i->then_body.get(), inv, state, used_abs_funcs, mode, fname);
+        } else if(res == Z3Result::False) {
+            return prove_by_traverse(proj, i->else_body.get(), inv, state, used_abs_funcs, mode, fname);
+        }
+
     } else if (auto r = instance_of(spec, Rely)) {
 		// push cond
 		auto c = z3_eval(proj, r->prop.get(), state);
-		state->conds->push_back(c->get_z3_value());
-        return prove_by_traverse(proj, r->body.get(), inv, state, used_abs_funcs, mode, fname);
+        auto res = z3_check(state, c->get_z3_value(), 500);
+        if(res == Z3Result::False) {
+            LOG_ERROR << "Rely condition violated: " << c;
+            return false;
+        } else if(res == Z3Result::True) {
+            return prove_by_traverse(proj, r->body.get(), inv, state, used_abs_funcs, mode, fname);
+        } else if(res == Z3Result::Unknown) {
+		    state->conds->push_back(c->get_z3_value());
+            return prove_by_traverse(proj, r->body.get(), inv, state, used_abs_funcs, mode, fname);
+        }
     } else {
 		// pass
 		return true;
@@ -924,6 +959,7 @@ bool check_loop_inv_v2(Project* proj, Definition *loop, std::unordered_set<strin
 
     for(auto arg : *loop->args) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
+        (*vars)[arg->name + "_old"] = arg->type->declare(arg->name + "_old", 0);
     }
     auto induction = std::make_shared<vector<z3::expr>>();
     auto state = make_shared<ProveState>(vars, conds, induction);

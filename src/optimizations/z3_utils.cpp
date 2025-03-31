@@ -932,15 +932,14 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
 
     type_inference::infer_type(*proj, aggreinv.get(), known, Bool::BOOL);
 
-    
+    i = 0;
     for(auto arg : *def->args) {
         auto sym = make_unique<Symbol>(def->name + "_" + arg->name + "_new_", arg->type);
         bool succ;
         aggreinv = subst(std::move(aggreinv), arg->name, sym.get(), succ);
+        aggreinv = subst(std::move(aggreinv), arg->name + "_old", args->at(i).get(), succ);
+        i++;
     }
-
-    bool succ;
-    aggreinv = subst(std::move(aggreinv), "st_old", args->back().get(), succ);
 
     //auto loop_cond = autov::parser::parseExpr(proj,def->name + "_" + "__break__' = true");
     //loop_cond->type = Bool::BOOL;
