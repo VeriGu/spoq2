@@ -22,6 +22,7 @@ public:
     bool new_trans = false;
     bool check_simulation = false;
     bool decompose_check_simulation = false;
+    bool check_none = false;
     std::string query_path;
     std::string config_file;
     boost::program_options::variables_map vmap;
@@ -49,6 +50,7 @@ public:
         std::cout << "  profile: " << std::boolalpha << profile << "\n";
         std::cout << "  conditional_spec: " << std::boolalpha << conditional_spec << "\n";
         std::cout << "  lens: " << std::boolalpha << lens << "\n";
+        std::cout << "  check-none: " << std::boolalpha << check_none << "\n";
         std::cout << std::endl;
     }
 
@@ -78,7 +80,8 @@ public:
             ("profile", po::bool_switch()->default_value(true), "use profile (default on)")
             ("no-profile", po::bool_switch()->default_value(false), "do not profile (override --profile)")
             ("conditional-spec,c", po::bool_switch()->default_value(false), "automatically generate conditional spec")
-            ("query-path",po::value<std::string>(&query_path)->default_value("./llvm.container/z3_queries/"),"set query path");
+            ("query-path",po::value<std::string>(&query_path)->default_value("./llvm.container/z3_queries/"),"set query path")
+            ("check-none", po::bool_switch()->default_value(false), "check none path");
 
         po::positional_options_description p;
         p.add("input", 1); // The input .v config file is positional and is the first argument
@@ -111,7 +114,7 @@ public:
         this->check_pre_post = vmap["check-pre-post"].as<bool>();
         this->new_trans = vmap["new-trans"].as<bool>();
         this->profile = vmap["profile"].as<bool>();
-
+        this->check_none = vmap["check-none"].as<bool>();
         this->lens = !vmap["no-lens"].as<bool>();
         if (vmap["no-profile"].as<bool>()) {
             this->profile = false;
