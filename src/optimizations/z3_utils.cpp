@@ -887,7 +887,7 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
 
     int i = 0;
     for(auto arg : *def->args) {
-        vars->push_back(make_shared<Arg>(def->name + "_" + arg->name + "_new_", arg->type));
+        vars->push_back(make_shared<Arg>(def->name + "_" + arg->name + "_new", arg->type));
     }
     
 
@@ -904,7 +904,7 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
     i = 0;
     auto known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
     for(auto arg: *def->args) {
-        tupleelems->push_back(make_unique<Symbol>(def->name + "_" + arg->name + "_new_"));
+        tupleelems->push_back(make_unique<Symbol>(def->name + "_" + arg->name + "_new", arg->type));
         (*known)[arg->name] = arg->type;
         if(arg->name == "st") {
             (*known)[arg->name + "_old"] = arg->type;
@@ -933,13 +933,20 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
     type_inference::infer_type(*proj, aggreinv.get(), known, Bool::BOOL);
 
     i = 0;
+    vector<string> names;
+    vector<unique_ptr<SpecNode>> nodes;
     for(auto arg : *def->args) {
-        auto sym = make_unique<Symbol>(def->name + "_" + arg->name + "_new_", arg->type);
+        auto sym = make_unique<Symbol>(def->name + "_" + arg->name + "_new", arg->type);
         bool succ;
-        aggreinv = subst(std::move(aggreinv), arg->name, sym.get(), succ);
-        aggreinv = subst(std::move(aggreinv), arg->name + "_old", args->at(i).get(), succ);
+        names.push_back(arg->name);
+        nodes.push_back(std::move(sym));
+
+        names.push_back(arg->name + "_old");
+        nodes.push_back(args->at(i)->deep_copy());
         i++;
     }
+
+    aggreinv = subst_v2(proj, std::move(aggreinv), &names, &nodes);
 
     //auto loop_cond = autov::parser::parseExpr(proj,def->name + "_" + "__break__' = true");
     //loop_cond->type = Bool::BOOL;
@@ -948,13 +955,13 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
     // andelems->push_back(unique_ptr<SpecNode>(loop_cond));
     // auto loop_condAndInv = new Expr(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(andelems), Bool::BOOL);
 
-    auto bodyelems = new vector<unique_ptr<SpecNode>>();
-    bodyelems->push_back(unique_ptr<SpecNode>(eqbody));
-    bodyelems->push_back(std::move(aggreinv));
-    auto expr = new Expr(Expr::binops::IMPLIES, unique_ptr<vector<unique_ptr<SpecNode>>>(bodyelems), Bool::BOOL);
+    // auto bodyelems = new vector<unique_ptr<SpecNode>>();
+    // bodyelems->push_back(unique_ptr<SpecNode>(eqbody));
+    // bodyelems->push_back(std::move(aggreinv));
+    // auto expr = new Expr(Expr::binops::IMPLIES, unique_ptr<vector<unique_ptr<SpecNode>>>(bodyelems), Bool::BOOL);
+    
 
-
-    return unique_ptr<SpecNode>(expr);
+    return aggreinv;
 }
 
 
