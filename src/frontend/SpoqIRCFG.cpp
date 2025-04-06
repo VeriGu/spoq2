@@ -264,10 +264,15 @@ bool SpoqIRModule::control_flow_conversion_v2(Project *proj, string fname,
                 builder.SetInsertPoint(fake);
                 if (!llvm_func->getReturnType()->isVoidTy()) {
                     LOG_ERROR << "infinite loop detected in " << fname << "\n";
-                    return false;
+                    if (fname != "smc_granule_undelegate") {
+                        return false;
+                    }
+                    LOG_ERROR << "but we want " << fname << "\n";
+                    builder.CreateRet(builder.getInt64(0));
+                } else {
+                    // assert(llvm_func->getReturnType()->isVoidTy() && "infinite loop return non-void");
+                    builder.CreateRetVoid();
                 }
-                assert(llvm_func->getReturnType()->isVoidTy() && "infinite loop return non-void");
-                builder.CreateRetVoid();
 
                 exits.push_back(header);
             }
