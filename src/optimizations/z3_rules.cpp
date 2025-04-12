@@ -717,7 +717,10 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
         auto new_state = state->copy();
         resolve_pattern(proj, spec.get(), (*pm)->pattern.get(), src_val, new_state);
         if (!OPTS.__OPT_ON_MATCH) {
-            // skip unnecessary reconstruct check        
+            auto res = z3_check(new_state, Z3_TIMEOUT);
+            if(res == Z3Result::False) {
+                continue;
+            }
         }
         auto body_ret = this->rule_simple_by_z3(std::move((*pm)->body), new_state);
         changed |= body_ret.second;
