@@ -114,7 +114,7 @@ public:
     rule_ret_t rule_move_if_out_expr(std::unique_ptr<SpecNode> spec, bool rec);
     rule_ret_t rule_move_match_out_expr(std::unique_ptr<SpecNode> spec, bool rec);
     rule_ret_t rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec);
-
+    rule_ret_t rule_simplify_map_get_set(std::unique_ptr<SpecNode> spec, bool rec);
     rule_ret_t rule_simplify_expr(std::unique_ptr<SpecNode> spec, bool rec);
     rule_ret_t rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state);
     rule_ret_t rule_keep_fields_of_interest(std::unique_ptr<SpecNode> spec);

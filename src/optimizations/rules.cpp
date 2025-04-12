@@ -1339,6 +1339,13 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
                 }
                 spec = std::move(__spec);
                 expr = instance_of(spec.get(), Expr);
+            } else if(op_eq(expr->op, Expr::GET) || op_eq(expr->op, Expr::SET)) {
+                auto [__spec, changed] = proj->rules.rule_simplify_map_get_set(std::move(spec),false);
+                if(changed) {
+                    return cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
+                }
+                spec = std::move(__spec);
+                expr = instance_of(spec.get(), Expr);
             }
         } else if(std::holds_alternative<string>(expr->op)) {
             auto op = std::get<string>(expr->op);
@@ -2955,6 +2962,64 @@ rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> sp
         }
         return node;
     };
+    if(rec) {
+        auto new_root = rec_apply(std::move(spec), f, false);
+        return { std::move(new_root), changed };
+    } else {
+        auto new_root = f(std::move(spec));
+        return { std::move(new_root), changed };
+    }
+}
+
+rule_ret_t SpecRules::rule_simplify_map_get_set(std::unique_ptr<SpecNode> spec, bool rec) { 
+    bool changed = false;
+    auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+        auto e = instance_of(node.get(), Expr);
+        if (!e) {
+            return node;
+        }
+        if(op_eq(e->op, Expr::GET)) {
+            auto map = e->elems->at(0).get();
+            auto idx = e->elems->at(1).get();
+            if(auto m = instance_of(map, Expr)) {
+                if (op_eq(m->op,"zmap_init") || op_eq(m->op, "ZMap.init")) {
+                    return std::move(m->elems->at(0));
+                } else if(op_eq(m->op, Expr::SET)) {
+                    auto idx2 = m->elems->at(1).get();
+                    if(*idx == *idx2) {
+                        changed = true;
+                        return std::move(m->elems->at(2));
+                    } else {
+                        changed = true;
+                        auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                        elems->push_back(std::move(m->elems->at(0)));
+                        elems->push_back(std::move(e->elems->at(1)));
+                        return make_unique<Expr>(Expr::GET, std::move(elems), node->type);
+                    }
+                }
+            }
+        } else if(op_eq(e->op, Expr::SET)) {
+            auto map = e->elems->at(0).get();
+            auto idx = e->elems->at(1).get();
+            auto val = e->elems->at(2).get();
+
+            if(auto m = instance_of(map, Expr)) {
+                if(op_eq(m->op, Expr::SET)) {
+                    auto idx2 = m->elems->at(1).get();
+                    if(*idx == *idx2) {
+                        changed = true;
+                        auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                        elems->push_back(std::move(m->elems->at(0)));
+                        elems->push_back(std::move(e->elems->at(1)));
+                        elems->push_back(std::move(e->elems->at(2)));
+                        return make_unique<Expr>(Expr::SET, std::move(elems), node->type);
+                    }
+                }
+            } 
+        }
+        return node;
+    };
+
     if(rec) {
         auto new_root = rec_apply(std::move(spec), f, false);
         return { std::move(new_root), changed };
