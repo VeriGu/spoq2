@@ -333,6 +333,11 @@ namespace autov
 			state->conds->push_back(e_spec->get_z3_value());
 			state->conds->push_back(e_impl->get_z3_value());
 		}
+		for (auto const &l : proj->lemmas) {
+			auto lemma_body = proj->defs[l]->body.get();
+			auto lemma_expr = z3_eval(proj, lemma_body, state, false, true, used_fixpoint);
+			state->add_induction(lemma_expr->get_z3_value());
+		}
 		spec_body->clear_z3_eval();
 		impl_body->clear_z3_eval();
 		path_t p = {};
