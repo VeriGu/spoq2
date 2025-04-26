@@ -294,7 +294,10 @@ void ExtractBasicsPass::runStruct(llvm::StructType *ty) {
 
     int count = 0;
     for(auto e: elements) {
-      record += "    " + getFieldIdentifier(ty, count) +" : " + generateField(e) + ";\n";
+      if (count == elements.size() - 1) 
+        record += "    " + getFieldIdentifier(ty, count) +" : " + generateField(e) + "\n";
+      else
+        record += "    " + getFieldIdentifier(ty, count) +" : " + generateField(e) + ";\n";
       generated_types[ty].push_back(e);
       count += 1;
     }

@@ -1096,7 +1096,10 @@ bool Project::finalize_project_v2() {
                 continue;
             LOG_DEBUG << "primitive infer: " << p << "\n";
 
+            auto start = std::chrono::high_resolution_clock::now();
             auto [fname, low_specs, high_specs] = infer_spec_task_v2(this, i, p);
+            auto end = std::chrono::high_resolution_clock::now();
+            LOG_DEBUG << "####[" << p << "]" << "infer spec task cost" << std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count() << "" << std::endl;
         }
     }
 
@@ -1176,6 +1179,7 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
         for (auto &arg: *low_def->args)
             high_args->push_back(arg);
 
+        bool no_trans = false;
         Definition *high_def = nullptr;
 
         if (is_instance(low_def.get(), Fixpoint)) {
@@ -1187,13 +1191,15 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
                                     std::move(high_body));
             proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(tmp_high_def)),
                                  make_shared<loc_t>(proj->layers[layer_id]->name, Project::LOC_SPEC, ""), i + symbol_order);
+            // FIXME: temporarily suspend loop transformation
+            no_trans |= true;
         } else {
             high_def = new Definition(high_name, proj->defs[low_name]->rettype, std::move(high_args),
                                       std::move(high_body));
         }
 
         // Transform the low spec to high spec
-        bool no_trans = proj->cmds.NoHighSpec || proj->cmds.NoTrans.find(name_map[low_name]) != proj->cmds.NoTrans.end();
+        no_trans |= proj->cmds.NoHighSpec || proj->cmds.NoTrans.find(name_map[low_name]) != proj->cmds.NoTrans.end();
 
         LOG_DEBUG << "NO HIGH SPEC" << proj->cmds.NoHighSpec;
         

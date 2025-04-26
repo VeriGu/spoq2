@@ -3488,7 +3488,7 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
                 if (is_instance(define, Fixpoint))
                     return node;
 
-                //std::cout << "Unfold definition (smart): " << define->name << std::endl;
+                LOG_DEBUG << "Unfold definition (smart): " << define->name << std::endl;
                 if (define->deleyed_type_inference) {
                     define->infer_type(*proj);
                     define->deleyed_type_inference = false;

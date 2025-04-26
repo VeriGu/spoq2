@@ -179,6 +179,14 @@ void SpoqIRModule::preprocess_llvm_module() {
         std::string oldName = func.getName().str();
         std::string newName = Shortcut::replace_dot(oldName);
         if (oldName != newName) func.setName(newName);
+        // unsigned count = 0;
+        // for (auto &BB : func) {
+        //     for(auto &inst: BB) {
+        //         if (llvm::dyn_cast<llvm::GetElementPtrInst>(&inst)) {
+        //             count++;
+        //         }
+        //     }
+        // }
     }
     for (auto &gv : this->llvm_module->globals()) {
         if (!gv.hasName()) {
