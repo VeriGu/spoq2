@@ -2990,11 +2990,13 @@ rule_ret_t SpecRules::rule_simplify_map_get_set(std::unique_ptr<SpecNode> spec, 
                         changed = true;
                         return std::move(m->elems->at(2));
                     } else {
-                        changed = true;
-                        auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-                        elems->push_back(std::move(m->elems->at(0)));
-                        elems->push_back(std::move(e->elems->at(1)));
-                        return make_unique<Expr>(Expr::GET, std::move(elems), node->type);
+                        if(is_instance(idx, Const) && is_instance(idx2, Const)) {
+                            changed = true;
+                            auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                            elems->push_back(std::move(m->elems->at(0)));
+                            elems->push_back(std::move(e->elems->at(1)));
+                            return make_unique<Expr>(Expr::GET, std::move(elems), node->type);
+                        }
                     }
                 }
             }
@@ -3002,7 +3004,6 @@ rule_ret_t SpecRules::rule_simplify_map_get_set(std::unique_ptr<SpecNode> spec, 
             auto map = e->elems->at(0).get();
             auto idx = e->elems->at(1).get();
             auto val = e->elems->at(2).get();
-
             if(auto m = instance_of(map, Expr)) {
                 if(op_eq(m->op, Expr::SET)) {
                     auto idx2 = m->elems->at(1).get();
