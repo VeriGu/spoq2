@@ -694,7 +694,11 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                     auto ret_st_str = string(*ret_st);
                     unique_ptr<SpecNode> prop;
                     if(mode == ProveMode::SYS) {
-					    prop = proj->rules.instantiate_prop(inv->deep_copy(), std::move(ret_st));
+                        vector<string> names;
+                        vector<unique_ptr<SpecNode>> elems;
+                        names.push_back("st");
+                        elems.push_back(std::move(ret_st));
+                        prop = subst_v2(proj, inv->deep_copy(), &names, &elems);
                     } else if(mode == ProveMode::PREPOST){
                         vector<string> names;
                         vector<unique_ptr<SpecNode>> elems;
