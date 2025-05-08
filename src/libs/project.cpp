@@ -1074,6 +1074,8 @@ bool Project::finalize_project_v2() {
         helper.push_back("load_s_rec");
         helper.push_back("load_s_rmi_rec_entry");
         helper.push_back("store_s_rmi_rec_entry");
+        helper.push_back("load_s_rmi_realm_params");
+        helper.push_back("store_s_rmi_realm_params");
     }
     for(int i = 0; i < helper.size(); i++) {
         auto h = helper[i];
@@ -1093,6 +1095,8 @@ bool Project::finalize_project_v2() {
     UNFOLD_POLICY.skip_list.insert("realm_ipa_to_pa_spec");
     UNFOLD_POLICY.skip_list.insert("complete_sea_insertion_spec");
     UNFOLD_POLICY.skip_list.insert("complete_mmio_emulation_spec");
+    UNFOLD_POLICY.skip_list.insert("get_realm_params_spec");
+    UNFOLD_POLICY.skip_list.insert("init_rec_regs_spec");
     // UNFOLD_POLICY.skip_list.insert("complete_sysreg_emulation_spec");
 
     LOG_DEBUG << "filter and lemma ok" << "\n";

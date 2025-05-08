@@ -3503,7 +3503,7 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
                 if (define->name.compare(0, 5, "load_") == 0 ||
                     define->name.compare(0, 6, "store_") == 0) force_simpl = true;
                 ++unfold_count;
-                // if (unfold_count % 50 == 0) force_simpl = true;
+                if (unfold_count % 50 == 0) force_simpl = true;
                 LOG_DEBUG << "Unfold definition (smart): " << define->name << " " << unfold_count << std::endl;
                     // (s.compare(0, 3, "xxx") == 0
                 if (define->deleyed_type_inference) {

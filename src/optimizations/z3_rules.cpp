@@ -549,7 +549,7 @@ SpecNode* reconstruct_zmap(Project* proj, SpecNode* spec, shared_ptr<EvalState> 
 
 rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::shared_ptr<EvalState> state) {
     bool changed = false;
-    auto orig_prop = std::string(*spec->prop);
+    // auto orig_prop = std::string(*spec->prop);
 
     bool is_rely = is_instance(spec.get(), Rely);
     auto ret = this->rule_simple_by_z3(std::move(spec->prop), state);
@@ -622,11 +622,11 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
     if (!force_simpl) return { std::move(spec), false };
 
     bool changed = false;
-    auto orig_cond = string(*spec->cond);
+    // auto orig_cond = string(*spec->cond);
 
     auto cond_ret = this->rule_simple_by_z3(std::move(spec->cond), state);
     if (cond_ret.first == nullptr) {
-        throw std::runtime_error("If condition is false3: " + orig_cond);
+        throw std::runtime_error("If condition return nullptr");
         // return std::make_pair(nullptr, cond_ret.second);
     }
     PROFILE_START(z3_eval);
@@ -703,7 +703,7 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
 
 
 rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::shared_ptr<EvalState> state) {
-    string orig_src = string(*spec->src);
+    // string orig_src = string(*spec->src);
     auto src_ret = this->rule_simple_by_z3(spec->src->deep_copy(), state);
 
     if (src_ret.first == nullptr) {
