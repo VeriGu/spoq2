@@ -35,6 +35,8 @@
 
 namespace autov {
 
+extern class UnfoldPolicy UNFOLD_POLICY;
+
 const string Project::LOC_DATATYPES = "DataTypes";
 const string Project::LOC_LOWSPEC = "LowSpec";
 const string Project::LOC_SPEC = "Spec";
@@ -1028,6 +1030,7 @@ bool Project::finalize_project_v2() {
 
     prepare_abstraction();
 
+
     // Step2: reconstruct the control flow graph on LLVM IR
     std::set<string> deps;
     for (auto it = this->layers.rbegin(); it != this->layers.rend() - 1; it++) {
@@ -1063,6 +1066,34 @@ bool Project::finalize_project_v2() {
     collect_relations(this);
     collect_lemmas(this);
     trans_inv(this);
+
+    std::vector<string> helper;
+    if (OPTS.transform_io) {
+        // TODO: move to hints
+        helper.push_back("store_s_rec");
+        helper.push_back("load_s_rec");
+        helper.push_back("load_s_rmi_rec_entry");
+        helper.push_back("store_s_rmi_rec_entry");
+    }
+    for(int i = 0; i < helper.size(); i++) {
+        auto h = helper[i];
+        LOG_DEBUG << "h: " << h << "\n";
+        if (this->defs.find(h) == this->defs.end()) {
+            LOG_ERROR << "Helper function " << h << " not found";
+            continue;
+        }
+        auto def = this->defs[h].get();
+        std::cout << string(*def) << std::endl;
+        spec_transformer_v2(this, def, 0, true, true);
+        LOG_DEBUG << "Helper function " << h << " transformed";
+        // std::cout << string(*def) << std::endl;
+    }
+
+    // TODO: move to hints
+    UNFOLD_POLICY.skip_list.insert("realm_ipa_to_pa_spec");
+    UNFOLD_POLICY.skip_list.insert("complete_sea_insertion_spec");
+    UNFOLD_POLICY.skip_list.insert("complete_mmio_emulation_spec");
+    // UNFOLD_POLICY.skip_list.insert("complete_sysreg_emulation_spec");
 
     LOG_DEBUG << "filter and lemma ok" << "\n";
     LOG_DEBUG << "layer: " << this->layers.size() << "\n";

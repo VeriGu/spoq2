@@ -10,6 +10,11 @@
 #include <z3_rules.h>
 namespace autov {
 
+extern bool force_simpl;
+extern int unfold_count;
+
+class UnfoldPolicy UNFOLD_POLICY;
+
 static string pick_new_name(string sym, std::set<string> &prev) {
     string new_sym = sym;
 
@@ -1288,7 +1293,6 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
         //first do evaluation, then do transformation(call by value)
         int size = expr->elems->size();
         for(int i = 0; i < size; ++i) {
-                auto elem = string(*expr->elems->at(i));
                 auto __spec = cache(partial_eval(proj, std::move(expr->elems->at(i)), level + 1, state, used_symbols, unfold));
                 (*expr->elems)[i] = std::move(__spec);
         }
@@ -1340,7 +1344,9 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
                 spec = std::move(__spec);
                 expr = instance_of(spec.get(), Expr);
             } else if(op_eq(expr->op, Expr::GET) || op_eq(expr->op, Expr::SET)) {
+                PROFILE_START(simplify_getset);
                 auto [__spec, changed] = proj->rules.rule_simplify_map_get_set(std::move(spec),false);
+                PROFILE_END(simplify_getset);
                 if(changed) {
                     return cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
                 }
@@ -3489,7 +3495,17 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
                 if (is_instance(define, Fixpoint))
                     return node;
 
-                LOG_DEBUG << "Unfold definition (smart): " << define->name << std::endl;
+                if (UNFOLD_POLICY.is_skip(define->name)) return node;
+                if (define->name == "load_RData" || define->name == "store_RData") force_simpl = true;
+                if (define->name == "granule_map_spec") force_simpl = true;
+                if (define->name == "ns_buffer_read_spec" || define->name == "ns_buffer_write_spec") force_simpl = true;
+                if (define->name.compare(0, 4, "ptr_") == 0 && define->name != "ptr_offset" ) force_simpl = true;
+                if (define->name.compare(0, 5, "load_") == 0 ||
+                    define->name.compare(0, 6, "store_") == 0) force_simpl = true;
+                ++unfold_count;
+                // if (unfold_count % 50 == 0) force_simpl = true;
+                LOG_DEBUG << "Unfold definition (smart): " << define->name << " " << unfold_count << std::endl;
+                    // (s.compare(0, 3, "xxx") == 0
                 if (define->deleyed_type_inference) {
                     define->infer_type(*proj);
                     define->deleyed_type_inference = false;

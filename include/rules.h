@@ -130,4 +130,19 @@ public:
 
 using rule_t = std::function<rule_ret_t(std::unique_ptr<SpecNode>)>;
 
+class UnfoldPolicy {
+public:
+    bool skip = false;
+    std::set<string> skip_list;
+
+    void set_skip(bool s) { skip = s; }
+    bool is_skip(std::string fname) {
+        if (!skip) return false;
+        if (skip_list.find(fname) != skip_list.end()) {
+            return true;
+        }
+        return false;
+    }
+};
+
 } // namespace autov

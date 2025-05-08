@@ -23,6 +23,7 @@ public:
     bool check_simulation = false;
     bool decompose_check_simulation = false;
     bool check_none = false;
+    bool transform_io = false;
     std::string query_path;
     std::string config_file;
     boost::program_options::variables_map vmap;
@@ -51,6 +52,7 @@ public:
         std::cout << "  conditional_spec: " << std::boolalpha << conditional_spec << "\n";
         std::cout << "  lens: " << std::boolalpha << lens << "\n";
         std::cout << "  check-none: " << std::boolalpha << check_none << "\n";
+        std::cout << "  transform_io: " << std::boolalpha << transform_io << "\n";
         std::cout << std::endl;
     }
 
@@ -81,7 +83,8 @@ public:
             ("no-profile", po::bool_switch()->default_value(false), "do not profile (override --profile)")
             ("conditional-spec,c", po::bool_switch()->default_value(false), "automatically generate conditional spec")
             ("query-path",po::value<std::string>(&query_path)->default_value("./llvm.container/z3_queries/"),"set query path")
-            ("check-none", po::bool_switch()->default_value(false), "check none path");
+            ("check-none", po::bool_switch()->default_value(false), "check none path")
+            ("transform-io", po::bool_switch()->default_value(false), "transform io path");
 
         po::positional_options_description p;
         p.add("input", 1); // The input .v config file is positional and is the first argument
@@ -125,6 +128,7 @@ public:
 
         this->check_simulation = vmap["check-simulation"].as<bool>();
         this->decompose_check_simulation = vmap["decom-check-simul"].as<bool>();
+        this->transform_io = vmap["transform-io"].as<bool>();
 
 
         if (vmap.count("no-coi")) {

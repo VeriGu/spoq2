@@ -287,6 +287,8 @@ void profile_print_transrule() {
 	PROFILE_PRINT_RULE(unfold);
 	PROFILE_PRINT_RULE(simplify_getset);
 	PROFILE_PRINT_RULE(simplify_expr);
+	PROFILE_PRINT_RULE(if_rule_check);
+	PROFILE_PRINT_RULE(z3_rule_check);
 }
 
 void profile_print()
@@ -341,6 +343,10 @@ void profile_print()
     LOG_INFO << "Match eval check solve: " << match_eval_check_hit_meta;
     LOG_INFO << "Expr eval check solve: " << expr_eval_check_hit_meta;
     LOG_INFO << "===================================";
+
+	profile_print_transrule();
+
+	
 }
 
 void profile_update_epoch() {

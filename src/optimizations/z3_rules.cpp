@@ -35,6 +35,8 @@ using std::unordered_map;
 using std::shared_ptr;
 using std::vector;
 
+bool force_simpl;
+int unfold_count;
 unordered_map<unsigned, unsigned> length_z3_map;
 std::unique_ptr<SpecNode> subst_expr(
     Project* proj,
@@ -617,6 +619,8 @@ rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::sha
 }
 
 rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<EvalState> state) {
+    if (!force_simpl) return { std::move(spec), false };
+
     bool changed = false;
     auto orig_cond = string(*spec->cond);
 
@@ -859,6 +863,7 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
 
 rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state) {
     bool changed = false;
+    if (!force_simpl) { return { std::move(spec), false } ; }
 
 // #ifdef Z3_OPT_CACHE
 //     z3_global_hash_total++;

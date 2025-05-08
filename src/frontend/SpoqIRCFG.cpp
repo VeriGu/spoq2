@@ -264,7 +264,7 @@ bool SpoqIRModule::control_flow_conversion_v2(Project *proj, string fname,
                 builder.SetInsertPoint(fake);
                 if (!llvm_func->getReturnType()->isVoidTy()) {
                     LOG_ERROR << "infinite loop detected in " << fname << "\n";
-                    if (fname != "smc_granule_undelegate") {
+                    if( !llvm_func->getReturnType()->isIntegerTy(64)) {
                         return false;
                     }
                     LOG_ERROR << "but we want " << fname << "\n";

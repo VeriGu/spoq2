@@ -16,6 +16,9 @@ extern unordered_map<size_t, Z3Result> Z3Cache;
 
 unsigned long mono_lens_id = 0;
 std::mutex Z3mtx;
+extern bool force_simpl;
+extern int unfold_count;
+extern class UnfoldPolicy UNFOLD_POLICY;
 
 inline std::string ruleid_to_string(RuleID rule) {
     switch (rule) {
@@ -55,7 +58,9 @@ unique_ptr<SpecNode> spec_transformer_v2(Project *proj, unique_ptr<SpecNode> nod
         for (auto [arg, _] : fvars) {
             known.insert(arg);
         }
+        LOG_DEBUG << "start partial_eval" << "\n";
         auto spec1 = partial_eval(proj, std::move(spec), 0, make_shared<EvalState>(vars, conds), known, unfold);
+        LOG_DEBUG << "end partial_eval" << "\n";
         // profile_print_transrule();
         LOG_DEBUG << "------------------after_partial_eval:----------------------\n" << string(*spec1);
         unique_ptr<SpecNode> __tmp_spec;
@@ -86,7 +91,7 @@ unique_ptr<SpecNode> spec_transformer_v2(Project *proj, unique_ptr<SpecNode> nod
         changed |= le_changed;
         //type_inference::check_well_typed(*proj, __tmp_spec1.get(), known);
         LOG_DEBUG << "----------------after_let_elimination:---------------------\n" << string(*__tmp_spec1);
-        
+
 
         auto [__tmp_spec2, we_changed] = proj->rules.rule_eliminate_when(std::move(__tmp_spec1), true);
         //LOG_DEBUG << "----------------after_when_elimination:---------------------\n" << string(*__tmp_spec2);
@@ -99,7 +104,7 @@ unique_ptr<SpecNode> spec_transformer_v2(Project *proj, unique_ptr<SpecNode> nod
         //type_inference::check_well_typed(*proj, __tmp_spec3.get(), known);
         spec = std::move(__tmp_spec3);
         if(!changed) {
-            break;
+                break;
         }
     }
     return spec;
@@ -113,30 +118,35 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
     for (auto arg : *def->args) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
-
     
     converged_spec.clear();
+    UNFOLD_POLICY.set_skip(true);
     while(true) {
             profile_clear_epoch();
             auto known = std::set<string>();
             for (auto arg : *def->args) {
                 known.insert(arg->name);
             }
+            // LOG_DEBUG << "start partial eval" << " " << force_simpl << "\n";
             auto spec = partial_eval(proj, std::move(def->body), 0, make_shared<EvalState>(vars, conds), known, unfold);
+            // LOG_DEBUG << "end partial eval" << "\n";
             //profile_print_transrule();
             // LOG_DEBUG << def->name << "------------------after_partial_eval:----------------------\n" << string(*spec);
             unique_ptr<SpecNode> __tmp_spec;
             bool changed = false;
+            bool __unfold = false;
             //type_inference::check_well_typed(*proj, spec.get(), known);
             
-
+            force_simpl = false;
             if(unfold && !proj->cmds.NoUnfoldAll) {
                 auto [__spec, __changed] = proj->rules.rule_unfold_specs(std::move(spec), true);
+                __unfold = __changed;
                 // LOG_DEBUG << def->name <<  "------------------after unfold:----------------------\n" << string(*__spec);
                 changed |= __changed;
                 //type_inference::check_well_typed(*proj, __spec.get(), known);
                 spec = std::move(__spec);
             }
+            // LOG_DEBUG << "end unfold , start eliminate" << "\n";
 
             known = std::set<string>();
             for (auto arg : *def->args) {
@@ -145,28 +155,45 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             bool um_changed = false;
             __tmp_spec = proj->rules.eliminate_ambiguity(std::move(spec), known, um_changed);
             changed |= um_changed;
-
             //type_inference::check_well_typed(*proj, __tmp_spec.get(), known);
-
+            // LOG_DEBUG << "end eliminate, start let" << "\n";
         
             auto [__tmp_spec1, le_changed] = proj->rules.rule_eliminate_let(std::move(__tmp_spec), true);
             changed |= le_changed;
             //type_inference::check_well_typed(*proj, __tmp_spec1.get(), known);
-            // LOG_DEBUG << def->name << "----------------after_let_elimination:---------------------\n" << string(*__tmp_spec1);
-            
+            // LOG_DEBUG << def->name << "----------------after_let_elimination:---------------------\n";
+
+            // LOG_DEBUG << "end let, start when" << "\n";
 
             auto [__tmp_spec2, we_changed] = proj->rules.rule_eliminate_when(std::move(__tmp_spec1), true);
-            // LOG_DEBUG << def->name << "----------------after_when_elimination:---------------------\n" << string(*__tmp_spec2);
+            // LOG_DEBUG << "----------------after_when_elimination:---------------------\n";
             changed |= we_changed;
             //type_inference::check_well_typed(*proj, __tmp_spec2.get(), known);
-            auto [__tmp_spec3, z3_changed] = proj->rules.rule_simple_by_z3(std::move(__tmp_spec2), make_shared<EvalState>(vars, conds));
-            // LOG_DEBUG << def->name << "--------------------after_z3---------------------------\n:" << string(*__tmp_spec3);
+            auto __tmp_spec3 = std::move(__tmp_spec2);
+            bool z3_changed = false;
+            if (force_simpl || !__unfold) {
+                // LOG_DEBUG << "spec before: " << string(*__tmp_spec3.get()) << "\n";
+                // LOG_DEBUG << "spec: " << string(*__tmp_spec3.get()) << "\n";
+                auto start = std::chrono::high_resolution_clock::now();
+                LOG_DEBUG << "start z3" << "\n";
+                force_simpl = true;
+                std::tie(__tmp_spec3, z3_changed) = proj->rules.rule_simple_by_z3(std::move(__tmp_spec3), make_shared<EvalState>(vars, conds));
+                LOG_DEBUG << "end z3" << "\n";
+                auto end = std::chrono::high_resolution_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+                LOG_DEBUG << "Z3 time: " << duration.count() / 1000.0 << " seconds\n";
+                // LOG_DEBUG << "spec: " << string(*__tmp_spec3.get()) << "\n";
+            }
             changed |= z3_changed;
             profile_update_epoch();
             //type_inference::check_well_typed(*proj, __tmp_spec3.get(), known);
             def->body = std::move(__tmp_spec3);
             if(!changed) {
-                break;
+                if (UNFOLD_POLICY.skip) {
+                    UNFOLD_POLICY.set_skip(false);
+                    profile_print_transrule();
+                } else 
+                    break;
             }
     }
 }
