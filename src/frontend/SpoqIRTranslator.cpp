@@ -236,7 +236,14 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
                     return this->get_llvm_value_spec(expr->getOperand(0));
                 }
             }
-        } 
+        } else if (auto func = llvm::dyn_cast<llvm::Function>(value)) {
+            auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
+            vec->push_back(std::make_unique<StringConst>(func->getName().str() + "_fptr"));
+            vec->push_back(std::make_unique<IntConst>(0));
+            auto expr = std::make_unique<Expr>("mkPtr", std::move(vec));
+            expr->type = Struct::Ptr;
+            return expr;
+        }
         llvm::errs() << "unsupport llvm constant: " << *value << "\n";
         assert(false && "unsupport llvm constant");
     } else if (auto arg = llvm::dyn_cast<llvm::Argument>(value)) {
@@ -648,52 +655,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             if (call->isDebugOrPseudoInst()) {
                 return spoq_inst_to_spec(proj, vec, num + 1, context);
             }
-            if (auto callee = call->getCalledFunction()) {
-                if (callee->isIntrinsic()) {
-                    llvm::errs() << "Intrinsic function call: " << *call << "\n";
-                    assert(false && "Not impl: intrinsic function call");
-                } else if (callee->getName().startswith("llvm_dbg_")) {
-                    return spoq_inst_to_spec(proj, vec, num + 1, context);
-                } else {
-                    auto args = std::make_unique<vector<unique_ptr<SpecNode>>>();
-                    for(int i = 0; i < call->arg_size(); i++) {
-                        args->push_back(context.get_llvm_value_spec(call->getArgOperand(i)));
-                    }
-                    args->push_back(context.get_abs_data());
-
-                    unique_ptr<SpecNode> ret = nullptr;
-                    if(call->getType()->isVoidTy()) {
-                        ret = context.get_abs_data();
-                    } else {
-                        auto children = std::make_unique<vector<unique_ptr<SpecNode>>>();
-                        children->push_back(context.get_llvm_value_spec(call, nullptr, false));
-                        children->push_back(context.get_abs_data());
-                        ret = Shortcut::_Tuple_u(std::move(children));
-                    }
-
-
-                    auto callee_name = callee->getName().str() + "_spec";
-                    auto expr = std::make_unique<Expr>(callee_name, std::move(args));
-                    auto new_expr = context.apply_abstraction(std::move(expr));
-
-                    auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
-
-                    if (proj->cmds.PostEnsure.find(callee->getName().str()) != proj->cmds.PostEnsure.end()) {
-                        for (auto & prop : proj->cmds.PostEnsure[callee->getName().str()]) {
-                            auto p = prop->deep_copy();
-                            if (call->getType()->isVoidTy()) {
-                                Shortcut::subst_expression(p.get(), "ret_0", context.abs_data_name);
-                            } else{
-                                Shortcut::subst_expression(p.get(), "ret_0", context.get_llvm_value_name(call));
-                                Shortcut::subst_expression(p.get(), "ret_1", context.abs_data_name);
-                            }
-                            remain = std::make_unique<Rely>(std::move(p), std::move(remain));
-                        }
-                    } 
-
-                    return Shortcut::_When_u(std::move(ret), std::move(new_expr), std::move(remain));
-                }
-            } else if (call->isInlineAsm()) {
+            if (call->isInlineAsm()) {
                     auto iasm = llvm::dyn_cast<llvm::InlineAsm>(call->getCalledOperand());
                     assert(iasm && "Not an inline asm when isInlineAsm() is true");
 
@@ -719,8 +681,60 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
 
                     auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
                     return Shortcut::_When_u(std::move(ret), std::move(expr), std::move(remain));
-            }
-            else {
+            } 
+            else if (auto callee = call->getCalledOperand()) {
+
+                auto callee_func = call->getCalledFunction();
+                if (callee_func && callee_func->isIntrinsic()) {
+                    llvm::errs() << "Intrinsic function call: " << *call << "\n";
+                    assert(false && "Not impl: intrinsic function call");
+                } else if (callee_func && callee->getName().startswith("llvm_dbg_")) {
+                    return spoq_inst_to_spec(proj, vec, num + 1, context);
+                } 
+
+                auto args = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                if (!callee_func) args->push_back(context.get_llvm_value_spec(callee));
+                for(int i = 0; i < call->arg_size(); i++) {
+                    args->push_back(context.get_llvm_value_spec(call->getArgOperand(i)));
+                }
+                args->push_back(context.get_abs_data());
+
+                unique_ptr<SpecNode> ret = nullptr;
+                if(call->getType()->isVoidTy()) {
+                    ret = context.get_abs_data();
+                } else {
+                    auto children = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                    children->push_back(context.get_llvm_value_spec(call, nullptr, false));
+                    children->push_back(context.get_abs_data());
+                    ret = Shortcut::_Tuple_u(std::move(children));
+                }
+
+                auto callee_name = callee->getName().str() + "_spec";
+                if (!callee_func) {
+                    callee_name = context.get_llvm_value_name(callee) + "_" + std::to_string(call->arg_size()) + "_fptr_spec";
+                    llvm::errs() << "*callee:" << *callee << "\n";
+                }
+
+                auto expr = std::make_unique<Expr>(callee_name, std::move(args));
+                auto new_expr = context.apply_abstraction(std::move(expr));
+
+                auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
+
+                if (proj->cmds.PostEnsure.find(callee->getName().str()) != proj->cmds.PostEnsure.end()) {
+                    for (auto & prop : proj->cmds.PostEnsure[callee->getName().str()]) {
+                        auto p = prop->deep_copy();
+                        if (call->getType()->isVoidTy()) {
+                            Shortcut::subst_expression(p.get(), "ret_0", context.abs_data_name);
+                        } else{
+                            Shortcut::subst_expression(p.get(), "ret_0", context.get_llvm_value_name(call));
+                            Shortcut::subst_expression(p.get(), "ret_1", context.abs_data_name);
+                        }
+                        remain = std::make_unique<Rely>(std::move(p), std::move(remain));
+                    }
+                } 
+
+                return Shortcut::_When_u(std::move(ret), std::move(new_expr), std::move(remain));
+            } else {
                 llvm::errs() << "No inline asm && No called function found: " << *call << "\n";
                 assert(false && "No inline asm && No called function found");
             }
