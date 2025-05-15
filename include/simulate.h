@@ -18,5 +18,5 @@ namespace autov
 		return name + "_sim";
 	}
 	// verify the relational property by traversing the project
-	bool check_hprop_by_path(Project *proj, Definition* rel, Definition *spec, Definition *impl = nullptr, bool det = false);
+	bool check_hprop_by_path(Project *proj, Definition* rel, Definition *spec, Definition *impl = nullptr, bool det = false, Definition* endrel = nullptr);
 }
