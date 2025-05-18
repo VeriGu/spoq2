@@ -752,6 +752,9 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                         for(auto &cond: *state->conds) {
 					        LOG_DEBUG << "Cond:" << cond;
 					    }
+                        for(auto &cond: *state->inductions) {
+					        LOG_DEBUG << "Lemmas:" << cond;
+					    }
 						return false;
 					} else {
 						LOG_INFO << "[prove_by_traverse] Invariant is proved for state\n" << ret_st_str << std::endl;
@@ -802,8 +805,9 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
     } else if (auto m = instance_of(spec, Match)) {
         set<string> used_fix;
         auto src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
-        auto subst_loop = false;
+        auto subst_definition = false;
         unique_ptr<SpecNode> loop_post_cond;
+        unique_ptr<SpecNode> post_cond;
 
 		if (auto expr = instance_of(m->src.get(), Expr)) {
 			if (holds_alternative<string>(expr->op)){
@@ -837,7 +841,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
             
                                 auto fname = loop->name;
                                 loop_post_cond = formulate_loop_invariant(proj, fname, expr->elems.get());
-                                subst_loop = true;
+                                subst_definition = true;
                                 LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << op;
                                 // LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << string(*loop_post_cond);
                                 //state->conds->push_back(post);
@@ -849,13 +853,17 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                             auto def = proj->defs[op].get();
                             if (proj->cmds.PreCond.find(op) != proj->cmds.PreCond.end()) {
                                 if (!check_states_implies_pre_condition(proj, state, op, elems)){
+                                    LOG_INFO << "[Checking PreCondition] Precondition not Satified: " << op;
                                     return false;
                                 };
                             }
+
+                            LOG_INFO << "[Checking Precondition] Precondition Satisfied: " << op;
                             if(proj->cmds.PostCond.find(op) != proj->cmds.PostCond.end()) {
                                 auto fname = def->name;
-                                auto post = formulate_post_cond_z3(proj, fname, expr, state);
-                                state->conds->push_back(post);
+                                post_cond = formulate_post_condition(proj, fname, expr->elems.get());
+                                subst_definition = true;
+                                //state->conds->push_back(post);
                             }
                             //if it is a preserving function, directly add post condition
                             if (proj->cmds.PreserveInv.find(op) != proj->cmds.PreserveInv.end()) {
@@ -878,42 +886,82 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 			auto new_state = state->copy();
             auto pat = (*pm)->pattern.get();
             resolve_pattern(proj, m, pat, src, new_state);
-            auto res = z3_check(new_state, Z3_TIMEOUT);
-            if(res == Z3Result::False) {
-                continue;
-            }
+            // auto res = z3_check(new_state, Z3_TIMEOUT);
+            // if(res == Z3Result::False) {
+            //     continue;
+            // }
             if (!std::holds_alternative<std::nullptr_t>(abst_spec)) {
                 //instantiate the loop postconditions here
                 if (auto expr = instance_of(m->src.get(), Expr)) {
-                    if (subst_loop && holds_alternative<string>(expr->op)){
+                    if (holds_alternative<string>(expr->op)){
                         auto op = std::get<string>(expr->op);
-                        if (auto loop = instance_of(proj->defs[op].get(), Fixpoint)){
-                            if(auto p = instance_of(pat, Expr)) {
-                                if(op_eq(p->op, Expr::Some)) {
-                                    if(instance_of(p->elems->at(0)->type.get(), Tuple)) {
-                                        auto tuple = p->elems->at(0).get();
-                                        if(auto t = instance_of(tuple, Expr)) {
-                                            vector<string> names;
-                                            vector<unique_ptr<SpecNode>> elems;
-                                            for(int i = 0; i < t->elems->size(); i++) {
-                                                auto elem = t->elems->at(i).get();
-                                                if(auto sym = instance_of(elem, Symbol)) {
-                                                    names.push_back(loop->name + "_" + loop->args->at(i)->name + "_new");
-                                                    elems.push_back(sym->deep_copy());
+                        if (subst_definition) {
+                            if (auto loop = instance_of(proj->defs[op].get(), Fixpoint)){
+                                if(auto p = instance_of(pat, Expr)) {
+                                    if(op_eq(p->op, Expr::Some)) {
+                                        if(instance_of(p->elems->at(0)->type.get(), Tuple)) {
+                                            auto tuple = p->elems->at(0).get();
+                                            if(auto t = instance_of(tuple, Expr)) {
+                                                vector<string> names;
+                                                vector<unique_ptr<SpecNode>> elems;
+                                                for(int i = 0; i < t->elems->size(); i++) {
+                                                    auto elem = t->elems->at(i).get();
+                                                    if(auto sym = instance_of(elem, Symbol)) {
+                                                        names.push_back(loop->name + "_" + loop->args->at(i)->name + "_new");
+                                                        elems.push_back(sym->deep_copy());
+                                                    }
                                                 }
+                                                auto new_inv = subst_v2(proj, move(loop_post_cond), &names, &elems);
+                                                LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << string(*new_inv);
+                                                auto new_inv_z3 = z3_eval(proj, new_inv.get(), new_state, true, false, used_fix);
+                                                new_state->conds->push_back(new_inv_z3->get_z3_value());
                                             }
-                                            auto new_inv = subst_v2(proj, move(loop_post_cond), &names, &elems);
+                                        } else if(p->elems->at(0)->type == proj->layers[0]->abs_data){
+                                            auto new_inv = subst_v2(proj, move(loop_post_cond), loop->name + "_" + "st_new", p->elems->at(0)->deep_copy());
                                             LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << string(*new_inv);
                                             auto new_inv_z3 = z3_eval(proj, new_inv.get(), new_state, true, false, used_fix);
                                             new_state->conds->push_back(new_inv_z3->get_z3_value());
                                         }
-                                    } else if(p->elems->at(0)->type == proj->layers[0]->abs_data){
-                                        subst_v2(proj, move(loop_post_cond), loop->name + "_" + "st_new", p->elems->at(0)->deep_copy());
+                                    }
+                                }
+                            } else {
+                                //normal definition
+                                auto def = instance_of(proj->defs[op].get(), Definition);
+                                if(auto p = instance_of(pat, Expr)) {
+                                    if(op_eq(p->op, Expr::Some)) {
+                                        if(instance_of(p->elems->at(0)->type.get(), Tuple)) {
+                                            auto tuple = p->elems->at(0).get();
+                                            if(auto t = instance_of(tuple, Expr)) {
+                                                vector<string> names;
+                                                vector<unique_ptr<SpecNode>> elems;
+                                                for(int i = 0; i < t->elems->size(); i++) {
+                                                    auto elem = t->elems->at(i).get();
+                                                    if(auto sym = instance_of(elem, Symbol)) {
+                                                        if(i + 1 == t->elems->size()) {
+                                                            names.push_back(def->name + "_st_new_");
+                                                            elems.push_back(sym->deep_copy());
+                                                        } else {
+                                                            names.push_back(def->name + "_ret_" + std::to_string(i));
+                                                            elems.push_back(sym->deep_copy());
+                                                        }
+                                                    }
+                                                }
+                                                auto new_inv = subst_v2(proj, move(post_cond), &names, &elems);
+                                                LOG_DEBUG << "Adding postcondition: " << string(*new_inv);
+                                                auto new_inv_z3 = z3_eval(proj, new_inv.get(), new_state, true, false, used_fix);
+                                                new_state->conds->push_back(new_inv_z3->get_z3_value());
+                                            }
+                                        } else if(p->elems->at(0)->type == proj->layers[0]->abs_data) {
+                                            LOG_DEBUG << "name: " << def->name + "_st_new_";
+                                            auto new_inv = subst_v2(proj, move(post_cond), def->name + "_st_new_", p->elems->at(0)->deep_copy());
+
+                                            LOG_DEBUG << "Adding postcondition: " << string(*new_inv);
+                                            auto new_inv_z3 = z3_eval(proj, new_inv.get(), new_state, true, false, used_fix);
+                                            new_state->conds->push_back(new_inv_z3->get_z3_value());
+                                        }
                                     }
                                 }
                             }
-                        } else {
-                            //normal definition
                         }
                     }
                 }
@@ -1241,7 +1289,7 @@ void spec_prover(Project *proj) {
                     l_args->push_back(arg);
                 }
                 auto spec_def = new Definition(goal_def->name, goal_def->rettype, std::move(l_args), goal_def->body->deep_copy());
-                coi_reduction(proj, spec_def, inv);
+                //coi_reduction(proj, spec_def, inv);
 
                 proj->verifying_invariant = name;
                 if (check_inv_by_path(proj, spec_def, inv, used_abstract_funcs)) {

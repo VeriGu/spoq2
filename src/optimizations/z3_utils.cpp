@@ -816,7 +816,7 @@ unique_ptr<SpecNode> formulate_preserved_function(Project* proj, string fname) {
     return unique_ptr<SpecNode>(forall);
 }
 
-//fname(v1,v2,v3,v4) = Some (t1,t2,t3,t4, st') -> post(t1,t2,t3,t4,st')
+//post(t1,t2,t3,t4,st')
 unique_ptr<SpecNode> formulate_post_condition(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args) {
     auto def = proj->defs[fname].get();
     auto &postconds = proj->cmds.PostCond[fname];
@@ -827,61 +827,67 @@ unique_ptr<SpecNode> formulate_post_condition(Project* proj, string fname, vecto
         elems->push_back(inv->deep_copy());
         aggrepost = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
 	}
-    
-    auto lhselems = make_unique<vector<unique_ptr<SpecNode>>>();
-    for(auto &arg: *args) {
-        lhselems->push_back(arg->deep_copy());
-    }
-
-    auto lhsbody = new Expr(fname, std::move(lhselems), def->rettype);
-
-    auto rhselems = make_unique<vector<unique_ptr<SpecNode>>>();
-    auto tupleelems = make_unique<vector<unique_ptr<SpecNode>>>();
-    
     auto known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
     auto rettype = instance_of(def->rettype.get(), Option);
-
 
     if(auto rettupletype = instance_of(rettype->elem_type.get(), Tuple)) {
         string tmpname = "_ret_";
         int i = 0;
+        vector<string> names;
+        vector<unique_ptr<SpecNode>> nodes;
         for(auto elemtype : *rettupletype->types) {
             if(i != rettupletype->types->size() - 1) {
+                (*known)[tmpname + std::to_string(i)] = elemtype;
                 //(*var)[tmpname + i] = elemtype->declare(tmpname + i, 0); //after
-                tupleelems->push_back(unique_ptr<SpecNode>(new Symbol(fname + tmpname + std::to_string(i), elemtype)));
-                aggrepost = subst_v2(proj, std::move(aggrepost), tmpname + std::to_string(i), make_unique<Symbol>(fname + tmpname + std::to_string(i)));
+                //tupleelems->push_back(unique_ptr<SpecNode>(new Symbol(fname + tmpname + std::to_string(i), elemtype)));
+                names.push_back(tmpname + std::to_string(i));
+                nodes.push_back(make_unique<Symbol>(fname + tmpname + std::to_string(i), elemtype));
             } else {
+                (*known)["st"] = elemtype;
                 //(*var)["st'"] = elemtype->declare("st'", 0); //after
-                tupleelems->push_back(unique_ptr<SpecNode>(new Symbol(fname + "_st_new_", elemtype)));
+                names.push_back("st");
+                nodes.push_back(make_unique<Symbol>(fname + "_st_new_", elemtype));
+                //tupleelems->push_back(unique_ptr<SpecNode>(new Symbol(fname + "_st_new_", elemtype)));
             }
             i++;
         }
-
-        auto rhstuple = new Expr(Expr::ops::Tuple, std::move(tupleelems), instance_of(def->body->type.get(), Option)->elem_type);      
-        rhselems->push_back(unique_ptr<SpecNode>(rhstuple));
+        for(int i = 0; i < def->args->size(); i++) {
+            if(i + 1 == def->args->size()) {
+                (*known)["st_old"] = proj->layers[0]->abs_data;
+                names.push_back("st_old");
+                nodes.push_back(args->at(i)->deep_copy());
+            } else {
+                (*known)[def->args->at(i)->name] = def->args->at(i)->type;
+                names.push_back(def->args->at(i)->name);
+                nodes.push_back(args->at(i)->deep_copy());
+            }
+        }
+        type_inference::infer_type(*proj, aggrepost.get(), known, Bool::BOOL);
+        aggrepost = subst_v2(proj, std::move(aggrepost), &names, &nodes);
     } else if(rettype->elem_type == proj->layers[0]->abs_data) {
-        rhselems->push_back(unique_ptr<SpecNode>(new Symbol(fname + "_st_new_", proj->layers[0]->abs_data)));
+        vector<string> names;
+        vector<unique_ptr<SpecNode>> nodes;
+
+        for(int i = 0; i < def->args->size(); i++) {
+            if(i + 1 == def->args->size()) {
+                (*known)["st_old"] = proj->layers[0]->abs_data;
+                names.push_back("st_old");
+                nodes.push_back(args->at(i)->deep_copy());
+            } else {
+                (*known)[def->args->at(i)->name] = def->args->at(i)->type;
+                names.push_back(def->args->at(i)->name);
+                nodes.push_back(args->at(i)->deep_copy());
+            }
+        }
+
+        names.push_back("st");
+        (*known)["st"] = proj->layers[0]->abs_data;
+
+        type_inference::infer_type(*proj, aggrepost.get(), known, Bool::BOOL);
+        nodes.push_back(make_unique<Symbol>(fname + "_st_new_", proj->layers[0]->abs_data));
+        aggrepost = subst_v2(proj, std::move(aggrepost), &names, &nodes);
     }                                                            
-    auto rhsbody = new Expr(Expr::ops::Some, std::move(rhselems), def->body->type);
-
-    auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-    elems->push_back(unique_ptr<SpecNode>(lhsbody));
-    elems->push_back(unique_ptr<SpecNode>(rhsbody));
-    auto eqbody = new Expr(Expr::binops::EQUAL, std::move(elems), Bool::BOOL);
-
-    bool succ;
-    unique_ptr<SpecNode> sym = make_unique<Symbol>(fname + "_st_new_", proj->layers[0]->abs_data);
-    aggrepost = subst(std::move(aggrepost), "st", sym.get(), succ);
-
-    aggrepost = subst(std::move(aggrepost), "st_old", args->back().get(), succ);
-
-
-    auto bodyelems = new vector<unique_ptr<SpecNode>>();
-    bodyelems->push_back(unique_ptr<SpecNode>(eqbody));
-    bodyelems->push_back(std::move(aggrepost));
-    auto expr = new Expr(Expr::binops::IMPLIES, unique_ptr<vector<unique_ptr<SpecNode>>>(bodyelems), Bool::BOOL);
-
-    return unique_ptr<SpecNode>(expr);
+    return aggrepost;
 }
 
 //formulate loop invariant post condition
