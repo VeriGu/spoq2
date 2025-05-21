@@ -1135,11 +1135,19 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
             }
 
             states.push_back(std::make_pair(_cache(elems[0]), state));
-        } else if (op_eq(expr->op, Expr::binops::APPEND))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<List>(val->get_type())->construct("cons", {elems[0], elems[1]})), state));
-        else if (op_eq(expr->op, Expr::binops::CONCAT))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IndValue>(elems[0])->concat(static_pointer_cast<IndValue>(elems[1]))), state));
-        else if (op_eq(expr->op, Expr::ops::Some))
+        } else if (op_eq(expr->op, Expr::binops::APPEND)) {
+            // elem[0]: new element
+            // elem[1]: old list
+            auto list = static_pointer_cast<ListValue>(elems[1]);
+            auto new_list = list->append(elems[0]);
+
+            states.push_back(std::make_pair(_cache(new_list), state));
+        } else if (op_eq(expr->op, Expr::binops::CONCAT)) {
+            auto list1 = static_pointer_cast<ListValue>(elems[0]);
+            auto new_list = list1->concat(static_pointer_cast<SpecValue>(elems[1]));
+
+            states.push_back(std::make_pair(_cache(new_list), state));
+        } else if (op_eq(expr->op, Expr::ops::Some))
             states.push_back(std::make_pair(_cache(static_pointer_cast<Option>(val->get_type())->construct("Some", {elems[0]})), state));
         else if (op_eq(expr->op,Expr::ops::Tuple)) {
             states.push_back(std::make_pair(_cache(static_pointer_cast<Tuple>(val->get_type())->construct(elems)), state));
@@ -1504,8 +1512,11 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
     } else if (auto expr = instance_of(val, Expr)) {
         vector<shared_ptr<SpecValue>> elems;
 
-        for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {
-            elems.push_back(z3_eval(proj, e->get(), state,  check_loop));
+        // XXX: this is a hack to handle List.empty which takes a type as an argument
+        if (!op_eq(expr->op, "List.empty")) {
+            for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {
+                elems.push_back(z3_eval(proj, e->get(), state,  check_loop));
+            }
         }
 
         if (op_eq(expr->op, Expr::None))
@@ -1602,11 +1613,17 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             }
 
             return _cache(elems[0]);
-        } else if (op_eq(expr->op, Expr::binops::APPEND))
-            return _cache(static_pointer_cast<List>(val->get_type())->construct("cons", {elems[0], elems[1]}));
-        else if (op_eq(expr->op, Expr::binops::CONCAT))
-            return _cache(static_pointer_cast<IndValue>(elems[0])->concat(static_pointer_cast<IndValue>(elems[1])));
-        else if (op_eq(expr->op, Expr::ops::Some))
+        } else if (op_eq(expr->op, Expr::binops::APPEND)) {
+            auto list = static_pointer_cast<ListValue>(elems[1]);
+            auto new_list = list->append(static_pointer_cast<SpecValue>(elems[0]));
+
+            return _cache(new_list);
+        } else if (op_eq(expr->op, Expr::binops::CONCAT)) {
+            auto list1 = static_pointer_cast<ListValue>(elems[0]);
+            auto new_list = list1->concat(static_pointer_cast<ListValue>(elems[1]));
+
+            return _cache(new_list);
+        } else if (op_eq(expr->op, Expr::ops::Some))
             return _cache(static_pointer_cast<Option>(val->get_type())->construct("Some", {elems[0]}));
         else if (op_eq(expr->op,Expr::ops::Tuple)) {
             return _cache(static_pointer_cast<Tuple>(val->get_type())->construct(elems));
@@ -1621,6 +1638,12 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             return _cache(static_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems));
         else if (op_eq(expr->op,"zmap_init") || op_eq(expr->op, "ZMap.init"))
             return _cache(val->get_type()->from_z3_value(z3::const_array(z3ctx.int_sort(), elems[0]->get_z3_value())));
+        else if (op_eq(expr->op, "List.is_empty"))
+            return _cache(static_pointer_cast<ListValue>(elems[0])->is_empty());
+        else if (op_eq(expr->op, "List.empty"))
+            return _cache(ListValue::empty(val->get_type()));
+        else if (op_eq(expr->op, "List.eq"))
+            return _cache(static_pointer_cast<ListValue>(elems[0])->eq(static_pointer_cast<ListValue>(elems[1])));
         else if (std::holds_alternative<string>(expr->op)) {
             auto sym = std::get<string>(expr->op);
             auto info = proj->symbols[sym];
@@ -1648,7 +1671,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                 }
             } else {
                 std::cout << "expr: " << string(*expr) << std::endl;
-                throw std::runtime_error("Unknown symbol: " + sym);
+                throw std::runtime_error("(z3_eval) Unknown symbol: " + sym);
             }
         } else if (std::holds_alternative<unique_ptr<SpecNode>>(expr->op)) {
             auto op = z3_eval(proj, std::get<unique_ptr<SpecNode>>(expr->op).get(), state,  check_loop);
@@ -1855,8 +1878,11 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
     } else if (auto expr = instance_of(val, Expr)) {
         vector<shared_ptr<SpecValue>> elems;
 
-        for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {
-            elems.push_back(z3_eval(proj, e->get(), state,  check_loop, unfold, used_fixpoint));
+        // XXX: this is a hack to handle List.empty which takes a type as an argument
+        if (!op_eq(expr->op, "List.empty")) {
+            for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {
+                elems.push_back(z3_eval(proj, e->get(), state,  check_loop, unfold, used_fixpoint));
+            }
         }
 
         if (op_eq(expr->op, Expr::None))
@@ -1953,11 +1979,17 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             }
 
             return _cache(elems[0]);
-        } else if (op_eq(expr->op, Expr::binops::APPEND))
-            return _cache(static_pointer_cast<List>(val->get_type())->construct("cons", {elems[0], elems[1]}));
-        else if (op_eq(expr->op, Expr::binops::CONCAT))
-            return _cache(static_pointer_cast<IndValue>(elems[0])->concat(static_pointer_cast<IndValue>(elems[1])));
-        else if (op_eq(expr->op, Expr::ops::Some))
+        } else if (op_eq(expr->op, Expr::binops::APPEND)) {
+            auto list = static_pointer_cast<ListValue>(elems[1]);
+            auto new_list = list->append(static_pointer_cast<SpecValue>(elems[0]));
+
+            return _cache(new_list);
+        } else if (op_eq(expr->op, Expr::binops::CONCAT)) {
+            auto list1 = static_pointer_cast<ListValue>(elems[0]);
+            auto new_list = list1->concat(static_pointer_cast<ListValue>(elems[1]));
+
+            return _cache(new_list);
+        } else if (op_eq(expr->op, Expr::ops::Some))
             return _cache(static_pointer_cast<Option>(val->get_type())->construct("Some", {elems[0]}));
         else if (op_eq(expr->op,Expr::ops::Tuple)) {
             return _cache(static_pointer_cast<Tuple>(val->get_type())->construct(elems));
@@ -1972,6 +2004,12 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             return _cache(static_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems));
         else if (op_eq(expr->op,"zmap_init") || op_eq(expr->op, "ZMap.init"))
             return _cache(val->get_type()->from_z3_value(z3::const_array(z3ctx.int_sort(), elems[0]->get_z3_value())));
+        else if (op_eq(expr->op, "List.is_empty"))
+            return _cache(static_pointer_cast<ListValue>(elems[0])->is_empty());
+        else if (op_eq(expr->op, "List.empty"))
+            return _cache(ListValue::empty(val->get_type()));
+        else if (op_eq(expr->op, "List.eq"))
+            return _cache(static_pointer_cast<ListValue>(elems[0])->eq(static_pointer_cast<ListValue>(elems[1])));
         else if (std::holds_alternative<string>(expr->op)) {
             auto sym = std::get<string>(expr->op);
             auto info = proj->symbols[sym];
@@ -2019,7 +2057,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                 }
             } else {
                 std::cout << "expr: " << string(*expr) << std::endl;
-                throw std::runtime_error("Unknown symbol: " + sym);
+                throw std::runtime_error("(z3_eval) Unknown symbol: " + sym);
             }
         } else if (std::holds_alternative<unique_ptr<SpecNode>>(expr->op)) {
             auto op = z3_eval(proj, std::get<unique_ptr<SpecNode>>(expr->op).get(), state,  check_loop, unfold, used_fixpoint);

@@ -60,7 +60,7 @@ expr_op:
 	op=term term+
 	| expr_op binop=(MULT | DIV | MOD) expr_op
 	| expr_op binop=(ADD | MINUS | BITAND | BITOR) expr_op
-	| expr_op binop=(BEQ | BNE | BGT | BGE | BLT | BLE | BAND | BOR | LSHIFT | RSHIFT | SEQ | SNE) expr_op
+	| expr_op binop=(BEQ | BNE | BGT | BGE | BLT | BLE | BAND | BOR | LSHIFT | RSHIFT | SEQ | SNE | LIST_EQ) expr_op
 	| <assoc=right> expr_op binop=(APPEND | CONCAT) expr_op
 	| exists_expr ',' expr_op
 	| forall_expr ',' expr_op
@@ -147,6 +147,8 @@ BLE: '<=?';
 
 SEQ: '=s';
 SNE: '<>s';
+
+LIST_EQ: '=l';
 
 GET: '@';
 SET: '#';
