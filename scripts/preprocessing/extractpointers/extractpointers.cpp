@@ -101,7 +101,7 @@ class ExtractPointersPass : public llvm::ModulePass {
 
   std::string generatePtrToInt() {
     std::string result = "Definition ptr_to_int (p: Ptr) : Z := \n" \
-    " if (p.(poffset) <? 0) then -1 else\n" \
+    " if (p.(poffset) <? 0) then (-1) else\n" \
     " if (p.(pbase) =s \"status\") then (MAX_ERR + p.(poffset)) else\n" \
     " if (p.(pbase) =s \"null\") then 0 else\n" ;
     // " if (v <? 0 ) then (mkPtr \"null\" 0) else\n";
@@ -115,7 +115,7 @@ class ExtractPointersPass : public llvm::ModulePass {
       // result += "Definition " + gv_name + "_BASE = " + std::to_string(gv_addr[g].first) + "\n";
       result += " if (p.(pbase) =s \"" + gv_name + "\") then (" + gv_name_up + "_BASE + p.(poffset)) else\n";
     }
-    result += "    -1.";
+    result += "    (-1).";
     return result; 
   }
 
@@ -187,7 +187,7 @@ std::string ExtractPointersPass::generateField(llvm::Type* ty) {
       } else if(ety->isStructTy()) {
         return "(ZMap.t " + getStructTypeIdentifier(llvm::dyn_cast<llvm::StructType>(ety)) + ")";
       } else {
-        return "None";
+        return "None (* FIXME: nd array *)";
       }
     }
     default: {
@@ -415,6 +415,7 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
       }
     }
   }
+  result.erase(result.rfind(";"), 1);  // remove the last ;
   result += "    }.\n";
   stack_load_rdata = load_result;
   stack_store_rdata = store_result;
@@ -525,7 +526,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
         "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
         "       let idx := p.(poffset) / " + std::to_string(element_size) + " in\n" \
         "       let elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
-        "       when ret == store_"+ getStructTypeIdentifier(sty) +" sz elem_ofs (st.(share).(globals).(" \
+        "       when ret == load_"+ getStructTypeIdentifier(sty) +" sz elem_ofs (st.(share).(globals).(" \
         + getGVIdentifier(&globalVar) + ") @ idx);\n " \
         "       Some(ret, st)) else\n";
 
@@ -541,6 +542,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
       // llvm::errs() << "Cannot handle." << "\n";
     }
   }
+  g_result.erase(g_result.rfind(";"), 1);  // remove the last ;
   g_result += "    }.\n";
   fout << g_result << "\n(*\n" << g_load_result << "\n*)\n";
   fout << "\n(*\n" << g_store_result << "\n*)\n";
