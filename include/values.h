@@ -325,28 +325,17 @@ public:
     }
 };
 
-class List : public Inductive {
+class List : public SpecType {
 public:
     shared_ptr<SpecType> elem_type;
+    static unordered_map<string, z3::sort> created_z3_types;
+
     List(shared_ptr<SpecType> elem_type) :
-        Inductive(
-            "List_" + elem_type->name,
-            make_shared<vector<shared_ptr<IndConstr>>>(
-                std::initializer_list<shared_ptr<IndConstr>>{
-                    make_shared<IndConstr>(
-                        "cons_" + elem_type->name,
-                        make_shared<vector<shared_ptr<Arg>>>(
-                            std::initializer_list<shared_ptr<Arg>>{
-                                make_shared<Arg>("head_" + elem_type->name, elem_type),
-                                make_shared<Arg>("tail_" + elem_type->name, make_shared<SpecType>("List_" + elem_type->name))
-                            }
-                        )
-                    ),
-                    make_shared<IndConstr>("nil_" + elem_type->name, make_shared<vector<shared_ptr<Arg>>>(vector<shared_ptr<Arg>>()))
-                }
-            )
-        ),
-        elem_type(elem_type) {}
+        SpecType("list_" + elem_type->name),
+        elem_type(elem_type) {
+            auto elem_sort = elem_type->get_z3_type();
+            created_z3_types.emplace(name, z3ctx.seq_sort(elem_sort));
+        }
 
     shared_ptr<List> getptr() {
         return static_pointer_cast<List>(shared_from_this());
@@ -356,9 +345,9 @@ public:
         return "list " + string(*elem_type);
     }
 
-    z3::func_decl concat_func() {
-        return z3::function((name + "_concat").c_str(), get_z3_type(), get_z3_type(), get_z3_type());
-    }
+    // z3::func_decl concat_func() {
+    //     return z3::function((name + "_concat").c_str(), get_z3_type(), get_z3_type(), get_z3_type());
+    // }
 };
 
 class Option : public Inductive {
@@ -569,11 +558,121 @@ public:
 
     shared_ptr<SpecValue> get(string key);
     // shared_ptr<IndValue> set(string key, shared_ptr<SpecValue> value);
-    shared_ptr<IndValue> concat(shared_ptr<IndValue> other);
+    //shared_ptr<IndValue> concat(shared_ptr<IndValue> other);
 
     shared_ptr<BoolValue> eq(shared_ptr<IndValue> other) {
         return make_shared<BoolValue>((value == other->value).simplify());
     }
+};
+
+class ListValue : public SpecValue {
+public:
+    ListValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) {
+        // `typ` should be a List type
+        assert(dynamic_cast<List *>(typ.get()) != nullptr);
+        // `value` should be a Z3 sequence
+        std::cout << "value: " << value << std::endl;
+        assert(value.is_seq());
+    }
+
+    /** Append an element to the head of a list, returns the new list, i.e. `other :: this`.
+     *  Z3 sequence cannot be concatenated with a single element, so we need to
+     *  create a new sequence with the element and then concatenate it.
+     */
+    shared_ptr<SpecValue> append(shared_ptr<SpecValue> other) {
+        auto list_type = static_pointer_cast<List>(typ);
+        auto elem_type = list_type->elem_type;
+        auto other_type = other->get_type();
+        auto elem_sort = elem_type->get_z3_type();
+
+        if (elem_type != other_type) {
+            throw std::runtime_error("Type mismatch: cannot append " + string(*other_type) + " to " + string(*elem_type));
+        }
+
+#if 0
+        std::cout << "elem_sort: " << elem_sort << std::endl;
+        std::cout << "other_sort: " << other->get_z3_value().get_sort() << std::endl;
+#endif
+        // Make `other` a Z3 sequence with a single element
+        auto unit_val = z3::expr(z3ctx, Z3_mk_seq_unit(z3ctx, other->get_z3_value()));
+        // unit_val :: value
+        Z3_ast args[] = { unit_val, value };
+#if 0
+        std::cout << "unit_val: " << unit_val << std::endl;
+        std::cout << "value: " << value << std::endl;
+        std::cout << "unit_val.get_sort()" << unit_val.get_sort() << std::endl;
+        std::cout << "value.get_sort()" << value.get_sort() << std::endl;
+#endif
+        auto concat_decl = Z3_mk_seq_concat(z3ctx, 2, args);
+#if 0
+        std::cout << "concat_decl: " << concat_decl << std::endl;
+#endif
+        auto concat_val = z3::expr(z3ctx, concat_decl);
+#if 0
+        std::cout << "concat_val: " << concat_val << std::endl;
+#endif
+        return make_shared<ListValue>(list_type, concat_val);
+    }
+
+    /** Concatenate two lists, returns the new list, i.e. `this ++ other`.
+     */
+    shared_ptr<SpecValue> concat(shared_ptr<SpecValue> other) {
+        auto list_type = static_pointer_cast<List>(typ);
+        auto elem_type = list_type->elem_type;
+        auto other_type = other->get_type();
+        auto elem_sort = elem_type->get_z3_type();
+
+        if (elem_type != other_type) {
+            throw std::runtime_error("Type mismatch: cannot concatenate " + string(*other_type) + " to " + string(*elem_type));
+        }
+
+        // value ++ other->value
+        Z3_ast args[] = { value, other->get_z3_value() };
+        auto concat_val = z3::expr(z3ctx, Z3_mk_seq_concat(z3ctx, 2, args));
+
+        return make_shared<ListValue>(list_type, concat_val);
+    }
+
+    /** Return the length of the list.
+     */
+    shared_ptr<SpecValue> list_len() {
+        auto len_val = z3::expr(z3ctx, Z3_mk_seq_length(z3ctx, value));
+
+        return make_shared<IntValue>(len_val);
+    }
+
+    /** Return whether the list is empty.
+     * 
+     * Z3 does not have a built-in function to check if a sequence is empty,
+     * so we need to check if the length is 0.
+     */
+    shared_ptr<BoolValue> is_empty() {
+        auto len_val = z3::expr(z3ctx, Z3_mk_seq_length(z3ctx, value));
+        auto is_empty_val = z3::expr(z3ctx, Z3_mk_eq(z3ctx, len_val, z3ctx.int_val(0)));
+
+        return make_shared<BoolValue>(is_empty_val);
+    }
+
+    /** Create an empty list.
+    */
+    static shared_ptr<SpecValue> empty(shared_ptr<SpecType> typ) {
+        auto elem_sort = typ->get_z3_type();
+        auto empty_val = z3::expr(z3ctx, Z3_mk_seq_empty(z3ctx, elem_sort));
+
+        return make_shared<ListValue>(typ, empty_val);
+    }
+
+    /** Check whether two lists are equal, returns a boolean value.
+     */
+    shared_ptr<BoolValue> eq(shared_ptr<ListValue> other) {
+        return make_shared<BoolValue>((value == other->value).simplify());
+    }
+
+    /** Check whether `other` is in the list, returns a boolean value.
+     */
+    // shared_ptr<SpecValue> in(shared_ptr<SpecValue> other) {
+    //     // If the type is an inductive type, we use pattern matching
+    // }
 };
 
 shared_ptr<SpecValue> int_to_ptr();

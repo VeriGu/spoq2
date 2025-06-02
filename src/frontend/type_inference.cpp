@@ -124,6 +124,45 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                     }
                     break;
                 }
+                case Expr::LIST_EQ: {
+                    if (n == 0) {
+                        auto list_type = dynamic_pointer_cast<List>(expr->type);
+
+                        if (list_type)
+                            expr->elems->at(0)->type = list_type->elem_type;
+                        stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
+                        stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
+                    } else if (n == 1) {
+                        auto list_type = dynamic_pointer_cast<List>(expr->type);
+
+                        if (list_type)
+                            expr->elems->at(1)->type = list_type->elem_type;
+                        stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
+                        stack.push_back(std::make_tuple(__LINE__, expr->elems->at(1).get(), 0, known_types));
+                    } else if (n == 2) {
+                        auto elems0_type = expr->elems->at(0)->type;
+                        auto elems1_type = expr->elems->at(1)->type;
+
+                        stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
+                        if (elems0_type != SpecType::UNKNOWN_TYPE && elems1_type == SpecType::UNKNOWN_TYPE) {
+                            expr->elems->at(1)->type = elems0_type;
+                            stack.push_back(std::make_tuple(__LINE__, expr->elems->at(1).get(), 0, known_types));
+                        }
+                    } else if (n == 3) {
+                        auto elems0_type = expr->elems->at(0)->type;
+                        auto elems1_type = expr->elems->at(1)->type;
+
+                        stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
+                        if (elems1_type != SpecType::UNKNOWN_TYPE && elems0_type == SpecType::UNKNOWN_TYPE) {
+                            expr->elems->at(0)->type = elems1_type;
+                            stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
+                        }
+                    } else {
+                        expr->type = expr->elems->at(0)->type;
+                    }
+
+                    break;
+                }
                 case Expr::BAND: case Expr::BOR: {
                     // TODO: xorb
                     if (n < expr->elems->size()) {
@@ -494,6 +533,76 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
                     } else {
                         expr->type = make_shared<ZMap>(expr->elems->at(0)->type);
+                    }
+                } else if (op == "List.is_empty") {
+                    if (n == 0) {
+                        auto list_type = dynamic_pointer_cast<List>(expr->type);
+
+                        if (list_type)
+                            expr->elems->at(0)->type = list_type->elem_type;
+                        stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
+                        stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
+                    } else {
+                        expr->type = make_shared<List>(expr->elems->at(0)->type);
+                    }
+                } else if (op == "List.eq") {
+                    if (n == 0) {
+                        auto list_type = dynamic_pointer_cast<List>(expr->type);
+
+                        if (list_type)
+                            expr->elems->at(0)->type = list_type->elem_type;
+                        stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
+                        stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
+                    } else if (n == 1) {
+                        auto list_type = dynamic_pointer_cast<List>(expr->type);
+
+                        if (list_type)
+                            expr->elems->at(1)->type = list_type->elem_type;
+                        stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
+                        stack.push_back(std::make_tuple(__LINE__, expr->elems->at(1).get(), 0, known_types));
+                    } else {
+                        expr->type = Bool::BOOL;
+                    }
+                } else if (op == "List.empty") {
+                    // std::cout << "List.empty" << std::endl;
+                    // std::cout << "expr: " << string(*expr) << std::endl;
+                    // std::cout << "expr->elems[0]: " << string(*expr->elems->at(0)->type) << std::endl;
+                    // for (const auto &known_type : *known_types) {
+                    //     std::cout << "known_types: " << known_type.first << " -> " << string(*known_type.second) << std::endl;
+                    // }
+
+                    // for (const auto &def: proj.indtypes) {
+                    //     std::cout << "typedefs: " << def.first << " -> " << string(*def.second) << ", name: " << def.second->name << std::endl;
+                    // }
+
+                    // for (const auto &def: proj.structs) {
+                    //     std::cout << "typedefs: " << def.first << " -> " << string(*def.second) << ", name: " << def.second->name << std::endl;
+                    // }
+
+                    auto type_symbol = string(*expr->elems->at(0));
+                    auto type_symbol_info = proj.symbols.find(type_symbol);
+
+                    if (type_symbol_info != proj.symbols.end()) {
+                        auto type_kind = type_symbol_info->second.kind;
+                        shared_ptr<SpecType> type;
+
+                        if (type_kind == SymbolKind::IndType) {
+                            auto indtype_it = proj.indtypes.find(type_symbol);
+                            assert(indtype_it != proj.indtypes.end());
+
+                            type = indtype_it->second;
+                        } else if (type_kind == SymbolKind::Struct) {
+                            auto struct_it = proj.structs.find(type_symbol);
+                            assert(struct_it != proj.structs.end());
+
+                            type = struct_it->second;
+                        } else {
+                            throw std::runtime_error("unknown List.empty type: " + type_symbol);
+                        }
+
+                        expr->type = make_shared<List>(type);
+                    } else {
+                        throw std::runtime_error("unknown List.empty type");
                     }
                 } else if (proj.symbols.find(op) != proj.symbols.end() || op.compare(0, 5, "llvm.") == 0) {
                     if (op.compare(0, 5, "llvm.") == 0) {

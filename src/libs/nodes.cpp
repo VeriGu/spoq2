@@ -83,6 +83,7 @@ const unordered_map<Expr::binops, string> Expr::binops_to_str_map = {
     {LSHIFT, "<<"},
     {RSHIFT, ">>"},
     {SEQ, "=s"},
+    {LIST_EQ, "=l"},
     {SNE, "<>s"},
     {APPEND, "::"},
     {CONCAT, "++"},

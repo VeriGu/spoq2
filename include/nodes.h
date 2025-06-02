@@ -389,7 +389,7 @@ public:
     enum binops {
         MULT, DIV, MOD,
         ADD, MINUS, BITAND, BITOR,
-        BEQ, BNE, BGT, BGE, BLT, BLE, BAND, BOR, LSHIFT, RSHIFT, SEQ, SNE,
+        BEQ, BNE, BGT, BGE, BLT, BLE, BAND, BOR, LSHIFT, RSHIFT, SEQ, SNE, LIST_EQ,
         APPEND, CONCAT,
         EQUAL, NOT_EQUAL, LT, LTE, GT, GTE, IFONLYIF, OR, AND, IMPLIES,
         // Zlnot, Zlxor, Ztestbit,

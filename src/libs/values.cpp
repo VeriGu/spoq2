@@ -21,6 +21,7 @@ z3::context z3ctx;
 
 unordered_map<string, z3::sort> Inductive::created_z3_types;
 unordered_map<string, z3::sort> Struct::created_z3_types;
+unordered_map<string, z3::sort> List::created_z3_types;
 
 z3::func_decl land_func = z3ctx.function("land", z3ctx.int_sort(), z3ctx.int_sort(), z3ctx.int_sort());
 z3::func_decl lor_func = z3ctx.function("lor", z3ctx.int_sort(), z3ctx.int_sort(), z3ctx.int_sort());
@@ -67,6 +68,8 @@ z3::sort SpecType::get_z3_type() {
         return Inductive::created_z3_types.at(name);
     } else if (Struct::created_z3_types.find(name) != Struct::created_z3_types.end()) {
         return Struct::created_z3_types.at(name);
+    } else if (List::created_z3_types.find(name) != List::created_z3_types.end()) {
+        return List::created_z3_types.at(name);
     }
 
     return z3ctx.uninterpreted_sort(name.c_str());
@@ -360,17 +363,17 @@ shared_ptr<SpecValue> IndValue::get(string key) {
 //     return nullptr;
 // }
 
-shared_ptr<IndValue> IndValue::concat(shared_ptr<IndValue> other) {
-    assert(is_instance(typ.get(), List));
-    assert(is_instance(other->typ.get(), List));
+// shared_ptr<IndValue> IndValue::concat(shared_ptr<IndValue> other) {
+//     assert(is_instance(typ.get(), List));
+//     assert(is_instance(other->typ.get(), List));
 
-    if(auto type = instance_of(typ.get(), List)) {
-        z3::func_decl f = type->concat_func();
-        return dynamic_pointer_cast<IndValue>(type->from_z3_value(f(get_z3_value(), other->get_z3_value())));
-    }
+//     if(auto type = instance_of(typ.get(), List)) {
+//         z3::func_decl f = type->concat_func();
+//         return dynamic_pointer_cast<IndValue>(type->from_z3_value(f(get_z3_value(), other->get_z3_value())));
+//     }
 
-    throw std::runtime_error("Not a list type");
-}
+//     throw std::runtime_error("Not a list type");
+// }
 
 // ----------------------------------------------------------------------------
 // IndConstr

@@ -176,11 +176,17 @@ shared_ptr<SpecValue> z3_expr(Project* proj, SpecNode* val, shared_ptr<EvalState
             }
 
             return _cache(elems[0]);
-        } else if (op_eq(expr->op, Expr::binops::APPEND))
-            return _cache(static_pointer_cast<List>(val->get_type())->construct("cons", {elems[0], elems[1]}));
-        else if (op_eq(expr->op, Expr::binops::CONCAT))
-            return _cache(static_pointer_cast<IndValue>(elems[0])->concat(static_pointer_cast<IndValue>(elems[1])));
-        else if (op_eq(expr->op, Expr::ops::Some))
+        } else if (op_eq(expr->op, Expr::binops::APPEND)) {
+            auto list = static_pointer_cast<ListValue>(elems[1]);
+            auto new_list = list->append(elems[0]);
+
+            return _cache(new_list);
+        } else if (op_eq(expr->op, Expr::binops::CONCAT)) {
+            auto list1 = static_pointer_cast<ListValue>(elems[0]);
+            auto new_list = list1->concat(elems[1]);
+
+            return _cache(new_list);
+        } else if (op_eq(expr->op, Expr::ops::Some))
             return _cache(static_pointer_cast<Option>(val->get_type())->construct("Some", {elems[0]}));
         else if (op_eq(expr->op,Expr::ops::Tuple)) {
             return _cache(static_pointer_cast<Tuple>(val->get_type())->construct(elems));
