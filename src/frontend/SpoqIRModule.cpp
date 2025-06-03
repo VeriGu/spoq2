@@ -77,7 +77,7 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
     if (!SpoqIRModule::validate_for_gen_low_spec(proj, fname, layer_id)) return false;
 
     SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs.at(fname);
-    SpoqIRContext context(spoq_func, proj->layers[layer_id], layer_id, proj->abs_config);
+    SpoqIRContext context(spoq_func, proj->layers[layer_id], layer_id, proj->abs_config, proj->abs_layout);
 
     unique_ptr<vector<shared_ptr<Arg>>> args = std::make_unique<vector<shared_ptr<Arg>>>();
     for(auto &arg : spoq_func.llvm_func->args()) {

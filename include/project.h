@@ -137,6 +137,7 @@ public:
     SpoqIRModule spoq_code;
     // Types. RO after parsing.
     std::vector<SpoqAbstraction> abs_config;
+    std::vector<SpoqAbstractionLayout> abs_layout;
     std::map<std::string, std::map<std::string, std::string>> abs_var;
 
     unordered_map<string, shared_ptr<Struct>> structs;
@@ -206,6 +207,8 @@ public:
         std::unordered_map<string, std::unordered_map<string, string>> StackMap;
     };
     cmds cmds;
+    int parse_cmd_int(unique_ptr<Expr>& cmd, int index);
+    std::string parse_cmd_string(unique_ptr<Expr>& cmd, int index);
 
     unordered_map<string, std::set<string>> deps;
     unordered_map<string, std::set<string>> prim_deps;

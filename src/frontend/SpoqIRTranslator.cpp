@@ -583,14 +583,29 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 assert(bool_binops_lut.find(bi->getOpcode()) != bool_binops_lut.end() && "Binary operation not supported");
                 expr = std::make_unique<Expr>(bool_binops_lut.at(bi->getOpcode()), std::move(operands));
             } else if(binops_lut.find(bi->getOpcode()) != binops_lut.end()) {
-                expr = std::make_unique<Expr>(binops_lut.at(bi->getOpcode()), std::move(operands));
+                bool shift_to_div = (bi->getOpcode() == llvm::Instruction::BinaryOps::LShr || bi->getOpcode() == llvm::Instruction::BinaryOps::AShr) 
+                    && bi->getOperand(0)->getType()->isIntegerTy(64) && bi->getOperand(1)->getType()->isIntegerTy(64);
+                bool shift_to_mul = bi->getOpcode() == llvm::Instruction::BinaryOps::Shl && bi->getOperand(0)->getType()->isIntegerTy(64) && bi->getOperand(1)->getType()->isIntegerTy(64);
+                auto num = llvm::dyn_cast<llvm::ConstantInt>(bi->getOperand(1));        
+                if (num && (shift_to_div || shift_to_mul)) {
+                    auto val = num->getZExtValue();
+                    operands->pop_back();
+                    operands->push_back(std::make_unique<IntConst>(1LL << val));
+                    if (shift_to_div) 
+                       expr = std::make_unique<Expr>(Expr::binops::DIV, std::move(operands));
+                    else  if (shift_to_mul)
+                       expr = std::make_unique<Expr>(Expr::binops::MULT, std::move(operands));
+                    else assert(false && "unexpected shift operation");
+                } else {
+                   expr = std::make_unique<Expr>(binops_lut.at(bi->getOpcode()), std::move(operands));
+                }
             } else if (bi->getOpcode() == llvm::Instruction::BinaryOps::Xor) {
                 if(bi->getOperand(0)->getType()->isIntegerTy(1)) {
                     expr = std::make_unique<Expr>("xorb", std::move(operands));
                 } else {
                     expr = std::make_unique<Expr>("Z.lxor", std::move(operands));
                 }
-            }
+            } 
             if (expr == nullptr) {
                 llvm::errs() << "Binary operation not supported: " << *bi << "\n";
                 assert(false && "Binary operation not supported");
