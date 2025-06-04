@@ -200,6 +200,28 @@ void Project::add_loop_inv(unique_ptr<Expr> inv) {
     }
 }
 
+int Project::parse_cmd_int(unique_ptr<Expr>& cmd, int index) {
+    assert(index < cmd->elems->size());
+    auto ptr = cmd->elems->at(index).get();
+    if (auto num = dynamic_cast<IntConst *>(ptr)) {
+        return (int)(num->get_value());
+    }
+    std::cout << "parse cmd int fail: " << string(*cmd) << ", index: " << index << ", elem: " << string(*ptr) << std::endl;
+    assert(false && "parse_cmd_int: expected IntConst");
+}
+
+std::string Project::parse_cmd_string(unique_ptr<Expr>& cmd, int index) {
+    assert(index < cmd->elems->size());
+    auto ptr = cmd->elems->at(index).get();
+    if (auto str = dynamic_cast<Symbol *>(ptr)) {
+        return str->text;
+    } else if (auto con = dynamic_cast<Const *>(ptr)) {
+        return string(*con);
+    }
+    std::cout << "parse cmd string fail: " << string(*cmd) << ", index: " << index << ", elem: " << string(*ptr) << std::endl;
+    assert(false && "parse_cmd_string: expected Symbol or Const");
+}
+
 void Project::add_command(unique_ptr<Expr> cmd) {
     if (std::holds_alternative<string>(cmd->op)) {
         string op_str = std::get<string>(cmd->op);
@@ -295,6 +317,21 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             auto &abs = this->abs_config.back();
             abs.raw_spec_name = dynamic_cast<Symbol *>(cmd->elems->at(0).get())->text;
             abs.abs_spec_name = dynamic_cast<Symbol *>(cmd->elems->at(1).get())->text;
+        } else if (op_str == "AbstractLayout") {
+            this->abs_layout.push_back(SpoqAbstractionLayout());
+            auto &abs = this->abs_layout.back();
+            abs.struct_name = parse_cmd_string(cmd, 0);
+            auto size = parse_cmd_int(cmd, 1);
+            for(int i = 0; i < size; i++) {
+                auto field = parse_cmd_string(cmd, 2 + i * 3 + 0);
+                auto start = parse_cmd_int(cmd, 2 + i * 3 + 1);
+                auto end = parse_cmd_int(cmd, 2 + i * 3 + 2);
+                abs.fields.push_back(std::make_pair<>(field, std::make_pair<>(start, end)));
+            }
+            std::cout << "Abstract Layout: " << abs.struct_name << ", size: " << size << std::endl;
+            for (int i = 0; i < size; i ++) {
+                std::cout << "Field: " << abs.fields[i].first << ", start: " << abs.fields[i].second.first << ", end: " << abs.fields[i].second.second << std::endl;
+            }
         } else if(op_str == "CheckInv"){
             //Check a primitive's invariant
             assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
@@ -1400,13 +1437,28 @@ void Project::prepare_abstraction() {
         // TODO: support custom raw_core_name and abs_core_name
     }
 
+
+    for (auto &abs: this->abs_layout) {
+        auto typ = dynamic_cast<Struct*>(this->structs.at(abs.struct_name).get());
+        for (auto &field: abs.fields) {
+            std::cout << "Field: " << field.first << " " << std::endl;
+            auto sty = dynamic_cast<Struct*>(typ->elems_map[field.first].get());
+            if (sty) {
+                std::cout << "Found struct: " << sty->name << std::endl;
+                abs.rich_fields[field.first] = sty->name;
+            }
+        }
+        abs.compute_smart_configs(this->typedefs, true);
+    }
+
+
     auto& context = this->spoq_code.llvm_module->getContext();
     std::regex arg_pattern(R"(arg_(\d+))");
     std::regex ret_pattern(R"(ret_(\d+))");
     for  (auto &pair: this->abs_var) {
         std::cout << "Function: " << pair.first << std::endl;
         auto func = spoq_code.llvm_module->getFunction(pair.first);
-        if (func == nullptr || func->isDeclaration())  {
+        if (func == nullptr)  {
             std::cout << "[no function]Abstraction is not usedfor function: " << pair.first << std::endl;
             continue;
         }

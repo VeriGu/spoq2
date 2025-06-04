@@ -85,14 +85,15 @@ std::string ExtractBasicsPass::generateStoreZMapField(std::string obj, int offse
   int element_size = dl->getTypeAllocSize(ety);
   result =  "  if (ofs >=? " + std::to_string(offset) + ") && (ofs <? " + std::to_string(offset + size) + ") then (\n";
   result += "    let idx := (ofs - " + std::to_string(offset) + ") / " + std::to_string(element_size) + " in\n";
-  if( ety->isIntegerTy() ) {
+  if( ety->isIntegerTy() || ety->isPointerTy() ) {
     result += "    Some (" + obj + ".[" + field + "] :< (st.(" + field + ") # idx == v))) else";
   } else if(auto sty = llvm::dyn_cast<llvm::StructType>(ety)){
     result += "    let elem_ofs := (ofs - " + std::to_string(offset) + ") mod " + std::to_string(element_size) + " in\n";
     result += "    when ret == store_" + getStructTypeIdentifier(sty) + " sz elem_ofs v (" + obj + ".(" + field + ") @ idx);\n";
     result += "    Some (" + obj + ".[" + field + "] :< (st.(" + field +") # idx == ret))) else ";
   } else {
-    result += "    None. (* nested vector not supported *) ) else ";
+    result =  "  if (ofs >=? " + std::to_string(offset) + ") && (ofs <? " + std::to_string(offset + size) + ") then (\n";
+    result += "    None (* nested vector not supported *) ) else ";
   }
   return result;
 }
@@ -180,13 +181,14 @@ std::string ExtractBasicsPass::generateLoadZMapField(std::string obj, int offset
   int element_size = dl->getTypeAllocSize(ety);
   result =  "  if (ofs >=? " + std::to_string(offset) + ") && (ofs <? " + std::to_string(offset + size) + ") then (\n";
   result += "    let idx := (ofs - " + std::to_string(offset) + ") / " + std::to_string(element_size) + " in\n";
-  if( ety->isIntegerTy() ) {
+  if( ety->isIntegerTy() || ety->isPointerTy() ) {
     result += "    Some (" + obj + ".(" + field + ") @ idx)) else";
   } else if(auto sty = llvm::dyn_cast<llvm::StructType>(ety)){
     result += "    let elem_ofs := (ofs - " + std::to_string(offset) + ") mod " + std::to_string(element_size) + " in\n";
     result += "    load_"+ getStructTypeIdentifier(sty) +" sz elem_ofs (" + obj + ".(" + field + ") @ idx)) else";
   } else {
-    result += "    None. (* nested vector not supported *)";
+    result =  "  if (ofs >=? " + std::to_string(offset) + ") && (ofs <? " + std::to_string(offset + size) + ") then (\n";
+    result += "    None (* nested vector not supported *) ) else ";
   }
   return result;
 }
@@ -239,13 +241,13 @@ std::string ExtractBasicsPass::generateField(llvm::Type* ty) {
     case llvm::Type::TypeID::ArrayTyID: {
       auto aty = llvm::dyn_cast<llvm::ArrayType>(ty);
       auto ety = aty->getElementType();
-      if( ety->isIntegerTy() ) {
+      if( ety->isIntegerTy() || ety->isPointerTy() ) {
       // TODO: assert Array is [constant x iXXX]
         return "(ZMap.t Z)";
       } else if(ety->isStructTy()) {
         return "(ZMap.t " + getStructTypeIdentifier(llvm::dyn_cast<llvm::StructType>(ety)) + ")";
       } else {
-        return "None";
+        return "None (* FIXME: complex array *)";
       }
     }
     default: {
@@ -301,6 +303,11 @@ void ExtractBasicsPass::runStruct(llvm::StructType *ty) {
       generated_types[ty].push_back(e);
       count += 1;
     }
+
+    if (count == 0) {
+      record += "    dummy : Z\n";  /* type opaque */
+    }
+
     record += " }.";
     auto load = generateLoad(ty);
     auto store = generateStore(ty);

@@ -42,6 +42,7 @@
 
 namespace autov {
 
+    class SpoqAbstractionLayout;
     class SpoqAbstraction {
     public:
         unique_ptr<SpecNode> get_raw_node() { return raw_expr->deep_copy_down(); }
@@ -54,7 +55,31 @@ namespace autov {
 
         std::string raw_spec_name;
         std::string abs_spec_name;
+
+        std::set<std::string> in_any_map;
+        std::function<std::unique_ptr<SpecNode>(std::map<std::string, unique_ptr<SpecNode>>&)> any_map;
     };
+
+    class SpoqAbstractionLayout {
+    public:
+        std::string struct_name;
+        std::vector<std::pair<std::string, std::pair<int, int>>> fields;
+
+        std::map<std::string, std::string> rich_fields;
+
+        std::vector<SpoqAbstraction> smart_configs;
+
+        void compute_smart_configs(std::unordered_map<string, shared_ptr<SpecType>>& types, bool force_compute = false);
+        void compute_and_mask();
+        void compute_and_mask_eq();
+        void compute_upgrade_or();
+        void compute_or();
+
+        // Return is_rich, spec node pair
+        std::pair<bool, unique_ptr<SpecNode>> get_elem_as_Z(unique_ptr<SpecNode> record, std::string field);
+    };
+
+
 
     class SpoqAbstractionContext {
       public:
@@ -86,7 +111,6 @@ namespace autov {
         }
 
         unique_ptr<SpecNode> get_cache(std::string name) {
-            // TODO: support multiple core
             if (name == abs.abs_core_name) name = abs.raw_core_name;
             else assert(false && "only support abs_core_name");
             if (core_map.find(name) != core_map.end()) {
@@ -546,7 +570,8 @@ namespace autov {
      class SpoqIRContext {
     public:
 
-        SpoqIRContext(SpoqFunction& spoq_func_, unique_ptr<Layer>& layer, int id, std::vector<SpoqAbstraction>& abs_config) :  abs_config(abs_config), spoq_func(spoq_func_) {
+        SpoqIRContext(SpoqFunction& spoq_func_, unique_ptr<Layer>& layer, int id, std::vector<SpoqAbstraction>& abs_config,
+            std::vector<SpoqAbstractionLayout>& abs_layout) :  abs_config(abs_config), abs_layout(abs_layout), spoq_func(spoq_func_) {
             if(layer->ops["load"] != "") load_op_name = layer->ops["load"];
             if(layer->ops["store"] != "") store_op_name = layer->ops["store"];
             if(layer->ops["ptr2int"] != "") ptr2int_op_name = layer->ops["ptr2int"];
@@ -562,6 +587,7 @@ namespace autov {
         int counter = 0;
 
         std::vector<SpoqAbstraction>& abs_config;
+        std::vector<SpoqAbstractionLayout>& abs_layout;
         const std::string abs_data_name = "st";
         shared_ptr<SpecType> abs_data_type = nullptr;
         std::string load_op_name = "load_RData";
