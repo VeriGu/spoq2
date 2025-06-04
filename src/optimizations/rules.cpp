@@ -1774,7 +1774,7 @@ static bool is_const_zero(SpecNode *node) {
 }
 /**
  * @brief Recursively substitutes [name] with [value] in [spec] until [name] is assigned by a value using Match in [spec].
- * 
+ * @deprecated use subst_v2 instead
  * @details Example usage:
  * ```
  * subst(let x := x + 1 in x, "x", 1) => let x := 1 + 1 in x

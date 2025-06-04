@@ -837,11 +837,6 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 		for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 			auto new_state = state->copy();
             auto pat = (*pm)->pattern.get();
-            resolve_pattern(proj, m, pat, src, new_state);
-            // auto res = z3_check(new_state, Z3_TIMEOUT);
-            // if(res == Z3Result::False) {
-            //     continue;
-            // }
             if (!std::holds_alternative<std::nullptr_t>(abst_spec)) {
                 //instantiate the loop postconditions here
                 if (auto expr = instance_of(m->src.get(), Expr)) {
@@ -861,6 +856,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                                                     if(auto sym = instance_of(elem, Symbol)) {
                                                         names.push_back(loop->name + "_" + loop->args->at(i)->name + "_new");
                                                         elems.push_back(sym->deep_copy());
+                                                        (*new_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
                                                     }
                                                 }
                                                 auto new_inv = subst_v2(proj, move(loop_post_cond), &names, &elems);
@@ -869,6 +865,9 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                                                 new_state->conds->push_back(new_inv_z3->get_z3_value());
                                             }
                                         } else if(p->elems->at(0)->type == proj->layers[0]->abs_data){
+                                            if(auto sym = instance_of(p->elems->at(0).get(), Symbol)) {
+                                                (*new_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
+                                            }
                                             auto new_inv = subst_v2(proj, move(loop_post_cond), loop->name + "_" + "st_new", p->elems->at(0)->deep_copy());
                                             LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << string(*new_inv);
                                             auto new_inv_z3 = z3_eval(proj, new_inv.get(), new_state, true, false, used_fix);
@@ -889,6 +888,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                                                 for(int i = 0; i < t->elems->size(); i++) {
                                                     auto elem = t->elems->at(i).get();
                                                     if(auto sym = instance_of(elem, Symbol)) {
+                                                        (*new_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
                                                         if(i + 1 == t->elems->size()) {
                                                             names.push_back(def->name + "_st_new_");
                                                             elems.push_back(sym->deep_copy());
@@ -904,7 +904,9 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                                                 new_state->conds->push_back(new_inv_z3->get_z3_value());
                                             }
                                         } else if(p->elems->at(0)->type == proj->layers[0]->abs_data) {
-                                            LOG_DEBUG << "name: " << def->name + "_st_new_";
+                                            if(auto sym = instance_of(p->elems->at(0).get(), Symbol)) {
+                                                (*new_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
+                                            }
                                             auto new_inv = subst_v2(proj, move(post_cond), def->name + "_st_new_", p->elems->at(0)->deep_copy());
 
                                             LOG_DEBUG << "Adding postcondition: " << string(*new_inv);
@@ -944,6 +946,8 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                         new_state->add_induction(lemma_expr->get_z3_value());
                     }
                 }
+            } else {
+                resolve_pattern(proj, m, pat, src, new_state);
             }
             verify_success &= prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs, mode, fname);
 			// if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs)) {
@@ -1259,6 +1263,7 @@ void spec_prover(Project *proj) {
         }
     }
 
+    auto begin = std::chrono::high_resolution_clock::now();
     //check loop_invariant, only check what's needed.
     if(OPTS.check_loop_inv || OPTS.check_pre_post) {
         //check all the loops that have invariants provided.
@@ -1284,6 +1289,9 @@ void spec_prover(Project *proj) {
             }
         }
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto loop_pre_post_cost = std::chrono::duration<double>(end - begin).count();
+
 
     Z3Cache.clear();
     PROFILE_START(simulation_non_det);
@@ -1326,7 +1334,8 @@ void spec_prover(Project *proj) {
         LOG_INFO << "Invariant " << inv.first << " takes " << inv.second << " (s)";
         inv_total += inv.second;
     }
-    LOG_INFO << "Total time for invariant checking: " << inv_total << " (s)";
+    LOG_INFO << "Total time for system invariant checking: " << inv_total << " (s)";
+    LOG_INFO << "Total time for loop invariant/pre post condition checking: " << loop_pre_post_cost << " (s)";
     profile_print_simulation();
 }
 }
