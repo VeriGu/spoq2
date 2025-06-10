@@ -624,8 +624,9 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
 
             unique_ptr<SpecNode> sym = context.get_llvm_value_spec(bi);
             context.add_cache(context.get_llvm_value_name(bi), expr);
-            auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
             auto new_expr = context.apply_abstraction(std::move(expr));
+            context.add_cache(context.get_llvm_value_name(bi), new_expr);
+            auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
             auto _let =  Shortcut::_Let_u(std::move(sym), std::move(new_expr), std::move(remain));
             if (rely_expr) {
                 return std::make_unique<Rely>(std::move(rely_expr), std::move(_let));

@@ -13,7 +13,7 @@ namespace autov {
 std::pair<bool, unique_ptr<SpecNode>> SpoqAbstractionLayout::get_elem_as_Z(unique_ptr<SpecNode> record, std::string field) {
     if (rich_fields.find(field) != rich_fields.end()) {
         auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
-        vec->push_back(std::move(record));
+        vec->push_back(Shortcut::_field_u(std::move(record), field));
         return {true, std::make_unique<Expr>(rich_fields[field] + "_to_Z", std::move(vec))};
     } else {
         return {false, Shortcut::_field_u(std::move(record), field)};
@@ -222,13 +222,15 @@ void SpoqAbstractionLayout::compute_upgrade_or() {
                 } else {
                     if (mask_flag) {
                         auto flag = ((1LL << (field.second.second - field.second.first + 1)) - 1) << field.second.first;
-                        // std::cout << "flag: " << flag << " field: " << field.first << " " << field.second.first << " " << field.second.second << std::endl;
                         components->push_back(std::make_unique<IntConst>( (mask_flag->get_value() & flag) >> field.second.first));
                     } else
                         return nullptr;
                 }
             }
-            return std::make_unique<Expr>("mk" + that->struct_name, std::move(components));
+            auto expr = std::make_unique<Expr>("mk" + that->struct_name, std::move(components));
+            auto vec2 = std::make_unique<vector<unique_ptr<SpecNode>>>();
+            vec2->push_back(std::move(expr));
+            return std::make_unique<Expr>(that->struct_name + "_to_Z", std::move(vec2));
         };
     }
 }
