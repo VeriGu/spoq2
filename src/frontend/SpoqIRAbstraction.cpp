@@ -258,6 +258,7 @@ void SpoqAbstractionLayout::compute_or() {
 
         auto mask_flag = dynamic_cast<IntConst *>(core_map["any_flag"].get());
         std::unique_ptr<SpecNode> expr = std::make_unique<Symbol>(name);
+        bool modified = false;
         if (mask_flag) {
           std::unique_ptr<std::vector<unique_ptr<SpecNode>>> components = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
           for (auto &field : that->fields) {
@@ -270,9 +271,11 @@ void SpoqAbstractionLayout::compute_or() {
                 vec->push_back(std::make_unique<Symbol>(field.first));
                 vec->push_back(std::make_unique<IntConst>( (mask_flag->get_value() & flag) >> field.second.first));
                 expr = std::make_unique<Expr>(Expr::RecordSet, std::move(vec));
+                modified = true;
                 // std::cout << "set: " << string(*expr.get()) << std::endl;
               } else continue;
           }
+          if (!modified) return nullptr;
           auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
         //   std::cout << "expr: " << string(*expr.get()) << std::endl;
           vec->push_back(std::move(expr));
