@@ -119,6 +119,42 @@ unsigned long z3_checks = 0;
 unsigned long z3_cache_hits = 0;
 std::chrono::duration<double> z3_accumulative_time = std::chrono::duration<double>::zero();
 
+/** The z3 library sometimes timeouts. 
+ *  This function uses CLI z3 instead to recheck the last query 
+ * */
+Z3Result fallback_z3_cli(QueryInfo *qinfo) {
+    if (!qinfo || qinfo->query_id == 0) 
+        return Z3Result::Unknown;
+
+    std::string file = qinfo->query_dir 
+                     + "/query_" 
+                     + std::to_string(qinfo->query_id - 1) 
+                     + ".smt2";
+    std::string cmd  = "z3 " + file;
+
+    LOG_DEBUG << "Fallback to z3 CLI: " << cmd;
+    LOG_DEBUG << "Rechecking query: " << file;
+
+    std::array<char,128> buffer;
+    std::string output;
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (!pipe) 
+        return Z3Result::Unknown;
+
+    while (fgets(buffer.data(), buffer.size(), pipe))
+        output += buffer.data();
+    pclose(pipe);
+
+    if (output.find("unsat") != std::string::npos) {
+        LOG_DEBUG << "Hey! Recheck passed!";
+        return Z3Result::True;
+    }
+    if (output.find("sat")   != std::string::npos) return Z3Result::Sat;
+    
+    z3_unknowns++;
+    return Z3Result::Unknown;
+}
+
 /** specialized z3 checker for automated proof
  *  1. only check !cond if UNSAT (True) or not
  *  2. automatically dump queries
@@ -367,8 +403,8 @@ Z3Result z3_check_unsat(shared_ptr<ProveState> state, z3::expr cond, z3::model& 
         ce = solver.get_model();
         return Z3Result::Sat;
     } else {
-        z3_unknowns++;
-        return Z3Result::Unknown;
+        return fallback_z3_cli(qinfo);
+        // return Z3Result::Unknown;
     }
 }
 
