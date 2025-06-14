@@ -11,12 +11,27 @@
             "preLaunchTask": "CMake: build debug"
         },
         {
-            "name": "(lldb) Launch Spoq LLVM",
+            "name": "(lldb) Launch Spoq TF-RMM Artifact",
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
-            "args": ["test/rcsm-llvm/test.v", "--llvm", "--new-trans", 
+            "args": ["test/rmm-pa/test.v", "--llvm", "--new-trans", "--transform-io",
+            //  "--no-coi",
+            //  "--no-profile",
+            "--race", "--race-timeout=100",
             "--check-simulation",
+            // "--decom-check-simul",
+            ], // Any command-line arguments
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "(lldb) Launch Spoq SeKVM",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["test/sekvm-6.1/test.v", "--llvm", "--new-trans",  "--transform-io",
+            // "--check-simulation",
             // "--decom-check-simul",
             ], // Any command-line arguments
             "cwd": "${workspaceFolder}",
