@@ -241,6 +241,8 @@ public:
 
     void add_loop_inv(unique_ptr<Expr> cmd);
 
+    void add_options();
+    
     bool is_ind_constr(string name);
     bool is_struct_constr(string name);
     shared_ptr<SpecType> get_indtype_by_constr(string name);

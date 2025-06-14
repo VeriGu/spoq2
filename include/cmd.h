@@ -26,6 +26,7 @@ public:
     bool transform_io = false;
     bool race = false;
     int race_timeout = 120; // 2min as default
+    std::string target_spec   = "";  
 
     std::string query_path;
     std::string config_file;
@@ -92,6 +93,9 @@ public:
             ("transform-io", po::bool_switch()->default_value(false), "transform io path")
             ("race", po::bool_switch()->default_value(false), "multi-solver support")
             ("race-timeout", po::value<int>(&race_timeout)->default_value(race_timeout), "Z3 CPU limit in seconds")
+            ("target-transition",
+             po::value<std::string>(&target_spec)->default_value(target_spec),
+             "To-be-verified top-level transition function")
             ;
 
         po::positional_options_description p;
