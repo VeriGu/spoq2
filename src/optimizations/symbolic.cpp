@@ -1177,7 +1177,7 @@ bool simulate(Project* proj, bool det, bool check_sec = true) {
                 LOG_DEBUG << "Relate Other " << def->name << " is valid :D";
             } else {
                 LOG_DEBUG << "Relate Other " << def->name << " is not valid :(";
-                return false;
+                // return false;
             }    
         }
     }

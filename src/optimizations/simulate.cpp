@@ -518,7 +518,7 @@ namespace autov
 			l_args->push_back(arg);
 		}
 		auto spec_def = new Definition(spec->name, spec->rettype, std::move(l_args), spec->body->deep_copy());
-		//coi_reduction(proj, spec_def, rel->body.get());
+		coi_reduction(proj, spec_def, rel->body.get());
 
 		spec_body = spec_def->body.get();
 		if (!impl) {
