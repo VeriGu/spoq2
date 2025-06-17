@@ -1273,20 +1273,22 @@ void spec_prover(Project *proj) {
     //check loop_invariant, only check what's needed.
     if(OPTS.check_loop_inv || OPTS.check_pre_post) {
         //check all the loops that have invariants provided.
+        for(auto prim : proj->cmds.invs) {
+            used_abstract_funcs.insert(prim);
+        }
         while(used_abstract_funcs.size() > 0) {
             auto func = *(used_abstract_funcs.begin());
             used_abstract_funcs.erase(used_abstract_funcs.begin());
             if(proj->defs.find(func) != proj->defs.end()){
                 auto def = proj->defs[func].get();
-                LOG_DEBUG << "Checking Loop Invariant: " << def->name;
                 if(is_instance(def, Fixpoint) && OPTS.check_loop_inv) {
                     if(check_loop_inv_v2(proj, def, used_abstract_funcs))
                         LOG_DEBUG << "loop invariant: " << func << " is inductive :)";
                     else
                         LOG_ERROR << "loop invariant: " << func << "is not inductive! :(";
-                } else if(is_instance(def, Definition) && OPTS.check_pre_post){
+                } else if(!is_instance(def, Fixpoint) && is_instance(def, Definition) && OPTS.check_pre_post){
                     if(check_pre_post(proj, def, used_abstract_funcs))
-                        LOG_ERROR << "Precondition imply post condition :) " << func;
+                        LOG_DEBUG << "Precondition imply post condition :) " << func;
                     else
                         LOG_ERROR << "Precondition does not imply post condition :( " << func;
                 }
@@ -1300,15 +1302,15 @@ void spec_prover(Project *proj) {
 
 
     Z3Cache.clear();
-    PROFILE_START(simulation_non_det);
-    if (OPTS.check_simulation) {
-        if(simulate(proj, false)) {
-            LOG_DEBUG << "Nondet Relational Property Valid! :D";
-        } else {
-            LOG_DEBUG << "Nondet Relational Property not Valid! :D";
-        }
-    }
-    PROFILE_END(simulation_non_det);
+    // PROFILE_START(simulation_non_det);
+    // if (OPTS.check_simulation) {
+    //     if(simulate(proj, false)) {
+    //         LOG_DEBUG << "Nondet Relational Property Valid! :D";
+    //     } else {
+    //         LOG_DEBUG << "Nondet Relational Property not Valid! :D";
+    //     }
+    // }
+    // PROFILE_END(simulation_non_det);
 
     Z3Cache.clear();
     PROFILE_START(simulation_det);
