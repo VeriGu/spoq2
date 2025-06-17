@@ -200,6 +200,12 @@ void Project::add_loop_inv(unique_ptr<Expr> inv) {
     }
 }
 
+void Project::add_options() {
+    // add proof-related parameters
+    this->cmds.OnlyTrans.insert(OPTS.target_spec);
+    this->cmds.invs.insert(OPTS.target_spec + "_spec");
+}
+
 int Project::parse_cmd_int(unique_ptr<Expr>& cmd, int index) {
     assert(index < cmd->elems->size());
     auto ptr = cmd->elems->at(index).get();

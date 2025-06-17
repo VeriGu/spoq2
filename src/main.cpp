@@ -25,9 +25,7 @@ int main(int argc, char *argv[])
 
     autov::parser::parse(proj.get(), OPTS.config_file);
 
-    // autov::analyze_fields_access(proj.get());
-
-    // return 0;
+    proj->add_options();
 
     if (OPTS.use_llvm_frontend) {
         proj->finalize_project_v2();

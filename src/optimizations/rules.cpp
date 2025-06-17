@@ -2966,6 +2966,29 @@ rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> sp
                 }
             }
         }
+
+        if (auto s = instance_of(node.get(), Expr)) {
+            if (holds_alternative<Expr::binops>(s->op) && std::get<Expr::binops>(s->op) == Expr::BITOR) {
+                assert (s->elems->size() == 2) ;
+                if (auto e = instance_of(s->elems->at(0).get(), Expr)) {
+                    if (holds_alternative<Expr::binops>(e->op) && std::get<Expr::binops>(e->op) == Expr::BITOR) {
+                        assert(e->elems->size() == 2);
+                        auto lhs = instance_of(e->elems->at(1).get(), IntConst);
+                        auto rhs = instance_of(s->elems->at(1).get(), IntConst);
+                        if (lhs && rhs) {
+                            auto vec = std::make_unique<std::vector<std::unique_ptr<SpecNode>>>();
+                            vec->push_back(std::move(e->elems->at(0)));
+                            vec->push_back(std::make_unique<IntConst>(lhs->get_value() | rhs->get_value()));
+                            auto expr = std::make_unique<Expr>(Expr::BITOR, std::move(vec));
+                            expr->type = s->type;
+                            return expr;
+                        }
+                    }
+
+                }
+            }
+        }
+
         return node;
     };
     if(rec) {

@@ -23,6 +23,12 @@
 #include <parser.h>
 #include <type_inference.h>
 
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <signal.h>
+#include <thread>        
+#include <cstdlib>
 
 
 namespace autov
@@ -118,6 +124,125 @@ unsigned long z3_unknowns = 0;
 unsigned long z3_checks = 0;
 unsigned long z3_cache_hits = 0;
 std::chrono::duration<double> z3_accumulative_time = std::chrono::duration<double>::zero();
+
+// helper to read or fall back
+static std::string try_getenv(const char* var, const char* def) {
+    auto p = std::getenv(var);
+    return p ? std::string(p) : std::string(def);
+}
+
+/** We race Z3 checking using different versions and select the optimal result.
+ * Now it works well on z3 4.13.4 and 4.12.5. 
+ * */
+Z3Result z3_race_check(QueryInfo* qinfo) {
+    if (!qinfo || qinfo->query_id == 0)
+        return Z3Result::Unknown;
+    std::string file = qinfo->query_dir
+                     + "/query_"
+                     + std::to_string(qinfo->query_id - 1)
+                     + ".smt2";
+
+    // two z3 process to race (each with 120s CPU bound)
+    std::string z3_cli = "z3";
+    std::string z3_path = try_getenv("Z3_PATH", "z3/build/z3");
+    std::string z3_timeout = "-T:" + std::to_string(OPTS.race_timeout);
+    std::array<std::string,2> cmds = {
+        z3_cli + " " + z3_timeout + " " + file,
+        z3_path + " " + z3_timeout + " " + file
+    };
+
+    std::array<pid_t,2> pids;
+    std::array<std::array<int,2>,2> pipes;
+    for (int i = 0; i < 2; ++i) {
+        if (pipe(pipes[i].data()) == -1) {
+            perror("pipe");
+            return Z3Result::Unknown;
+        }
+        if ((pids[i] = fork()) == 0) {
+            // child: redirect stdout+stderr -> pipe
+            close(pipes[i][0]);
+            dup2(pipes[i][1], STDOUT_FILENO);
+            dup2(pipes[i][1], STDERR_FILENO);
+            close(pipes[i][1]);
+            execlp("sh", "sh", "-c", cmds[i].c_str(), (char*)nullptr);
+            _exit(EXIT_FAILURE);
+        }
+        close(pipes[i][1]);
+    }
+
+    std::array<std::string,2> outputs = {{ "", "" }};
+    std::array<bool,2> done    = {{ false, false }};
+    int finished               = 0;
+
+    auto start     = std::chrono::steady_clock::now();
+    auto wall_limit = std::chrono::seconds(130);
+
+    // main poll loop
+    while (finished < 2) {
+        for (int i = 0; i < 2; ++i) {
+            if (done[i]) continue;
+
+            int status = 0;
+            pid_t r = waitpid(pids[i], &status, WNOHANG);
+            if (r == 0) {
+                // still running
+            } else if (r < 0) {
+                // error or child gone
+                done[i] = true;
+                ++finished;
+                close(pipes[i][0]);
+            } else {
+                // child i exited -> read its output
+                done[i] = true;
+                ++finished;
+                char buf[256];
+                while (true) {
+                    ssize_t n = read(pipes[i][0], buf, sizeof(buf));
+                    if (n <= 0) break;
+                    outputs[i].append(buf, n);
+                }
+                close(pipes[i][0]);
+
+                // shortcut on "unsat"
+                if (outputs[i].find("unsat") != std::string::npos) {
+                    int other = 1 - i;
+                    if (!done[other]) {
+                        kill(pids[other], SIGKILL);
+                        close(pipes[other][0]);
+                    }
+                    return Z3Result::True;
+                }
+            }
+        }
+
+        if (finished < 2 &&
+            std::chrono::steady_clock::now() - start > wall_limit) {
+            // kill any still-running solver
+            for (int i = 0; i < 2; ++i) {
+                if (!done[i]) {
+                    kill(pids[i], SIGKILL);
+                    close(pipes[i][0]);
+                }
+            }
+            ++z3_unknowns;
+            return Z3Result::Unknown;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+
+    // final decision
+    for (auto &out : outputs) {
+        if (out.find("unsat") != std::string::npos)
+            return Z3Result::True;
+    }
+    for (auto &out : outputs) {
+        if (out.find("sat") != std::string::npos)
+            return Z3Result::Sat;
+    }
+
+    ++z3_unknowns;
+    return Z3Result::Unknown;
+}
 
 /** specialized z3 checker for automated proof
  *  1. only check !cond if UNSAT (True) or not
@@ -343,9 +468,16 @@ Z3Result z3_check_unsat(shared_ptr<ProveState> state, z3::expr cond, z3::model& 
     }
 
     solver.add(!cond);
-    auto not_res = solver.check();
+    // auto not_res = solver.check();
+    auto not_res = z3::unknown;
     if (qinfo)
         qinfo->dump(solver.to_smt2());
+
+    if (OPTS.race) {
+        return z3_race_check(qinfo);
+    } else {
+        not_res = solver.check();
+    }
     
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
@@ -367,7 +499,6 @@ Z3Result z3_check_unsat(shared_ptr<ProveState> state, z3::expr cond, z3::model& 
         ce = solver.get_model();
         return Z3Result::Sat;
     } else {
-        z3_unknowns++;
         return Z3Result::Unknown;
     }
 }

@@ -38,6 +38,10 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
         if(ret) {
             succ++;
             func_stats.emplace_back(original_size, func.size());
+            if (func.size() > 100) {
+                LOG_DEBUG << "[CFG] " << name << " converted, original size: " << original_size
+                          << ", new size: " << func.size() << "\n";
+            }
         }
     }
     double sum = 0;
@@ -50,9 +54,15 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
 
 bool SpoqIRModule::validate_for_gen_low_spec(Project* proj, string fname, int layer_id) {
     SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs[fname];
-    if (!spoq_func.cfg_converted) return false;
+    if (!spoq_func.cfg_converted) {
+        LOG_ERROR << "cannot convert control flow for function " << fname << std::endl;
+        return false;
+    }
     if (!spoq_func.spoq_insts_converted) {
-        if(!llvm_ir_to_spoq_ir(spoq_func)) return false;
+        if(!llvm_ir_to_spoq_ir(spoq_func)) {
+            LOG_ERROR << "cannot convert llvm IR to Spoq IR for function " << fname << std::endl;
+            return false;
+        }
         proj->spoq_code.extract_inline_asm(spoq_func);
         for(auto iasm: proj->spoq_code.iasm_defs) {
             if (proj->defs.find(iasm.first + "_spec") == proj->defs.end()) {
@@ -61,7 +71,7 @@ bool SpoqIRModule::validate_for_gen_low_spec(Project* proj, string fname, int la
                     if (i2f.second == iasm.first)
                         llvm::errs() << *(i2f.first) << " -> " << i2f.second << "\n";
                 }
-                assert(false && "cannot find iasm definition");
+                if (layer_id >= 1) assert(false && "cannot find iasm definition");
             }
         }
         return true;

@@ -24,6 +24,10 @@ public:
     bool decompose_check_simulation = false;
     bool check_none = false;
     bool transform_io = false;
+    bool race = false;
+    int race_timeout = 120; // 2min as default
+    std::string target_spec   = "";  
+
     std::string query_path;
     std::string config_file;
     boost::program_options::variables_map vmap;
@@ -53,6 +57,8 @@ public:
         std::cout << "  lens: " << std::boolalpha << lens << "\n";
         std::cout << "  check-none: " << std::boolalpha << check_none << "\n";
         std::cout << "  transform_io: " << std::boolalpha << transform_io << "\n";
+        std::cout << "  race: " << std::boolalpha << race << "\n";
+        std::cout << "  race timeout: " << std::boolalpha << race_timeout << "s\n";
         std::cout << std::endl;
     }
 
@@ -84,7 +90,13 @@ public:
             ("conditional-spec,c", po::bool_switch()->default_value(false), "automatically generate conditional spec")
             ("query-path",po::value<std::string>(&query_path)->default_value("./llvm.container/z3_queries/"),"set query path")
             ("check-none", po::bool_switch()->default_value(false), "check none path")
-            ("transform-io", po::bool_switch()->default_value(false), "transform io path");
+            ("transform-io", po::bool_switch()->default_value(false), "transform io path")
+            ("race", po::bool_switch()->default_value(false), "multi-solver support")
+            ("race-timeout", po::value<int>(&race_timeout)->default_value(race_timeout), "Z3 CPU limit in seconds")
+            ("target-transition",
+             po::value<std::string>(&target_spec)->default_value(target_spec),
+             "To-be-verified top-level transition function")
+            ;
 
         po::positional_options_description p;
         p.add("input", 1); // The input .v config file is positional and is the first argument
@@ -129,7 +141,7 @@ public:
         this->check_simulation = vmap["check-simulation"].as<bool>();
         this->decompose_check_simulation = vmap["decom-check-simul"].as<bool>();
         this->transform_io = vmap["transform-io"].as<bool>();
-
+        this->race = vmap["race"].as<bool>();
 
         if (vmap.count("no-coi")) {
             this->lens = false;
