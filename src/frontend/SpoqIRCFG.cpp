@@ -90,9 +90,15 @@ bool SpoqIRModule::control_flow_clone_and_split(llvm::BasicBlock *bb, SpoqLoopCo
                 succ = cloned;
             }
             // TODO: fix me. Use other way to check for backward edge
-            if (bb == context.get_preheader() || context.require_clone(succ))
-                control_flow_clone_and_split(succ, context);
+            if (bb == context.get_preheader() || context.require_clone(succ)) {
+                bool ret = control_flow_clone_and_split(succ, context);
+                if (!ret) return false;
+            }
         }
+    } else if (auto br = llvm::dyn_cast<llvm::CallBrInst>(last)) {
+        llvm::errs() << "CallBrInst is not supported for control flow clone and split:";
+        llvm::errs() << bb->getParent()->getName() << " " << *bb << "\n";
+        return false;
     }
     return true;
 }
@@ -142,8 +148,10 @@ bool SpoqIRModule::control_flow_conversion_DAG(Project *proj, string fname, Spoq
     
 
     context.init(spoq_func.llvm_func);
+    bool state = false;
     while (context.step()) {
-        control_flow_clone_and_split(context.get_start(), context);
+        state = control_flow_clone_and_split(context.get_start(), context);
+        if (!state) return false;
 
         std::vector<llvm::Instruction *> to_erase;
         for (auto &bb : *spoq_func.llvm_func) {
