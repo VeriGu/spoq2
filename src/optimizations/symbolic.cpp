@@ -621,17 +621,23 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                     } else if(mode == ProveMode::PREPOST){
                         vector<string> names;
                         vector<unique_ptr<SpecNode>> elems;
-                        auto name = "_ret_";
+                        auto def = proj->defs[fname].get();
+                        string name = "_ret_";
                         for(int i = 0; i < ret_Some->elems->size(); i++) {
                             if(i != ret_Some->elems->size()-1){
                                 names.push_back(name + std::to_string(i));
                                 elems.push_back(ret_Some->elems->at(i)->deep_copy());
+                            } else {
+                                names.push_back("st");
+                                elems.push_back(ret_st->deep_copy());
+
+                                names.push_back("st_old");
+                                elems.push_back(make_unique<Symbol>("st", ret_st->type));
                             }
                         }
-                        names.push_back("st");
-                        elems.push_back(std::move(ret_st));
-                        
+                    
                         prop = subst_v2(proj, inv->deep_copy(), &names, &elems);
+                        LOG_DEBUG << "[Prove Pre/Post Condition] Post Condition: " << string(*prop);
                     } else if(mode == ProveMode::LOOP) {
                         vector<string> names;
                         vector<unique_ptr<SpecNode>> elems;

@@ -2159,22 +2159,22 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                 if(auto loop = instance_of(df, Fixpoint)) {
                     return _cache(df->absf()->call(elems));
                 } else {
-                    if(unfold && proj->cmds.NoUnfold.find(df->name) == proj->cmds.NoUnfold.end()) {
-                        z3::expr func = formulate_function(proj, df);
-                        auto arg_list = make_shared<vector<shared_ptr<SpecType>>>();
+                    // if(unfold && proj->cmds.NoUnfold.find(df->name) == proj->cmds.NoUnfold.end()) {
+                    //     z3::expr func = formulate_function(proj, df);
+                    //     auto arg_list = make_shared<vector<shared_ptr<SpecType>>>();
 
-                        for (auto it = df->args->begin(); it != df->args->end(); it++) {
-                            arg_list->push_back((*it)->type);
-                        }
+                    //     for (auto it = df->args->begin(); it != df->args->end(); it++) {
+                    //         arg_list->push_back((*it)->type);
+                    //     }
 
-                        z3::expr_vector z3_args(z3ctx);
-                        for (const auto &arg : elems) {
-                            z3_args.push_back(arg->get_z3_value());
-                        }
-                        auto app = func[z3_args];
+                    //     z3::expr_vector z3_args(z3ctx);
+                    //     for (const auto &arg : elems) {
+                    //         z3_args.push_back(arg->get_z3_value());
+                    //     }
+                    //     auto app = func[z3_args];
                         
-                        return _cache(df->rettype->from_z3_value(app));
-                    }
+                    //     return _cache(df->rettype->from_z3_value(app));
+                    // }
                     return _cache(df->absf()->call(elems));
                 }
             } else if (info.kind == SymbolKind::Decl) {

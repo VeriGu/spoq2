@@ -942,6 +942,15 @@ void trans_inv(Project *proj) {
         auto new_node = spec_transformer_v2(proj, std::move(inv), 0, true, true);
         proj->sys_invs[name] = std::move(new_node);
     }
+
+    for(auto &[name, postconds] : proj->cmds.PostCond) {
+        vector<unique_ptr<SpecNode>> new_post_conds;
+        for(auto &post: postconds) {
+            type_inference::infer_type(*proj, post.get(), known, Bool::BOOL);
+            auto new_node = spec_transformer_v2(proj, std::move(post), 0, true, true);
+            post.reset(new_node.release());
+        }
+    }
 }
 
 /**
