@@ -1149,6 +1149,10 @@ bool Project::finalize_project_v2() {
     UNFOLD_POLICY.skip_list.insert("complete_mmio_emulation_spec");
     UNFOLD_POLICY.skip_list.insert("get_realm_params_spec");
     UNFOLD_POLICY.skip_list.insert("init_rec_regs_spec");
+    UNFOLD_POLICY.skip_list.insert("set_npt_spec");
+    UNFOLD_POLICY.skip_list.insert("walk_npt_spec");
+    UNFOLD_POLICY.skip_list.insert("hypsec_set_vcpu_active_spec");
+    UNFOLD_POLICY.skip_list.insert("hypsec_set_vcpu_state_spec");
     // UNFOLD_POLICY.skip_list.insert("complete_sysreg_emulation_spec");
 
     LOG_DEBUG << "filter and lemma ok" << "\n";

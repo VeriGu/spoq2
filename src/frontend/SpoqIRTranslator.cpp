@@ -367,6 +367,7 @@ unique_ptr<SpecNode> construct_return_spec(Project *proj,
         return v;
     }
     if (context.return_none) {
+        context.return_none = false;
         return make_unique<Symbol>("None");
     }
 
