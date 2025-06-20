@@ -115,9 +115,24 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
     auto fname = def->name;
     auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
     auto conds = std::make_shared<vector<z3::expr>>();
+    auto &preconds = proj->cmds.PreCond[fname];
+
     for (auto arg : *def->args) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
+    unique_ptr<SpecNode> aggrepres = make_unique<BoolConst>(true);
+	for(auto &inv : preconds) {
+        auto elems = new vector<unique_ptr<SpecNode>>();
+        elems->push_back(std::move(aggrepres));
+        elems->push_back(inv->deep_copy());
+        aggrepres = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
+	}
+    LOG_DEBUG << "ADDING PreConditions: " << string(*aggrepres);
+    auto state = make_shared<EvalState>(vars, conds);
+
+    set<string> fix_string;
+    auto precond_z3 = z3_eval(proj, aggrepres.get(), state, false, true, fix_string);
+    state->conds->push_back(precond_z3->get_z3_value());
     
     converged_spec.clear();
     UNFOLD_POLICY.set_skip(true);
@@ -177,7 +192,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 auto start = std::chrono::high_resolution_clock::now();
                 LOG_DEBUG << "start z3" << "\n";
                 force_simpl = true;
-                std::tie(__tmp_spec3, z3_changed) = proj->rules.rule_simple_by_z3(std::move(__tmp_spec3), make_shared<EvalState>(vars, conds));
+                std::tie(__tmp_spec3, z3_changed) = proj->rules.rule_simple_by_z3(std::move(__tmp_spec3), state->copy());
                 LOG_DEBUG << "end z3" << "\n";
                 auto end = std::chrono::high_resolution_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
