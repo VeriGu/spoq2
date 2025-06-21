@@ -10,8 +10,34 @@ See here[http://128.59.16.30:5050/].
 Username: the github group name (lowercase)
 Password: the biggest positive int32
 ```
+## Build (Artifact)
 
-## Build
+1. Get the source code and artifacts
+
+```
+git submodule update --init --recursive
+```
+Optional: fetch the artifact
+```
+cd spoq && git clone git@github.com:VeriGu/spoq3-artifacts.git && cd ..
+```
+
+2. Build Spoq 
+
+```
+docker build --no-cache -t spoq3:builder --target builder .
+docker run --rm -it spoq3:builder bash
+```
+
+3. Run the artifact (in docker, after step 2)
+
+ARM CCA 
+```
+cd spoq3-artifacts/rmm-pa/ && python3 run.py
+```
+
+
+## Build (Development)
 
 ### Dependencies
 
