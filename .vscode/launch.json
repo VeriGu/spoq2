@@ -26,6 +26,21 @@
             "preLaunchTask": "CMake: build debug"
         },
         {
+            "name": "(lldb) Launch Spoq SeKVM-6.1 Artifact",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["test.v", "--llvm", "--new-trans", "--transform-io",
+            //  "--no-coi",
+            "--no-profile",
+            //"--race", "--race-timeout=100",
+            "--check-simulation",
+            // "--decom-check-simul",
+            ], // Any command-line arguments
+            "cwd": "${workspaceFolder}/spoq3-artifacts/sekvm-6.1/",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
             "name": "(lldb) Launch Spoq SeKVM",
             "type": "lldb",
             "request": "launch",
