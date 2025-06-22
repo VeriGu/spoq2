@@ -34,6 +34,10 @@ bool is_sec_relation_defs(Project *proj, const string &name) {
     return proj->symbols[name].loc == autov::loc_t("SecureRelations", "Spec", "");
 }
 
+bool is_weak_step_relation_defs(Project *proj, const string &name) {
+    return proj->symbols[name].loc == autov::loc_t("WeakStepRelations", "Spec", "");
+}
+
 /** Separate prove-stage z3 translator from the specgen-stage one */
 shared_ptr<SpecValue> z3_expr(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
     if (val->cached_eval) return val->cached_eval;

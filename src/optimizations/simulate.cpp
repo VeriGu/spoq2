@@ -552,6 +552,12 @@ namespace autov
 			auto lemma_expr = z3_eval(proj, lemma_body, state, false, true, used_fixpoint);
 			state->add_induction(lemma_expr->get_z3_value());
 		}
+		// add weak-step consistency relations
+		for (auto const &wsr : proj->weak_step_relations) {
+			auto wsr_def = proj->defs[wsr].get();
+			auto wsr_expr = formulate_relation(proj, wsr_def, st_sym_1.get(), st_sym_2.get(), state);
+			state->conds->push_back(wsr_expr->get_z3_value());
+		}
 		spec_body->clear_z3_eval();
 		impl_body->clear_z3_eval();
 		path_t p = {};

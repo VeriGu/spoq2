@@ -168,6 +168,7 @@ public:
     unordered_map<string, bool> verified_specs;
     std::set<string> relations;
     std::set<string> sec_relations;
+    std::set<string> weak_step_relations;
 
     //only added when the spec have proved to satisfy the invariant <name>.
     std::set<string> verified_invariants;
