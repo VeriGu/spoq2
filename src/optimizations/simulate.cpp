@@ -57,14 +57,28 @@ namespace autov
 		if (auto expr = instance_of(impl, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
+					unique_ptr<SpecNode> st_ret;
 					if (auto ret_Some = instance_of(expr->elems->at(0).get(), Expr)) {
-						auto st_ret = expr->elems->at(0)->deep_copy();
+						st_ret = expr->elems->at(0)->deep_copy();
 						if (auto ret_op = std::get_if<Expr::ops>(&ret_Some->op)) {
 							if (*ret_op == Expr::Tuple) {
 								st_ret = ret_Some->elems->back()->deep_copy();
 							}
 						}
-						// double check here
+						
+						auto [is_relate, expr_relate] = check_relation(proj, rel, st_check, st_ret.get(), state);
+						if (is_relate) {
+							LOG_INFO << "[forward_simulation] Relation is proved between\n"  << string(*st_check) << "\nand\n" << string(*st_ret.get()) << std::endl;
+						} else {
+							LOG_WARNING << "[forward_simulation] Relation can not be proved between\n"  << string(*st_check) << "\nand\n" << string(*st_ret.get())  << std::endl;
+							for(auto cond: *state->conds) {
+								LOG_DEBUG << "Condition: " << cond;
+							}
+						}
+						return is_relate;
+					} else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
+						st_ret = expr->elems->at(0)->deep_copy();
+						
 						auto [is_relate, expr_relate] = check_relation(proj, rel, st_check, st_ret.get(), state);
 						if (is_relate) {
 							LOG_INFO << "[forward_simulation] Relation is proved between\n"  << string(*st_check) << "\nand\n" << string(*st_ret.get()) << std::endl;
@@ -318,6 +332,9 @@ namespace autov
 							}
 						}
 						return forward_simulation(proj, st_ret.get(), impl, rel, state, det, p, 0);
+					} else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
+					   auto st_ret = expr->elems->at(0)->deep_copy();
+						return forward_simulation(proj, st_ret.get(), impl, rel, state, det, p, 0);
 					}
 				}
 				
@@ -362,6 +379,7 @@ namespace autov
 										return false;
 									};
 								}
+								LOG_INFO << "[Checking Loop Invariant] Satisfied";
 								if(proj->cmds.PostCond.find(op) != proj->cmds.PostCond.end()) {
 									auto fname = def->name;
 									post_cond = formulate_post_condition(proj, fname, expr->elems.get());
