@@ -604,29 +604,37 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
     } else if (auto expr = instance_of(spec, Expr)) {
         if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
             if (*e_op == Expr::Some) {
+                unique_ptr<SpecNode> ret_st;
                 if (auto ret_Some = instance_of(expr->elems->at(0).get(), Expr)) {
-					auto ret_st = expr->elems->at(0)->deep_copy();
+					ret_st = expr->elems->at(0)->deep_copy();
 					// if the return value is := Some (ret_val, st), then take the last 'st'
 					if (auto ret_op = std::get_if<Expr::ops>(&ret_Some->op)) {
 						if (*ret_op == Expr::Tuple) {
 							ret_st = ret_Some->elems->back()->deep_copy();
 						}
 					}
-					// Prove the return state maintains the invariant
-					// construct new invariants
-                    auto ret_st_str = string(*ret_st);
-                    unique_ptr<SpecNode> prop;
-                    if(mode == ProveMode::SYS) {
-                        vector<string> names;
-                        vector<unique_ptr<SpecNode>> elems;
-                        names.push_back("st");
-                        elems.push_back(std::move(ret_st));
-                        prop = subst_v2(proj, inv->deep_copy(), &names, &elems);
-                    } else if(mode == ProveMode::PREPOST){
-                        vector<string> names;
-                        vector<unique_ptr<SpecNode>> elems;
-                        auto def = proj->defs[fname].get();
-                        string name = "_ret_";
+                } else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
+                    ret_st = expr->elems->at(0)->deep_copy();
+                } else {
+                    LOG_ERROR << "Unsupported return value";
+                    return false;
+                }
+                // Prove the return state maintains the invariant
+                // construct new invariants
+                auto ret_st_str = string(*ret_st);
+                unique_ptr<SpecNode> prop;
+                if(mode == ProveMode::SYS) {
+                    vector<string> names;
+                    vector<unique_ptr<SpecNode>> elems;
+                    names.push_back("st");
+                    elems.push_back(std::move(ret_st));
+                    prop = subst_v2(proj, inv->deep_copy(), &names, &elems);
+                } else if(mode == ProveMode::PREPOST){
+                    vector<string> names;
+                    vector<unique_ptr<SpecNode>> elems;
+                    auto def = proj->defs[fname].get();
+                    string name = "_ret_";
+                    if (auto ret_Some = instance_of(expr->elems->at(0).get(), Expr)) {
                         for(int i = 0; i < ret_Some->elems->size(); i++) {
                             if(i != ret_Some->elems->size()-1){
                                 names.push_back(name + std::to_string(i));
@@ -639,13 +647,19 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                                 elems.push_back(make_unique<Symbol>("st", ret_st->type));
                             }
                         }
-                    
-                        prop = subst_v2(proj, inv->deep_copy(), &names, &elems);
-                        LOG_DEBUG << "[Prove Pre/Post Condition] Post Condition: " << string(*prop);
-                    } else if(mode == ProveMode::LOOP) {
-                        vector<string> names;
-                        vector<unique_ptr<SpecNode>> elems;
-                        auto loop = proj->defs[fname].get();
+                    } else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
+                        names.push_back("st");
+                        elems.push_back(ret_st->deep_copy());
+                        names.push_back("st_old");
+                        elems.push_back(make_unique<Symbol>("st", ret_st->type));
+                    }
+                    prop = subst_v2(proj, inv->deep_copy(), &names, &elems);
+                    LOG_DEBUG << "[Prove Pre/Post Condition] Post Condition: " << string(*prop);
+                } else if(mode == ProveMode::LOOP) {
+                    vector<string> names;
+                    vector<unique_ptr<SpecNode>> elems;
+                    auto loop = proj->defs[fname].get();
+                    if (auto ret_Some = instance_of(expr->elems->at(0).get(), Expr)) {
                         for(int i = 0; i < ret_Some->elems->size(); i++) {
                             auto arg_name = loop->args->at(i)->name;
                             names.push_back(arg_name);
@@ -653,43 +667,44 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                             names.push_back(arg_name + "_old");
                             elems.push_back(make_unique<Symbol>(arg_name, loop->args->at(i)->type));
                         }
-                       
-                        prop = subst_v2(proj, inv->deep_copy(), &names, &elems);
-                        LOG_DEBUG << "[Prove Loop Invariant] loop invariant: " << string(*prop);
+                    } else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
+                        names.push_back("st");
+                        elems.push_back(ret_st->deep_copy());
+                        names.push_back("st_old");
+                        elems.push_back(make_unique<Symbol>("st", ret_st->type));
                     }
-					//auto c = z3_expr(proj, p.get(), state);
-                    //auto z3_ret = z3_verify(state, c->get_z3_value(), &proj->query_saver);
-					//auto p = instantiate_prop(inv->deep_copy().release(), ret_st);
-                    set<string> used_fix;
-					auto c = z3_eval(proj, prop.get(), state, false, true, used_fix);
-					// for(auto &cond: *state->conds) {
-					// 	LOG_DEBUG << "Cond:" << cond;
-					// }
-					z3::model model(z3ctx);
-					auto z3_ret = z3_check_unsat(state, c->get_z3_value(), model, &proj->query_saver, Z3_VERIFY_TIMEOUT);
-
-					// std::cout << "----------------------------------" << std::endl;
-					// std::cout << "prove_by_traverse: Final State\n" << ret_st_str << std::endl;
-					// std::cout << "prove_by_traverse: Goal Query\n" << c->get_z3_value() << std::endl;
-					// std::cout << "----------------------------------" << std::endl;
-					if (z3_ret == Z3Result::Sat) {
-						LOG_WARNING << "[prove_by_traverse] Invariant is violated for state\n" << ret_st_str << std::endl;
-						return false;
-					} else if (z3_ret == Z3Result::Unknown) {
-						     LOG_WARNING << "[prove_by_traverse] Invariant is unknown for state\n" << ret_st_str << std::endl;
-                        LOG_DEBUG << "prop: " << c->get_z3_value();
-                        for(auto &cond: *state->conds) {
-					        LOG_DEBUG << "Cond:" << cond;
-					    }
-                        for(auto &cond: *state->inductions) {
-					        LOG_DEBUG << "Lemmas:" << cond;
-					    }
-						return false;
-					} else {
-						LOG_INFO << "[prove_by_traverse] Invariant is proved for state\n" << ret_st_str << std::endl;
-						return true;
-					}
+                    prop = subst_v2(proj, inv->deep_copy(), &names, &elems);
+                    LOG_DEBUG << "[Prove Loop Invariant] loop invariant: " << string(*prop);
                 }
+                set<string> used_fix;
+                auto c = z3_eval(proj, prop.get(), state, false, true, used_fix);
+                // for(auto &cond: *state->conds) {
+                // 	LOG_DEBUG << "Cond:" << cond;
+                // }
+                z3::model model(z3ctx);
+                auto z3_ret = z3_check_unsat(state, c->get_z3_value(), model, &proj->query_saver, Z3_VERIFY_TIMEOUT);
+                // std::cout << "----------------------------------" << std::endl;
+                // std::cout << "prove_by_traverse: Final State\n" << ret_st_str << std::endl;
+                // std::cout << "prove_by_traverse: Goal Query\n" << c->get_z3_value() << std::endl;
+                // std::cout << "----------------------------------" << std::endl;
+                if (z3_ret == Z3Result::Sat) {
+                    LOG_WARNING << "[prove_by_traverse] Invariant is violated for state\n" << ret_st_str << std::endl;
+                    return false;
+                } else if (z3_ret == Z3Result::Unknown) {
+                            LOG_WARNING << "[prove_by_traverse] Invariant is unknown for state\n" << ret_st_str << std::endl;
+                    LOG_DEBUG << "prop: " << c->get_z3_value();
+                    for(auto &cond: *state->conds) {
+                        LOG_DEBUG << "Cond:" << cond;
+                    }
+                    for(auto &cond: *state->inductions) {
+                        LOG_DEBUG << "Lemmas:" << cond;
+                    }
+                    return false;
+                } else {
+                    LOG_INFO << "[prove_by_traverse] Invariant is proved for state\n" << ret_st_str << std::endl;
+                    return true;
+                }
+                
             }
         } else if(holds_alternative<string>(expr->op)) {
             auto op = std::get<string>(expr->op);
