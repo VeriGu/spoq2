@@ -18,6 +18,11 @@ RUN set -eux; \
         libboost-all-dev; \
     rm -rf /var/lib/apt/lists/*
 
+# ARM64 cross-toolchain
+RUN apt-get update && \
+		DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+		crossbuild-essential-arm64   \  
+		libc6-dev-arm64-cross          
 
 # Z3 4.12.5
 ARG Z3_VER=z3-4.12.5
