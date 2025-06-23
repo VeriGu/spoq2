@@ -1198,6 +1198,9 @@ bool simulate(Project* proj, bool det, bool check_sec = true) {
             proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_RData"));
             proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
 
+            // det = check_lockstep_by_coi(proj, rel_def.get(), def);
+            det |= check_lockstep_by_coi(proj, rel_def.get(), def);
+
             if (check_hprop_by_path(proj, rel_def.get(), def, nullptr, det)) {
                 LOG_DEBUG << "Relate Other " << def->name << " is valid :D";
             } else {
