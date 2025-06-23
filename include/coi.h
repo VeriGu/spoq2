@@ -29,9 +29,10 @@ namespace autov {
 
     void print_path(const path_t &p);
     /* Calculate cone of influence */
-    std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, SpecNode *inv, 
-                                               std::set<string> whitelist = {}, 
-                                               std::set<string> blacklist = {});
+    std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, 
+                                                std::variant<SpecNode *, std::set<field_t>> coi_src,
+                                                std::set<string> whitelist = {}, 
+                                                std::set<string> blacklist = {});
     void analyze_invariant_fields(Project *proj, SpecNode *inv, std::set<field_t> &fields);
     void coi_reduction(Project *proj, Definition *def, SpecNode *inv);
 }

@@ -251,6 +251,8 @@ void collect_immi_symbols_in(Project *proj, SpecNode *spec, const path_t &path, 
  *      - When propagate to symbol, add them to to-be-solved symbol set
  */
 void backward_propagation_on_expr(Project *proj, SpecNode *node, std::set<field_t> &coi, std::set<field_t> trace, std::set<string> &symbols) {
+    static std::map<string, bool> visited_fixpoint;
+
     if (auto e = instance_of(node, Expr)) {
         if (auto op = std::get_if<Expr::ops>(&e->op)) {
             if (*op == Expr::ops::RecordGet) {
@@ -300,6 +302,33 @@ void backward_propagation_on_expr(Project *proj, SpecNode *node, std::set<field_
                 backward_propagation_on_expr(proj, e->elems->at(1).get(), coi, trace, symbols);
             } 
         } else {
+            // recursive coi analysis first
+            if (std::holds_alternative<string>(e->op)) {
+                auto sym = std::get<string>(e->op);
+                auto info = proj->symbols[sym];
+                if (info.kind == SymbolKind::Def) {
+                    auto df = proj->defs[sym].get();
+                    if (auto loop = instance_of(df, Fixpoint)) {
+                        if (!visited_fixpoint[df->name]) {
+                            // find the COI set fixpoint for recursive function
+                            visited_fixpoint[df->name] = true;
+                            for (auto next = analyze_cone_of_influence(proj, df, coi);
+                                next != coi;                                           
+                                coi.swap(next), next = analyze_cone_of_influence(proj, df, coi))       
+                            {
+                                /* terminate when we reach a fixed point */ 
+                            }
+                            visited_fixpoint[df->name] = false;
+                        } else {
+                            return;
+                        }
+                    } else {
+                        std::set<field_t> coi_init(coi);
+                        coi = analyze_cone_of_influence(proj, df, coi_init);
+                    }
+                }
+            }
+            // then propagate based on parameters
             for (int i = 0; i < e->elems->size(); i++) {
                 backward_propagation_on_expr(proj, e->elems->at(i).get(), coi, trace, symbols);
             }
@@ -369,7 +398,7 @@ void analyze_invariant_fields(Project *proj, SpecNode *inv, std::set<field_t> &f
  * 
  *  Give an expression and a set of interested fields, backward propagate to all the dependent fields (its definition)
  */
-std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, SpecNode *inv, std::set<string> whitelist, std::set<string> blacklist) {
+std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, std::variant<SpecNode *, std::set<field_t>> coi_src, std::set<string> whitelist, std::set<string> blacklist) {
     auto args = def->args.get();
     auto spec = def->body.get();
     std::set<string> arg_symbols = {};
@@ -384,11 +413,14 @@ std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, Spec
 
     // initial propagation field: inv-related fields
     std::set<field_t> coi_fields = {};
-    analyze_invariant_fields(proj, inv, coi_fields);
-    std::cout << "[analyze_cone_of_influence] Initial COI fields: " << std::endl;
-    for (auto &c : coi_fields) {
-        print_field(c);
+    if (std::holds_alternative<SpecNode *>(coi_src)) {
+        SpecNode *inv = std::get<SpecNode *>(coi_src);
+        analyze_invariant_fields(proj, inv, coi_fields);
+    } else {
+        const auto& fields = std::get<std::set<field_t>>(coi_src);
+        coi_fields.insert(fields.begin(), fields.end());
     }
+
     // Propagation (coi update) terminates when no new expression is propagated along the path
     std::deque<path_node_t> q(nodes.begin(), nodes.end());
     while (!q.empty()) {
@@ -429,10 +461,6 @@ std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, Spec
             continue;
         }
         coi_ret.insert(c);
-    }
-    std::cout << "[analyze_cone_of_influence] Final COI fields: " << std::endl;
-    for (auto &c : coi_ret) {
-        print_field(c);
     }
     return coi_ret;
 }
