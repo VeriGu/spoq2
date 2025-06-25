@@ -35,5 +35,5 @@ namespace autov {
                                                 std::set<string> blacklist = {});
     void analyze_invariant_fields(Project *proj, SpecNode *inv, std::set<field_t> &fields);
     void coi_reduction(Project *proj, Definition *def, SpecNode *inv);
-    bool check_lockstep_by_coi(Project* proj, Definition* rel_def, Definition* spec_def);
+    void mark_determ_branch(Project* proj, Definition* rel_def, Definition* spec_def);
 }

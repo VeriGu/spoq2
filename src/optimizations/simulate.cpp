@@ -242,10 +242,10 @@ namespace autov
 
 				// for non-abst func here (match-as-branch), check state validity here
 				Z3Result res = Z3Result::Unknown;
-				if (det) {
+				if (det && m->src->is_determ_branch) {
 					res = (path[i] == cnt++) ? Z3Result::True : Z3Result::False;	
 				} else {
-					res = z3_verify_state_sat(pm_state, nullptr, Z3_SIM_TIMEOUT);
+					res = z3_verify_state_sat(pm_state, nullptr, Z3_SAT_TIMEOUT);
 				}
 
 				if (res == Z3Result::False) {
@@ -259,10 +259,16 @@ namespace autov
 		} else if (auto iff = instance_of(impl, If)) {
 			auto cond = z3_eval(proj, iff->cond.get(), state);
 			Z3Result res = Z3Result::Unknown;
-			if (det) {
+
+			if (det && iff->cond->is_determ_branch) {
 				res = (path[i] == 1) ? Z3Result::True : Z3Result::False;
 			} else {
-				res = z3_check(state, cond->get_z3_value(), Z3_SIM_TIMEOUT);
+				z3::model model(z3ctx);
+				auto t_race = OPTS.race_timeout;
+				OPTS.race_timeout = Z3_SIM_TIMEOUT / 1000;
+				// res = z3_check(state, cond->get_z3_value(), Z3_SIM_TIMEOUT);
+				res = z3_check_unsat(state, cond->get_z3_value(), model);
+				OPTS.race_timeout = t_race;
 			}
 			if (res == Z3Result::True) {
 				state->conds->push_back(cond->get_z3_value());
@@ -272,12 +278,15 @@ namespace autov
 				return forward_simulation(proj, st_check, iff->else_body.get(), rel, state, det, path, i+1);
 			} else {
 				// O(N^2) simulation search 
+				if (!det || !iff->cond->is_determ_branch) { 
+					LOG_DEBUG << "Unsolved (try) If non-determ cond!" << string(*iff->cond.get());
+				}
 				auto then_state = state->copy();
 				auto else_state = state->copy();
 				then_state->conds->push_back(cond->get_z3_value());
 				else_state->conds->push_back(!cond->get_z3_value());
-				auto is_relate_then = forward_simulation(proj, st_check, iff->then_body.get(), rel, then_state, det, path, i+1);
-				auto is_relate_else = forward_simulation(proj, st_check, iff->else_body.get(), rel, else_state, det, path, i+1);
+				auto is_relate_then = forward_simulation(proj, st_check, iff->then_body.get(), rel, then_state, false, path, i+1);
+				auto is_relate_else = forward_simulation(proj, st_check, iff->else_body.get(), rel, else_state, false, path, i+1);
 				return (is_relate_then && is_relate_else);
 			}
 

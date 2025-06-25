@@ -532,6 +532,9 @@ void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
 
 void collect_branch_conds(SpecNode *spec, path_t p, std::set<path_node_t> &init_nodes) {
     if (auto m = instance_of(spec, Match)) {
+        if (!m->is_when()) {
+            init_nodes.insert({m->src.get(), p});
+        }
         for (auto &pm : *m->match_list) {
             collect_branch_conds(pm->body.get(), p, init_nodes);
         }
@@ -549,111 +552,104 @@ void collect_branch_conds(SpecNode *spec, path_t p, std::set<path_node_t> &init_
     }
 }
 
-bool check_lockstep_by_coi(Project* proj, Definition* rel_def, Definition* spec_def) {
+void mark_determ_branch(Project* proj, Definition* rel_def, Definition* spec_def) {
+    // FIXME: move it to config file
+    static std::set<string> rm_list_pub = { "g_norm", };
+    static std::set<string> rm_list = {
+        "meta_af", "meta_PA", "meta_sh", "meta_ns",
+        "meta_desc_type", "meta_granule_offset", "meta_mem_attr", "meta_ripas",
+        "pbase", "poffset", "e_lock", "e_refcount", "e_state",
+    };
+    // calculate public variables
     std::set<field_t> public_vars = {};
-    std::set<field_t> coi = {};
-
     analyze_invariant_fields(proj, rel_def->body.get(), public_vars);
 
-    // initial COI set: all fields used in branch conds
+
+    std::set<field_t> pv = {};
+    for (auto &c : public_vars) {
+        if (c.empty() || 
+            rm_list_pub.find(c.front()) != rm_list_pub.end()) {
+            continue;
+        }
+        pv.insert(c);
+    }
+    swap(public_vars, pv);
+    LOG_DEBUG << "[mark_determ_branch] Public variables: ";
+    for (auto &f : public_vars) {
+        print_field(f);
+    }
+
+    // find all branch conds as propagation nodes
     std::set<path_node_t> conds = {};
     path_t p = {};
     collect_branch_conds(spec_def->body.get(), p, conds);
-    for (auto &cond : conds) {
-        std::set<field_t> bv = {};
-        LOG_DEBUG << "Condition:\n" << string(*cond.first);
-        rec_analyze_used_fields(proj, cond.first, bv);
-        coi.insert(bv.begin(), bv.end());
-    }
 
-    // Propagation (coi update) terminates when no new expression is propagated along the path
     auto args = spec_def->args.get();
     auto spec = spec_def->body.get();
     std::set<string> arg_symbols = {};
     for (int i = 0 ; i < args->size() ; i++) {
         arg_symbols.insert(args->at(i)->name);
     }
-    std::deque<path_node_t> q(conds.begin(), conds.end());
-    while (!q.empty()) {
-        auto [expr, path] = q.front();
-        q.pop_front();
-        std::map<string, path_node_t> immediate_symbols = {};
-        collect_immi_symbols_in(proj, spec, path, 0, immediate_symbols);
 
-        std::set<string> symbols = {};
-        backward_propagation_on_expr(proj, expr, coi, {}, symbols);
+    for (auto &cond : conds) { 
+        // each initial COI set: all fields used in each branch cond
+        std::set<field_t> coi = {};
+        std::set<field_t> bv = {};
+        rec_analyze_used_fields(proj, cond.first, bv);
+        coi.insert(bv.begin(), bv.end());
 
-        for (const auto &s : symbols) {
-            if (arg_symbols.find(s) != arg_symbols.end()) {
-                continue;
-            } else if (proj->symbols.find(s) != proj->symbols.end() || proj->is_ind_constr(s)) {
-                continue;
-            } else if (immediate_symbols.find(s) != immediate_symbols.end()) {
-                q.push_back(immediate_symbols[s]);
-            } else {
-                throw std::runtime_error("[check_lockstep_by_coi] Unexpected symbol: " + s);
-            }
-        }   
-    }
+        std::deque<path_node_t> q = {cond};
+        while (!q.empty()) {
+            auto [expr, path] = q.front();
+            q.pop_front();
+            std::map<string, path_node_t> immediate_symbols = {};
+            collect_immi_symbols_in(proj, spec, path, 0, immediate_symbols);
 
-    // FIXME: move it to config file
-    static std::set<string> rm_list = {
-        "meta_af", "meta_PA", "meta_sh", "meta_ns",
-        "meta_desc_type", "meta_granule_offset", "meta_mem_attr", "meta_ripas",
-        "pbase", "poffset"
-    };
-    static std::set<string> rm_list_pub = {
-        "g_norm", 
-    };
+            std::set<string> symbols = {};
+            backward_propagation_on_expr(proj, expr, coi, {}, symbols);
 
-    std::set<field_t> coi_ret = {};
-    for (auto &c : coi) {
-        if (c.empty()) {
-            continue;
+            for (const auto &s : symbols) {
+                if (arg_symbols.find(s) != arg_symbols.end()) {
+                    continue;
+                } else if (proj->symbols.find(s) != proj->symbols.end() || proj->is_ind_constr(s)) {
+                    continue;
+                } else if (immediate_symbols.find(s) != immediate_symbols.end()) {
+                    q.push_back(immediate_symbols[s]);
+                } else {
+                    throw std::runtime_error("[mark_determ_branch] Unexpected symbol: " + s);
+                }
+            }   
         }
-        if (rm_list.find(c.front()) != rm_list.end()) {
-            continue;
-        }
-        coi_ret.insert(c);
-    }
-
-    std::set<field_t> pv = {};
-    for (auto &c : public_vars) {
-        if (c.empty()) {
-            continue;
-        }
-        if (rm_list_pub.find(c.front()) != rm_list_pub.end()) {
-            continue;
-        }
-        pv.insert(c);
-    }
-    swap(public_vars, pv);
-    
-
-    // LOG_DEBUG << "Public vars: ";
-    // for (auto &f : public_vars) {
-    //     print_field(f);
-    // }
-
-    // LOG_DEBUG << "[check_lockstep_by_coi] Final COI set: ";
-    // for (auto &f : coi_ret) {
-    //     print_field(f);
-    // }
-    for (auto &f : coi_ret) {
-        bool is_contained_in_public = false;
-        for (auto &pv : public_vars) {
-            if (contains_field(f, pv)) {
-                is_contained_in_public = true;
+        std::set<field_t> coi_ret = {};
+        for (auto &c : coi) {
+            if (c.empty() || 
+                rm_list.find(c.front()) != rm_list.end()) {
                 continue;
             }
+            coi_ret.insert(c);
         }
-        if (!is_contained_in_public) {
-            LOG_WARNING << "[check_lockstep_by_coi] COI field not contained in public vars: ";
+        LOG_DEBUG << "Visiting branch: " << string(*cond.first);
+        LOG_DEBUG << "Branch's COI set: ";
+        for (auto &f : coi_ret) {
             print_field(f);
-            return false;
+        }
+
+        // examine all COI set elements of this branch are public variables
+        for (auto &f : coi_ret) {
+            bool f_is_pub = false;
+            for (auto &pv : public_vars) {
+                if (contains_field(f, pv)) {
+                    f_is_pub = true;
+                }
+            }
+            if (!f_is_pub) {
+                cond.first->is_determ_branch = false;
+                // LOG_WARNING << "[mark_determ_branch] Mark non-determ branch:\n" << string(*cond.first);
+                // LOG_WARNING << "[mark_determ_branch] COI field not contained in public vars: ";
+                // print_field(f);
+            }
         }
     }
-    return true;
 }
 
 }

@@ -40,6 +40,8 @@ public:
     bool is_interested_read = false;
     bool is_interested_write = false;
     bool depends_on_state_read = false;
+    bool is_determ_branch = true;
+ 
     shared_ptr<SpecType> type;
     unsigned long nid;
     int length;
@@ -689,6 +691,7 @@ public:
             new_match_list->push_back((*it)->deep_copy_down());
         }
 
+        new_src->is_determ_branch = this->src->is_determ_branch;
         auto ret = make_unique<Match>(std::move(new_src), std::move(new_match_list));
 
         ret->length = this->length;
@@ -1044,6 +1047,7 @@ private:
         this->then_body->deep_copy(new_then_body);
         this->else_body->deep_copy(new_else_body);
 
+        new_cond->is_determ_branch = this->cond->is_determ_branch;
         p = make_unique<If>(std::move(new_cond), std::move(new_then_body), std::move(new_else_body));
     }
 };

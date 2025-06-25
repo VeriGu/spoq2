@@ -109,15 +109,15 @@ enum class Z3Result {
 
 #define Z3_TIMEOUT 1
 #define Z3_VERIFY_TIMEOUT 5000
-#define Z3_SIMULATE_TIMEOUT 500
+#define Z3_SAT_TIMEOUT 50
 #define Z3_SOLVE_RDATA_TIMEOUT 2000
 #define Z3_SOLVE_SECURE_TIMEOUT 50
 extern unordered_map<size_t, Z3Result> Z3Cache;
-Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo, int timeout = Z3_VERIFY_TIMEOUT);
-Z3Result z3_verify_state_sat(shared_ptr<ProveState> state, QueryInfo *qinfo, int timeout = Z3_VERIFY_TIMEOUT);
+Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo = nullptr, int timeout = Z3_VERIFY_TIMEOUT);
+Z3Result z3_verify_state_sat(shared_ptr<ProveState> state, QueryInfo *qinfo = nullptr, int timeout = Z3_VERIFY_TIMEOUT);
 Z3Result z3_check(std::shared_ptr<EvalState> state, z3::expr cond, int timeout=Z3_TIMEOUT);
 Z3Result z3_check(shared_ptr<EvalState> state, int timeout=Z3_TIMEOUT);
-Z3Result z3_check_unsat(std::shared_ptr<ProveState> state, z3::expr cond, z3::model& model, QueryInfo *qinfo, int timeout=Z3_TIMEOUT);
+Z3Result z3_check_unsat(std::shared_ptr<ProveState> state, z3::expr cond, z3::model& model, QueryInfo *qinfo = nullptr, int timeout=Z3_TIMEOUT);
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state, bool check_loop = false);
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state, bool check_loop, bool unfold, set<string>& used_fixpoint);
 rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState> state);

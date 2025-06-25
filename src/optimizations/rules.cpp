@@ -2562,7 +2562,9 @@ std::unique_ptr<SpecNode> SpecRules::rec_apply(std::unique_ptr<SpecNode> spec,
 
         // throw std::runtime_error("Unknown SpecNode " + string(*spec.get()));
     } else if (auto m = instance_of(spec.get(), Match)) {
+        auto is_determ = m->src->is_determ_branch;
         auto new_src = rec_apply(std::move(m->src), f, apply_anno);
+        new_src->is_determ_branch = is_determ;
         auto new_matches = make_unique<vector<unique_ptr<PatternMatch>>>();
         if (m->match_list) {
             for (auto &pm : *(m->match_list)) {
@@ -2582,7 +2584,9 @@ std::unique_ptr<SpecNode> SpecRules::rec_apply(std::unique_ptr<SpecNode> spec,
         return f(std::make_unique<Anno>(std::move(new_prop), std::move(new_body)));
 
     } else if (auto i = instance_of(spec.get(), If)) {
+        auto is_determ = i->cond->is_determ_branch;
         auto new_cond = rec_apply(std::move(i->cond), f, apply_anno);
+        new_cond->is_determ_branch = is_determ; 
         auto new_then = rec_apply(std::move(i->then_body), f, apply_anno);
         auto new_else = rec_apply(std::move(i->else_body), f, apply_anno);
         return f(std::make_unique<If>(std::move(new_cond), std::move(new_then), std::move(new_else)));
