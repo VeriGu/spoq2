@@ -134,6 +134,9 @@ class UnfoldPolicy {
 public:
     bool skip = false;
     std::set<string> skip_list;
+    std::unordered_map<string, int> loop_unroll_count;
+
+    std::string current_unfold = "";
 
     void set_skip(bool s) { skip = s; }
     bool is_skip(std::string fname) {
@@ -141,6 +144,37 @@ public:
         if (skip_list.find(fname) != skip_list.end()) {
             return true;
         }
+        return false;
+    }
+
+    void clear_loop_unroll() { current_unfold = ""; }
+
+    bool is_loop_unroll(std::string spec_name) { 
+        return current_unfold == spec_name;
+    }
+
+    // For now, only depth = 1 loop unroll is supported.
+    // F () { F }
+    bool require_loop_unroll(std::string spec_name, std::unordered_map<string, int>& lut) {
+        if (current_unfold.size() > 1) {
+            LOG_DEBUG << "we expect current_unfold to be empty, but it is " << current_unfold << "\n";
+            LOG_DEBUG << "this means we are in the middle of loop unroll, but we don't actually need to unfold this much time\n";
+            current_unfold = "";
+            LOG_DEBUG << "we skip loop unroll" << "\n";
+            return false;
+        }
+
+        // if (spec_name.size() >= suffix.size() && spec_name.compare(spec_name.size() - suffix.size(), suffix.size(), suffix) == 0) {
+            // auto fname = spec_name.substr(0, spec_name.size() - suffix.size());
+        auto fname = spec_name;
+        if (lut.find(fname) == lut.end()) return false;
+        if (lut.at(fname) <= loop_unroll_count[fname]) return false;
+
+        // TODO: do we need to put skip_list back?
+        current_unfold = spec_name;
+        loop_unroll_count[fname] += 1;
+        return true;
+        // }
         return false;
     }
 };

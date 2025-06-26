@@ -3519,8 +3519,17 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
 
                 auto define = proj->defs[*op].get();
 
-                if (is_instance(define, Fixpoint))
-                    return node;
+                bool self_unfold = false;
+                if (is_instance(define, Fixpoint)) {
+                    // LOG_DEBUG << "we encounter a loop: " << define->name << std::endl;
+                    if (UNFOLD_POLICY.is_loop_unroll(define->name)) {
+                        // This is a greedy unfold policy, always unfold the first loop fixpoint.
+                        UNFOLD_POLICY.clear_loop_unroll();
+                        self_unfold = true;
+                        force_simpl = true;
+                    } 
+                    else return node;
+                }
 
                 if (UNFOLD_POLICY.is_skip(define->name)) return node;
                 if (define->name == "load_RData" || define->name == "store_RData") force_simpl = true;
@@ -3538,7 +3547,10 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
                     define->deleyed_type_inference = false;
                 }
 
-                auto body = define->body->deep_copy();
+                unique_ptr<SpecNode> body;
+                if (self_unfold) { body = node->deep_copy(); }
+                else body = define->body->deep_copy();
+
                 assert(e->elems->size() == define->args->size());
 
                 if (proj->symbols.find(define->name) != proj->symbols.end() &&

@@ -194,6 +194,8 @@ public:
         std::set<string> NoTrans;
         std::set<string> OnlyTrans;
         std::set<string> TrySplit;
+        std::set<string> LoopTrans;
+        std::unordered_map<string, int> LoopUnroll;
         std::unordered_map<string, vector<string>> AddDep;
         bool NoUnfoldAll = false;
         bool NoHighSpec = false;

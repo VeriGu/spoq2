@@ -289,6 +289,14 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
             auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
             this->cmds.OnlyTrans.insert(s->text);
+        } else if (op_str == "LoopTrans") {
+            assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            this->cmds.LoopTrans.insert(s->text);
+        } else if (op_str == "LoopUnroll") {
+            assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            this->cmds.LoopUnroll[s->text] = parse_cmd_int(cmd, 1);
         } else if (op_str == "NoUnfoldAll") {
             this->cmds.NoUnfoldAll = true;
         } else if (op_str == "NoHighSpec") {
@@ -325,7 +333,7 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             auto &abs = this->abs_config.back();
             abs.raw_spec_name = dynamic_cast<Symbol *>(cmd->elems->at(0).get())->text;
             abs.abs_spec_name = dynamic_cast<Symbol *>(cmd->elems->at(1).get())->text;
-        } else if (op_str == "AbstractLayout") {
+        }  else if (op_str == "AbstractLayout") {
             this->abs_layout.push_back(SpoqAbstractionLayout());
             auto &abs = this->abs_layout.back();
             abs.struct_name = parse_cmd_string(cmd, 0);
@@ -1295,7 +1303,12 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
             proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(tmp_high_def)),
                                  make_shared<loc_t>(proj->layers[layer_id]->name, Project::LOC_SPEC, ""), i + symbol_order);
             // FIXME: temporarily suspend loop transformation
-            no_trans |= true;
+            if (proj->cmds.LoopTrans.find(high_name) == proj->cmds.LoopTrans.end()) {
+                // LOG_DEBUG << "Loop transformation for " << high_name << " is suspended";
+                no_trans |= true;
+            } else {
+                LOG_DEBUG << "We will try to transform loop for " << high_name << "";
+            }
         } else {
             high_def = new Definition(high_name, proj->defs[low_name]->rettype, std::move(high_args),
                                       std::move(high_body));
@@ -1303,6 +1316,7 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
 
         // Transform the low spec to high spec
         no_trans |= proj->cmds.NoHighSpec || proj->cmds.NoTrans.find(name_map[low_name]) != proj->cmds.NoTrans.end();
+
 
         LOG_DEBUG << "NO HIGH SPEC" << proj->cmds.NoHighSpec;
         

@@ -205,10 +205,15 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             def->body = std::move(__tmp_spec3);
             if(!changed) {
                 if (UNFOLD_POLICY.skip) {
+                    // Dealy some branch-irrelevant spec to the last
                     UNFOLD_POLICY.set_skip(false);
                     profile_print_transrule();
-                } else 
-                    break;
+                } else if (UNFOLD_POLICY.require_loop_unroll(def->name, proj->cmds.LoopUnroll)) {
+                    LOG_DEBUG << "we start greedyly unfold for " << UNFOLD_POLICY.current_unfold << " times for " << def->name << "\n";
+                } else {
+                    // LOG_DEBUG << "finish spec transformer for " << def->name << "\n";
+                   break;
+                }
             }
     }
 }
