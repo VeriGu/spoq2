@@ -1279,7 +1279,7 @@ void spec_prover(Project *proj) {
                     l_args->push_back(arg);
                 }
                 auto spec_def = new Definition(goal_def->name, goal_def->rettype, std::move(l_args), goal_def->body->deep_copy());
-                //coi_reduction(proj, spec_def, inv);
+                coi_reduction(proj, spec_def, inv);
 
                 proj->verifying_invariant = name;
                 if (check_inv_by_path(proj, spec_def, inv, used_abstract_funcs)) {
