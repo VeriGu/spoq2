@@ -22,6 +22,10 @@ bool is_invariant_defs(Project *proj, const string &name) {
     return proj->symbols[name].loc == autov::loc_t("Invariants", "Spec", "");
 }
 
+bool is_axiom_defs(Project *proj, const string &name) {
+    return proj->symbols[name].loc == autov::loc_t("Axioms", "Spec", "");
+}
+
 bool is_lemma_defs(Project *proj, const string &name) {
     return proj->symbols[name].loc == autov::loc_t("Lemmas", "Spec", "");
 }
@@ -1072,6 +1076,12 @@ bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv, std::unord
         state->add_induction(lemma_expr->get_z3_value());
     }
 
+    for (auto const &a : proj->axioms) {
+        auto axiom_body = proj->defs[a]->body.get();
+        auto axiom_expr = z3_expr(proj, axiom_body, state);
+        state->conds->push_back(axiom_expr->get_z3_value());
+    }
+
     //also add proved invariant
     for(auto proved: proj->verified_invariants) {
         auto pinv = proj->sys_invs[proved].get();
@@ -1224,7 +1234,6 @@ bool simulate(Project* proj, bool det, bool check_sec = true) {
             auto def = proj->defs[prim].get();
             proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_secure"));
             proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
-            bool det = false;
             PROFILE_START(relate_secure);
             auto res = check_hprop_by_path(proj, rel_def.get(), def, nullptr, false);
             PROFILE_END(relate_secure);
@@ -1327,17 +1336,6 @@ void spec_prover(Project *proj) {
     auto end = std::chrono::high_resolution_clock::now();
     auto loop_pre_post_cost = std::chrono::duration<double>(end - begin).count();
 
-
-    Z3Cache.clear();
-    // PROFILE_START(simulation_non_det);
-    // if (OPTS.check_simulation) {
-    //     if(simulate(proj, false)) {
-    //         LOG_DEBUG << "Nondet Relational Property Valid! :D";
-    //     } else {
-    //         LOG_DEBUG << "Nondet Relational Property not Valid! :D";
-    //     }
-    // }
-    // PROFILE_END(simulation_non_det);
 
     Z3Cache.clear();
     PROFILE_START(simulation_det);

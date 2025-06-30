@@ -579,6 +579,12 @@ namespace autov
 			auto lemma_expr = z3_eval(proj, lemma_body, state, false, true, used_fixpoint);
 			state->add_induction(lemma_expr->get_z3_value());
 		}
+		for (auto const &a : proj->axioms) {
+			auto axiom_body = proj->defs[a]->body.get();
+			auto axiom_expr = z3_eval(proj, axiom_body, state, false, true, used_fixpoint);
+			state->conds->push_back(axiom_expr->get_z3_value());
+		}
+
 		// add weak-step consistency relations
 		for (auto const &wsr : proj->weak_step_relations) {
 			auto wsr_def = proj->defs[wsr].get();

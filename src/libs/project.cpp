@@ -62,6 +62,7 @@ const string Project::LAYER_PTR_GTB = "LAYER_PTR_GTB";
 const string Project::LAYER_DATA = "LAYER_DATA";
 /** Auto-proof layers */
 const string Project::INV_LAYER = "Invariants";
+const string Project::AXIOM_LAYER = "Axioms";
 const string Project::LEMMA_LAYER = "Lemmas";
 const string Project::RELATE_LAYER = "Relations";
 
@@ -280,11 +281,6 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             auto d = dynamic_cast<Symbol *>(cmd->elems->at(1).get());
 
             this->cmds.AddDep[s->text].push_back(d->text);
-        } else if (op_str == "Axiom") {
-            auto expr = dynamic_cast<Expr *>(cmd->elems->at(0).get());
-            assert(cmd->elems->size() == 1);
-            cmd->elems->at(0).release();
-            this->axioms.push_back(unique_ptr<Expr>(expr));
         } else if (op_str == "OnlyTrans") {
             assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
             auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
@@ -906,10 +902,13 @@ static void collect_lemmas(Project *proj) {
             invs.push_back(def.first);
             continue;
         }
-        if (!is_lemma_defs(proj, def.first)) {
+        if (is_lemma_defs(proj, def.first)) {
+            proj->lemmas.insert(def.first);
+        } else if (is_axiom_defs(proj, def.first)) {
+            proj->axioms.insert(def.first);
+        } else {
             continue;
         }
-        proj->lemmas.insert(def.first);
         // Transform the lemma to unfolded 
         auto lemma_def = def.second.get();
         
@@ -939,11 +938,6 @@ static void collect_lemmas(Project *proj) {
 
     }
     /** TODO: support lemma selection command */
-    for (auto const &inv: invs) {
-        for (auto const &l : proj->lemmas) {
-            proj->inv_lemmas[inv].insert(proj->defs[l].get());
-        }
-    }
 }
 
 void trans_inv(Project *proj) {

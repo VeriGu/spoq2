@@ -126,6 +126,7 @@ public:
     static const string LAYER_PTR_GTB;
     static const string LAYER_DATA;
     static const string INV_LAYER;
+    static const string AXIOM_LAYER;
     static const string LEMMA_LAYER;
     static const string RELATE_LAYER;
 
@@ -145,7 +146,7 @@ public:
     unordered_map<string, shared_ptr<SpecType>> typedefs;
 
     // Axioms/layers. RO after parsing.
-    vector<unique_ptr<Expr>> axioms;
+    // vector<unique_ptr<Expr>> axioms;
     vector<unique_ptr<Layer>> layers;
     unordered_map<string, string> includes;
 
@@ -164,7 +165,10 @@ public:
     unordered_map<string, std::unordered_map<string, std::set<string>>> coi;
     unordered_map<string, std::set<field_t>> inv_fields;
     std::set<string> lemmas;
-    unordered_map<string, std::set<Definition *>> inv_lemmas;
+    std::set<string> axioms;
+    // unordered_map<string, std::set<Definition *>> inv_lemmas;
+    // unordered_map<string, std::set<Definition *>> inv_axioms;
+
     unordered_map<string, bool> verified_specs;
     std::set<string> relations;
     std::set<string> sec_relations;
