@@ -1235,7 +1235,9 @@ bool simulate(Project* proj, bool det, bool check_sec = true) {
             proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_secure"));
             proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
             PROFILE_START(relate_secure);
-            auto res = check_hprop_by_path(proj, rel_def.get(), def, nullptr, false);
+            // auto res = check_hprop_by_path(proj, rel_def.get(), def, nullptr, false);
+            mark_determ_branch(proj, rel_def.get(), def);
+            auto res = check_hprop_by_path(proj, rel_def.get(), def, nullptr, true);
             PROFILE_END(relate_secure);
             if (res) {
                 LOG_DEBUG << "Relate Secure" << def->name << " is valid :D";

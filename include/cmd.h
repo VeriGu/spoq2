@@ -14,6 +14,7 @@ public:
     bool conditional_spec = false;
     bool lens = false;
     bool coi = false;
+    bool coi_prune_path = true; 
     bool use_llvm_frontend = false;
     bool check_inv = false;
     bool check_loop_inv = false;
@@ -45,6 +46,7 @@ public:
         std::cout << "Command-line options:\n";
         std::cout << "  config_file: " << config_file << "\n";
         std::cout << "  cone of influence reduction: " << std::boolalpha << coi << "\n";
+        std::cout << "  cone of influence prune path: " << std::boolalpha << coi_prune_path << "\n";
         std::cout << "  use_llvm_frontend: " << std::boolalpha << use_llvm_frontend << "\n";
         std::cout << "  new-trans: " << std::boolalpha << new_trans << "\n";
         std::cout << "  check-sys: " << std::boolalpha << check_inv << "\n";
@@ -76,6 +78,7 @@ public:
             ("help,h", "produce help message")
             ("coi", po::bool_switch()->default_value(true), "use cone of influence reduction")
             ("no-coi", po::bool_switch()->default_value(false), "do not use coi (override --coi)")
+            ("no-prune-path", po::bool_switch()->default_value(false), "do not use coi for pruning path")
             ("lens,l", po::bool_switch()->default_value(true), "use lens")
             ("no-lens", po::bool_switch()->default_value(false), "do not use lens (ovrride --lens)")
             ("new-trans", po::bool_switch()->default_value(false), "use new transformation") 
@@ -151,7 +154,10 @@ public:
         } else {
             this->coi = vmap["coi"].as<bool>();
         }
- 
+        if (vmap["no-prune-path"].as<bool>()) {
+            this->coi_prune_path = false;
+        }
+
         report();
 
         return true;

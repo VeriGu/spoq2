@@ -642,7 +642,7 @@ void mark_determ_branch(Project* proj, Definition* rel_def, Definition* spec_def
                     f_is_pub = true;
                 }
             }
-            if (!f_is_pub) {
+            if (!OPTS.coi_prune_path || !f_is_pub) {
                 cond.first->is_determ_branch = false;
                 // LOG_WARNING << "[mark_determ_branch] Mark non-determ branch:\n" << string(*cond.first);
                 // LOG_WARNING << "[mark_determ_branch] COI field not contained in public vars: ";

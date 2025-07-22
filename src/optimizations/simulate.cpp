@@ -6,7 +6,7 @@
 // TODO: Implement simulation-aux functions, maybe integrated into prove_by_traverse in future
 namespace autov
 {
-	int Z3_SIM_TIMEOUT = 500; // 10s
+	int Z3_SIM_TIMEOUT = 1000;
 
 	shared_ptr<SpecValue> formulate_relation(Project *proj, Definition *rel, SpecNode *st_spec, SpecNode *st_impl, shared_ptr<ProveState> state) {
 		vector<string> names;
