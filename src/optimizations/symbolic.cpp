@@ -1191,7 +1191,7 @@ bool check_pre_post(Project* proj, Definition *def, std::unordered_set<string>& 
     return res;
 }
 
-bool simulate(Project* proj, bool det, bool check_sec = true) {
+bool simulate(Project* proj, bool check_sec = true) {
     Z3_SIM_TIMEOUT = Z3_SOLVE_RDATA_TIMEOUT;
     if (!proj->relations.empty()) {
         unique_ptr<SpecNode> relation = make_unique<BoolConst>(true);
@@ -1208,13 +1208,10 @@ bool simulate(Project* proj, bool det, bool check_sec = true) {
             proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_RData"));
             proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
 
-            mark_determ_branch(proj, rel_def.get(), def);
-
-            if (check_hprop_by_path(proj, rel_def.get(), def, nullptr, true)) {
+            if (check_hprop_by_path(proj, rel_def.get(), def)) {
                 LOG_DEBUG << "Relate Other " << def->name << " is valid :D";
             } else {
                 LOG_DEBUG << "Relate Other " << def->name << " is not valid :(";
-                // return false;
             }    
         }
     }
@@ -1235,9 +1232,7 @@ bool simulate(Project* proj, bool det, bool check_sec = true) {
             proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_secure"));
             proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
             PROFILE_START(relate_secure);
-            // auto res = check_hprop_by_path(proj, rel_def.get(), def, nullptr, false);
-            mark_determ_branch(proj, rel_def.get(), def);
-            auto res = check_hprop_by_path(proj, rel_def.get(), def, nullptr, true);
+            auto res = check_hprop_by_path(proj, rel_def.get(), def);
             PROFILE_END(relate_secure);
             if (res) {
                 LOG_DEBUG << "Relate Secure" << def->name << " is valid :D";
@@ -1343,7 +1338,7 @@ void spec_prover(Project *proj) {
     PROFILE_START(simulation_det);
     if (OPTS.check_simulation) {
         // we do not need to prove secure relation again
-        if(simulate(proj, true)) {
+        if(simulate(proj)) {
             LOG_DEBUG << "Det Relational Property Valid! :D";
         } else {
             LOG_DEBUG << "Det Relational Property not Valid! :D";

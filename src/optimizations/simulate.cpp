@@ -546,6 +546,7 @@ namespace autov
 		}
 		auto spec_def = new Definition(spec->name, spec->rettype, std::move(l_args), spec->body->deep_copy());
 		coi_reduction(proj, spec_def, rel->body.get());
+		mark_determ_branch(proj, rel, spec_def);
 
 		spec_body = spec_def->body.get();
 		if (!impl) {
