@@ -489,6 +489,124 @@ rule_ret_t SpecRules::hide_write(std::unique_ptr<SpecNode> spec, std::set<field_
     return { std::move(new_root), changed };
 }
 
+/* If spec is Some (..., st) or Some st, return "st", else return NULL. */
+unique_ptr<SpecNode> try_get_return_state(SpecNode *spec) {
+    unique_ptr<SpecNode> ret_st = nullptr;
+    if (auto expr = instance_of(spec, Expr)) {
+        if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
+            if (*e_op == Expr::Some) {
+                if (auto ret_Some = instance_of(expr->elems->at(0).get(), Expr)) {
+                    ret_st = expr->elems->at(0)->deep_copy();
+                    // if the return value is := Some (ret_val, st), then take the last 'st'
+                    if (auto ret_op = std::get_if<Expr::ops>(&ret_Some->op)) {
+                        if (*ret_op == Expr::Tuple) {
+                            ret_st = ret_Some->elems->back()->deep_copy();
+                        }
+                    }
+                } else if (auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
+                    ret_st = ret_Some->deep_copy();
+                }
+            } else if (*e_op == Expr::None) {
+                ret_st = expr->deep_copy();
+            }
+        }
+    }
+    return ret_st;
+}
+
+rule_ret_t SpecRules::merge_branch(std::unique_ptr<SpecNode> spec) {
+    bool changed = false;
+    auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+        if (auto out_if = instance_of(node.get(), If)) {
+            auto out_then_ret = try_get_return_state(out_if->then_body.get());
+            auto out_else_ret = try_get_return_state(out_if->else_body.get());
+
+            if (out_then_ret) {
+                // if X then (Some st) else ...
+                if (out_else_ret) {
+                    if (string(*out_then_ret) == string(*out_else_ret)) {
+                        // both branches return the same state, merge them
+                        changed = true;
+                        return out_if->then_body->deep_copy();
+                    }
+                } else {
+                    if (auto in_if = instance_of(out_if->else_body.get(), If)) {
+                        auto in_then_ret = try_get_return_state(in_if->then_body.get());
+                        auto in_else_ret = try_get_return_state(in_if->else_body.get());
+                        auto is_determ = out_if->cond->is_determ_branch && 
+                                         in_if->cond->is_determ_branch;
+                        /** if X then Some st
+                         *       else (if Y then Some st / else ...) */
+                        if (in_then_ret && string(*out_then_ret) == string(*in_then_ret)) {
+                            auto elems = make_unique<std::vector<std::unique_ptr<SpecNode>>>();
+                            elems->push_back(std::move(out_if->cond));
+                            elems->push_back(std::move(in_if->cond));
+                            auto new_cond = make_unique<Expr>(Expr::binops::BAND, std::move(elems), Bool::BOOL);
+                            new_cond->is_determ_branch = is_determ;
+                            changed = true;
+                            return make_unique<If>(std::move(new_cond), std::move(in_if->then_body), std::move(in_if->else_body));
+                        }
+                        /** if X then Some st else (if Y then ... / else Some st) 
+                         * == if (X && !Y) then ... else Some st
+                        */
+                        if (in_else_ret && string(*out_then_ret) == string(*in_else_ret)) {
+                            auto bnot_args = make_unique<std::vector<std::unique_ptr<SpecNode>>>();
+                            bnot_args->push_back(in_if->cond->deep_copy());
+                            // build the outer (BAND out_if->cond, bnot_expr)
+                            auto elems = make_unique<std::vector<std::unique_ptr<SpecNode>>>();
+                            elems->push_back(out_if->cond->deep_copy());
+                            elems->push_back(make_unique<Expr>(Expr::BNOT, std::move(bnot_args), Bool::BOOL));
+                            auto new_cond = make_unique<Expr>(Expr::binops::BAND, std::move(elems), Bool::BOOL);
+                            new_cond->is_determ_branch = is_determ;
+                            changed = true;
+                            return make_unique<If>(std::move(new_cond), std::move(in_if->then_body), std::move(in_if->else_body));
+                        }
+                    }
+                }
+            } else {
+                if (out_else_ret) {
+                    if (auto in_if = instance_of(out_if->then_body.get(), If)) {
+                        auto in_then_ret = try_get_return_state(in_if->then_body.get());
+                        auto in_else_ret = try_get_return_state(in_if->else_body.get());
+                        auto is_determ = out_if->cond->is_determ_branch && 
+                                         in_if->cond->is_determ_branch;
+                        /** if X then (if Y then Some st / else ...) else Some st 
+                         *  == if (X && !Y) then ... else Some st
+                        */
+                        if (in_then_ret && string(*out_else_ret) == string(*in_then_ret)) {
+                            auto bnot_args = make_unique<std::vector<std::unique_ptr<SpecNode>>>();
+                            bnot_args->push_back(std::move(in_if->cond));
+
+                            auto elems = make_unique<std::vector<std::unique_ptr<SpecNode>>>();
+                            elems->push_back(std::move(out_if->cond));
+                            elems->push_back(make_unique<Expr>(Expr::BNOT, std::move(bnot_args), Bool::BOOL));
+                            auto new_cond = make_unique<Expr>(Expr::binops::BAND, std::move(elems), Bool::BOOL);
+                            new_cond->is_determ_branch = is_determ;
+                            changed = true;
+                            return make_unique<If>(std::move(new_cond), std::move(in_if->else_body), std::move(in_if->then_body));
+                        }
+                        /** if X then (if Y then ... / else Some st)
+                         *       else Some st */
+                        if (in_else_ret && string(*out_else_ret) == string(*in_else_ret)) {
+                            auto elems = make_unique<std::vector<std::unique_ptr<SpecNode>>>();
+                            elems->push_back(std::move(out_if->cond));
+                            elems->push_back(std::move(in_if->cond));
+                            auto new_cond = make_unique<Expr>(Expr::binops::BAND, std::move(elems), Bool::BOOL);
+                            new_cond->is_determ_branch = is_determ;
+                            changed = true;
+                            return make_unique<If>(std::move(new_cond), std::move(in_if->then_body), std::move(in_if->else_body));
+                        }
+                    }
+                }
+            }
+        }
+        return node; 
+    };
+    auto new_root = rec_apply(std::move(spec), f, false);
+    return { std::move(new_root), changed };
+}
+
+
 void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
     if (!OPTS.coi) 
         return;
@@ -513,6 +631,12 @@ void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
         } while (false);
 
         do {
+            auto [__spec, __changed] = proj->rules.merge_branch(std::move(spec));
+            spec = std::move(__spec);
+            changed |= __changed;
+        } while (false);
+
+        do {
             auto [__spec, __changed] = proj->rules.rule_simple_by_z3(std::move(spec), make_shared<EvalState>(vars, conds));
             spec = std::move(__spec);
             changed |= __changed;
@@ -526,8 +650,54 @@ void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
     def->body = std::move(spec);
     def->_str.clear();
     def->body->clear_z3_eval();
-    def->infer_type(*proj);
+    // def->infer_type(*proj);
     std::cout << "[COI] spec after COI-reduction:\n" << string(*def) << std::endl;
+}
+
+std::pair<unsigned, unsigned> count_branch_conds(SpecNode *spec, bool determ = true) {
+    unsigned count = 0; unsigned determ_count = 0;
+    bool d = determ;
+    if (auto m = instance_of(spec, Match)) {
+        if (!m->is_when()) {
+            count++;
+            if (determ) {
+                if (m->src->is_determ_branch) {
+                    LOG_DEBUG << "[count_branch_conds] Match src is determ: " << string(*m->src);
+                    determ_count++;
+                } else {
+                    d = false; 
+                }
+            }
+        }
+        for (auto &pm : *m->match_list) {
+            auto v = count_branch_conds(pm->body.get(), d);
+            count += v.first;
+            determ_count += v.second;
+        }
+    } else if (auto i = instance_of(spec, If)) {
+        count++;
+        if (determ) {
+            if (i->cond->is_determ_branch) {
+                LOG_DEBUG << "[count_branch_conds] If cond is determ: " << string(*i->cond);
+                determ_count++;
+            } else {
+                d = false; 
+            }
+        }
+        auto v_then = count_branch_conds(i->then_body.get(), d);
+        auto v_else = count_branch_conds(i->else_body.get(), d);
+        count += v_then.first + v_else.first;
+        determ_count += v_then.second + v_else.second;
+    } else if (auto r = instance_of(spec, RelyAnno)) {
+        auto v = count_branch_conds(r->body.get(), d);
+        count += v.first;
+        determ_count += v.second;
+    } else if (auto f = instance_of(spec, ForallExists)) {
+        auto v = count_branch_conds(f->body.get(), d);
+        count += v.first;
+        determ_count += v.second;
+    }
+    return {count, determ_count};   
 }
 
 void collect_branch_conds(SpecNode *spec, path_t p, std::set<path_node_t> &init_nodes) {
@@ -634,22 +804,29 @@ void mark_determ_branch(Project* proj, Definition* rel_def, Definition* spec_def
             print_field(f);
         }
 
-        // examine all COI set elements of this branch are public variables
-        for (auto &f : coi_ret) {
-            bool f_is_pub = false;
-            for (auto &pv : public_vars) {
-                if (contains_field(f, pv)) {
-                    f_is_pub = true;
+        if (!OPTS.coi_prune_path) {
+            cond.first->is_determ_branch = false;
+        } else {
+            // examine all COI set elements of this branch are public variables
+            for (auto &f : coi_ret) {
+                bool f_is_pub = false;
+                for (auto &pv : public_vars) {
+                    if (contains_field(f, pv)) {
+                        f_is_pub = true;
+                    }
                 }
-            }
-            if (!OPTS.coi_prune_path || !f_is_pub) {
-                cond.first->is_determ_branch = false;
-                // LOG_WARNING << "[mark_determ_branch] Mark non-determ branch:\n" << string(*cond.first);
-                // LOG_WARNING << "[mark_determ_branch] COI field not contained in public vars: ";
-                // print_field(f);
+                if (!f_is_pub) {
+                    cond.first->is_determ_branch = false;
+                    // LOG_WARNING << "[mark_determ_branch] Mark non-determ branch:\n" << string(*cond.first);
+                    // LOG_WARNING << "[mark_determ_branch] COI field not contained in public vars: ";
+                    // print_field(f);
+                }
             }
         }
     }
+    auto v_pair = count_branch_conds(spec_def->body.get());
+    LOG_DEBUG << "[mark_determ_branch] Total branch number: " << v_pair.first << " for " << rel_def->name;
+    LOG_DEBUG << "[mark_determ_branch] Deterministic branch number: " << v_pair.second << " for " << rel_def->name;
 }
 
 }

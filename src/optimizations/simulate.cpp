@@ -267,7 +267,7 @@ namespace autov
 				auto t_race = OPTS.race_timeout;
 				OPTS.race_timeout = Z3_SIM_TIMEOUT / 1000;
 				// res = z3_check(state, cond->get_z3_value(), Z3_SIM_TIMEOUT);
-				res = z3_check_unsat(state, cond->get_z3_value(), model);
+				res = z3_check_unsat(state, cond->get_z3_value(), model, &proj->query_saver);
 				OPTS.race_timeout = t_race;
 			}
 			if (res == Z3Result::True) {
