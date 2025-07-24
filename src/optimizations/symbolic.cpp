@@ -1208,7 +1208,13 @@ bool simulate(Project* proj, bool check_sec = true) {
             proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_RData"));
             proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
 
-            if (check_hprop_by_path(proj, rel_def.get(), def)) {
+            bool res = false;
+            if (OPTS.decompose_check_simulation) {
+                res = decompose(proj, def);
+            } else {
+                res = check_hprop_by_path(proj, rel_def.get(), def);
+            }
+            if (res) {
                 LOG_DEBUG << "Relate Other " << def->name << " is valid :D";
             } else {
                 LOG_DEBUG << "Relate Other " << def->name << " is not valid :(";
@@ -1285,7 +1291,7 @@ void spec_prover(Project *proj) {
                     l_args->push_back(arg);
                 }
                 auto spec_def = new Definition(goal_def->name, goal_def->rettype, std::move(l_args), goal_def->body->deep_copy());
-                coi_reduction(proj, spec_def, inv);
+                // coi_reduction(proj, spec_def, inv);
 
                 proj->verifying_invariant = name;
                 if (check_inv_by_path(proj, spec_def, inv, used_abstract_funcs)) {
@@ -1345,19 +1351,6 @@ void spec_prover(Project *proj) {
         }
     }
     PROFILE_END(simulation_det);
-    
-    PROFILE_START(decom_simulation);
-    if(OPTS.decompose_check_simulation) {
-        //overloading the command CheckInv
-        for(auto prim : proj->cmds.invs) {
-            if(decompose(proj, proj->defs[prim].get())) {
-                LOG_DEBUG << "Decom Relational Property for " << prim << "is Valid! :D";
-            } else {
-                LOG_DEBUG << "Decom Relational Property for " << prim << "is not Valid! :D";
-            }
-        }
-    }
-    PROFILE_END(decom_simulation);
 
     double inv_total = 0;
     for (auto &inv : inv_costs) {
