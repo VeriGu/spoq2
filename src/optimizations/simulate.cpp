@@ -563,8 +563,20 @@ namespace autov
 		}
 		auto rel_expr = formulate_relation(proj, rel, st_sym_1.get(), st_sym_2.get(), state);
 		state->conds->push_back(rel_expr->get_z3_value());
-		// add invariants for both
 		set<string> used_fixpoint;
+
+		auto &preconds = proj->cmds.PreCond[spec->name];
+		unique_ptr<SpecNode> precond = make_unique<BoolConst>(true);
+		for(auto &in : preconds) {
+			auto elems = new vector<unique_ptr<SpecNode>>();
+			elems->push_back(std::move(precond));
+			elems->push_back(in->deep_copy());
+			precond = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
+		}
+		auto prec = z3_eval(proj, precond.get(), state, false, true, used_fixpoint);
+		state->conds->push_back(prec->get_z3_value());
+		// add invariants for both
+		
 		for (auto proved : proj->verified_invariants) {
 			auto inv_for_spec = proj->sys_invs[proved].get();
 			auto inv_for_impl = proj->rules.build_simulate_spec(proj->sys_invs[proved]->deep_copy()).release();

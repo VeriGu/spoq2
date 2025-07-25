@@ -1181,6 +1181,14 @@ bool check_pre_post(Project* proj, Definition *def, std::unordered_set<string>& 
         elems->push_back(in->deep_copy());
         postcond = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
     }
+
+    auto l_args = make_unique<vector<shared_ptr<Arg>>>();
+    for (auto arg : *def->args) {
+        l_args->push_back(arg);
+    }
+	auto spec_def = new Definition(def->name, def->rettype, std::move(l_args), def->body->deep_copy());
+	coi_reduction(proj, spec_def, postcond.get());
+
     auto induction = std::make_shared<vector<z3::expr>>();
     auto state = make_shared<ProveState>(vars, conds, induction);
     set<string> used_fixpoint;
@@ -1344,7 +1352,7 @@ void spec_prover(Project *proj) {
     PROFILE_START(simulation_det);
     if (OPTS.check_simulation) {
         // we do not need to prove secure relation again
-        if(simulate(proj)) {
+        if(simulate(proj, false)) {
             LOG_DEBUG << "Det Relational Property Valid! :D";
         } else {
             LOG_DEBUG << "Det Relational Property not Valid! :D";
