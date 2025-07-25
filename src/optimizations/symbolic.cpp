@@ -1189,12 +1189,14 @@ bool check_pre_post(Project* proj, Definition *def, std::unordered_set<string>& 
 	auto spec_def = new Definition(def->name, def->rettype, std::move(l_args), def->body->deep_copy());
 	coi_reduction(proj, spec_def, postcond.get());
 
+    proj->query_saver = QueryInfo(query_saver_dir(def->name, "integrity"));
+    
     auto induction = std::make_shared<vector<z3::expr>>();
     auto state = make_shared<ProveState>(vars, conds, induction);
     set<string> used_fixpoint;
     auto c = z3_eval(proj, precond.get(), state, false, true, used_fixpoint);
 
-    bool res = prove_by_traverse(proj, def->body.get(), postcond.get(), state, used_abs, ProveMode::PREPOST, def->name);
+    bool res = prove_by_traverse(proj, spec_def->body.get(), postcond.get(), state, used_abs, ProveMode::PREPOST, def->name);
 
     return res;
 }
