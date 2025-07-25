@@ -29,7 +29,9 @@ bool decompose(Project* proj, Definition* def, string secret) {
     }
     for (auto &r : proj->relations) {
         auto rel = proj->defs[r].get();
+        PROFILE_START(coi);
         auto coi_fields = analyze_cone_of_influence(proj, def, rel->body.get());
+        PROFILE_END(coi);
         std::set<string> coi = {};
         for (auto &c : coi_fields) {
             if (!c.empty()) {

@@ -399,7 +399,6 @@ void analyze_invariant_fields(Project *proj, SpecNode *inv, std::set<field_t> &f
  *  Give an expression and a set of interested fields, backward propagate to all the dependent fields (its definition)
  */
 std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, std::variant<SpecNode *, std::set<field_t>> coi_src, std::set<string> whitelist, std::set<string> blacklist) {
-    PROFILE_START(coi);
     auto args = def->args.get();
     auto spec = def->body.get();
     std::set<string> arg_symbols = {};
@@ -463,7 +462,6 @@ std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, std:
         }
         coi_ret.insert(c);
     }
-    PROFILE_END(coi);
     return coi_ret;
 }
 
@@ -613,7 +611,9 @@ void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
     if (!OPTS.coi) 
         return;
     // std::cout << "[COI] Raw (original) spec:\n" << string(*def) << std::endl;
+    PROFILE_START(coi);
     auto coi_fields = analyze_cone_of_influence(proj, def, inv, autov::coi_whitelist, autov::coi_blacklist);
+    PROFILE_END(coi);
 
     auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
     auto conds = std::make_shared<vector<z3::expr>>();
