@@ -36,5 +36,5 @@ namespace autov {
     void analyze_invariant_fields(Project *proj, SpecNode *inv, std::set<field_t> &fields);
     void coi_reduction(Project *proj, Definition *def, SpecNode *inv);
     void mark_determ_branch(Project* proj, Definition* rel_def, Definition* spec_def);
-    inline bool contains_field(const field_t &f_check, const field_t &f_interested);
+    bool contains_field(const field_t &f_check, const field_t &f_interested);
 }

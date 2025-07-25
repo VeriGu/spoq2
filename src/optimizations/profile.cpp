@@ -33,6 +33,7 @@ bool __PROFILE_ON = true;
 	label##_cnt = 0; \
 	label##_accumulative_time = std::chrono::duration<double>(0);
 
+PROFILE_VAR_INIT_VAL(coi);
 PROFILE_VAR_INIT_VAL(relate_secure);
 PROFILE_VAR_INIT_VAL(simulation_det);
 PROFILE_VAR_INIT_VAL(simulation_non_det);
@@ -370,6 +371,7 @@ void profile_print_simulation() {
 	PROFILE_PRINT_RULE(simulation_det);
 	PROFILE_PRINT_RULE(simulation_non_det);
 	PROFILE_PRINT_RULE(relate_secure);
+	PROFILE_PRINT_RULE(coi);
 }
 
 void profile_print_epoch()

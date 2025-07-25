@@ -399,6 +399,7 @@ void analyze_invariant_fields(Project *proj, SpecNode *inv, std::set<field_t> &f
  *  Give an expression and a set of interested fields, backward propagate to all the dependent fields (its definition)
  */
 std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, std::variant<SpecNode *, std::set<field_t>> coi_src, std::set<string> whitelist, std::set<string> blacklist) {
+    PROFILE_START(coi);
     auto args = def->args.get();
     auto spec = def->body.get();
     std::set<string> arg_symbols = {};
@@ -462,6 +463,7 @@ std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, std:
         }
         coi_ret.insert(c);
     }
+    PROFILE_END(coi);
     return coi_ret;
 }
 
