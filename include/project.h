@@ -178,7 +178,7 @@ public:
     std::set<string> verified_invariants;
     string verifying_invariant;
 
-    std::set<string> verified_relations;
+    std::set<string> unverified_relations;
     QueryInfo query_saver;
 
     unordered_map<string, vector<unique_ptr<SpecNode>>> loop_invs;

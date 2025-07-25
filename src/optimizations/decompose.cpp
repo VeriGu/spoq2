@@ -11,6 +11,22 @@ namespace autov
 //decompose_procedure: should decompose all the identity relation separated with
 //other relations. Group share's identity relations, local's identity relations.
 bool decompose(Project* proj, Definition* def, string secret) {
+    static set<string> secret_fields_rm_list = {
+        "e_state", "e_vmid", "e_count"
+    };
+    set<field_t> secret_fields;
+    set<field_t> secret_ret;
+    for(auto &sec_r : proj->sec_relations) {
+        auto sec_def = proj->defs[sec_r].get();
+        analyze_invariant_fields(proj, sec_def->body.get(), secret_fields);
+    }
+    for (auto secret: secret_fields) {
+        if(secret.empty() || secret_fields_rm_list.find(secret.front()) != secret_fields_rm_list.end()) {
+            continue;
+        }
+        LOG_DEBUG << "secret: " << secret.front();
+        secret_ret.insert(secret);
+    }
     for (auto &r : proj->relations) {
         auto rel = proj->defs[r].get();
         auto coi_fields = analyze_cone_of_influence(proj, def, rel->body.get());
@@ -25,17 +41,19 @@ bool decompose(Project* proj, Definition* def, string secret) {
         for(auto c: coi) { 
             LOG_DEBUG << def->name << ":" << r << "_coi:" << c;
         }
-        set<field_t> secret_fields;
-        for(auto &sec_r : proj->sec_relations) {
-            auto sec_def = proj->defs[sec_r].get();
-            analyze_invariant_fields(proj, sec_def->body.get(), secret_fields);
-        }
-        for(auto secret_field : secret_fields) {
-            if(coi.find(secret_field.front()) == coi.end()) {
-                proj->verified_relations.insert(r);
-                LOG_DEBUG << def->name << ": " << r << "proved!";
+        
+        
+        for(auto coi_field: coi_fields) {
+            for(auto secret_field : secret_ret) {
+                if(contains_field(coi_field, secret_field)) {
+                    proj->unverified_relations.insert(r);
+                    LOG_DEBUG << def->name << ": " << r << " can not be skipped";
+                    goto middle;
+                }
             }
         }
+        middle:
+        continue;
     }
     unique_ptr<SpecNode> origin_relation = make_unique<BoolConst>(true);
     unique_ptr<SpecNode> relation = make_unique<BoolConst>(true);
@@ -44,7 +62,7 @@ bool decompose(Project* proj, Definition* def, string secret) {
         orin_elems->push_back(proj->defs[r]->body->deep_copy());
         orin_elems->push_back(std::move(origin_relation));
         origin_relation = make_unique<Expr>(Expr::AND, std::move(orin_elems), Bool::BOOL);
-        if(proj->verified_relations.find(r) != proj->verified_relations.end())
+        if(proj->unverified_relations.find(r) == proj->unverified_relations.end())
             continue;
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
         elems->push_back(proj->defs[r]->body->deep_copy());
