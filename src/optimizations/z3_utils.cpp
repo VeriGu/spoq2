@@ -1601,7 +1601,7 @@ z3::expr formulate_function(Project* proj, Definition* def) {
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state, bool check_loop) {
     // std::cout << "z3_eval: " << string(*val) << std::endl;
 
-    if (val->cached_eval) return val->cached_eval;
+    if (OPTS.z3_expr_cache && val->cached_eval) return val->cached_eval;
 
     auto _cache = [&](shared_ptr<SpecValue> return_val) {
         val->set_z3_eval(return_val);
@@ -1973,7 +1973,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state, bool check_loop, bool unfold, set<string>& used_fixpoint) {
     // std::cout << "z3_eval: " << string(*val) << std::endl;
 
-    if (val->cached_eval) return val->cached_eval;
+    if (OPTS.z3_expr_cache && val->cached_eval) return val->cached_eval;
 
     auto _cache = [&](shared_ptr<SpecValue> return_val) {
         val->set_z3_eval(return_val);

@@ -1354,7 +1354,7 @@ void spec_prover(Project *proj) {
     PROFILE_START(simulation_det);
     if (OPTS.check_simulation) {
         // we do not need to prove secure relation again
-        if(simulate(proj, false)) {
+        if(simulate(proj)) {
             LOG_DEBUG << "Det Relational Property Valid! :D";
         } else {
             LOG_DEBUG << "Det Relational Property not Valid! :D";

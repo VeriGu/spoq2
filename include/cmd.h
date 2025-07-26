@@ -27,6 +27,7 @@ public:
     bool transform_io = false;
     bool race = false;
     int race_timeout = 120; // 2min as default
+    bool z3_expr_cache = true; // enable z3 expr cache by default
     std::string target_spec   = "";  
 
     std::string query_path;
@@ -61,6 +62,8 @@ public:
         std::cout << "  transform_io: " << std::boolalpha << transform_io << "\n";
         std::cout << "  race: " << std::boolalpha << race << "\n";
         std::cout << "  race timeout: " << std::boolalpha << race_timeout << "s\n";
+        std::cout << "  Z3 expression cache: " << std::boolalpha << z3_expr_cache << "\n";
+
         std::cout << std::endl;
     }
 
@@ -79,6 +82,7 @@ public:
             ("coi", po::bool_switch()->default_value(true), "use cone of influence reduction")
             ("no-coi", po::bool_switch()->default_value(false), "do not use coi (override --coi)")
             ("no-prune-path", po::bool_switch()->default_value(false), "do not use coi for pruning path")
+            ("no-expr-cache", po::bool_switch()->default_value(false), "do not use Z3 expr caching")
             ("lens,l", po::bool_switch()->default_value(true), "use lens")
             ("no-lens", po::bool_switch()->default_value(false), "do not use lens (ovrride --lens)")
             ("new-trans", po::bool_switch()->default_value(false), "use new transformation") 
@@ -156,6 +160,9 @@ public:
         }
         if (vmap["no-prune-path"].as<bool>()) {
             this->coi_prune_path = false;
+        }
+        if (vmap["no-expr-cache"].as<bool>()) {
+            this->z3_expr_cache = false;
         }
 
         report();

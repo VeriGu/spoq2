@@ -478,7 +478,8 @@ rule_ret_t SpecRules::hide_write(std::unique_ptr<SpecNode> spec, std::set<field_
                     }
                     if (is_irrelevant_field_update(set_field, coi_fields)) {
                         changed = true;
-                        return e->elems->at(0).get()->deep_copy(); // hide the write, return the value
+                        return std::move(e->elems->at(0)); // hide the write, return the value
+                        // return e->elems->at(0).get()->deep_copy(); // hide the write, return the value
                     }
                 }
             }
@@ -622,7 +623,7 @@ void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
     }
     auto spec = std::move(def->body);
 
-    while (true) {
+    // while (true) {
         spec->clear_z3_eval();
         bool changed = false;
         
@@ -638,16 +639,16 @@ void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
             changed |= __changed;
         } while (false);
 
-        do {
-            auto [__spec, __changed] = proj->rules.rule_simple_by_z3(std::move(spec), make_shared<EvalState>(vars, conds));
-            spec = std::move(__spec);
-            changed |= __changed;
-        } while (false);
+        // do {
+        //     auto [__spec, __changed] = proj->rules.rule_simple_by_z3(std::move(spec), make_shared<EvalState>(vars, conds));
+        //     spec = std::move(__spec);
+        //     changed |= __changed;
+        // } while (false);
 
-        if (!changed) {
-            break;
-        }
-    }
+        // if (!changed) {
+        //     break;
+        // }
+    // }
 
     def->body = std::move(spec);
     def->_str.clear();
