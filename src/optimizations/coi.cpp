@@ -30,7 +30,7 @@ void print_path(const path_t &p) {
     std::cout << std::endl;
 }
 
-inline bool contains_field(const field_t &f_check, const field_t &f_interested) {
+bool contains_field(const field_t &f_check, const field_t &f_interested) {
     return std::search(f_check.begin(), f_check.end(), f_interested.begin(), f_interested.end()) != f_check.end();
 }
 
