@@ -26,7 +26,8 @@ public:
     bool check_none = false;
     bool transform_io = false;
     bool race = false;
-    int race_timeout = 120; // 2min as default
+    // int race_timeout = 120; // 2min as default
+    int race_timeout = 120000; // 2min as default
     bool z3_expr_cache = true; // enable z3 expr cache by default
     std::string target_spec   = "";  
 

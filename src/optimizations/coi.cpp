@@ -623,7 +623,7 @@ void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
     }
     auto spec = std::move(def->body);
 
-    // while (true) {
+    while (true) {
         spec->clear_z3_eval();
         bool changed = false;
         
@@ -645,10 +645,10 @@ void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
         //     changed |= __changed;
         // } while (false);
 
-        // if (!changed) {
-        //     break;
-        // }
-    // }
+        if (!changed) {
+            break;
+        }
+    }
 
     def->body = std::move(spec);
     def->_str.clear();

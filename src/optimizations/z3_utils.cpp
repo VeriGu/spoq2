@@ -145,7 +145,7 @@ Z3Result z3_race_check(QueryInfo* qinfo) {
     // two z3 process to race (each with 120s CPU bound)
     std::string z3_cli = "z3";
     std::string z3_path = try_getenv("Z3_PATH", "z3/build/z3");
-    std::string z3_timeout = "-T:" + std::to_string(OPTS.race_timeout);
+    std::string z3_timeout = "-t:" + std::to_string(OPTS.race_timeout);
     std::array<std::string,2> cmds = {
         z3_cli + " " + z3_timeout + " " + file,
         z3_path + " " + z3_timeout + " " + file
