@@ -321,7 +321,12 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             auto type = dynamic_cast<Symbol *>(cmd->elems->at(2).get());
 
             this->abs_var[func->text][arg->text] = type->text;
-        } else if (op_str == "AbstractPattern") {
+        } else if (op_str == "DelayUnfold") {
+            assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            UNFOLD_POLICY.skip_list.insert(s->text);
+        }
+        else if (op_str == "AbstractPattern") {
             assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) 
                    && dynamic_cast<Symbol *>(cmd->elems->at(1).get()));
 
@@ -1169,6 +1174,10 @@ bool Project::finalize_project_v2() {
     UNFOLD_POLICY.skip_list.insert("map_page_host_spec");
     // UNFOLD_POLICY.skip_list.insert("complete_sysreg_emulation_spec");
 
+    for (auto &s: UNFOLD_POLICY.skip_list) {
+        LOG_DEBUG << "Delay unfold: " << s << "\n";
+    }
+
     LOG_DEBUG << "filter and lemma ok" << "\n";
     LOG_DEBUG << "layer: " << this->layers.size() << "\n";
     
@@ -1195,6 +1204,7 @@ bool Project::finalize_project_v2() {
         }
 
         for (auto &p: L->prims) {
+            LOG_DEBUG << "primitive: " << p << "\n";
             auto func = this->spoq_code.llvm_module->getFunction(p);
             LOG_DEBUG << "primitive: " << p << "\n";
             if (func == nullptr || func->isDeclaration()) 

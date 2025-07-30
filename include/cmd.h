@@ -2,6 +2,7 @@
 #include <boost/program_options.hpp>
 #include <iostream>
 #include <profile.h>
+#include <fstream>
 
 namespace po = boost::program_options;
 
@@ -28,6 +29,7 @@ public:
     bool race = false;
     // int race_timeout = 120; // 2min as default
     int race_timeout = 120000; // 2min as default
+    bool dry_run_asm = false; // used to show all register 
     bool z3_expr_cache = true; // enable z3 expr cache by default
     std::string target_spec   = "";  
 
@@ -64,6 +66,7 @@ public:
         std::cout << "  race: " << std::boolalpha << race << "\n";
         std::cout << "  race timeout: " << std::boolalpha << race_timeout << "s\n";
         std::cout << "  Z3 expression cache: " << std::boolalpha << z3_expr_cache << "\n";
+        std::cout << "  dry run asm: " << std::boolalpha << dry_run_asm << "\n";
 
         std::cout << std::endl;
     }
@@ -101,6 +104,7 @@ public:
             ("transform-io", po::bool_switch()->default_value(false), "transform io path")
             ("race", po::bool_switch()->default_value(false), "multi-solver support")
             ("race-timeout", po::value<int>(&race_timeout)->default_value(race_timeout), "Z3 CPU limit in seconds")
+            ("dry-run-asm", po::bool_switch()->default_value(false), "dry run inline assembly to show all assmebly spec without definitions (outputs to missing_asm.txt by default)"),
             ("target-transition",
              po::value<std::string>(&target_spec)->default_value(target_spec),
              "To-be-verified top-level transition function")
@@ -139,6 +143,14 @@ public:
         this->profile = vmap["profile"].as<bool>();
         this->check_none = vmap["check-none"].as<bool>();
         this->lens = !vmap["no-lens"].as<bool>();
+        this->dry_run_asm = vmap["dry-run-asm"].as<bool>();
+        if (this->dry_run_asm) {
+            std::ofstream mfile("missing_asm.txt");
+            if (mfile) mfile << "";
+            else {
+                assert(false && "missing_asm.txt should be writable");
+            }
+        }
         if (vmap["no-profile"].as<bool>()) {
             this->profile = false;
         } else {

@@ -4,8 +4,9 @@
 #include "project.h"
 #include "values.h"
 #include "shortcuts.h"
+#include "cmd.h"
 
-
+extern SpoqOption OPTS;
 namespace autov {
 std::set<string> SpoqIRModule::get_func_dependencies(llvm::Function *func) {
     std::set<string> s;
@@ -52,6 +53,7 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
     return true;
 }
 
+std::map<std::string, bool> missed;
 bool SpoqIRModule::validate_for_gen_low_spec(Project* proj, string fname, int layer_id) {
     SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs[fname];
     if (!spoq_func.cfg_converted) {
@@ -66,12 +68,22 @@ bool SpoqIRModule::validate_for_gen_low_spec(Project* proj, string fname, int la
         proj->spoq_code.extract_inline_asm(spoq_func);
         for(auto iasm: proj->spoq_code.iasm_defs) {
             if (proj->defs.find(iasm.first + "_spec") == proj->defs.end()) {
+                // if (checked[iasm.first]) continue;
+                // checked[iasm.first] = true;
                 LOG_ERROR << "cannot find iasm definition, please provide it manually " << iasm.first + "_spec" << std::endl;
+                // std::cout << "# " << iasm.first + "_spec" << std::endl;
                 for(auto i2f : proj->spoq_code.iasm2func) {
                     if (i2f.second == iasm.first)
                         llvm::errs() << *(i2f.first) << " -> " << i2f.second << "\n";
                 }
-                if (layer_id >= 1) assert(false && "cannot find iasm definition");
+                if (OPTS.dry_run_asm) {
+                    if (missed[iasm.first]) continue; // This one has already be recorded.
+                    missed[iasm.first] = true;
+                    std::ofstream file("missing_asm.txt", std::ios::app);
+                    if (file) file << iasm.first + "_spec\n";
+                } else {
+                    if (layer_id >= 1) assert(false && "cannot find iasm definition");
+                }
             }
         }
         return true;
@@ -85,6 +97,7 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
                                    std::unordered_map<string, string> &name_map) {
     if (proj == nullptr) return false;
     if (!SpoqIRModule::validate_for_gen_low_spec(proj, fname, layer_id)) return false;
+    if (OPTS.dry_run_asm) return false;
 
     SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs.at(fname);
     SpoqIRContext context(spoq_func, proj->layers[layer_id], layer_id, proj->abs_config, proj->abs_layout);
