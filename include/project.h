@@ -171,6 +171,7 @@ public:
 
     unordered_map<string, bool> verified_specs;
     std::set<string> relations;
+    std::set<string> end_relations;
     std::set<string> sec_relations;
     std::set<string> weak_step_relations;
 

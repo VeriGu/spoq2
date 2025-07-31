@@ -529,6 +529,8 @@ namespace autov
 	 * @return false	If the relation is not proved
 	 */
 	bool check_hprop_by_path(Project *proj, Definition* rel, Definition *spec, Definition *impl, bool det, Definition* endrel) {
+		LOG_DEBUG << "rel: " << string(*rel->body);
+		LOG_DEBUG << "end_rel: " << string(*rel->body);
 		auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
 		auto conds = std::make_shared<vector<z3::expr>>();
 		for (auto arg : *spec->args) {

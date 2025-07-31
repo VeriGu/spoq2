@@ -64,7 +64,7 @@ namespace autov {
     bool is_relation_defs(Project *proj, const string &name);
     bool is_sec_relation_defs(Project *proj, const string &name);
     bool is_weak_step_relation_defs(Project *proj, const string &name);
-    
+    bool is_end_relation_defs(Project *proj, const string &name);
     abst_t abst_transition(Project *proj, SpecNode *spec);
     SpecNode *extract_st_from_expr(Project *proj, SpecNode *expr);
 

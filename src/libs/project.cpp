@@ -874,6 +874,8 @@ static void collect_relations(Project *proj) {
             proj->sec_relations.insert(def.first);
         } else if (is_weak_step_relation_defs(proj, def.first)) {
             proj->weak_step_relations.insert(def.first);
+        } else if (is_end_relation_defs(proj, def.first)){
+            proj->end_relations.insert(def.first);
         } else {
             continue;
         }

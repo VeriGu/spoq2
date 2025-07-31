@@ -42,6 +42,10 @@ bool is_weak_step_relation_defs(Project *proj, const string &name) {
     return proj->symbols[name].loc == autov::loc_t("WeakStepRelations", "Spec", "");
 }
 
+bool is_end_relation_defs(Project *proj, const string &name) {
+    return proj->symbols[name].loc == autov::loc_t("EndRelations", "Spec", "");
+}
+
 /** Separate prove-stage z3 translator from the specgen-stage one */
 shared_ptr<SpecValue> z3_expr(Project* proj, SpecNode* val, shared_ptr<EvalState> state) {
     if (val->cached_eval) return val->cached_eval;
@@ -1211,8 +1215,22 @@ bool simulate(Project* proj, bool check_sec = true) {
             elems->push_back(std::move(relation));
             relation = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
         }
+        unique_ptr<SpecNode> end_relation = nullptr;
+        if (proj->end_relations.size() > 0) {
+            end_relation = make_unique<BoolConst>(true);
+            for (auto &r : proj->end_relations) {
+                auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                elems->push_back(proj->defs[r]->body->deep_copy());
+                elems->push_back(std::move(end_relation));
+                end_relation = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
+            }
+        } 
         auto rel = proj->defs[*proj->relations.begin()].get();
         auto rel_def = make_unique<Definition>("_relate_RData",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), relation->deep_copy());
+        unique_ptr<Definition> end_rel_def = nullptr;
+        if(end_relation) {
+            end_rel_def = make_unique<Definition>("_relate_end_RData",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), end_relation->deep_copy());
+        }
         for(auto prim : proj->cmds.invs) {
             auto def = proj->defs[prim].get();
             proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_RData"));
@@ -1222,7 +1240,7 @@ bool simulate(Project* proj, bool check_sec = true) {
             if (OPTS.decompose_check_simulation) {
                 res = decompose(proj, def);
             } else {
-                res = check_hprop_by_path(proj, rel_def.get(), def);
+                res = check_hprop_by_path(proj, rel_def.get(), def, nullptr, true, end_rel_def.get());
             }
             if (res) {
                 LOG_DEBUG << "Relate Other " << def->name << " is valid :D";

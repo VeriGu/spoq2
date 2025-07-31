@@ -11,30 +11,40 @@ namespace autov
 //decompose_procedure: should decompose all the identity relation separated with
 //other relations. Group share's identity relations, local's identity relations.
 bool decompose(Project* proj, Definition* def, string secret) {
-    static set<string> secret_fields_rm_list = {
-        "e_state", "e_vmid", "e_count"
+    static set<string> public_fields_rm_list_sec = {
+        "g_norm", "e_umem", "e_shadow_vcpu_ctxt"
     };
-    set<field_t> secret_fields;
-    set<field_t> secret_ret;
-    for(auto &sec_r : proj->sec_relations) {
-        auto sec_def = proj->defs[sec_r].get();
-        analyze_invariant_fields(proj, sec_def->body.get(), secret_fields);
+    static set<string> public_fields_rm_list = {
+        "meta_PA", "meta_type", "meta_pmd_flag", "page_offset",
+        "pa_val", "meta_af", "meta_sh", "meta_ns",
+        "meta_desc_type", "meta_granule_offset", "meta_mem_attr", "meta_ripas",
+        "pbase", "poffset"
+    };
+    set<field_t> public_fields;
+    set<field_t> public_ret;
+    for(auto &r : proj->relations) {
+        auto def = proj->defs[r].get();
+        analyze_invariant_fields(proj, def->body.get(), public_fields);
     }
-    for (auto secret: secret_fields) {
-        if(secret.empty() || secret_fields_rm_list.find(secret.front()) != secret_fields_rm_list.end()) {
+    for (auto pub: public_fields) {
+        if(pub.empty() || public_fields_rm_list_sec.find(pub.front()) != public_fields_rm_list_sec.end()) {
             continue;
         }
-        LOG_DEBUG << "secret: " << secret.front();
-        secret_ret.insert(secret);
+        LOG_DEBUG << "public: " << pub.front();
+        public_ret.insert(pub);
     }
-    for (auto &r : proj->relations) {
+    set<string>& target_relation = proj->relations;
+    if(proj->end_relations.size() > 0) {
+        target_relation = proj->end_relations;
+    }
+    for (auto &r : target_relation) {
         auto rel = proj->defs[r].get();
         PROFILE_START(coi);
         auto coi_fields = analyze_cone_of_influence(proj, def, rel->body.get());
         PROFILE_END(coi);
         std::set<string> coi = {};
         for (auto &c : coi_fields) {
-            if (!c.empty()) {
+            if (!c.empty() && public_fields_rm_list.find(c.front()) == public_fields_rm_list.end()) {
                 coi.insert(c.front());
             }
         }
@@ -46,16 +56,27 @@ bool decompose(Project* proj, Definition* def, string secret) {
         
         
         for(auto coi_field: coi_fields) {
-            for(auto secret_field : secret_ret) {
-                if(contains_field(coi_field, secret_field)) {
-                    proj->unverified_relations.insert(r);
-                    LOG_DEBUG << def->name << ": " << r << " can not be skipped";
-                    goto middle;
+            if(coi_field.empty() || public_fields_rm_list.find(coi_field.front()) != public_fields_rm_list.end()) {
+                continue;
+            }
+            auto contain = false;
+            for(auto public_field : public_ret) {
+                if(contains_field(coi_field, public_field)) {
+                    // proj->unverified_relations.insert(r);
+                    
+                    // LOG_DEBUG << def->name << 
+                    // goto middle;
+                    contain = true;
+                    break;
                 }
             }
+            if(!contain) {
+                LOG_DEBUG << "coi field: " << coi_field.front() << "not in public fields";
+                LOG_DEBUG << def->name << ": " << r << " can not be skipped";
+                proj->unverified_relations.insert(r);
+                break;
+            }
         }
-        middle:
-        continue;
     }
     unique_ptr<SpecNode> origin_relation = make_unique<BoolConst>(true);
     unique_ptr<SpecNode> relation = make_unique<BoolConst>(true);
