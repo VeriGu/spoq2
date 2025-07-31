@@ -104,7 +104,7 @@ public:
             ("transform-io", po::bool_switch()->default_value(false), "transform io path")
             ("race", po::bool_switch()->default_value(false), "multi-solver support")
             ("race-timeout", po::value<int>(&race_timeout)->default_value(race_timeout), "Z3 CPU limit in seconds")
-            ("dry-run-asm", po::bool_switch()->default_value(false), "dry run inline assembly to show all assmebly spec without definitions (outputs to missing_asm.txt by default)"),
+            ("dry-run-asm", po::bool_switch()->default_value(false), "dry run inline assembly to show all assmebly spec without definitions (outputs to missing_asm.txt by default)")
             ("target-transition",
              po::value<std::string>(&target_spec)->default_value(target_spec),
              "To-be-verified top-level transition function")
