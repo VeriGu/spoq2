@@ -209,11 +209,11 @@ void Project::add_options() {
     }
 }
 
-int Project::parse_cmd_int(unique_ptr<Expr>& cmd, int index) {
+int64_t Project::parse_cmd_int(unique_ptr<Expr>& cmd, int index) {
     assert(index < cmd->elems->size());
     auto ptr = cmd->elems->at(index).get();
     if (auto num = dynamic_cast<IntConst *>(ptr)) {
-        return (int)(num->get_value());
+        return (int64_t)(num->get_value());
     }
     std::cout << "parse cmd int fail: " << string(*cmd) << ", index: " << index << ", elem: " << string(*ptr) << std::endl;
     assert(false && "parse_cmd_int: expected IntConst");
@@ -327,22 +327,31 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             UNFOLD_POLICY.skip_list.insert(s->text);
         }
         else if (op_str == "AbstractPattern") {
-            assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) 
-                   && dynamic_cast<Symbol *>(cmd->elems->at(1).get()));
-
+            assert(cmd->elems->size() >= 2);
             this->abs_config.push_back(SpoqAbstraction());
             auto &abs = this->abs_config.back();
-            abs.raw_spec_name = dynamic_cast<Symbol *>(cmd->elems->at(0).get())->text;
-            abs.abs_spec_name = dynamic_cast<Symbol *>(cmd->elems->at(1).get())->text;
-        }  else if (op_str == "AbstractLayout") {
+            if (cmd->elems->size() == 2) {
+                abs.raw_spec_name = dynamic_cast<Symbol *>(cmd->elems->at(0).get())->text;
+                abs.abs_spec_name = dynamic_cast<Symbol *>(cmd->elems->at(1).get())->text;
+                abs.constant_assumption = false;
+            } 
+            else if (cmd->elems->size() == 3) {
+                abs.mem_start = (unsigned long)parse_cmd_int(cmd, 0);
+                abs.mem_size = (unsigned long)parse_cmd_int(cmd, 1);
+                abs.abs_wrapper_name = parse_cmd_string(cmd, 2);
+                abs.constant_assumption = true;
+            } else {
+                assert(false && "incorrect argument number for AbstractPattern");
+            }
+        } else if (op_str == "AbstractLayout") {
             this->abs_layout.push_back(SpoqAbstractionLayout());
             auto &abs = this->abs_layout.back();
             abs.struct_name = parse_cmd_string(cmd, 0);
             auto size = parse_cmd_int(cmd, 1);
             for(int i = 0; i < size; i++) {
                 auto field = parse_cmd_string(cmd, 2 + i * 3 + 0);
-                auto start = parse_cmd_int(cmd, 2 + i * 3 + 1);
-                auto end = parse_cmd_int(cmd, 2 + i * 3 + 2);
+                auto start = (unsigned long)parse_cmd_int(cmd, 2 + i * 3 + 1);
+                auto end = (unsigned long)parse_cmd_int(cmd, 2 + i * 3 + 2);
                 abs.fields.push_back(std::make_pair<>(field, std::make_pair<>(start, end)));
             }
             std::cout << "Abstract Layout: " << abs.struct_name << ", size: " << size << std::endl;
@@ -1464,28 +1473,47 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
 
 void Project::prepare_abstraction() {
     // TODO: complete the abstraction configruation and extract unique_ptr<Expr>
+
+    std::vector<std::pair<int, int>> assumptions;
     
     for (auto &abs: this->abs_config) {
-        auto& raw_def = this->defs[abs.raw_spec_name];
-        assert(raw_def && "raw_def is null for abstraction");
-        auto& abs_def = this->defs[abs.abs_spec_name];
-        assert(abs_def && "abs_def is null for abstraction");
+        if (!abs.constant_assumption) {
+            auto& raw_def = this->defs[abs.raw_spec_name];
+            assert(raw_def && "raw_def is null for abstraction");
+            auto& abs_def = this->defs[abs.abs_spec_name];
+            assert(abs_def && "abs_def is null for abstraction");
 
-        if (auto expr = dynamic_cast<Expr*>(raw_def->body.get())) {
-            abs.raw_expr = expr->deep_copy_down();
-        } else {
-            std::cout << "*raw_def: " << string(*raw_def) << std::endl;
-            assert(false && "raw_def is not an Expr");
-        }
+            if (auto expr = dynamic_cast<Expr*>(raw_def->body.get())) {
+                abs.raw_expr = expr->deep_copy_down();
+            } else {
+                std::cout << "*raw_def: " << string(*raw_def) << std::endl;
+                assert(false && "raw_def is not an Expr");
+            }
 
-        // abs.abs_expr = abs_def->body->deep_copy();
-        if (auto expr = dynamic_cast<Expr*>(abs_def->body.get())) {
-            abs.abs_expr = expr->deep_copy_down();
+            // abs.abs_expr = abs_def->body->deep_copy();
+            if (auto expr = dynamic_cast<Expr*>(abs_def->body.get())) {
+                abs.abs_expr = expr->deep_copy_down();
+            } else {
+                std::cout << "*abs_def: " << string(*abs_def) << std::endl;
+                assert(false && "abs_def is not an Expr");
+            }
         } else {
-            std::cout << "*abs_def: " << string(*abs_def) << std::endl;
-            assert(false && "abs_def is not an Expr");
+            assert(abs.mem_size > 0 && "mem_size should be greater than 0 for constant abstraction");
+            assumptions.push_back(std::make_pair(abs.mem_start, abs.mem_start + abs.mem_size));
         }
-        // TODO: support custom raw_core_name and abs_core_name
+    }
+
+    if (assumptions.size() >= 2) {
+        std::sort(assumptions.begin(), assumptions.end());
+        for (size_t i = 1; i < assumptions.size(); ++i) {
+            const auto& a = assumptions[i - 1];
+            const auto& b = assumptions[i];
+            if (b.first <= a.second) {
+                std::cout << "Overlap: [" << a.first << ", " << a.second
+                          << "] with [" << b.first << ", " << b.second << "]\n";
+                assert(false && "Overlapping memory layout assumptions detected");
+            }
+        }
     }
 
 

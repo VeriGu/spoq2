@@ -415,6 +415,7 @@ SpoqIRContext::construct_abstraction_pattern(unique_ptr<SpecNode> abs,
 unique_ptr<SpecNode>
 SpoqIRContext::apply_abstraction(unique_ptr<SpecNode> spec) {
     for(auto &abstraction: abs_config) {
+        if (abstraction.constant_assumption) continue;
         auto raw = abstraction.get_raw_node();
         auto context = SpoqAbstractionContext(abstraction);
         // std::cout << "raw: " << string(*raw) << std::endl;

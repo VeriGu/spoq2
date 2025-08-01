@@ -56,6 +56,11 @@ namespace autov {
         std::string raw_spec_name;
         std::string abs_spec_name;
 
+        bool constant_assumption = false;
+        std::string abs_wrapper_name;
+        unsigned long mem_start; 
+        unsigned long mem_size;
+
         std::set<std::string> in_any_map;
         std::function<std::unique_ptr<SpecNode>(std::map<std::string, unique_ptr<SpecNode>>&)> any_map;
     };
@@ -588,6 +593,8 @@ namespace autov {
 
         std::vector<SpoqAbstraction>& abs_config;
         std::vector<SpoqAbstractionLayout>& abs_layout;
+        std::vector<unique_ptr<Expr>> abs_rely;
+        std::map<unsigned int, bool> abs_const_checked;
         const std::string abs_data_name = "st";
         shared_ptr<SpecType> abs_data_type = nullptr;
         std::string load_op_name = "load_RData";

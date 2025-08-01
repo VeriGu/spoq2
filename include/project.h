@@ -215,7 +215,7 @@ public:
         std::unordered_map<string, std::unordered_map<string, string>> StackMap;
     };
     cmds cmds;
-    int parse_cmd_int(unique_ptr<Expr>& cmd, int index);
+    int64_t parse_cmd_int(unique_ptr<Expr>& cmd, int index);
     std::string parse_cmd_string(unique_ptr<Expr>& cmd, int index);
 
     unordered_map<string, std::set<string>> deps;

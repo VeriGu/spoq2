@@ -118,6 +118,10 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
             spec = std::make_unique<Rely>(f->deep_copy(), std::move(spec));
     }    
 
+    for (auto & f : context.abs_rely) {
+        spec = std::make_unique<Rely>(f->deep_copy(), std::move(spec));
+    }
+
     shared_ptr<SpecType> rettype = nullptr;
     if(spoq_func.llvm_func->getReturnType()->isVoidTy()) {
         rettype = std::make_shared<Option>(context.abs_data_type);

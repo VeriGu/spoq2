@@ -59,7 +59,6 @@ const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> SpoqIRModul
 const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> SpoqIRModule::bool_binops_lut = {
     {llvm::Instruction::BinaryOps::And, Expr::binops::BAND},
     {llvm::Instruction::BinaryOps::Or, Expr::binops::BOR},
-    {llvm::Instruction::BinaryOps::Xor, Expr::binops::NOT_EQUAL},
 };
 
 
@@ -190,8 +189,22 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
                 if(int_val->getBitWidth() == 1) {
                     return std::make_unique<BoolConst>(!int_val->isZero());
                 } else {
-                    // FIXME: do we convert large integer here?
-                    return std::make_unique<IntConst>(int_val->getSExtValue(), int_val->isNegative());
+                    auto spec = std::make_unique<IntConst>(int_val->getSExtValue(), int_val->isNegative());
+                    if (abstraction && !int_val->isNegative()) {
+                        auto v = int_val->getZExtValue();
+                        if (!abs_const_checked[v]) {
+                            abs_const_checked[v] = true;
+                            for (auto &abs : abs_config) {
+                                if (!abs.constant_assumption) continue;
+                                if (!(v >= abs.mem_start && v < abs.mem_start + abs.mem_size)) continue;
+                                auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                                vec->push_back(std::make_unique<IntConst>(int_val->getSExtValue(), int_val->isNegative()));
+                                abs_rely.push_back(std::make_unique<Expr>(abs.abs_wrapper_name, std::move(vec)));
+                                break;
+                            }
+                        }
+                    }
+                    return spec;
                 }
             } else if(auto ptr_null = llvm::dyn_cast<llvm::ConstantPointerNull>(data)) {
                 auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
@@ -579,7 +592,13 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
 
             unique_ptr<Expr> expr = nullptr;
 
-            if (bi->getOperand(0)->getType()->isIntegerTy(1)) {
+            if (bi->getOpcode() == llvm::Instruction::BinaryOps::Xor) {
+                if(bi->getOperand(0)->getType()->isIntegerTy(1)) {
+                    expr = std::make_unique<Expr>("xorb_spec", std::move(operands));
+                } else {
+                    expr = std::make_unique<Expr>("Z.lxor", std::move(operands));
+                }
+            } else if (bi->getOperand(0)->getType()->isIntegerTy(1)) {
                 assert(bi->getOperand(1)->getType()->isIntegerTy(1) && "Binary operation on bool and ?");
                 assert(bool_binops_lut.find(bi->getOpcode()) != bool_binops_lut.end() && "Binary operation not supported");
                 expr = std::make_unique<Expr>(bool_binops_lut.at(bi->getOpcode()), std::move(operands));
@@ -599,12 +618,6 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     else assert(false && "unexpected shift operation");
                 } else {
                    expr = std::make_unique<Expr>(binops_lut.at(bi->getOpcode()), std::move(operands));
-                }
-            } else if (bi->getOpcode() == llvm::Instruction::BinaryOps::Xor) {
-                if(bi->getOperand(0)->getType()->isIntegerTy(1)) {
-                    expr = std::make_unique<Expr>("xorb", std::move(operands));
-                } else {
-                    expr = std::make_unique<Expr>("Z.lxor", std::move(operands));
                 }
             } 
             if (expr == nullptr) {
