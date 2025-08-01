@@ -466,6 +466,7 @@ SpoqIRModule::gep_inst_to_spec (llvm::Value* gep_inst_or_expr, SpoqIRContext& co
     operands->push_back(context.get_llvm_value_spec(gep->getOperand(0)));
     operands->push_back(std::move(expr));
     expr = std::make_unique<Expr>(context.ptr_off_op_name, std::move(operands));
+    expr->type = Struct::Ptr;
     if (gep_inst) {
         auto sym = context.get_llvm_value_spec(gep);
         return std::make_pair(std::move(sym), std::move(expr));
@@ -722,7 +723,9 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     assert(false && "Not impl: intrinsic function call");
                 } else if (callee_func && callee->getName().startswith("llvm_dbg_")) {
                     return spoq_inst_to_spec(proj, vec, num + 1, context);
-                } 
+                } else if (callee_func && callee->getName() == "printf") {
+                    return spoq_inst_to_spec(proj, vec, num + 1, context);
+                }
 
                 auto args = std::make_unique<vector<unique_ptr<SpecNode>>>();
                 if (!callee_func) args->push_back(context.get_llvm_value_spec(callee));
@@ -853,6 +856,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             operands->push_back(context.get_llvm_value_spec(gep->getPointerOperand()));
             operands->push_back(std::move(expr));
             expr = std::make_unique<Expr>(context.ptr_off_op_name, std::move(operands));
+            expr->type = Struct::Ptr;
             auto sym = context.get_llvm_value_spec(gep);
             context.add_cache(context.get_llvm_value_name(gep), expr);
             return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
