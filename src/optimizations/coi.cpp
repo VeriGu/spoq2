@@ -465,7 +465,7 @@ std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, std:
     return coi_ret;
 }
 
-rule_ret_t SpecRules::hide_write(std::unique_ptr<SpecNode> spec, std::set<field_t> coi_fields) {
+rule_ret_t SpecRules::hide_write(std::unique_ptr<SpecNode> spec, std::set<field_t> coi_fields, const std::set<std::pair<string, string>> &anc) {
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         if (auto e = instance_of(node.get(), Expr)) {
@@ -476,10 +476,18 @@ rule_ret_t SpecRules::hide_write(std::unique_ptr<SpecNode> spec, std::set<field_
                     if (auto s = instance_of(f, Symbol)) {
                         set_field.push_back(s->text);
                     }
-                    if (is_irrelevant_field_update(set_field, coi_fields)) {
+                    bool is_irrelevant_update = true;
+                    for (auto &c_f : coi_fields) {
+                        auto coi_f = c_f.front();
+                        auto update_f = set_field.front();
+                        if (coi_f == update_f || anc.find({update_f, coi_f}) != anc.end()) {
+                            is_irrelevant_update = false;
+                            break;
+                        }
+                    }
+                    if (is_irrelevant_update) {
                         changed = true;
                         return std::move(e->elems->at(0)); // hide the write, return the value
-                        // return e->elems->at(0).get()->deep_copy(); // hide the write, return the value
                     }
                 }
             }
@@ -628,7 +636,7 @@ void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
         bool changed = false;
         
         do {
-            auto [__spec, __changed] = proj->rules.hide_write(std::move(spec), coi_fields);
+            auto [__spec, __changed] = proj->rules.hide_write(std::move(spec), coi_fields, proj->field_ancestor);
             spec = std::move(__spec);
             changed |= __changed;
         } while (false);

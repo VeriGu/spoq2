@@ -188,6 +188,7 @@ public:
 
     unique_ptr<SpecNode> conjoined_sys_inv;
     
+    std::set<std::pair<string, string>> field_ancestor; // pari<child field, ancestor field> 
     // cone_of_influence[spec_name][invariant_name] -> coi
     //unordered_map<string, std::unordered_map<string, std::set<field_t>>> cone_of_influence;
    // unordered_map<string, std::set<field_t>> inv_fields;

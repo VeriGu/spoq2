@@ -956,6 +956,69 @@ static void collect_lemmas(Project *proj) {
     /** TODO: support lemma selection command */
 }
 
+// Calculate the field ancestor relations as a transitive closure
+static void collect_field_ancestors(Project *proj)
+{
+    using Pair = std::pair<std::string, std::string>;
+    std::set<Pair> field_to_father_type; // child field -> father record type
+    std::unordered_map<std::string, std::set<std::string>> fields_by_type; // type → { fields }
+        
+    for (auto &s : proj->structs) {
+        auto father_type = s.first;             
+
+        for (const auto &field : *(s.second->elems)) {
+            auto child_field = field->name;      
+            auto field_type = s.second->elems_map.at(child_field)->name;
+            field_to_father_type.emplace(child_field, father_type);  
+            fields_by_type[field_type].insert(child_field);  
+        }
+    }
+
+    proj->field_ancestor.clear();
+
+    for (const Pair &edge : field_to_father_type) {
+        const std::string &child_field = edge.first;      
+        const std::string &father_type = edge.second;     
+
+        auto it = fields_by_type.find(father_type);
+        auto it_zmap = fields_by_type.find("ZMap_" + father_type);
+        
+        if (it != fields_by_type.end()) {
+            for (const std::string &father_field : it->second) {
+                proj->field_ancestor.emplace(child_field, father_field);
+            }
+        }
+        if (it_zmap != fields_by_type.end()) {
+            for (const std::string &father_field : it_zmap->second) {
+                proj->field_ancestor.emplace(child_field, father_field);
+            }
+        }
+    }
+    // solve the transitive closure
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        std::set<Pair> to_add;                    
+
+        for (const Pair &p1 : proj->field_ancestor) {
+            for (const Pair &p2 : proj->field_ancestor) {
+                if (p1.second != p2.first) 
+                    continue;        
+                Pair np{p1.first, p2.second};               
+                if (!proj->field_ancestor.count(np)) {
+                    to_add.insert(np);
+                    changed = true;
+                }
+            }
+        }
+        proj->field_ancestor.insert(to_add.begin(), to_add.end());
+    }
+
+    LOG_DEBUG << "Field Ancestor (final):";
+    for (const auto &kv : proj->field_ancestor)
+        LOG_DEBUG << kv.first << " -> " << kv.second;
+}
+
 void trans_inv(Project *proj) {
     auto known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
     (*known)["st"] = proj->layers.at(0)->abs_data;
@@ -1074,6 +1137,7 @@ void Project::finalize_project()
         }
     }
 
+    collect_field_ancestors(this);
     spec_prover(this);
 
     extern unsigned long z3_unknowns, z3_checks, z3_cache_hits, z3_global_hash_hit, z3_global_hash_total;
@@ -1232,6 +1296,7 @@ bool Project::finalize_project_v2() {
     LOG_DEBUG << "low spec ok" << "\n";
 
     auto start = std::chrono::high_resolution_clock::now();
+    collect_field_ancestors(this);
     spec_prover(this);
     auto end = std::chrono::high_resolution_clock::now();
     auto proof_cost = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);

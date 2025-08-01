@@ -126,7 +126,7 @@ public:
     std::unique_ptr<SpecNode> instantiate_prop(std::unique_ptr<SpecNode> spec, std::unique_ptr<SpecNode> instance_st, const std::string& st = "st");
     std::unique_ptr<SpecNode> build_simulate_spec(std::unique_ptr<SpecNode> spec);
     rule_ret_t merge_branch(std::unique_ptr<SpecNode> spec);
-    rule_ret_t hide_write(std::unique_ptr<SpecNode> spec, std::set<field_t> coi_fields);
+    rule_ret_t hide_write(std::unique_ptr<SpecNode> spec, std::set<field_t> coi_fields, const std::set<std::pair<string, string>> &anc);
 };
 
 using rule_t = std::function<rule_ret_t(std::unique_ptr<SpecNode>)>;
