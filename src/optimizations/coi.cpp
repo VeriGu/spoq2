@@ -43,46 +43,16 @@ bool has_subfield(const std::set<field_t> &fields, const field_t &f) {
     return false;
 }
 
-bool has_proper_subfield(const std::set<field_t> &fields, const field_t &f) {
-    for (auto &f_check : fields) {
-        if (f_check.size() != f.size() && contains_field(f_check, f)) {
+/** Examine if update_field is any sub-field of coi_fields elements */
+bool is_subfield_of_anyone(const field_t &update_field, const std::set<field_t> &coi_fields, const std::set<std::pair<string, string>> &anc) {
+    for (const auto &c : coi_fields) {
+        auto coi_f = c.front();
+        auto update_f = update_field.front();
+        if (coi_f == update_f || anc.find({update_f, coi_f}) != anc.end()) {
             return true;
         }
     }
     return false;
-}
-
-/** 
- * Consider the record as a tree, then for a write field F and a interested field G, there can be only 4 cases on the structure tree
- *  1. F = G (F identical with G)
- *  2. G < F (G is a prefix-vector of F)
- *  3. F < G (F is a prefix-vector of G)
- *  4. F and G are disjoint
- * Only in the disjoint case (case 4) can we mask the write.
- */
-bool is_prefix(const field_t &prefix, const field_t &full) {
-    if (prefix.size() > full.size())
-        return false;
-    for (size_t i = 0; i < prefix.size(); i++) {
-        if (prefix[i] != full[i])
-            return false;
-    }
-    return true;
-}
-
-bool useless_write(const field_t &f_check, const field_t &f_interested) {
-    if (!is_prefix(f_check, f_interested) && !is_prefix(f_interested, f_check))
-        return true;
-    return false;
-}
-
-bool is_irrelevant_field_update(const field_t &f_check, const std::set<field_t> &fields) {
-    for (const auto &vec : fields) {
-        if (contains_field(vec, f_check) || contains_field(f_check, vec)) {
-            return false;
-        }
-    }
-    return true;
 }
 
 void rec_analyze_used_fields(Project* proj, SpecNode* node, std::set<field_t> &fields);
@@ -476,16 +446,8 @@ rule_ret_t SpecRules::hide_write(std::unique_ptr<SpecNode> spec, std::set<field_
                     if (auto s = instance_of(f, Symbol)) {
                         set_field.push_back(s->text);
                     }
-                    bool is_irrelevant_update = true;
-                    for (auto &c_f : coi_fields) {
-                        auto coi_f = c_f.front();
-                        auto update_f = set_field.front();
-                        if (coi_f == update_f || anc.find({update_f, coi_f}) != anc.end()) {
-                            is_irrelevant_update = false;
-                            break;
-                        }
-                    }
-                    if (is_irrelevant_update) {
+                    if (!is_subfield_of_anyone(set_field, coi_fields, anc)) {
+                        // if the write is not in the cone of influence, we can hide it
                         changed = true;
                         return std::move(e->elems->at(0)); // hide the write, return the value
                     }
@@ -820,17 +782,8 @@ void mark_determ_branch(Project* proj, Definition* rel_def, Definition* spec_def
         } else {
             // examine all COI set elements of this branch are public variables
             for (auto &f : coi_ret) {
-                bool f_is_pub = false;
-                for (auto &pv : public_vars) {
-                    if (contains_field(f, pv)) {
-                        f_is_pub = true;
-                    }
-                }
-                if (!f_is_pub) {
+                if (!is_subfield_of_anyone(f, public_vars, proj->field_ancestor)) {
                     cond.first->is_determ_branch = false;
-                    // LOG_WARNING << "[mark_determ_branch] Mark non-determ branch:\n" << string(*cond.first);
-                    // LOG_WARNING << "[mark_determ_branch] COI field not contained in public vars: ";
-                    // print_field(f);
                 }
             }
         }
