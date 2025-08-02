@@ -46,6 +46,7 @@ const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> SpoqIRModul
     {llvm::Instruction::BinaryOps::Sub, Expr::binops::MINUS},
     {llvm::Instruction::BinaryOps::Mul, Expr::binops::MULT},
     {llvm::Instruction::BinaryOps::SDiv, Expr::binops::DIV},
+    {llvm::Instruction::BinaryOps::UDiv, Expr::binops::DIV},
     {llvm::Instruction::BinaryOps::SRem, Expr::binops::MOD},
     {llvm::Instruction::BinaryOps::URem, Expr::binops::MOD},
     {llvm::Instruction::BinaryOps::Shl, Expr::binops::LSHIFT},
@@ -746,8 +747,12 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
 
                 auto callee_name = callee->getName().str() + "_spec";
                 if (!callee_func) {
-                    callee_name = context.get_llvm_value_name(callee) + "_" + std::to_string(call->arg_size()) + "_fptr_spec";
-                    llvm::errs() << "*callee:" << *callee << "\n";
+                    callee_name = context.get_llvm_value_name(callee) + "_" + std::to_string(call->arg_size()) + "_fptr_";
+                    // if (SpoqIRContext::func_ptr_map[callee_name]) {
+                    callee_name = callee_name + context.spoq_func.llvm_func->getName().str() + "_spec";
+                    // }
+                    llvm::errs() << "function pointer *callee:" << *callee << "\n";
+                    llvm::errs() << "callee_name:"  << callee_name << "\n";
                 }
 
                 auto expr = std::make_unique<Expr>(callee_name, std::move(args));
