@@ -325,6 +325,9 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
             auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
             UNFOLD_POLICY.skip_list.insert(s->text);
+        } else if (op_str == "DisableFunc") {
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            this->disable_funcs[s->text] = true;
         }
         else if (op_str == "AbstractPattern") {
             assert(cmd->elems->size() >= 2);

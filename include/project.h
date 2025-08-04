@@ -141,6 +141,8 @@ public:
     std::vector<SpoqAbstractionLayout> abs_layout;
     std::map<std::string, std::map<std::string, std::string>> abs_var;
 
+    std::map<std::string, bool> disable_funcs;
+
     unordered_map<string, shared_ptr<Struct>> structs;
     unordered_map<string, shared_ptr<Inductive>> indtypes;
     unordered_map<string, shared_ptr<SpecType>> typedefs;

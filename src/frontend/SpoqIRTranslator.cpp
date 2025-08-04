@@ -257,8 +257,17 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
             auto expr = std::make_unique<Expr>("mkPtr", std::move(vec));
             expr->type = Struct::Ptr;
             return expr;
+        } 
+        
+        // Parameteric constant, need to be defined in the spec file
+        if (value->getType()->isIntegerTy()) {
+            auto name = get_llvm_value_name(value, &counter);
+            auto new_name = "const_" + spoq_func.llvm_func->getName().str() + name;
+            llvm::errs() << "abstract constant requires definition: " << *value << " " << new_name << "\n";
+            if (value->getType()->isIntegerTy(1)) return std::make_unique<Symbol>(new_name, Bool::BOOL);
+            else return std::make_unique<Symbol>(new_name, Int::INT);
         }
-        llvm::errs() << "unsupport llvm constant: " << *value << "\n";
+        llvm::errs() << "unsupport llvm constant: " << *value << " " << *value->getType() << "\n";
         assert(false && "unsupport llvm constant");
     } else if (auto arg = llvm::dyn_cast<llvm::Argument>(value)) {
         if (type_map.find(value) == type_map.end()) {
@@ -724,8 +733,9 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     assert(false && "Not impl: intrinsic function call");
                 } else if (callee_func && callee->getName().startswith("llvm_dbg_")) {
                     return spoq_inst_to_spec(proj, vec, num + 1, context);
-                } else if (callee_func && callee->getName() == "printf") {
-                    return spoq_inst_to_spec(proj, vec, num + 1, context);
+                } else if (callee_func && proj->disable_funcs[callee->getName().str()]) {
+                    if (callee_func->getReturnType()->isVoidTy()) return spoq_inst_to_spec(proj, vec, num + 1, context);
+                    assert(false && "disabled function call with return value");
                 }
 
                 auto args = std::make_unique<vector<unique_ptr<SpecNode>>>();
@@ -751,8 +761,10 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     // if (SpoqIRContext::func_ptr_map[callee_name]) {
                     callee_name = callee_name + context.spoq_func.llvm_func->getName().str() + "_spec";
                     // }
+                    llvm::errs() << *call << "\n";
                     llvm::errs() << "function pointer *callee:" << *callee << "\n";
                     llvm::errs() << "callee_name:"  << callee_name << "\n";
+                    llvm::errs() << "----------\n";
                 }
 
                 auto expr = std::make_unique<Expr>(callee_name, std::move(args));

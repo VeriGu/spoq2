@@ -691,10 +691,11 @@ namespace autov {
             return spoq_func.loop_context;
         }
 
-        inline std::string get_llvm_value_name(llvm::Value* value) {
+        inline std::string get_llvm_value_name(llvm::Value* value, int* out_counter = nullptr) {
             if(value_map[value] != "") return value_map[value];
             auto name = value->getName().str();
             name = Shortcut::replace_dot(name);
+            if(out_counter) *out_counter = counter;
             if(name == "") name = "v_" + std::to_string(counter++);
             value_map[value] = name;
             return name;
