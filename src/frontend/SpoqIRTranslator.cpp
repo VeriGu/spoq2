@@ -734,8 +734,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 } else if (callee_func && callee->getName().startswith("llvm_dbg_")) {
                     return spoq_inst_to_spec(proj, vec, num + 1, context);
                 } else if (callee_func && proj->disable_funcs[callee->getName().str()]) {
-                    if (callee_func->getReturnType()->isVoidTy()) return spoq_inst_to_spec(proj, vec, num + 1, context);
-                    assert(false && "disabled function call with return value");
+                    return spoq_inst_to_spec(proj, vec, num + 1, context);
                 }
 
                 auto args = std::make_unique<vector<unique_ptr<SpecNode>>>();
