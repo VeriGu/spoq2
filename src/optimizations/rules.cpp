@@ -3180,12 +3180,13 @@ rule_ret_t SpecRules::rule_simple_record_get_set(std::unique_ptr<SpecNode> spec,
                         // (st.[a] :< v1).[a].[b] :< v2 ===> st.[a] :< (v1.[b] :< v2) (i.e. Record.set st a (Record.set v1 b v2))
                         auto inner_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
                         auto new_set_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                        auto rec_e_elems_type = rec_e->elems->back()->type;
 
                         inner_set_elems->push_back(std::move(rec_e->elems->back()));
                         for (int i = 1 + subfields.size(); i < e->elems->size(); i++)
                             inner_set_elems->push_back(std::move(e->elems->at(i)));
 
-                        auto inner_set = make_unique<Expr>(Expr::RecordSet, std::move(inner_set_elems), rec_e->elems->back()->type);
+                        auto inner_set = make_unique<Expr>(Expr::RecordSet, std::move(inner_set_elems), rec_e_elems_type);
 
                         for (int i = 0; i < rec_e->elems->size() - 1; i++)
                             new_set_elems->push_back(std::move(rec_e->elems->at(i)));
