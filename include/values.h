@@ -575,63 +575,11 @@ public:
         assert(value.is_seq());
     }
 
-    /** Append an element to the head of a list, returns the new list, i.e. `other :: this`.
-     *  Z3 sequence cannot be concatenated with a single element, so we need to
-     *  create a new sequence with the element and then concatenate it.
-     */
-    shared_ptr<SpecValue> append(shared_ptr<SpecValue> other) {
-        auto list_type = static_pointer_cast<List>(typ);
-        auto elem_type = list_type->elem_type;
-        auto other_type = other->get_type();
-        auto elem_sort = elem_type->get_z3_type();
 
-        if (elem_type != other_type) {
-            throw std::runtime_error("Type mismatch: cannot append " + string(*other_type) + " to " + string(*elem_type));
-        }
+    shared_ptr<SpecValue> append(shared_ptr<SpecValue> other);
 
-#if 0
-        std::cout << "elem_sort: " << elem_sort << std::endl;
-        std::cout << "other_sort: " << other->get_z3_value().get_sort() << std::endl;
-#endif
-        // Make `other` a Z3 sequence with a single element
-        auto unit_val = z3::expr(z3ctx, Z3_mk_seq_unit(z3ctx, other->get_z3_value()));
-        // unit_val :: value
-        Z3_ast args[] = { unit_val, value };
-#if 0
-        std::cout << "unit_val: " << unit_val << std::endl;
-        std::cout << "value: " << value << std::endl;
-        std::cout << "unit_val.get_sort()" << unit_val.get_sort() << std::endl;
-        std::cout << "value.get_sort()" << value.get_sort() << std::endl;
-#endif
-        auto concat_decl = Z3_mk_seq_concat(z3ctx, 2, args);
-#if 0
-        std::cout << "concat_decl: " << concat_decl << std::endl;
-#endif
-        auto concat_val = z3::expr(z3ctx, concat_decl);
-#if 0
-        std::cout << "concat_val: " << concat_val << std::endl;
-#endif
-        return make_shared<ListValue>(list_type, concat_val);
-    }
 
-    /** Concatenate two lists, returns the new list, i.e. `this ++ other`.
-     */
-    shared_ptr<SpecValue> concat(shared_ptr<SpecValue> other) {
-        auto list_type = static_pointer_cast<List>(typ);
-        auto elem_type = list_type->elem_type;
-        auto other_type = other->get_type();
-        auto elem_sort = elem_type->get_z3_type();
-
-        if (elem_type != other_type) {
-            throw std::runtime_error("Type mismatch: cannot concatenate " + string(*other_type) + " to " + string(*elem_type));
-        }
-
-        // value ++ other->value
-        Z3_ast args[] = { value, other->get_z3_value() };
-        auto concat_val = z3::expr(z3ctx, Z3_mk_seq_concat(z3ctx, 2, args));
-
-        return make_shared<ListValue>(list_type, concat_val);
-    }
+    shared_ptr<SpecValue> concat(shared_ptr<SpecValue> other);
 
     /** Return the length of the list.
      */

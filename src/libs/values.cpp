@@ -589,6 +589,52 @@ Tuple::operator string() const {
 // ----------------------------------------------------------------------------
 // List
 // ----------------------------------------------------------------------------
+/** Append an element to the head of a list, returns the new list, i.e. `other :: this`.
+ *  Z3 sequence cannot be concatenated with a single element, so we need to
+ *  create a new sequence with the element and then concatenate it.
+ */
+shared_ptr<SpecValue> ListValue::append(shared_ptr<SpecValue> other) {
+    auto list_type = static_pointer_cast<List>(typ);
+    auto elem_type = list_type->elem_type;
+    auto other_type = other->get_type();
+    auto elem_sort = elem_type->get_z3_type();
+
+    if (elem_type != other_type) {
+        throw std::runtime_error("Type mismatch: cannot append " + string(*other_type) + " to " + string(*elem_type));
+    }
+
+
+    // Make `other` a Z3 sequence with a single element
+    auto unit_val = z3::expr(z3ctx, Z3_mk_seq_unit(z3ctx, other->get_z3_value()));
+    // unit_val :: value
+    Z3_ast args[] = { unit_val, value };
+
+    auto concat_decl = Z3_mk_seq_concat(z3ctx, 2, args);
+
+    auto concat_val = z3::expr(z3ctx, concat_decl);
+
+    return make_shared<ListValue>(list_type, concat_val);
+}
+
+/** Concatenate two lists, returns the new list, i.e. `this ++ other`.
+ */
+shared_ptr<SpecValue> ListValue::concat(shared_ptr<SpecValue> other) {
+    auto list_type = static_pointer_cast<List>(typ);
+    auto other_type = other->get_type();
+    auto other_list_type = dynamic_cast<List*>(other_type.get());
+
+    if (*list_type != *other_list_type) {
+        throw std::runtime_error("Type mismatch: cannot concatenate " + string(*other_type) + " to " + string(*list_type));
+    }
+
+    // value ++ other->value
+    Z3_ast args[] = { value, other->get_z3_value() };
+    auto concat_decl = Z3_mk_seq_concat(z3ctx, 2, args);
+
+    auto concat_val = z3::expr(z3ctx, concat_decl);
+
+    return make_shared<ListValue>(list_type, concat_val);
+}
 
 shared_ptr<SpecValue> int_to_ptr() {
     auto args = make_shared<vector<shared_ptr<SpecType>>>();
