@@ -390,6 +390,25 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             assert(cmd->elems->size() == 1 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
             auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
             this->cmds.PreserveInv.insert(s->text);
+        } else if(op_str == "Refines"){
+            assert(cmd->elems->size() == 3 
+                && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) 
+                && dynamic_cast<Symbol *>(cmd->elems->at(1).get())
+                && dynamic_cast<Symbol *>(cmd->elems->at(1).get()));
+            // First two are specs, third is a relation function from RData -> RData -> Prop
+            // this -> cmds.Refines.insert()
+            auto func1 = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            auto func2 = dynamic_cast<Symbol *>(cmd->elems->at(1).get());
+            auto rel = dynamic_cast<Symbol *>(cmd->elems->at(2).get());
+            auto key = func1->text + "&" + func2->text + "&" + rel->text;
+            
+            LOG_DEBUG << "Refines command " << key;
+            cmd->elems->at(0).release();
+            cmd->elems->at(1).release();
+            cmd->elems->at(2).release();
+            this->cmds.Refines[key].push_back(unique_ptr<SpecNode>(func1));
+            this->cmds.Refines[key].push_back(unique_ptr<SpecNode>(func2));
+            this->cmds.Refines[key].push_back(unique_ptr<SpecNode>(rel));
         } else {
             LOG_WARNING << "Unknown command " << op_str;
         }
@@ -1046,6 +1065,13 @@ void trans_inv(Project *proj) {
             pre.reset(new_node.release());
         }
     }
+    // for(auto &[name, refines] : proj->cmds.Refines) {
+    //     for(auto &refine: refines) {
+    //         type_inference::infer_type(*proj, refine.get(), known, Bool::BOOL);
+    //         auto new_node = spec_transformer_v2(proj, std::move(refine), 0, true, true);
+    //         refine.reset(new_node.release());
+    //     }
+    // }
 }
 
 /**
@@ -1067,6 +1093,7 @@ void Project::finalize_project()
         module = L->load_module();
         loaded.insert(L->code);
     }
+    assert(module != nullptr && "No LLVM IR module loaded");
 
     this->code = IRLoader::post_process(module);
 

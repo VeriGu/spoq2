@@ -972,7 +972,7 @@ void parse(Project *proj, const std::string& path) {
     ProgramVisitor visitor(*proj, path);
 
     visitor.visit(tree);
-    std::cout << "Done parsing " << path << std::endl;
+    std::cout << "Done parsing 1 " << path << std::endl;
 
     //std::cout << tree->toStringTree(&parser) << std::endl;
 }
@@ -988,7 +988,7 @@ void parse(Project *proj, const std::string& path, Layer *current_layer) {
     ProgramVisitor visitor(*proj, path, current_layer);
 
     visitor.visit(tree);
-    std::cout << "Done parsing " << path << std::endl;
+    std::cout << "Done parsing 2 " << path << std::endl;
 }
 
 SpecNode* parseExpr(Project* proj, string expr_str) {
