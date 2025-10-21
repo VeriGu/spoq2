@@ -94,6 +94,14 @@ public:
     }
 };
 
+class RefinesInfo {
+public:
+    unique_ptr<SpecNode> vuln_func;
+    unique_ptr<SpecNode> patched_func;
+    unique_ptr<SpecNode> refine_rel;
+
+};
+
 class Project {
 public:
 
@@ -214,6 +222,7 @@ public:
         std::map<string, vector<unique_ptr<SpecNode>>> PreCond;
         std::map<string, vector<unique_ptr<SpecNode>>> PostEnsure;
         std::map<string, vector<unique_ptr<SpecNode>>> PostCond;  
+        vector<RefinesInfo> Refines;
         std::set<string> PreserveInv;
         std::unordered_map<string, std::unordered_map<string, string>> StackMap;
     };

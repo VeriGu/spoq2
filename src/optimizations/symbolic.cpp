@@ -1205,6 +1205,11 @@ bool check_pre_post(Project* proj, Definition *def, std::unordered_set<string>& 
     return res;
 }
 
+bool check_refines(Project* proj, Definition *def, std::unordered_set<string>& used_abs) {
+    Z3Cache.clear();
+
+}
+
 bool simulate(Project* proj, bool check_sec = true) {
     Z3_SIM_TIMEOUT = Z3_SOLVE_RDATA_TIMEOUT;
     if (!proj->relations.empty()) {
@@ -1362,6 +1367,16 @@ void spec_prover(Project *proj) {
             } else {
                 LOG_ERROR << "no definition named:" << func;
             }
+        }
+    }
+
+    if(OPTS.check_refinements) {
+        for(const auto &refines_info : proj->cmds.Refines) {
+            // auto vec = kv.second;
+            LOG_DEBUG << "Checking refinement relationship " << refines_info.patched_func->_str;
+            // auto vuln_func = vec.at(0).get();
+            // auto patched_func = vec.at(1).release();
+            // auto relation = vec.at(2).release();
         }
     }
     auto end = std::chrono::high_resolution_clock::now();

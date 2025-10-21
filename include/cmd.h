@@ -20,6 +20,7 @@ public:
     bool check_inv = false;
     bool check_loop_inv = false;
     bool check_pre_post = false;
+    bool check_refinements = false;
     bool profile = false;
     bool new_trans = false;
     bool check_simulation = false;
@@ -93,6 +94,7 @@ public:
             ("llvm", po::bool_switch()->default_value(false), "use llvm frontend") 
             ("check-loop-inv", po::bool_switch()->default_value(false), "checking loop invariants")
             ("check-pre-post", po::bool_switch()->default_value(false), "checking pre/post conditions")
+            ("check-patch-refinement", po::bool_switch()->default_value(false), "check that a patched function only changes undefined behavior of the original function")
             ("check-sys-inv", po::bool_switch()->default_value(true), "checking system invariants")
             ("check-simulation", po::bool_switch()->default_value(false),"checking relational simulation")
             ("decom-check-simul",po::bool_switch()->default_value(false), "checking relational simulation")
