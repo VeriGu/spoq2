@@ -1205,9 +1205,54 @@ bool check_pre_post(Project* proj, Definition *def, std::unordered_set<string>& 
     return res;
 }
 
-bool check_refines(Project* proj, Definition *def, std::unordered_set<string>& used_abs) {
+bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def, Definition *rel, std::unordered_set<string>& used_abs) {
     Z3Cache.clear();
 
+    auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+	auto conds = std::make_shared<vector<z3::expr>>();
+    // wtf does this do? v
+	(*vars)[get_sim_name("st")] = proj->layers[0]->abs_data->declare(get_sim_name("st"), 0);
+	auto induction = std::make_shared<vector<z3::expr>>();
+
+    // Since the arguments are the same for the vuln and patched def, 
+    // we just need to iterate through one set.
+    for(auto arg : *vuln_def->args) {
+        auto mangled_name = arg->name;
+        (*vars)[mangled_name] = arg->type->declare(mangled_name, 0);
+    }
+    auto state = std::make_shared<ProveState>(vars, conds, induction);
+    
+	SpecNode* vuln_body = nullptr, *patched_body = nullptr;
+    vuln_body = vuln_def->body.get();
+    patched_body = patched_def->body.get();
+    auto l_args = make_unique<vector<shared_ptr<Arg>>>();
+    
+    for (auto arg : *vuln_def->args) {
+        l_args->push_back(arg);
+    }
+
+    auto last_arg = vuln_def->args->back();
+    auto st_sym_1 = make_shared<Symbol>(last_arg->name, last_arg->type);
+    auto st_sym_2 = make_shared<Symbol>(get_sim_name(last_arg->name), last_arg->type);
+    if (!proj->is_state_type(last_arg->type)) {
+        LOG_ERROR << "[check_refines] The last argument of the vuln fn should be a state type!";
+    }
+    if (!proj->is_state_type(patched_def->args->back()->type)) {
+        LOG_ERROR << "[check_refines] The last argument of the patched fn should be a state type!";
+    }
+    auto rel_expr = formulate_relation(proj, rel, st_sym_1.get(), st_sym_2.get(), state);
+    state->conds->push_back(rel_expr->get_z3_value());
+    set<string> used_fixpoint;
+
+    // TODO: support preconditions for vuln and patched functions.
+    // include weak-step-relations?
+
+    vuln_body->clear_z3_eval();
+    patched_body->clear_z3_eval();
+	path_t p = {};
+
+    bool result = simulate_by_traverse(proj, vuln_body, patched_body, rel, state, p, false);
+    return result;
 }
 
 bool simulate(Project* proj, bool check_sec = true) {
@@ -1371,12 +1416,30 @@ void spec_prover(Project *proj) {
     }
 
     if(OPTS.check_refinements) {
-        for(const auto &refines_info : proj->cmds.Refines) {
-            // auto vec = kv.second;
-            LOG_DEBUG << "Checking refinement relationship " << refines_info.patched_func->_str;
-            // auto vuln_func = vec.at(0).get();
-            // auto patched_func = vec.at(1).release();
-            // auto relation = vec.at(2).release();
+        for(auto &refines_info : proj->cmds.Refines) {
+            auto vuln_name = refines_info.vuln_func.get()->text;
+            auto patched_name = refines_info.patched_func.get()->text;
+            auto refine_name = refines_info.refine_rel.get()->text;
+        
+            LOG_DEBUG << "Checking refinement relationship " 
+                      << vuln_name << " -> "
+                      << patched_name << " by "
+                      << refine_name;
+            auto vuln_def = proj->defs.find(vuln_name);
+            auto patched_def = proj->defs.find(patched_name);
+            auto rel_def = proj->defs.find(refine_name);
+            if(vuln_def == proj->defs.end()){
+                LOG_ERROR << "No definition named: " << vuln_name;
+            }
+            if(patched_def == proj->defs.end()){
+                LOG_ERROR << "No definition named: " << patched_name;
+            }
+
+            if(!check_refines(proj, vuln_def->second.get(), patched_def->second.get(), rel_def->second.get(), used_abstract_funcs)) {
+                LOG_ERROR << "Refinement relation " << refine_name << " does not hold for functions " << vuln_name << ", " << patched_name;
+            } else {
+                LOG_DEBUG << "Refinement relation " << refine_name << " holds for functions " << vuln_name << ", " << patched_name;
+            }
         }
     }
     auto end = std::chrono::high_resolution_clock::now();

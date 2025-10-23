@@ -405,9 +405,9 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             LOG_DEBUG << "Refines command " << key;
             this->cmds.Refines.push_back(
                 RefinesInfo {
-                    unique_ptr<SpecNode>(func1),
-                    unique_ptr<SpecNode>(func2),
-                    unique_ptr<SpecNode>(rel),
+                    unique_ptr<Symbol>(func1),
+                    unique_ptr<Symbol>(func2),
+                    unique_ptr<Symbol>(rel),
                 });
         } else {
             LOG_WARNING << "Unknown command " << op_str;

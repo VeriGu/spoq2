@@ -141,6 +141,7 @@ public:
         this->check_inv = vmap["check-sys-inv"].as<bool>();
         this->check_loop_inv = vmap["check-loop-inv"].as<bool>();
         this->check_pre_post = vmap["check-pre-post"].as<bool>();
+        this->check_refinements = vmap["check-patch-refinement"].as<bool>();
         this->new_trans = vmap["new-trans"].as<bool>();
         this->profile = vmap["profile"].as<bool>();
         this->check_none = vmap["check-none"].as<bool>();

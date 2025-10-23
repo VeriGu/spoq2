@@ -96,9 +96,9 @@ public:
 
 class RefinesInfo {
 public:
-    unique_ptr<SpecNode> vuln_func;
-    unique_ptr<SpecNode> patched_func;
-    unique_ptr<SpecNode> refine_rel;
+    unique_ptr<Symbol> vuln_func;
+    unique_ptr<Symbol> patched_func;
+    unique_ptr<Symbol> refine_rel;
 
 };
 

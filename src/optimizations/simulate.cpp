@@ -90,7 +90,7 @@ namespace autov
 						}
 						return is_relate;
 					}
-				}
+				} // Handle none here, parameters should require SOME or allow NONE
 			}
 		} else if (auto m = instance_of(impl, Match)) {
 			set<string> used_fix;
@@ -345,7 +345,8 @@ namespace autov
 					   auto st_ret = expr->elems->at(0)->deep_copy();
 						return forward_simulation(proj, st_ret.get(), impl, rel, state, det, p, 0);
 					}
-				}
+				} // handle none here, if spec reaches a SOME, go into forward simulation with a requirement that impl yields SOME
+				// if spec reaches NONE allow impl to reach NONE
 				
 			}
 		} else if (auto m = instance_of(spec, Match)) {
