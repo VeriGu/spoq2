@@ -53,7 +53,7 @@ namespace autov
 	 * 		   We assume that abstract function will not occur in multiple branches. otherwise the return value should be std::pair<bool, std::set<SpecNode *>>
 	 */
 	bool forward_simulation(Project *proj, SpecNode *st_check, SpecNode *impl, Definition *rel, shared_ptr<ProveState> state, 
-																   bool det = false, const path_t &path = {}, int i = 0) {
+			bool det = false, const path_t &path = {}, int i = 0, bool allow_none = false) {
 		if (auto expr = instance_of(impl, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -90,7 +90,10 @@ namespace autov
 						}
 						return is_relate;
 					}
-				} // Handle none here, parameters should require SOME or allow NONE
+				} else if(*e_op == Expr::None) {
+					LOG_DEBUG << "[forward_simulation] None in impl, allow_none: " << allow_none;
+					return allow_none;
+				}
 			}
 		} else if (auto m = instance_of(impl, Match)) {
 			set<string> used_fix;
@@ -258,11 +261,14 @@ namespace autov
 
 		} else if (auto iff = instance_of(impl, If)) {
 			auto cond = z3_eval(proj, iff->cond.get(), state);
+			LOG_DEBUG << "[forward_simulation] If: " << cond.get()->get_z3_value();
 			Z3Result res = Z3Result::Unknown;
 
 			if (det && iff->cond->is_determ_branch) {
+			LOG_DEBUG << "[forward_simulation] If is determ branch True";
 				res = (path[i] == 1) ? Z3Result::True : Z3Result::False;
 			} else {
+			LOG_DEBUG << "[forward_simulation] If is determ branch False";
 				z3::model model(z3ctx);
 				auto t_race = OPTS.race_timeout;
 				OPTS.race_timeout = Z3_SIM_TIMEOUT;
@@ -271,12 +277,15 @@ namespace autov
 				OPTS.race_timeout = t_race;
 			}
 			if (res == Z3Result::True) {
+				LOG_DEBUG << "[forward_simulation] If - On True branch only";
 				state->conds->push_back(cond->get_z3_value());
 				return forward_simulation(proj, st_check, iff->then_body.get(), rel, state, det, path, i+1);
 			} else if (res == Z3Result::False) {
+				LOG_DEBUG << "[forward_simulation] If - On False branch only";
 				state->conds->push_back(!cond->get_z3_value());
 				return forward_simulation(proj, st_check, iff->else_body.get(), rel, state, det, path, i+1);
 			} else {
+				LOG_DEBUG << "[forward_simulation] If - On both branches";
 				// O(N^2) simulation search 
 				if (!det || !iff->cond->is_determ_branch) { 
 					LOG_DEBUG << "Unsolved (try) If non-determ cond!" << string(*iff->cond.get());
@@ -294,11 +303,19 @@ namespace autov
 			auto c = z3_eval(proj, r->prop.get(), state);
 			state->conds->push_back(c->get_z3_value());
 			return forward_simulation(proj, st_check, r->body.get(), rel, state, det, path, i);
-		} else {
+		} else if (auto r = instance_of(impl, Symbol)){
+			auto sym = dynamic_cast<Symbol *>(impl);
+			if (sym->text == "None") {
+				LOG_DEBUG << "[forward_simulation] None Symbol in impl, allow_none: " << allow_none;
+				return allow_none;
+			}
 			/** NOTE: In general we only prove relation between non-halt values (Some _) */
-			return true;
+			return false;
+		} else {
+			LOG_DEBUG << "[forward_simulate] Unexpected SpecNode subclass";
+			return false;
 		}
-		return true;
+		return false;
 	}
 
 	/**
@@ -323,7 +340,7 @@ namespace autov
 	 * @param rel		The relation definition, takes two RData type variable as arguments
 	 * @param state		A state stack that stores z3 constriants
 	 * @param p			The path of current traverse
-	 * @param det		Whether the simulation is deterministic (i.e. st st' takes same branch)
+	 * @param det		Whether the simulation is deterministic (i.e. st st' takes same branch).  Spec and impl must have exactly the same branches in the same order.
 	 * 
 	 * @return true if the specification relation is proved
 	 * @return false if the specification relation is not proved
@@ -345,9 +362,9 @@ namespace autov
 					   auto st_ret = expr->elems->at(0)->deep_copy();
 						return forward_simulation(proj, st_ret.get(), impl, rel, state, det, p, 0);
 					}
-				} // handle none here, if spec reaches a SOME, go into forward simulation with a requirement that impl yields SOME
-				// if spec reaches NONE allow impl to reach NONE
-				
+				} else if (*e_op == Expr::None) {
+						LOG_DEBUG << "Detected None in spec location 1.";
+				}
 			}
 		} else if (auto m = instance_of(spec, Match)) {
 			set<string> used_fix;
@@ -513,10 +530,40 @@ namespace autov
 			auto c = z3_eval(proj, r->prop.get(), state);
 			state->conds->push_back(c->get_z3_value());
 			return simulate_by_traverse(proj, r->body.get(), impl, rel, state, p, det);
+		} else if (auto r = instance_of(spec, Symbol)) { 
+			auto sym = dynamic_cast<Symbol*>(spec);
+			if(sym->text == "None") {
+				LOG_DEBUG << "[simulate_by_traverse] Detected None node in spec.";
+				for(auto cond: *state->conds) {
+					LOG_DEBUG << "[simulate_by_traverse] Condition at None: " << cond;
+				}
+				return true;
+			} else {
+				LOG_DEBUG << "[simulate_by_traverse] Unexpected Symbol node.";
+				return false;
+			}
+		} else if (auto r = instance_of(spec, Const)) { 
+			LOG_DEBUG << "[simulate_by_traverse] Unexpected Const node.";
+			return false;
+		} else if (auto r = instance_of(spec, RecordDef)) { 
+			LOG_DEBUG << "[simulate_by_traverse] Unexpected RecordDef node.";
+			return false;
+		} else if (auto r = instance_of(spec, PatternMatch)) { 
+			LOG_DEBUG << "[simulate_by_traverse] Unexpected PatternMatch node.";
+			return false;
+		} else if (auto r = instance_of(spec, RelyAnno)) { 
+			LOG_DEBUG << "[simulate_by_traverse] Unexpected RelyAnno node.";
+			return false;
+		} else if (auto r = instance_of(spec, ForallExists)) { 
+			LOG_DEBUG << "[simulate_by_traverse] Unexpected ForallExists node.";
+			return false;
 		} else {
-			// pass
+			LOG_DEBUG << "[simulate_by_traverse] Detected unexpected SpecNode type..";
+			LOG_DEBUG << spec->type.get()->name;
+			LOG_DEBUG << (typeid(spec).name());
+			return false;
 		}
-		return true;
+		return false;
 	}
 
 	/**
