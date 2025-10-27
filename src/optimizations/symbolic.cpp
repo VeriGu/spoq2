@@ -1240,6 +1240,24 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
     if (!proj->is_state_type(patched_def->args->back()->type)) {
         LOG_ERROR << "[check_refines] The last argument of the patched fn should be a state type!";
     }
+    if (!(vuln_def->rettype->name == patched_def->rettype->name)) {
+        LOG_ERROR << "[check_refines] The return types of the vuln and patched functions should be the same! " << vuln_def->rettype->name << " vs " << patched_def->rettype->name;
+    }
+    // From Rel and the rettype of spec and impl, construct a rel' which is rel /\ spec(args) == impl(args)
+    // LOG_DEBUG << "def body " << vuln_body->type->name;
+    // auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+    // elems->push_back(rel->body->deep_copy());
+    // auto ret_eq_arg_vec = make_unique<vector<unique_ptr<SpecNode>>>();
+    // This creates an explicit requirement for the name of the return value symbols to match the relation.
+    // proj->symbols.insert({vuln_def->name + "_ret", SymbolInfo{SymbolKind::Def, vuln_def->name + "_ret"}});
+    // proj->symbols.insert({patched_def->name + "_ret", SymbolInfo{SymbolKind::Def, vuln_def->name + "_ret"}});
+    // ret_eq_arg_vec->push_back(make_unique<Symbol>(vuln_def->name + "_ret", vuln_def->rettype));
+    // ret_eq_arg_vec->push_back(make_unique<Symbol>(patched_def->name + "_ret", patched_def->rettype));
+    // LOG_DEBUG << "def body 2" << vuln_body->type->name;
+    // elems->push_back(make_unique<Expr>(Expr::EQUAL, std::move(ret_eq_arg_vec), Bool::BOOL));
+    // unique_ptr<SpecNode> rel_with_rets = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
+    // auto rel_with_rets_def = make_unique<Definition>("_relate_RData",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), rel_with_rets->deep_copy());
+
     auto rel_expr = formulate_relation(proj, rel, st_sym_1.get(), st_sym_2.get(), state);
     state->conds->push_back(rel_expr->get_z3_value());
     set<string> used_fixpoint;
@@ -1252,6 +1270,7 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
 	path_t p = {};
 
     bool result = simulate_by_traverse(proj, vuln_body, patched_body, rel, state, p, false);
+    std::cout << "{verified: " << (result ? "true" : "false") << "}" << std::endl;
     return result;
 }
 

@@ -854,7 +854,7 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
             } else {
                 spec_transformer(proj, high_def, layer_id, layer_id, true);
             }
-            std::cout << "Transformed: " << std::endl << string(*high_def) << std::endl;
+            LOG_INFO << "Transformed: " << std::endl << string(*high_def);
         } else {
             LOG_INFO << "No transformation for " << high_name;
         }
@@ -1437,7 +1437,7 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
             } else {
                 spec_transformer(proj, high_def, layer_id, layer_id, true);
             }
-            std::cout << "Transformed: " << std::endl << string(*high_def) << std::endl;
+            LOG_INFO << "Transformed: " << std::endl << string(*high_def);
         } else {
             LOG_INFO << "No transformation for " << high_name;
         }

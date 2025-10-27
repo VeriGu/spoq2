@@ -82,7 +82,7 @@ void init() {
 
     // Console sink for non-error messages
     auto console_sink = logging::add_console_log(
-        std::cout,
+        std::clog,
         keywords::filter = expr::attr<logging::trivial::severity_level>("Severity") < logging::trivial::error,
         keywords::format = (
             expr::stream

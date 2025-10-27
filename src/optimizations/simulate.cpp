@@ -68,7 +68,7 @@ namespace autov
 						
 						auto [is_relate, expr_relate] = check_relation(proj, rel, st_check, st_ret.get(), state);
 						if (is_relate) {
-							LOG_INFO << "[forward_simulation] Relation is proved between\n"  << string(*st_check) << "\nand\n" << string(*st_ret.get()) << std::endl;
+							// LOG_INFO << "[forward_simulation] Relation is proved between\n"  << string(*st_check) << "\nand\n" << string(*st_ret.get()) << std::endl;
 						} else {
 							LOG_WARNING << "[forward_simulation] Relation can not be proved between\n"  << string(*st_check) << "\nand\n" << string(*st_ret.get())  << std::endl;
 							for(auto cond: *state->conds) {
@@ -309,10 +309,10 @@ namespace autov
 				LOG_DEBUG << "[forward_simulation] None Symbol in impl, allow_none: " << allow_none;
 				return allow_none;
 			}
-			/** NOTE: In general we only prove relation between non-halt values (Some _) */
+			LOG_ERROR << "[forward_simulation] Unexpected Symbol in impl.";
 			return false;
 		} else {
-			LOG_DEBUG << "[forward_simulate] Unexpected SpecNode subclass";
+			LOG_ERROR << "[forward_simulate] Unexpected SpecNode subclass";
 			return false;
 		}
 		return false;
@@ -503,6 +503,8 @@ namespace autov
 									new_state->conds->push_back(new_inv_z3->get_z3_value());
 								}
 							}
+						} else {
+							LOG_ERROR << "[simulate_by_traverse] Unexpected Expr, not Some.";
 						}
 					}
 				} else {

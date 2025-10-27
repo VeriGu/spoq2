@@ -140,11 +140,11 @@ std::pair<int, int> SpoqIRModule::extract_inline_asm(SpoqFunction& func) {
     if(!func.spoq_insts_converted) assert(false && "spoq_insts not converted");
     int failed = find_inline_asm(func.spoq_insts);
     if (failed > 0) {
-        std::cout << "[ERROR] Failed to process " << failed << " inline asm in function " << func.llvm_func->getName().str() << std::endl;
+        LOG_ERROR << "Failed to process " << failed << " inline asm in function " << func.llvm_func->getName().str();
         failed_count += failed;
     }
     auto result = std::pair<int, int>(iasm_defs.size(), failed_count);
-    std::cout << result.first << " inline assembly found, " << result.second << " failed to process." << std::endl;
+    LOG_DEBUG << result.first << " inline assembly found, " << result.second << " failed to process.";
     return result;
 }
 

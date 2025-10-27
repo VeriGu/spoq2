@@ -48,28 +48,28 @@ public:
      * 
      */
     void report() {
-        std::cout << "Command-line options:\n";
-        std::cout << "  config_file: " << config_file << "\n";
-        std::cout << "  cone of influence reduction: " << std::boolalpha << coi << "\n";
-        std::cout << "  cone of influence prune path: " << std::boolalpha << coi_prune_path << "\n";
-        std::cout << "  use_llvm_frontend: " << std::boolalpha << use_llvm_frontend << "\n";
-        std::cout << "  new-trans: " << std::boolalpha << new_trans << "\n";
-        std::cout << "  check-sys: " << std::boolalpha << check_inv << "\n";
-        std::cout << "  check-loop: " << std::boolalpha << check_loop_inv << "\n";
-        std::cout << "  check-pre-post: " << std::boolalpha << check_pre_post << "\n";
-        std::cout << "  check-simulation: " << std::boolalpha << check_simulation << "\n";
-        std::cout << "  check-simulation-with-decompose: " << std::boolalpha << decompose_check_simulation << "\n";
-        std::cout << "  profile: " << std::boolalpha << profile << "\n";
-        std::cout << "  conditional_spec: " << std::boolalpha << conditional_spec << "\n";
-        std::cout << "  lens: " << std::boolalpha << lens << "\n";
-        std::cout << "  check-none: " << std::boolalpha << check_none << "\n";
-        std::cout << "  transform_io: " << std::boolalpha << transform_io << "\n";
-        std::cout << "  race: " << std::boolalpha << race << "\n";
-        std::cout << "  race timeout: " << std::boolalpha << race_timeout << "s\n";
-        std::cout << "  Z3 expression cache: " << std::boolalpha << z3_expr_cache << "\n";
-        std::cout << "  dry run asm: " << std::boolalpha << dry_run_asm << "\n";
+        std::cerr << "Command-line options:\n";
+        std::cerr << "  config_file: " << config_file << "\n";
+        std::cerr << "  cone of influence reduction: " << std::boolalpha << coi << "\n";
+        std::cerr << "  cone of influence prune path: " << std::boolalpha << coi_prune_path << "\n";
+        std::cerr << "  use_llvm_frontend: " << std::boolalpha << use_llvm_frontend << "\n";
+        std::cerr << "  new-trans: " << std::boolalpha << new_trans << "\n";
+        std::cerr << "  check-sys: " << std::boolalpha << check_inv << "\n";
+        std::cerr << "  check-loop: " << std::boolalpha << check_loop_inv << "\n";
+        std::cerr << "  check-pre-post: " << std::boolalpha << check_pre_post << "\n";
+        std::cerr << "  check-simulation: " << std::boolalpha << check_simulation << "\n";
+        std::cerr << "  check-simulation-with-decompose: " << std::boolalpha << decompose_check_simulation << "\n";
+        std::cerr << "  profile: " << std::boolalpha << profile << "\n";
+        std::cerr << "  conditional_spec: " << std::boolalpha << conditional_spec << "\n";
+        std::cerr << "  lens: " << std::boolalpha << lens << "\n";
+        std::cerr << "  check-none: " << std::boolalpha << check_none << "\n";
+        std::cerr << "  transform_io: " << std::boolalpha << transform_io << "\n";
+        std::cerr << "  race: " << std::boolalpha << race << "\n";
+        std::cerr << "  race timeout: " << std::boolalpha << race_timeout << "s\n";
+        std::cerr << "  Z3 expression cache: " << std::boolalpha << z3_expr_cache << "\n";
+        std::cerr << "  dry run asm: " << std::boolalpha << dry_run_asm << "\n";
 
-        std::cout << std::endl;
+        std::cerr << std::endl;
     }
 
     /**

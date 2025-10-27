@@ -149,8 +149,8 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
     proj->deps[def->name] = SpoqIRModule::get_func_dependencies(spoq_func.llvm_func);
 
     for (auto &spec_name: low_specs) {
-        std::cout << "Generated low spec: " << spec_name << std::endl;
-        std::cout << string(*proj->defs[spec_name]) << "\n";
+        LOG_INFO << "Generated low spec: " << spec_name;
+        LOG_INFO << string(*proj->defs[spec_name]);
     }
 
     assert(context.rettype != SpecType::UNKNOWN_TYPE && string("return type for is unknown").c_str());

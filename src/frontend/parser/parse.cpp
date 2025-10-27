@@ -962,7 +962,6 @@ antlrcpp::Any ProgramVisitor::visitVar_anno(SpecParser::Var_annoContext* ctx) {
 }
 
 void parse(Project *proj, const std::string& path) {
-    std::cout << "Parsing " << path << std::endl;
     std::ifstream stream(path);
     antlr4::ANTLRInputStream input(stream);
     SpecLexer lexer(&input);
@@ -972,13 +971,9 @@ void parse(Project *proj, const std::string& path) {
     ProgramVisitor visitor(*proj, path);
 
     visitor.visit(tree);
-    std::cout << "Done parsing 1 " << path << std::endl;
-
-    //std::cout << tree->toStringTree(&parser) << std::endl;
 }
 
 void parse(Project *proj, const std::string& path, Layer *current_layer) {
-    std::cout << "Parsing " << path << std::endl;
     std::ifstream stream(path);
     antlr4::ANTLRInputStream input(stream);
     SpecLexer lexer(&input);
@@ -988,7 +983,6 @@ void parse(Project *proj, const std::string& path, Layer *current_layer) {
     ProgramVisitor visitor(*proj, path, current_layer);
 
     visitor.visit(tree);
-    std::cout << "Done parsing 2 " << path << std::endl;
 }
 
 SpecNode* parseExpr(Project* proj, string expr_str) {
@@ -1000,9 +994,7 @@ SpecNode* parseExpr(Project* proj, string expr_str) {
     ProgramVisitor visitor(*proj, "");
 
 
-    std::cout << "Parsing Expr " << std::endl;
     SpecNode* spec = any_cast<SpecNode*>(visitor.visit(tree));
-    std::cout << "Done parsing Expr " << std::endl;
     return spec;
 }
 

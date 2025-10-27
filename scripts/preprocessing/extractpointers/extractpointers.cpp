@@ -102,7 +102,7 @@ class ExtractPointersPass : public llvm::ModulePass {
   std::string generatePtrToInt() {
     std::string result = "Definition ptr_to_int (p: Ptr) : Z := \n" \
     " if (p.(poffset) <? 0) then (-1) else\n" \
-    " if (p.(pbase) =s \"status\") then (MAX_ERR + p.(poffset)) else\n" \
+    // " if (p.(pbase) =s \"status\") then (MAX_ERR + p.(poffset)) else\n" 
     " if (p.(pbase) =s \"null\") then 0 else\n" ;
     // " if (v <? 0 ) then (mkPtr \"null\" 0) else\n";
     for (auto it = gv_list.rbegin(); it != gv_list.rend(); it++) {
@@ -420,8 +420,13 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
   stack_load_rdata = load_result;
   stack_store_rdata = store_result;
 
-  fout << result << "\n(*\n" << load_result << "\n*)\n";
-  fout << "\n(*\n" << store_result << "\n*)\n";
+  fout << result 
+    << "\n(* Definition load_stack (sz: Z) (p: Ptr) (st: RData) : (option (Z * RData)) :=\n" 
+    << load_result 
+    << "  None.\n*) (* load_stack *)\n";
+  fout << "\n(* Definition store_stack (sz: Z) (p: Ptr) (v: z) (st: RData) : option RData :=\n" 
+    << store_result 
+    << "None.\n*) (* store_stack *)\n";
 
   std::string hint_result = "";
   for (auto& F : M) {
@@ -544,8 +549,15 @@ void ExtractPointersPass::generate(llvm::Module& M) {
   }
   g_result.erase(g_result.rfind(";"), 1);  // remove the last ;
   g_result += "    }.\n";
-  fout << g_result << "\n(*\n" << g_load_result << "\n*)\n";
-  fout << "\n(*\n" << g_store_result << "\n*)\n";
+  fout << g_result 
+    << "\n(* Definition load_RData (sz: Z) (p: Ptr) (st: RData) : (option (Z * RData)) :=\n"
+    << g_load_result 
+    << "  None."
+    << "\n*) (* load_RData *)\n";
+  fout << "\n(* Definition store_RData (sz: Z) (p: Ptr) (v: Z) (st: RData) : option RData :=\n"
+   << g_store_result 
+   << "  None."
+   << "\n*) (* store_RData *)\n\n";
 
   // llvm::errs() << "page: " << page_count << " " << "base:" << base << "\n";
 
