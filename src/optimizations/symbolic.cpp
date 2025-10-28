@@ -1269,9 +1269,9 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
     patched_body->clear_z3_eval();
 	path_t p = {};
 
-    bool result = simulate_by_traverse(proj, vuln_body, patched_body, rel, state, p, false);
-    std::cout << "{verified: " << (result ? "true" : "false") << "}" << std::endl;
-    return result;
+    auto result = simulate_by_traverse(proj, vuln_body, patched_body, rel, state, p, false);
+    std::cout << result;
+    return result.verified;
 }
 
 bool simulate(Project* proj, bool check_sec = true) {

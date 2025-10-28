@@ -52,7 +52,7 @@ namespace autov
 	 * @return [result, its following spec body] 
 	 * 		   We assume that abstract function will not occur in multiple branches. otherwise the return value should be std::pair<bool, std::set<SpecNode *>>
 	 */
-	bool forward_simulation(Project *proj, SpecNode *st_check, SpecNode *impl, Definition *rel, shared_ptr<ProveState> state, 
+	SimulateResult forward_simulation(Project *proj, SpecNode *st_check, SpecNode *impl, Definition *rel, shared_ptr<ProveState> state, 
 			bool det = false, const path_t &path = {}, int i = 0, bool allow_none = false) {
 		if (auto expr = instance_of(impl, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
@@ -75,7 +75,7 @@ namespace autov
 								LOG_DEBUG << "Condition: " << cond;
 							}
 						}
-						return is_relate;
+						return SimulateResult{is_relate, false, false, false};
 					} else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
 						st_ret = expr->elems->at(0)->deep_copy();
 						
@@ -88,11 +88,11 @@ namespace autov
 								LOG_DEBUG << "Condition: " << cond;
 							}
 						}
-						return is_relate;
+						return SimulateResult{is_relate, false, false, false};
 					}
 				} else if(*e_op == Expr::None) {
 					LOG_DEBUG << "[forward_simulation] None in impl, allow_none: " << allow_none;
-					return allow_none;
+					return SimulateResult{allow_none, false, false, !allow_none};
 				}
 			}
 		} else if (auto m = instance_of(impl, Match)) {
@@ -114,7 +114,7 @@ namespace autov
 									if (proj->cmds.PreCond.find(op) != proj->cmds.PreCond.end()) {
 										if (!check_states_implies_pre_condition(proj, state, op, expr->elems.get())){
 											LOG_INFO << "[Checking Loop Invariant] Precondition not Satified";
-											return false;
+											return SimulateResult{false, false, false, false};
 										};
 									}
 									LOG_INFO << "[Checking Loop Invariant] Precondition Satisfied";
@@ -129,7 +129,7 @@ namespace autov
 								if (proj->cmds.PreCond.find(op) != proj->cmds.PreCond.end()) {
 									if (!check_states_implies_pre_condition(proj, state, op, expr->elems.get())){
 										LOG_INFO << "[Checking Loop Invariant] Precondition not Satified";
-										return false;
+										return SimulateResult{false, false, false, false};
 									};
 								}
 								if(proj->cmds.PostCond.find(op) != proj->cmds.PostCond.end()) {
@@ -145,7 +145,7 @@ namespace autov
 			auto abst_spec = abst_transition(proj, m->src.get()); 
 			SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
 
-			bool is_relate = true;
+			auto sim_result = SimulateResult{true, false, false, false};
 			SpecNode *impl_rest = nullptr;
 
 			int cnt = 0;
@@ -254,10 +254,10 @@ namespace autov
 				if (res == Z3Result::False) {
 					continue;
 				} else {
-					is_relate &= forward_simulation(proj, st_check, (*pm)->body.get(), rel, pm_state, det, path, i+1);
+					sim_result = sim_result + forward_simulation(proj, st_check, (*pm)->body.get(), rel, pm_state, det, path, i+1);
 				}
 			}
-			return is_relate;
+			return sim_result;
 
 		} else if (auto iff = instance_of(impl, If)) {
 			auto cond = z3_eval(proj, iff->cond.get(), state);
@@ -294,9 +294,10 @@ namespace autov
 				auto else_state = state->copy();
 				then_state->conds->push_back(cond->get_z3_value());
 				else_state->conds->push_back(!cond->get_z3_value());
-				auto is_relate_then = forward_simulation(proj, st_check, iff->then_body.get(), rel, then_state, false, path, i+1);
-				auto is_relate_else = forward_simulation(proj, st_check, iff->else_body.get(), rel, else_state, false, path, i+1);
-				return (is_relate_then && is_relate_else);
+				auto sim_result = SimulateResult{true, false, false, false};
+				sim_result = sim_result + forward_simulation(proj, st_check, iff->then_body.get(), rel, then_state, false, path, i+1);
+				sim_result = sim_result + forward_simulation(proj, st_check, iff->else_body.get(), rel, else_state, false, path, i+1);
+				return sim_result;
 			}
 
 		} else if (auto r = instance_of(impl, Rely)) {
@@ -307,15 +308,15 @@ namespace autov
 			auto sym = dynamic_cast<Symbol *>(impl);
 			if (sym->text == "None") {
 				LOG_DEBUG << "[forward_simulation] None Symbol in impl, allow_none: " << allow_none;
-				return allow_none;
+				return SimulateResult{allow_none, false, false, !allow_none};
 			}
 			LOG_ERROR << "[forward_simulation] Unexpected Symbol in impl.";
-			return false;
+			return SimulateResult{false, false, false, false};
 		} else {
 			LOG_ERROR << "[forward_simulate] Unexpected SpecNode subclass";
-			return false;
+			return SimulateResult{false, false, false, false};
 		}
-		return false;
+		return SimulateResult{false, false, false, false};
 	}
 
 	/**
@@ -345,7 +346,7 @@ namespace autov
 	 * @return true if the specification relation is proved
 	 * @return false if the specification relation is not proved
 	 */
-	bool simulate_by_traverse(Project *proj, SpecNode *spec, SpecNode *impl, Definition *rel, shared_ptr<ProveState> state, path_t p, bool det) {
+	SimulateResult simulate_by_traverse(Project *proj, SpecNode *spec, SpecNode *impl, Definition *rel, shared_ptr<ProveState> state, path_t p, bool det) {
 		if (auto expr = instance_of(spec, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -388,7 +389,7 @@ namespace autov
 									if (proj->cmds.PreCond.find(op) != proj->cmds.PreCond.end()) {
 										if (!check_states_implies_pre_condition(proj, state, op, expr->elems.get())){
 											LOG_INFO << "[Checking Loop Invariant] Precondition not Satified";
-											return false;
+											return SimulateResult{false, false, false, false};
 										};
 									}
 									LOG_INFO << "[Checking Loop Invariant] Precondition Satisfied";
@@ -403,7 +404,7 @@ namespace autov
 								if (proj->cmds.PreCond.find(op) != proj->cmds.PreCond.end()) {
 									if (!check_states_implies_pre_condition(proj, state, op, expr->elems.get())){
 										LOG_INFO << "[Checking Loop Invariant] Precondition not Satified";
-										return false;
+										return SimulateResult{false, false, false, false};
 									};
 								}
 								LOG_INFO << "[Checking Loop Invariant] Satisfied";
@@ -422,7 +423,7 @@ namespace autov
 			SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
 
 			int cnt = 0;
-			auto success = true;
+			auto sim_result = SimulateResult{true, false, false, false};
 			for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 				path_t p_match = p;
 				p_match.push_back(cnt++);
@@ -510,9 +511,9 @@ namespace autov
 				} else {
 					resolve_pattern(proj, m, pat, src, new_state);
 				}
-				success &= simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, new_state, p_match, det);
+				sim_result = sim_result + simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, new_state, p_match, det);
 			}
-			return success;
+			return sim_result;
 		} else if (auto i = instance_of(spec, If)) {
 			// push cond
 			auto c = z3_eval(proj, i->cond.get(), state);
@@ -523,10 +524,10 @@ namespace autov
 			path_t p_then = p, p_else = p;
 			p_then.push_back(1);
 			p_else.push_back(0);
-			auto success = true;
-			success &= simulate_by_traverse(proj, i->then_body.get(), impl, rel, true_state, p_then, det);
-			success &= simulate_by_traverse(proj, i->else_body.get(), impl, rel, false_state, p_else, det);
-			return success;
+			auto sim_result = SimulateResult{true, false, false, false};
+			sim_result = sim_result + simulate_by_traverse(proj, i->then_body.get(), impl, rel, true_state, p_then, det);
+			sim_result = sim_result + simulate_by_traverse(proj, i->else_body.get(), impl, rel, false_state, p_else, det);
+			return sim_result;
 		} else if (auto r = instance_of(spec, Rely)) {
 			// push cond
 			auto c = z3_eval(proj, r->prop.get(), state);
@@ -539,33 +540,33 @@ namespace autov
 				for(auto cond: *state->conds) {
 					LOG_DEBUG << "[simulate_by_traverse] Condition at None: " << cond;
 				}
-				return true;
+				return SimulateResult{true, true, false, false};
 			} else {
 				LOG_DEBUG << "[simulate_by_traverse] Unexpected Symbol node.";
-				return false;
+				return SimulateResult{false, false, false, false};
 			}
 		} else if (auto r = instance_of(spec, Const)) { 
 			LOG_DEBUG << "[simulate_by_traverse] Unexpected Const node.";
-			return false;
+			return SimulateResult{false, false, false, false};
 		} else if (auto r = instance_of(spec, RecordDef)) { 
 			LOG_DEBUG << "[simulate_by_traverse] Unexpected RecordDef node.";
-			return false;
+			return SimulateResult{false, false, false, false};
 		} else if (auto r = instance_of(spec, PatternMatch)) { 
 			LOG_DEBUG << "[simulate_by_traverse] Unexpected PatternMatch node.";
-			return false;
+			return SimulateResult{false, false, false, false};
 		} else if (auto r = instance_of(spec, RelyAnno)) { 
 			LOG_DEBUG << "[simulate_by_traverse] Unexpected RelyAnno node.";
-			return false;
+			return SimulateResult{false, false, false, false};
 		} else if (auto r = instance_of(spec, ForallExists)) { 
 			LOG_DEBUG << "[simulate_by_traverse] Unexpected ForallExists node.";
-			return false;
+			return SimulateResult{false, false, false, false};
 		} else {
 			LOG_DEBUG << "[simulate_by_traverse] Detected unexpected SpecNode type..";
 			LOG_DEBUG << spec->type.get()->name;
 			LOG_DEBUG << (typeid(spec).name());
-			return false;
+			return SimulateResult{false, false, false, false};
 		}
-		return false;
+		return SimulateResult{false, false, false, false};
 	}
 
 	/**
@@ -672,8 +673,19 @@ namespace autov
 		} else {
 			end_rel = endrel;
 		}
-		return simulate_by_traverse(proj, spec_body, impl_body, end_rel, state, p, det);
+		return simulate_by_traverse(proj, spec_body, impl_body, end_rel, state, p, det).verified;
 	}
 
-
+	std::string b_to_s(bool b) {
+		return b ? "true" : "false";
+	}
+	std::ostream& operator<<(std::ostream& out, const SimulateResult& r)
+	{
+	return out << "{" 
+		<< "verified: "             << b_to_s(r.verified) << ", "
+		<< "spec_has_ub: "          << b_to_s(r.spec_has_ub)  << ", "
+		<< "impl_eliminates_ub: "   << b_to_s(r.impl_eliminates_ub)  << ", "
+		<< "impl_has_non_spec_ub: " << b_to_s(r.impl_has_non_spec_ub)
+		<< "}" << std::endl;
+	}
 }
