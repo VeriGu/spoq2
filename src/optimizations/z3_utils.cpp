@@ -269,6 +269,13 @@ Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
+    // std::cout << "-----------------Z3_verify-----------------" << std::endl;
+    // std::cout << "z3 check cond: " << cond << ", hash: " << cond.hash() << std::endl;
+    // for (auto &c : *state->conds) {
+    //     std::cout << "z3 check state conds: " << c << std::endl;
+    // }
+    // std::cout << "z3 check not_res: " << not_res << std::endl;
+    // std::cout << "-----------------Z3_verify-----------------" << std::endl;
     if (not_res == z3::unsat) {
         return Z3Result::True;
     } else if (not_res == z3::sat) {
@@ -304,6 +311,12 @@ Z3Result z3_verify_state_sat(shared_ptr<ProveState> state, QueryInfo *qinfo, int
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
+    // std::cout << "-----------------Z3_verify_state_sat-----------------" << std::endl;
+    // for (auto &c : *state->conds) {
+    //     std::cout << "z3 check state conds: " << c << std::endl;
+    // }
+    // std::cout << "z3 check res: " << res << std::endl;
+    // std::cout << "-----------------Z3_verify_state_sat-----------------" << std::endl;
     if (res == z3::sat) {
         return Z3Result::True;
     } else if (res == z3::unsat) {
@@ -482,15 +495,14 @@ Z3Result z3_check_unsat(shared_ptr<ProveState> state, z3::expr cond, z3::model& 
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
-    // std::cout << "-----------------Z3-----------------" << std::endl;
-    // std::cout << "hash: " << hash << std::endl;
-    // std::cout << "z3 check cond: " << cond << ", hash: " << cond.hash() << std::endl;
-    // for (auto &c : *state->conds) {
-    //     std::cout << "z3 check state conds: " << c << std::endl;
-    // }
-    // std::cout << "z3 check res: " << res << std::endl;
-    // std::cout << "z3 check not_res: " << not_res << std::endl;
-    // std::cout << "-----------------Z3-----------------" << std::endl;
+    std::clog << "-----------------Z3_check_unsat-----------------" << std::endl;
+    std::clog << "hash: " << hash << std::endl;
+    std::clog << "z3 check cond: " << cond << ", hash: " << cond.hash() << std::endl;
+    for (auto &c : *state->conds) {
+        std::clog << "z3 check state conds: " << c << std::endl;
+    }
+    std::clog << "z3 check not_res: " << not_res << std::endl;
+    std::clog << "-----------------Z3_check_unsat-----------------" << std::endl;
 
     if (not_res == z3::unsat) {
         return Z3Result::True;

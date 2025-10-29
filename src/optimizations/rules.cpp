@@ -1982,7 +1982,7 @@ void free_vars(Project* proj, SpecNode* spec, std::set<std::string>& free) {
  * @param name   The name to be replaced.
  * @param value  The value to replace occurrences of [name].
  * 
- * @return A unique pointer to the modified SpecNode.
+ * @return A unique pointer to the new modified SpecNode.
  */
 /*
 

@@ -1205,7 +1205,7 @@ bool check_pre_post(Project* proj, Definition *def, std::unordered_set<string>& 
     return res;
 }
 
-bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def, Definition *rel, std::unordered_set<string>& used_abs) {
+bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def, Definition *rel, Expr *ret_rel, std::unordered_set<string>& used_abs) {
     Z3Cache.clear();
 
     auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
@@ -1243,22 +1243,51 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
     if (!(vuln_def->rettype->name == patched_def->rettype->name)) {
         LOG_ERROR << "[check_refines] The return types of the vuln and patched functions should be the same! " << vuln_def->rettype->name << " vs " << patched_def->rettype->name;
     }
-    // From Rel and the rettype of spec and impl, construct a rel' which is rel /\ spec(args) == impl(args)
-    // LOG_DEBUG << "def body " << vuln_body->type->name;
-    // auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-    // elems->push_back(rel->body->deep_copy());
-    // auto ret_eq_arg_vec = make_unique<vector<unique_ptr<SpecNode>>>();
-    // This creates an explicit requirement for the name of the return value symbols to match the relation.
-    // proj->symbols.insert({vuln_def->name + "_ret", SymbolInfo{SymbolKind::Def, vuln_def->name + "_ret"}});
-    // proj->symbols.insert({patched_def->name + "_ret", SymbolInfo{SymbolKind::Def, vuln_def->name + "_ret"}});
-    // ret_eq_arg_vec->push_back(make_unique<Symbol>(vuln_def->name + "_ret", vuln_def->rettype));
-    // ret_eq_arg_vec->push_back(make_unique<Symbol>(patched_def->name + "_ret", patched_def->rettype));
-    // LOG_DEBUG << "def body 2" << vuln_body->type->name;
-    // elems->push_back(make_unique<Expr>(Expr::EQUAL, std::move(ret_eq_arg_vec), Bool::BOOL));
-    // unique_ptr<SpecNode> rel_with_rets = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
-    // auto rel_with_rets_def = make_unique<Definition>("_relate_RData",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), rel_with_rets->deep_copy());
+    // Based on how Invariant and PostCondition work, we want to construct the predicate:
+    // (forall args... (vuln args...) = (patch args...))
+    // start with the args.
+    auto args = std::make_unique<std::vector<std::shared_ptr<Arg>>>();
+    for (auto arg : *vuln_def->args) {
+        args->push_back(arg);
+    }
+    field_t ret_rel_names;
+    ret_rel_names.push_back("vuln_ret");
+    ret_rel_names.push_back("patch_ret");
+    std::vector<std::unique_ptr<SpecNode>> ret_rel_values;
+    ret_rel_values.push_back(vuln_body->deep_copy());
+    ret_rel_values.push_back(patched_body->deep_copy());
 
+    auto new_ret_rel = subst_v2(proj, ret_rel->deep_copy(), &ret_rel_names, &ret_rel_values);
+    unique_ptr<std::vector<unique_ptr<SpecNode>>> ret_rel_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+    ret_rel_elems->push_back(std::move(new_ret_rel));
+    ret_rel_elems->push_back(rel->body->deep_copy());
+    unique_ptr<SpecNode> combined_rel = make_unique<Expr>(Expr::AND, std::move(ret_rel_elems), Bool::BOOL);
+    // auto forall_node = make_unique<Forall>(std::move(args), nullptr);
+    //auto new_vuln_body = // vuln_result := vuln_body
+    // (Expr::SET (SYMBOL vuln_result) (vuln_body))
+    // new_patch_body = // patch_result := patch_body
+    // rel = rel /\ 'vuln_result = patch_result'
+    // Possible approaches:
+    // 1. Give a name to the result of vuln_body and patched_body, then assert they are equal.
+    // 2. Copy the vuln_body and patched_body with new args? and and it to the existing assertion.
+    // 3. Construct a composite function with the equality predicate and separately use formulate_post_condition or similar.
+
+    // first reserve a unique name for each return value
+    // then use subst_v2 to assign the existing body as the value of the new name
+    // 
+    // TODO: formulate precondition for states starting equal.  DO WE ACTUALLY NEED THIS?
+    // auto states_equal_operands = make_unique<vector<unique_ptr<SpecNode>>>();
+    // states_equal_operands->push_back(st_sym_1->deep_copy());
+    // states_equal_operands->push_back(st_sym_2->deep_copy());
+    // auto states_equal_precond = make_unique<Expr>(Expr::binops::EQUAL, std::move(states_equal_operands), Bool::BOOL);
+    // auto states_equal_expr = z3_eval(proj, states_equal_precond.get(), state);
+    // state->conds->push_back(states_equal_expr->get_z3_value());
+
+    auto rel_with_rets_def = make_unique<Definition>("_relate_RData_and_rets",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), std::move(combined_rel));
+    // auto rel_expr_with_rets = formulate_relation(proj, rel_with_rets_def.get(), st_sym_1.get(), st_sym_2.get(), state);
     auto rel_expr = formulate_relation(proj, rel, st_sym_1.get(), st_sym_2.get(), state);
+    LOG_DEBUG << "Refines Relation: " << rel_expr->get_z3_value();
+    // The relation is true before the simulation begins
     state->conds->push_back(rel_expr->get_z3_value());
     set<string> used_fixpoint;
 
@@ -1268,8 +1297,8 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
     vuln_body->clear_z3_eval();
     patched_body->clear_z3_eval();
 	path_t p = {};
-
-    auto result = simulate_by_traverse(proj, vuln_body, patched_body, rel, state, p, false);
+    proj->query_saver = QueryInfo(query_saver_dir(vuln_def->name, "refines"));
+    auto result = simulate_by_traverse(proj, vuln_body, patched_body, rel_with_rets_def.get(), state, p, false);
     std::cout << result;
     return result.verified;
 }
@@ -1454,7 +1483,7 @@ void spec_prover(Project *proj) {
                 LOG_ERROR << "No definition named: " << patched_name;
             }
 
-            if(!check_refines(proj, vuln_def->second.get(), patched_def->second.get(), rel_def->second.get(), used_abstract_funcs)) {
+            if(!check_refines(proj, vuln_def->second.get(), patched_def->second.get(), rel_def->second.get(), refines_info.ret_val_rel.get(), used_abstract_funcs)) {
                 LOG_ERROR << "Refinement relation " << refine_name << " does not hold for functions " << vuln_name << ", " << patched_name;
             } else {
                 LOG_DEBUG << "Refinement relation " << refine_name << " holds for functions " << vuln_name << ", " << patched_name;

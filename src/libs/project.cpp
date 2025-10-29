@@ -391,15 +391,18 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
             this->cmds.PreserveInv.insert(s->text);
         } else if(op_str == "Refines"){
-            assert(cmd->elems->size() == 3 
+            assert(cmd->elems->size() == 4
                 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) 
                 && dynamic_cast<Symbol *>(cmd->elems->at(1).get())
-                && dynamic_cast<Symbol *>(cmd->elems->at(1).get()));
+                && dynamic_cast<Symbol *>(cmd->elems->at(2).get())
+                && dynamic_cast<Expr *>(cmd->elems->at(3).get())
+            );
             // First two are specs, third is a relation function from RData -> RData -> Prop
             // this -> cmds.Refines.insert()
             auto func1 = dynamic_cast<Symbol *>(cmd->elems->at(0).release());
             auto func2 = dynamic_cast<Symbol *>(cmd->elems->at(1).release());
             auto rel = dynamic_cast<Symbol *>(cmd->elems->at(2).release());
+            auto ret_val_rel = dynamic_cast<Expr *>(cmd->elems->at(3).release());
             auto key = func1->text + "&" + func2->text + "&" + rel->text;
             
             LOG_DEBUG << "Refines command " << key;
@@ -408,6 +411,7 @@ void Project::add_command(unique_ptr<Expr> cmd) {
                     unique_ptr<Symbol>(func1),
                     unique_ptr<Symbol>(func2),
                     unique_ptr<Symbol>(rel),
+                    unique_ptr<Expr>(ret_val_rel),
                 });
         } else {
             LOG_WARNING << "Unknown command " << op_str;

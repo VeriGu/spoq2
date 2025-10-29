@@ -68,9 +68,10 @@ namespace autov
 						
 						auto [is_relate, expr_relate] = check_relation(proj, rel, st_check, st_ret.get(), state);
 						if (is_relate) {
-							// LOG_INFO << "[forward_simulation] Relation is proved between\n"  << string(*st_check) << "\nand\n" << string(*st_ret.get()) << std::endl;
+							auto rel_expr = formulate_relation(proj, rel, st_check, st_ret.get(), state);
+							LOG_INFO << "[forward_simulation] Expr Relation " << rel_expr->get_z3_value() << " is proved between\n"  << string(*st_check) << " and " << string(*st_ret.get()) << std::endl;
 						} else {
-							LOG_WARNING << "[forward_simulation] Relation can not be proved between\n"  << string(*st_check) << "\nand\n" << string(*st_ret.get())  << std::endl;
+							LOG_WARNING << "[forward_simulation] Expr Relation can not be proved between\n"  << string(*st_check) << " and " << string(*st_ret.get())  << std::endl;
 							for(auto cond: *state->conds) {
 								LOG_DEBUG << "Condition: " << cond;
 							}
@@ -81,9 +82,9 @@ namespace autov
 						
 						auto [is_relate, expr_relate] = check_relation(proj, rel, st_check, st_ret.get(), state);
 						if (is_relate) {
-							LOG_INFO << "[forward_simulation] Relation is proved between\n"  << string(*st_check) << "\nand\n" << string(*st_ret.get()) << std::endl;
+							LOG_INFO << "[forward_simulation] Symbol Relation is proved between\n"  << string(*st_check) << " and " << string(*st_ret.get()) << std::endl;
 						} else {
-							LOG_WARNING << "[forward_simulation] Relation can not be proved between\n"  << string(*st_check) << "\nand\n" << string(*st_ret.get())  << std::endl;
+							LOG_WARNING << "[forward_simulation] Symbol Relation can not be proved between\n"  << string(*st_check) << " and " << string(*st_ret.get())  << std::endl;
 							for(auto cond: *state->conds) {
 								LOG_DEBUG << "Condition: " << cond;
 							}
@@ -257,6 +258,7 @@ namespace autov
 					sim_result = sim_result + forward_simulation(proj, st_check, (*pm)->body.get(), rel, pm_state, det, path, i+1);
 				}
 			}
+			LOG_DEBUG << "[forward_simulation] Completed Match: verified: " << sim_result.verified;
 			return sim_result;
 
 		} else if (auto iff = instance_of(impl, If)) {

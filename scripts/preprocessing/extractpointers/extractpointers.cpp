@@ -420,13 +420,6 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
   stack_load_rdata = load_result;
   stack_store_rdata = store_result;
 
-  fout << result 
-    << "\n(* Definition load_stack (sz: Z) (p: Ptr) (st: RData) : (option (Z * RData)) :=\n" 
-    << load_result 
-    << "  None.\n*) (* load_stack *)\n";
-  fout << "\n(* Definition store_stack (sz: Z) (p: Ptr) (v: z) (st: RData) : option RData :=\n" 
-    << store_result 
-    << "None.\n*) (* store_stack *)\n";
 
   std::string hint_result = "";
   for (auto& F : M) {
@@ -448,6 +441,13 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
     }
   }
   fout << "\n" << hint_result << "\n";
+  fout << result 
+    << "\n(* Definition load_stack (sz: Z) (p: Ptr) (st: RData) : (option (Z * RData)) :=\n" 
+    << load_result 
+    << "*) (* load_stack *)\n";
+  fout << "\n(* Definition store_stack (sz: Z) (p: Ptr) (v: z) (st: RData) : option RData :=\n" 
+    << store_result 
+    << "*) (* store_stack *)\n";
 }
 
 void ExtractPointersPass::generate(llvm::Module& M) {
@@ -492,24 +492,24 @@ void ExtractPointersPass::generate(llvm::Module& M) {
     if (vty->isIntegerTy() || vty->isPointerTy()) {
       g_load_result += 
       "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
-      "      Some(st.(share).(globals).(" + getGVIdentifier(&globalVar) + "), st)) else\n";
+      "      Some(st.(globals).(" + getGVIdentifier(&globalVar) + "), st)) else\n";
 
       g_store_result += 
       "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
-      "      Some(st.[share].[globals].[" + getGVIdentifier(&globalVar) + "] :< v)) else\n";
+      "      Some(st.[globals].[" + getGVIdentifier(&globalVar) + "] :< v)) else\n";
     }
     else if (auto sty = llvm::dyn_cast<llvm::StructType>(vty)) {
       g_load_result += 
       "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
-      "      when ret == load_" + getStructTypeIdentifier(sty) + " sz p.(poffset) st.(share).(globals).(" \
+      "      when ret == load_" + getStructTypeIdentifier(sty) + " sz p.(poffset) st.(globals).(" \
       + getGVIdentifier(&globalVar) + ");\n" \
       "      Some(ret, st)) else\n";
 
       g_store_result += 
       "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
-      "      when ret == store_" + getStructTypeIdentifier(sty) + " sz p.(poffset) v st.(share).(globals).(" \
+      "      when ret == store_" + getStructTypeIdentifier(sty) + " sz p.(poffset) v st.(globals).(" \
       + getGVIdentifier(&globalVar) + ");\n" \
-      "      Some(st.[share].[globals].[" + getGVIdentifier(&globalVar) + "] :< ret)) else\n";
+      "      Some(st.[globals].[" + getGVIdentifier(&globalVar) + "] :< ret)) else\n";
     }
     else if (auto aty = llvm::dyn_cast<llvm::ArrayType>(vty)) {
       auto ety = aty->getElementType();
@@ -518,20 +518,20 @@ void ExtractPointersPass::generate(llvm::Module& M) {
         g_load_result += 
         "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
         "      let idx := p.(poffset) / " + std::to_string(element_size) + " in \n"\
-        "      let ptr := st.(share).(globals).(" + getGVIdentifier(&globalVar) + ") @ idx in\n"\
+        "      let ptr := st.(globals).(" + getGVIdentifier(&globalVar) + ") @ idx in\n"\
         "      Some(ptr, st)) else\n";
 
         g_store_result += 
         "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
         "      let idx := p.(poffset) / " + std::to_string(element_size) + " in \n"\
-        "      let ptr := (st.(share).(globals).(" + getGVIdentifier(&globalVar) + ") # idx == v) in\n"\
-        "      Some(st.[share].[globals].[" +  getGVIdentifier(&globalVar) + "] :< ptr)) else\n";
+        "      let ptr := (st.(globals).(" + getGVIdentifier(&globalVar) + ") # idx == v) in\n"\
+        "      Some(st.[globals].[" +  getGVIdentifier(&globalVar) + "] :< ptr)) else\n";
       } else if (auto sty = llvm::dyn_cast<llvm::StructType>(ety)) {
         g_load_result += 
         "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
         "       let idx := p.(poffset) / " + std::to_string(element_size) + " in\n" \
         "       let elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
-        "       when ret == load_"+ getStructTypeIdentifier(sty) +" sz elem_ofs (st.(share).(globals).(" \
+        "       when ret == load_"+ getStructTypeIdentifier(sty) +" sz elem_ofs (st.(globals).(" \
         + getGVIdentifier(&globalVar) + ") @ idx);\n " \
         "       Some(ret, st)) else\n";
 
@@ -539,9 +539,9 @@ void ExtractPointersPass::generate(llvm::Module& M) {
         "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
         "       let idx := p.(poffset) / " + std::to_string(element_size) + " in\n" \
         "       let elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
-        "       when ret == store_"+ getStructTypeIdentifier(sty) +" sz elem_ofs v (st.(share).(globals).(" \
+        "       when ret == store_"+ getStructTypeIdentifier(sty) +" sz elem_ofs v (st.(globals).(" \
         + getGVIdentifier(&globalVar) + ") @ idx);\n " \
-        "       Some(st.[share].[globals].[" + getGVIdentifier(&globalVar) + "] :< " + "(st.(share).(globals).(" + getGVIdentifier(&globalVar) + ") # idx == ret) )) else\n";
+        "       Some(st.[globals].[" + getGVIdentifier(&globalVar) + "] :< " + "(st.(globals).(" + getGVIdentifier(&globalVar) + ") # idx == ret) )) else\n";
       }
     } else {
       // llvm::errs() << "Cannot handle." << "\n";
