@@ -385,7 +385,8 @@ public:
         NOT, BNOT, // uni-op
         RecordSet, RecordGet, // Record
         Tuple,
-        Some, None
+        Some, None,
+        Fst, Snd
     };
 
     enum binops {
@@ -457,6 +458,27 @@ public:
             }
         }
     }
+    
+    Expr(op_t op, unique_ptr<SpecNode> node, shared_ptr<SpecType> type) :
+        SpecNode(type), op(std::move(op)) {
+            this->elems = make_unique<vector<unique_ptr<SpecNode>>>();
+            this->elems->push_back(std::move(node));
+            this->length = calc_length();
+
+        if (std::holds_alternative<string>(this->op)) {
+            auto s = std::get<string>(this->op);
+
+            if (s == "lens") {
+                auto lens_id_node = static_cast<Const *>(this->elems->at(0).get());
+                auto lens_id = std::get<unsigned long>(lens_id_node->value);
+
+                if (lens_id > mono_lens_id) {
+                    mono_lens_id = lens_id + 1;
+                }
+            }
+        }
+            
+        }
 
     bool operator==(const SpecNode& other) const {
         if (typeid(other) != typeid(Expr)) {

@@ -9,14 +9,22 @@ namespace autov
 	int Z3_SIM_TIMEOUT = 1000;
 
 	shared_ptr<SpecValue> formulate_relation(Project *proj, Definition *rel, SpecNode *st_spec, SpecNode *st_impl, shared_ptr<ProveState> state) {
+
 		vector<string> names;
 		vector<unique_ptr<SpecNode>> elems;
 		names.push_back(rel->args->at(0)->name);
 		elems.push_back(st_spec->deep_copy());
 		names.push_back(rel->args->at(1)->name);
 		elems.push_back(st_impl->deep_copy());
-		
+		// auto sp = z3_eval(proj, st_spec, state)->value.to_string();
+		// auto im = z3_eval(proj, st_impl, state)->value.to_string();
+		// LOG_DEBUG << "Spec state " << sp;
+		// LOG_DEBUG << "Impl state " << im;
+		LOG_DEBUG << "relation node before subst " << string(*rel->body->deep_copy().release());
+		// LOG_DEBUG << "relation z3_eval before subst " << z3_eval(proj, rel->body->deep_copy().get(), state)->value.to_string();
 		auto p = subst_v2(proj, rel->body->deep_copy(), &names, &elems);
+		LOG_DEBUG << "relation node after subst " << string(*p);
+		// LOG_DEBUG << "relation z3_eval after subst " << z3_eval(proj, p.get(), state)->value.to_string();
 		return z3_eval(proj, p.get(), state);
 	}
 
@@ -54,6 +62,7 @@ namespace autov
 	 */
 	SimulateResult forward_simulation(Project *proj, SpecNode *st_check, SpecNode *impl, Definition *rel, shared_ptr<ProveState> state, 
 			bool det = false, const path_t &path = {}, int i = 0, bool allow_none = false) {
+		LOG_DEBUG << "[forward_simulation] start! checking relation " << string(*rel) << " between\n"  << string(*st_check) << " and " << string(*impl) << std::endl;
 		if (auto expr = instance_of(impl, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -65,7 +74,7 @@ namespace autov
 								st_ret = ret_Some->elems->back()->deep_copy();
 							}
 						}
-						
+						LOG_DEBUG << "[forward_simulation] checking relation " << string(*rel) << " between\n"  << string(*st_check) << " and " << string(*st_ret.get()) << std::endl;
 						auto [is_relate, expr_relate] = check_relation(proj, rel, st_check, st_ret.get(), state);
 						if (is_relate) {
 							auto rel_expr = formulate_relation(proj, rel, st_check, st_ret.get(), state);
@@ -94,6 +103,8 @@ namespace autov
 				} else if(*e_op == Expr::None) {
 					LOG_DEBUG << "[forward_simulation] None in impl, allow_none: " << allow_none;
 					return SimulateResult{allow_none, false, false, !allow_none};
+				} else {
+					LOG_ERROR << "[forward_simulation] Expr with op: " << static_cast<int>(*e_op); 
 				}
 			}
 		} else if (auto m = instance_of(impl, Match)) {
@@ -314,6 +325,9 @@ namespace autov
 			}
 			LOG_ERROR << "[forward_simulation] Unexpected Symbol in impl.";
 			return SimulateResult{false, false, false, false};
+		} else if (auto r = instance_of(impl, Const)){
+			LOG_ERROR << "[forward_simulate] Unexpected Const node.";
+			return SimulateResult{false, false, false, false};
 		} else {
 			LOG_ERROR << "[forward_simulate] Unexpected SpecNode subclass";
 			return SimulateResult{false, false, false, false};
@@ -349,6 +363,7 @@ namespace autov
 	 * @return false if the specification relation is not proved
 	 */
 	SimulateResult simulate_by_traverse(Project *proj, SpecNode *spec, SpecNode *impl, Definition *rel, shared_ptr<ProveState> state, path_t p, bool det) {
+		LOG_DEBUG << "[simulate_by_traverse] start! checking relation " << string(*rel) << " between\n"  << string(*spec) << " and " << string(*impl) << std::endl;
 		if (auto expr = instance_of(spec, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -367,6 +382,8 @@ namespace autov
 					}
 				} else if (*e_op == Expr::None) {
 						LOG_DEBUG << "Detected None in spec location 1.";
+				} else {
+					LOG_ERROR << "Unexpected Expr with op: " << static_cast<int>(*e_op);
 				}
 			}
 		} else if (auto m = instance_of(spec, Match)) {

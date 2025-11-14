@@ -2009,12 +2009,17 @@ std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec
         if (is_instance(new_value.get(), Symbol)) {
             new_value->set_type(s->type);
         }
+        // LOG_DEBUG << "[subst_v2] old sym: " << s->text << "， new value idx: " << index;
 
         return new_value;
     } else if (auto e = instance_of(spec.get(), Expr)) {
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
         for (auto &elem : *e->elems) {
-            elems->push_back(subst_v2(proj, std::move(elem), names, values));
+            // LOG_DEBUG << "[subst_v2] elem old: " << e << "@" << ((size_t) elem.get()) << " : " << string(*elem);
+            auto new_elem = subst_v2(proj, std::move(elem), names, values);
+            // LOG_DEBUG << "[subst_v2] elem new: " << e << "@" << ((size_t) elem.get()) << " : " << string(*new_elem);
+            elems->push_back(std::move(new_elem));
+            // elems->push_back(subst_v2(proj, std::move(elem), names, values));
         }
         return std::visit([&](auto &&arg) -> std::unique_ptr<SpecNode> {
             using T = std::decay_t<decltype(arg)>;
@@ -2084,7 +2089,7 @@ std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec
                     ps.insert(new_name);
                     if(new_name != sym) {
                         //subst the pattern and the body
-                        //LOG_DEBUG << "old name: " << sym << "， new_name:" << new_name;
+                        LOG_DEBUG << "[subst_v2] old name: " << sym << "， new_name:" << new_name;
                         subst_names.push_back(sym);
                         subst_new_names.push_back(make_unique<Symbol>(new_name, typ));
                     }
@@ -2277,7 +2282,10 @@ std::unique_ptr<SpecNode> subst_expr(
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
         for (auto &elem : *e->elems) {
-            elems->push_back(subst_expr(proj, std::move(elem), expr, var, succ));
+            // LOG_DEBUG << "[subst_expr] elem old: " << string(*elem);
+            auto new_elem = subst_expr(proj, std::move(elem), expr, var, succ);
+            // LOG_DEBUG << "[subst_expr] elem new: " << string(*new_elem);
+            elems->push_back(std::move(new_elem));
         }
         return std::visit(
             [&](auto&& arg) -> std::unique_ptr<Expr> {

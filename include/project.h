@@ -98,7 +98,8 @@ class RefinesInfo {
 public:
     unique_ptr<Symbol> vuln_func;
     unique_ptr<Symbol> patched_func;
-    unique_ptr<Symbol> refine_rel;
+    unique_ptr<Symbol> refine_rel_pre;
+    unique_ptr<Symbol> refine_rel_post;
     unique_ptr<Expr> ret_val_rel;
 };
 

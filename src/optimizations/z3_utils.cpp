@@ -1776,8 +1776,35 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             return _cache(static_pointer_cast<Option>(val->get_type())->construct("Some", {elems[0]}));
         else if (op_eq(expr->op,Expr::ops::Tuple)) {
             return _cache(static_pointer_cast<Tuple>(val->get_type())->construct(elems));
-        }
-        else if (op_eq(expr->op, "prop"))
+        } else if (op_eq(expr->op,Expr::ops::Fst) || op_eq(expr->op,Expr::ops::Snd)) {
+            auto expr_first_elem = (Expr *)(expr->elems.get()[0][0].get());
+            // auto first_elem_op = expr_first_elem->op;
+            shared_ptr<SpecValue> tuple_node;
+            Expr * tuple_expr;
+            if (op_eq(expr_first_elem->op, Expr::ops::Some)){
+                // In this case, elems[0] is the z3_eval ed Some node.
+                // It has type Inductive
+                auto second_level_elem = (Expr *)(expr_first_elem->elems.get()[0][0].get());
+                if (op_eq(second_level_elem->op, Expr::ops::Tuple)) {
+                    tuple_expr = second_level_elem;
+                    // tuple_node = z3_eval(proj, second_level_elem, state, check_loop);
+                // Inductive* some_node = (Inductive*) elems[0].get();
+                // throw std::runtime_error("(z3_eval) Cannot find tuple for fst/snd of Some");
+                } else {
+                throw std::runtime_error("(z3_eval) Cannot find tuple for fst/snd of Some");
+                }
+            } else if (op_eq(expr_first_elem->op, Expr::ops::Tuple)) {
+                // tuple_node = elems[0];
+                tuple_expr = expr_first_elem;
+            } else {
+                throw std::runtime_error("(z3_eval) Cannot find tuple for fst/snd");
+            }
+            if (op_eq(expr->op, Expr::ops::Fst)){
+                return _cache(z3_eval(proj, tuple_expr->elems.get()[0][0].get(), state, check_loop));
+            } else {
+                return _cache(z3_eval(proj, tuple_expr->elems.get()[0][1].get(), state, check_loop));
+            }
+        } else if (op_eq(expr->op, "prop"))
             return _cache(elems[0]);
         else if (op_eq(expr->op,"ptr_to_int"))
             return _cache(static_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems));

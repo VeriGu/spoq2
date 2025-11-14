@@ -1205,13 +1205,14 @@ bool check_pre_post(Project* proj, Definition *def, std::unordered_set<string>& 
     return res;
 }
 
-bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def, Definition *rel, Expr *ret_rel, std::unordered_set<string>& used_abs) {
+bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def, 
+                   Definition *rel_pre, Definition *rel_post, 
+                   Expr *ret_rel, std::unordered_set<string>& used_abs) {
     Z3Cache.clear();
 
     auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
 	auto conds = std::make_shared<vector<z3::expr>>();
     // wtf does this do? v
-	(*vars)[get_sim_name("st")] = proj->layers[0]->abs_data->declare(get_sim_name("st"), 0);
 	auto induction = std::make_shared<vector<z3::expr>>();
 
     // Since the arguments are the same for the vuln and patched def, 
@@ -1222,18 +1223,17 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
     }
     auto state = std::make_shared<ProveState>(vars, conds, induction);
     
-	SpecNode* vuln_body = nullptr, *patched_body = nullptr;
-    vuln_body = vuln_def->body.get();
-    patched_body = patched_def->body.get();
     auto l_args = make_unique<vector<shared_ptr<Arg>>>();
     
     for (auto arg : *vuln_def->args) {
         l_args->push_back(arg);
     }
 
-    auto last_arg = vuln_def->args->back();
+    auto last_arg = vuln_def->args->back(); // Last arg of the vuln function is the state.  Vuln is the spec.
     auto st_sym_1 = make_shared<Symbol>(last_arg->name, last_arg->type);
-    auto st_sym_2 = make_shared<Symbol>(get_sim_name(last_arg->name), last_arg->type);
+    auto sim_state_name = rel_post->args->back()->name; // Last arg of the relation name is used for the impl state 
+	(*vars)[sim_state_name] = proj->layers[0]->abs_data->declare(sim_state_name, 0);
+    auto st_sym_2 = make_shared<Symbol>(sim_state_name, last_arg->type);
     if (!proj->is_state_type(last_arg->type)) {
         LOG_ERROR << "[check_refines] The last argument of the vuln fn should be a state type!";
     }
@@ -1250,45 +1250,41 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
     for (auto arg : *vuln_def->args) {
         args->push_back(arg);
     }
+
+	SpecNode* vuln_body = nullptr, *patched_body = nullptr;
+    vuln_body = vuln_def->body.get();
+    // auto orig_p_body = patched_def->body.get();
+    patched_body = subst_v2(proj, patched_def->body->deep_copy(), patched_def->args->back()->name, 
+        make_unique<Symbol>(Symbol(sim_state_name, last_arg->type))).release();
+    // LOG_DEBUG << "Patched body: " << z3_eval(proj, orig_p_body->deep_copy().get(), state)->value.to_string();;
+    LOG_DEBUG << "subst Patched body: " << z3_eval(proj, patched_body, state)->value.to_string();;
     field_t ret_rel_names;
     ret_rel_names.push_back("vuln_ret");
     ret_rel_names.push_back("patch_ret");
     std::vector<std::unique_ptr<SpecNode>> ret_rel_values;
-    ret_rel_values.push_back(vuln_body->deep_copy());
-    ret_rel_values.push_back(patched_body->deep_copy());
+
+    // THIS NEEDS TO CHANGE
+    // Each should be something like (fst st) or (fst st_sim)
+    unique_ptr<SpecNode> vuln_ret_node = make_unique<Expr>(Expr::ops::Fst, vuln_def->body->deep_copy(), vuln_def->rettype);
+    unique_ptr<SpecNode> patch_ret_node = make_unique<Expr>(Expr::ops::Fst, patched_body->deep_copy(), patched_def->rettype);
+    ret_rel_values.push_back(std::move(vuln_ret_node));
+    ret_rel_values.push_back(std::move(patch_ret_node));
 
     auto new_ret_rel = subst_v2(proj, ret_rel->deep_copy(), &ret_rel_names, &ret_rel_values);
     unique_ptr<std::vector<unique_ptr<SpecNode>>> ret_rel_elems = make_unique<vector<unique_ptr<SpecNode>>>();
     ret_rel_elems->push_back(std::move(new_ret_rel));
-    ret_rel_elems->push_back(rel->body->deep_copy());
+    ret_rel_elems->push_back(rel_post->body->deep_copy());
     unique_ptr<SpecNode> combined_rel = make_unique<Expr>(Expr::AND, std::move(ret_rel_elems), Bool::BOOL);
-    // auto forall_node = make_unique<Forall>(std::move(args), nullptr);
-    //auto new_vuln_body = // vuln_result := vuln_body
-    // (Expr::SET (SYMBOL vuln_result) (vuln_body))
-    // new_patch_body = // patch_result := patch_body
-    // rel = rel /\ 'vuln_result = patch_result'
-    // Possible approaches:
-    // 1. Give a name to the result of vuln_body and patched_body, then assert they are equal.
-    // 2. Copy the vuln_body and patched_body with new args? and and it to the existing assertion.
-    // 3. Construct a composite function with the equality predicate and separately use formulate_post_condition or similar.
 
-    // first reserve a unique name for each return value
-    // then use subst_v2 to assign the existing body as the value of the new name
-    // 
-    // TODO: formulate precondition for states starting equal.  DO WE ACTUALLY NEED THIS?
-    // auto states_equal_operands = make_unique<vector<unique_ptr<SpecNode>>>();
-    // states_equal_operands->push_back(st_sym_1->deep_copy());
-    // states_equal_operands->push_back(st_sym_2->deep_copy());
-    // auto states_equal_precond = make_unique<Expr>(Expr::binops::EQUAL, std::move(states_equal_operands), Bool::BOOL);
-    // auto states_equal_expr = z3_eval(proj, states_equal_precond.get(), state);
-    // state->conds->push_back(states_equal_expr->get_z3_value());
-
-    auto rel_with_rets_def = make_unique<Definition>("_relate_RData_and_rets",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), std::move(combined_rel));
+    auto rel_with_rets_def = make_unique<Definition>("_relate_RData_and_rets",rel_post->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel_post->args), std::move(combined_rel));
+    // auto rel_with_rets_def = make_unique<Definition>("_relate_RData_and_rets",rel_post->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel_post->args), rel_post->body->deep_copy());
     // auto rel_expr_with_rets = formulate_relation(proj, rel_with_rets_def.get(), st_sym_1.get(), st_sym_2.get(), state);
-    auto rel_expr = formulate_relation(proj, rel, st_sym_1.get(), st_sym_2.get(), state);
-    LOG_DEBUG << "Refines Relation: " << rel_expr->get_z3_value();
+    auto rel_pre_expr = formulate_relation(proj, rel_pre, st_sym_1.get(), st_sym_2.get(), state);
+    auto rel_post_expr = formulate_relation(proj, rel_post, st_sym_1.get(), st_sym_2.get(), state);
+    LOG_DEBUG << "Refines Precondition: " << rel_pre_expr->get_z3_value();
+    LOG_DEBUG << "Refines Postcondition: " << rel_post_expr->get_z3_value();
     // The relation is true before the simulation begins
-    state->conds->push_back(rel_expr->get_z3_value());
+    state->conds->push_back(rel_pre_expr->get_z3_value());
     set<string> used_fixpoint;
 
     // TODO: support preconditions for vuln and patched functions.
@@ -1298,6 +1294,9 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
     patched_body->clear_z3_eval();
 	path_t p = {};
     proj->query_saver = QueryInfo(query_saver_dir(vuln_def->name, "refines"));
+    LOG_DEBUG << "Checking refinement between " << string(*vuln_body) << " and " << string(*patched_body);
+    LOG_DEBUG << "Using relation: " << string(*rel_with_rets_def->body);
+    LOG_DEBUG << "Original state relation: " << string(*rel_post->body);
     auto result = simulate_by_traverse(proj, vuln_body, patched_body, rel_with_rets_def.get(), state, p, false);
     std::cout << result;
     return result.verified;
@@ -1467,15 +1466,17 @@ void spec_prover(Project *proj) {
         for(auto &refines_info : proj->cmds.Refines) {
             auto vuln_name = refines_info.vuln_func.get()->text;
             auto patched_name = refines_info.patched_func.get()->text;
-            auto refine_name = refines_info.refine_rel.get()->text;
+            auto refine_pre_name = refines_info.refine_rel_pre.get()->text;
+            auto refine_post_name = refines_info.refine_rel_post.get()->text;
         
             LOG_DEBUG << "Checking refinement relationship " 
                       << vuln_name << " -> "
                       << patched_name << " by "
-                      << refine_name;
+                      << refine_post_name;
             auto vuln_def = proj->defs.find(vuln_name);
             auto patched_def = proj->defs.find(patched_name);
-            auto rel_def = proj->defs.find(refine_name);
+            auto rel_pre_def = proj->defs.find(refine_pre_name);
+            auto rel_post_def = proj->defs.find(refine_post_name);
             if(vuln_def == proj->defs.end()){
                 LOG_ERROR << "No definition named: " << vuln_name;
             }
@@ -1483,10 +1484,12 @@ void spec_prover(Project *proj) {
                 LOG_ERROR << "No definition named: " << patched_name;
             }
 
-            if(!check_refines(proj, vuln_def->second.get(), patched_def->second.get(), rel_def->second.get(), refines_info.ret_val_rel.get(), used_abstract_funcs)) {
-                LOG_ERROR << "Refinement relation " << refine_name << " does not hold for functions " << vuln_name << ", " << patched_name;
+            if(!check_refines(proj, vuln_def->second.get(), patched_def->second.get(), 
+                              rel_pre_def->second.get(), rel_post_def->second.get(),
+                              refines_info.ret_val_rel.get(), used_abstract_funcs)) {
+                LOG_ERROR << "Refinement relation " << refine_post_name << " does not hold for functions " << vuln_name << ", " << patched_name;
             } else {
-                LOG_DEBUG << "Refinement relation " << refine_name << " holds for functions " << vuln_name << ", " << patched_name;
+                LOG_DEBUG << "Refinement relation " << refine_post_name << " holds for functions " << vuln_name << ", " << patched_name;
             }
         }
     }
