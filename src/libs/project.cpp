@@ -396,7 +396,7 @@ void Project::add_command(unique_ptr<Expr> cmd) {
                 && dynamic_cast<Symbol *>(cmd->elems->at(1).get())
                 && dynamic_cast<Symbol *>(cmd->elems->at(2).get())
                 && dynamic_cast<Symbol *>(cmd->elems->at(3).get())
-                && dynamic_cast<Expr *>(cmd->elems->at(4).get())
+                && dynamic_cast<SpecNode *>(cmd->elems->at(4).get())
             );
             // First two are specs, third is a relation function from RData -> RData -> Prop
             // this -> cmds.Refines.insert()
@@ -404,7 +404,7 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             auto func2 = dynamic_cast<Symbol *>(cmd->elems->at(1).release());
             auto rel_pre = dynamic_cast<Symbol *>(cmd->elems->at(2).release());
             auto rel_post = dynamic_cast<Symbol *>(cmd->elems->at(3).release());
-            auto ret_val_rel = dynamic_cast<Expr *>(cmd->elems->at(4).release());
+            auto ret_val_rel = dynamic_cast<SpecNode *>(cmd->elems->at(4).release());
             auto key = func1->text + "&" + func2->text + "&" + rel_post->text;
             
             LOG_DEBUG << "Refines command " << key;
@@ -414,7 +414,7 @@ void Project::add_command(unique_ptr<Expr> cmd) {
                     unique_ptr<Symbol>(func2),
                     unique_ptr<Symbol>(rel_pre),
                     unique_ptr<Symbol>(rel_post),
-                    unique_ptr<Expr>(ret_val_rel),
+                    unique_ptr<SpecNode>(ret_val_rel),
                 });
         } else {
             LOG_WARNING << "Unknown command " << op_str;

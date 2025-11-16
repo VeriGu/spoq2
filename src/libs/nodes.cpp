@@ -173,10 +173,6 @@ const string Expr::to_string() const {
             return "(~ " + string(*elems->at(0)) + ")";
         } else if (op == BNOT) {
             return "(! " + string(*elems->at(0)) + ")";
-        } else if (op == Fst) {
-            return "(fst " + string(*elems->at(0)) + ")";
-        } else if (op == Snd) {
-            return "(snd " + string(*elems->at(0)) + ")";
         } else {
             throw std::runtime_error("Unknown op");
         }

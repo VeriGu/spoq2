@@ -100,7 +100,7 @@ public:
     unique_ptr<Symbol> patched_func;
     unique_ptr<Symbol> refine_rel_pre;
     unique_ptr<Symbol> refine_rel_post;
-    unique_ptr<Expr> ret_val_rel;
+    unique_ptr<SpecNode> ret_val_rel;
 };
 
 class Project {

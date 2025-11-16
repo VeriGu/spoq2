@@ -1207,7 +1207,7 @@ bool check_pre_post(Project* proj, Definition *def, std::unordered_set<string>& 
 
 bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def, 
                    Definition *rel_pre, Definition *rel_post, 
-                   Expr *ret_rel, std::unordered_set<string>& used_abs) {
+                   SpecNode *ret_rel, std::unordered_set<string>& used_abs) {
     Z3Cache.clear();
 
     auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
@@ -1265,10 +1265,8 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
 
     // THIS NEEDS TO CHANGE
     // Each should be something like (fst st) or (fst st_sim)
-    unique_ptr<SpecNode> vuln_ret_node = make_unique<Expr>(Expr::ops::Fst, vuln_def->body->deep_copy(), vuln_def->rettype);
-    unique_ptr<SpecNode> patch_ret_node = make_unique<Expr>(Expr::ops::Fst, patched_body->deep_copy(), patched_def->rettype);
-    ret_rel_values.push_back(std::move(vuln_ret_node));
-    ret_rel_values.push_back(std::move(patch_ret_node));
+    ret_rel_values.push_back(std::move(vuln_body->deep_copy()));
+    ret_rel_values.push_back(std::move(patched_body->deep_copy()));
 
     auto new_ret_rel = subst_v2(proj, ret_rel->deep_copy(), &ret_rel_names, &ret_rel_values);
     unique_ptr<std::vector<unique_ptr<SpecNode>>> ret_rel_elems = make_unique<vector<unique_ptr<SpecNode>>>();

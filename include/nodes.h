@@ -386,7 +386,6 @@ public:
         RecordSet, RecordGet, // Record
         Tuple,
         Some, None,
-        Fst, Snd
     };
 
     enum binops {

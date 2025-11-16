@@ -701,10 +701,10 @@ namespace autov
 	std::ostream& operator<<(std::ostream& out, const SimulateResult& r)
 	{
 	return out << "{" 
-		<< "verified: "             << b_to_s(r.verified) << ", "
-		<< "spec_has_ub: "          << b_to_s(r.spec_has_ub)  << ", "
-		<< "impl_eliminates_ub: "   << b_to_s(r.impl_eliminates_ub)  << ", "
-		<< "impl_has_non_spec_ub: " << b_to_s(r.impl_has_non_spec_ub)
+		<< "\"verified\": "             << b_to_s(r.verified) << ", "
+		<< "\"spec_has_ub\": "          << b_to_s(r.spec_has_ub)  << ", "
+		<< "\"impl_eliminates_ub\": "   << b_to_s(r.impl_eliminates_ub)  << ", "
+		<< "\"impl_has_non_spec_ub\": " << b_to_s(r.impl_has_non_spec_ub)
 		<< "}" << std::endl;
 	}
 }
