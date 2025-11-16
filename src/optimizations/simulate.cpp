@@ -16,15 +16,7 @@ namespace autov
 		elems.push_back(st_spec->deep_copy());
 		names.push_back(rel->args->at(1)->name);
 		elems.push_back(st_impl->deep_copy());
-		// auto sp = z3_eval(proj, st_spec, state)->value.to_string();
-		// auto im = z3_eval(proj, st_impl, state)->value.to_string();
-		// LOG_DEBUG << "Spec state " << sp;
-		// LOG_DEBUG << "Impl state " << im;
-		LOG_DEBUG << "relation node before subst " << string(*rel->body->deep_copy().release());
-		// LOG_DEBUG << "relation z3_eval before subst " << z3_eval(proj, rel->body->deep_copy().get(), state)->value.to_string();
 		auto p = subst_v2(proj, rel->body->deep_copy(), &names, &elems);
-		LOG_DEBUG << "relation node after subst " << string(*p);
-		// LOG_DEBUG << "relation z3_eval after subst " << z3_eval(proj, p.get(), state)->value.to_string();
 		return z3_eval(proj, p.get(), state);
 	}
 
@@ -62,7 +54,7 @@ namespace autov
 	 */
 	SimulateResult forward_simulation(Project *proj, SpecNode *st_check, SpecNode *impl, Definition *rel, shared_ptr<ProveState> state, 
 			bool det = false, const path_t &path = {}, int i = 0, bool allow_none = false) {
-		LOG_DEBUG << "[forward_simulation] start! checking relation " << string(*rel) << " between\n"  << string(*st_check) << " and " << string(*impl) << std::endl;
+		// LOG_DEBUG << "[forward_simulation] start! checking relation " << string(*rel) << " between\n"  << string(*st_check) << " and " << string(*impl) << std::endl;
 		if (auto expr = instance_of(impl, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -74,7 +66,6 @@ namespace autov
 								st_ret = ret_Some->elems->back()->deep_copy();
 							}
 						}
-						LOG_DEBUG << "[forward_simulation] checking relation " << string(*rel) << " between\n"  << string(*st_check) << " and " << string(*st_ret.get()) << std::endl;
 						auto [is_relate, expr_relate] = check_relation(proj, rel, st_check, st_ret.get(), state);
 						if (is_relate) {
 							auto rel_expr = formulate_relation(proj, rel, st_check, st_ret.get(), state);
@@ -158,7 +149,7 @@ namespace autov
 			SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
 
 			auto sim_result = SimulateResult{true, false, false, false};
-			SpecNode *impl_rest = nullptr;
+			// SpecNode *impl_rest = nullptr;
 
 			int cnt = 0;
 			for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
@@ -438,8 +429,8 @@ namespace autov
 				}
 			}
 
-			auto abst_spec = abst_transition(proj, m->src.get()); 
-			SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
+			// auto abst_spec = abst_transition(proj, m->src.get()); 
+			// SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
 
 			int cnt = 0;
 			auto sim_result = SimulateResult{true, false, false, false};

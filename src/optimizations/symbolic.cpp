@@ -640,7 +640,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                 } else if(mode == ProveMode::PREPOST){
                     vector<string> names;
                     vector<unique_ptr<SpecNode>> elems;
-                    auto def = proj->defs[fname].get();
+                    // auto def = proj->defs[fname].get();
                     string name = "_ret_";
                     if (auto ret_Some = instance_of(expr->elems->at(0).get(), Expr)) {
                         for(int i = 0; i < ret_Some->elems->size(); i++) {
@@ -718,7 +718,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
             auto op = std::get<string>(expr->op);
             auto info = proj->symbols[op];
             if (info.kind == SymbolKind::Def) {
-                auto subst_definition = false;
+                // auto subst_definition = false;
                 unique_ptr<SpecNode> loop_post_cond;
                 unique_ptr<SpecNode> post_cond;
                 used_abs_funcs.insert(op);
@@ -737,7 +737,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                             LOG_INFO << "[Checking Loop Invariant] Precondition implies invariant";
                             auto fname = loop->name;
                             loop_post_cond = formulate_loop_invariant(proj, fname, expr->elems.get());
-                            subst_definition = true;
+                            // subst_definition = true;
                         } else {
                             LOG_ERROR << "Loop invariant not specified!" << op;
                         }
@@ -1111,8 +1111,8 @@ bool check_loop_inv_v2(Project* proj, Definition *loop, std::unordered_set<strin
     }
     std::vector<unique_ptr<SpecNode>>& invs = proj->loop_invs[loop->name];
     assert(instance_of(loop, Fixpoint));
-    auto body = loop->body.get();
-    auto args = loop->args.get();
+    // auto body = loop->body.get();
+    // auto args = loop->args.get();
 
     auto &preconds = proj->cmds.PreCond[loop->name];
     unique_ptr<SpecNode> precond = make_unique<BoolConst>(true);
@@ -1253,20 +1253,16 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
 
 	SpecNode* vuln_body = nullptr, *patched_body = nullptr;
     vuln_body = vuln_def->body.get();
-    // auto orig_p_body = patched_def->body.get();
     patched_body = subst_v2(proj, patched_def->body->deep_copy(), patched_def->args->back()->name, 
         make_unique<Symbol>(Symbol(sim_state_name, last_arg->type))).release();
-    // LOG_DEBUG << "Patched body: " << z3_eval(proj, orig_p_body->deep_copy().get(), state)->value.to_string();;
     LOG_DEBUG << "subst Patched body: " << z3_eval(proj, patched_body, state)->value.to_string();;
     field_t ret_rel_names;
     ret_rel_names.push_back("vuln_ret");
     ret_rel_names.push_back("patch_ret");
     std::vector<std::unique_ptr<SpecNode>> ret_rel_values;
 
-    // THIS NEEDS TO CHANGE
-    // Each should be something like (fst st) or (fst st_sim)
-    ret_rel_values.push_back(std::move(vuln_body->deep_copy()));
-    ret_rel_values.push_back(std::move(patched_body->deep_copy()));
+    ret_rel_values.push_back(vuln_body->deep_copy());
+    ret_rel_values.push_back(patched_body->deep_copy());
 
     auto new_ret_rel = subst_v2(proj, ret_rel->deep_copy(), &ret_rel_names, &ret_rel_values);
     unique_ptr<std::vector<unique_ptr<SpecNode>>> ret_rel_elems = make_unique<vector<unique_ptr<SpecNode>>>();
@@ -1275,8 +1271,6 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
     unique_ptr<SpecNode> combined_rel = make_unique<Expr>(Expr::AND, std::move(ret_rel_elems), Bool::BOOL);
 
     auto rel_with_rets_def = make_unique<Definition>("_relate_RData_and_rets",rel_post->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel_post->args), std::move(combined_rel));
-    // auto rel_with_rets_def = make_unique<Definition>("_relate_RData_and_rets",rel_post->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel_post->args), rel_post->body->deep_copy());
-    // auto rel_expr_with_rets = formulate_relation(proj, rel_with_rets_def.get(), st_sym_1.get(), st_sym_2.get(), state);
     auto rel_pre_expr = formulate_relation(proj, rel_pre, st_sym_1.get(), st_sym_2.get(), state);
     auto rel_post_expr = formulate_relation(proj, rel_post, st_sym_1.get(), st_sym_2.get(), state);
     LOG_DEBUG << "Refines Precondition: " << rel_pre_expr->get_z3_value();
@@ -1346,7 +1340,7 @@ bool simulate(Project* proj, bool check_sec = true) {
     }
     Z3_SIM_TIMEOUT = Z3_SOLVE_SECURE_TIMEOUT;
     if (!proj->sec_relations.empty() && check_sec) {
-        auto start = std::chrono::high_resolution_clock::now();
+        // auto start = std::chrono::high_resolution_clock::now();
         unique_ptr<SpecNode> sec_relation = make_unique<BoolConst>(true);
         for (auto &r : proj->sec_relations) {
             auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
