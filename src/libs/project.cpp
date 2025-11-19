@@ -252,13 +252,13 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
             this->cmds.TrySplit.insert(s->text);
         } else if (op_str == "InitRely") {
-            assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) &&
-                   dynamic_cast<Expr *>(cmd->elems->at(1).get()));
+            assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
+                //    (dynamic_cast<Expr *>(cmd->elems->at(1).get()) || dynamic_cast<Match *>(cmd->elems->at(1).get())));
             auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
-            auto expr = dynamic_cast<Expr *>(cmd->elems->at(1).get());
+            auto expr = dynamic_cast<SpecNode *>(cmd->elems->at(1).get());
 
             cmd->elems->at(1).release();
-            this->cmds.InitRely[s->text].push_back(unique_ptr<Expr>(expr));
+            this->cmds.InitRely[s->text].push_back(unique_ptr<SpecNode>(expr));
         } else if (op_str == "PostEnsure") {
             assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) && 
                    dynamic_cast<Expr *>(cmd->elems->at(1).get()));
@@ -968,9 +968,9 @@ static void collect_lemmas(Project *proj) {
             pure_lemma = new Definition(lemma_def->name, lemma_def->rettype, std::move(l_args),
                                       lemma_def->body->deep_copy());
         }
-        std::cout << "Pure Lemma: " << string(*pure_lemma) << std::endl;
+        LOG_INFO << "Pure Lemma: " << string(*pure_lemma) << std::endl;
         if (lemma_def->deleyed_type_inference) {
-            std::cout << "Pure Lemma (infer_type): " << string(*pure_lemma) << std::endl;
+            LOG_INFO << "Pure Lemma (infer_type): " << string(*pure_lemma) << std::endl;
             pure_lemma->infer_type(*proj);
             lemma_def->deleyed_type_inference = false;
         }
@@ -979,7 +979,7 @@ static void collect_lemmas(Project *proj) {
         profile_finalize();
         profile_print();
         proj->defs[def.first].reset(pure_lemma);
-        std::cout << "Pure Lemma (spec_transformer): " << string(*(proj->defs[def.first])) << std::endl;
+        LOG_INFO << "Pure Lemma (spec_transformer): " << string(*(proj->defs[def.first])) << std::endl;
 
     }
     /** TODO: support lemma selection command */

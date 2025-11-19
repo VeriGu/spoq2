@@ -1279,6 +1279,15 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
     state->conds->push_back(rel_pre_expr->get_z3_value());
     set<string> used_fixpoint;
 
+    for (auto const &a : proj->axioms) {
+        auto axiom_body = proj->defs[a]->body.get();
+        auto axiom_expr = z3_expr(proj, axiom_body, state);
+        state->conds->push_back(axiom_expr->get_z3_value());
+    }
+    // TODO:
+    // - Lemmas
+    // - Invariants
+    // - Preconditions
     // TODO: support preconditions for vuln and patched functions.
     // include weak-step-relations?
 
@@ -1286,9 +1295,9 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
     patched_body->clear_z3_eval();
 	path_t p = {};
     proj->query_saver = QueryInfo(query_saver_dir(vuln_def->name, "refines"));
-    LOG_DEBUG << "Checking refinement between " << string(*vuln_body) << " and " << string(*patched_body);
-    LOG_DEBUG << "Using relation: " << string(*rel_with_rets_def->body);
-    LOG_DEBUG << "Original state relation: " << string(*rel_post->body);
+    // LOG_DEBUG << "Checking refinement between " << string(*vuln_body) << " and " << string(*patched_body);
+    // LOG_DEBUG << "Using relation: " << string(*rel_with_rets_def->body);
+    // LOG_DEBUG << "Original state relation: " << string(*rel_post->body);
     auto result = simulate_by_traverse(proj, vuln_body, patched_body, rel_with_rets_def.get(), state, p, false);
     std::cout << result;
     return result.verified;

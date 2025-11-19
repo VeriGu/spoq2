@@ -243,9 +243,9 @@ std::string ExtractBasicsPass::generateField(llvm::Type* ty) {
       auto ety = aty->getElementType();
       if( ety->isIntegerTy() || ety->isPointerTy() ) {
       // TODO: assert Array is [constant x iXXX]
-        return "(ZMap.t Z)";
+        return "((ZMap.t Z) * Z)";
       } else if(ety->isStructTy()) {
-        return "(ZMap.t " + getStructTypeIdentifier(llvm::dyn_cast<llvm::StructType>(ety)) + ")";
+        return "((ZMap.t " + getStructTypeIdentifier(llvm::dyn_cast<llvm::StructType>(ety)) + ") * Z)";
       } else {
         return "None (* FIXME: complex array *)";
       }

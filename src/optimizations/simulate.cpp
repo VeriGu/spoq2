@@ -26,6 +26,7 @@ namespace autov
 		auto z3_ret = z3_check_unsat(state, rel_expr->get_z3_value(), model, &proj->query_saver, Z3_VERIFY_TIMEOUT);
 		return std::make_pair(z3_ret == Z3Result::True, rel_expr->get_z3_value());
 	}
+	
 	/**
 	 * 
 	 * @brief Compute the simulation states and add inductive constraints 
@@ -74,7 +75,7 @@ namespace autov
 							LOG_WARNING << "[forward_simulation] Expr Relation can not be proved between\n"  << string(*st_check) << " and " << string(*st_ret.get())  << std::endl;
 							for(auto cond: *state->conds) {
 								LOG_DEBUG << "Condition: " << cond;
-							}
+							 	}
 						}
 						return SimulateResult{is_relate, false, false, false};
 					} else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
@@ -257,7 +258,8 @@ namespace autov
 				if (res == Z3Result::False) {
 					continue;
 				} else {
-					sim_result = sim_result + forward_simulation(proj, st_check, (*pm)->body.get(), rel, pm_state, det, path, i+1);
+					auto this_branch_result = forward_simulation(proj, st_check, (*pm)->body.get(), rel, pm_state, det, path, i+1);
+					sim_result = sim_result + this_branch_result;
 				}
 			}
 			LOG_DEBUG << "[forward_simulation] Completed Match: verified: " << sim_result.verified;
@@ -267,6 +269,7 @@ namespace autov
 			auto cond = z3_eval(proj, iff->cond.get(), state);
 			LOG_DEBUG << "[forward_simulation] If: " << cond.get()->get_z3_value();
 			Z3Result res = Z3Result::Unknown;
+			Z3Result true_res = Z3Result::Unknown;
 
 			if (det && iff->cond->is_determ_branch) {
 			LOG_DEBUG << "[forward_simulation] If is determ branch True";
@@ -275,9 +278,13 @@ namespace autov
 			LOG_DEBUG << "[forward_simulation] If is determ branch False";
 				z3::model model(z3ctx);
 				auto t_race = OPTS.race_timeout;
-				OPTS.race_timeout = Z3_SIM_TIMEOUT;
-				// res = z3_check(state, cond->get_z3_value(), Z3_SIM_TIMEOUT);
-				res = z3_check_unsat(state, cond->get_z3_value(), model, &proj->query_saver);
+				// OPTS.race_timeout = Z3_SIM_TIMEOUT;
+				// true_res = z3_check(state, cond->get_z3_value(), Z3_SIM_TIMEOUT);
+				LOG_DEBUG << "[forward_simulation] checking if !cond is unsat: " << cond->get_z3_value();
+				true_res = z3_check_unsat(state, !cond->get_z3_value(), model, &proj->query_saver, 500);
+				// TODO: use true_res to skip a branch also.
+				LOG_DEBUG << "[forward_simulation] checking if cond is unsat: " << cond->get_z3_value();
+				res = z3_check_unsat(state, cond->get_z3_value(), model, &proj->query_saver, 500);
 				OPTS.race_timeout = t_race;
 			}
 			if (res == Z3Result::True) {
@@ -298,10 +305,17 @@ namespace autov
 				auto else_state = state->copy();
 				then_state->conds->push_back(cond->get_z3_value());
 				else_state->conds->push_back(!cond->get_z3_value());
-				auto sim_result = SimulateResult{true, false, false, false};
-				sim_result = sim_result + forward_simulation(proj, st_check, iff->then_body.get(), rel, then_state, false, path, i+1);
-				sim_result = sim_result + forward_simulation(proj, st_check, iff->else_body.get(), rel, else_state, false, path, i+1);
-				return sim_result;
+				auto then_sim_result = forward_simulation(proj, st_check, iff->then_body.get(), rel, then_state, false, path, i+1);
+				if (!then_sim_result.verified) {
+					LOG_DEBUG << "[forward_simulation] Then branch of if not verified";
+					LOG_DEBUG << "[forward_simulation] Guilty condition " << cond.get()->get_z3_value();
+				}
+				auto else_sim_result = forward_simulation(proj, st_check, iff->else_body.get(), rel, else_state, false, path, i+1);
+				if (!else_sim_result.verified) {
+					LOG_DEBUG << "[forward_simulation] else branch of if not verified";
+					LOG_DEBUG << "[forward_simulation] Guilty condition " << (!cond.get()->get_z3_value());
+				}
+				return then_sim_result + else_sim_result;
 			}
 
 		} else if (auto r = instance_of(impl, Rely)) {
@@ -323,6 +337,7 @@ namespace autov
 			LOG_ERROR << "[forward_simulate] Unexpected SpecNode subclass";
 			return SimulateResult{false, false, false, false};
 		}
+		LOG_ERROR << "[forward_simulate] Reached unexpected location.";
 		return SimulateResult{false, false, false, false};
 	}
 
@@ -354,7 +369,7 @@ namespace autov
 	 * @return false if the specification relation is not proved
 	 */
 	SimulateResult simulate_by_traverse(Project *proj, SpecNode *spec, SpecNode *impl, Definition *rel, shared_ptr<ProveState> state, path_t p, bool det) {
-		LOG_DEBUG << "[simulate_by_traverse] start! checking relation " << string(*rel) << " between\n"  << string(*spec) << " and " << string(*impl) << std::endl;
+		// LOG_DEBUG << "[simulate_by_traverse] start! checking relation " << string(*rel) << " between\n"  << string(*spec) << " and " << string(*impl) << std::endl;
 		if (auto expr = instance_of(spec, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -366,6 +381,7 @@ namespace autov
 								st_ret = ret_Some->elems->back()->deep_copy();
 							}
 						}
+						LOG_DEBUG << "[simulate_by_traverse] spec: " << string(*spec) << " moving to forward_simulation.";
 						return forward_simulation(proj, st_ret.get(), impl, rel, state, det, p, 0);
 					} else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
 					   auto st_ret = expr->elems->at(0)->deep_copy();
@@ -521,7 +537,15 @@ namespace autov
 				} else {
 					resolve_pattern(proj, m, pat, src, new_state);
 				}
-				sim_result = sim_result + simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, new_state, p_match, det);
+				LOG_DEBUG << "[simulate_by_traverse] In Match, verifying body at " << (*pm)->body.get() << ".";
+				auto new_result = simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, new_state, p_match, det);
+				if (sim_result.verified && !new_result.verified) {
+					LOG_DEBUG << "[simulate_by_traverse] In Match body at " << (*pm)->body.get() << " not verified.";
+				}
+				sim_result = sim_result + new_result;
+			}
+			if (!sim_result.verified) {
+				LOG_DEBUG << "[simulate_by_traverse] Completed Match: some branches not verified.";
 			}
 			return sim_result;
 		} else if (auto i = instance_of(spec, If)) {
@@ -536,7 +560,13 @@ namespace autov
 			p_else.push_back(0);
 			auto sim_result = SimulateResult{true, false, false, false};
 			sim_result = sim_result + simulate_by_traverse(proj, i->then_body.get(), impl, rel, true_state, p_then, det);
+			if (!sim_result.verified) {
+				LOG_DEBUG << "[simulate_by_traverse] Then branch of if not verified";
+			}
 			sim_result = sim_result + simulate_by_traverse(proj, i->else_body.get(), impl, rel, false_state, p_else, det);
+			if (!sim_result.verified) {
+				LOG_DEBUG << "[simulate_by_traverse] If not verified: " << !c->get_z3_value();
+			}
 			return sim_result;
 		} else if (auto r = instance_of(spec, Rely)) {
 			// push cond
@@ -576,6 +606,7 @@ namespace autov
 			LOG_DEBUG << (typeid(spec).name());
 			return SimulateResult{false, false, false, false};
 		}
+		LOG_ERROR << "[simulate_by_traverse] Reached unexpected location.";
 		return SimulateResult{false, false, false, false};
 	}
 
