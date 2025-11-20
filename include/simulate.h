@@ -27,16 +27,27 @@ namespace autov
 		bool spec_has_ub;
 		bool impl_eliminates_ub;
 		bool impl_has_non_spec_ub;
+		optional<double> z3_time;
+		optional<double> total_time;
 		SimulateResult operator+(const SimulateResult& rhs)
 		{                           
 			return SimulateResult {
 				this->verified && rhs.verified,
 				this->spec_has_ub || rhs.spec_has_ub,
 				this->impl_eliminates_ub || rhs.impl_eliminates_ub,
-				this->impl_has_non_spec_ub || rhs.impl_has_non_spec_ub
+				this->impl_has_non_spec_ub || rhs.impl_has_non_spec_ub,
+				std::nullopt,
+				std::nullopt
 			};
 		}
 	};
 	std::ostream& operator<<(std::ostream& out, const SimulateResult& r);
-	SimulateResult simulate_by_traverse(Project *proj, SpecNode *spec, SpecNode *impl, Definition *rel, shared_ptr<ProveState> state, path_t p, bool det);
+    SimulateResult simulate_by_traverse(Project *proj, SpecNode *spec,
+                                        SpecNode *impl, Definition *rel,
+                                        shared_ptr<ProveState> state, path_t p,
+                                        bool det);
+    std::pair<bool,bool> check_branch_plausibility(autov::Project *proj,
+                                   std::shared_ptr<autov::ProveState> &state,
+                                   std::shared_ptr<autov::SpecValue> &cond,
+                                   z3::model &model);
 }

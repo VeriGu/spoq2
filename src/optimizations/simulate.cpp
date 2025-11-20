@@ -268,12 +268,13 @@ namespace autov
 		} else if (auto iff = instance_of(impl, If)) {
 			auto cond = z3_eval(proj, iff->cond.get(), state);
 			LOG_DEBUG << "[forward_simulation] If: " << cond.get()->get_z3_value();
-			Z3Result res = Z3Result::Unknown;
-			Z3Result true_res = Z3Result::Unknown;
+
+			bool true_branch_plausible = true;
+			bool false_branch_plausible = true;
 
 			if (det && iff->cond->is_determ_branch) {
 			LOG_DEBUG << "[forward_simulation] If is determ branch True";
-				res = (path[i] == 1) ? Z3Result::True : Z3Result::False;
+				false_branch_plausible = (path[i] == 1) ? false : true;
 			} else {
 			LOG_DEBUG << "[forward_simulation] If is determ branch False";
 				z3::model model(z3ctx);
@@ -281,17 +282,20 @@ namespace autov
 				// OPTS.race_timeout = Z3_SIM_TIMEOUT;
 				// true_res = z3_check(state, cond->get_z3_value(), Z3_SIM_TIMEOUT);
 				LOG_DEBUG << "[forward_simulation] checking if !cond is unsat: " << cond->get_z3_value();
-				true_res = z3_check_unsat(state, !cond->get_z3_value(), model, &proj->query_saver, 500);
-				// TODO: use true_res to skip a branch also.
-				LOG_DEBUG << "[forward_simulation] checking if cond is unsat: " << cond->get_z3_value();
-				res = z3_check_unsat(state, cond->get_z3_value(), model, &proj->query_saver, 500);
+				// if z3_check_unsat returns True on !cond, then !cond cannot be false, meaning cond cannot be true.
+                std::pair<bool,bool> plausibility = check_branch_plausibility(proj, state, cond, model);
+				true_branch_plausible = plausibility.first;
+				false_branch_plausible = plausibility.second;
 				OPTS.race_timeout = t_race;
 			}
-			if (res == Z3Result::True) {
+			if (!true_branch_plausible && !false_branch_plausible) {
+				LOG_DEBUG << "[forward_simulation] If - Both branches impossible!";
+				return SimulateResult{true, false, false, false};
+			} else if (true_branch_plausible && !false_branch_plausible) {
 				LOG_DEBUG << "[forward_simulation] If - On True branch only";
 				state->conds->push_back(cond->get_z3_value());
 				return forward_simulation(proj, st_check, iff->then_body.get(), rel, state, det, path, i+1);
-			} else if (res == Z3Result::False) {
+			} else if (!true_branch_plausible && false_branch_plausible) {
 				LOG_DEBUG << "[forward_simulation] If - On False branch only";
 				state->conds->push_back(!cond->get_z3_value());
 				return forward_simulation(proj, st_check, iff->else_body.get(), rel, state, det, path, i+1);
@@ -339,9 +343,25 @@ namespace autov
 		}
 		LOG_ERROR << "[forward_simulate] Reached unexpected location.";
 		return SimulateResult{false, false, false, false};
-	}
+    }
 
-	/**
+    std::pair<bool,bool> check_branch_plausibility(autov::Project *proj,
+                                   std::shared_ptr<autov::ProveState> &state,
+                                   std::shared_ptr<autov::SpecValue> &cond,
+                                   z3::model &model) {
+        auto true_res = z3_check_unsat(state, !cond->get_z3_value(), model,
+                                  &proj->query_saver, 500);
+        LOG_DEBUG << "[check_branch_plausibility] checking if cond is unsat: "
+                  << cond->get_z3_value();
+        // if z3_check_unsat returns True, then cond cannot be false.
+		// In that case, the false branch is not possible.
+        auto res = z3_check_unsat(state, cond->get_z3_value(), model,
+                             &proj->query_saver, 500);
+		return std::make_pair(!(true_res == Z3Result::True),
+							  !(res == Z3Result::True));
+    }
+
+    /**
 	 * @brief Try to prove: (rel st st') => (rel spec(st) spec(st'))
 	 * P
 	 * @details	The simulation proof will admits all invariants, lemmas, and post conditions without checking. 
@@ -720,13 +740,22 @@ namespace autov
 	std::string b_to_s(bool b) {
 		return b ? "true" : "false";
 	}
+	std::string opt_to_s(optional<double> t) {
+		if (t.has_value()) {
+			return std::to_string(t.value());
+		} else {
+			return "null";
+		}
+	}
 	std::ostream& operator<<(std::ostream& out, const SimulateResult& r)
 	{
 	return out << "{" 
 		<< "\"verified\": "             << b_to_s(r.verified) << ", "
 		<< "\"spec_has_ub\": "          << b_to_s(r.spec_has_ub)  << ", "
 		<< "\"impl_eliminates_ub\": "   << b_to_s(r.impl_eliminates_ub)  << ", "
-		<< "\"impl_has_non_spec_ub\": " << b_to_s(r.impl_has_non_spec_ub)
+		<< "\"impl_has_non_spec_ub\": " << b_to_s(r.impl_has_non_spec_ub)  << ", "
+		<< "\"z3_seconds\": " << opt_to_s(r.z3_time)  << ", "
+		<< "\"total_seconds\": " << opt_to_s(r.total_time)
 		<< "}" << std::endl;
 	}
 }

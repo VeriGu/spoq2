@@ -1209,10 +1209,12 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
                    Definition *rel_pre, Definition *rel_post, 
                    SpecNode *ret_rel, std::unordered_set<string>& used_abs) {
     Z3Cache.clear();
+    extern std::chrono::duration<double> z3_accumulative_time;
+    auto start = std::chrono::high_resolution_clock::now();
+    auto z3_start = z3_accumulative_time;
 
     auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
 	auto conds = std::make_shared<vector<z3::expr>>();
-    // wtf does this do? v
 	auto induction = std::make_shared<vector<z3::expr>>();
 
     // Since the arguments are the same for the vuln and patched def, 
@@ -1299,6 +1301,11 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
     // LOG_DEBUG << "Using relation: " << string(*rel_with_rets_def->body);
     // LOG_DEBUG << "Original state relation: " << string(*rel_post->body);
     auto result = simulate_by_traverse(proj, vuln_body, patched_body, rel_with_rets_def.get(), state, p, false);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = (end - start);
+    auto seconds_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count()/1e9;
+    result.total_time = seconds_duration;
+    result.z3_time = (z3_accumulative_time - z3_start).count();
     std::cout << result;
     return result.verified;
 }
@@ -1463,6 +1470,8 @@ void spec_prover(Project *proj) {
         }
     }
 
+    auto end = std::chrono::high_resolution_clock::now();
+    auto loop_pre_post_cost = std::chrono::duration<double>(end - begin).count();
     if(OPTS.check_refinements) {
         for(auto &refines_info : proj->cmds.Refines) {
             auto vuln_name = refines_info.vuln_func.get()->text;
@@ -1494,9 +1503,6 @@ void spec_prover(Project *proj) {
             }
         }
     }
-    auto end = std::chrono::high_resolution_clock::now();
-    auto loop_pre_post_cost = std::chrono::duration<double>(end - begin).count();
-
 
     Z3Cache.clear();
     PROFILE_START(simulation_det);
