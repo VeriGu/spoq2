@@ -54,11 +54,16 @@ namespace autov
 	 * 		   We assume that abstract function will not occur in multiple branches. otherwise the return value should be std::pair<bool, std::set<SpecNode *>>
 	 */
 	SimulateResult forward_simulation(Project *proj, SpecNode *st_check, SpecNode *impl, Definition *rel, shared_ptr<ProveState> state, 
-			bool det = false, const path_t &path = {}, int i = 0, bool allow_none = false) {
+			bool det, const path_t &path, int i, bool allow_none) {
+			// bool det = false, const path_t &path = {}, int i = 0, bool allow_none = false) {
 		// LOG_DEBUG << "[forward_simulation] start! checking relation " << string(*rel) << " between\n"  << string(*st_check) << " and " << string(*impl) << std::endl;
 		if (auto expr = instance_of(impl, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
+					// Assume allow_none is true iff we have a None in the spec.
+					if (allow_none) {
+						return SimulateResult{true, true , true, false};
+					}
 					unique_ptr<SpecNode> st_ret;
 					if (auto ret_Some = instance_of(expr->elems->at(0).get(), Expr)) {
 						st_ret = expr->elems->at(0)->deep_copy();
@@ -94,7 +99,7 @@ namespace autov
 					}
 				} else if(*e_op == Expr::None) {
 					LOG_DEBUG << "[forward_simulation] None in impl, allow_none: " << allow_none;
-					return SimulateResult{allow_none, false, false, !allow_none};
+					return SimulateResult{allow_none, allow_none, false, !allow_none};
 				} else {
 					LOG_ERROR << "[forward_simulation] Expr with op: " << static_cast<int>(*e_op); 
 				}
@@ -258,7 +263,7 @@ namespace autov
 				if (res == Z3Result::False) {
 					continue;
 				} else {
-					auto this_branch_result = forward_simulation(proj, st_check, (*pm)->body.get(), rel, pm_state, det, path, i+1);
+					auto this_branch_result = forward_simulation(proj, st_check, (*pm)->body.get(), rel, pm_state, det, path, i+1, allow_none);
 					sim_result = sim_result + this_branch_result;
 				}
 			}
@@ -294,11 +299,11 @@ namespace autov
 			} else if (true_branch_plausible && !false_branch_plausible) {
 				LOG_DEBUG << "[forward_simulation] If - On True branch only";
 				state->conds->push_back(cond->get_z3_value());
-				return forward_simulation(proj, st_check, iff->then_body.get(), rel, state, det, path, i+1);
+				return forward_simulation(proj, st_check, iff->then_body.get(), rel, state, det, path, i+1, allow_none);
 			} else if (!true_branch_plausible && false_branch_plausible) {
 				LOG_DEBUG << "[forward_simulation] If - On False branch only";
 				state->conds->push_back(!cond->get_z3_value());
-				return forward_simulation(proj, st_check, iff->else_body.get(), rel, state, det, path, i+1);
+				return forward_simulation(proj, st_check, iff->else_body.get(), rel, state, det, path, i+1, allow_none);
 			} else {
 				LOG_DEBUG << "[forward_simulation] If - On both branches";
 				// O(N^2) simulation search 
@@ -309,12 +314,12 @@ namespace autov
 				auto else_state = state->copy();
 				then_state->conds->push_back(cond->get_z3_value());
 				else_state->conds->push_back(!cond->get_z3_value());
-				auto then_sim_result = forward_simulation(proj, st_check, iff->then_body.get(), rel, then_state, false, path, i+1);
+				auto then_sim_result = forward_simulation(proj, st_check, iff->then_body.get(), rel, then_state, false, path, i+1, allow_none);
 				if (!then_sim_result.verified) {
 					LOG_DEBUG << "[forward_simulation] Then branch of if not verified";
 					LOG_DEBUG << "[forward_simulation] Guilty condition " << cond.get()->get_z3_value();
 				}
-				auto else_sim_result = forward_simulation(proj, st_check, iff->else_body.get(), rel, else_state, false, path, i+1);
+				auto else_sim_result = forward_simulation(proj, st_check, iff->else_body.get(), rel, else_state, false, path, i+1, allow_none);
 				if (!else_sim_result.verified) {
 					LOG_DEBUG << "[forward_simulation] else branch of if not verified";
 					LOG_DEBUG << "[forward_simulation] Guilty condition " << (!cond.get()->get_z3_value());
@@ -325,12 +330,12 @@ namespace autov
 		} else if (auto r = instance_of(impl, Rely)) {
 			auto c = z3_eval(proj, r->prop.get(), state);
 			state->conds->push_back(c->get_z3_value());
-			return forward_simulation(proj, st_check, r->body.get(), rel, state, det, path, i);
+			return forward_simulation(proj, st_check, r->body.get(), rel, state, det, path, i, allow_none);
 		} else if (auto r = instance_of(impl, Symbol)){
 			auto sym = dynamic_cast<Symbol *>(impl);
 			if (sym->text == "None") {
 				LOG_DEBUG << "[forward_simulation] None Symbol in impl, allow_none: " << allow_none;
-				return SimulateResult{allow_none, false, false, !allow_none};
+				return SimulateResult{allow_none, allow_none, false, !allow_none};
 			}
 			LOG_ERROR << "[forward_simulation] Unexpected Symbol in impl.";
 			return SimulateResult{false, false, false, false};
@@ -402,13 +407,14 @@ namespace autov
 							}
 						}
 						LOG_DEBUG << "[simulate_by_traverse] spec: " << string(*spec) << " moving to forward_simulation.";
-						return forward_simulation(proj, st_ret.get(), impl, rel, state, det, p, 0);
+						return forward_simulation(proj, st_ret.get(), impl, rel, state, det, p, 0, false);
 					} else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
 					   auto st_ret = expr->elems->at(0)->deep_copy();
-						return forward_simulation(proj, st_ret.get(), impl, rel, state, det, p, 0);
+						return forward_simulation(proj, st_ret.get(), impl, rel, state, det, p, 0, false);
 					}
 				} else if (*e_op == Expr::None) {
 						LOG_DEBUG << "Detected None in spec location 1.";
+						return forward_simulation(proj, expr, impl, rel, state, det, p, 0, true);
 				} else {
 					LOG_ERROR << "Unexpected Expr with op: " << static_cast<int>(*e_op);
 				}
@@ -571,6 +577,11 @@ namespace autov
 		} else if (auto i = instance_of(spec, If)) {
 			// push cond
 			auto c = z3_eval(proj, i->cond.get(), state);
+			z3::model model(z3ctx);
+			std::pair<bool,bool> plausibility = check_branch_plausibility(proj, state, c, model);
+			auto true_branch_plausible = plausibility.first;
+			auto false_branch_plausible = plausibility.second;
+			
 			auto true_state = state->copy();
 			auto false_state = state->copy();
 			true_state->conds->push_back(c->get_z3_value());
@@ -579,13 +590,21 @@ namespace autov
 			p_then.push_back(1);
 			p_else.push_back(0);
 			auto sim_result = SimulateResult{true, false, false, false};
-			sim_result = sim_result + simulate_by_traverse(proj, i->then_body.get(), impl, rel, true_state, p_then, det);
-			if (!sim_result.verified) {
-				LOG_DEBUG << "[simulate_by_traverse] Then branch of if not verified";
+			if (true_branch_plausible){
+				sim_result = sim_result + simulate_by_traverse(proj, i->then_body.get(), impl, rel, true_state, p_then, det);
+				if (!sim_result.verified) {
+					LOG_DEBUG << "[simulate_by_traverse] Then branch of if not verified";
+				}
 			}
-			sim_result = sim_result + simulate_by_traverse(proj, i->else_body.get(), impl, rel, false_state, p_else, det);
-			if (!sim_result.verified) {
-				LOG_DEBUG << "[simulate_by_traverse] If not verified: " << !c->get_z3_value();
+			if (false_branch_plausible){
+				sim_result = sim_result + simulate_by_traverse(proj, i->else_body.get(), impl, rel, false_state, p_else, det);
+				if (!sim_result.verified) {
+					LOG_DEBUG << "[simulate_by_traverse] If not verified: " << !c->get_z3_value();
+				}
+
+			}
+			if (!true_branch_plausible && !false_branch_plausible) {
+				LOG_DEBUG << "[simulate_by_traverse] If - Both branches impossible!";
 			}
 			return sim_result;
 		} else if (auto r = instance_of(spec, Rely)) {
@@ -600,7 +619,10 @@ namespace autov
 				for(auto cond: *state->conds) {
 					LOG_DEBUG << "[simulate_by_traverse] Condition at None: " << cond;
 				}
-				return SimulateResult{true, true, false, false};
+				// TODO: Something in forward_simulation is mutating impl.
+				auto impl_copy = impl->deep_copy();
+				return forward_simulation(proj, sym, impl_copy.get(), rel, state, det, p, 0, true);
+				// return SimulateResult{true, true, false, false};
 			} else {
 				LOG_DEBUG << "[simulate_by_traverse] Unexpected Symbol node.";
 				return SimulateResult{false, false, false, false};
