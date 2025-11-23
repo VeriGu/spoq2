@@ -1072,13 +1072,12 @@ void trans_inv(Project *proj) {
             pre.reset(new_node.release());
         }
     }
-    // for(auto &[name, refines] : proj->cmds.Refines) {
-    //     for(auto &refine: refines) {
-    //         type_inference::infer_type(*proj, refine.get(), known, Bool::BOOL);
-    //         auto new_node = spec_transformer_v2(proj, std::move(refine), 0, true, true);
-    //         refine.reset(new_node.release());
-    //     }
-    // }
+
+    for(auto name : proj->axioms) {
+       Definition *axiom_def = proj->defs[name].get();
+       type_inference::infer_type(*proj, axiom_def->body.get(), known, Bool::BOOL);
+       spec_transformer_v2(proj, axiom_def, 0, true, true);
+    }
 }
 
 /**
