@@ -2,6 +2,7 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Transforms/Utils/FunctionComparator.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/CommandLine.h"
@@ -53,33 +54,102 @@ std::string remove_extension(std::string s) {
   return s.substr(0, pos);
 }
 std::string getSuffix(llvm::Module &M) {
+  auto suffix = std::getenv("RENAME_SUFFIX");
+  if(suffix){
+    return std::string(suffix);
+  }
   std::string filename = M.getSourceFileName();
   size_t pos = filename.find_last_of('_');
   if(pos == std::string::npos) return "_unknown";
   return remove_extension(filename.substr(pos));
 }
+llvm::json::Value readRenamingPlan(){
+  auto plan_fn = std::getenv("RENAMING_PLAN");
+  if(!plan_fn){
+    throw std::runtime_error("RENAMING_PLAN environment variable not set");
+  }
+  std::ifstream plan_file(plan_fn);
+  if(!plan_file.is_open()){
+    throw std::runtime_error("Could not open renaming plan file: " + std::string(plan_fn));
+  }
+  std::stringstream buffer;
+  buffer << plan_file.rdbuf();
+  std::string contents = buffer.str();
+  auto json_or_err = llvm::json::parse(contents);
+  if(!json_or_err){
+    throw std::runtime_error("Could not parse renaming plan JSON file: " + std::string(plan_fn));
+  }
+  auto val = json_or_err.get();
+  if(!val.getAsObject()){
+    throw std::runtime_error("Renaming plan JSON is not an object");
+  }
+  return val;
+}
 bool RenamePass::renameAll(llvm::Module &M) {
+  llvm::json::Value renaming_plan = readRenamingPlan();
   llvm::json::Object changes;
 
   std::string suffix = getSuffix(M);
   // Rename global variables:
   changes["globals"] = llvm::json::Object();
+  auto globals_plan = (*renaming_plan.getAsObject())["globals"];
   for(auto &gv: M.globals()) {
-    if(!gv.hasName() || gv.getName().startswith("llvm.")) continue;
     std::string old_name = gv.getName().str();
-    std::string new_name = old_name + suffix;
-    gv.setName(new_name);
-    (*changes["globals"].getAsObject())[old_name] = new_name;
+    auto to_rename = globals_plan.getAsObject()->getString("@" + old_name);
+    // Three possibilities: 'delete_duplicate' 'rename', 'no_change'
+    if (!to_rename.hasValue()) {
+      llvm::errs() << "No renaming plan entry for global variable: " << old_name << ", skipping.\n";
+      continue;
+    } else if (to_rename.getValue().str() == "rename") {
+      std::string new_name = old_name + suffix;
+      gv.setName(new_name);
+      (*changes["globals"].getAsObject())["@" + old_name] = "@" + new_name;
+    } else {
+      (*changes["globals"].getAsObject())["@" + old_name] = "@" + old_name;
+    }
   }
 
   // Rename functions:
-  changes["functions"] = llvm::json::Object();
+  changes["func_defs"] = llvm::json::Object();
+  changes["func_decls"] = llvm::json::Object();
+  auto func_defs_plan = (*renaming_plan.getAsObject())["func_defs"];
+  auto func_decls_plan = (*renaming_plan.getAsObject())["func_decls"];
   for(auto &fn: M) {
-    if(!fn.hasName() || fn.getName().startswith("llvm.")) continue;
-    std::string old_name = fn.getName().str();
-    std::string new_name = old_name + suffix;
-    fn.setName(new_name);
-    (*changes["functions"].getAsObject())[old_name] = new_name;
+    if(!fn.hasName())
+      continue;
+    auto name_ref = fn.getName();
+    auto old_name = name_ref.str();
+    if(fn.isDeclaration()){
+      // External function declaration
+      auto to_rename = func_decls_plan.getAsObject()->getString("@" + old_name);
+      if (!to_rename.hasValue()) {
+        llvm::errs() << "No renaming plan entry for function declaration: " << old_name << ", skipping.\n";
+        continue;
+      } else if (to_rename.getValue().str() == "rename") {
+        std::string new_name = old_name + suffix;
+        fn.setName(new_name);
+        (*changes["func_decls"].getAsObject())["@" + old_name] = "@" + new_name;
+        continue;
+      } else {
+        (*changes["func_decls"].getAsObject())["@" + old_name] = "@" + old_name;
+        continue;
+      }
+
+
+    } else {
+      // Function defined in this translation unit.
+      auto to_rename = func_defs_plan.getAsObject()->getString("@" + old_name);
+      if (!to_rename.hasValue()) {
+        llvm::errs() << "No renaming plan entry for function definition: " << old_name << ", skipping.\n";
+        continue;
+      } else if (to_rename.getValue().str() == "rename") {
+        std::string new_name = old_name + suffix;
+        fn.setName(new_name);
+        (*changes["func_defs"].getAsObject())["@" + old_name] = "@" + new_name;
+      } else {
+        (*changes["func_defs"].getAsObject())["@" + old_name] = "@" + old_name;
+      }
+    }
   }
 
   // Rename metadata nodes:
@@ -101,7 +171,23 @@ bool RenamePass::renameAll(llvm::Module &M) {
   };
 
   // Rename struct types and their fields:  generateRecordForStruct(M);
-  changes["struct_types"] = llvm::json::Object();
+  changes["types"] = llvm::json::Object();
+  auto types_plan = (*renaming_plan.getAsObject())["types"];
+  for(auto &st: M.getIdentifiedStructTypes()) {
+    auto old_name = st->getName().str();
+    auto to_rename = types_plan.getAsObject()->getString("%" + old_name);
+    if (!to_rename.hasValue()) {
+      llvm::errs() << "No renaming plan entry for struct type: " << old_name << ", skipping.\n";
+      continue;
+    } else if (to_rename.getValue().str() == "rename") {
+      std::string new_name = old_name + suffix;
+      st->setName(new_name);
+      (*changes["types"].getAsObject())["%" + old_name] = "%" + new_name;
+    } else {
+      (*changes["types"].getAsObject())["%" + old_name] = "%" + old_name;
+    }
+  }
+  
 
   // std::string out_filename = "rename_changes" + M.getSourceFileName() + ".json";
   // std::error_code ec;

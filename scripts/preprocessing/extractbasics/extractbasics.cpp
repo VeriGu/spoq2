@@ -55,11 +55,14 @@ class ExtractBasicsPass : public llvm::ModulePass {
   std::string generateField(llvm::Type*);
   std::vector<llvm::StructType*> sortTypes(std::vector<llvm::StructType*>);
   void generateRecordForStruct(llvm::Module &M);
-  bool runOnModule(llvm::Module &M) override { 
-    context = &M.getContext();
-    dl = &M.getDataLayout();
-    generateRecordForStruct(M);
-    return false; 
+  std::string buildDeclarationStub(const llvm::Function &f);
+  void generateFunctionStubs(llvm::Module &M);
+  bool runOnModule(llvm::Module &M) override {
+      context = &M.getContext();
+      dl = &M.getDataLayout();
+      generateRecordForStruct(M);
+      generateFunctionStubs(M);
+      return false;
   }
 };
 
@@ -294,7 +297,7 @@ void ExtractBasicsPass::runStruct(llvm::StructType *ty) {
     record = "Record " + ty_name + " :=\n" \
       " mk" + ty_name + " {\n" ;
 
-    int count = 0;
+    size_t count = 0;
     for(auto e: elements) {
       if (count == elements.size() - 1) 
         record += "    " + getFieldIdentifier(ty, count) +" : " + generateField(e) + "\n";
@@ -420,7 +423,43 @@ void ExtractBasicsPass::generateRecordForStruct(llvm::Module &M) {
   return;
 }  
 
+std::string ExtractBasicsPass::buildDeclarationStub(const llvm::Function &f){
+  std::string result = "Parameter ";
+  result = result + f.getName().str() + "_spec : ";
+  // size_t idx = 0;
+  for(auto &a: f.args()){
+    auto t = a.getType();
+    // std::string arg_name = "param_" + std::to_string(idx++);
+    auto ty_str = generateField(t);
+    // result = result + " (" + arg_name + ": " + ty_str + ")";
+    result = result + " (" + ty_str + ") ->";
 
+  }
+  result = result + "(RData) -> ";  
+  auto retty = f.getReturnType();
+  std::string retty_str;
+  if(retty->isVoidTy()){
+    retty_str = "option RData";
+  } else {
+    retty_str = "option ((" + generateField(f.getReturnType()) + ") * RData)";
+  }
+  result = result + "(" + retty_str + ").";
+  return result;
+}
+
+void ExtractBasicsPass::generateFunctionStubs(llvm::Module &M) {
+  auto file = M.getName().str() + ".declarations.v";
+  std::ofstream fout;
+  
+  fout.open(file, std::ios::out | std::ios::trunc);
+  for( const llvm::Function &f: M.functions()){
+    if(f.isDeclaration() && f.hasName()){
+      std::string s = buildDeclarationStub(f); 
+      fout << s << std::endl;
+    }
+  }
+  fout.close();
+}
 char ExtractBasicsPass::ID = 0;
 
 static llvm::RegisterPass<ExtractBasicsPass> X(
