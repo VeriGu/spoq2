@@ -52,7 +52,7 @@ class ExtractBasicsPass : public llvm::ModulePass {
   std::string generateStoreZField(std::string obj, int offset, std::string field);
   std::string generateStoreStructField(std::string obj, int offset, std::string field, llvm::StructType* ty);
   std::string generateStore(llvm::StructType*);
-  std::string generateField(llvm::Type*);
+  std::string generateField(llvm::Type*, bool);
   std::vector<llvm::StructType*> sortTypes(std::vector<llvm::StructType*>);
   void generateRecordForStruct(llvm::Module &M);
   std::string buildDeclarationStub(const llvm::Function &f);
@@ -229,7 +229,7 @@ std::string ExtractBasicsPass::getStructTypeIdentifier(llvm::StructType* sty) {
   return name;
 }
 
-std::string ExtractBasicsPass::generateField(llvm::Type* ty) {
+std::string ExtractBasicsPass::generateField(llvm::Type* ty, bool pointers_are_ptr) {
   switch(ty->getTypeID()) {
     case llvm::Type::TypeID::IntegerTyID: {
       return "Z";
@@ -239,7 +239,11 @@ std::string ExtractBasicsPass::generateField(llvm::Type* ty) {
       return getStructTypeIdentifier(sty); // remove struct.
     }
     case llvm::Type::TypeID::PointerTyID: {
-      return "Z";
+      if(pointers_are_ptr){
+        return "Ptr";
+      } else {
+        return "Z";
+      }
     }
     case llvm::Type::TypeID::ArrayTyID: {
       auto aty = llvm::dyn_cast<llvm::ArrayType>(ty);
@@ -300,9 +304,9 @@ void ExtractBasicsPass::runStruct(llvm::StructType *ty) {
     size_t count = 0;
     for(auto e: elements) {
       if (count == elements.size() - 1) 
-        record += "    " + getFieldIdentifier(ty, count) +" : " + generateField(e) + "\n";
+        record += "    " + getFieldIdentifier(ty, count) +" : " + generateField(e, false) + "\n";
       else
-        record += "    " + getFieldIdentifier(ty, count) +" : " + generateField(e) + ";\n";
+        record += "    " + getFieldIdentifier(ty, count) +" : " + generateField(e, false) + ";\n";
       generated_types[ty].push_back(e);
       count += 1;
     }
@@ -425,25 +429,34 @@ void ExtractBasicsPass::generateRecordForStruct(llvm::Module &M) {
 
 std::string ExtractBasicsPass::buildDeclarationStub(const llvm::Function &f){
   std::string result = "Parameter ";
+  // Here the args include the return type, because
+  // at the z3 level the return value is just another argument.
+  std::vector<std::string> arg_types;
   result = result + f.getName().str() + "_spec : ";
-  // size_t idx = 0;
   for(auto &a: f.args()){
     auto t = a.getType();
-    // std::string arg_name = "param_" + std::to_string(idx++);
-    auto ty_str = generateField(t);
-    // result = result + " (" + arg_name + ": " + ty_str + ")";
-    result = result + " (" + ty_str + ") ->";
-
+    auto ty_str = generateField(t, true);
+    arg_types.push_back(ty_str);
   }
-  result = result + "(RData) -> ";  
   auto retty = f.getReturnType();
+
+  // Add an extra argument for the state before the function call
+  arg_types.push_back("RData");
+
   std::string retty_str;
   if(retty->isVoidTy()){
     retty_str = "option RData";
   } else {
-    retty_str = "option ((" + generateField(f.getReturnType()) + ") * RData)";
+    retty_str = "option ((" + generateField(f.getReturnType(), true) + ") * RData)";
   }
-  result = result + "(" + retty_str + ").";
+  // The result should be of the form (A -> (B -> C)),
+  // so open parens between each element and close them all at the end
+  std::string end_str = "";
+  for (auto ty_str: arg_types){
+    result = result + "(" + ty_str + "-> ";
+    end_str = end_str + ")";
+  }
+  result = result + "(" + retty_str + end_str + ").";
   return result;
 }
 
