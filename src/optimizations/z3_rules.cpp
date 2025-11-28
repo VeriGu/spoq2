@@ -796,6 +796,7 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
             return { std::move(spec), false };
         }
     }
+    LOG_DEBUG << "expr to be evaled: " << string(*spec);
 
     for (auto elem = spec->elems->begin(); elem != spec->elems->end(); elem++) {
         auto ret = this->rule_simple_by_z3(std::move(*elem), state);
@@ -806,8 +807,8 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
         }
         elems->push_back(std::move(ret.first));
     }
-    auto new_spec = std::make_unique<Expr>(std::move(spec->op), std::move(elems), spec->get_type());
 
+    auto new_spec = std::make_unique<Expr>(std::move(spec->op), std::move(elems), spec->get_type());
     PROFILE_START(z3_eval);
     auto exp_val = z3_eval(proj, new_spec.get(), state);
     PROFILE_END(z3_eval);

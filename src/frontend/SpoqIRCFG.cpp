@@ -144,7 +144,7 @@ bool SpoqIRModule::control_flow_elinminate_select(llvm::Function* func) {
     return false;
 }
 
-bool SpoqIRModule::control_flow_conversion_DAG(Project *proj, string fname, SpoqFunction &spoq_func, SpoqLoopContext& context) {
+bool SpoqIRModule::control_flow_conversion_DAG(string fname, SpoqFunction &spoq_func, SpoqLoopContext& context) {
     
 
     context.init(spoq_func.llvm_func);
@@ -168,7 +168,8 @@ bool SpoqIRModule::control_flow_conversion_DAG(Project *proj, string fname, Spoq
                         context.debug_jump();
                         llvm::errs() << "*func: " << *spoq_func.llvm_func << "\n";
                         llvm::errs() << "phi: " << *phi << "\n";
-                        assert(false && "some PHI are not eliminated but required so");
+                        llvm::errs() << "some PHI are not eliminated but required so" << "\n";
+                        return false;
                         continue;
                     }
                 }
@@ -224,7 +225,7 @@ void SpoqIRModule::pass_analysis(llvm::BasicBlock* block, std::vector<llvm::Basi
     }
 }
 
-bool SpoqIRModule::control_flow_conversion_v2(Project *proj, string fname,
+bool SpoqIRModule::control_flow_conversion_v2(string fname,
                                               SpoqFunction &spoq_func) {
     auto llvm_func = spoq_func.llvm_func;
 
@@ -330,7 +331,7 @@ bool SpoqIRModule::control_flow_conversion_v2(Project *proj, string fname,
 
         }
         context.travel_all();
-        spoq_func.cfg_converted = control_flow_conversion_DAG(proj, fname, spoq_func, context);
+        spoq_func.cfg_converted = control_flow_conversion_DAG(fname, spoq_func, context);
 
         context.travel_all();
         std::vector<llvm::BasicBlock*> loop_stack;
@@ -339,7 +340,7 @@ bool SpoqIRModule::control_flow_conversion_v2(Project *proj, string fname,
 
         return spoq_func.cfg_converted;
     } else {
-        spoq_func.cfg_converted = control_flow_conversion_DAG(proj, fname, spoq_func, context);
+        spoq_func.cfg_converted = control_flow_conversion_DAG(fname, spoq_func, context);
         return spoq_func.cfg_converted;
     }
 }

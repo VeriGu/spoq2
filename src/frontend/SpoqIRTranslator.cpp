@@ -4,6 +4,7 @@
 #include "nodes.h"
 #include "project.h"
 #include "shortcuts.h"
+#include "anon_structs.h"
 
 #include <cassert>
 #include "llvm/IR/BasicBlock.h"
@@ -267,7 +268,7 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
             if (value->getType()->isIntegerTy(1)) return std::make_unique<Symbol>(new_name, Bool::BOOL);
             else return std::make_unique<Symbol>(new_name, Int::INT);
         }
-        llvm::errs() << "unsupport llvm constant: " << *value << " " << *value->getType() << "\n";
+        llvm::errs() << "unsupport llvm constant: " << *value << " ty: " << *value->getType() << "\n";
         assert(false && "unsupport llvm constant");
     } else if (auto arg = llvm::dyn_cast<llvm::Argument>(value)) {
         if (type_map.find(value) == type_map.end()) {
@@ -370,8 +371,14 @@ shared_ptr<SpecType> SpoqIRModule::llvm_ir_type_to_spec_pure(llvm::Type* type) {
     } else if (type->isVoidTy()) {
         return make_shared<SpecType>("Void");
     } else if (type->isStructTy()) {
-        assert(type->getStructName().str() != "" && "struct name is empty, fix me with a pass to assign name for each struct");
-        return make_shared<SpecType>(type->getStructName().str());
+        // assert(type->getStructName().str() != "" && "struct name is empty, fix me with a pass to assign name for each struct"); // struct.setName isn't supposed to be called on a literal so this is complicated.
+        if(type->getStructName().empty()){
+            return make_shared<SpecType>(type->getStructName().str());
+        } else {
+            std::string name = anonStructName(static_cast<llvm::StructType*>(type));
+            return make_shared<SpecType>(name);
+        }
+        
     } else if (type->isArrayTy()) {
         auto elem_type = llvm_ir_type_to_spec_pure(type->getArrayElementType());
         assert(elem_type != SpecType::UNKNOWN_TYPE && "array element type is unknown");

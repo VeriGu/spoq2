@@ -331,10 +331,14 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                         }
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
-                    } else {
+                    } else if (dynamic_pointer_cast<ZMap>(expr->elems->at(0)->type)){
                         auto elem_type = dynamic_pointer_cast<ZMap>(expr->elems->at(0)->type);
-
                         expr->type = elem_type->elem_type;
+                    } else if (dynamic_pointer_cast<Tuple>(expr->elems->at(0)->type)){
+                        auto elem_type = dynamic_pointer_cast<Tuple>(expr->elems->at(0)->type);
+                        throw std::runtime_error("Tuple in Expr::Get type inference - unsupported");
+                    } else {
+                        throw std::runtime_error("unsupported case in Expr::Get type inference - unsupported");
                     }
                     break;
                 }

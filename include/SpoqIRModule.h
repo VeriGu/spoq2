@@ -1024,18 +1024,17 @@ namespace autov {
          * @return true success
          * @return false 
          */
-        static bool control_flow_conversion_DAG(Project* proj, string fname,  SpoqFunction& spoq_func, SpoqLoopContext& );
+        static bool control_flow_conversion_DAG(string fname,  SpoqFunction& spoq_func, SpoqLoopContext& );
 
         /**
-         * @brief Converr any CFG into a form that ready for spoq_inst translation. Set the ``spoq_func.cfg_converted`` to true if success. TODO: support loop.
+         * @brief Convert any CFG into a form that ready for spoq_inst translation. Set the ``spoq_func.cfg_converted`` to true if success. TODO: support loop.
          * 
-         * @param proj 
          * @param fname function name
          * @param spoq_func The spoq_func to be converted. Its `llvm_func` should already be set.
          * @return true 
          * @return false 
          */
-        static bool control_flow_conversion_v2(Project* proj, string fname, SpoqFunction& spoq_func);
+        static bool control_flow_conversion_v2(string fname, SpoqFunction& spoq_func);
 
         /**
          * @brief load all functions with definitions in the this->llvm_module and convert them into SpoqFunction.

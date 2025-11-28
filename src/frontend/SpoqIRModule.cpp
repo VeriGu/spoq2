@@ -35,7 +35,7 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
         if (name == "init_el2_data_page") continue;
         SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs[name];
         spoq_func.llvm_func = &func; // llvm_func;
-        bool ret = control_flow_conversion_v2(proj, name, spoq_func);
+        bool ret = control_flow_conversion_v2(name, spoq_func);
         if(ret) {
             succ++;
             func_stats.emplace_back(original_size, func.size());

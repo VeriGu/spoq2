@@ -19,6 +19,7 @@
 #include <map>
 #include <fstream>
 #include <filesystem>
+#include "../../../include/anon_structs.h"
 // using namespace llvm;
 // static cl::opt<bool> MergeFunctionsPDI("mymergefunc-preserve-debug-info",
 // cl::Hidden, cl::init(false), cl::desc("Preserve debug info in thunk when
@@ -147,9 +148,10 @@ std::string ExtractPointersPass::getStructTypeIdentifier(llvm::StructType* sty) 
   std::string name;
   if(isUnion(sty)) {
     name = "u_" + sty->getName().str().substr(6);
-  }
-  else {
+  } else if(sty->hasName()){
     name = "s_" + sty->getName().str().substr(7);
+  } else {
+    name = anonStructName(sty);
   }
   std::replace(name.begin(), name.end(), '.', '_');
   std::replace(name.begin(), name.end(), ':', '_');
@@ -189,9 +191,18 @@ std::string ExtractPointersPass::generateField(llvm::Type* ty) {
       } else {
         return "None (* FIXME: nd array *)";
       }
+    } 
+    case llvm::Type::TypeID::MetadataTyID: {
+      return "Metadata";
+    }
+    case llvm::Type::TypeID::FloatTyID: {
+      return "Float";
+    }
+    case llvm::Type::TypeID::DoubleTyID: {
+      return "Double";
     }
     default: {
-      return "None";
+      return "UnknownType";
     }
   }
 }

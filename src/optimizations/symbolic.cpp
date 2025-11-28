@@ -1489,9 +1489,15 @@ void spec_prover(Project *proj) {
             auto rel_post_def = proj->defs.find(refine_post_name);
             if(vuln_def == proj->defs.end()){
                 LOG_ERROR << "No definition named: " << vuln_name;
+                continue;
             }
             if(patched_def == proj->defs.end()){
                 LOG_ERROR << "No definition named: " << patched_name;
+                continue;
+            }
+            if(vuln_def == patched_def) {
+                LOG_ERROR << "vuln_def and patched_def are the same, cannot analyze.";
+                // continue;
             }
 
             if(!check_refines(proj, vuln_def->second.get(), patched_def->second.get(), 

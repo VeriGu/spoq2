@@ -170,6 +170,7 @@ bool RenamePass::renameAll(llvm::Module &M) {
     (*changes["metadata"].getAsObject())[name] = new_name;
   };
 
+
   // Rename struct types and their fields:  generateRecordForStruct(M);
   changes["types"] = llvm::json::Object();
   auto types_plan = (*renaming_plan.getAsObject())["types"];
