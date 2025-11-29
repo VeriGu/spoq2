@@ -33,6 +33,9 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
         auto original_size = func.size();
         auto name = func.getName().str();
         if (name == "init_el2_data_page") continue;
+        if (name == "zif_exif_read_data") continue;
+        if (name == "exif_discard_imageinfo") continue;
+        if (name == "zif_exif_thumbnail") continue;
         SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs[name];
         spoq_func.llvm_func = &func; // llvm_func;
         bool ret = control_flow_conversion_v2(name, spoq_func);

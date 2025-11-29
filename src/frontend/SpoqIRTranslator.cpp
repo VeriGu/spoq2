@@ -820,13 +820,13 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
 
         if (auto alloc = llvm::dyn_cast<llvm::AllocaInst>(spoq_inst->inst)) {
             std::string name;
-            if (!alloc->getName().empty()) name = Shortcut::replace_dot(alloc->getName().str());
+            if (!alloc->getName().empty()) name = alloc->getName().str();
             else {
                 llvm::raw_string_ostream os(name);
                 alloc->printAsOperand(os, false, proj->spoq_code.llvm_module.get());
                 name.erase(0, 1);
-                name = "v_" + Shortcut::replace_dot(name);
             }
+            name = "v_" + Shortcut::replace_dot(name);
             auto stack_var = proj->cmds.StackMap[context.spoq_func.llvm_func->getName().str()][name];
              // TODO: should we use some more stable way to get the stack_var name?
             if(stack_var.empty()) llvm::errs() << "*alloca: " << *alloc << "\n";
@@ -939,8 +939,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 auto expr = context.get_llvm_value_spec(bc->getOperand(0));
                 context.add_cache(context.get_llvm_value_name(bc), expr);
                 return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
-            }
-            if (src->isIntegerTy() && dst->isIntegerTy()) {
+            } else if (src->isIntegerTy() && dst->isIntegerTy()) {
                 if (llvm::dyn_cast<llvm::ZExtInst>(bc) && src->isIntegerTy(1)) {
                     auto sym = context.get_llvm_value_spec(bc);
                     auto args = std::make_unique<vector<unique_ptr<SpecNode>>>();
@@ -954,6 +953,9 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 auto expr = context.get_llvm_value_spec(bc->getOperand(0));
                 context.add_cache(context.get_llvm_value_name(bc), expr);
                 return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
+            } else if (src->isIntegerTy() && dst->isFloatTy()) {
+                llvm::errs() << "Unsupported SpoqIR instruction [LLVM]: " << *spoq_inst->inst << "\n";
+                throw std::runtime_error("Int-> float cast unsupported.");
             }
         }
 

@@ -166,7 +166,7 @@ bool SpoqIRModule::control_flow_conversion_DAG(string fname, SpoqFunction &spoq_
                         to_erase.push_back(phi);
                     } else {
                         context.debug_jump();
-                        llvm::errs() << "*func: " << *spoq_func.llvm_func << "\n";
+                        // llvm::errs() << "*func: " << *spoq_func.llvm_func << "\n";
                         llvm::errs() << "phi: " << *phi << "\n";
                         llvm::errs() << "some PHI are not eliminated but required so" << "\n";
                         return false;
