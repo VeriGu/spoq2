@@ -17,8 +17,8 @@ args = parser.parse_args()
 
 DEBUG = 1
 IR_JSON_PATH = args.ir
-print(args.ir)
-print(args.predefined)
+print(args.ir, sys.stderr)
+print(args.predefined, sys.stderr)
 
 with open(args.predefined, "r") as f:
   predefined = json.load(f)
@@ -382,7 +382,6 @@ class Generator:
       layer[layer_map[t]].append(t)
     
     layer_map = dict(sorted(layer_map.items(), key=(lambda item: -item[1])) )
-
     return layer, layer_map
   
 
@@ -438,9 +437,9 @@ class Generator:
           config.bottom.append(func)
 
     config.reachable = self.compute_reachable(config.top, config.bottom)
-
+    
     steps = self.get_topological_steps(config.top, config.bottom, config.reachable)
-
+    debug(steps)
     debug(config.name, "have", len(config.reachable), "reachable functions")
 
     config.layer, config.layer_map = self.compute_layers(config.top, config.bottom, steps)

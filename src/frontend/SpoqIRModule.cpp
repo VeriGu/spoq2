@@ -33,9 +33,12 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
         auto original_size = func.size();
         auto name = func.getName().str();
         if (name == "init_el2_data_page") continue;
-        if (name == "zif_exif_read_data") continue;
-        if (name == "exif_discard_imageinfo") continue;
-        if (name == "zif_exif_thumbnail") continue;
+        if (name == "zif_exif_read_data_vuln") continue;
+        if (name == "zif_exif_read_data_patch") continue;
+        if (name == "exif_discard_imageinfo_vuln") continue;
+        if (name == "exif_discard_imageinfo_patch") continue;
+        if (name == "zif_exif_thumbnail_vuln") continue;
+        if (name == "zif_exif_thumbnail_patch") continue;
         SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs[name];
         spoq_func.llvm_func = &func; // llvm_func;
         bool ret = control_flow_conversion_v2(name, spoq_func);
@@ -46,6 +49,8 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
                 LOG_DEBUG << "[CFG] " << name << " converted, original size: " << original_size
                           << ", new size: " << func.size() << "\n";
             }
+        } else {
+            LOG_ERROR << "[CFG] " << name << " not converted.\n" ;
         }
     }
     double sum = 0;
@@ -153,7 +158,7 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
 
     for (auto &spec_name: low_specs) {
         LOG_INFO << "Generated low spec: " << spec_name;
-        LOG_INFO << string(*proj->defs[spec_name]);
+        // LOG_INFO << string(*proj->defs[spec_name]).substr(0,100);
     }
 
     assert(context.rettype != SpecType::UNKNOWN_TYPE && string("return type for is unknown").c_str());

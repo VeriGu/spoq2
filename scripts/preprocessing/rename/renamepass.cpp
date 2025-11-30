@@ -2,6 +2,7 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Analysis/CallGraph.h"
 #include "llvm/Transforms/Utils/FunctionComparator.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
@@ -85,6 +86,49 @@ llvm::json::Value readRenamingPlan(){
   }
   return val;
 }
+std::set<llvm::Function*> callersOfRenamedFunctions(llvm::Module &M, llvm::json::Value func_defs_plan) {
+  auto cg = llvm::CallGraph(M);
+  std::map<llvm::Function*, bool> doesReachRenamed;
+  std::set<llvm::Function*> reaching;
+  // a disjoint set union would make this trivial
+
+  for (auto &fn: M.functions()){
+    if (!fn.hasName() || fn.isDeclaration()){
+      continue;
+    }
+      auto name = fn.getName().str();
+      auto to_rename = func_defs_plan.getAsObject()->getString("@" + name);
+    // doesReachRenamed.insert(std::pair(&fn, to_rename.getValue().str() == "rename"));
+    doesReachRenamed[&fn] = (to_rename.getValue().str() == "rename");
+    if (doesReachRenamed[&fn]){
+      // llvm::errs() << "function added to reaching " << fn.getName().str() << "\n";
+      reaching.emplace(&fn);
+    }
+  }
+  bool changed = true;
+  while(changed){
+    changed = false;
+    for(auto &fn: M.functions()){
+      auto cg_node = cg.getOrInsertFunction(&fn);
+      if(doesReachRenamed[&fn]){
+        continue;
+      }
+      for (auto it = cg_node->begin(); it<cg_node->end(); it++){
+        auto called_node = it->second;
+        auto called_fn = called_node->getFunction();
+        if(doesReachRenamed[called_fn]) {
+          doesReachRenamed[&fn] = true;
+          changed = true;
+          // llvm::errs() << "function added to reaching " << fn.getName().str() << "\n";
+          reaching.emplace(&fn);
+          break;
+        }
+      }
+    }
+  }
+  
+  return reaching;
+}
 bool RenamePass::renameAll(llvm::Module &M) {
   llvm::json::Value renaming_plan = readRenamingPlan();
   llvm::json::Object changes;
@@ -105,6 +149,7 @@ bool RenamePass::renameAll(llvm::Module &M) {
       gv.setName(new_name);
       (*changes["globals"].getAsObject())["@" + old_name] = "@" + new_name;
     } else {
+      
       (*changes["globals"].getAsObject())["@" + old_name] = "@" + old_name;
     }
   }
@@ -114,6 +159,7 @@ bool RenamePass::renameAll(llvm::Module &M) {
   changes["func_decls"] = llvm::json::Object();
   auto func_defs_plan = (*renaming_plan.getAsObject())["func_defs"];
   auto func_decls_plan = (*renaming_plan.getAsObject())["func_decls"];
+  auto callersOfRenamed = callersOfRenamedFunctions(M, func_defs_plan);
   for(auto &fn: M) {
     if(!fn.hasName())
       continue;
@@ -125,7 +171,7 @@ bool RenamePass::renameAll(llvm::Module &M) {
       if (!to_rename.hasValue()) {
         llvm::errs() << "No renaming plan entry for function declaration: " << old_name << ", skipping.\n";
         continue;
-      } else if (to_rename.getValue().str() == "rename") {
+      } else if (to_rename.getValue().str() == "rename" || callersOfRenamed.find(&fn) != callersOfRenamed.end()) {
         std::string new_name = old_name + suffix;
         fn.setName(new_name);
         (*changes["func_decls"].getAsObject())["@" + old_name] = "@" + new_name;
@@ -142,7 +188,7 @@ bool RenamePass::renameAll(llvm::Module &M) {
       if (!to_rename.hasValue()) {
         llvm::errs() << "No renaming plan entry for function definition: " << old_name << ", skipping.\n";
         continue;
-      } else if (to_rename.getValue().str() == "rename") {
+      } else if (to_rename.getValue().str() == "rename" || callersOfRenamed.find(&fn) != callersOfRenamed.end()) {
         std::string new_name = old_name + suffix;
         fn.setName(new_name);
         (*changes["func_defs"].getAsObject())["@" + old_name] = "@" + new_name;

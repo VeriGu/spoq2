@@ -62,7 +62,7 @@ unique_ptr<SpecNode> spec_transformer_v2(Project *proj, unique_ptr<SpecNode> nod
         auto spec1 = partial_eval(proj, std::move(spec), 0, make_shared<EvalState>(vars, conds), known, unfold);
         LOG_DEBUG << "end partial_eval" << "\n";
         // profile_print_transrule();
-        LOG_DEBUG << "------------------after_partial_eval:----------------------\n" << string(*spec1);
+        // LOG_DEBUG << "------------------after_partial_eval:----------------------\n" << string(*spec1);
         unique_ptr<SpecNode> __tmp_spec;
         bool changed = false;
         //type_inference::check_well_typed(*proj, spec.get(), known);
@@ -209,7 +209,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                     UNFOLD_POLICY.set_skip(false);
                     profile_print_transrule();
                 } else if (UNFOLD_POLICY.require_loop_unroll(def->name, proj->cmds.LoopUnroll)) {
-                    LOG_DEBUG << "we start greedyly unfold for " << UNFOLD_POLICY.current_unfold << " times for " << def->name << "\n";
+                    LOG_DEBUG << "we start greedily unfolding for " << UNFOLD_POLICY.current_unfold << " times for " << def->name << "\n";
                 } else {
                     // LOG_DEBUG << "finish spec transformer for " << def->name << "\n";
                    break;

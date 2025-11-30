@@ -208,7 +208,9 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
                     }
                     return spec;
                 }
-            } else if(auto ptr_null = llvm::dyn_cast<llvm::ConstantPointerNull>(data)) {
+            } else if(value->getType()->isFloatTy() || value->getType()->isDoubleTy()){
+                throw std::runtime_error("Floating point constants are unsupported.");
+            }else if(auto ptr_null = llvm::dyn_cast<llvm::ConstantPointerNull>(data)) {
                 auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
                 vec->push_back(std::make_unique<StringConst>("null"));
                 vec->push_back(std::make_unique<IntConst>(0));
@@ -268,6 +270,7 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
             if (value->getType()->isIntegerTy(1)) return std::make_unique<Symbol>(new_name, Bool::BOOL);
             else return std::make_unique<Symbol>(new_name, Int::INT);
         }
+
         llvm::errs() << "unsupport llvm constant: " << *value << " ty: " << *value->getType() << "\n";
         assert(false && "unsupport llvm constant");
     } else if (auto arg = llvm::dyn_cast<llvm::Argument>(value)) {
