@@ -90,7 +90,7 @@ antlrcpp::Any ProgramVisitor::visitStatement(SpecParser::StatementContext* ctx) 
 antlrcpp::Any ProgramVisitor::visitLoop_inv(SpecParser::Loop_invContext* ctx) {
     SpecNode* expr = any_cast<SpecNode*>(visitExpr(ctx->expr()));
     Expr* exp = dynamic_cast<Expr*>(expr);
-    proj.add_loop_inv(std::move(unique_ptr<Expr>(exp)));
+    proj.add_loop_inv(unique_ptr<Expr>(exp));
     return std::any();
 }
 
@@ -107,11 +107,14 @@ antlrcpp::Any ProgramVisitor::visitInvdef(SpecParser::InvdefContext* ctx){
 
 
 antlrcpp::Any ProgramVisitor::visitGlobal_anno(SpecParser::Global_annoContext* ctx) {
-    std::string field = ctx->name()->getText();
-    
-    unsigned long base = std::stoul(ctx->anno_struct()->base->getText());
-    unsigned long size = std::stoul(ctx->anno_struct()->size->getText());
-    unsigned long num_elems = std::stoul(ctx->anno_struct()->max_elems->getText());
+    ctx->name()->getText();
+    std::stoul(ctx->anno_struct()->base->getText());
+    std::stoul(ctx->anno_struct()->size->getText());
+    std::stoul(ctx->anno_struct()->max_elems->getText());
+    // std::string field = ctx->name()->getText();
+    // unsigned long base = std::stoul(ctx->anno_struct()->base->getText());
+    // unsigned long size = std::stoul(ctx->anno_struct()->size->getText());
+    // unsigned long num_elems = std::stoul(ctx->anno_struct()->max_elems->getText());
     
 }
 

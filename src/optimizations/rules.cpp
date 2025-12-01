@@ -604,7 +604,7 @@ void mark_interested_read(Project* proj, SpecNode* spec, std::unordered_set<stri
 // }
 
 
-static bool op_is_lens_v(const std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string> &op) {
+static bool op_is_lens_v(const Expr::op_t &op) {
     if (auto s = std::get_if<string>(&op))
         return *s == "lens_v";
 
@@ -951,7 +951,7 @@ static bool contains_interest_fields(SpecNode *spec) {
     return false;
 }
 
-static bool op_is_lens(const std::variant<unique_ptr<SpecNode>, Expr::ops, Expr::binops, string> &op) {
+static bool op_is_lens(const Expr::op_t &op) {
     if (auto s = std::get_if<string>(&op))
         return *s == "lens";
 
@@ -3476,7 +3476,7 @@ rule_ret_t SpecRules::rule_move_match_out_expr(std::unique_ptr<SpecNode> spec, b
                                 else
                                     elems->push_back(e->elems->at(j)->deep_copy());
                             }
-                            std::variant<std::unique_ptr<SpecNode>, Expr::ops, Expr::binops, std::string> new_op;
+                            Expr::op_t new_op;
                             if (auto op = std::get_if<Expr::ops>(&e->op)) {
                                 new_op = *op;
                             } else if (auto binop = std::get_if<Expr::binops>(&e->op)) {

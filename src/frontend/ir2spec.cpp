@@ -312,7 +312,7 @@ SpecNode* get_elem_ptr(Layer *l, IRValue *val, vector<unique_ptr<SpecNode>> *idx
     auto elems = new vector<unique_ptr<SpecNode>>();
     elems->push_back(unique_ptr<SpecNode>(ir_value_to_spec(l, val, relies)));
     elems->push_back(reduce(offs.get(), 0));
-
+    // why not layer->ops["ptr_offset"] ?
     return new Expr("ptr_offset", unique_ptr<vector<unique_ptr<SpecNode>>>(elems));
   }
 

@@ -158,11 +158,11 @@ private:
 
 class Const : public SpecNode {
 public:
-    std::variant<unsigned long, string, bool> value;
+    std::variant<unsigned long, string, bool, double> value;
 
     Const() { throw std::invalid_argument("Const must have a value"); }
-    Const(const std::variant<unsigned long, string, bool>& value) : SpecNode(SpecType::UNKNOWN_TYPE), value(value) {}
-    Const(const std::variant<unsigned long, string, bool>& value, shared_ptr<SpecType> type)
+    Const(const std::variant<unsigned long, string, bool, double>& value) : SpecNode(SpecType::UNKNOWN_TYPE), value(value) {}
+    Const(const std::variant<unsigned long, string, bool, double>& value, shared_ptr<SpecType> type)
         : SpecNode(type), value(value) {
 #if 0
         if (!std::holds_alternative<unsigned long>(this->value))
@@ -273,7 +273,31 @@ private:
 
     bool sign;
 };
+class FloatConst : public Const {
+public:
+    FloatConst() { throw std::invalid_argument("FloatConst must have a value"); }
+    FloatConst(double value) : Const(value, Float::FLOAT){}
+    //FloatConst(unsigned long value, SpecType type) : Const(value, type) {}
 
+    double get_value() const {
+        return std::get<double>(this->value);
+    }
+    ~FloatConst() {}
+
+    void deep_copy(unique_ptr<SpecNode> &p) const {
+        p = make_unique<FloatConst>(this->get_value());
+    }
+
+    unique_ptr<SpecNode> deep_copy() const {
+        return make_unique<FloatConst>(this->get_value());
+    }
+
+private:
+    const string to_string() const {
+        double v = std::get<double>(this->value);
+        return "(" + std::to_string(v) + ")";
+    }
+};
 class StringConst : public Const {
 public:
     StringConst() { throw std::invalid_argument("StringConst must have a value"); }
@@ -394,11 +418,15 @@ public:
         BEQ, BNE, BGT, BGE, BLT, BLE, BAND, BOR, LSHIFT, RSHIFT, SEQ, SNE, LIST_EQ,
         APPEND, CONCAT,
         EQUAL, NOT_EQUAL, LT, LTE, GT, GTE, IFONLYIF, OR, AND, IMPLIES,
+        FOEQ, FMUL, FADD, FSUB, FDIV, FREM,
         // Zlnot, Zlxor, Ztestbit,
         // xorb
     };
+    enum unops {
+        FNEG,
+    };
 
-    using op_t = std::variant<unique_ptr<SpecNode>, ops, binops, string>;
+    using op_t = std::variant<unique_ptr<SpecNode>, ops, binops, unops, string>;
     using elems_t = unique_ptr<vector<unique_ptr<SpecNode>>>;
     op_t op;
     unique_ptr<vector<unique_ptr<SpecNode>>> elems;
@@ -540,6 +568,8 @@ public:
             ret = make_unique<Expr>(std::get<ops>(this->op), std::move(new_elems), this->type);
         } else if (std::holds_alternative<binops>(this->op)) {
             ret = make_unique<Expr>(std::get<binops>(this->op), std::move(new_elems), this->type);
+        } else if (std::holds_alternative<unops>(this->op)) {
+            ret = make_unique<Expr>(std::get<unops>(this->op), std::move(new_elems), this->type);
         } else {
             ret = make_unique<Expr>(std::get<unique_ptr<SpecNode>>(this->op)->deep_copy(),
                                           std::move(new_elems), this->type);

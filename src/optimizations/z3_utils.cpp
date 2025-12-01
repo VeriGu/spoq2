@@ -1666,9 +1666,6 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {
                 if (expr->elems->size() > 1) {
                     auto v = z3_eval(proj, expr->elems.get()[0][1].get(), state,  check_loop);
-                    auto v2 = dynamic_cast<Struct*>(v.get());
-                    if (v2)
-                    int x = 4;
                 }
                 elems.push_back(z3_eval(proj, e->get(), state,  check_loop));
             }

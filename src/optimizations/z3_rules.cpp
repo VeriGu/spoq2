@@ -647,6 +647,7 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
         auto then_ret = this->rule_simple_by_z3(std::move(spec->then_body), state);
 
         state->conds->back() = !unknown_value;
+        // LOG_DEBUG << "Simplifying else body: " << string(*spec->else_body).substr(0,100);
         auto else_ret = this->rule_simple_by_z3(std::move(spec->else_body), state);
 
         changed |= then_ret.second || else_ret.second;
@@ -796,7 +797,7 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
             return { std::move(spec), false };
         }
     }
-    LOG_DEBUG << "expr to be evaled: " << string(*spec);
+    // LOG_DEBUG << "expr to be evaled: " << string(*spec);
 
     for (auto elem = spec->elems->begin(); elem != spec->elems->end(); elem++) {
         auto ret = this->rule_simple_by_z3(std::move(*elem), state);

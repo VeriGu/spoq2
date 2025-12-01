@@ -270,7 +270,26 @@ public:
         return "(VInt (" + val_str + "))";
     }
 };
+class VFloat : public IRValue {
+public:
+    int exp;
+    int mant;
 
+    VFloat() = delete;
+
+    VFloat(shared_ptr<IRType> type, int exp, int mant) : IRValue(type) {
+        this->exp = exp;
+        this->mant = mant;
+    }
+
+    VFloat *clone(void) const override {
+        return new VFloat(*this);
+    }
+
+    string to_coq(void) const override {
+        return "(VFloat (" + std::to_string(this->exp) + " " + std::to_string(this->mant) + "))";
+    }
+};
 class VBool : public IRValue {
 public:
     bool val;

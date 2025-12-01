@@ -1258,17 +1258,25 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
     patched_body = subst_v2(proj, patched_def->body->deep_copy(), patched_def->args->back()->name, 
         make_unique<Symbol>(Symbol(sim_state_name, last_arg->type))).release();
     LOG_DEBUG << "subst Patched body: " << z3_eval(proj, patched_body, state)->value.to_string();;
-    field_t ret_rel_names;
-    ret_rel_names.push_back("vuln_ret");
-    ret_rel_names.push_back("patch_ret");
-    std::vector<std::unique_ptr<SpecNode>> ret_rel_values;
 
-    ret_rel_values.push_back(vuln_body->deep_copy());
-    ret_rel_values.push_back(patched_body->deep_copy());
-
-    auto new_ret_rel = subst_v2(proj, ret_rel->deep_copy(), &ret_rel_names, &ret_rel_values);
     unique_ptr<std::vector<unique_ptr<SpecNode>>> ret_rel_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-    ret_rel_elems->push_back(std::move(new_ret_rel));
+    // Next, we need to handle the return value relation.
+    // Check if the function target is void-typed
+    if(vuln_def->rettype->name == "Option_RData") {
+        // No action necessary as there is no return value to relate.
+        ret_rel_elems->push_back(make_unique<BoolConst>(true));
+    } else {
+        field_t ret_rel_names;
+        ret_rel_names.push_back("vuln_ret");
+        ret_rel_names.push_back("patch_ret");
+        std::vector<std::unique_ptr<SpecNode>> ret_rel_values;
+
+        ret_rel_values.push_back(vuln_body->deep_copy());
+        ret_rel_values.push_back(patched_body->deep_copy());
+
+        auto new_ret_rel = subst_v2(proj, ret_rel->deep_copy(), &ret_rel_names, &ret_rel_values);
+        ret_rel_elems->push_back(std::move(new_ret_rel));
+    }
     ret_rel_elems->push_back(rel_post->body->deep_copy());
     unique_ptr<SpecNode> combined_rel = make_unique<Expr>(Expr::AND, std::move(ret_rel_elems), Bool::BOOL);
 

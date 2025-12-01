@@ -55,6 +55,7 @@ shared_ptr<Inductive> Inductive::Nat = make_shared<Inductive>(
 
 shared_ptr<SpecType> SpecType::UNKNOWN_TYPE = make_shared<SpecType>("UNKNOWN_TYPE");
 shared_ptr<Int> Int::INT = make_shared<Int>();
+shared_ptr<Float> Float::FLOAT = make_shared<Float>();
 shared_ptr<String> String::STRING = make_shared<String>();
 shared_ptr<Bool> Bool::BOOL = make_shared<Bool>();
 shared_ptr<Prop> Prop::PROP = make_shared<Prop>();
@@ -100,6 +101,23 @@ shared_ptr<SpecValue> Int::declare(string name, int nid) {
     auto sname = name + "." + std::to_string(nid);
 
     return make_shared<IntValue>(z3ctx.constant(sname.c_str(), get_z3_type()));
+}
+// ----------------------------------------------------------------------------
+// Float
+// ----------------------------------------------------------------------------
+z3::sort Float::get_z3_type() {
+    // TODO: Make this depend on the type float vs double
+    return z3ctx.fpa_sort<64UL>();
+}
+
+shared_ptr<SpecValue> Float::from_z3_value(z3::expr value) {
+    return make_shared<FloatValue>(value);
+}
+
+shared_ptr<SpecValue> Float::declare(string name, int nid) {
+    auto sname = name + "." + std::to_string(nid);
+
+    return make_shared<FloatValue>(z3ctx.constant(sname.c_str(), get_z3_type()));
 }
 
 // ----------------------------------------------------------------------------
@@ -289,10 +307,15 @@ std::shared_ptr<SpecValue> StructValue::get(string key) {
 }
 
 shared_ptr<SpecValue> StructValue::get(int key) {
-    assert(is_instance(typ.get(), Tuple));
+    if(is_instance(typ.get(), Tuple)){
+        string field = "elem_" + std::to_string(key);
+        return StructValue::get(field);
+    } /* else if(auto struct_typ = dynamic_cast<Struct*>(typ.get())) {
+        auto elem_name = struct_typ->elems->at(key)->name;
+        return StructValue::get(elem_name);
+    } */
+    throw std::runtime_error("StructValue::get(int) should only be called on a tuple type");
 
-    string field = "elem_" + std::to_string(key);
-    return StructValue::get(field);
 }
 
 shared_ptr<StructValue> StructValue::set(string key, shared_ptr<SpecValue> value) {

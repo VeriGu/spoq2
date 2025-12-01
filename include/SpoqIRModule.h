@@ -1066,6 +1066,7 @@ namespace autov {
         static std::pair<unique_ptr<SpecNode>, unique_ptr<SpecNode>> gep_inst_to_spec(llvm::Value* gep_inst_or_expr, SpoqIRContext& context);
 
         static const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> binops_lut;
+        static const std::unordered_map<llvm::Instruction::UnaryOps, Expr::unops> unops_lut;
 
         static const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> bool_binops_lut;
 

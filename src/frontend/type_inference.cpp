@@ -336,6 +336,19 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                         expr->type = elem_type->elem_type;
                     } else if (dynamic_pointer_cast<Tuple>(expr->elems->at(0)->type)){
                         auto elem_type = dynamic_pointer_cast<Tuple>(expr->elems->at(0)->type);
+                        if(elem_type->elems->size() == 2){
+                            auto elem_0_type = expr->elems->at(0)->type;
+                            auto elem_1_type = expr->elems->at(1)->type;
+                            if (dynamic_pointer_cast<Int>(elem_1_type) && dynamic_pointer_cast<ZMap>(elem_0_type)) {
+                                // This is a tuple of form ((ZMap.t some_type) * Z)
+                                // This is the coq representation of an array.
+                                LOG_ERROR << "Unsupported Expr::Get operand. expr: " << string(*expr);
+                                LOG_ERROR << "Unsupported Expr::Get operand. Elem Type: " << string(*elem_type);
+                                throw std::runtime_error("Tuple in Expr::Get type inference - unsupported");
+                            }
+                        }
+                        LOG_ERROR << "Unsupported Expr::Get operand. expr: " << string(*expr);
+                        LOG_ERROR << "Unsupported Expr::Get operand. Elem Type: " << string(*elem_type);
                         throw std::runtime_error("Tuple in Expr::Get type inference - unsupported");
                     } else {
                         throw std::runtime_error("unsupported case in Expr::Get type inference - unsupported");

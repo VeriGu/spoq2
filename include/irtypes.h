@@ -73,7 +73,33 @@ public:
         return 1 << type;
     }
 };
+class FloatType: public IRType {
+public:
+    enum _FloatType {
+        TFloat = 0,
+        TDouble,
+    };
 
+    _FloatType type;
+
+    FloatType() = default;
+    FloatType(_FloatType type) : type(type) {};
+
+    string to_coq(void) const override {
+        switch (type) {
+        case TFloat:
+            return "TFloat";
+        case TDouble:
+            return "TDouble";
+        default:
+            throw std::runtime_error("Unknown FloatType");
+        }
+    }
+
+    coq_sz_t szof(void) const override {
+        return 1 << type;
+    }
+};
 class Ordering: public IRType {
     public:
     enum _Ordering {
@@ -164,7 +190,26 @@ public:
         return type.szof();
     }
 };
+class TFloating : public IRType {
+public:
+    static shared_ptr<TFloating> TFloat;
+    static shared_ptr<TFloating> TDouble;
 
+    FloatType type;
+
+    TFloating() = delete;
+
+    TFloating(FloatType type) : type(type) {};
+    TFloating(FloatType:: _FloatType type) : type(type) {};
+
+    string to_coq(void) const override {
+        return "(TFloating " + type.to_coq() + ")";
+    }
+
+    coq_sz_t szof(void) const override {
+        return type.szof();
+    }
+};
 class TVoid : public IRType {
 public:
     static shared_ptr<TVoid> TVOID;

@@ -529,7 +529,7 @@ void ExtractBasicsPass::generateFunctionStubs(llvm::Module &M) {
   
   fout.open(file, std::ios::out | std::ios::trunc);
   for( const llvm::Function &f: M.functions()){
-    if(f.isDeclaration() && f.hasName()){
+    if(f.hasName()){
       std::string s = buildDeclarationStub(f); 
       fout << s << std::endl;
     }

@@ -72,7 +72,20 @@ public:
     virtual shared_ptr<SpecValue> from_z3_value(z3::expr value) override;
     virtual shared_ptr<SpecValue> declare(string name, int nid) override;
 };
+class Float : public SpecType {
+public:
+    static shared_ptr<Float> FLOAT;
 
+    Float() : SpecType("Float") {}
+
+    shared_ptr<Float> getptr() {
+        return static_pointer_cast<Float>(shared_from_this());
+    }
+
+    virtual z3::sort get_z3_type() override;
+    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value) override;
+    virtual shared_ptr<SpecValue> declare(string name, int nid) override;
+};
 class String : public SpecType {
 public:
     static shared_ptr<String> STRING;
@@ -397,6 +410,7 @@ public:
     SpecValue(shared_ptr<SpecType> typ, long value, bool sign = false) : typ(typ), value(z3ctx.int_val(value)) {}
     SpecValue(shared_ptr<SpecType> typ, bool value) : typ(typ), value(z3ctx.bool_val(value)) {}
     SpecValue(shared_ptr<SpecType> typ, string value) : typ(typ), value(z3ctx.string_val(value.c_str())) {}
+    SpecValue(shared_ptr<SpecType> typ, double value) : typ(typ), value(z3ctx.fpa_val(value)) {}
     SpecValue(shared_ptr<SpecType> typ, z3::expr value) : typ(typ), value(value) {}
 
     shared_ptr<SpecType> get_type() { return typ; }
@@ -476,7 +490,35 @@ public:
     shared_ptr<BoolValue> gt(shared_ptr<IntValue> other) { return make_shared<BoolValue>((value > other->value).simplify()); }
     shared_ptr<BoolValue> ge(shared_ptr<IntValue> other) { return make_shared<BoolValue>((value >= other->value).simplify()); }
 };
+class FloatValue : public SpecValue {
+public:
+    FloatValue(double value) : SpecValue(Float::FLOAT, value) {}
+    FloatValue(z3::expr value) : SpecValue(Float::FLOAT, value) {}
 
+
+    // shared_ptr<FloatValue> neg() { return make_shared<FloatValue>((-value).simplify()); }
+    // shared_ptr<FloatValue> add(shared_ptr<FloatValue> other) { return make_shared<FloatValue>((value + other->value).simplify()); }
+    // shared_ptr<FloatValue> sub(shared_ptr<FloatValue> other) { return make_shared<FloatValue>((value - other->value).simplify()); }
+    // shared_ptr<FloatValue> mul(shared_ptr<FloatValue> other) { return make_shared<FloatValue>((value * other->value).simplify()); }
+    // shared_ptr<FloatValue> div(shared_ptr<FloatValue> other) { return make_shared<FloatValue>((value / other->value).simplify()); }
+    // shared_ptr<FloatValue> mod(shared_ptr<FloatValue> other) {return make_shared<FloatValue>((value % other->value).simplify()); }
+    // shared_ptr<FloatValue> shiftl(shared_ptr<FloatValue> other) { return make_shared<FloatValue>(( value * z3::pw(2, other->value)).simplify()); }
+    // shared_ptr<FloatValue> shiftr(shared_ptr<FloatValue> other) { return make_shared<FloatValue>(( value / z3::pw(2, other->value)).simplify()); }
+    // shared_ptr<FloatValue> xorb(shared_ptr<FloatValue> other) { return make_shared<FloatValue>((value ^ other->value).simplify()); }
+    // shared_ptr<FloatValue> land(shared_ptr<FloatValue> other) { return make_shared<FloatValue>(land_func(value, other->value)); }
+    // shared_ptr<FloatValue> lor(shared_ptr<FloatValue> other) { return make_shared<FloatValue>(lor_func(value, other->value)); }
+    // shared_ptr<FloatValue> lxor(shared_ptr<FloatValue> other) { return make_shared<FloatValue>(lxor_func(value, other->value)); }
+    // shared_ptr<FloatValue> lnot() { return make_shared<FloatValue>(lnot_func(value)); }
+    // shared_ptr<FloatValue> setbit(shared_ptr<FloatValue> other) { return make_shared<FloatValue>(setbit_func(value, other->value)); }
+    // shared_ptr<FloatValue> clearbit(shared_ptr<FloatValue> other) { return make_shared<FloatValue>(clearbit_func(value, other->value)); }
+    // shared_ptr<BoolValue> testbit(shared_ptr<FloatValue> other) { return make_shared<BoolValue>(testbit_func(value, other->value)); }
+    // shared_ptr<BoolValue> eq(shared_ptr<FloatValue> other) { return make_shared<BoolValue>((value == other->value).simplify()); }
+    // shared_ptr<BoolValue> ne(shared_ptr<FloatValue> other) { return make_shared<BoolValue>((value != other->value).simplify()); }
+    // shared_ptr<BoolValue> lt(shared_ptr<FloatValue> other) { return make_shared<BoolValue>((value < other->value).simplify()); }
+    // shared_ptr<BoolValue> le(shared_ptr<FloatValue> other) { return make_shared<BoolValue>((value <= other->value).simplify()); }
+    // shared_ptr<BoolValue> gt(shared_ptr<FloatValue> other) { return make_shared<BoolValue>((value > other->value).simplify()); }
+    // shared_ptr<BoolValue> ge(shared_ptr<FloatValue> other) { return make_shared<BoolValue>((value >= other->value).simplify()); }
+};
 class StringValue : public SpecValue {
 public:
     StringValue(string value) : SpecValue(String::STRING, value) {}

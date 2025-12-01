@@ -56,6 +56,11 @@ const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> SpoqIRModul
     {llvm::Instruction::BinaryOps::And, Expr::binops::BITAND},
     {llvm::Instruction::BinaryOps::Or, Expr::binops::BITOR},
     // FIXME: {llvm::Instruction::BinaryOps::Xor, Expr::binops::BITOR},
+    {llvm::Instruction::BinaryOps::FMul, Expr::binops::FMUL},
+    {llvm::Instruction::BinaryOps::FAdd, Expr::binops::FADD},
+    {llvm::Instruction::BinaryOps::FSub, Expr::binops::FSUB},
+    {llvm::Instruction::BinaryOps::FDiv, Expr::binops::FDIV},
+    {llvm::Instruction::BinaryOps::FRem, Expr::binops::FREM},
 };
 
 const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> SpoqIRModule::bool_binops_lut = {
@@ -63,6 +68,9 @@ const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> SpoqIRModul
     {llvm::Instruction::BinaryOps::Or, Expr::binops::BOR},
 };
 
+const std::unordered_map<llvm::Instruction::UnaryOps, Expr::unops> SpoqIRModule::unops_lut = {
+    {llvm::Instruction::UnaryOps::FNeg, Expr::unops::FNEG},
+};
 
 const std::unordered_map<llvm::CmpInst::Predicate, Expr::binops> SpoqIRModule::cmpops_lut = {
     {llvm::CmpInst::Predicate::ICMP_EQ, Expr::binops::BEQ},
@@ -76,7 +84,9 @@ const std::unordered_map<llvm::CmpInst::Predicate, Expr::binops> SpoqIRModule::c
     {llvm::CmpInst::Predicate::ICMP_UGT, Expr::binops::BGT},
     {llvm::CmpInst::Predicate::ICMP_UGE, Expr::binops::BGE},
     {llvm::CmpInst::Predicate::ICMP_ULT, Expr::binops::BLT},
-    {llvm::CmpInst::Predicate::ICMP_ULE, Expr::binops::BLE}
+    {llvm::CmpInst::Predicate::ICMP_ULE, Expr::binops::BLE},
+    // Floating Point
+    {llvm::CmpInst::Predicate::FCMP_OEQ, Expr::binops::FOEQ},
 };
 
 
@@ -208,8 +218,10 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
                     }
                     return spec;
                 }
-            } else if(value->getType()->isFloatTy() || value->getType()->isDoubleTy()){
-                throw std::runtime_error("Floating point constants are unsupported.");
+            } else if(auto *float_val = llvm::dyn_cast<llvm::ConstantFP>(data)){
+                auto apfloat = float_val->getValue();
+                auto spec = std::make_unique<FloatConst>(apfloat.convertToDouble());
+                return spec;
             }else if(auto ptr_null = llvm::dyn_cast<llvm::ConstantPointerNull>(data)) {
                 auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
                 vec->push_back(std::make_unique<StringConst>("null"));
@@ -369,6 +381,8 @@ shared_ptr<SpecType> SpoqIRModule::llvm_ir_type_to_spec_pure(llvm::Type* type) {
         return Bool::BOOL;
     } else if(type->isIntegerTy()) {
         return Int::INT;
+    } else if(type->isFloatingPointTy()){
+        return Float::FLOAT;
     } else if (type->isPointerTy()) {
         return Struct::Ptr;
     } else if (type->isVoidTy()) {
@@ -516,6 +530,9 @@ SpoqIRModule::store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context
         else if (value_type->isPointerTy()) {
             children->push_back(context.get_llvm_value_spec_ptr_in_Z(load));
         }
+        else if (value_type->isFloatingPointTy()){
+            children->push_back(context.get_llvm_value_spec(load, nullptr, false));
+        }
         else {
             assert(false && "load value type not supported");
         }
@@ -537,7 +554,9 @@ SpoqIRModule::store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context
             vec->push_back(std::move(value_op));
             // TODO: pointer abstraction here
             operands->push_back(std::make_unique<Expr>(context.ptr2int_op_name, std::move(vec)));
-        } else {
+        } else if (value_type->isFloatingPointTy() ){
+            operands->push_back(std::move(value_op));
+        }else {
             llvm::errs() << "store inst:" << *store << "\n";
             llvm::errs() << "store value type: " << *value_type << "\n";
             assert(false && "store value type not supported");
@@ -688,13 +707,12 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     operands->push_back(std::move(expr));
                     expr = std::make_unique<Expr>(Expr::ops::BNOT, std::move(operands));
                 }
-            }
-            else if(cmpops_lut.find(cmp->getPredicate()) != cmpops_lut.end()) {
+            } else if(cmpops_lut.find(cmp->getPredicate()) != cmpops_lut.end()) {
                 expr = std::make_unique<Expr>(cmpops_lut.at(cmp->getPredicate()), std::move(operands));
             }
             if (expr == nullptr) {
-                llvm::errs() << "Binary operation not supported: " << *cmp << "\n";
-                assert(false && "Binary operation not supported");
+                llvm::errs() << "Binary Cmp operation not supported: " << *cmp << "\n";
+                assert(false && "Binary Cmp operation not supported");
             }
             unique_ptr<SpecNode> sym = context.get_llvm_value_spec(cmp);
             context.add_cache(context.get_llvm_value_name(cmp), expr);
@@ -881,6 +899,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
             operands->push_back(context.get_llvm_value_spec(gep->getPointerOperand()));
             operands->push_back(std::move(expr));
+            LOG_DEBUG << "Making ptr offset, operand 0:" << string(*operands->at(0)) << ", operand 1:" << string(*operands->at(1));
             expr = std::make_unique<Expr>(context.ptr_off_op_name, std::move(operands));
             expr->type = Struct::Ptr;
             auto sym = context.get_llvm_value_spec(gep);
@@ -959,6 +978,15 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             } else if (src->isIntegerTy() && dst->isFloatTy()) {
                 llvm::errs() << "Unsupported SpoqIR instruction [LLVM]: " << *spoq_inst->inst << "\n";
                 throw std::runtime_error("Int-> float cast unsupported.");
+            } else if (src->isFloatingPointTy() && dst->isFloatingPointTy()) {
+                // For now ignore precision limits, double -> float will be a no-op.
+                auto sym = context.get_llvm_value_spec(bc);
+                auto expr = context.get_llvm_value_spec(bc->getOperand(0));
+                context.add_cache(context.get_llvm_value_name(bc), expr);
+                return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
+            } else {
+                llvm::errs() << "Unsupported SpoqIR Cast instruction [LLVM]: " << *spoq_inst->inst << "\n";
+                assert(false && "Unsupported SpoqIR Cast instruction [LLVM]");
             }
         }
 
@@ -969,7 +997,14 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             // TODO: sanity check
             return spoq_inst_to_spec(proj, vec, num + 1, context);
         }
-
+        if (auto un = llvm::dyn_cast<llvm::UnaryOperator>(spoq_inst->inst)) {
+            auto operand = context.get_llvm_value_spec(un->getOperand(0));
+            auto args = std::make_unique<vector<unique_ptr<SpecNode>>>();
+            args->push_back(std::move(operand));
+            auto op = unops_lut.at(un->getOpcode());
+            auto spec = std::make_unique<Expr>(op, std::move(args));
+            return spec;
+        }
         llvm::errs() << "Unsupported SpoqIR instruction [LLVM]: " << *spoq_inst->inst << "\n";
         assert(false && "Unsupported SpoqIR instruction [LLVM]");
     } else if (auto inst = Shortcut::dyn_cast_u<SpoqIfInst>(vec[num])) {
