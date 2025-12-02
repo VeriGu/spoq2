@@ -33,15 +33,22 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
         auto original_size = func.size();
         auto name = func.getName().str();
         if (name == "init_el2_data_page") continue;
-        if (name == "zif_exif_read_data_vuln") continue;
-        if (name == "zif_exif_read_data_patch") continue;
-        if (name == "exif_discard_imageinfo_vuln") continue;
-        if (name == "exif_discard_imageinfo_patch") continue;
-        if (name == "zif_exif_thumbnail_vuln") continue;
-        if (name == "zif_exif_thumbnail_patch") continue;
+        // if (name == "zif_exif_read_data_vuln") continue;
+        // if (name == "zif_exif_read_data_patch") continue;
+        // if (name == "exif_discard_imageinfo_vuln") continue;
+        // if (name == "exif_discard_imageinfo_patch") continue;
+        // if (name == "zif_exif_thumbnail_vuln") continue;
+        // if (name != "zif_exif_thumbnail_patch") continue;
         SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs[name];
         spoq_func.llvm_func = &func; // llvm_func;
-        bool ret = control_flow_conversion_v2(name, spoq_func);
+        bool ret = false;
+        try {
+            ret = control_flow_conversion_v2(name, spoq_func);
+        } catch (const std::runtime_error& e) { 
+            std::cout << "error: " << e.what() << std::endl;
+            spoq_func.spoq_insts.clear();
+            spoq_func.stub = true;
+        }
         if(ret) {
             succ++;
             func_stats.emplace_back(original_size, func.size());
@@ -119,7 +126,12 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
     }
     args->push_back(make_shared<Arg>(context.abs_data_name, context.abs_data_type));
 
-    unique_ptr<SpecNode> spec = proj->spoq_code.spoq_inst_to_spec(proj, spoq_func.spoq_insts, 0, context);
+    unique_ptr<SpecNode> spec;
+    if (!spoq_func.stub) {
+        spec = proj->spoq_code.spoq_inst_to_spec(proj, spoq_func.spoq_insts, 0, context);
+    } else {
+        spec = std::make_unique<Symbol>("None");
+    }
 
     if(proj->cmds.InitRely.find(fname) != proj->cmds.InitRely.end()) {
         for(auto & f : proj->cmds.InitRely[fname])
@@ -158,6 +170,7 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
 
     for (auto &spec_name: low_specs) {
         LOG_INFO << "Generated low spec: " << spec_name;
+        std::cout << string(*proj->defs[spec_name]) << std::endl;
         // LOG_INFO << string(*proj->defs[spec_name]).substr(0,100);
     }
 

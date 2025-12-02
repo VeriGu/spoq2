@@ -570,6 +570,8 @@ namespace autov {
 
         spoq_inst_vec_t spoq_insts;
         bool spoq_insts_converted = false;
+
+        bool stub = false;
     };
 
      class SpoqIRContext {

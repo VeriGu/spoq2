@@ -70,6 +70,9 @@ bool SpoqIRModule::control_flow_duplicate(llvm::BasicBlock *bb,
 }
 
 bool SpoqIRModule::control_flow_clone_and_split(llvm::BasicBlock *bb, SpoqLoopContext &context) {
+    if (bb->getParent()->getBasicBlockList().size() > 5000) 
+        throw std::runtime_error("block size too large");
+
     if (bb == context.get_postheader()) return true;
     if (auto target = context.require_jump(bb))  {
         return control_flow_clone_and_split(target, context);
@@ -145,12 +148,15 @@ bool SpoqIRModule::control_flow_elinminate_select(llvm::Function* func) {
 }
 
 bool SpoqIRModule::control_flow_conversion_DAG(string fname, SpoqFunction &spoq_func, SpoqLoopContext& context) {
+    std::cout << "function: " << fname << " " << spoq_func.llvm_func->getBasicBlockList().size() << std::endl;
     
 
     context.init(spoq_func.llvm_func);
     bool state = false;
     while (context.step()) {
+        std::cout << "step: " << context.get_step_count() << std::endl;
         state = control_flow_clone_and_split(context.get_start(), context);
+        std::cout << "clone ok:" << state << std::endl;
         if (!state) return false;
 
         std::vector<llvm::Instruction *> to_erase;
@@ -179,6 +185,7 @@ bool SpoqIRModule::control_flow_conversion_DAG(string fname, SpoqFunction &spoq_
             inst->eraseFromParent();
         }
     }
+    std::cout << "step after clone and split: " << context.get_step_count() << std::endl;
 
     context.init(spoq_func.llvm_func);
     while(context.step()) {
@@ -238,7 +245,6 @@ bool SpoqIRModule::control_flow_conversion_v2(string fname,
     llvm::LoopInfo &LI = FAM.getResult<llvm::LoopAnalysis>(*llvm_func);
     SpoqLoopContext& context = spoq_func.loop_context;
     if (!LI.empty()) {
-
         auto loops = LI.getLoopsInPreorder();
         // llvm::errs() << "function with loop: " << fname << " " << llvm_func->getBasicBlockList().size() << "\n";
         // Start from the outter loop first
