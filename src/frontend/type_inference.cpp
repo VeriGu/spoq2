@@ -337,21 +337,21 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                     } else if (dynamic_pointer_cast<Tuple>(expr->elems->at(0)->type)){
                         auto elem_type = dynamic_pointer_cast<Tuple>(expr->elems->at(0)->type);
                         if(elem_type->elems->size() == 2){
-                            auto elem_0_type = expr->elems->at(0)->type;
-                            auto elem_1_type = expr->elems->at(1)->type;
+                            auto elem_0_type = elem_type->elems->at(0)->type;
+                            auto elem_1_type = elem_type->elems->at(1)->type;
                             if (dynamic_pointer_cast<Int>(elem_1_type) && dynamic_pointer_cast<ZMap>(elem_0_type)) {
                                 // This is a tuple of form ((ZMap.t some_type) * Z)
                                 // This is the coq representation of an array.
                                 LOG_ERROR << "Unsupported Expr::Get operand. expr: " << string(*expr);
                                 LOG_ERROR << "Unsupported Expr::Get operand. Elem Type: " << string(*elem_type);
-                                throw std::runtime_error("Tuple in Expr::Get type inference - unsupported");
+                                throw TypeInferenceException("Tuple in Expr::Get type inference - unsupported");
                             }
                         }
                         LOG_ERROR << "Unsupported Expr::Get operand. expr: " << string(*expr);
                         LOG_ERROR << "Unsupported Expr::Get operand. Elem Type: " << string(*elem_type);
-                        throw std::runtime_error("Tuple in Expr::Get type inference - unsupported");
+                        throw TypeInferenceException("Tuple in Expr::Get type inference - unsupported");
                     } else {
-                        throw std::runtime_error("unsupported case in Expr::Get type inference - unsupported");
+                        throw TypeInferenceException("unsupported case in Expr::Get type inference - unsupported");
                     }
                     break;
                 }
@@ -662,15 +662,13 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                         spec->tmp = typ;
                     }
 
-                    if (n < expr->elems->size()) {
-                        auto typ = dynamic_pointer_cast<Function>(spec->tmp);
-
+                    auto typ = dynamic_pointer_cast<Function>(spec->tmp);
+                    // The expr and typ args may correctly have different sizes if the function is varargs
+                    if (n < expr->elems->size() && typ->args->size() > n) {
                         expr->elems->at(n)->type = typ->args->at(n);
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(n).get(), 0, known_types));
                     } else {
-                        auto typ = dynamic_pointer_cast<Function>(spec->tmp);
-
                         expr->type = typ->rettype;
                         spec->tmp.reset();
                     }
@@ -684,7 +682,7 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                     }
                 } else {
                     // TODO: better error message
-                    throw std::runtime_error("unknown expr op " + string(*expr).substr(0,400));
+                    throw TypeInferenceException("unknown expr op " + string(*expr).substr(0,400));
                 }
             } else if (holds_alternative<unique_ptr<SpecNode>>(expr->op)) {
                 auto op = std::get<unique_ptr<SpecNode>>(expr->op).get();

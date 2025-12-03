@@ -1467,4 +1467,8 @@ public:
     shared_ptr<IRLoader::IRModule> load_module();
 };
 
+class TypeInferenceException : public std::runtime_error {
+    public:
+    TypeInferenceException(std::string s): std::runtime_error(s) {}
+};
 }// namespace autov

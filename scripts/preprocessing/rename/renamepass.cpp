@@ -136,9 +136,20 @@ bool RenamePass::renameAll(llvm::Module &M) {
   std::string suffix = getSuffix(M);
   // Rename global variables:
   changes["globals"] = llvm::json::Object();
+  changes["global_constants"] = llvm::json::Object();
+  changes["globals_excluded_by_spoq"] = llvm::json::Object();
   auto globals_plan = (*renaming_plan.getAsObject())["globals"];
   for(auto &gv: M.globals()) {
     std::string old_name = gv.getName().str();
+
+    // We want to exclude constant strings:
+    // e.g. @.str.67 = private unnamed_addr constant [25 x i8] c"exif.decode_jis_motorola\00", align 1
+    if(gv.isConstant()){
+      (*changes["global_constants"].getAsObject())["@" + old_name] = true;
+    }
+    if(gv.isDeclaration()){
+      (*changes["globals_excluded_by_spoq"].getAsObject())["@" + old_name] = true;
+    }
     auto to_rename = globals_plan.getAsObject()->getString("@" + old_name);
     // Three possibilities: 'delete_duplicate' 'rename', 'no_change'
     if (!to_rename.hasValue()) {

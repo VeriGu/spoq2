@@ -1,4 +1,5 @@
 import json
+from typing import Any, Optional
 import matplotlib.pyplot as plt
 import queue
 import sys
@@ -13,12 +14,11 @@ parser.add_argument("ir", type=str, help="The IR (Json) file path.")
 parser.add_argument("predefined", type=str, help="The top-bottom layer (Json) file path. "\
                     "It contains a json object {\"top\": [\"func1\"], \"bottom\": [\"func2\", \"func3\"]}")
 parser.add_argument("components", nargs="*", type=str, help="Additional file paths")
+parser.add_argument("--dump-funcs", action='store_true', required=False, default=False)
 args = parser.parse_args()
 
 DEBUG = 1
 IR_JSON_PATH = args.ir
-print(args.ir, sys.stderr)
-print(args.predefined, sys.stderr)
 
 with open(args.predefined, "r") as f:
   predefined = json.load(f)
@@ -31,7 +31,7 @@ with open(args.predefined, "r") as f:
 
 def debug(*value):
   if DEBUG:
-   print(*value)
+   print(*value, file=sys.stderr)
 
 class Config:
   def __init__(self):
@@ -49,9 +49,13 @@ class Config:
   def set_bottom(self, bottom):
     self.bottom = copy.deepcopy(bottom)
 
-  def dump_config(self, filepath):
+  def dump_config(self, filepath, funcs: Optional[dict[str,Any]]=None):
     with open(filepath, "w+") as f:
-      json.dump(self.layer_map, fp = f, indent=4)
+      if funcs:
+        filtered_funcs = {k: {k2: funcs[k][k2] for k2 in funcs[k] if k2 in ["pres", "sucs", "entry", "fname", "args", "rettype", "is_declaration"]} for k in funcs}
+        json.dump({"layer_map": self.layer_map, "funcs": filtered_funcs}, fp = f, indent=4)  
+      else:
+        json.dump(self.layer_map, fp = f, indent=4)
 
   def print_layer(self, id, layer):
     layer_name = "Layer" + str(id)
@@ -306,9 +310,10 @@ class Generator:
       reachable.append(fname)
 
     while not q.empty():
-      fname = q.get()
+      fname: str = q.get()
       # a function only accessed by Bottom is not needed here.
-      if fname in sink:
+      # Hack by Raphael, don't ignore renamed functions
+      if fname in sink and not fname.endswith(("_vuln", "_patch")):
         continue
       for suc in self.funcs[fname]["sucs"]:
         if suc not in reachable:
@@ -439,7 +444,7 @@ class Generator:
     config.reachable = self.compute_reachable(config.top, config.bottom)
     
     steps = self.get_topological_steps(config.top, config.bottom, config.reachable)
-    debug(steps)
+    debug("Steps: ", steps)
     debug(config.name, "have", len(config.reachable), "reachable functions")
 
     config.layer, config.layer_map = self.compute_layers(config.top, config.bottom, steps)
@@ -454,7 +459,7 @@ def run():
   generator = Generator()
   generator.read_json_and_analyze(IR_JSON_PATH)
   config = generator.compute_config(top = predefined["top"], bottom = predefined["bottom"])
-  config.dump_config(IR_JSON_PATH.split("/")[-1][:-4] + "gen" + "." + config.name + ".json")
+  config.dump_config(IR_JSON_PATH.split("/")[-1][:-4] + "gen" + "." + config.name + ".json", funcs=(generator.funcs if args.dump_funcs else None))
   debug(len(generator.inline_asm_calls), " inline asm calls are ignored")
   debug(len(generator.fptr_calls), " function pointer calls are ignored")
   debug(len(generator.fptr_arguments), " functions pointer in arguments")

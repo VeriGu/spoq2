@@ -168,7 +168,7 @@ void Project::add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc) 
     // LOG_DEBUG << "Adding definition " << name;
     try {
         def_->infer_type(*this);
-    } catch (std::exception &e) {
+    } catch (TypeInferenceException &e) {
         LOG_DEBUG << "Failed to infer type for " << name << ": " << e.what() <<". Delaying inference." << std::endl;
         def_->deleyed_type_inference = true;
     }

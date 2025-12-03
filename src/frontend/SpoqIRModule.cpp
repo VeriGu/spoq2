@@ -130,6 +130,7 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
     if (!spoq_func.stub) {
         spec = proj->spoq_code.spoq_inst_to_spec(proj, spoq_func.spoq_insts, 0, context);
     } else {
+        LOG_WARNING << "Function " << spoq_func.llvm_func->getName().str() << " is a stub returning None.";
         spec = std::make_unique<Symbol>("None");
     }
 
@@ -170,7 +171,6 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
 
     for (auto &spec_name: low_specs) {
         LOG_INFO << "Generated low spec: " << spec_name;
-        std::cout << string(*proj->defs[spec_name]) << std::endl;
         // LOG_INFO << string(*proj->defs[spec_name]).substr(0,100);
     }
 

@@ -2650,6 +2650,7 @@ rule_ret_t SpecRules::rule_eliminate_let(std::unique_ptr<SpecNode> spec, bool re
                         SpecNode* value = m->src.get();
                         auto body = std::move(m->match_list->at(0)->body);
                         bool succ = false;
+                        // LOG_DEBUG << "body: " << string(*body);
                         auto new_e = subst(std::move(body), name, value, succ);
                         changed = true;
                         return new_e;

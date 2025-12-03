@@ -95,12 +95,14 @@ std::string ExtractBasicsPass::generateStoreZMapField(std::string obj, int offse
   int element_size = dl->getTypeAllocSize(ety);
   result =  "  if (ofs >=? " + std::to_string(offset) + ") && (ofs <? " + std::to_string(offset + size) + ") then (\n";
   result += "    let idx := (ofs - " + std::to_string(offset) + ") / " + std::to_string(element_size) + " in\n";
+  result += "    let (arr, arr_len) := (" + obj + ".(" + field + ")) in\n";
+
   if( ety->isIntegerTy() || ety->isPointerTy() ) {
-    result += "    Some (" + obj + ".[" + field + "] :< (st.(" + field + ") # idx == v))) else";
+    result += "    Some (" + obj + ".[" + field + "] :< ((arr # idx == v), arr_len))) else";
   } else if(auto sty = llvm::dyn_cast<llvm::StructType>(ety)){
     result += "    let elem_ofs := (ofs - " + std::to_string(offset) + ") mod " + std::to_string(element_size) + " in\n";
-    result += "    when ret == store_" + getStructTypeIdentifier(sty, false) + " sz elem_ofs v (" + obj + ".(" + field + ") @ idx);\n";
-    result += "    Some (" + obj + ".[" + field + "] :< (st.(" + field +") # idx == ret))) else ";
+    result += "    when ret == store_" + getStructTypeIdentifier(sty, false) + " sz elem_ofs v (arr @ idx);\n";
+    result += "    Some (" + obj + ".[" + field + "] :< ((arr # idx == ret), arr_len))) else ";
   } else {
     result =  "  if (ofs >=? " + std::to_string(offset) + ") && (ofs <? " + std::to_string(offset + size) + ") then (\n";
     result += "    None (* nested vector not supported *) ) else ";
@@ -191,11 +193,12 @@ std::string ExtractBasicsPass::generateLoadZMapField(std::string obj, int offset
   int element_size = dl->getTypeAllocSize(ety);
   result =  "  if (ofs >=? " + std::to_string(offset) + ") && (ofs <? " + std::to_string(offset + size) + ") then (\n";
   result += "    let idx := (ofs - " + std::to_string(offset) + ") / " + std::to_string(element_size) + " in\n";
+  result += "    let (arr, arr_len) := (" + obj + ".(" + field + ")) in\n";
   if( ety->isIntegerTy() || ety->isPointerTy() ) {
-    result += "    Some (" + obj + ".(" + field + ") @ idx)) else";
+    result += "    Some (arr @ idx)) else";
   } else if(auto sty = llvm::dyn_cast<llvm::StructType>(ety)){
     result += "    let elem_ofs := (ofs - " + std::to_string(offset) + ") mod " + std::to_string(element_size) + " in\n";
-    result += "    load_"+ getStructTypeIdentifier(sty, false) +" sz elem_ofs (" + obj + ".(" + field + ") @ idx)) else";
+    result += "    load_"+ getStructTypeIdentifier(sty, false) +" sz elem_ofs (arr @ idx)) else";
   } else {
     result =  "  if (ofs >=? " + std::to_string(offset) + ") && (ofs <? " + std::to_string(offset + size) + ") then (\n";
     result += "    None (* nested vector not supported *) ) else ";
@@ -458,20 +461,20 @@ void ExtractBasicsPass::generateRecordForStruct(llvm::Module &M) {
 }  
 
 std::string ExtractBasicsPass::buildDeclarationStub(const llvm::Function &f){
-  std::string result = "Parameter ";
   // Here the args include the return type, because
   // at the z3 level the return value is just another argument.
   std::vector<std::string> arg_types;
   auto name = f.getName().str();
   std::replace(name.begin(), name.end(), '.', '_');
   std::replace(name.begin(), name.end(), ':', '_');
-
-  result = result + name + "_spec : ";
+  name = name + "_spec";
   for(auto &a: f.args()){
     auto t = a.getType();
     auto ty_str = generateField(t, true);
     arg_types.push_back(ty_str);
   }
+  // Create a vararg specific declaration here?
+  // if (f.isVarArg()){ }
   auto retty = f.getReturnType();
 
   // Add an extra argument for the state before the function call
@@ -485,12 +488,32 @@ std::string ExtractBasicsPass::buildDeclarationStub(const llvm::Function &f){
   }
   // The result should be of the form (A -> (B -> C)),
   // so open parens between each element and close them all at the end
+  std::string arg_str = "";
   std::string end_str = "";
   for (auto ty_str: arg_types){
-    result = result + "(" + ty_str + "-> ";
+    arg_str = arg_str + "(" + ty_str + "-> ";
     end_str = end_str + ")";
   }
-  result = result + "(" + retty_str + end_str + ").";
+    
+  std::string result;
+  // If the function is not actually a declaration, we will also need a Definition
+  if (f.isDeclaration()){
+    result = "Parameter " + name + " : " + arg_str + "(" + retty_str + end_str + ").";  
+  } else {
+    result = "Parameter " + name + "_oracle : " + arg_str + "(" + retty_str + end_str + ").\n";
+    std::string arg_str = "";
+    std::string param_str = "";
+    size_t idx = 0;
+    for (auto ty_str: arg_types){
+      arg_str = arg_str + "(p_" + std::to_string(idx) + ": " + ty_str + ") ";
+      param_str = param_str + "p_" + std::to_string(idx) + " ";
+      idx++;
+    }
+    result = result + "Definition " + name + " " + arg_str + ": "  + retty_str + " := (" + name + "_oracle " + param_str + ").\n";
+    result = result + "Definition " + name + "_low " + arg_str + ": "  + retty_str + " := (" + name + "_oracle " + param_str + ").";
+  }
+  
+
   return result;
 }
 

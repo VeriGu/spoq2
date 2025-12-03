@@ -574,8 +574,11 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
     if(num >= vec.size()) { 
         return construct_return_spec(proj, context);
     }
+         
+
 
     if (auto spoq_inst = Shortcut::dyn_cast_u<SpoqLLVMInst>(vec[num])) {
+        // LOG_DEBUG << (spoq_inst->get_llvm_inst()->getOpcodeName());
 
         // Terminator
         if (auto ret = llvm::dyn_cast<llvm::ReturnInst>(spoq_inst->inst)) {
@@ -899,7 +902,6 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
             operands->push_back(context.get_llvm_value_spec(gep->getPointerOperand()));
             operands->push_back(std::move(expr));
-            LOG_DEBUG << "Making ptr offset, operand 0:" << string(*operands->at(0)) << ", operand 1:" << string(*operands->at(1));
             expr = std::make_unique<Expr>(context.ptr_off_op_name, std::move(operands));
             expr->type = Struct::Ptr;
             auto sym = context.get_llvm_value_spec(gep);

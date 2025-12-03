@@ -563,8 +563,17 @@ public:
 
     shared_ptr<SpecValue> call(vector<shared_ptr<SpecValue>> args) {
         vector<z3::expr> z3_args;
+        
         for (const auto &arg : args) {
             z3_args.push_back(arg->get_z3_value());
+            // A hack to not crash on unsupported varargs stubs
+            if(z3_args.size() == z3_func.arity()){
+                if(args.size() > z3_args.size()){
+                    z3_args.pop_back();
+                    z3_args.push_back(args.at(args.size()-1)->get_z3_value());
+                }
+                break;
+            }
         }
         return static_pointer_cast<Function>(typ)->rettype->from_z3_value(z3_func(z3_args.size(), z3_args.data()));
     }

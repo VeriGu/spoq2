@@ -129,6 +129,10 @@ Global Coercion BinaryOp : binary_op >-> expr_op.
 Global Coercion UnaryOp : unary_op >-> expr_op.
 Global Coercion InstOp : inst_op >-> expr_op.
 
+Inductive VFloatingPoint : Type := 
+| NaN
+| FP (exp: Z) (mant: Z)
+
 Inductive value : Type :=
 | UNSUPPORTED_VALUE
 | VUndef
@@ -137,6 +141,7 @@ Inductive value : Type :=
 | VGlobal (name: string)
 | VLocal (name: string)
 | VInt (val: Z)
+| VFloat (fp: VFloatingPoint)
 | VBool (b: bool)
 | VPtr (val: Ptr)
 | VExpr (ty: typ) (op: expr_op) (operands: value_list)

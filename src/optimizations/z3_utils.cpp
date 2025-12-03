@@ -14,7 +14,7 @@
 #include <utils.h>
 #include <rules.h>
 #include <chrono>
-
+#include <bit>
 #include "z3_pcache.hpp"
 #include <profile.h>
 #include <cmd.h>
@@ -1657,6 +1657,11 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             return make_shared<BoolValue>(*boolc);
         } else if (auto strc = std::get_if<string>(&con->value)) {
             return make_shared<StringValue>(*strc);
+        } else if (auto doublec = std::get_if<double>(&con->value)) {
+            //return make_shared<FloatValue>(*doublec);
+            // Bit casting will do for now until we handle
+            // making store_RData work for floats
+            return make_shared<IntValue>((long) (*doublec), true);
         }
     } else if (auto expr = instance_of(val, Expr)) {
         vector<shared_ptr<SpecValue>> elems;
