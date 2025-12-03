@@ -43,7 +43,7 @@ namespace autov
 	};
 	std::ostream& operator<<(std::ostream& out, const SimulateResult& r);
     SimulateResult simulate_by_traverse(Project *proj, SpecNode *spec,
-                                        SpecNode *impl, Definition *rel,
+                                        SpecNode *impl, Definition *rel, Definition *ret_rel,
                                         shared_ptr<ProveState> state, path_t p,
                                         bool det);
     std::pair<bool,bool> check_branch_plausibility(autov::Project *proj,

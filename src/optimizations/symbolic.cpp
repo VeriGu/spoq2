@@ -1256,31 +1256,40 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
 	SpecNode* vuln_body = nullptr, *patched_body = nullptr;
     vuln_body = vuln_def->body.get();
     patched_body = subst_v2(proj, patched_def->body->deep_copy(), patched_def->args->back()->name, 
-        make_unique<Symbol>(Symbol(sim_state_name, last_arg->type))).release();
+        st_sym_2->deep_copy()).release();
     LOG_DEBUG << "subst Patched body: " << z3_eval(proj, patched_body, state)->value.to_string();;
 
-    unique_ptr<std::vector<unique_ptr<SpecNode>>> ret_rel_elems = make_unique<vector<unique_ptr<SpecNode>>>();
+    field_t ret_rel_names;
+    unique_ptr<vector<shared_ptr<Arg>>> ret_rel_args = make_unique<vector<shared_ptr<Arg>>>();
+    unique_ptr<SpecNode> ret_rel_uniq = make_unique<BoolConst>(true);
     // Next, we need to handle the return value relation.
+    // We have been given an expr, and we need a Definition
     // Check if the function target is void-typed
     if(vuln_def->rettype->name == "Option_RData") {
         // No action necessary as there is no return value to relate.
-        ret_rel_elems->push_back(make_unique<BoolConst>(true));
+        // ret_rel = make_unique<BoolConst>(true).release();
     } else {
-        field_t ret_rel_names;
-        ret_rel_names.push_back("vuln_ret");
-        ret_rel_names.push_back("patch_ret");
-        std::vector<std::unique_ptr<SpecNode>> ret_rel_values;
+        auto option_ret = dynamic_pointer_cast<Option>(vuln_def->rettype);
+        auto tuple_ty = dynamic_pointer_cast<Struct>(option_ret->elem_type);
+        auto inner_val_ty = tuple_ty->elems->at(0)->type;
+        // ret_rel_elems->push_back(ret_rel->deep_copy());
+        auto vuln_arg = make_shared<Arg>("vuln_ret", inner_val_ty);
+        auto patch_arg = make_shared<Arg>("patch_ret", inner_val_ty);
+        ret_rel_args->push_back(vuln_arg);
+        ret_rel_args->push_back(patch_arg);
+        
+        ret_rel_uniq = ret_rel->deep_copy();
+        // ret_rel_values.push_back(vuln_body->deep_copy());
+        // ret_rel_values.push_back(patched_body->deep_copy());
 
-        ret_rel_values.push_back(vuln_body->deep_copy());
-        ret_rel_values.push_back(patched_body->deep_copy());
-
-        auto new_ret_rel = subst_v2(proj, ret_rel->deep_copy(), &ret_rel_names, &ret_rel_values);
-        ret_rel_elems->push_back(std::move(new_ret_rel));
+        // auto new_ret_rel = subst_v2(proj, ret_rel->deep_copy(), &ret_rel_names, &ret_rel_values);
+        // ret_rel_elems->push_back(std::move(new_ret_rel));
     }
-    ret_rel_elems->push_back(rel_post->body->deep_copy());
-    unique_ptr<SpecNode> combined_rel = make_unique<Expr>(Expr::AND, std::move(ret_rel_elems), Bool::BOOL);
+    auto ret_rel_def =  make_unique<Definition>("_ret_rel_from_input_expr", Bool::BOOL, std::move(ret_rel_args), std::move(ret_rel_uniq));
 
-    auto rel_with_rets_def = make_unique<Definition>("_relate_RData_and_rets",rel_post->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel_post->args), std::move(combined_rel));
+    // unique_ptr<SpecNode> combined_rel = make_unique<Expr>(Expr::AND, std::move(ret_rel_elems), Bool::BOOL);
+
+    // auto rel_with_rets_def = make_unique<Definition>("_relate_RData_and_rets",rel_post->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel_post->args), std::move(combined_rel));
     auto rel_pre_expr = formulate_relation(proj, rel_pre, st_sym_1.get(), st_sym_2.get(), state);
     auto rel_post_expr = formulate_relation(proj, rel_post, st_sym_1.get(), st_sym_2.get(), state);
     LOG_DEBUG << "Refines Precondition: " << rel_pre_expr->get_z3_value();
@@ -1308,7 +1317,7 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
     // LOG_DEBUG << "Checking refinement between " << string(*vuln_body) << " and " << string(*patched_body);
     // LOG_DEBUG << "Using relation: " << string(*rel_with_rets_def->body);
     // LOG_DEBUG << "Original state relation: " << string(*rel_post->body);
-    auto result = simulate_by_traverse(proj, vuln_body, patched_body, rel_with_rets_def.get(), state, p, false);
+    auto result = simulate_by_traverse(proj, vuln_body, patched_body, rel_post, ret_rel_def.get(), state, p, false);
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = (end - start);
     auto seconds_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count()/1e9;
