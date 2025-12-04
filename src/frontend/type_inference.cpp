@@ -682,7 +682,7 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                     }
                 } else {
                     // TODO: better error message
-                    throw TypeInferenceException("unknown expr op " + string(*expr).substr(0,400));
+                    throw std::runtime_error("unknown expr op " + string(*expr).substr(0,400));
                 }
             } else if (holds_alternative<unique_ptr<SpecNode>>(expr->op)) {
                 auto op = std::get<unique_ptr<SpecNode>>(expr->op).get();

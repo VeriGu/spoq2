@@ -444,13 +444,13 @@ class Generator:
     config.reachable = self.compute_reachable(config.top, config.bottom)
     
     steps = self.get_topological_steps(config.top, config.bottom, config.reachable)
-    debug("Steps: ", steps)
-    debug(config.name, "have", len(config.reachable), "reachable functions")
+    # debug("Steps: ", steps)
+    # debug(config.name, "have", len(config.reachable), "reachable functions")
 
     config.layer, config.layer_map = self.compute_layers(config.top, config.bottom, steps)
     # config.reachable = reachable_bottom
 
-    debug(config.name, "generate", len(config.layer), "for %d functions generated" % len(config.layer_map), " : ", [len(l) for l in config.layer])
+    # debug(config.name, "generate", len(config.layer), "for %d functions generated" % len(config.layer_map), " : ", [len(l) for l in config.layer])
 
     return config
 

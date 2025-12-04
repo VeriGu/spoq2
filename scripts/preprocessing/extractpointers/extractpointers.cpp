@@ -4,7 +4,9 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/JSON.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Constants.h"
@@ -48,6 +50,14 @@ class ExtractPointersPass : public llvm::ModulePass {
   std::map< llvm::Value*, std::string > var_name; 
   std::string getStructTypeIdentifier(llvm::StructType*);
 
+  // In order to generate type stability preconditions,
+  // We want to link each stack and global var to its type
+  // and link each type to a set of subtypes (including itself)
+  // since a pointer with that pbase could have any of those types
+  std::map<std::string, llvm::Type*> named_stack_ty;
+  std::map<std::string, llvm::Type*> named_global_ty;
+  std::map<llvm::Type*, std::set<llvm::Type*>> elements_of_type;
+
   std::string stack_load_rdata;
   std::string stack_store_rdata;
 
@@ -56,6 +66,7 @@ class ExtractPointersPass : public llvm::ModulePass {
   std::string getTypeIdentifier(llvm::Type*);
   std::string generateField(llvm::Type*);
   std::string getStackIdentifier(llvm::Type* ty, int id) {
+    std::string result;
     if( id == 0 ) return "stack_" + getTypeIdentifier(ty);
     return "stack_" + getTypeIdentifier(ty) + "__" + std::to_string(id);
   }
@@ -121,8 +132,11 @@ class ExtractPointersPass : public llvm::ModulePass {
   }
 
   void generate(llvm::Module &M);
+  void fillTypeElements(llvm::Module &M);
   void collectStack(llvm::Module &M);
-  std::map<llvm::Type*, int> dfsStack(llvm::Function* func, std::vector<llvm::Function*>& vec);
+  void dumpMemTypInfo(std::string filename, llvm::Module &M);
+  std::map<llvm::Type *, int> dfsStack(llvm::Function *func,
+                                       std::vector<llvm::Function *> &vec);
   bool checkPassedInst(llvm::Instruction* inst);
   static const std::string debug_intrinsics[];
 
@@ -313,6 +327,40 @@ bool ExtractPointersPass::checkPassedInst(llvm::Instruction* inst) {
   return passed;
 }
 
+void ExtractPointersPass::fillTypeElements(llvm::Module &M) {
+  for (auto t: M.getIdentifiedStructTypes()){
+    this->elements_of_type[t].insert(t);
+    for (auto &e_ty: t->elements()){
+      this->elements_of_type[t].insert(e_ty);
+      this->elements_of_type[e_ty].insert(e_ty);
+    }
+  }
+  for (auto &gv: M.globals()){
+    auto ty = gv.getType();
+    this->elements_of_type[ty].insert(ty);
+    if(ty->isStructTy()){
+      for(size_t idx = 0; idx < ty->getStructNumElements(); idx++){
+        this->elements_of_type[ty].insert(ty->getStructElementType(idx));
+      }
+    } else if (ty->isArrayTy()) {
+      this->elements_of_type[ty].insert(ty->getArrayElementType());
+    }
+  }
+
+  bool changed = true;
+  while(changed){
+    changed = false;
+    for (auto [outer_ty, inner_tys]: this->elements_of_type){
+      for (auto inner_ty: inner_tys) {
+        size_t old_size = this->elements_of_type[outer_ty].size();
+        this->elements_of_type[outer_ty].merge(this->elements_of_type[inner_ty]);
+        if (this->elements_of_type[outer_ty].size() != old_size) {
+          changed = true;
+        }
+      }
+    }
+  }
+}
 void ExtractPointersPass::collectStack(llvm::Module &M) {
   std::map<llvm::Function*, int> has_pre;
   int passed_count = 0, local_count = 0;
@@ -365,7 +413,8 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
   int sum = 0;
   for (auto &x : sn) {
     sum += x.second;
-    for (int num = 0; num < x.second; num++) { 
+    for (int num = 0; num < x.second; num++) {
+      this->named_stack_ty[getStackIdentifier(x.first, num)] = x.first;
       result += "    " + getStackIdentifier(x.first, num) + ": " + generateField(x.first) + ";\n";
       if (x.first->isIntegerTy() || x.first->isPointerTy()) {
         load_result += 
@@ -460,7 +509,58 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
     << store_result 
     << "*) (* store_stack *)\n";
 }
+void ExtractPointersPass::dumpMemTypInfo(std::string filename, llvm::Module &M){
+  llvm::json::Object result;
+  result["mem_ty_map"] = llvm::json::Object();
+  (*result["mem_ty_map"].getAsObject())["globals"] = llvm::json::Object();
+  for(auto [name, ty]: this->named_global_ty ){
+    (*(*result["mem_ty_map"].getAsObject())["globals"].getAsObject())[name] = getTypeIdentifier(ty);
+  }
+  (*result["mem_ty_map"].getAsObject())["stack"] = llvm::json::Object();
+  for(auto [name, ty]: this->named_stack_ty ){
+    (*(*result["mem_ty_map"].getAsObject())["stack"].getAsObject())[name] = getTypeIdentifier(ty);
+  }
 
+  result["ty_elem_map"] = llvm::json::Object();
+  for(auto [ty, ty_set]: this->elements_of_type){
+  (*result["ty_elem_map"].getAsObject())[getTypeIdentifier(ty)] = llvm::json::Array();
+    for(auto inner_ty: ty_set){
+
+      (*(*result["ty_elem_map"].getAsObject())[getTypeIdentifier(ty)].getAsArray()).push_back(getTypeIdentifier(inner_ty));
+    }
+
+  }
+
+  result["fn_arg_ty_map"] = llvm::json::Object();
+  for(auto &fn: M.functions()){
+    (*result["fn_arg_ty_map"].getAsObject())[fn.getName().str()] = llvm::json::Array();
+
+    for(auto &arg: fn.args()){
+      auto ty = arg.getType();
+      // here need to check if ty is pointer and if it is get the unique id of the pointed to type
+      std::string ty_str;
+      if (ty->isPointerTy()) {
+        ty_str = getTypeIdentifier(ty->getPointerElementType());
+      } else if (ty->isArrayTy()) {
+        ty_str = getTypeIdentifier(ty->getArrayElementType());
+      } else {
+        ty_str = "not_ptr_or_array";
+      }
+      (*(*result["fn_arg_ty_map"].getAsObject())[fn.getName().str()].getAsArray()).push_back(ty_str);
+    }
+  }
+
+  std::error_code error_msg;
+  llvm::StringRef refname(filename);
+  llvm::raw_fd_ostream mem_typ_file(refname, error_msg, llvm::sys::fs::OpenFlags::OF_None);
+
+
+  mem_typ_file << llvm::json::Value(std::move(result)) << "\n";
+  mem_typ_file.close();
+
+  llvm::errs() << "memory type info dumped to " << filename << "\n";
+  
+}
 void ExtractPointersPass::generate(llvm::Module& M) {
   // print out all PtrToInt instruction
   // for (auto& F : M) {
@@ -498,7 +598,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
     base += page_size * page;
 
     auto vty = globalVar.getValueType();
-
+    this->named_global_ty[getGVIdentifier(&globalVar)] = globalVar.getValueType();
     g_result += "      " + getGVIdentifier(&globalVar) + ": " + generateField(globalVar.getValueType()) + ";\n";
     if (vty->isIntegerTy() || vty->isPointerTy()) {
       g_load_result += 
@@ -575,6 +675,8 @@ void ExtractPointersPass::generate(llvm::Module& M) {
   std::string result = generateGlobalBaseDefinition() + "\n" +
                        generateIntToPtr() + "\n" + generatePtrToInt() + "\n";
   fout << result;
+  fillTypeElements(M);
+  dumpMemTypInfo(M.getName().str() + ".memtypes.json", M);
 }
 
 char ExtractPointersPass::ID = 0;

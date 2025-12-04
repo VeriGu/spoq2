@@ -147,6 +147,7 @@ namespace autov
 								}
 							} else {
 								if (proj->cmds.PreCond.find(op) != proj->cmds.PreCond.end()) {
+									LOG_DEBUG << "Call requiring precondition evaluation: " << string(*expr);
 									if (!check_states_implies_pre_condition(proj, state, op, expr->elems.get())){
 										LOG_INFO << "[Checking Loop Invariant] Precondition not Satified";
 										return SimulateResult{false, false, false, false};

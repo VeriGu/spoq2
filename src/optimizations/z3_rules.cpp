@@ -631,6 +631,16 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
     }
     PROFILE_START(z3_eval);
     auto c = z3_eval(proj, cond_ret.first.get(), state);
+
+    auto cond_ty = c->get_type();
+    if (!cond_ty->get_z3_type().is_bool()){
+        LOG_WARNING << "NON BOOL CONDITION in " << string(*cond_ret.first).substr(0,400);
+        auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+        elems->push_back(cond_ret.first->deep_copy());
+        elems->push_back(make_unique<IntConst>(0));
+        auto new_expr = make_unique<Expr>(Expr::NOT_EQUAL, std::move(elems));
+        c = z3_eval(proj, new_expr.get(), state);
+    }
     PROFILE_END(z3_eval);
 
     PROFILE_START(if_rule_check);

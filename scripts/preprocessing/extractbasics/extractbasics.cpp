@@ -460,10 +460,13 @@ void ExtractBasicsPass::generateRecordForStruct(llvm::Module &M) {
   return;
 }  
 
+/* Given an LLVM function, build a string representation of that function in Coq
+   This will be either 1 Parameter for a declaration or 1 Parameter and 
+   2 Definitions for a definition.  */
 std::string ExtractBasicsPass::buildDeclarationStub(const llvm::Function &f){
   // Here the args include the return type, because
   // at the z3 level the return value is just another argument.
-  std::vector<std::string> arg_types;
+  std::vector<std::tuple<std::string, std::string>> arg_types;
   auto name = f.getName().str();
   std::replace(name.begin(), name.end(), '.', '_');
   std::replace(name.begin(), name.end(), ':', '_');
@@ -471,14 +474,14 @@ std::string ExtractBasicsPass::buildDeclarationStub(const llvm::Function &f){
   for(auto &a: f.args()){
     auto t = a.getType();
     auto ty_str = generateField(t, true);
-    arg_types.push_back(ty_str);
+    arg_types.push_back({a.getName().str(), ty_str});
   }
   // Create a vararg specific declaration here?
   // if (f.isVarArg()){ }
   auto retty = f.getReturnType();
 
   // Add an extra argument for the state before the function call
-  arg_types.push_back("RData");
+  arg_types.push_back({"st","RData"});
 
   std::string retty_str;
   if(retty->isVoidTy()){
@@ -490,8 +493,8 @@ std::string ExtractBasicsPass::buildDeclarationStub(const llvm::Function &f){
   // so open parens between each element and close them all at the end
   std::string arg_str = "";
   std::string end_str = "";
-  for (auto ty_str: arg_types){
-    arg_str = arg_str + "(" + ty_str + "-> ";
+  for (auto [arg_name, arg_ty]: arg_types){
+    arg_str = arg_str + "(" + arg_ty + "-> ";
     end_str = end_str + ")";
   }
     
@@ -504,9 +507,16 @@ std::string ExtractBasicsPass::buildDeclarationStub(const llvm::Function &f){
     std::string arg_str = "";
     std::string param_str = "";
     size_t idx = 0;
-    for (auto ty_str: arg_types){
-      arg_str = arg_str + "(p_" + std::to_string(idx) + ": " + ty_str + ") ";
-      param_str = param_str + "p_" + std::to_string(idx) + " ";
+    for (auto [arg_name, arg_ty]: arg_types){
+      // needs to be real arg name
+      std::string final_arg_name;
+      if(arg_name.empty()) {
+        final_arg_name = "p_" + std::to_string(idx); 
+      } else {
+        final_arg_name = arg_name;
+      }
+      arg_str = arg_str + "(" + final_arg_name + ": " + arg_ty + ") ";
+      param_str = param_str + final_arg_name + " ";
       idx++;
     }
     result = result + "Definition " + name + " " + arg_str + ": "  + retty_str + " := (" + name + "_oracle " + param_str + ").\n";

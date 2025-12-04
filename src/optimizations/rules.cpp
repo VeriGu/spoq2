@@ -3561,7 +3561,12 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
                 if (self_unfold) { body = node->deep_copy(); }
                 else body = define->body->deep_copy();
 
-                assert(e->elems->size() == define->args->size());
+                assert(e->elems->size() >= define->args->size());
+                while(e->elems->size() > define->args->size()){
+                    // This is a varargs function and we are going to drop our extra args.
+                    // We drop the second to last argument to keep the state at the back.
+                    e->elems->erase(std::prev(std::prev(e->elems->end())));
+                }
 
                 if (proj->symbols.find(define->name) != proj->symbols.end() &&
                     std::get<0>(proj->symbols[define->name].loc) != "")
@@ -3579,6 +3584,7 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
                 } else {
                     auto tuple_type_list = std::make_shared<std::vector<std::shared_ptr<SpecType>>>();
                     for (auto &elem : *e->elems) {
+                        
                         tuple_type_list->push_back(elem->get_type());
                     }
 

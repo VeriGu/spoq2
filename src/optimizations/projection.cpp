@@ -128,6 +128,20 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
         aggrepres = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
 	}
     LOG_DEBUG << "ADDING PreConditions: " << string(*aggrepres);
+
+    auto llvm_func = proj->spoq_code.llvm_module->getFunction(fname);
+    size_t idx = 0;
+    for (auto arg: *def->args) {
+        auto st = Struct::Ptr;
+        auto argt = arg->type;
+        if(st.get() == argt.get()) {
+            if(llvm_func) {
+                auto larg = llvm_func->getArg(idx);
+                LOG_DEBUG << "Arg: " << arg->name << " type: " << arg->type->name;
+            }
+        }    
+        idx++;
+    }
     auto state = make_shared<EvalState>(vars, conds);
 
     set<string> fix_string;

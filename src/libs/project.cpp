@@ -798,7 +798,7 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
     for (int i = 0; i < low_specs->size(); i++) {
         auto &low_def = (*low_specs)[i];
         auto low_name = low_def->name;
-        LOG_DEBUG << "low_name:" << low_name;
+        // LOG_DEBUG << "low_name:" << low_name;
         auto high_name = name_map[low_name];
 
         // If the high spec is provided, skip
@@ -854,7 +854,7 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         // Transform the low spec to high spec
         bool no_trans = proj->cmds.NoHighSpec || proj->cmds.NoTrans.find(name_map[low_name]) != proj->cmds.NoTrans.end();
 
-        LOG_DEBUG << "NO HIGH SPEC:" << proj->cmds.NoHighSpec;
+        // LOG_DEBUG << "NO HIGH SPEC:" << proj->cmds.NoHighSpec;
         
         profile_clear();
         if (!no_trans) {
@@ -865,7 +865,7 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
             }
             LOG_INFO << "Transformed: " << std::endl << string(*high_def);
         } else {
-            LOG_INFO << "No transformation for " << high_name;
+            // LOG_INFO << "No transformation for " << high_name;
         }
         profile_print();
         profile_finalize();
@@ -1436,7 +1436,7 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
         no_trans |= proj->cmds.NoHighSpec || proj->cmds.NoTrans.find(name_map[low_name]) != proj->cmds.NoTrans.end();
 
 
-        LOG_DEBUG << "NO HIGH SPEC" << proj->cmds.NoHighSpec;
+        // LOG_DEBUG << "NO HIGH SPEC " << proj->cmds.NoHighSpec;
         
         profile_clear();
         if (!no_trans) {
