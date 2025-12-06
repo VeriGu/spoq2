@@ -290,10 +290,10 @@ namespace autov
 			bool false_branch_plausible = true;
 
 			if (det && iff->cond->is_determ_branch) {
-			LOG_DEBUG << "[forward_simulation] If is determ branch True";
+				LOG_DEBUG << "[forward_simulation] If is determ branch True";
 				false_branch_plausible = (path[i] == 1) ? false : true;
 			} else {
-			LOG_DEBUG << "[forward_simulation] If is determ branch False";
+				LOG_DEBUG << "[forward_simulation] If is determ branch False";
 				z3::model model(z3ctx);
 				auto t_race = OPTS.race_timeout;
 				// OPTS.race_timeout = Z3_SIM_TIMEOUT;
@@ -369,7 +369,7 @@ namespace autov
         auto true_res = z3_check_unsat(state, !cond->get_z3_value(), model,
                                   &proj->query_saver, 500);
         LOG_DEBUG << "[check_branch_plausibility] checking if cond is unsat: "
-                  << cond->get_z3_value();
+                  << std::to_string(cond->get_z3_value()).substr(0,400);
         // if z3_check_unsat returns True, then cond cannot be false.
 		// In that case, the false branch is not possible.
         auto res = z3_check_unsat(state, cond->get_z3_value(), model,

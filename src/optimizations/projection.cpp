@@ -201,7 +201,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             auto __tmp_spec3 = std::move(__tmp_spec2);
             bool z3_changed = false;
             if (force_simpl || !__unfold) {
-                // LOG_DEBUG << "spec before: " << string(*__tmp_spec3.get()) << "\n";
+                LOG_DEBUG << "spec before: " << string(*__tmp_spec3.get()) << "\n";
                 // LOG_DEBUG << "spec: " << string(*__tmp_spec3.get()) << "\n";
                 auto start = std::chrono::high_resolution_clock::now();
                 LOG_DEBUG << "start z3" << "\n";

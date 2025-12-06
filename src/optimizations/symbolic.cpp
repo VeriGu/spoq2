@@ -1233,9 +1233,9 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
 
     auto last_arg = vuln_def->args->back(); // Last arg of the vuln function is the state.  Vuln is the spec.
     auto st_sym_1 = make_shared<Symbol>(last_arg->name, last_arg->type);
-    auto sim_state_name = rel_post->args->back()->name; // Last arg of the relation name is used for the impl state 
-	(*vars)[sim_state_name] = proj->layers[0]->abs_data->declare(sim_state_name, 0);
-    auto st_sym_2 = make_shared<Symbol>(sim_state_name, last_arg->type);
+    // auto sim_state_name = rel_post->args->back()->name; // Last arg of the relation name is used for the impl state 
+	// (*vars)[sim_state_name] = proj->layers[0]->abs_data->declare(sim_state_name, 0);
+    // auto st_sym_2 = make_shared<Symbol>(sim_state_name, last_arg->type);
     if (!proj->is_state_type(last_arg->type)) {
         LOG_ERROR << "[check_refines] The last argument of the vuln fn should be a state type!";
     }
@@ -1256,8 +1256,8 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
 	SpecNode* vuln_body = nullptr, *patched_body = nullptr;
     vuln_body = vuln_def->body.get();
     patched_body = subst_v2(proj, patched_def->body->deep_copy(), patched_def->args->back()->name, 
-        st_sym_2->deep_copy()).release();
-    LOG_DEBUG << "subst Patched body: " << z3_eval(proj, patched_body, state)->value.to_string();;
+        st_sym_1->deep_copy()).release();
+    // LOG_DEBUG << "subst Patched body: " << z3_eval(proj, patched_body, state)->value.to_string();;
 
     field_t ret_rel_names;
     unique_ptr<vector<shared_ptr<Arg>>> ret_rel_args = make_unique<vector<shared_ptr<Arg>>>();
@@ -1290,8 +1290,8 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
     // unique_ptr<SpecNode> combined_rel = make_unique<Expr>(Expr::AND, std::move(ret_rel_elems), Bool::BOOL);
 
     // auto rel_with_rets_def = make_unique<Definition>("_relate_RData_and_rets",rel_post->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel_post->args), std::move(combined_rel));
-    auto rel_pre_expr = formulate_relation(proj, rel_pre, st_sym_1.get(), st_sym_2.get(), state);
-    auto rel_post_expr = formulate_relation(proj, rel_post, st_sym_1.get(), st_sym_2.get(), state);
+    auto rel_pre_expr = formulate_relation(proj, rel_pre, st_sym_1.get(), st_sym_1.get(), state);
+    auto rel_post_expr = formulate_relation(proj, rel_post, st_sym_1.get(), st_sym_1.get(), state);
     LOG_DEBUG << "Refines Precondition: " << rel_pre_expr->get_z3_value();
     LOG_DEBUG << "Refines Postcondition: " << rel_post_expr->get_z3_value();
     // The relation is true before the simulation begins
@@ -1314,7 +1314,7 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
     patched_body->clear_z3_eval();
 	path_t p = {};
     proj->query_saver = QueryInfo(query_saver_dir(vuln_def->name, "refines"));
-    // LOG_DEBUG << "Checking refinement between " << string(*vuln_body) << " and " << string(*patched_body);
+    LOG_DEBUG << "Checking refinement between " << string(*vuln_body) << " and " << string(*patched_body);
     // LOG_DEBUG << "Using relation: " << string(*rel_with_rets_def->body);
     // LOG_DEBUG << "Original state relation: " << string(*rel_post->body);
     auto result = simulate_by_traverse(proj, vuln_body, patched_body, rel_post, ret_rel_def.get(), state, p, false);

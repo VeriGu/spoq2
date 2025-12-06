@@ -45,7 +45,7 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
         try {
             ret = control_flow_conversion_v2(name, spoq_func);
         } catch (const std::runtime_error& e) { 
-            std::cout << "error: " << e.what() << std::endl;
+            llvm::errs() << "error: " << e.what() << "\n";
             spoq_func.spoq_insts.clear();
             spoq_func.stub = true;
         }

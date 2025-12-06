@@ -498,9 +498,9 @@ Z3Result z3_check_unsat(shared_ptr<ProveState> state, z3::expr cond, z3::model& 
     std::clog << "-----------------Z3_check_unsat-----------------" << std::endl;
     std::clog << "hash: " << hash << std::endl;
     std::clog << "z3 check cond: " << cond << ", hash: " << cond.hash() << std::endl;
-    for (auto &c : *state->conds) {
-        std::clog << "z3 check state conds: " << c << std::endl;
-    }
+    // for (auto &c : *state->conds) {
+    //     std::clog << "z3 check state conds: " << c << std::endl;
+    // }
     std::clog << "z3 check not_res: " << not_res << std::endl;
     std::clog << "-----------------Z3_check_unsat-----------------" << std::endl;
 
