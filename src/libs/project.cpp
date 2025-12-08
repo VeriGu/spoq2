@@ -1059,6 +1059,15 @@ void trans_inv(Project *proj) {
         proj->sys_invs[name] = std::move(new_node);
     }
 
+    for(auto &[name, loop_inv]: proj->loop_invs) {
+        known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
+        for(auto &inv: loop_inv) {
+            type_inference::infer_type(*proj, inv.get(), known, Bool::BOOL);
+            auto new_node = spec_transformer_v2(proj, std::move(inv), 0, true, true);
+            inv.reset(new_node.release());
+        }
+    }
+
     for(auto &[name, postconds] : proj->cmds.PostCond) {
         for(auto &post: postconds) {
             type_inference::infer_type(*proj, post.get(), known, Bool::BOOL);
