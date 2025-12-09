@@ -54,7 +54,11 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
             state->conds->push_back(src->get_z3_value() == t->construct(sym->text, {})->get_z3_value());
         }
         else {
-            (*state->vars)[sym->text] = src;
+            // resolve_pattern in spec transformation will have  state->vars[sym->text] be empty.
+            // but resolve_pattern during verification will already have a value.
+            if (state->vars->find(sym->text) == state->vars->end()) {
+                (*state->vars)[sym->text] = src;
+            }
             state->conds->push_back(src->get_z3_value() == (sym->get_type())->declare(sym->text, 0)->get_z3_value());
         }
     } else if (auto con = instance_of(pat, Const)) {
