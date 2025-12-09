@@ -1061,7 +1061,15 @@ void trans_inv(Project *proj) {
 
     for(auto &[name, loop_inv]: proj->loop_invs) {
         known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
+        (*known)["st"] = proj->layers.at(0)->abs_data;
+        (*known)["st_old"] = proj->layers.at(0)->abs_data;
+        for(auto arg: *proj->defs[name]->args) {
+            (*known)[arg->name] = arg->type;
+            (*known)[arg->name + "_old"] = arg->type;
+        }
+
         for(auto &inv: loop_inv) {
+            //LOG_DEBUG << "Processing loop invariant for " << string(*inv);
             type_inference::infer_type(*proj, inv.get(), known, Bool::BOOL);
             auto new_node = spec_transformer_v2(proj, std::move(inv), 0, true, true);
             inv.reset(new_node.release());
