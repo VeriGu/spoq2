@@ -23,6 +23,8 @@ RUN apt-get update && \
 		DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
 		crossbuild-essential-arm64   \  
 		libc6-dev-arm64-cross          
+RUN python3 -m pip install --no-cache-dir --upgrade pip && \
+    python3 -m pip install --no-cache-dir numpy matplotlib
 
 # Z3 4.12.5
 ARG Z3_VER=z3-4.12.5
