@@ -55,6 +55,7 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
         }
         else {
             (*state->vars)[sym->text] = src;
+            state->conds->push_back(src->get_z3_value() == (sym->get_type())->declare(sym->text, 0)->get_z3_value());
         }
     } else if (auto con = instance_of(pat, Const)) {
         if (auto v = std::get_if<unsigned long>(&con->value)) {
@@ -624,7 +625,7 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
     bool changed = false;
     // auto orig_cond = string(*spec->cond);
 
-    auto cond_ret = this->rule_simple_by_z3(std::move(spec->cond), state);
+    auto cond_ret = this->rule_simple_by_z3(spec->cond->deep_copy(), state);
     if (cond_ret.first == nullptr) {
         throw std::runtime_error("If condition return nullptr");
         // return std::make_pair(nullptr, cond_ret.second);
@@ -645,6 +646,11 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
 
     PROFILE_START(if_rule_check);
     PROFILE_START(z3_rule_check);
+    // LOG_DEBUG << "if spec: " << string(*spec);
+    // LOG_DEBUG << "then: " << string(*spec->then_body);
+    // LOG_DEBUG << "else: " << string(*spec->else_body);
+    // LOG_DEBUG << "cond: " << string(*spec->cond);
+
     auto res = z3_check(state, c->get_z3_value());
     PROFILE_END(z3_rule_check);
     PROFILE_END(if_rule_check);
@@ -876,7 +882,7 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
 rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state) {
     bool changed = false;
     if (!force_simpl) { return { std::move(spec), false } ; }
-
+    // LOG_DEBUG << "Simplifying: " << string(*spec);
 // #ifdef Z3_OPT_CACHE
 //     z3_global_hash_total++;
 //     size_t spec_hash = boost::hash<std::string>()(std::string(*spec));
@@ -885,7 +891,6 @@ rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::sha
 //         return { std::move(spec), false };
 //     }
 // #endif
-
     state = state->copy();
     if (is_instance(spec.get(), Symbol) || is_instance(spec.get(), Const)) {
         return { std::move(spec), false };

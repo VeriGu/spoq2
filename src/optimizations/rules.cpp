@@ -1423,7 +1423,8 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
                 if(*c == *c2) {
                     return std::move(ifnode->then_body);
                 } else if(std::get<bool>(c->value) == true) {
-                    return std::move(ifnode->cond);
+                    // return std::move(ifnode->cond);
+                    return ifnode->cond->deep_copy();
                 } else {
                     auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
                     elems->push_back(std::move(ifnode->cond));

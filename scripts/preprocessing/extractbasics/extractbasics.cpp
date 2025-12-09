@@ -273,7 +273,7 @@ std::string ExtractBasicsPass::generateField(llvm::Type* ty, bool pointers_are_p
       } else if(ety->isStructTy()) {
         return "((ZMap.t " + getStructTypeIdentifier(llvm::dyn_cast<llvm::StructType>(ety), pointers_are_ptr) + ") * Z)";
       } else {
-        return "None (* FIXME: complex array *)";
+        return "((ZMap.t Z) * Z) (* FIXME: complex array *)";
       }
     }
     case llvm::Type::TypeID::MetadataTyID: {

@@ -1044,7 +1044,7 @@ public:
     If(unique_ptr<SpecNode>cond, unique_ptr<SpecNode>then_body, unique_ptr<SpecNode>else_body) :
         SpecNode(then_body->get_type()), cond(std::move(cond)), then_body(std::move(then_body)), else_body(std::move(else_body)) {
         this->length = calc_length();
-        if (this->cond == nullptr)
+        if (this->cond.get() == nullptr)
             throw std::invalid_argument("If condition cannot be null");
     }
 
@@ -1093,7 +1093,9 @@ private:
         unique_ptr<SpecNode> new_cond;
         unique_ptr<SpecNode> new_then_body;
         unique_ptr<SpecNode> new_else_body;
-
+        if (!this->cond.get()){
+            throw std::runtime_error("nullptr cond");
+        }
         this->cond->deep_copy(new_cond);
         this->then_body->deep_copy(new_then_body);
         this->else_body->deep_copy(new_else_body);

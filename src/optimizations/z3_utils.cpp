@@ -383,10 +383,10 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
         if (res == z3::unsat) {
             string msg = "Pre-condition is False! Condition is:\n";
             for (auto &c : *state->conds) {
-                msg += c.to_string() + "\n";
+                msg += c.to_string().substr(0,400) + "\n";
             }
             msg += "Condition is:\n";
-            msg += cond.to_string();
+            msg += cond.to_string().substr(0,400);
             LOG_WARNING << msg << std::endl;
             // throw std::runtime_error(msg);
         }
@@ -495,14 +495,14 @@ Z3Result z3_check_unsat(shared_ptr<ProveState> state, z3::expr cond, z3::model& 
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
-    std::clog << "-----------------Z3_check_unsat-----------------" << std::endl;
-    std::clog << "hash: " << hash << std::endl;
-    std::clog << "z3 check cond: " << cond << ", hash: " << cond.hash() << std::endl;
+    // std::clog << "-----------------Z3_check_unsat-----------------" << std::endl;
+    // std::clog << "hash: " << hash << std::endl;
+    // std::clog << "z3 check cond: " << cond << ", hash: " << cond.hash() << std::endl;
     // for (auto &c : *state->conds) {
     //     std::clog << "z3 check state conds: " << c << std::endl;
     // }
-    std::clog << "z3 check not_res: " << not_res << std::endl;
-    std::clog << "-----------------Z3_check_unsat-----------------" << std::endl;
+    // std::clog << "z3 check not_res: " << not_res << std::endl;
+    // std::clog << "-----------------Z3_check_unsat-----------------" << std::endl;
 
     if (not_res == z3::unsat) {
         return Z3Result::True;
@@ -1991,7 +1991,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
     throw std::runtime_error("Unknown node type: " + string(*val));
 }
 
-shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state, bool check_loop, bool unfold, set<string>& used_fixpoint) {
+shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<EvalState> state, bool check_loop, bool unfold, set<string>& used_fixpoint) {
     // std::cout << "z3_eval: " << string(*val) << std::endl;
 
     if (OPTS.z3_expr_cache && val->cached_eval) return val->cached_eval;
@@ -2035,7 +2035,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         }
     } else if (auto expr = instance_of(val, Expr)) {
         vector<shared_ptr<SpecValue>> elems;
-
+        // LOG_DEBUG << "evaluating expr: " << string(*val);
         // XXX: this is a hack to handle List.empty which takes a type as an argument
         if (!op_eq(expr->op, "List.empty")) {
             for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {

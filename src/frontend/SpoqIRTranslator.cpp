@@ -701,7 +701,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_EQ) {
                     expr = std::make_unique<Expr>(context.ptr_eqb_op_name, std::move(operands));
                 } 
-                if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_ULT) {
+                else if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_ULT) {
                     expr = std::make_unique<Expr>(context.ptr_ltb_op_name, std::move(operands));
                 }
                 else if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_NE) {
@@ -709,6 +709,11 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
                     operands->push_back(std::move(expr));
                     expr = std::make_unique<Expr>(Expr::ops::BNOT, std::move(operands));
+                } else if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_ULE) {
+                    expr = std::make_unique<Expr>(context.ptr_leb_op_name, std::move(operands));
+
+                } else {
+                    llvm::errs() << "Unsupported binary cmp operation with pointer operand" << "\n";
                 }
             } else if(cmpops_lut.find(cmp->getPredicate()) != cmpops_lut.end()) {
                 expr = std::make_unique<Expr>(cmpops_lut.at(cmp->getPredicate()), std::move(operands));

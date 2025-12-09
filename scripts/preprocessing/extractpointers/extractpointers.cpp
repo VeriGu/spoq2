@@ -585,7 +585,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
                          "  mkGLOBALS {\n";
   for (llvm::GlobalVariable& globalVar : M.globals()) {
     if (globalVar.getName().startswith("llvm.")) continue;
-    if (globalVar.isConstant()) continue;
+    // if (globalVar.isConstant()) continue;
     auto gv_type = globalVar.getValueType();
     if (globalVar.isDeclaration()) continue;
     if (llvm::dyn_cast<llvm::FunctionType>(gv_type)) continue;
@@ -657,6 +657,9 @@ void ExtractPointersPass::generate(llvm::Module& M) {
     } else {
       // llvm::errs() << "Cannot handle." << "\n";
     }
+  }
+  if(g_result.rfind(";")== std::string::npos) {
+    g_result += "    __spoq_dummy_field: Z;";
   }
   g_result.erase(g_result.rfind(";"), 1);  // remove the last ;
   g_result += "    }.\n";
