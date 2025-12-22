@@ -440,7 +440,7 @@ std::pair<unique_ptr<SpecNode>, bool> reduce_id_write(Project *proj, unique_ptr<
 
                     auto v1_e = z3_eval(proj, v1, state);
                     auto v2_e = z3_eval(proj, val, state);
-                    auto check = z3_check(state, v1_e->get_z3_value() == v2_e->get_z3_value(), Z3_REDUCE_TIMEOUT);
+                    auto check = z3_check(state, v1_e->get_z3_value() == v2_e->get_z3_value(), nullptr, Z3_REDUCE_TIMEOUT);
 
                     if (check == Z3Result::True) {
                         // if (x @ y) = (x' @ y), then return x
@@ -465,7 +465,7 @@ std::pair<unique_ptr<SpecNode>, bool> reduce_id_write(Project *proj, unique_ptr<
             auto val = spec->elems->back().get(); // y
             auto v1_e = z3_eval(proj, old_value.get(), state);
             auto v2_e = z3_eval(proj, val, state);
-            auto check = z3_check(state, v1_e->get_z3_value() == v2_e->get_z3_value(), Z3_REDUCE_TIMEOUT);
+            auto check = z3_check(state, v1_e->get_z3_value() == v2_e->get_z3_value(), nullptr, Z3_REDUCE_TIMEOUT);
             if (check == Z3Result::True) {
                 // if (x.(f1).(...).(fn) = y), then return x
                 changed = true;
@@ -588,7 +588,7 @@ rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::sha
     } else {
         PROFILE_START(rely_rule_check);
         PROFILE_START(z3_rule_check);
-        auto res = z3_check(state, c->get_z3_value());
+        auto res = z3_check(state, c->get_z3_value(), &proj->query_saver);
         PROFILE_END(z3_rule_check);
         PROFILE_END(rely_rule_check);
 
@@ -650,12 +650,12 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
 
     PROFILE_START(if_rule_check);
     PROFILE_START(z3_rule_check);
-    // LOG_DEBUG << "if spec: " << string(*spec);
+    LOG_DEBUG << "if spec: " << string(*spec);
     // LOG_DEBUG << "then: " << string(*spec->then_body);
     // LOG_DEBUG << "else: " << string(*spec->else_body);
     // LOG_DEBUG << "cond: " << string(*spec->cond);
 
-    auto res = z3_check(state, c->get_z3_value());
+    auto res = z3_check(state, c->get_z3_value(), &proj->query_saver, 1);
     PROFILE_END(z3_rule_check);
     PROFILE_END(if_rule_check);
 

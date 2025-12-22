@@ -973,8 +973,10 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     auto sym = context.get_llvm_value_spec(bc);
                     auto args = std::make_unique<vector<unique_ptr<SpecNode>>>();
                     args->push_back(context.get_llvm_value_spec(bc->getOperand(0)));
-                    auto expr = std::make_unique<Expr>("spoq_zext_spec", std::move(args));
-                    context.add_cache(context.get_llvm_value_name(bc), expr);
+                    // auto expr = std::make_unique<Expr>("spoq_zext_spec", std::move(args));
+                    auto expr = std::make_unique<If>(
+                        context.get_llvm_value_spec(bc->getOperand(0)), std::make_unique<IntConst>(1), std::make_unique<IntConst>(0));
+                    // context.add_cache(context.get_llvm_value_name(bc), expr);
                     return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
                 } 
                 // TODO: overflow / underflow check

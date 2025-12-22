@@ -327,14 +327,14 @@ Z3Result z3_verify_state_sat(shared_ptr<ProveState> state, QueryInfo *qinfo, int
 }
 
 // Defautl value of timeout is 50
-Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
+Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, int timeout) {
     auto start = std::chrono::high_resolution_clock::now();
     auto hash = hash_z3_state(state, cond, timeout);
     z3_checks++;
     if (Z3Cache.find(hash) != Z3Cache.end()) {
         z3_cache_hits++;
         return Z3Cache[hash];
-    }
+    }   
 
     Z3Params.set("timeout", (unsigned int)timeout);
     z3::solver solver(z3ctx);
@@ -348,6 +348,8 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, int timeout) {
             solver.add(ind);
         }
     }
+    if (qinfo)
+        qinfo->dump(solver.to_smt2());
     solver.push();
     solver.add(cond);
 #ifdef Z3_PCACHE
@@ -1385,7 +1387,7 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
                             vc = vc && z3_eq_expr;
                         }
                         vc = vc && (*var)["st_old"]->get_z3_value() == elems.back()->get_z3_value();
-                        auto res = z3_check(state, vc && invval->get_z3_value(),200);
+                        auto res = z3_check(state, vc && invval->get_z3_value(),nullptr, 200);
                         if(res == Z3Result::False || res == Z3Result::Unknown || res == Z3Result::Sat) {
                             LOG_ERROR << "Precondition can't infer loop invariant";
                             return;
