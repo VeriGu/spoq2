@@ -114,7 +114,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib")
 # add_subdirectory(test)
 # add_subdirectory(HelloWorld)
 
-add_library(pviroutliner SHARED pv_ir_outliner.cpp)
+add_library(pviroutliner SHARED PVIROutliner.cpp)
 
 # Allow undefined symbols in shared objects on Darwin (this is the default
 # behaviour on Linux)
