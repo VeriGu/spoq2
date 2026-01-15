@@ -475,7 +475,12 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
       }
     }
   }
-  result.erase(result.rfind(";"), 1);  // remove the last ;
+  if (result.rfind(";") != std::string::npos){
+    result.erase(result.rfind(";"), 1);  // remove the last ;
+
+  } else {
+    assert(false && "Expected to find ; in the result string.  Revisit to make this tolerant of O1");
+  }
   result += "    }.\n";
   stack_load_rdata = load_result;
   stack_store_rdata = store_result;
@@ -547,6 +552,21 @@ void ExtractPointersPass::dumpMemTypInfo(std::string filename, llvm::Module &M){
         ty_str = "not_ptr_or_array";
       }
       (*(*result["fn_arg_ty_map"].getAsObject())[fn.getName().str()].getAsArray()).push_back(ty_str);
+
+      if(ty_str != "not_ptr_or_array" && result["ty_elem_map"].getAsObject()->find(ty_str) == result["ty_elem_map"].getAsObject()->end()) {
+        // if the type is not in the ty_elem_map, we need to add it
+        llvm::Type* inner_ty;
+        if(ty->isPointerTy()) {
+          inner_ty = ty->getPointerElementType();
+        } else if (ty->isArrayTy()) {
+          inner_ty = ty->getArrayElementType();
+        } else {
+          llvm::errs() << "Type " << ty_str << " inner elements not known, needed for fn: " << fn.getName().str() << "\n";
+          continue;
+        }
+        (*result["ty_elem_map"].getAsObject())[ty_str] = llvm::json::Array();
+        (*(*result["ty_elem_map"].getAsObject())[ty_str].getAsArray()).push_back(getTypeIdentifier(inner_ty));
+      }
     }
   }
 

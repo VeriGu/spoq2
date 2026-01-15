@@ -774,7 +774,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
     } else if(auto f = dynamic_cast<IRLoader::IAlloc*>(inst.get())) {
         if(auto typ = dynamic_cast<IRLoader::TPtr*>(f->typ.get())) {
             SpecNode* stmt;
-            auto stack_var = proj->cmds.StackMap[fname][f->assign]; // read stack from this
+            auto stack_var = proj->cmds.StackMap[fname][Shortcut::replace_dot(f->assign)]; // read stack from this
             if ( stack_var.empty() ) { // no stack_var is found.
                 auto children = new vector<unique_ptr<SpecNode>>();
                 children->push_back(unique_ptr<SpecNode>(_name(f->assign, types.get())));

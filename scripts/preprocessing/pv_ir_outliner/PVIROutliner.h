@@ -56,11 +56,11 @@ class Module;
 class TargetTransformInfo;
 class OptimizationRemarkEmitter;
 
-/// The OutlinableRegion holds all the information for a specific region, or
+/// The PVOutlinableRegion holds all the information for a specific region, or
 /// sequence of instructions. This includes what values need to be hoisted to
 /// arguments from the extracted function, inputs and outputs to the region, and
 /// mapping from the extracted function arguments to overall function arguments.
-struct OutlinableRegion {
+struct PVOutlinableRegion {
   /// Describes the region of code.
   IRSimilarityCandidate *Candidate = nullptr;
 
@@ -74,7 +74,7 @@ struct OutlinableRegion {
   unsigned NumExtractedInputs = 0;
 
   /// The corresponding BasicBlock with the appropriate stores for this
-  /// OutlinableRegion in the overall function.
+  /// PVOutlinableRegion in the overall function.
   unsigned OutputBlockNum = -1;
 
   /// Mapping the extracted argument number to the argument number in the
@@ -150,7 +150,7 @@ struct OutlinableRegion {
   /// regions to this region.
   OutlinableGroup *Parent = nullptr;
 
-  OutlinableRegion(IRSimilarityCandidate &C, OutlinableGroup &Group)
+  PVOutlinableRegion(IRSimilarityCandidate &C, OutlinableGroup &Group)
       : Candidate(&C), Parent(&Group) {
     StartBB = C.getStartBB();
     EndBB = C.getEndBB();
@@ -166,21 +166,21 @@ struct OutlinableRegion {
   /// containing the called function.
   void reattachCandidate();
 
-  /// Find a corresponding value for \p V in similar OutlinableRegion \p Other.
+  /// Find a corresponding value for \p V in similar PVOutlinableRegion \p Other.
   ///
-  /// \param Other [in] - The OutlinableRegion to find the corresponding Value
+  /// \param Other [in] - The PVOutlinableRegion to find the corresponding Value
   /// in.
   /// \param V [in] - The Value to look for in the other region.
   /// \return The corresponding Value to \p V if it exists, otherwise nullptr.
-  Value *findCorrespondingValueIn(const OutlinableRegion &Other, Value *V);
+  Value *findCorrespondingValueIn(const PVOutlinableRegion &Other, Value *V);
 
-  /// Find a corresponding BasicBlock for \p BB in similar OutlinableRegion \p Other.
+  /// Find a corresponding BasicBlock for \p BB in similar PVOutlinableRegion \p Other.
   ///
-  /// \param Other [in] - The OutlinableRegion to find the corresponding
+  /// \param Other [in] - The PVOutlinableRegion to find the corresponding
   /// BasicBlock in.
   /// \param BB [in] - The BasicBlock to look for in the other region.
   /// \return The corresponding Value to \p V if it exists, otherwise nullptr.
-  BasicBlock *findCorrespondingBlockIn(const OutlinableRegion &Other,
+  BasicBlock *findCorrespondingBlockIn(const PVOutlinableRegion &Other,
                                        BasicBlock *BB);
 
   /// Get the size of the code removed from the region.
@@ -196,9 +196,9 @@ struct OutlinableRegion {
 /// to identify the similar regions of code, and then extracts the similar
 /// sections into a single function.  See the above for an example as to
 /// how code is extracted and consolidated into a single function.
-class IROutliner {
+class PVIROutliner {
 public:
-  IROutliner(function_ref<TargetTransformInfo &(Function &)> GTTI,
+  PVIROutliner(function_ref<TargetTransformInfo &(Function &)> GTTI,
              function_ref<IRSimilarityIdentifier &(Module &)> GIRSI,
              function_ref<OptimizationRemarkEmitter &(Function &)> GORE)
       : getTTI(GTTI), getIRSI(GIRSI), getORE(GORE) {
@@ -219,15 +219,15 @@ private:
   /// \returns The number of Functions created.
   unsigned doOutline(Module &M);
 
-  /// Check whether an OutlinableRegion is incompatible with code already
-  /// outlined. OutlinableRegions are incomptaible when there are overlapping
+  /// Check whether an PVOutlinableRegion is incompatible with code already
+  /// outlined. PVOutlinableRegions are incomptaible when there are overlapping
   /// instructions, or code that has not been recorded has been added to the
   /// instructions.
   ///
-  /// \param [in] Region - The OutlinableRegion to check for conflicts with
+  /// \param [in] Region - The PVOutlinableRegion to check for conflicts with
   /// already outlined code.
   /// \returns whether the region can safely be outlined.
-  bool isCompatibleWithAlreadyOutlinedCode(const OutlinableRegion &Region);
+  bool isCompatibleWithAlreadyOutlinedCode(const PVOutlinableRegion &Region);
 
   /// Remove all the IRSimilarityCandidates from \p CandidateVec that have
   /// instructions contained in a previously outlined region and put the
@@ -259,20 +259,20 @@ private:
   /// \param [in,out] Region - The region to be extracted.
   /// \param [in] NotSame - The global value numbers of the Values in the region
   /// that do not have the same Constant in each strucutrally similar region.
-  void findAddInputsOutputs(Module &M, OutlinableRegion &Region,
+  void findAddInputsOutputs(Module &M, PVOutlinableRegion &Region,
                             DenseSet<unsigned> &NotSame);
 
   /// Find the number of instructions that will be removed by extracting the
-  /// OutlinableRegions in \p CurrentGroup.
+  /// PVOutlinableRegions in \p CurrentGroup.
   ///
-  /// \param [in] CurrentGroup - The collection of OutlinableRegions to be
+  /// \param [in] CurrentGroup - The collection of PVOutlinableRegions to be
   /// analyzed.
   /// \returns the number of outlined instructions across all regions.
   InstructionCost findBenefitFromAllRegions(OutlinableGroup &CurrentGroup);
 
   /// Find the number of instructions that will be added by reloading arguments.
   ///
-  /// \param [in] CurrentGroup - The collection of OutlinableRegions to be
+  /// \param [in] CurrentGroup - The collection of PVOutlinableRegions to be
   /// analyzed.
   /// \returns the number of added reload instructions across all regions.
   InstructionCost findCostOutputReloads(OutlinableGroup &CurrentGroup);
@@ -290,14 +290,14 @@ private:
   /// \param Region - The region extracted
   /// \param Outputs - The outputs from the extracted function.
   /// \param LI - The load instruction used to update the mapping.
-  void updateOutputMapping(OutlinableRegion &Region,
+  void updateOutputMapping(PVOutlinableRegion &Region,
                            ArrayRef<Value *> Outputs, LoadInst *LI);
 
   /// Extract \p Region into its own function.
   ///
   /// \param [in] Region - The region to be extracted into its own function.
   /// \returns True if it was successfully outlined.
-  bool extractSection(OutlinableRegion &Region);
+  bool extractSection(PVOutlinableRegion &Region);
 
   /// For the similarities found, and the extracted sections, create a single
   /// outlined function with appropriate output blocks as necessary.
@@ -342,8 +342,8 @@ private:
   /// The memory allocator used to allocate the CodeExtractors.
   SpecificBumpPtrAllocator<CodeExtractor> ExtractorAllocator;
 
-  /// The memory allocator used to allocate the OutlinableRegions.
-  SpecificBumpPtrAllocator<OutlinableRegion> RegionAllocator;
+  /// The memory allocator used to allocate the PVOutlinableRegions.
+  SpecificBumpPtrAllocator<PVOutlinableRegion> RegionAllocator;
 
   /// The memory allocator used to allocate new IRInstructionData.
   SpecificBumpPtrAllocator<IRInstructionData> InstDataAllocator;
@@ -441,7 +441,7 @@ private:
 };
 
 /// Pass to outline similar regions.
-class IROutlinerPass : public PassInfoMixin<IROutlinerPass> {
+class PVIROutlinerPass : public PassInfoMixin<PVIROutlinerPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };

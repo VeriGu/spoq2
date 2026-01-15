@@ -1077,7 +1077,7 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
     auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
     elems->push_back(unique_ptr<SpecNode>(lhsbody));
     elems->push_back(unique_ptr<SpecNode>(rhsbody));
-    auto eqbody = new Expr(Expr::binops::EQUAL, std::move(elems), Bool::BOOL);
+    // auto eqbody = new Expr(Expr::binops::EQUAL, std::move(elems), Bool::BOOL);
 
 
     unique_ptr<SpecNode> aggreinv = make_unique<BoolConst>(true);
@@ -1095,7 +1095,7 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
     vector<unique_ptr<SpecNode>> nodes;
     for(auto arg : *def->args) {
         auto sym = make_unique<Symbol>(def->name + "_" + arg->name + "_new", arg->type);
-        bool succ;
+        // bool succ;
         names.push_back(arg->name);
         nodes.push_back(std::move(sym));
 
@@ -1345,14 +1345,14 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
                         //ret_x = f(a,b,c,d)
                         auto eqformula = ret->get_z3_value() == func_call->get_z3_value();
             
-                        auto some = instance_of(ret.get(), IndValue);
+                        // auto some = instance_of(ret.get(), IndValue);
 
                         //ret_tuple
-                        auto rettuple = instance_of(some->get("value").get(), StructValue);
+                        // auto rettuple = instance_of(some->get("value").get(), StructValue);
                         
                         auto rettype = loop->rettype;
                         auto rettypesome = instance_of(rettype.get(), Option);
-                        auto tupletype = instance_of(rettypesome->elem_type.get(), Tuple);
+                        // auto tupletype = instance_of(rettypesome->elem_type.get(), Tuple);
 
                         //after checks, we should assume that inv is hold after loop. i.e
                         //assume _N_ == 0 and I (postcond)
@@ -1570,7 +1570,7 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
 z3::func_decl formulate_rec_function(Project* proj, Fixpoint* fixpoint) {
     z3::sort_vector sorts(z3ctx);
     z3::expr_vector args(z3ctx);
-    int i = 0;
+    // int i = 0;
     auto n = z3ctx.int_const("_N_");
     for(auto arg: *fixpoint->args) {
         sorts.push_back(arg->type->get_z3_type());
@@ -1829,8 +1829,8 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                 }
             } else {
                 std::cout << "expr: " << string(*expr) << std::endl;
-                auto typ = elems[0].get()->typ;
-                auto typc = dynamic_cast<Struct*>(typ.get());
+                // auto typ = elems[0].get()->typ;
+                // auto typc = dynamic_cast<Struct*>(typ.get());
                 throw std::runtime_error("(z3_eval) Unknown symbol: " + sym);
             }
         } else if (std::holds_alternative<unique_ptr<SpecNode>>(expr->op)) {

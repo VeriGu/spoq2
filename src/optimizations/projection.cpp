@@ -138,7 +138,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
         auto argt = arg->type;
         if(st.get() == argt.get()) {
             if(llvm_func) {
-                auto larg = llvm_func->getArg(idx);
+                // auto larg = llvm_func->getArg(idx);
                 LOG_DEBUG << "Arg: " << arg->name << " type: " << arg->type->name;
             }
         }    

@@ -445,7 +445,7 @@ std::pair<unique_ptr<SpecNode>, bool> reduce_id_write(Project *proj, unique_ptr<
                     if (check == Z3Result::True) {
                         // if (x @ y) = (x' @ y), then return x
                         changed = true;
-                        return { std::move(src->deep_copy()), changed };
+                        return { src->deep_copy(), changed };
                     } 
                 }
             }
@@ -469,7 +469,7 @@ std::pair<unique_ptr<SpecNode>, bool> reduce_id_write(Project *proj, unique_ptr<
             if (check == Z3Result::True) {
                 // if (x.(f1).(...).(fn) = y), then return x
                 changed = true;
-                return { std::move(rec->deep_copy()), changed };
+                return { rec->deep_copy(), changed };
             }
         }
     }

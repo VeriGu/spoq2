@@ -856,7 +856,8 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 name.erase(0, 1);
             }
             name = "v_" + Shortcut::replace_dot(name);
-            auto stack_var = proj->cmds.StackMap[context.spoq_func.llvm_func->getName().str()][name];
+            auto local_names = proj->cmds.StackMap[context.spoq_func.llvm_func->getName().str()];
+            auto stack_var = local_names[name];
              // TODO: should we use some more stable way to get the stack_var name?
             if(stack_var.empty()) llvm::errs() << "*alloca: " << *alloc << "\n";
             assert(!stack_var.empty() && "stack_var is empty");
