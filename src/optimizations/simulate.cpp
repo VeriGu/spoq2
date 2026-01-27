@@ -82,7 +82,13 @@ namespace autov
 							auto rel_expr = formulate_relation(proj, rel, st_check, st_ret.get(), state);
 							auto ret_expr = formulate_relation(proj, ret_rel, spec_ret, impl_ret, state);
 							LOG_INFO << "[forward_simulation] St Relation " << rel_expr->get_z3_value() << " is proved between\n"  << string(*st_check) << " and " << string(*st_ret.get()) << std::endl;
-							LOG_INFO << "[forward_simulation] Ret Relation " << ret_expr->get_z3_value() << " is proved between\n"  << string(*spec_ret) << " and " << string(*impl_ret) << std::endl;
+							if(!spec_ret) {
+								LOG_INFO << "[forward_simulation] Spec SpecNode null." << std::endl;
+							} else if (!impl_ret){
+								LOG_INFO << "[forward_simulation] Impl SpecNode null." << std::endl;
+							}else{
+								LOG_INFO << "[forward_simulation] Ret Relation " << ret_expr->get_z3_value() << " is proved between\n"  << string(*spec_ret) << " and " << string(*impl_ret) << std::endl;
+							}
 						} else {
 							if (!is_relate) {
 								LOG_WARNING << "[forward_simulation] State Relation can not be proved between\n"  << string(*st_check) << " and " << string(*st_ret.get())  << std::endl;
