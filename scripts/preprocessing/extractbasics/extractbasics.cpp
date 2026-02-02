@@ -503,6 +503,7 @@ std::string ExtractBasicsPass::buildDeclarationStub(const llvm::Function &f){
   if (f.isDeclaration()){
     result = "Parameter " + name + " : " + arg_str + "(" + retty_str + end_str + ").";  
   } else {
+    result = "";
     result = "Parameter " + name + "_oracle : " + arg_str + "(" + retty_str + end_str + ").\n";
     std::string arg_str = "";
     std::string param_str = "";

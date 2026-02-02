@@ -305,9 +305,9 @@ Z3Result z3_verify_state_sat(shared_ptr<ProveState> state, QueryInfo *qinfo, int
     for (auto &ind : *state->inductions) {
         solve.add(ind);
     }
-    auto res = solve.check();
     if (qinfo)
         qinfo->dump(solve.to_smt2());
+    auto res = solve.check();
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 

@@ -107,8 +107,8 @@ enum class Z3Result {
     Unknown
 };
 
-#define Z3_TIMEOUT 1
-#define Z3_VERIFY_TIMEOUT 5000
+#define Z3_TIMEOUT 100
+#define Z3_VERIFY_TIMEOUT 500
 #define Z3_SAT_TIMEOUT 50
 #define Z3_SOLVE_RDATA_TIMEOUT 50
 #define Z3_SOLVE_SECURE_TIMEOUT 50

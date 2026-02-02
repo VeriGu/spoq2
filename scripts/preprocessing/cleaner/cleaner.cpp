@@ -5,11 +5,14 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/IRBuilder.h"
@@ -51,7 +54,8 @@ class CleanerPass : public llvm::ModulePass {
 
 // YYY: modify this list to mannually replace some functions with dummy ones.
 // YYY: only (integer, pointer, void) return type functions are supported for now.
-const std::string CleanerPass::debug_intrinsics[] = {"llvm.dbg", "printhex_ul", "print_string", "printf", "printf_", "printk", "printhex_ul_dbg", "print_string_dbg", "__debug_save_state", "__debug_restore_state", "_out_", "_debug",  "strlen", "_strnlen", "ticks_to_ns_time" };
+// const std::string CleanerPass::debug_intrinsics[] = {"llvm.dbg", "printhex_ul", "print_string", "printf", "printf_", "printk", "printhex_ul_dbg", "print_string_dbg", "__debug_save_state", "__debug_restore_state", "_out_", "_debug",  "strlen", "_strnlen", "ticks_to_ns_time" };
+const std::string CleanerPass::debug_intrinsics[] = {"llvm.dbg", "printhex_ul", "print_string", "printf", "printf_", "printk", "printhex_ul_dbg", "print_string_dbg", "__debug_save_state", "__debug_restore_state", "_out_", "_debug", "ticks_to_ns_time" };
 
 void CleanerPass::dfs(llvm::Function* f, int block) {
   if (f->isDeclaration()) return;
@@ -101,6 +105,26 @@ void CleanerPass::clean(llvm::Module& M) {
           builder.CreateRet(llvm::ConstantPointerNull::get(
               llvm::dyn_cast<llvm::PointerType>(rty)));
       }
+    }
+    std::vector<llvm::Instruction*> insts_to_drop;
+    for( auto &bb : F.getBasicBlockList()) {
+      for( llvm::Instruction& inst_ref: bb.getInstList()){
+        auto inst = &inst_ref;
+        if (inst && llvm::isa<llvm::CallInst>(inst)) {
+          auto call_inst = llvm::dyn_cast<llvm::CallInst>(inst);
+          auto target = call_inst->getCalledFunction();
+          if (!target || !target->hasName()){
+            continue;
+          }
+          auto name = target->getName();
+          if(name.startswith("llvm.lifetime")){
+            insts_to_drop.push_back(inst);
+          }
+        }
+      }
+    }
+    for (auto inst: insts_to_drop){
+      inst->eraseFromParent();
     }
   }
 }

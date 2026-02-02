@@ -293,12 +293,16 @@ namespace autov
 					sim_result = sim_result + this_branch_result;
 				}
 			}
-			LOG_DEBUG << "[forward_simulation] Completed Match of src " << string(*m->src).substr(0,100);
+			// LOG_DEBUG << "[forward_simulation] Completed Match of src " << string(*m->src).substr(0,100);
 			return sim_result;
 
 		} else if (auto iff = instance_of(impl, If)) {
 			auto cond = z3_eval(proj, iff->cond.get(), state);
-			LOG_DEBUG << "[forward_simulation] If: " << cond.get()->get_z3_value();
+			auto cond_val = cond->get_z3_value();
+			if (cond_val.is_int()){
+				cond_val = (cond_val != 0);
+			}
+			// LOG_DEBUG << "[forward_simulation] If: " << cond.get()->get_z3_value();
 
 			bool true_branch_plausible = true;
 			bool false_branch_plausible = true;
@@ -324,11 +328,11 @@ namespace autov
 				return SimulateResult{true, false, false, false};
 			} else if (true_branch_plausible && !false_branch_plausible) {
 				LOG_DEBUG << "[forward_simulation] If - On True branch only";
-				state->conds->push_back(cond->get_z3_value());
+				state->conds->push_back(cond_val);
 				return forward_simulation(proj, st_check, spec_ret, iff->then_body.get(), rel, ret_rel, state, det, path, i+1, allow_none);
 			} else if (!true_branch_plausible && false_branch_plausible) {
 				LOG_DEBUG << "[forward_simulation] If - On False branch only";
-				state->conds->push_back(!cond->get_z3_value());
+				state->conds->push_back(!cond_val);
 				return forward_simulation(proj, st_check, spec_ret, iff->else_body.get(), rel, ret_rel, state, det, path, i+1, allow_none);
 			} else {
 				LOG_DEBUG << "[forward_simulation] If - On both branches";
@@ -338,8 +342,8 @@ namespace autov
 				// }
 				auto then_state = state->copy();
 				auto else_state = state->copy();
-				then_state->conds->push_back(cond->get_z3_value());
-				else_state->conds->push_back(!cond->get_z3_value());
+				then_state->conds->push_back(cond_val);
+				else_state->conds->push_back(!cond_val);
 				auto then_sim_result = forward_simulation(proj, st_check, spec_ret, iff->then_body.get(), rel, ret_rel, then_state, false, path, i+1, allow_none);
 				if (!then_sim_result.verified) {
 					LOG_DEBUG << "[forward_simulation] Then branch of if not verified";
@@ -348,7 +352,7 @@ namespace autov
 				auto else_sim_result = forward_simulation(proj, st_check, spec_ret, iff->else_body.get(), rel, ret_rel, else_state, false, path, i+1, allow_none);
 				if (!else_sim_result.verified) {
 					LOG_DEBUG << "[forward_simulation] else branch of if not verified";
-					LOG_DEBUG << "[forward_simulation] Guilty condition " << (!cond.get()->get_z3_value());
+					LOG_DEBUG << "[forward_simulation] Guilty condition " << (!cond_val);
 				}
 				return then_sim_result + else_sim_result;
 			}
@@ -385,13 +389,19 @@ namespace autov
                                    std::shared_ptr<autov::ProveState> &state,
                                    std::shared_ptr<autov::SpecValue> &cond,
                                    z3::model &model) {
-        auto true_res = z3_check_unsat(state, !cond->get_z3_value(), model,
+		        LOG_DEBUG << "[check_branch_plausibility] checking if cond is unsat: "
+                  << cond->get_z3_value().to_string();
+		auto cond_val = cond->get_z3_value();
+		if (cond_val.is_int()) {
+			cond_val = (cond_val != 0);
+		}
+        auto true_res = z3_check_unsat(state, !cond_val, model,
                                   &proj->query_saver, 500);
         LOG_DEBUG << "[check_branch_plausibility] checking if cond is unsat: "
-                  << std::to_string(cond->get_z3_value()).substr(0,400);
+                  << cond_val.to_string().substr(0,400);
         // if z3_check_unsat returns True, then cond cannot be false.
 		// In that case, the false branch is not possible.
-        auto res = z3_check_unsat(state, cond->get_z3_value(), model,
+        auto res = z3_check_unsat(state, cond_val, model,
                              &proj->query_saver, 500);
 		return std::make_pair(!(true_res == Z3Result::True),
 							  !(res == Z3Result::True));
@@ -601,10 +611,10 @@ namespace autov
 							LOG_ERROR << "[simulate_by_traverse] Unexpected Expr, not Some.";
 						}
 					}
-				} 
-				// else {
+				}
+				else {
 					resolve_pattern(proj, m, pat, src, new_state);
-				// }
+				}
 				auto state_works = z3_verify_state_sat(new_state->copy(), &proj->query_saver);
 				if (state_works != Z3Result::False) {
 					LOG_DEBUG << "[simulate_by_traverse] In Match: " << string(*m->src).substr(0,200) << ". Verifying pattern: " << string(*(*pm)->pattern.get()).substr(0,100) << ".";
@@ -633,8 +643,12 @@ namespace autov
 			
 			auto true_state = state->copy();
 			auto false_state = state->copy();
-			true_state->conds->push_back(c->get_z3_value());
-			false_state->conds->push_back(!c->get_z3_value());
+			auto cond_val = c->get_z3_value();
+			if(cond_val.is_int()){
+				cond_val = (cond_val != 0);
+			}
+			true_state->conds->push_back(cond_val);
+			false_state->conds->push_back(!cond_val);
 			path_t p_then = p, p_else = p;
 			p_then.push_back(1);
 			p_else.push_back(0);
@@ -650,7 +664,7 @@ namespace autov
 			if (false_branch_plausible){
 				sim_result = sim_result + simulate_by_traverse(proj, i->else_body.get(), impl, rel, ret_rel, false_state, p_else, det);
 				if (!sim_result.verified) {
-					LOG_DEBUG << "[simulate_by_traverse] If not verified: " << !c->get_z3_value();
+					LOG_DEBUG << "[simulate_by_traverse] If not verified: " << !cond_val;
 				}
 
 			}
