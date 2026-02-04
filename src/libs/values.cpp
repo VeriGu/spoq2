@@ -268,10 +268,10 @@ shared_ptr<SpecValue> Struct::construct(vector<shared_ptr<SpecValue>> &elems) {
 }
 
 
-z3::func_decl Struct::get_recognizer(string constr) {
-        auto css = this->get_z3_type().recognizers()[0];
+// z3::func_decl Struct::get_recognizer(string constr) {
+//         auto css = this->get_z3_type().recognizers()[0];
 
-};
+// };
 
 // ----------------------------------------------------------------------------
 // StructValue

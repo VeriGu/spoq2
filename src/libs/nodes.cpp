@@ -913,7 +913,7 @@ void Definition::infer_type(Project &proj) {
     for (auto it = args->begin(); it != args->end(); it++) {
         (*known)[(*it)->name] = (*it)->type;
     }
-
+    llvm::errs() << "\n" + string(*body) + "\n";
     type_inference::infer_type(proj, body.get(), known, rettype);
 
     for (auto it = args->begin(); it != args->end(); it++) {

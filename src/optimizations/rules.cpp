@@ -1423,7 +1423,8 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
                 if(*c == *c2) {
                     return std::move(ifnode->then_body);
                 } else if(std::get<bool>(c->value) == true) {
-                    return std::move(ifnode->cond);
+                    // return std::move(ifnode->cond);
+                    return ifnode->cond->deep_copy();
                 } else {
                     auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
                     elems->push_back(std::move(ifnode->cond));
@@ -3045,7 +3046,7 @@ rule_ret_t SpecRules::rule_simplify_map_get_set(std::unique_ptr<SpecNode> spec, 
         } else if(op_eq(e->op, Expr::SET)) {
             auto map = e->elems->at(0).get();
             auto idx = e->elems->at(1).get();
-            auto val = e->elems->at(2).get();
+            // auto val = e->elems->at(2).get();
             if(auto m = instance_of(map, Expr)) {
                 if(op_eq(m->op, Expr::SET)) {
                     auto idx2 = m->elems->at(1).get();
@@ -4147,7 +4148,7 @@ bool spec_is_pure(Project *proj, SpecNode *spec, bool &has_if) {
     3. return value (should not be counted as usage)
 */
 bool spec_needs_state(Project *proj, SpecNode *spec) {
-    bool ret = false;
+    // bool ret = false;
     if (auto e = instance_of(spec, Expr)) {
         /* First we need to handle the return value case: it will return an expression := (Some (X, st)), 
             which should not be countered in usage */

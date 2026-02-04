@@ -41,6 +41,7 @@ inline std::string ruleid_to_string(RuleID rule) {
 
 
 unique_ptr<SpecNode> spec_transformer_v2(Project *proj, unique_ptr<SpecNode> node, int layer_id, bool unfold, bool low_spec) {
+                LOG_DEBUG << "Transforming node" << string(*node);
     std::map<string, Symbol*> fvars;
     std::set<string> free;
     free_vars_map(proj, node.get(), free, fvars);
@@ -112,6 +113,7 @@ unique_ptr<SpecNode> spec_transformer_v2(Project *proj, unique_ptr<SpecNode> nod
 
 void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfold, bool low_spec) {
     LOG_INFO << "Transforming " << def->name << ", unfold: " << unfold;
+    LOG_INFO << "Transforming " << def->name << "def: " << string(*def);
     auto fname = def->name;
     auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
     auto conds = std::make_shared<vector<z3::expr>>();
@@ -136,7 +138,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
         auto argt = arg->type;
         if(st.get() == argt.get()) {
             if(llvm_func) {
-                auto larg = llvm_func->getArg(idx);
+                // auto larg = llvm_func->getArg(idx);
                 LOG_DEBUG << "Arg: " << arg->name << " type: " << arg->type->name;
             }
         }    
@@ -201,7 +203,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             auto __tmp_spec3 = std::move(__tmp_spec2);
             bool z3_changed = false;
             if (force_simpl || !__unfold) {
-                LOG_DEBUG << "spec before: " << string(*__tmp_spec3.get()) << "\n";
+                // LOG_DEBUG << "spec before: " << string(*__tmp_spec3.get()) << "\n";
                 // LOG_DEBUG << "spec: " << string(*__tmp_spec3.get()) << "\n";
                 auto start = std::chrono::high_resolution_clock::now();
                 LOG_DEBUG << "start z3" << "\n";

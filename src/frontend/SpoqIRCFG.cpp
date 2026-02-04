@@ -71,7 +71,7 @@ bool SpoqIRModule::control_flow_duplicate(llvm::BasicBlock *bb,
 
 bool SpoqIRModule::control_flow_clone_and_split(llvm::BasicBlock *bb, SpoqLoopContext &context) {
     if (bb->getParent()->getBasicBlockList().size() > 20000) 
-        throw std::runtime_error("block size too large");
+        throw std::runtime_error("block size too large in fn " + bb->getParent()->getName().str() + ": " + std::to_string(bb->getParent()->getBasicBlockList().size()));
 
     if (bb == context.get_postheader()) return true;
     if (auto target = context.require_jump(bb))  {
@@ -247,8 +247,13 @@ bool SpoqIRModule::control_flow_conversion_v2(string fname,
 
             auto preheader = loop->getLoopPreheader();
             llvm::BasicBlock* skip_preheader = nullptr;
-            assert(preheader && "loop does not have a loop header");
-            assert(preheader->getUniqueSuccessor() && "preheader does not have a unique successor");
+            if(!preheader) {
+                throw std::runtime_error("loop does not have a loop header");
+            } else if (!preheader->getUniqueSuccessor()){
+                throw std::runtime_error("preheader does not have a unique successor");
+            }
+                // assert(preheader && "loop does not have a loop header");
+                // assert(preheader->getUniqueSuccessor() && "preheader does not have a unique successor");
 
             if (!preheader->phis().empty()) {
                 // in case, two loops share preheaader / header

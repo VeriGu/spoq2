@@ -80,7 +80,15 @@ namespace autov
 						auto [ret_is_relate, ret_expr_relate] = check_relation(proj, ret_rel, spec_ret, impl_ret, state);
 						if (is_relate && ret_is_relate) {
 							auto rel_expr = formulate_relation(proj, rel, st_check, st_ret.get(), state);
-							LOG_INFO << "[forward_simulation] Expr Relation " << rel_expr->get_z3_value() << " is proved between\n"  << string(*st_check) << " and " << string(*st_ret.get()) << std::endl;
+							auto ret_expr = formulate_relation(proj, ret_rel, spec_ret, impl_ret, state);
+							LOG_INFO << "[forward_simulation] St Relation " << rel_expr->get_z3_value() << " is proved between\n"  << string(*st_check) << " and " << string(*st_ret.get()) << std::endl;
+							if(!spec_ret) {
+								LOG_INFO << "[forward_simulation] Spec SpecNode null." << std::endl;
+							} else if (!impl_ret){
+								LOG_INFO << "[forward_simulation] Impl SpecNode null." << std::endl;
+							}else{
+								LOG_INFO << "[forward_simulation] Ret Relation " << ret_expr->get_z3_value() << " is proved between\n"  << string(*spec_ret) << " and " << string(*impl_ret) << std::endl;
+							}
 						} else {
 							if (!is_relate) {
 								LOG_WARNING << "[forward_simulation] State Relation can not be proved between\n"  << string(*st_check) << " and " << string(*st_ret.get())  << std::endl;
@@ -89,9 +97,9 @@ namespace autov
 								LOG_WARNING << "[forward_simulation] ret val Relation can not be proved between\n"  << string(*spec_ret) << " and " << string(*impl_ret)  << std::endl;
 							}
 							
-							for(auto cond: *state->conds) {
-								LOG_DEBUG << "Condition: " << cond;
-							 	}
+							// for(auto cond: *state->conds) {
+							// 	LOG_DEBUG << "Condition: " << cond;
+							//  	}
 						}
 						return SimulateResult{is_relate && ret_is_relate, false, false, false};
 					} else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
@@ -102,9 +110,9 @@ namespace autov
 							LOG_INFO << "[forward_simulation] Symbol Relation is proved between\n"  << string(*st_check) << " and " << string(*st_ret.get()) << std::endl;
 						} else {
 							LOG_WARNING << "[forward_simulation] Symbol Relation can not be proved between\n"  << string(*st_check) << " and " << string(*st_ret.get())  << std::endl;
-							for(auto cond: *state->conds) {
-								LOG_DEBUG << "Condition: " << cond;
-							}
+							// for(auto cond: *state->conds) {
+							// 	LOG_DEBUG << "Condition: " << cond;
+							// }
 						}
 						return SimulateResult{is_relate, false, false, false};
 					}
@@ -134,23 +142,23 @@ namespace autov
 								if(proj->loop_invs.find(op) != proj->loop_invs.end()) {
 									if (proj->cmds.PreCond.find(op) != proj->cmds.PreCond.end()) {
 										if (!check_states_implies_pre_condition(proj, state, op, expr->elems.get())){
-											LOG_INFO << "[Checking Loop Invariant] Precondition not Satified";
+											LOG_INFO << "[forward_simulation] Loop Invariant Precondition not Satified";
 											return SimulateResult{false, false, false, false};
 										};
 									}
-									LOG_INFO << "[Checking Loop Invariant] Precondition Satisfied";
+									LOG_INFO << "[forward_simulation] Loop Invariant Precondition Satisfied";
 									auto fname = loop->name;
 									loop_post_cond = formulate_loop_invariant(proj, fname, expr->elems.get());
 									add_post_condition = true;
-									LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << op;
+									LOG_DEBUG << "[forward_simulation] Loop Invariant Adding loop postcondition: " << op;
 								} else {
-									LOG_WARNING << "Loop Invariant not specified: " << op;
+									LOG_WARNING << "[forward_simulation] Loop Invariant not specified: " << op;
 								}
 							} else {
 								if (proj->cmds.PreCond.find(op) != proj->cmds.PreCond.end()) {
-									LOG_DEBUG << "Call requiring precondition evaluation: " << string(*expr);
+									LOG_DEBUG << "[forward_simulation] Call requiring precondition evaluation: " << string(*expr);
 									if (!check_states_implies_pre_condition(proj, state, op, expr->elems.get())){
-										LOG_INFO << "[Checking Loop Invariant] Precondition not Satified";
+										LOG_INFO << "[forward_simulation] Loop Invariant Precondition not Satified";
 										return SimulateResult{false, false, false, false};
 									};
 								}
@@ -211,7 +219,7 @@ namespace autov
 											}
 										}
 										auto new_inv = subst_v2(proj, move(loop_post_cond), &names, &elems);
-										LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << string(*new_inv);
+										LOG_DEBUG << "[forward_simulation] Checking loop invariant: Adding loop postcondition: " << string(*new_inv);
 										auto new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
 										pm_state->conds->push_back(new_inv_z3->get_z3_value());
 									}
@@ -220,7 +228,7 @@ namespace autov
 										(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 									}
 									auto new_inv = subst_v2(proj, move(loop_post_cond), loop->name + "_" + "st_new", p->elems->at(0)->deep_copy());
-									LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: " << string(*new_inv);
+									LOG_DEBUG << "[forward_simulation] Checking loop invariant: Adding loop postcondition: " << string(*new_inv);
 									auto new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
 									pm_state->conds->push_back(new_inv_z3->get_z3_value());
 								}
@@ -250,7 +258,7 @@ namespace autov
 											}
 										}
 										auto new_inv = subst_v2(proj, move(post_cond), &names, &elems);
-										LOG_DEBUG << "Adding postcondition: " << string(*new_inv);
+										LOG_DEBUG << "[forward_simulation] Adding postcondition: " << string(*new_inv);
 										auto new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
 										pm_state->conds->push_back(new_inv_z3->get_z3_value());
 									}
@@ -260,16 +268,17 @@ namespace autov
 									}
 									auto new_inv = subst_v2(proj, move(post_cond), def->name + "_st_new_", p->elems->at(0)->deep_copy());
 
-									LOG_DEBUG << "Adding postcondition: " << string(*new_inv);
+									LOG_DEBUG << "[forward_simulation] Adding postcondition: " << string(*new_inv);
 									auto new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
 									pm_state->conds->push_back(new_inv_z3->get_z3_value());
 								}
 							}
 						}
 					}
-				} else {
+				} 
+				// else {
 					resolve_pattern(proj, m, pat, src, pm_state);
-				}
+				// }
 
 				if (!std::holds_alternative<std::nullptr_t>(abst_spec)) {
 					SpecNode *st_ret = extract_st_from_expr(proj, pat);
@@ -293,15 +302,24 @@ namespace autov
 					continue;
 				} else {
 					auto this_branch_result = forward_simulation(proj, st_check, spec_ret, (*pm)->body.get(), rel, ret_rel, pm_state, det, path, i+1, allow_none);
+					if(!this_branch_result.verified){
+						LOG_DEBUG << "[forward_simulation] Match verification failed on branch: " << string(*pat);
+						LOG_DEBUG << "Matched expr: " << string(*m->src->deep_copy());	
+						return this_branch_result;		
+					}
 					sim_result = sim_result + this_branch_result;
 				}
 			}
-			LOG_DEBUG << "[forward_simulation] Completed Match: verified: " << sim_result.verified;
+			// LOG_DEBUG << "[forward_simulation] Completed Match of src " << string(*m->src).substr(0,100);
 			return sim_result;
 
 		} else if (auto iff = instance_of(impl, If)) {
 			auto cond = z3_eval(proj, iff->cond.get(), state);
-			LOG_DEBUG << "[forward_simulation] If: " << cond.get()->get_z3_value();
+			auto cond_val = cond->get_z3_value();
+			if (cond_val.is_int()){
+				cond_val = (cond_val != 0);
+			}
+			// LOG_DEBUG << "[forward_simulation] If: " << cond.get()->get_z3_value();
 
 			bool true_branch_plausible = true;
 			bool false_branch_plausible = true;
@@ -310,12 +328,12 @@ namespace autov
 				LOG_DEBUG << "[forward_simulation] If is determ branch True";
 				false_branch_plausible = (path[i] == 1) ? false : true;
 			} else {
-				LOG_DEBUG << "[forward_simulation] If is determ branch False";
+				// LOG_DEBUG << "[forward_simulation] If is determ branch False";
 				z3::model model(z3ctx);
 				auto t_race = OPTS.race_timeout;
 				// OPTS.race_timeout = Z3_SIM_TIMEOUT;
 				// true_res = z3_check(state, cond->get_z3_value(), Z3_SIM_TIMEOUT);
-				LOG_DEBUG << "[forward_simulation] checking if !cond is unsat: " << cond->get_z3_value();
+				LOG_DEBUG << "[forward_simulation] checking if !cond is unsat: " << std::to_string(cond->get_z3_value()).substr(0,200);
 				// if z3_check_unsat returns True on !cond, then !cond cannot be false, meaning cond cannot be true.
                 std::pair<bool,bool> plausibility = check_branch_plausibility(proj, state, cond, model);
 				true_branch_plausible = plausibility.first;
@@ -327,22 +345,22 @@ namespace autov
 				return SimulateResult{true, false, false, false};
 			} else if (true_branch_plausible && !false_branch_plausible) {
 				LOG_DEBUG << "[forward_simulation] If - On True branch only";
-				state->conds->push_back(cond->get_z3_value());
+				state->conds->push_back(cond_val);
 				return forward_simulation(proj, st_check, spec_ret, iff->then_body.get(), rel, ret_rel, state, det, path, i+1, allow_none);
 			} else if (!true_branch_plausible && false_branch_plausible) {
 				LOG_DEBUG << "[forward_simulation] If - On False branch only";
-				state->conds->push_back(!cond->get_z3_value());
+				state->conds->push_back(!cond_val);
 				return forward_simulation(proj, st_check, spec_ret, iff->else_body.get(), rel, ret_rel, state, det, path, i+1, allow_none);
 			} else {
 				LOG_DEBUG << "[forward_simulation] If - On both branches";
 				// O(N^2) simulation search 
-				if (!det || !iff->cond->is_determ_branch) { 
-					LOG_DEBUG << "Unsolved (try) If non-determ cond!" << string(*iff->cond.get());
-				}
+				// if (!det || !iff->cond->is_determ_branch) { 
+				// 	LOG_DEBUG << "Unsolved (try) If non-determ cond!" << string(*iff->cond.get());
+				// }
 				auto then_state = state->copy();
 				auto else_state = state->copy();
-				then_state->conds->push_back(cond->get_z3_value());
-				else_state->conds->push_back(!cond->get_z3_value());
+				then_state->conds->push_back(cond_val);
+				else_state->conds->push_back(!cond_val);
 				auto then_sim_result = forward_simulation(proj, st_check, spec_ret, iff->then_body.get(), rel, ret_rel, then_state, false, path, i+1, allow_none);
 				if (!then_sim_result.verified) {
 					LOG_DEBUG << "[forward_simulation] Then branch of if not verified";
@@ -351,7 +369,7 @@ namespace autov
 				auto else_sim_result = forward_simulation(proj, st_check, spec_ret, iff->else_body.get(), rel, ret_rel, else_state, false, path, i+1, allow_none);
 				if (!else_sim_result.verified) {
 					LOG_DEBUG << "[forward_simulation] else branch of if not verified";
-					LOG_DEBUG << "[forward_simulation] Guilty condition " << (!cond.get()->get_z3_value());
+					LOG_DEBUG << "[forward_simulation] Guilty condition " << (!cond_val);
 				}
 				return then_sim_result + else_sim_result;
 			}
@@ -363,7 +381,12 @@ namespace autov
 		} else if (auto r = instance_of(impl, Symbol)){
 			auto sym = dynamic_cast<Symbol *>(impl);
 			if (sym->text == "None") {
-				LOG_DEBUG << "[forward_simulation] None Symbol in impl, allow_none: " << allow_none;
+				if(!allow_none) {
+					LOG_DEBUG << "[forward_simulation] None Symbol in impl, allow_none: " << allow_none;
+					// for(auto cond: *state->conds) {
+					// 	LOG_DEBUG << "Condition: " << cond;
+					// }
+				}
 				return SimulateResult{allow_none, allow_none, false, !allow_none};
 			}
 			LOG_ERROR << "[forward_simulation] Unexpected Symbol in impl.";
@@ -383,13 +406,19 @@ namespace autov
                                    std::shared_ptr<autov::ProveState> &state,
                                    std::shared_ptr<autov::SpecValue> &cond,
                                    z3::model &model) {
-        auto true_res = z3_check_unsat(state, !cond->get_z3_value(), model,
+		        LOG_DEBUG << "[check_branch_plausibility] checking if cond is unsat: "
+                  << cond->get_z3_value().to_string();
+		auto cond_val = cond->get_z3_value();
+		if (cond_val.is_int()) {
+			cond_val = (cond_val != 0);
+		}
+        auto true_res = z3_check_unsat(state, !cond_val, model,
                                   &proj->query_saver, 500);
         LOG_DEBUG << "[check_branch_plausibility] checking if cond is unsat: "
-                  << std::to_string(cond->get_z3_value()).substr(0,400);
+                  << cond_val.to_string().substr(0,400);
         // if z3_check_unsat returns True, then cond cannot be false.
 		// In that case, the false branch is not possible.
-        auto res = z3_check_unsat(state, cond->get_z3_value(), model,
+        auto res = z3_check_unsat(state, cond_val, model,
                              &proj->query_saver, 500);
 		return std::make_pair(!(true_res == Z3Result::True),
 							  !(res == Z3Result::True));
@@ -438,7 +467,15 @@ namespace autov
 							}
 						}
 						LOG_DEBUG << "[simulate_by_traverse] spec: " << string(*spec) << " moving to forward_simulation.";
-						return forward_simulation(proj, st_ret.get(), spec_ret, impl, rel, ret_rel, state, det, p, 0, false);
+
+						auto result = forward_simulation(proj, st_ret.get(), spec_ret, impl, rel, ret_rel, state, det, p, 0, false);
+						if(!result.verified){
+							LOG_DEBUG << "Verification failed";
+							for(auto cond: *state->conds) {
+									LOG_DEBUG << "Condition: " << cond;
+							}
+						}
+						return result;
 					} else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
 					   auto st_ret = expr->elems->at(0)->deep_copy();
 						return forward_simulation(proj, st_ret.get(), nullptr, impl, rel, ret_rel, state, det, p, 0, false);
@@ -608,15 +645,23 @@ namespace autov
 							LOG_ERROR << "[simulate_by_traverse] Unexpected Expr, not Some.";
 						}
 					}
-				} else {
+				}
+				else {
 					resolve_pattern(proj, m, pat, src, new_state);
 				}
-				LOG_DEBUG << "[simulate_by_traverse] In Match, verifying body at " << (*pm)->body.get() << ".";
-				auto new_result = simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, ret_rel, new_state, p_match, det);
-				if (sim_result.verified && !new_result.verified) {
-					LOG_DEBUG << "[simulate_by_traverse] In Match body at " << (*pm)->body.get() << " not verified.";
+				auto state_works = z3_verify_state_sat(new_state->copy(), &proj->query_saver);
+				if (state_works != Z3Result::False) {
+					LOG_DEBUG << "[simulate_by_traverse] In Match: " << string(*m->src).substr(0,200) << ". Verifying pattern: " << string(*(*pm)->pattern.get()).substr(0,100) << ".";
+					auto new_result = simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, ret_rel, new_state, p_match, det);
+					LOG_DEBUG << "[simulate_by_traverse] Leaving Match: " << string(*m->src).substr(0,200) << ". pattern: " << string(*(*pm)->pattern.get()).substr(0,100) << ".";
+					if (sim_result.verified && !new_result.verified) {
+						LOG_DEBUG << "[simulate_by_traverse] In Match body at " << (*pm)->body.get() << " not verified.";
+					}
+					sim_result = sim_result + new_result;
+				} else {
+					// This match branch is not plausible, skip it.
+					sim_result = sim_result + (SimulateResult {true, false, false, false});
 				}
-				sim_result = sim_result + new_result;
 			}
 			if (!sim_result.verified) {
 				LOG_DEBUG << "[simulate_by_traverse] Completed Match: some branches not verified.";
@@ -632,27 +677,33 @@ namespace autov
 			
 			auto true_state = state->copy();
 			auto false_state = state->copy();
-			true_state->conds->push_back(c->get_z3_value());
-			false_state->conds->push_back(!c->get_z3_value());
+			auto cond_val = c->get_z3_value();
+			if(cond_val.is_int()){
+				cond_val = (cond_val != 0);
+			}
+			true_state->conds->push_back(cond_val);
+			false_state->conds->push_back(!cond_val);
 			path_t p_then = p, p_else = p;
 			p_then.push_back(1);
 			p_else.push_back(0);
 			auto sim_result = SimulateResult{true, false, false, false};
+			LOG_DEBUG << "[simulate_by_traverse] Checking if: " << string(*c).substr(0,200);
+			LOG_DEBUG << "[simulate_by_traverse] Checking if z3: " << c->get_z3_value();
 			if (true_branch_plausible){
 				sim_result = sim_result + simulate_by_traverse(proj, i->then_body.get(), impl, rel, ret_rel, true_state, p_then, det);
 				if (!sim_result.verified) {
-					LOG_DEBUG << "[simulate_by_traverse] Then branch of if not verified";
+					LOG_DEBUG << "[simulate_by_traverse] Then branch of if not verified" << c->get_z3_value();
 				}
 			}
 			if (false_branch_plausible){
 				sim_result = sim_result + simulate_by_traverse(proj, i->else_body.get(), impl, rel, ret_rel, false_state, p_else, det);
 				if (!sim_result.verified) {
-					LOG_DEBUG << "[simulate_by_traverse] If not verified: " << !c->get_z3_value();
+					LOG_DEBUG << "[simulate_by_traverse] If not verified: " << !cond_val;
 				}
 
 			}
 			if (!true_branch_plausible && !false_branch_plausible) {
-				LOG_DEBUG << "[simulate_by_traverse] If - Both branches impossible!";
+				LOG_ERROR << "[simulate_by_traverse] If - Both branches impossible!";
 			}
 			return sim_result;
 		} else if (auto r = instance_of(spec, Rely)) {
@@ -663,10 +714,10 @@ namespace autov
 		} else if (auto r = instance_of(spec, Symbol)) { 
 			auto sym = dynamic_cast<Symbol*>(spec);
 			if(sym->text == "None") {
-				LOG_DEBUG << "[simulate_by_traverse] Detected None node in spec.";
-				for(auto cond: *state->conds) {
-					LOG_DEBUG << "[simulate_by_traverse] Condition at None: " << cond;
-				}
+				LOG_DEBUG << "[simulate_by_traverse] Detected None node in spec, checking if impl removes spec UB.";
+				// for(auto cond: *state->conds) {
+				// 	LOG_DEBUG << "[simulate_by_traverse] Condition at None: " << cond;
+				// }
 				// TODO: Something in forward_simulation is mutating impl.
 				auto impl_copy = impl->deep_copy();
 				return forward_simulation(proj, sym, nullptr, impl_copy.get(), rel, ret_rel, state, det, p, 0, true);

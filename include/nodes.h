@@ -102,6 +102,7 @@ public:
     virtual void clear_z3_eval() = 0;
 
     virtual unique_ptr<SpecNode> deep_copy() const = 0;
+    virtual bool deep_eq(SpecNode* n) const = 0;
     virtual void deep_copy(unique_ptr<SpecNode> &p) const = 0;
 
     virtual ~SpecNode() {}
@@ -143,6 +144,14 @@ public:
 
     void deep_copy(unique_ptr<SpecNode> &p) const {
         p = make_unique<Symbol>(this->text, this->type);
+    }
+    bool deep_eq(SpecNode* n) const {
+        auto sym = dynamic_cast<Symbol*>(n);
+        if(sym){
+            return (sym->text == this->text) && (sym->get_type() == this->get_type());
+        } else {
+            return false;
+        }
     }
 
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
@@ -200,13 +209,20 @@ public:
     void deep_copy(unique_ptr<SpecNode> &p) const {
         p = make_unique<Const>(this->value, this->type);
     }
-
+    bool deep_eq(SpecNode* n) const {
+        auto other = dynamic_cast<Const*>(n);
+        if(other){
+            return (other->value == this->value) && (other->get_type() == this->get_type());
+        } else {
+            return false;
+        }
+    }
     virtual ~Const() {}
 private:
     virtual const string to_string() const {
         if (this->type == SpecType::UNKNOWN_TYPE) {
             throw std::invalid_argument("Const must have a type");
-        } else if (dynamic_cast<Int *>(this->type.get()) != nullptr) {
+        } else if (std::holds_alternative<unsigned long>(this->value)) {
             // if (std::get_if<unsigned long>(&this->value) == nullptr) {
             //     if (std::get_if<string>(&this->value) != nullptr) {
             //         std::cout << ("Const must have an integer value, not a string: " + std::get<string>(this->value));
@@ -223,6 +239,8 @@ private:
                 return std::to_string((unsigned long)v);
         } else if (dynamic_cast<String *>(this->type.get()) != nullptr) {
             return "\"" + std::get<string>(this->value) + "\"";
+        } else if (std::holds_alternative<bool>(this->value)) {
+            return std::get<bool>(this->value) ? "true" : "false";
         } else if (dynamic_cast<Bool *>(this->type.get()) != nullptr) {
             return std::get<bool>(this->value) ? "true" : "false";
         } else if (this->type == Prop::PROP) {
@@ -365,7 +383,15 @@ public:
     void deep_copy(unique_ptr<SpecNode> &p) const {
         throw std::invalid_argument("RecordDef cannot be deep copied");
     }
-
+    bool deep_eq(SpecNode* n) const {
+        auto other = dynamic_cast<RecordDef*>(n);
+        if(other){
+            if (other->get_type() == this->get_type()){
+                return other->fields == this->fields;
+            }
+        }
+        return false;
+    }
     ~RecordDef() {}
 
 private:
@@ -533,6 +559,13 @@ public:
     void deep_copy(unique_ptr<SpecNode> &p) const {
         p = deep_copy_down();
     }
+    bool deep_eq(SpecNode* n) const {
+        auto other = dynamic_cast<Expr*>(n);
+        if(other){
+            return *other == *this;
+        }
+        return false;
+    }
 
     void clear_z3_eval() {
         this->cached_eval = nullptr;
@@ -646,7 +679,13 @@ public:
         return deep_copy_down();
     }
 
-
+    bool deep_eq(SpecNode* n) const {
+        auto other = dynamic_cast<PatternMatch*>(n);
+        if(other){
+            return *other == *this;
+        }
+        return false;
+    }
     void clear_z3_eval() {
         this->cached_eval = nullptr;
         this->pattern->clear_z3_eval();
@@ -762,6 +801,14 @@ public:
         p = make_unique<Match>(std::move(new_src), std::move(new_match_list));
 
         p->length = this->length;
+    }
+
+    bool deep_eq(SpecNode* n) const {
+        auto other = dynamic_cast<Match*>(n);
+        if(other){
+            return *other == *this;
+        }
+        return false;
     }
 
     bool is_let() const {
@@ -970,7 +1017,13 @@ public:
 
         p->length = this->length;
     }
-
+    bool deep_eq(SpecNode* n) const {
+        auto other = dynamic_cast<Rely*>(n);
+        if(other){
+            return *other == *this;
+        }
+        return false;
+    }
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
                 optional<shared_ptr<SpecType>> &result_type);
 
@@ -1023,7 +1076,13 @@ public:
 
         p = make_unique<Anno>(std::move(new_prop), std::move(new_body));
     }
-
+    bool deep_eq(SpecNode* n) const {
+        auto other = dynamic_cast<Anno*>(n);
+        if(other){
+            return *other == *this;
+        }
+        return false;
+    }
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
                     optional<shared_ptr<SpecType>> &result_type);
 private:
@@ -1044,7 +1103,7 @@ public:
     If(unique_ptr<SpecNode>cond, unique_ptr<SpecNode>then_body, unique_ptr<SpecNode>else_body) :
         SpecNode(then_body->get_type()), cond(std::move(cond)), then_body(std::move(then_body)), else_body(std::move(else_body)) {
         this->length = calc_length();
-        if (this->cond == nullptr)
+        if (this->cond.get() == nullptr)
             throw std::invalid_argument("If condition cannot be null");
     }
 
@@ -1078,7 +1137,13 @@ public:
     void deep_copy(unique_ptr<SpecNode> &p) const {
         deep_copy_impl(p);
     }
-
+    bool deep_eq(SpecNode* n) const {
+        auto other = dynamic_cast<If*>(n);
+        if(other){
+            return *other == *this;
+        }
+        return false;
+    }
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
                 optional<shared_ptr<SpecType>> &result_type);
 
@@ -1093,7 +1158,9 @@ private:
         unique_ptr<SpecNode> new_cond;
         unique_ptr<SpecNode> new_then_body;
         unique_ptr<SpecNode> new_else_body;
-
+        if (!this->cond.get()){
+            throw std::runtime_error("nullptr cond");
+        }
         this->cond->deep_copy(new_cond);
         this->then_body->deep_copy(new_then_body);
         this->else_body->deep_copy(new_else_body);
@@ -1181,6 +1248,13 @@ public:
 
         p = make_unique<Forall>(std::move(new_vars), std::move(new_body));
     }
+    bool deep_eq(SpecNode* n) const {
+        auto other = dynamic_cast<Forall*>(n);
+        if(other){
+            return *other == *this;
+        }
+        return false;
+    }
 
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
                 optional<shared_ptr<SpecType>> &result_type);
@@ -1256,6 +1330,11 @@ public:
         }
 
         p = make_unique<Forall>(std::move(new_vars), std::move(new_body));
+    }
+    bool deep_eq(SpecNode* n) const {
+        // auto other = dynamic_cast<Exists*>
+        // return this->body->deep_eq(other-);
+        return false;
     }
 
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,

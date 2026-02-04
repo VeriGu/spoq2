@@ -76,6 +76,21 @@ class ExtractPointersPass : public llvm::ModulePass {
     std::replace(name.begin(), name.end(), ':', '_');
     return name;
   }
+  std::string getGVLoadStr(llvm::GlobalVariable* v) {
+    if(v->isConstant()){
+      return getGVIdentifier(v);
+    } else {
+      return "st.(globals).(" + getGVIdentifier(v) + ")";
+    }
+        
+  }
+  std::string getGVStoreStr(llvm::GlobalVariable* v) {
+    if(v->isConstant()){
+      return "None (* Attempting to load constant *)";
+    } else {
+      return "st.[globals].[" + getGVIdentifier(v) + "]";
+    }
+  }
 
   bool isUnion(llvm::StructType* ty) {
     return ty->getName().startswith("union.");
@@ -475,7 +490,12 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
       }
     }
   }
-  result.erase(result.rfind(";"), 1);  // remove the last ;
+  if (result.rfind(";") != std::string::npos){
+    result.erase(result.rfind(";"), 1);  // remove the last ;
+
+  } else {
+    assert(false && "Expected to find ; in the result string.  Revisit to make this tolerant of O1");
+  }
   result += "    }.\n";
   stack_load_rdata = load_result;
   stack_store_rdata = store_result;
@@ -547,6 +567,21 @@ void ExtractPointersPass::dumpMemTypInfo(std::string filename, llvm::Module &M){
         ty_str = "not_ptr_or_array";
       }
       (*(*result["fn_arg_ty_map"].getAsObject())[fn.getName().str()].getAsArray()).push_back(ty_str);
+
+      if(ty_str != "not_ptr_or_array" && result["ty_elem_map"].getAsObject()->find(ty_str) == result["ty_elem_map"].getAsObject()->end()) {
+        // if the type is not in the ty_elem_map, we need to add it
+        llvm::Type* inner_ty;
+        if(ty->isPointerTy()) {
+          inner_ty = ty->getPointerElementType();
+        } else if (ty->isArrayTy()) {
+          inner_ty = ty->getArrayElementType();
+        } else {
+          llvm::errs() << "Type " << ty_str << " inner elements not known, needed for fn: " << fn.getName().str() << "\n";
+          continue;
+        }
+        (*result["ty_elem_map"].getAsObject())[ty_str] = llvm::json::Array();
+        (*(*result["ty_elem_map"].getAsObject())[ty_str].getAsArray()).push_back(getTypeIdentifier(inner_ty));
+      }
     }
   }
 
@@ -582,10 +617,11 @@ void ExtractPointersPass::generate(llvm::Module& M) {
   std::string g_load_result = "";
   std::string g_store_result = "";
   std::string g_result = "Record GLOBALS :=\n" \
-                         "  mkGLOBALS {\n";
+                         "  mkGLOBALS {\n"\
+                         "    pointers: (ZMap.t (ZMap.t Z));\n";
   for (llvm::GlobalVariable& globalVar : M.globals()) {
     if (globalVar.getName().startswith("llvm.")) continue;
-    if (globalVar.isConstant()) continue;
+    // if (globalVar.isConstant()) continue;
     auto gv_type = globalVar.getValueType();
     if (globalVar.isDeclaration()) continue;
     if (llvm::dyn_cast<llvm::FunctionType>(gv_type)) continue;
@@ -599,28 +635,48 @@ void ExtractPointersPass::generate(llvm::Module& M) {
 
     auto vty = globalVar.getValueType();
     this->named_global_ty[getGVIdentifier(&globalVar)] = globalVar.getValueType();
-    g_result += "      " + getGVIdentifier(&globalVar) + ": " + generateField(globalVar.getValueType()) + ";\n";
+    // Pointers are not explicitly represented, but instead kept in a pointers field in order to mitigate long runtime from explicit modeling
+    // Trying to create a smt query sort of like this
+    // (declare-datatypes ((GLOBALS 0)) (((mkGLOBALS (pointers (Array Int (Array Int Int)))))))
+    
+    // Constant items don't need to be in RData, keep them out of the globals Record.
+    if(globalVar.isConstant()){
+      g_result = "Parameter " + getGVIdentifier(&globalVar) + ": " + generateField(globalVar.getValueType()) + ".\n" + g_result;
+    } else {
+      g_result += "      " + getGVIdentifier(&globalVar) + ": " + generateField(globalVar.getValueType()) + ";\n";
+    }
+
     if (vty->isIntegerTy() || vty->isPointerTy()) {
       g_load_result += 
       "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
-      "      Some(st.(globals).(" + getGVIdentifier(&globalVar) + "), st)) else\n";
-
-      g_store_result += 
-      "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
-      "      Some(st.[globals].[" + getGVIdentifier(&globalVar) + "] :< v)) else\n";
+      "      Some(" + getGVLoadStr(&globalVar) + ", st)) else\n";
+      if(globalVar.isConstant()){
+        g_store_result += 
+        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
+      } else {
+        g_store_result += 
+        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
+        "      Some(" + getGVStoreStr(&globalVar) + " :< v)) else\n";
+      }
+      
     }
     else if (auto sty = llvm::dyn_cast<llvm::StructType>(vty)) {
       g_load_result += 
       "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
-      "      when ret == load_" + getStructTypeIdentifier(sty) + " sz p.(poffset) st.(globals).(" \
-      + getGVIdentifier(&globalVar) + ");\n" \
+      "      when ret == load_" + getStructTypeIdentifier(sty) + " sz p.(poffset) " + \
+        getGVLoadStr(&globalVar) + ";\n" \
       "      Some(ret, st)) else\n";
-
-      g_store_result += 
-      "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
-      "      when ret == store_" + getStructTypeIdentifier(sty) + " sz p.(poffset) v st.(globals).(" \
-      + getGVIdentifier(&globalVar) + ");\n" \
-      "      Some(st.[globals].[" + getGVIdentifier(&globalVar) + "] :< ret)) else\n";
+      
+      if(globalVar.isConstant()){
+        g_store_result += 
+        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
+      } else {
+        g_store_result += 
+        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
+        "      when ret == store_" + getStructTypeIdentifier(sty) + " sz p.(poffset) v st.(globals).(" \
+        + getGVIdentifier(&globalVar) + ");\n" \
+        "      Some(" + getGVStoreStr(&globalVar) + " :< ret)) else\n";
+      }
     }
     else if (auto aty = llvm::dyn_cast<llvm::ArrayType>(vty)) {
       auto ety = aty->getElementType();
@@ -629,34 +685,45 @@ void ExtractPointersPass::generate(llvm::Module& M) {
         g_load_result += 
         "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
         "      let idx := p.(poffset) / " + std::to_string(element_size) + " in \n"\
-        "      let ptr := st.(globals).(" + getGVIdentifier(&globalVar) + ") @ idx in\n"\
+        "      let ptr := " + getGVLoadStr(&globalVar) + " @ idx in\n"\
         "      Some(ptr, st)) else\n";
-
-        g_store_result += 
-        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
-        "      let idx := p.(poffset) / " + std::to_string(element_size) + " in \n"\
-        "      let ptr := (st.(globals).(" + getGVIdentifier(&globalVar) + ") # idx == v) in\n"\
-        "      Some(st.[globals].[" +  getGVIdentifier(&globalVar) + "] :< ptr)) else\n";
+        if (globalVar.isConstant()){
+          g_store_result += 
+          "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
+        } else {
+          g_store_result += 
+          "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
+          "      let idx := p.(poffset) / " + std::to_string(element_size) + " in \n"\
+          "      let ptr := " + getGVLoadStr(&globalVar) + " # idx == v) in\n"\
+          "      Some(" + getGVStoreStr(&globalVar) + " :< ptr)) else\n";
+        }
       } else if (auto sty = llvm::dyn_cast<llvm::StructType>(ety)) {
         g_load_result += 
         "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
         "       let idx := p.(poffset) / " + std::to_string(element_size) + " in\n" \
         "       let elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
-        "       when ret == load_"+ getStructTypeIdentifier(sty) +" sz elem_ofs (st.(globals).(" \
-        + getGVIdentifier(&globalVar) + ") @ idx);\n " \
+        "       when ret == load_"+ getStructTypeIdentifier(sty) +" sz elem_ofs " + getGVLoadStr(&globalVar) +\
+        " @ idx);\n " \
         "       Some(ret, st)) else\n";
+        if (globalVar.isConstant()){
+        g_store_result += 
+        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
 
+        } else {
         g_store_result += 
         "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
         "       let idx := p.(poffset) / " + std::to_string(element_size) + " in\n" \
         "       let elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
-        "       when ret == store_"+ getStructTypeIdentifier(sty) +" sz elem_ofs v (st.(globals).(" \
-        + getGVIdentifier(&globalVar) + ") @ idx);\n " \
-        "       Some(st.[globals].[" + getGVIdentifier(&globalVar) + "] :< " + "(st.(globals).(" + getGVIdentifier(&globalVar) + ") # idx == ret) )) else\n";
+        "       when ret == store_"+ getStructTypeIdentifier(sty) +" sz elem_ofs v " + getGVLoadStr(&globalVar) + " @ idx);\n " \
+        "       Some(" + getGVStoreStr(&globalVar) + ":< " + "(st.(globals).(" + getGVIdentifier(&globalVar) + ") # idx == ret) )) else\n";
+        }
       }
     } else {
       // llvm::errs() << "Cannot handle." << "\n";
     }
+  }
+  if(g_result.rfind(";")== std::string::npos) {
+    g_result += "    __spoq_dummy_field: Z;";
   }
   g_result.erase(g_result.rfind(";"), 1);  // remove the last ;
   g_result += "    }.\n";

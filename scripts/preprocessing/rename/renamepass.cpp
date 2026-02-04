@@ -38,6 +38,10 @@ class RenamePass : public llvm::ModulePass {
   std::map<llvm::StructType*, std::vector<llvm::Type*>> generated_types;
   RenamePass() : ModulePass(ID) {
   }
+  bool refersToTys(llvm::Type *ty, std::set<llvm::Type *> &typs);
+  bool refersToTys(llvm::Function &fn, std::set<llvm::Type *> &typs);
+  void renameFunc(llvm::Function &fn, llvm::json::Object &change_log,
+                  llvm::Module &M);
   bool renameAll(llvm::Module &M);
   bool runOnModule(llvm::Module &M) override { 
     context = &M.getContext();
@@ -129,11 +133,80 @@ std::set<llvm::Function*> callersOfRenamedFunctions(llvm::Module &M, llvm::json:
   
   return reaching;
 }
+bool RenamePass::refersToTys(llvm::Type *ty, std::set<llvm::Type*>&typs){
+  if(typs.find(ty) != typs.end()){
+    return true;
+  }
+  if(ty->isPointerTy()){
+    return refersToTys(ty->getPointerElementType(), typs);
+  } else if(ty->isArrayTy()){
+    return refersToTys(ty->getArrayElementType(), typs);
+  } else if (ty->isStructTy()){
+    // Need a visited thing before going recursive here.
+
+  }
+  return false;
+}
+bool RenamePass::refersToTys(llvm::Function &fn, std::set<llvm::Type*>& typs){
+  for(auto &ety: fn.args()){
+    if(refersToTys(ety.getType(), typs)){
+      return true;
+    }
+  }
+  if(refersToTys(fn.getReturnType(), typs)){
+    return true;
+  }
+  for(auto &bb: fn.getBasicBlockList()){
+    for(auto &inst: bb.instructionsWithoutDebug()){
+      if(refersToTys(inst.getType(), typs)) {
+        return true;
+      }
+      for(auto &op: inst.operands()){
+        if(refersToTys(op->getType(), typs)){
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+void RenamePass::renameFunc(llvm::Function &fn, llvm::json::Object &change_log, llvm::Module &M) {
+  auto old_name = fn.getName().str();
+  std::string suffix = getSuffix(M);
+  std::string new_name = old_name + suffix;
+  fn.setName(new_name);
+  change_log["@" + old_name] = "@" + new_name;
+}
+
 bool RenamePass::renameAll(llvm::Module &M) {
   llvm::json::Value renaming_plan = readRenamingPlan();
   llvm::json::Object changes;
 
   std::string suffix = getSuffix(M);
+
+
+  // Rename struct types and their fields:  generateRecordForStruct(M);
+  changes["types"] = llvm::json::Object();
+  std::set<llvm::Type*> changed_types;
+  auto types_plan = (*renaming_plan.getAsObject())["types"];
+  for(auto &st: M.getIdentifiedStructTypes()) {
+    auto old_name = st->getName().str();
+    auto to_rename = types_plan.getAsObject()->getString("%" + old_name);
+    if (!to_rename.hasValue()) {
+      llvm::errs() << "No renaming plan entry for struct type: " << old_name << ", skipping.\n";
+      continue;
+    } else if (to_rename.getValue().str() == "rename") {
+      std::string new_name = old_name + suffix;
+      st->setName(new_name);
+      (*changes["types"].getAsObject())["%" + old_name] = "%" + new_name;
+      changed_types.insert(st);
+    } else {
+      (*changes["types"].getAsObject())["%" + old_name] = "%" + old_name;
+    }
+  }
+  
+
+
   // Rename global variables:
   changes["globals"] = llvm::json::Object();
   changes["global_constants"] = llvm::json::Object();
@@ -141,7 +214,7 @@ bool RenamePass::renameAll(llvm::Module &M) {
   auto globals_plan = (*renaming_plan.getAsObject())["globals"];
   for(auto &gv: M.globals()) {
     std::string old_name = gv.getName().str();
-
+    bool ty_changed = changed_types.find(gv.getValueType()) != changed_types.end();
     // We want to exclude constant strings:
     // e.g. @.str.67 = private unnamed_addr constant [25 x i8] c"exif.decode_jis_motorola\00", align 1
     if(gv.isConstant()){
@@ -155,7 +228,7 @@ bool RenamePass::renameAll(llvm::Module &M) {
     if (!to_rename.hasValue()) {
       llvm::errs() << "No renaming plan entry for global variable: " << old_name << ", skipping.\n";
       continue;
-    } else if (to_rename.getValue().str() == "rename") {
+    } else if (to_rename.getValue().str() == "rename" || ty_changed) {
       std::string new_name = old_name + suffix;
       gv.setName(new_name);
       (*changes["globals"].getAsObject())["@" + old_name] = "@" + new_name;
@@ -170,42 +243,38 @@ bool RenamePass::renameAll(llvm::Module &M) {
   changes["func_decls"] = llvm::json::Object();
   auto func_defs_plan = (*renaming_plan.getAsObject())["func_defs"];
   auto func_decls_plan = (*renaming_plan.getAsObject())["func_decls"];
+
   auto callersOfRenamed = callersOfRenamedFunctions(M, func_defs_plan);
   for(auto &fn: M) {
     if(!fn.hasName())
       continue;
     auto name_ref = fn.getName();
     auto old_name = name_ref.str();
+
+    llvm::json::Value *renaming_plan;
+    llvm::json::Object *change_log;
     if(fn.isDeclaration()){
-      // External function declaration
-      auto to_rename = func_decls_plan.getAsObject()->getString("@" + old_name);
-      if (!to_rename.hasValue()) {
-        llvm::errs() << "No renaming plan entry for function declaration: " << old_name << ", skipping.\n";
-        continue;
-      } else if (to_rename.getValue().str() == "rename" || callersOfRenamed.find(&fn) != callersOfRenamed.end()) {
-        std::string new_name = old_name + suffix;
-        fn.setName(new_name);
-        (*changes["func_decls"].getAsObject())["@" + old_name] = "@" + new_name;
-        continue;
-      } else {
-        (*changes["func_decls"].getAsObject())["@" + old_name] = "@" + old_name;
-        continue;
-      }
-
-
+      renaming_plan = &func_decls_plan;
+      change_log = changes["func_decls"].getAsObject();
     } else {
-      // Function defined in this translation unit.
-      auto to_rename = func_defs_plan.getAsObject()->getString("@" + old_name);
-      if (!to_rename.hasValue()) {
-        llvm::errs() << "No renaming plan entry for function definition: " << old_name << ", skipping.\n";
-        continue;
-      } else if (to_rename.getValue().str() == "rename" || callersOfRenamed.find(&fn) != callersOfRenamed.end()) {
-        std::string new_name = old_name + suffix;
-        fn.setName(new_name);
-        (*changes["func_defs"].getAsObject())["@" + old_name] = "@" + new_name;
-      } else {
-        (*changes["func_defs"].getAsObject())["@" + old_name] = "@" + old_name;
-      }
+      renaming_plan = &func_defs_plan;
+      change_log = changes["func_defs"].getAsObject();
+    }
+    auto to_rename_opt = renaming_plan->getAsObject()->getString("@" + old_name);
+    if (!to_rename_opt.hasValue()) {
+      llvm::errs() << "No renaming plan entry for function declaration: " << old_name << ", skipping.\n";
+      continue;
+    }
+    auto to_rename = to_rename_opt.getValue().str();
+
+    // If any instruction in this function refers to a type that has been renamed, the function must be renamed
+
+    if (to_rename == "rename" || callersOfRenamed.find(&fn) != callersOfRenamed.end()){
+        renameFunc(fn, *change_log, M);
+    } else if (refersToTys(fn, changed_types)) {
+        renameFunc(fn, *change_log, M);
+    }else {
+      (*change_log)["@" + old_name] = "@" + old_name;
     }
   }
 
@@ -228,24 +297,6 @@ bool RenamePass::renameAll(llvm::Module &M) {
   };
 
 
-  // Rename struct types and their fields:  generateRecordForStruct(M);
-  changes["types"] = llvm::json::Object();
-  auto types_plan = (*renaming_plan.getAsObject())["types"];
-  for(auto &st: M.getIdentifiedStructTypes()) {
-    auto old_name = st->getName().str();
-    auto to_rename = types_plan.getAsObject()->getString("%" + old_name);
-    if (!to_rename.hasValue()) {
-      llvm::errs() << "No renaming plan entry for struct type: " << old_name << ", skipping.\n";
-      continue;
-    } else if (to_rename.getValue().str() == "rename") {
-      std::string new_name = old_name + suffix;
-      st->setName(new_name);
-      (*changes["types"].getAsObject())["%" + old_name] = "%" + new_name;
-    } else {
-      (*changes["types"].getAsObject())["%" + old_name] = "%" + old_name;
-    }
-  }
-  
 
   // std::string out_filename = "rename_changes" + M.getSourceFileName() + ".json";
   // std::error_code ec;

@@ -198,6 +198,7 @@ void Project::add_loop_inv(unique_ptr<Expr> inv) {
         loop_invs[name].push_back(unique_ptr<SpecNode>(invelem));
     } else {
         LOG_WARNING << "Illegal Invariant format" << string(*inv);
+        throw std::runtime_error("Illegal Invariant format: "+ string(*inv));
     }
 }
 
@@ -310,7 +311,7 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             auto local_var = dynamic_cast<Symbol *>(cmd->elems->at(1).get());
             auto stack_var = dynamic_cast<Symbol *>(cmd->elems->at(2).get());
             // in function `f`, the allocated local_var should point to the st.(stack).(stack_var)
-            this->cmds.StackMap[f->text][local_var->text] = stack_var->text;
+            this->cmds.StackMap[f->text][Shortcut::replace_dot(local_var->text)] = stack_var->text;
             // LOG_INFO << "STACKVAR:" << f->text << ":" << local_var->text << "->" << stack_var->text << "\n";
         } else if (op_str == "Abstract") {
             assert(cmd->elems->size() == 3 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) 
@@ -1067,12 +1068,13 @@ void trans_inv(Project *proj) {
 
     for(auto &[name, loop_inv]: proj->loop_invs) {
         known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
-        (*known)["st"] = proj->layers.at(0)->abs_data;
-        (*known)["st_old"] = proj->layers.at(0)->abs_data;
-        for(auto arg: *proj->defs[name]->args) {
-            (*known)[arg->name] = arg->type;
-            (*known)[arg->name + "_old"] = arg->type;
-        }
+        // (*known)["st"] = proj->layers.at(0)->abs_data;
+        // (*known)["st_old"] = proj->layers.at(0)->abs_data;
+        // auto name2 = name + "_spec";
+        // for(auto arg: *proj->defs[name]->args) {
+        //     (*known)[arg->name] = arg->type;
+        //     (*known)[arg->name + "_old"] = arg->type;
+        // }
 
         for(auto &inv: loop_inv) {
             //LOG_DEBUG << "Processing loop invariant for " << string(*inv);

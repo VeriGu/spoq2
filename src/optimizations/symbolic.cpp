@@ -1325,7 +1325,7 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
 
     for (auto const &a : proj->axioms) {
         auto axiom_body = proj->defs[a]->body.get();
-        auto axiom_expr = z3_expr(proj, axiom_body, state);
+        auto axiom_expr = z3_eval(proj, axiom_body, state);
         state->conds->push_back(axiom_expr->get_z3_value());
     }
     // TODO:
@@ -1334,12 +1334,18 @@ bool check_refines(Project* proj, Definition *vuln_def, Definition *patched_def,
     // - Preconditions
     // TODO: support preconditions for vuln and patched functions.
     // include weak-step-relations?
-
+    // check that the axioms aren't trivially inconsistent?
+    // need to add the args as well so forall axioms get instantiated.
+    // auto true_expr = make_unique<BoolConst>(true);
+    // auto axiom_check_expr = z3_expr(proj, true_expr.get(), state);
+    // z3::model model(z3ctx);
+    // auto axioms_are_unsat = z3_check_unsat(state, axiom_check_expr->get_z3_value(), model);
+    // auto axioms_are_sat = z3_check(state);
     vuln_body->clear_z3_eval();
     patched_body->clear_z3_eval();
-	path_t p = {};
+    path_t p = {};
     proj->query_saver = QueryInfo(query_saver_dir(vuln_def->name, "refines"));
-    LOG_DEBUG << "Checking refinement between " << string(*vuln_body) << " and " << string(*patched_body);
+    LOG_DEBUG << "Checking refinement between " << string(*vuln_body).substr(0,400) << " and " << string(*patched_body).substr(0,400);
     // LOG_DEBUG << "Using relation: " << string(*rel_with_rets_def->body);
     // LOG_DEBUG << "Original state relation: " << string(*rel_post->body);
     auto result = simulate_by_traverse(proj, vuln_body, patched_body, rel_post, ret_rel_def.get(), state, p, false);

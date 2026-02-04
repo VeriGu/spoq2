@@ -273,7 +273,7 @@ std::string ExtractBasicsPass::generateField(llvm::Type* ty, bool pointers_are_p
       } else if(ety->isStructTy()) {
         return "((ZMap.t " + getStructTypeIdentifier(llvm::dyn_cast<llvm::StructType>(ety), pointers_are_ptr) + ") * Z)";
       } else {
-        return "None (* FIXME: complex array *)";
+        return "((ZMap.t Z) * Z) (* FIXME: complex array *)";
       }
     }
     case llvm::Type::TypeID::MetadataTyID: {
@@ -503,6 +503,7 @@ std::string ExtractBasicsPass::buildDeclarationStub(const llvm::Function &f){
   if (f.isDeclaration()){
     result = "Parameter " + name + " : " + arg_str + "(" + retty_str + end_str + ").";  
   } else {
+    result = "";
     result = "Parameter " + name + "_oracle : " + arg_str + "(" + retty_str + end_str + ").\n";
     std::string arg_str = "";
     std::string param_str = "";

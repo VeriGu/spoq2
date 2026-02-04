@@ -54,7 +54,12 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
             state->conds->push_back(src->get_z3_value() == t->construct(sym->text, {})->get_z3_value());
         }
         else {
-            (*state->vars)[sym->text] = src;
+            // resolve_pattern in spec transformation will have  state->vars[sym->text] be empty.
+            // but resolve_pattern during verification will already have a value.
+            if (state->vars->find(sym->text) == state->vars->end()) {
+                (*state->vars)[sym->text] = src;
+            }
+            state->conds->push_back(src->get_z3_value() == (sym->get_type())->declare(sym->text, 0)->get_z3_value());
         }
     } else if (auto con = instance_of(pat, Const)) {
         if (auto v = std::get_if<unsigned long>(&con->value)) {
@@ -435,12 +440,12 @@ std::pair<unique_ptr<SpecNode>, bool> reduce_id_write(Project *proj, unique_ptr<
 
                     auto v1_e = z3_eval(proj, v1, state);
                     auto v2_e = z3_eval(proj, val, state);
-                    auto check = z3_check(state, v1_e->get_z3_value() == v2_e->get_z3_value(), Z3_REDUCE_TIMEOUT);
+                    auto check = z3_check(state, v1_e->get_z3_value() == v2_e->get_z3_value(), nullptr, Z3_REDUCE_TIMEOUT);
 
                     if (check == Z3Result::True) {
                         // if (x @ y) = (x' @ y), then return x
                         changed = true;
-                        return { std::move(src->deep_copy()), changed };
+                        return { src->deep_copy(), changed };
                     } 
                 }
             }
@@ -460,11 +465,11 @@ std::pair<unique_ptr<SpecNode>, bool> reduce_id_write(Project *proj, unique_ptr<
             auto val = spec->elems->back().get(); // y
             auto v1_e = z3_eval(proj, old_value.get(), state);
             auto v2_e = z3_eval(proj, val, state);
-            auto check = z3_check(state, v1_e->get_z3_value() == v2_e->get_z3_value(), Z3_REDUCE_TIMEOUT);
+            auto check = z3_check(state, v1_e->get_z3_value() == v2_e->get_z3_value(), nullptr, Z3_REDUCE_TIMEOUT);
             if (check == Z3Result::True) {
                 // if (x.(f1).(...).(fn) = y), then return x
                 changed = true;
-                return { std::move(rec->deep_copy()), changed };
+                return { rec->deep_copy(), changed };
             }
         }
     }
@@ -583,7 +588,7 @@ rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::sha
     } else {
         PROFILE_START(rely_rule_check);
         PROFILE_START(z3_rule_check);
-        auto res = z3_check(state, c->get_z3_value());
+        auto res = z3_check(state, c->get_z3_value(), &proj->query_saver);
         PROFILE_END(z3_rule_check);
         PROFILE_END(rely_rule_check);
 
@@ -624,7 +629,7 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
     bool changed = false;
     // auto orig_cond = string(*spec->cond);
 
-    auto cond_ret = this->rule_simple_by_z3(std::move(spec->cond), state);
+    auto cond_ret = this->rule_simple_by_z3(spec->cond->deep_copy(), state);
     if (cond_ret.first == nullptr) {
         throw std::runtime_error("If condition return nullptr");
         // return std::make_pair(nullptr, cond_ret.second);
@@ -645,7 +650,12 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
 
     PROFILE_START(if_rule_check);
     PROFILE_START(z3_rule_check);
-    auto res = z3_check(state, c->get_z3_value());
+    // LOG_DEBUG << "if spec: " << string(*spec);
+    // LOG_DEBUG << "then: " << string(*spec->then_body);
+    // LOG_DEBUG << "else: " << string(*spec->else_body);
+    // LOG_DEBUG << "cond: " << string(*spec->cond);
+
+    auto res = z3_check(state, c->get_z3_value(), &proj->query_saver, 1);
     PROFILE_END(z3_rule_check);
     PROFILE_END(if_rule_check);
 
@@ -876,7 +886,7 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
 rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state) {
     bool changed = false;
     if (!force_simpl) { return { std::move(spec), false } ; }
-
+    LOG_DEBUG << "Simplifying: " << string(*spec);
 // #ifdef Z3_OPT_CACHE
 //     z3_global_hash_total++;
 //     size_t spec_hash = boost::hash<std::string>()(std::string(*spec));
@@ -885,7 +895,6 @@ rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::sha
 //         return { std::move(spec), false };
 //     }
 // #endif
-
     state = state->copy();
     if (is_instance(spec.get(), Symbol) || is_instance(spec.get(), Const)) {
         return { std::move(spec), false };
