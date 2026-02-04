@@ -97,8 +97,17 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                         expr->elems->at(n)->type = Int::INT;
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(n).get(), 0, known_types));
-                    } else {
+                    } else if (expr->elems->size() != 2) {
                         expr->type = Int::INT;
+                    } else {
+                        auto fst = expr->elems->at(0)->type;
+                        auto snd = expr->elems->at(1)->type;
+                        if (fst->name == "Z" && snd->name == "Z") {
+                            expr->type = Int::INT;
+                        } else if (fst->name == snd->name){
+                            // Two vectors can also be added together.
+                            expr->type = fst;
+                        }
                     }
                     break;
                 }
@@ -782,6 +791,16 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                 stack.push_back(std::make_tuple(__LINE__, if_->else_body.get(), 0, known_types));
             } else {
                 assert(if_->else_body->type != SpecType::UNKNOWN_TYPE);
+                llvm::errs() << "If cond:\n";
+                llvm::errs() << string(*if_->cond) << "\n";
+                llvm::errs() << "If then body:\n";
+                llvm::errs() << string(*if_->then_body) << "\n";
+                llvm::errs() << "If else body:\n";
+                llvm::errs() << string(*if_->else_body) << "\n";
+                llvm::errs() << "If Then type:\n";
+                llvm::errs() << if_->then_body->type->name << "\n";
+                llvm::errs() << "If Else type:\n";
+                llvm::errs() << if_->else_body->type->name << "\n";
                 assert(if_->then_body->type == if_->else_body->type || *if_->then_body->type == *if_->else_body->type);
                 spec->type = if_->else_body->type;
             }

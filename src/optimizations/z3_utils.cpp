@@ -1680,8 +1680,12 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
 
         if (op_eq(expr->op, Expr::None))
             return _cache(static_pointer_cast<Inductive>(val->get_type())->construct("None", {}));
-        if (op_eq(expr->op, Expr::binops::ADD))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::ADD) )
+            if (expr->type->name == "Z") {
+                return _cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1])));
+            } else if (expr->type->name == "ZMap_Z"){
+                assert(false && "ZMap addition not supported");
+            }
         if (op_eq(expr->op, Expr::binops::MINUS)) {
             if (expr->elems->size() == 2)
                 return _cache(static_pointer_cast<IntValue>(elems[0])->sub(static_pointer_cast<IntValue>(elems[1])));
@@ -1828,7 +1832,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                     return expr->type->declare("lens_v_" + std::to_string(idi), 0);
                 }
             } else {
-                std::cout << "expr: " << string(*expr) << std::endl;
+                std::cerr << "expr: " << string(*expr) << std::endl;
                 // auto typ = elems[0].get()->typ;
                 // auto typc = dynamic_cast<Struct*>(typ.get());
                 throw std::runtime_error("(z3_eval) Unknown symbol: " + sym);

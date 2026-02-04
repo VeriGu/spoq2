@@ -222,13 +222,24 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
                 auto apfloat = float_val->getValue();
                 auto spec = std::make_unique<FloatConst>(apfloat.convertToDouble());
                 return spec;
-            }else if(auto ptr_null = llvm::dyn_cast<llvm::ConstantPointerNull>(data)) {
+            } else if(auto ptr_null = llvm::dyn_cast<llvm::ConstantPointerNull>(data)) {
                 auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
                 vec->push_back(std::make_unique<StringConst>("null"));
                 vec->push_back(std::make_unique<IntConst>(0));
                 auto expr = std::make_unique<Expr>("mkPtr", std::move(vec));
                 expr->type = Struct::Ptr;
                 return expr;
+            } else if (auto arr = llvm::dyn_cast<llvm::ConstantAggregateZero>(data)) {
+                // The CAZ type corresponds to the special zeroinitializer constant
+                // This constant can be used to initialize a value of any type to zero.
+                auto ty = arr->getType();
+                if(ty->isVectorTy()){
+                    auto node = std::make_unique<Symbol>("zeroinitializer_vector");
+                    node->type = SpoqIRModule::llvm_ir_type_to_spec_pure(ty);
+                    return node;
+                } else {
+                    assert(false && "unsupported CAZ type");
+                }
             } else if (auto undef = llvm::dyn_cast<llvm::UndefValue>(data)) {
                 if (data->getType()->isIntegerTy(1)) {
                     return std::make_unique<BoolConst>(true);
@@ -281,6 +292,27 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
             llvm::errs() << "abstract constant requires definition: " << *value << " " << new_name << "\n";
             if (value->getType()->isIntegerTy(1)) return std::make_unique<Symbol>(new_name, Bool::BOOL);
             else return std::make_unique<Symbol>(new_name, Int::INT);
+        }
+
+        if (auto poison = llvm::dyn_cast<llvm::PoisonValue>(value)) {
+            auto ty = poison->getType();
+            if (ty->isVectorTy()) {
+                auto node = std::make_unique<Symbol>("poison_vector");
+                node->type = SpoqIRModule::llvm_ir_type_to_spec_pure(ty);
+                return node;
+            }
+            llvm::errs() << "poison value encountered: " << *poison << "\n";
+            assert(false && "poison value encountered");
+        }
+        if (auto undef = llvm::dyn_cast<llvm::UndefValue>(value)) {
+            auto ty = undef->getType();
+            if (ty->isVectorTy()) {
+                auto node = std::make_unique<Symbol>("undef_vector");
+                node->type = SpoqIRModule::llvm_ir_type_to_spec_pure(ty);
+                return node;
+            }
+            llvm::errs() << "unsupported undef value encountered: " << *undef << "\n";
+            assert(false && "unsupported undef value encountered");
         }
 
         llvm::errs() << "unsupport llvm constant: " << *value << " ty: " << *value->getType() << "\n";
@@ -399,6 +431,11 @@ shared_ptr<SpecType> SpoqIRModule::llvm_ir_type_to_spec_pure(llvm::Type* type) {
     } else if (type->isArrayTy()) {
         auto elem_type = llvm_ir_type_to_spec_pure(type->getArrayElementType());
         assert(elem_type != SpecType::UNKNOWN_TYPE && "array element type is unknown");
+        return make_shared<ZMap>(elem_type);
+    } else if (type->isVectorTy()) {
+        auto vty = llvm::dyn_cast<llvm::VectorType>(type);
+        auto elem_type = llvm_ir_type_to_spec_pure(vty->getElementType());
+        assert(elem_type != SpecType::UNKNOWN_TYPE && "vector element type is unknown");
         return make_shared<ZMap>(elem_type);
     } else {
         throw std::invalid_argument("invalid types: " + type->getStructName().str());
@@ -914,7 +951,25 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             context.add_cache(context.get_llvm_value_name(gep), expr);
             return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
         }
-
+        if (auto ins = llvm::dyn_cast<llvm::InsertElementInst>(spoq_inst->inst)) {
+            
+            // operands are vector, value, index
+            auto array = ins->getOperand(0);
+            auto val = ins->getOperand(1);
+            auto idx = llvm::dyn_cast<llvm::ConstantInt>(ins->getOperand(2));
+            if (!idx){
+                assert(false && "InsertElement only supported with constant index.");
+            }
+            
+            auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
+            operands->push_back(context.get_llvm_value_spec(array));
+            operands->push_back(std::make_unique<IntConst>(idx->getZExtValue()));
+            operands->push_back(context.get_llvm_value_spec(val));
+            auto expr = std::make_unique<Expr>(Expr::ops::SET, std::move(operands));
+            auto sym = context.get_llvm_value_spec(ins);
+            context.add_cache(context.get_llvm_value_name(ins), expr);
+            return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
+        }
         if (auto ex = llvm::dyn_cast<llvm::ExtractValueInst>(spoq_inst->inst)) {
             assert(ex->getNumIndices() == 1 && "ExtractValueInst with 0 or multiple indices not supported");
             auto array = ex->getAggregateOperand();
@@ -928,7 +983,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             context.add_cache(context.get_llvm_value_name(spoq_inst->inst), expr);
             return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
         } else if (auto in = llvm::dyn_cast<llvm::InsertValueInst>(spoq_inst->inst)) {
-            assert(in->getNumIndices() == 1 && "ExtractValueInst with 0 or multiple indices not supported");
+            assert(in->getNumIndices() == 1 && "InsertValueInst with 0 or multiple indices not supported");
             auto array = in->getAggregateOperand();
             auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
             operands->push_back(context.get_llvm_value_spec(array));
@@ -981,6 +1036,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
                 } 
                 // TODO: overflow / underflow check
+                // is this sext?
                 auto sym = context.get_llvm_value_spec(bc);
                 auto expr = context.get_llvm_value_spec(bc->getOperand(0));
                 context.add_cache(context.get_llvm_value_name(bc), expr);
@@ -994,6 +1050,22 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 auto expr = context.get_llvm_value_spec(bc->getOperand(0));
                 context.add_cache(context.get_llvm_value_name(bc), expr);
                 return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
+            } else if (src->isVectorTy() && dst->isVectorTy()) {
+                auto src_vec_ty = llvm::dyn_cast<llvm::VectorType>(src);
+                auto dst_vec_ty = llvm::dyn_cast<llvm::VectorType>(dst);
+                if (src_vec_ty->getElementCount() == dst_vec_ty->getElementCount() &&
+                    src_vec_ty->getElementType()->isIntegerTy() &&
+                    dst_vec_ty->getElementType()->isIntegerTy() &&
+                    llvm::dyn_cast<llvm::SExtInst>(bc)) {
+                        // Uncertain about the semantic correctness of this.  Need a test.
+                        auto sym = context.get_llvm_value_spec(bc);
+                        auto expr = context.get_llvm_value_spec(bc->getOperand(0));
+                        context.add_cache(context.get_llvm_value_name(bc), expr);
+                        return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
+                } else {
+                    llvm::errs() << "Unsupported SpoqIR Cast instruction [LLVM]: " << *spoq_inst->inst << "\n";
+                    assert(false && "Unsupported SpoqIR Cast instruction [LLVM]");
+                }
             } else {
                 llvm::errs() << "Unsupported SpoqIR Cast instruction [LLVM]: " << *spoq_inst->inst << "\n";
                 assert(false && "Unsupported SpoqIR Cast instruction [LLVM]");
@@ -1015,6 +1087,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             auto spec = std::make_unique<Expr>(op, std::move(args));
             return spec;
         }
+
         llvm::errs() << "Unsupported SpoqIR instruction [LLVM]: " << *spoq_inst->inst << "\n";
         assert(false && "Unsupported SpoqIR instruction [LLVM]");
     } else if (auto inst = Shortcut::dyn_cast_u<SpoqIfInst>(vec[num])) {
