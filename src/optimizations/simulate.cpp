@@ -118,6 +118,7 @@ namespace autov
 		} else if (auto m = instance_of(impl, Match)) {
 			set<string> used_fix;
 			bool add_post_condition = false;
+			bool resolve_to_none = false;
 			unique_ptr<SpecNode> post_cond;
 			unique_ptr<SpecNode> loop_post_cond;
 			auto src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
@@ -159,6 +160,12 @@ namespace autov
 									add_post_condition = true;
 								}
 							}
+							if(proj->cmds.PostCondWithNone.find(op) != proj->cmds.PostCondWithNone.end()) {
+                                if(check_states_implies_pre_condition(proj, state, op, expr->elems.get())) {
+                                    LOG_INFO << "[Checking None Condition] None Condition Satified: " << op;
+                                    resolve_to_none = true;
+                                }
+                            }
 						}
 					}
 				}
@@ -173,7 +180,17 @@ namespace autov
 			for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 				auto pm_state = state->copy();
 				auto pat = (*pm)->pattern.get();
-				
+				if(resolve_to_none) {
+					if(auto expr = instance_of(pat, Expr)) {
+						if(!op_eq(expr->op, Expr::None)) {
+							continue;
+						} else {
+							auto this_branch_result = forward_simulation(proj, st_check, spec_ret, (*pm)->body.get(), rel, ret_rel, pm_state, det, path, i+1, allow_none);
+							sim_result = sim_result + this_branch_result;
+							return sim_result;
+						}
+					}
+				}
 				if (add_post_condition) {
 					auto expr = instance_of(m->src.get(), Expr);
 					auto op = std::get<string>(expr->op);
@@ -436,6 +453,7 @@ namespace autov
 		} else if (auto m = instance_of(spec, Match)) {
 			set<string> used_fix;
 			bool add_post_condition = false;
+			bool resolve_to_none = false;
 			unique_ptr<SpecNode> post_cond;
 			unique_ptr<SpecNode> loop_post_cond;
 			auto src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
@@ -480,6 +498,12 @@ namespace autov
 									add_post_condition = true;
 								}
 							}
+							if(proj->cmds.PostCondWithNone.find(op) != proj->cmds.PostCondWithNone.end()) {
+                                if(check_states_implies_pre_condition(proj, state, op, expr->elems.get())) {
+                                    LOG_INFO << "[Checking None Condition] None Condition Satified: " << op;
+                                    resolve_to_none = true;
+                                }
+                            }
 						}
 					}
 				}
@@ -496,7 +520,17 @@ namespace autov
 
 				auto new_state = state->copy();
 				auto pat = (*pm)->pattern.get();
-
+				if(resolve_to_none) {
+					if(auto expr = instance_of(pat, Expr)) {
+						if(!op_eq(expr->op, Expr::None)) {
+							continue;
+						} else {
+							auto new_result = simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, ret_rel, new_state, p_match, det);
+							sim_result = sim_result + new_result;
+							return sim_result;
+						}
+					}
+				}
 				if (add_post_condition) {
 					auto expr = instance_of(m->src.get(), Expr);
 					auto op = std::get<string>(expr->op);

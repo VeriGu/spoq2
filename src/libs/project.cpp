@@ -416,8 +416,14 @@ void Project::add_command(unique_ptr<Expr> cmd) {
                     unique_ptr<Symbol>(rel_post),
                     unique_ptr<SpecNode>(ret_val_rel),
                 });
-        } else {
-            LOG_WARNING << "Unknown command " << op_str;
+        } else if (op_str == "PostconditionWithNone"){
+            assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) &&
+                   dynamic_cast<SpecNode *>(cmd->elems->at(1).get()));
+            auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
+            auto expr = dynamic_cast<SpecNode *>(cmd->elems->at(1).get());
+
+            cmd->elems->at(1).release();
+            this->cmds.PostCondWithNone[s->text].push_back(unique_ptr<SpecNode>(expr));
         }
     } else {
         LOG_WARNING << "Unknown command" << string(*cmd);

@@ -799,6 +799,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
         auto subst_definition = false;
         unique_ptr<SpecNode> loop_post_cond;
         unique_ptr<SpecNode> post_cond;
+        bool resolve_to_none = false;
 
 		if (auto expr = instance_of(m->src.get(), Expr)) {
 			if (holds_alternative<string>(expr->op)){
@@ -827,6 +828,13 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                                         return false;
                                     };
                                 }
+
+                                if(proj->cmds.PostCondWithNone.find(op) != proj->cmds.PostCondWithNone.end()) {
+                                    if(check_states_implies_pre_condition(proj, state, op, expr->elems.get())) {
+                                        LOG_INFO << "[Checking None Condition] None Condition Satified: " << op;
+                                        resolve_to_none = true;
+                                    }
+                                }
                                 // state->inductions->clear();
                                 LOG_INFO << "[Checking Loop Invariant] Precondition Satisfied";
             
@@ -854,8 +862,15 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                                 auto fname = def->name;
                                 post_cond = formulate_post_condition(proj, fname, expr->elems.get());
                                 subst_definition = true;
-                                //state->conds->push_back(post);
                             }
+
+                            if(proj->cmds.PostCondWithNone.find(op) != proj->cmds.PostCondWithNone.end()) {
+                                if(check_states_implies_pre_condition(proj, state, op, expr->elems.get())) {
+                                    LOG_INFO << "[Checking None Condition] None Condition Satified: " << op;
+                                    resolve_to_none = true;
+                                }
+                            }
+
                             //if it is a preserving function, directly add post condition
                             if (proj->cmds.PreserveInv.find(op) != proj->cmds.PreserveInv.end()) {
                                 unique_ptr<SpecNode> post_cond = formulate_preserved_function(proj, op);
@@ -876,6 +891,16 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
 		for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 			auto new_state = state->copy();
             auto pat = (*pm)->pattern.get();
+            if(resolve_to_none) {
+                if(auto expr = instance_of(pat, Expr)) {
+                    if(!op_eq(expr->op, Expr::None)) {
+                        continue;
+                    } else {
+                        verify_success &= prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs, mode, fname);
+                        return verify_success;
+                    }
+                }
+            }
             if (!std::holds_alternative<std::nullptr_t>(abst_spec)) {
                 //instantiate the loop postconditions here
                 if (auto expr = instance_of(m->src.get(), Expr)) {
