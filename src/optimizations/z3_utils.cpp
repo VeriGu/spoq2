@@ -448,10 +448,13 @@ Z3Result z3_check(shared_ptr<EvalState> state, int timeout) {
     if (res == z3::unsat) {
         Z3Cache[hash] = Z3Result::False;
         return Z3Result::False;
-    } else {
+    } else if(res == z3::unknown) {
         Z3Cache[hash] = Z3Result::Unknown;
         z3_unknowns++;
         return Z3Result::Unknown;
+    } else if(res == z3::sat) {
+        Z3Cache[hash] = Z3Result::Sat;
+        return Z3Result::Sat;
     }
 }
 

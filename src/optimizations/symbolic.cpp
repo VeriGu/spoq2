@@ -537,6 +537,72 @@ bool check_states_implies_pre_condition(Project* proj, shared_ptr<ProveState> st
     return true;
 }
 
+bool check_states_implies_none_condition(Project* proj, shared_ptr<ProveState> state, string fname, vector<unique_ptr<SpecNode>>* elems) {
+    Z3Cache.clear();
+    auto &preconds = proj->cmds.PostCondWithNone[fname];
+    auto def = proj->defs[fname].get();
+    auto var = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+    auto conds = std::make_shared<vector<z3::expr>>();
+	auto known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
+	//Check Precondition
+    for (auto arg : *def->args) {
+        (*var)[def->name + "_" + arg->name] = arg->type->declare(def->name + "_" + arg->name, 0); //current
+        (*known)[arg->name] = arg->type;
+    }
+	unique_ptr<SpecNode> aggrepres = make_unique<BoolConst>(true);
+	for(auto &inv : preconds) {
+			auto elems = new vector<unique_ptr<SpecNode>>();
+			elems->push_back(std::move(aggrepres));
+			elems->push_back(inv->deep_copy());
+			aggrepres = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
+	}
+    type_inference::infer_type(*proj, aggrepres.get(), known, Bool::BOOL);
+    unique_ptr<SpecNode> before_inv = std::move(aggrepres);
+    vector<string> names;
+    vector<unique_ptr<SpecNode>> selems;
+    int i = 0;
+    for(auto arg : *def->args) {    
+        names.push_back(arg->name);
+        selems.push_back(elems->at(i)->deep_copy());
+        i++;
+    }
+    before_inv = subst_v2(proj, std::move(before_inv), &names, &selems);
+    // auto sym = make_unique<Symbol>(def->name + "_" + "st_old", def->args->back()->type);
+    // bool succ;
+    // before_inv = subst(std::move(before_inv), "st_old", sym.get(), succ);
+    // auto vc = z3ctx.bool_val(true);
+    // set<string> used_fix;
+    // auto invval = z3_eval(proj, before_inv.get(), make_shared<EvalState>(var, conds), false, true, used_fix);
+    // int i = 0;
+    // for(auto arg : *def->args) {
+    //     auto name = arg->name;
+    //     //instantiate variable to each element
+    //     auto z3_eq_expr = elems.at(i)->get_z3_value() == (*var)[def->name + "_" + name]->get_z3_value();
+    //     vc = vc && z3_eq_expr;
+    //     i++;
+    // }
+
+    //vc = vc && (*var)[def->name + "_st_old"]->get_z3_value() == elems.back()->get_z3_value();
+    LOG_DEBUG << "Check None condition: " << string(*before_inv);
+    z3::model model(z3ctx);
+    set<string> fix_string;
+    auto before_inv_z3 = z3_eval(proj, before_inv.get(), state, false, true, fix_string);
+    auto res = z3_check_unsat(state, before_inv_z3->get_z3_value(), model, &proj->query_saver, Z3_VERIFY_TIMEOUT);
+    if(res == Z3Result::False || res == Z3Result::Unknown || res == Z3Result::Sat) {
+            if(res == Z3Result::Sat) {
+                LOG_ERROR << "Solver return SAT";
+                LOG_INFO << "model: " << model;
+            }
+            LOG_ERROR << "Conds can't infer function None condition:" << def->name;
+            for(auto &cond: *state->conds) {
+                LOG_DEBUG << "Cond:" << cond;
+            }
+            return false;
+    }
+    LOG_INFO << "[Checking Precondition] Conds imply function None condition" << def->name;
+    return true;
+}
+
 
 z3::expr formulate_loop_invariant_z3(Project* proj, std::string fname, SpecNode* fun_call, shared_ptr<ProveState> state){
     auto expr = instance_of(fun_call, Expr);
@@ -603,8 +669,21 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
         if(sym->text == "None") {
             if(OPTS.check_none) {
                 auto res = z3_check(state, Z3_VERIFY_TIMEOUT);
-                if(res != Z3Result::False) {
+                if(res == Z3Result::Sat) {
                     LOG_ERROR << "Reached None Branch";
+                    return false;
+                }
+            }
+            if(mode == ProveMode::None) {
+                auto res = z3_check(state, Z3_VERIFY_TIMEOUT);
+                if(res == Z3Result::Sat) {
+                    LOG_INFO << "Function condition return None is true!";
+                    return true;
+                } else if(res == Z3Result::False) {
+                    // no such condition
+                    return true;
+                } else {
+                    LOG_WARNING << "Function condition return None is unknown!";
                     return false;
                 }
             }
@@ -683,6 +762,8 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                     }
                     prop = subst_v2(proj, inv->deep_copy(), &names, &elems);
                     LOG_DEBUG << "[Prove Loop Invariant] loop invariant: " << string(*prop);
+                } else {
+                    prop = inv->deep_copy();
                 }
                 set<string> used_fix;
                 auto c = z3_eval(proj, prop.get(), state, false, true, used_fix);
@@ -830,7 +911,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                                 }
 
                                 if(proj->cmds.PostCondWithNone.find(op) != proj->cmds.PostCondWithNone.end()) {
-                                    if(check_states_implies_pre_condition(proj, state, op, expr->elems.get())) {
+                                    if(check_states_implies_none_condition(proj, state, op, expr->elems.get())) {
                                         LOG_INFO << "[Checking None Condition] None Condition Satified: " << op;
                                         resolve_to_none = true;
                                     }
@@ -865,7 +946,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                             }
 
                             if(proj->cmds.PostCondWithNone.find(op) != proj->cmds.PostCondWithNone.end()) {
-                                if(check_states_implies_pre_condition(proj, state, op, expr->elems.get())) {
+                                if(check_states_implies_none_condition(proj, state, op, expr->elems.get())) {
                                     LOG_INFO << "[Checking None Condition] None Condition Satified: " << op;
                                     resolve_to_none = true;
                                 }
@@ -1180,6 +1261,43 @@ bool check_loop_inv_v2(Project* proj, Definition *loop, std::unordered_set<strin
     return res;
 }
 
+bool check_none(Project* proj, Definition *def, std::unordered_set<string>& used_abs) {
+    Z3Cache.clear();
+    auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+    auto conds = std::make_shared<vector<z3::expr>>();
+
+    for(auto arg : *def->args) {
+        (*vars)[arg->name] = arg->type->declare(arg->name, 0);
+    }
+
+    auto &noneconds = proj->cmds.PostCondWithNone[def->name];
+
+    unique_ptr<SpecNode> nonecond = make_unique<BoolConst>(true);
+    for(auto &in : noneconds) {
+        auto elems = new vector<unique_ptr<SpecNode>>();
+        elems->push_back(std::move(nonecond));
+        elems->push_back(in->deep_copy());
+        nonecond = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
+    }
+
+    auto l_args = make_unique<vector<shared_ptr<Arg>>>();
+    for (auto arg : *def->args) {
+        l_args->push_back(arg);
+    }
+    auto spec_def = new Definition(def->name, def->rettype, std::move(l_args), def->body->deep_copy());
+
+    proj->query_saver = QueryInfo(query_saver_dir(def->name, "none_check"));
+    
+    auto induction = std::make_shared<vector<z3::expr>>();
+    auto state = make_shared<ProveState>(vars, conds, induction);
+    set<string> used_fixpoint;
+    auto c = z3_eval(proj, nonecond.get(), state, false, true, used_fixpoint);
+    state->conds->push_back(c->get_z3_value());
+    unique_ptr<SpecNode> postcond = make_unique<BoolConst>(true);
+    bool res = prove_by_traverse(proj, spec_def->body.get(), postcond.get(), state, used_abs, ProveMode::None, def->name);
+
+    return res;
+}
 
 //check precondition implies post condition
 bool check_pre_post(Project* proj, Definition *def, std::unordered_set<string>& used_abs) {
@@ -1224,7 +1342,7 @@ bool check_pre_post(Project* proj, Definition *def, std::unordered_set<string>& 
     auto state = make_shared<ProveState>(vars, conds, induction);
     set<string> used_fixpoint;
     auto c = z3_eval(proj, precond.get(), state, false, true, used_fixpoint);
-
+    state->conds->push_back(c->get_z3_value());
     bool res = prove_by_traverse(proj, spec_def->body.get(), postcond.get(), state, used_abs, ProveMode::PREPOST, def->name);
 
     return res;
@@ -1507,7 +1625,7 @@ void spec_prover(Project *proj) {
                     else
                         LOG_ERROR << "loop invariant: " << func << "is not inductive! :(";
                 } else if(!is_instance(def, Fixpoint) && is_instance(def, Definition) && OPTS.check_pre_post){
-                    if(check_pre_post(proj, def, used_abstract_funcs))
+                    if(check_pre_post(proj, def, used_abstract_funcs) && check_none(proj, def, used_abstract_funcs))
                         LOG_DEBUG << "Precondition imply post condition :) " << func;
                     else
                         LOG_ERROR << "Precondition does not imply post condition :( " << func;

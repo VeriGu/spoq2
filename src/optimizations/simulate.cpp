@@ -169,7 +169,7 @@ namespace autov
 								}
 							}
 							if(proj->cmds.PostCondWithNone.find(op) != proj->cmds.PostCondWithNone.end()) {
-                                if(check_states_implies_pre_condition(proj, state, op, expr->elems.get())) {
+                                if(check_states_implies_none_condition(proj, state, op, expr->elems.get())) {
                                     LOG_INFO << "[Checking None Condition] None Condition Satified: " << op;
                                     resolve_to_none = true;
                                 }
@@ -536,7 +536,7 @@ namespace autov
 								}
 							}
 							if(proj->cmds.PostCondWithNone.find(op) != proj->cmds.PostCondWithNone.end()) {
-                                if(check_states_implies_pre_condition(proj, state, op, expr->elems.get())) {
+                                if(check_states_implies_none_condition(proj, state, op, expr->elems.get())) {
                                     LOG_INFO << "[Checking None Condition] None Condition Satified: " << op;
                                     resolve_to_none = true;
                                 }
