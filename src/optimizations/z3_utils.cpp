@@ -1681,13 +1681,18 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             }
         }
 
-        if (op_eq(expr->op, Expr::None))
+        if (op_eq(expr->op, Expr::None)){
             return _cache(static_pointer_cast<Inductive>(val->get_type())->construct("None", {}));
+        }
         if (op_eq(expr->op, Expr::binops::ADD) )
             if (expr->type->name == "Z") {
                 return _cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1])));
             } else if (expr->type->name == "ZMap_Z"){
-                assert(false && "ZMap addition not supported");
+                // find the definition of the zmap_z_add function
+                // use func->call to generate the right z3 expr
+                auto func = proj->defs.find("zmap_z_add");
+                auto absf = func->second->absf();
+                return _cache(absf->call(elems));
             }
         if (op_eq(expr->op, Expr::binops::MINUS)) {
             if (expr->elems->size() == 2)

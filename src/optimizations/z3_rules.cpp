@@ -886,7 +886,7 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
 rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state) {
     bool changed = false;
     if (!force_simpl) { return { std::move(spec), false } ; }
-    LOG_DEBUG << "Simplifying: " << string(*spec);
+    // LOG_DEBUG << "Simplifying: " << string(*spec);
 // #ifdef Z3_OPT_CACHE
 //     z3_global_hash_total++;
 //     size_t spec_hash = boost::hash<std::string>()(std::string(*spec));

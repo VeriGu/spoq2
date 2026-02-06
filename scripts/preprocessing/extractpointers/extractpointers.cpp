@@ -641,7 +641,13 @@ void ExtractPointersPass::generate(llvm::Module& M) {
     
     // Constant items don't need to be in RData, keep them out of the globals Record.
     if(globalVar.isConstant()){
-      g_result = "Parameter " + getGVIdentifier(&globalVar) + ": " + generateField(globalVar.getValueType()) + ".\n" + g_result;
+      std::string new_decl = "Parameter " + getGVIdentifier(&globalVar) + ": " + generateField(globalVar.getValueType()) + ".\n";
+      // auto arr_type = llvm::dyn_cast<llvm::ArrayType>(globalVar.getType());
+      // if(arr_type){
+      //   auto len = arr_type->getNumElements();
+      // TODO: Use the length of a constant array to implement semantics for out of bounds access.
+      // }
+      g_result = new_decl + g_result;
     } else {
       g_result += "      " + getGVIdentifier(&globalVar) + ": " + generateField(globalVar.getValueType()) + ";\n";
     }

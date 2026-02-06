@@ -15,6 +15,7 @@
 #include "llvm/Analysis/IRSimilarityIdentifier.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugInfo.h"
@@ -3015,6 +3016,7 @@ public:
     AU.addRequired<OptimizationRemarkEmitterWrapperPass>();
     AU.addRequired<TargetTransformInfoWrapperPass>();
     AU.addRequired<IRSimilarityIdentifierWrapperPass>();
+  
   }
 
   bool runOnModule(Module &M) override;
@@ -3037,7 +3039,7 @@ bool PVIROutlinerLegacyPass::runOnModule(Module &M) {
 
   auto GIRSI = [this](Module &) -> IRSimilarityIdentifier & {
     return this->getAnalysis<IRSimilarityIdentifierWrapperPass>().getIRSI();
-  };
+  }; 
 
   return PVIROutliner(GTTI, GIRSI, GORE).run(M);
 }

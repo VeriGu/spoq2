@@ -333,7 +333,6 @@ namespace autov
 				auto t_race = OPTS.race_timeout;
 				// OPTS.race_timeout = Z3_SIM_TIMEOUT;
 				// true_res = z3_check(state, cond->get_z3_value(), Z3_SIM_TIMEOUT);
-				LOG_DEBUG << "[forward_simulation] checking if !cond is unsat: " << std::to_string(cond->get_z3_value()).substr(0,200);
 				// if z3_check_unsat returns True on !cond, then !cond cannot be false, meaning cond cannot be true.
                 std::pair<bool,bool> plausibility = check_branch_plausibility(proj, state, cond, model);
 				true_branch_plausible = plausibility.first;
@@ -406,16 +405,16 @@ namespace autov
                                    std::shared_ptr<autov::ProveState> &state,
                                    std::shared_ptr<autov::SpecValue> &cond,
                                    z3::model &model) {
-		        LOG_DEBUG << "[check_branch_plausibility] checking if cond is unsat: "
-                  << cond->get_z3_value().to_string();
+		// LOG_DEBUG << "[check_branch_plausibility] checking if cond is unsat: "
+        //     << cond->get_z3_value().to_string().substr(0,200);
 		auto cond_val = cond->get_z3_value();
 		if (cond_val.is_int()) {
 			cond_val = (cond_val != 0);
 		}
         auto true_res = z3_check_unsat(state, !cond_val, model,
                                   &proj->query_saver, 500);
-        LOG_DEBUG << "[check_branch_plausibility] checking if cond is unsat: "
-                  << cond_val.to_string().substr(0,400);
+        // LOG_DEBUG << "[check_branch_plausibility] checking if cond is unsat: "
+        //           << cond_val.to_string().substr(0,200);
         // if z3_check_unsat returns True, then cond cannot be false.
 		// In that case, the false branch is not possible.
         auto res = z3_check_unsat(state, cond_val, model,
