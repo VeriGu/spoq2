@@ -119,6 +119,7 @@ public:
     rule_ret_t rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state);
     rule_ret_t rule_keep_fields_of_interest(std::unique_ptr<SpecNode> spec);
     rule_ret_t rule_simplify_lens(std::unique_ptr<SpecNode> spec);
+    rule_ret_t wrap_call_with_cond(Project* proj, std::unique_ptr<SpecNode> spec, std::string &func_name, std::unique_ptr<SpecNode> cond);
 
     rule_ret_t replace_spec_name(std::unique_ptr<SpecNode> spec, std::unordered_map<std::string, std::string>& name_map);
 

@@ -3014,6 +3014,65 @@ rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> sp
     }
 }
 
+
+
+// If we know a function returns none with predicate P,
+// and we have that transformation primed using PostCondWithNone,
+// We still need to create the branch artificailly outside the function call.
+// This function iterates through the defs in Project,
+// finds calls to the target function, and substitutes in a 
+// if P then func_call else func_call.
+rule_ret_t SpecRules::wrap_call_with_cond(Project* proj,std::unique_ptr<SpecNode> spec, std::string &func_name, std::unique_ptr<SpecNode> cond) {
+    bool changed = false;
+    auto &args = proj->defs[func_name]->args;
+    auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+        auto m = instance_of(node.get(), Match);
+        if (m) {
+            // if we are examining a match, the inner expr has already been substituted with an if.
+            // If both the if then_body and else_body are identical calls to the target function
+            // Then the whole if should be replaced with that call, and the if should be reintroduced outside the match.
+            auto iff = instance_of(m->src.get(), If);
+            if (iff){
+                auto then_e = instance_of(iff->then_body.get(), Expr);
+                auto else_e = instance_of(iff->else_body.get(), Expr);
+                if (then_e && else_e && 
+                    holds_alternative<string>(then_e->op) && holds_alternative<string>(else_e->op) && 
+                    std::get<string>(then_e->op) == func_name && std::get<string>(else_e->op) == func_name &&
+                    then_e->deep_eq(else_e)){
+                    auto new_match = std::make_unique<Match>(std::move(iff->then_body), std::move(m->match_list));
+                    auto new_node = std::make_unique<If>(std::move(iff->cond), new_match->deep_copy(), new_match->deep_copy());
+                    return new_node;
+                }
+            }
+
+        }
+        auto e = instance_of(node.get(), Expr);
+        if (e && holds_alternative<string>(e->op) && std::get<string>(e->op) == func_name) {
+            // Build a substituted version of the cond node in which the parameter names in cond
+            // are replaced with the actual arguments in the function call.
+            vector<string> names;
+            vector<unique_ptr<SpecNode>> selems;
+            int i = 0;
+            for(auto &arg : *args) {    
+                names.push_back(arg->name);
+                selems.push_back(e->elems->at(i)->deep_copy());
+                i++;
+            }
+            auto substituted_cond = subst_v2(proj, cond->deep_copy(), &names, &selems);
+
+            auto new_node = std::make_unique<If>(std::move(substituted_cond), node->deep_copy(), node->deep_copy());
+            new_node->type = node->type;
+            changed = true;
+            return new_node;
+        }
+        return node;
+    };
+
+    auto new_root = rec_apply(std::move(spec), f, false);
+    return { std::move(new_root), changed };
+
+}
+
 rule_ret_t SpecRules::rule_simplify_map_get_set(std::unique_ptr<SpecNode> spec, bool rec) { 
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {

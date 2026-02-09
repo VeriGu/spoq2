@@ -422,6 +422,7 @@ void Project::add_command(unique_ptr<Expr> cmd) {
                    dynamic_cast<SpecNode *>(cmd->elems->at(1).get()));
             auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
             auto expr = dynamic_cast<SpecNode *>(cmd->elems->at(1).get());
+            this->cmds.invs.insert(s->text);
 
             cmd->elems->at(1).release();
             this->cmds.PostCondWithNone[s->text].push_back(unique_ptr<SpecNode>(expr));
@@ -1276,15 +1277,6 @@ bool Project::finalize_project_v2() {
     trans_inv(this);
 
     std::vector<string> helper;
-    if (OPTS.transform_io) {
-        // TODO: move to hints
-        helper.push_back("store_s_rec");
-        helper.push_back("load_s_rec");
-        helper.push_back("load_s_rmi_rec_entry");
-        helper.push_back("store_s_rmi_rec_entry");
-        helper.push_back("load_s_rmi_realm_params");
-        helper.push_back("store_s_rmi_realm_params");
-    }
     for(int i = 0; i < helper.size(); i++) {
         auto h = helper[i];
         LOG_DEBUG << "h: " << h << "\n";
@@ -1299,18 +1291,6 @@ bool Project::finalize_project_v2() {
         // std::cout << string(*def) << std::endl;
     }
 
-    // TODO: move to hints
-    UNFOLD_POLICY.skip_list.insert("realm_ipa_to_pa_spec");
-    UNFOLD_POLICY.skip_list.insert("complete_sea_insertion_spec");
-    UNFOLD_POLICY.skip_list.insert("complete_mmio_emulation_spec");
-    UNFOLD_POLICY.skip_list.insert("get_realm_params_spec");
-    UNFOLD_POLICY.skip_list.insert("init_rec_regs_spec");
-    UNFOLD_POLICY.skip_list.insert("set_npt_spec");
-    UNFOLD_POLICY.skip_list.insert("walk_npt_spec");
-    UNFOLD_POLICY.skip_list.insert("hypsec_set_vcpu_active_spec");
-    UNFOLD_POLICY.skip_list.insert("hypsec_set_vcpu_state_spec");
-    UNFOLD_POLICY.skip_list.insert("map_page_host_spec");
-    // UNFOLD_POLICY.skip_list.insert("complete_sysreg_emulation_spec");
 
     for (auto &s: UNFOLD_POLICY.skip_list) {
         LOG_DEBUG << "Delay unfold: " << s << "\n";

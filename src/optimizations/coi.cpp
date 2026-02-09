@@ -624,7 +624,7 @@ void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
     def->_str.clear();
     def->body->clear_z3_eval();
     // def->infer_type(*proj);
-    std::cout << "[COI] spec after COI-reduction:\n" << string(*def) << std::endl;
+    // std::cout << "[COI] spec after COI-reduction:\n" << string(*def) << std::endl;
 }
 
 std::pair<unsigned, unsigned> count_branch_conds(SpecNode *spec, bool determ = true) {

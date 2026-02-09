@@ -549,12 +549,12 @@ bool check_states_implies_none_condition(Project* proj, shared_ptr<ProveState> s
         (*var)[def->name + "_" + arg->name] = arg->type->declare(def->name + "_" + arg->name, 0); //current
         (*known)[arg->name] = arg->type;
     }
-	unique_ptr<SpecNode> aggrepres = make_unique<BoolConst>(true);
+	unique_ptr<SpecNode> aggrepres = make_unique<BoolConst>(false);
 	for(auto &inv : preconds) {
 			auto elems = new vector<unique_ptr<SpecNode>>();
 			elems->push_back(std::move(aggrepres));
 			elems->push_back(inv->deep_copy());
-			aggrepres = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
+			aggrepres = make_unique<Expr>(Expr::binops::OR, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
 	}
     type_inference::infer_type(*proj, aggrepres.get(), known, Bool::BOOL);
     unique_ptr<SpecNode> before_inv = std::move(aggrepres);
@@ -593,13 +593,13 @@ bool check_states_implies_none_condition(Project* proj, shared_ptr<ProveState> s
                 LOG_ERROR << "Solver return SAT";
                 LOG_INFO << "model: " << model;
             }
-            LOG_ERROR << "Conds can't infer function None condition:" << def->name;
+            LOG_ERROR << "Conds can't infer None condition for function: " << def->name;
             for(auto &cond: *state->conds) {
                 LOG_DEBUG << "Cond:" << cond;
             }
             return false;
     }
-    LOG_INFO << "[Checking Precondition] Conds imply function None condition" << def->name;
+    LOG_INFO << "[Checking Precondition] Conds imply None condition for function: " << def->name;
     return true;
 }
 
@@ -1272,12 +1272,12 @@ bool check_none(Project* proj, Definition *def, std::unordered_set<string>& used
 
     auto &noneconds = proj->cmds.PostCondWithNone[def->name];
 
-    unique_ptr<SpecNode> nonecond = make_unique<BoolConst>(true);
+    unique_ptr<SpecNode> nonecond = make_unique<BoolConst>(false);
     for(auto &in : noneconds) {
         auto elems = new vector<unique_ptr<SpecNode>>();
         elems->push_back(std::move(nonecond));
         elems->push_back(in->deep_copy());
-        nonecond = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
+        nonecond = make_unique<Expr>(Expr::binops::OR, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
     }
 
     auto l_args = make_unique<vector<shared_ptr<Arg>>>();
@@ -1625,13 +1625,48 @@ void spec_prover(Project *proj) {
                     else
                         LOG_ERROR << "loop invariant: " << func << "is not inductive! :(";
                 } else if(!is_instance(def, Fixpoint) && is_instance(def, Definition) && OPTS.check_pre_post){
-                    if(check_pre_post(proj, def, used_abstract_funcs) && check_none(proj, def, used_abstract_funcs))
-                        LOG_DEBUG << "Precondition imply post condition :) " << func;
-                    else
+                    if(check_pre_post(proj, def, used_abstract_funcs) && check_none(proj, def, used_abstract_funcs)){
+                        LOG_DEBUG << "Precondition imply post condition :) : " << func;
+                    } else {
                         LOG_ERROR << "Precondition does not imply post condition :( " << func;
+                        return;
+                    }
                 }
             } else {
                 LOG_ERROR << "no definition named:" << func;
+            }
+        }
+    }
+
+    // For every def in the project,
+    // if that def has a PostCondWithNone,
+    // iterate through every other def in the project
+    // Use wrap_call_with_cond to replace calls to the first def,
+    // with an if that surfaces the condition.
+    for(auto &def_pair : proj->defs) {
+        auto def = def_pair.second.get();
+        if(proj->cmds.PostCondWithNone.find(def->name) != proj->cmds.PostCondWithNone.end()) {
+            auto &conds_vec = proj->cmds.PostCondWithNone[def->name];
+            std::unique_ptr<SpecNode> conds_node = make_unique<BoolConst>(false);
+            auto elems = new vector<unique_ptr<SpecNode>>();
+            elems->push_back(std::move(conds_node));
+        	for(auto &cond : conds_vec) {
+                auto new_cond = cond->deep_copy();
+                elems->push_back(std::move(new_cond));
+	        }
+            conds_node = make_unique<Expr>(Expr::binops::OR, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
+
+            for(auto &other_def_pair : proj->defs) {
+                auto other_def = other_def_pair.second.get();
+                if(other_def == def) continue;
+                auto old_body = other_def->body->deep_copy();
+                auto new_body = proj->rules.wrap_call_with_cond(proj, std::move(other_def->body), def->name, conds_node->deep_copy());
+                other_def->body = std::move(new_body.first);
+                if(new_body.second) {
+                    LOG_DEBUG << "Applied PostCondWithNone for " << def->name << " in " << other_def->name;
+                    LOG_DEBUG << "Old body: " << string(*old_body);
+                    LOG_DEBUG << "New body: " << string(*other_def->body);
+                }
             }
         }
     }
