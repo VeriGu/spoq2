@@ -188,6 +188,7 @@ namespace autov
 			for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 				auto pm_state = state->copy();
 				auto pat = (*pm)->pattern.get();
+				resolve_pattern(proj, m, pat, src, pm_state);
 				if(resolve_to_none) {
 					if(auto expr = instance_of(pat, Expr)) {
 						if(!op_eq(expr->op, Expr::None)) {
@@ -276,9 +277,7 @@ namespace autov
 						}
 					}
 				} 
-				// else {
-					resolve_pattern(proj, m, pat, src, pm_state);
-				// }
+			
 
 				if (!std::holds_alternative<std::nullptr_t>(abst_spec)) {
 					SpecNode *st_ret = extract_st_from_expr(proj, pat);
@@ -556,6 +555,7 @@ namespace autov
 
 				auto new_state = state->copy();
 				auto pat = (*pm)->pattern.get();
+				resolve_pattern(proj, m, pat, src, new_state);
 				if(resolve_to_none) {
 					if(auto expr = instance_of(pat, Expr)) {
 						if(!op_eq(expr->op, Expr::None)) {
@@ -645,9 +645,7 @@ namespace autov
 						}
 					}
 				}
-				else {
-					resolve_pattern(proj, m, pat, src, new_state);
-				}
+				
 				auto state_works = z3_verify_state_sat(new_state->copy(), &proj->query_saver);
 				if (state_works != Z3Result::False) {
 					LOG_DEBUG << "[simulate_by_traverse] In Match: " << string(*m->src).substr(0,200) << ". Verifying pattern: " << string(*(*pm)->pattern.get()).substr(0,100) << ".";
