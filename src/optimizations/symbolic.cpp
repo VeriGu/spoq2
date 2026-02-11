@@ -1660,12 +1660,12 @@ void spec_prover(Project *proj) {
                 auto other_def = other_def_pair.second.get();
                 if(other_def == def) continue;
                 auto old_body = other_def->body->deep_copy();
-                auto new_body = proj->rules.wrap_call_with_cond(proj, std::move(other_def->body), def->name, conds_node->deep_copy());
+                auto new_body = proj->rules.wrap_none_call_with_cond(proj, std::move(other_def->body), def->name, conds_node->deep_copy());
                 other_def->body = std::move(new_body.first);
                 if(new_body.second) {
                     LOG_DEBUG << "Applied PostCondWithNone for " << def->name << " in " << other_def->name;
-                    LOG_DEBUG << "Old body: " << string(*old_body);
-                    LOG_DEBUG << "New body: " << string(*other_def->body);
+                    // LOG_DEBUG << "Old body: " << string(*old_body);
+                    // LOG_DEBUG << "New body: " << string(*other_def->body);
                 }
             }
         }

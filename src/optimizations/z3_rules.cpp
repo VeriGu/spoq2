@@ -655,7 +655,7 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
     // LOG_DEBUG << "else: " << string(*spec->else_body);
     // LOG_DEBUG << "cond: " << string(*spec->cond);
 
-    auto res = z3_check(state, c->get_z3_value(), &proj->query_saver, 1);
+    auto res = z3_check(state, c->get_z3_value(), nullptr, 1);
     PROFILE_END(z3_rule_check);
     PROFILE_END(if_rule_check);
 

@@ -3021,6 +3021,7 @@ public:
 
   bool runOnModule(Module &M) override;
 };
+char PVIROutlinerLegacyPass::ID = 0;
 } // namespace
 
 bool PVIROutlinerLegacyPass::runOnModule(Module &M) {
@@ -3070,15 +3071,14 @@ PreservedAnalyses PVIROutlinerPass::run(Module &M, ModuleAnalysisManager &AM) {
   return PreservedAnalyses::all();
 }
 
-char PVIROutlinerLegacyPass::ID = 0;
-static llvm::RegisterPass<PVIROutlinerLegacyPass>
-    X("pviroutliner", "PV IR Outliner", false, false);
-// INITIALIZE_PASS_BEGIN(PVIROutlinerLegacyPass, "pviroutliner", "PV IR Outliner", false,
-//                       false)
-// INITIALIZE_PASS_DEPENDENCY(IRSimilarityIdentifierWrapperPass)
-// INITIALIZE_PASS_DEPENDENCY(OptimizationRemarkEmitterWrapperPass)
-// INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
-// INITIALIZE_PASS_END(PVIROutlinerLegacyPass, "pviroutliner", "PV IR Outliner", false,
-//                     false)
-
-// ModulePass *llvm::createIROutlinerPass() { return new PVIROutlinerLegacyPass(); }
+using namespace llvm;
+// static llvm::RegisterPass<PVIROutlinerLegacyPass>
+    // X("pviroutliner", "PV IR Outliner", false, false);
+INITIALIZE_PASS_BEGIN(PVIROutlinerLegacyPass, "pviroutliner", "PV IR Outliner", false,
+                      false)
+INITIALIZE_PASS_DEPENDENCY(IRSimilarityIdentifierWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(OptimizationRemarkEmitterWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
+INITIALIZE_PASS_END(PVIROutlinerLegacyPass, "pviroutliner", "PV IR Outliner", false,
+                    false)
+ModulePass *llvm::createIROutlinerPass() { return new PVIROutlinerLegacyPass(); }

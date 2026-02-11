@@ -1322,17 +1322,17 @@ bool Project::finalize_project_v2() {
         }
 
         for (auto &p: L->prims) {
-            LOG_DEBUG << "primitive: " << p << "\n";
+            // LOG_DEBUG << "primitive: " << p << "\n";
             auto func = this->spoq_code.llvm_module->getFunction(p);
-            LOG_DEBUG << "primitive: " << p << "\n";
+            // LOG_DEBUG << "primitive: " << p << "\n";
             if (func == nullptr || func->isDeclaration()) 
                 continue;
-            LOG_DEBUG << "primitive infer: " << p << "\n";
+            // LOG_DEBUG << "primitive infer: " << p << "\n";
 
             auto start = std::chrono::high_resolution_clock::now();
             auto [fname, low_specs, high_specs] = infer_spec_task_v2(this, i, p);
             auto end = std::chrono::high_resolution_clock::now();
-            LOG_DEBUG << "####[" << p << "]" << "infer spec task cost" << std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count() << "" << std::endl;
+            // LOG_DEBUG << "####[" << p << "]" << "infer spec task cost" << std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count() << "" << std::endl;
         }
     }
 

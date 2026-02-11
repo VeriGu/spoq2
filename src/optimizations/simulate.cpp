@@ -101,6 +101,8 @@ namespace autov
 							// 	LOG_DEBUG << "Condition: " << cond;
 							//  	}
 						}
+						if(!is_relate || !ret_is_relate)
+							int x = 5;
 						return SimulateResult{is_relate && ret_is_relate, false, false, false};
 					} else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
 						st_ret = expr->elems->at(0)->deep_copy();
@@ -450,7 +452,8 @@ namespace autov
 	 * @return false if the specification relation is not proved
 	 */
 	SimulateResult simulate_by_traverse(Project *proj, SpecNode *spec, SpecNode *impl, Definition *rel, Definition *ret_rel, shared_ptr<ProveState> state, path_t p, bool det) {
-		// LOG_DEBUG << "[simulate_by_traverse] start! checking relation " << string(*rel) << " between\n"  << string(*spec) << " and " << string(*impl) << std::endl;
+		int random_code = rand() % 10000;
+		// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] start! checking relation " << string(*rel) << " between\n"  << string(*spec) << " and " << string(*impl).substr(0,50) << std::endl;
 		if (auto expr = instance_of(spec, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -464,7 +467,7 @@ namespace autov
 								spec_ret = ret_Some->elems->front()->deep_copy().release();
 							}
 						}
-						LOG_DEBUG << "[simulate_by_traverse] spec: " << string(*spec) << " moving to forward_simulation.";
+						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] spec: " << string(*spec) << " moving to forward_simulation.";
 
 						auto result = forward_simulation(proj, st_ret.get(), spec_ret, impl, rel, ret_rel, state, det, p, 0, false);
 						if(!result.verified){
@@ -648,11 +651,11 @@ namespace autov
 				
 				auto state_works = z3_verify_state_sat(new_state->copy(), &proj->query_saver);
 				if (state_works != Z3Result::False) {
-					LOG_DEBUG << "[simulate_by_traverse] In Match: " << string(*m->src).substr(0,200) << ". Verifying pattern: " << string(*(*pm)->pattern.get()).substr(0,100) << ".";
+					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] In Match: " << string(*m->src).substr(0,200) << ". Verifying pattern: " << string(*(*pm)->pattern.get()).substr(0,100) << ".";
 					auto new_result = simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, ret_rel, new_state, p_match, det);
-					LOG_DEBUG << "[simulate_by_traverse] Leaving Match: " << string(*m->src).substr(0,200) << ". pattern: " << string(*(*pm)->pattern.get()).substr(0,100) << ".";
+					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Leaving Match: " << string(*m->src).substr(0,200) << ". pattern: " << string(*(*pm)->pattern.get()).substr(0,100) << ".";
 					if (sim_result.verified && !new_result.verified) {
-						LOG_DEBUG << "[simulate_by_traverse] In Match body at " << (*pm)->body.get() << " not verified.";
+						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] In Match body at " << (*pm)->body.get() << " not verified.";
 					}
 					sim_result = sim_result + new_result;
 				} else {
@@ -661,7 +664,7 @@ namespace autov
 				}
 			}
 			if (!sim_result.verified) {
-				LOG_DEBUG << "[simulate_by_traverse] Completed Match: some branches not verified.";
+				LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Completed Match: some branches not verified.";
 			}
 			return sim_result;
 		} else if (auto i = instance_of(spec, If)) {
@@ -684,23 +687,23 @@ namespace autov
 			p_then.push_back(1);
 			p_else.push_back(0);
 			auto sim_result = SimulateResult{true, false, false, false};
-			LOG_DEBUG << "[simulate_by_traverse] Checking if: " << string(*c).substr(0,200);
-			LOG_DEBUG << "[simulate_by_traverse] Checking if z3: " << c->get_z3_value();
+			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if: " << string(*c).substr(0,200);
+			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if z3: " << c->get_z3_value();
 			if (true_branch_plausible){
 				sim_result = sim_result + simulate_by_traverse(proj, i->then_body.get(), impl, rel, ret_rel, true_state, p_then, det);
 				if (!sim_result.verified) {
-					LOG_DEBUG << "[simulate_by_traverse] Then branch of if not verified" << c->get_z3_value();
+					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Then branch of if not verified" << c->get_z3_value();
 				}
 			}
 			if (false_branch_plausible){
 				sim_result = sim_result + simulate_by_traverse(proj, i->else_body.get(), impl, rel, ret_rel, false_state, p_else, det);
 				if (!sim_result.verified) {
-					LOG_DEBUG << "[simulate_by_traverse] If not verified: " << !cond_val;
+					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] If not verified: " << !cond_val;
 				}
 
 			}
 			if (!true_branch_plausible && !false_branch_plausible) {
-				LOG_ERROR << "[simulate_by_traverse] If - Both branches impossible!";
+				LOG_ERROR << "[simulate_by_traverse " << random_code << "] If - Both branches impossible!";
 			}
 			return sim_result;
 		} else if (auto r = instance_of(spec, Rely)) {
@@ -711,7 +714,7 @@ namespace autov
 		} else if (auto r = instance_of(spec, Symbol)) { 
 			auto sym = dynamic_cast<Symbol*>(spec);
 			if(sym->text == "None") {
-				LOG_DEBUG << "[simulate_by_traverse] Detected None node in spec, checking if impl removes spec UB.";
+				LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Detected None node in spec, checking if impl removes spec UB.";
 				// for(auto cond: *state->conds) {
 				// 	LOG_DEBUG << "[simulate_by_traverse] Condition at None: " << cond;
 				// }
@@ -720,31 +723,31 @@ namespace autov
 				return forward_simulation(proj, sym, nullptr, impl_copy.get(), rel, ret_rel, state, det, p, 0, true);
 				// return SimulateResult{true, true, false, false};
 			} else {
-				LOG_DEBUG << "[simulate_by_traverse] Unexpected Symbol node.";
+				LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected Symbol node.";
 				return SimulateResult{false, false, false, false};
 			}
 		} else if (auto r = instance_of(spec, Const)) { 
-			LOG_DEBUG << "[simulate_by_traverse] Unexpected Const node.";
+			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected Const node.";
 			return SimulateResult{false, false, false, false};
 		} else if (auto r = instance_of(spec, RecordDef)) { 
-			LOG_DEBUG << "[simulate_by_traverse] Unexpected RecordDef node.";
+			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected RecordDef node.";
 			return SimulateResult{false, false, false, false};
 		} else if (auto r = instance_of(spec, PatternMatch)) { 
-			LOG_DEBUG << "[simulate_by_traverse] Unexpected PatternMatch node.";
+			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected PatternMatch node.";
 			return SimulateResult{false, false, false, false};
 		} else if (auto r = instance_of(spec, RelyAnno)) { 
-			LOG_DEBUG << "[simulate_by_traverse] Unexpected RelyAnno node.";
+			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected RelyAnno node.";
 			return SimulateResult{false, false, false, false};
 		} else if (auto r = instance_of(spec, ForallExists)) { 
-			LOG_DEBUG << "[simulate_by_traverse] Unexpected ForallExists node.";
+			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected ForallExists node.";
 			return SimulateResult{false, false, false, false};
 		} else {
-			LOG_DEBUG << "[simulate_by_traverse] Detected unexpected SpecNode type..";
+			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Detected unexpected SpecNode type..";
 			LOG_DEBUG << spec->type.get()->name;
 			LOG_DEBUG << (typeid(spec).name());
 			return SimulateResult{false, false, false, false};
 		}
-		LOG_ERROR << "[simulate_by_traverse] Reached unexpected location.";
+		LOG_ERROR << "[simulate_by_traverse " << random_code << "] Reached unexpected location.";
 		return SimulateResult{false, false, false, false};
 	}
 

@@ -445,7 +445,6 @@ class PVIROutlinerPass : public PassInfoMixin<PVIROutlinerPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
-
 } // end namespace llvm
 
 #endif // LLVM_TRANSFORMS_IPO_IROUTLINER_H
