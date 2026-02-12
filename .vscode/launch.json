@@ -2,6 +2,209 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "(lldb) pv two_file_simple_assign",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/simple_assign.ll.main.v",
+            "--check-none", "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "(lldb) pv two_file_simple_assign_fail",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/simple_assign_fail.ll.main.v",
+            "--check-none", "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "(lldb) pv findub",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/hidden_ub_nounfold.ll.main.v",
+             "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/uaf_poc/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "(lldb) pv findub fail",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/hidden_ub_nounfold_hintcondbad_fail.ll.main.v",
+            "--check-none", "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/uaf_poc/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "(lldb) pv uaf poc",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/uaf_poc.main.v",
+            "--check-none", "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/uaf_poc/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+
+        {
+            "name": "(lldb) pv struct test",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/struct_stack_val.ll.main.v",
+            "--check-none", "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/struct_stack_val/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "(lldb) pv struct array",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/struct_array_elem.ll.main.v",
+            "--check-none", "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/struct_array_elem/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+                {
+            "name": "(lldb) pv buf const string",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/buf_static_const_string.main.v",
+            "--check-none", "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/struct_array_elem/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "(lldb) pv bottom_recursion_void",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/bottom_recursion_void.ll.main.v",
+            "--check-none", "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/bottom_recursion_void/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "(lldb) pv php009sim",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/php009_static_struct_arr.ll.main.v",
+            "--check-none", "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/php009sim/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "(lldb) pv varargs",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/varargs.ll.main.v",
+            "--check-none", "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/varargs/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "(lldb) pv simple_assign",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/simple_assign.main.v",
+            "--check-none", "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/simple_assign/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "(lldb) pv buf ",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/buf_local_string_loop.main.v",
+            "--check-none", "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/buf/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "(lldb) pv php009",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/php/php009/build/exif.main.v",
+            "--check-none", "--new-trans", "--llvm", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/php/php009/build",
+            "preLaunchTask": "CMake: build debug"
+        },
+               {
+            "name": "(lldb) pv php015",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/php/php015/build/phar.main.v",
+            "--check-none", "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/php/php015/build",
+            "preLaunchTask": "CMake: build debug"
+        },
+                {
+            "name": "(lldb) pv lua002",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/lua/lua002/build/ldebug.main.v",
+            "--check-none", "--new-trans", "--llvm",  "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/lua/lua002/build",
+            "preLaunchTask": "CMake: build debug"
+        },
+                {
+            "name": "(lldb) pv lua004",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/lua/lua004/build/ldebug.main.v",
+            "--check-none", "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/lua/lua004/build",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "(lldb) pv outliner synth",
+            "type": "lldb",
+            "request": "launch",
+            "program": "/usr/bin/opt-14", // Path to your CMake target executable
+            "args": ["-enable-new-pm=0","-load","${workspaceFolder}/scripts/preprocessing/pv_ir_outliner/lib/libpviroutliner.so",
+               "--pviroutliner", "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/php009_static_arr.ll",
+            "-S", "-pv-ir-outlining-no-cost", "-o", "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/php009_static_arr.outlined.ll"],
+            "cwd": "${workspaceFolder}/scripts/preprocessing/extractbasics",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "(lldb) pv outliner",
+            "type": "lldb",
+            "request": "launch",
+            "program": "/usr/bin/opt-14", // Path to your CMake target executable
+            "args": ["-enable-new-pm=0","-load","${workspaceFolder}/scripts/preprocessing/pv_ir_outliner/lib/libpviroutliner.so",
+               "--pviroutliner", "/home/rjs2247/workspace/patchverification/examples/php/php009/build/exif.unoptimized.ll",
+            "-S", "-o", "/home/rjs2247/workspace/patchverification/examples/php/php009/build/exif.outlined.ll"],
+            "cwd": "${workspaceFolder}/scripts/preprocessing/extractbasics",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "(lldb) pv extract-info",
+            "type": "lldb",
+            "request": "launch",
+            "program": "/usr/bin/opt-14", // Path to your CMake target executable
+            "args": ["-enable-new-pm=0","-O0","-load","${workspaceFolder}/scripts/preprocessing/extractpointers/lib/libextractpointers.so","-load", "${workspaceFolder}/scripts/preprocessing/extractbasics/lib/libextractbasics.so",
+               "--extractbasics",   "--extractpointers", "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/php009_static_arr.ll"],
+            "cwd": "${workspaceFolder}/scripts/preprocessing/extractbasics",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
             "name": "(lldb) Launch Spoq rcsm",
             "type": "lldb",
             "request": "launch",

@@ -981,8 +981,12 @@ static void collect_lemmas(Project *proj) {
         LOG_INFO << "Pure Lemma: " << string(*pure_lemma) << std::endl;
         if (lemma_def->deleyed_type_inference) {
             LOG_INFO << "Pure Lemma (infer_type): " << string(*pure_lemma) << std::endl;
-            pure_lemma->infer_type(*proj);
-            lemma_def->deleyed_type_inference = false;
+            try{
+                pure_lemma->infer_type(*proj);
+                lemma_def->deleyed_type_inference = false;
+            } catch(...) {
+                LOG_ERROR << "Type inference failed for lemma: " << lemma_def->name << std::endl;
+            }
         }
         profile_clear();
         //spec_transformer(proj, pure_lemma, 0, !is_instance(lemma_def, Fixpoint), true);

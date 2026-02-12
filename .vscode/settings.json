@@ -71,7 +71,28 @@
         "regex": "cpp",
         "stack": "cpp",
         "fstream": "cpp",
-        "iomanip": "cpp"
+        "iomanip": "cpp",
+        "__config": "cpp",
+        "__locale": "cpp",
+        "__mutex_base": "cpp",
+        "__threading_support": "cpp",
+        "ios": "cpp",
+        "queue": "cpp",
+        "shared_mutex": "cpp",
+        "__bits": "cpp",
+        "__debug": "cpp",
+        "__nullptr": "cpp",
+        "__tuple": "cpp",
+        "locale": "cpp",
+        "*.inc": "cpp",
+        "future": "cpp",
+        "__bit_reference": "cpp",
+        "__hash_table": "cpp",
+        "__node_handle": "cpp",
+        "__split_buffer": "cpp",
+        "__tree": "cpp",
+        "strstream": "cpp",
+        "codecvt": "cpp"
     },
     "cmake.configureOnOpen": true,
     "cmake.configureSettings": {
@@ -91,5 +112,6 @@
         "**/Spec/Parser/antlr4": true,
         "**/Spec/Parser/.antlr": true,
     },
-    "C_Cpp.formatting": "default"
+    "C_Cpp.formatting": "default",
+    "terminal.integrated.shellIntegration.history": 1000000
 }
