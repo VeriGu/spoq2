@@ -704,11 +704,12 @@ void ExtractPointersPass::generate(llvm::Module& M) {
           "      Some(" + getGVStoreStr(&globalVar) + " :< ptr)) else\n";
         }
       } else if (auto sty = llvm::dyn_cast<llvm::StructType>(ety)) {
+        // An array of structs, so we need to get the element, then use the struct load function
         g_load_result += 
         "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
         "       let idx := p.(poffset) / " + std::to_string(element_size) + " in\n" \
         "       let elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
-        "       when ret == load_"+ getStructTypeIdentifier(sty) +" sz elem_ofs " + getGVLoadStr(&globalVar) +\
+        "       when ret == load_"+ getStructTypeIdentifier(sty) +" sz elem_ofs (" + getGVLoadStr(&globalVar) +\
         " @ idx);\n " \
         "       Some(ret, st)) else\n";
         if (globalVar.isConstant()){

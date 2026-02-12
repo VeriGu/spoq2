@@ -160,20 +160,20 @@ std::string ExtractBasicsPass::generateLoad(llvm::StructType* sty) {
   auto ty_name = getStructTypeIdentifier(sty, false);
   std::string definition = 
     "Definition load_" + ty_name + " (sz: Z) (ofs:Z) " \
-    " (st: " + ty_name + ") : option Z := \n";
+    " (st_" + ty_name + ": " + ty_name + ") : option Z := \n";
   int n = sty->getNumElements();
   auto layout = dl->getStructLayout(sty);
   for(int i = 0; i < n; i++) {
     int offset = layout->getElementOffset(i);
     llvm::Type* e = sty->getTypeAtIndex(i);
     if(e->getTypeID() == llvm::Type::TypeID::IntegerTyID || e->getTypeID() == llvm::Type::TypeID::PointerTyID ) {
-      definition += generateLoadZField("st", offset, getFieldIdentifier(sty, i, false));
+      definition += generateLoadZField("st_" + ty_name, offset, getFieldIdentifier(sty, i, false));
       definition += "\n";
     } else if (e->getTypeID() == llvm::Type::TypeID::ArrayTyID ) {
-      definition += generateLoadZMapField("st", offset, getFieldIdentifier(sty, i, false), llvm::dyn_cast<llvm::ArrayType>(e));
+      definition += generateLoadZMapField("st_" + ty_name, offset, getFieldIdentifier(sty, i, false), llvm::dyn_cast<llvm::ArrayType>(e));
       definition += "\n";
     } else if(e->getTypeID() == llvm::Type::TypeID::StructTyID ) {
-      definition += generateLoadStructField("st", offset, getFieldIdentifier(sty, i, false), llvm::dyn_cast<llvm::StructType>(e));
+      definition += generateLoadStructField("st_" + ty_name, offset, getFieldIdentifier(sty, i, false), llvm::dyn_cast<llvm::StructType>(e));
       definition += "\n";
     }
     // llvm::errs() << "offset:" << offset << "\n";

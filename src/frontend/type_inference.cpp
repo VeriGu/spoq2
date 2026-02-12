@@ -360,6 +360,8 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                         LOG_ERROR << "Unsupported Expr::Get operand. Elem Type: " << string(*elem_type);
                         throw TypeInferenceException("Tuple in Expr::Get type inference - unsupported");
                     } else {
+
+                        LOG_ERROR << "Unsupported Expr::Get case. expr: " << string(*expr);
                         throw TypeInferenceException("unsupported case in Expr::Get type inference - unsupported");
                     }
                     break;
@@ -691,8 +693,8 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                     }
                 } else {
                     // TODO: better error message
-                    // throw TypeInferenceException("unknown expr op " + string(*expr).substr(0,400));
-                    LOG_DEBUG <<  "unknown expr op " + string(*expr).substr(0,400);
+                    throw TypeInferenceException("unknown expr op " + string(*expr).substr(0,400));
+                    // LOG_DEBUG <<  "unknown expr op " + string(*expr).substr(0,400);
                 }
             } else if (holds_alternative<unique_ptr<SpecNode>>(expr->op)) {
                 auto op = std::get<unique_ptr<SpecNode>>(expr->op).get();
@@ -836,7 +838,7 @@ bool check_well_typed(Project &proj, SpecNode *spec, std::set<string> &vars) {
             return true;
 
         well_typed = vars.find(sym->text) != vars.end();
-        
+
         if (!well_typed) {
             LOG_ERROR << "Unknown symbol: " << sym->text;
             LOG_ERROR << "Symbol type: " << string(*sym->type);
