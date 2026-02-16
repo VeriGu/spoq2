@@ -206,13 +206,13 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 // LOG_DEBUG << "spec before: " << string(*__tmp_spec3.get()) << "\n";
                 // LOG_DEBUG << "spec: " << string(*__tmp_spec3.get()) << "\n";
                 auto start = std::chrono::high_resolution_clock::now();
-                LOG_DEBUG << "start z3" << "\n";
+                // LOG_DEBUG << "start z3" << "\n";
                 force_simpl = true;
                 std::tie(__tmp_spec3, z3_changed) = proj->rules.rule_simple_by_z3(std::move(__tmp_spec3), state->copy());
-                LOG_DEBUG << "end z3" << "\n";
+                // LOG_DEBUG << "end z3" << "\n";
                 auto end = std::chrono::high_resolution_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-                LOG_DEBUG << "Z3 time: " << duration.count() / 1000.0 << " seconds\n";
+                LOG_DEBUG << "spec transformer Z3 time: " << duration.count() / 1000.0 << " seconds\n";
                 // LOG_DEBUG << "spec: " << string(*__tmp_spec3.get()) << "\n";
             }
             changed |= z3_changed;

@@ -664,7 +664,7 @@ z3::expr formulate_post_cond_z3(Project* proj, std::string fname, SpecNode* func
  * 		works on specs with abstract functions, symbolically check inv path-by-path
  *      It is a general function that can check pre condition implies post condition or system invariant is preserved
  * */
-bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<ProveState> state, std::unordered_set<string> &used_abs_funcs, ProveMode mode, string fname) {
+bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<ProveState> state, std::unordered_set<string> &used_abs_funcs, ProveMode mode, string fname, NoneConditionAccumulator none_accumulator=NoneConditionAccumulator()) {
     if(auto sym = instance_of(spec, Symbol)) {
         if(sym->text == "None") {
             if(OPTS.check_none) {
@@ -678,6 +678,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                 auto res = z3_check(state, Z3_VERIFY_TIMEOUT);
                 if(res == Z3Result::Sat) {
                     LOG_INFO << "Function condition return None is true!";
+                    none_accumulator.visit_none();
                     return true;
                 } else if(res == Z3Result::False) {
                     // no such condition
@@ -977,7 +978,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                     if(!op_eq(expr->op, Expr::None)) {
                         continue;
                     } else {
-                        verify_success &= prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs, mode, fname);
+                        verify_success &= prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs, mode, fname, none_accumulator);
                         return verify_success;
                     }
                 }
@@ -1094,7 +1095,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
             } else {
                 resolve_pattern(proj, m, pat, src, new_state);
             }
-            verify_success &= prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs, mode, fname);
+            verify_success &= prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs, mode, fname, none_accumulator);
 			// if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs)) {
 				// return false;
 			// }
@@ -1108,8 +1109,8 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
         true_state->conds->push_back(c->get_z3_value());
         false_state->conds->push_back(!c->get_z3_value());
         auto verify_success = true;
-        verify_success &= prove_by_traverse(proj, i->then_body.get(), inv, true_state, used_abs_funcs, mode, fname);
-        verify_success &= prove_by_traverse(proj, i->else_body.get(), inv, false_state, used_abs_funcs, mode, fname);
+        verify_success &= prove_by_traverse(proj, i->then_body.get(), inv, true_state, used_abs_funcs, mode, fname, none_accumulator ? none_accumulator.add_condition(i->cond->deep_copy()) : none_accumulator);
+        verify_success &= prove_by_traverse(proj, i->else_body.get(), inv, false_state, used_abs_funcs, mode, fname, none_accumulator ? none_accumulator.add_inverse_condition(i->cond->deep_copy()) : none_accumulator);
         return verify_success;
     } else if (auto r = instance_of(spec, Rely)) {
 		// push cond
@@ -1122,7 +1123,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                     LOG_ERROR << "Rely condition violated: Query " << c->get_z3_value();
                     return false;
             } else if(res == Z3Result::True) {
-                return prove_by_traverse(proj, r->body.get(), inv, state, used_abs_funcs, mode, fname);
+                return prove_by_traverse(proj, r->body.get(), inv, state, used_abs_funcs, mode, fname, none_accumulator);
             } else if(res == Z3Result::Unknown) {
                     LOG_ERROR << "Rely condition Unknown: Resolve to None branch! " << string(*r->prop);
                     LOG_ERROR << "Rely condition Unknown: Query " << c->get_z3_value();
@@ -1131,11 +1132,11 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                     }
                     return false;
                 state->conds->push_back(c->get_z3_value());
-                return prove_by_traverse(proj, r->body.get(), inv, state, used_abs_funcs, mode, fname);
+                return prove_by_traverse(proj, r->body.get(), inv, state, used_abs_funcs, mode, fname, none_accumulator);
             }
         } else {
             state->conds->push_back(c->get_z3_value());
-            return prove_by_traverse(proj, r->body.get(), inv, state, used_abs_funcs, mode, fname);
+            return prove_by_traverse(proj, r->body.get(), inv, state, used_abs_funcs, mode, fname, none_accumulator);
         }
     } else {
 		// pass

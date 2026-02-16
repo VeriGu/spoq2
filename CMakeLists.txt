@@ -117,6 +117,7 @@ set(SOURCES
     src/main.cpp
     src/libs/log.cpp
     src/libs/nodes.cpp
+    src/libs/visitors.cpp
     src/libs/values.cpp
     src/libs/utils.cpp
     src/libs/project.cpp

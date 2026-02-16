@@ -10,6 +10,7 @@
 #include <rules.h>
 #include <z3_rules.h>
 #include <cmd.h>
+#include <visitors.h>
 
 namespace autov {
 
