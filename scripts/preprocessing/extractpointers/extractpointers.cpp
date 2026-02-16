@@ -657,8 +657,8 @@ void ExtractPointersPass::generate(llvm::Module& M) {
       "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
       "      Some(" + getGVLoadStr(&globalVar) + ", st)) else\n";
       if(globalVar.isConstant()){
-        g_store_result += 
-        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
+        // g_store_result += 
+        // "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
       } else {
         g_store_result += 
         "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
@@ -674,8 +674,8 @@ void ExtractPointersPass::generate(llvm::Module& M) {
       "      Some(ret, st)) else\n";
       
       if(globalVar.isConstant()){
-        g_store_result += 
-        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
+        // g_store_result += 
+        // "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
       } else {
         g_store_result += 
         "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
@@ -694,8 +694,8 @@ void ExtractPointersPass::generate(llvm::Module& M) {
         "      let ptr := " + getGVLoadStr(&globalVar) + " @ idx in\n"\
         "      Some(ptr, st)) else\n";
         if (globalVar.isConstant()){
-          g_store_result += 
-          "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
+          // g_store_result += 
+          // "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
         } else {
           g_store_result += 
           "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
@@ -713,9 +713,8 @@ void ExtractPointersPass::generate(llvm::Module& M) {
         " @ idx);\n " \
         "       Some(ret, st)) else\n";
         if (globalVar.isConstant()){
-        g_store_result += 
-        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
-
+        // g_store_result += 
+        // "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
         } else {
         g_store_result += 
         "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
