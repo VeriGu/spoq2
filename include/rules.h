@@ -19,7 +19,7 @@ class EvalState;
 #ifdef CONDITIONAL_SPEC
 std::pair<bool, std::pair<string,string>> rule_conditional_spec(Project* proj, Definition *spec, vector<Definition*>* low_specs);
 #endif
-std::unique_ptr<SpecNode> subst(std::unique_ptr<SpecNode> spec,const std::string& name,SpecNode* value,bool &succ);
+std::unique_ptr<SpecNode> subst(std::unique_ptr<SpecNode> spec,const std::string& name,SpecNode* value,bool &succ, SpecNode** last_place_substituted = nullptr);
 bool spec_is_pure(Project *proj, SpecNode *spec, bool &has_if);
 bool spec_needs_state(Project *proj, SpecNode *spec);
 void spec_remove_state(Project *proj, SpecNode *spec);

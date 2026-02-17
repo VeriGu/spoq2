@@ -1,9 +1,14 @@
 #include <nodes.h>
+#include <rules.h>
+static const std::string match_body_sym = "NoneConditionAccumulatorTemporaryMatchBody";
 
 namespace autov {
     class NoneConditionAccumulator {
         // An accumulated conjunction of conditions which may or may not lead to None.
         std::unique_ptr<SpecNode> accumulated_cond = nullptr;
+        // When a match is added to the condition, subsequent conditions must be placed within the pattern match body.
+        // This pointer is needed to know what node to replace.
+        SpecNode* last_pattern_match = nullptr; 
         public:
         // The function to call when we encounter a None condition.
         // It will receive the accumulated conditions as an argument.
@@ -16,16 +21,24 @@ namespace autov {
 
         // Copy Constructor
         NoneConditionAccumulator(const NoneConditionAccumulator& other) {
-            this->accumulated_cond = other.accumulated_cond ? other.accumulated_cond->deep_copy() : nullptr;
+            if (other.accumulated_cond) {
+                this->accumulated_cond =  other.accumulated_cond->deep_copy();
+            } else {
+                this->accumulated_cond = nullptr;
+            }
             this->discharge_none = other.discharge_none;
+            this->last_pattern_match = nullptr; // Cannot copy the weak pointer.
         }
         // Move Constructor
         NoneConditionAccumulator(NoneConditionAccumulator&& other) noexcept {
             this->accumulated_cond = std::move(other.accumulated_cond);
             this->discharge_none = other.discharge_none;
+            this->last_pattern_match = other.last_pattern_match;
         }
         // Default Constructor
-        NoneConditionAccumulator() = default;
+        NoneConditionAccumulator() {
+            this->accumulated_cond = make_unique<BoolConst>(true);
+        };
 
         // Conversion to bool:
         operator bool() const {

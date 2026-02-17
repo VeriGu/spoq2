@@ -772,6 +772,19 @@ public:
         }
     }
 
+    // To support export of conditions leading to None, create a Match statement which
+    // gives False for every condition except the selected one.
+    unique_ptr<SpecNode> bool_cond_for(unique_ptr<PatternMatch>& desired_match) const {
+        auto new_src = this->src->deep_copy();
+        unique_ptr<vector<unique_ptr<PatternMatch>>> new_match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
+        for (auto it = match_list->begin(); it != match_list->end(); it++) {
+            auto new_pm = make_unique<PatternMatch>((*it)->pattern->deep_copy(), make_unique<BoolConst>(desired_match == *it));
+            new_match_list->push_back(std::move(new_pm));
+        }
+        auto ret = make_unique<Match>(std::move(new_src), std::move(new_match_list));
+        ret->length = this->length;
+        return ret;
+    }
     unique_ptr<SpecNode> deep_copy() const {
         // deep copy src and match_list
         unique_ptr<SpecNode> new_src = this->src->deep_copy();
@@ -1401,6 +1414,7 @@ public:
     shared_ptr<SpecType> rettype;
     unique_ptr<vector<shared_ptr<Arg>>> args;
     unique_ptr<SpecNode> body;
+    std::unique_ptr<SpecNode> sufficient_none_condition=nullptr;
     int length;
     mutable string _str;
     bool deleyed_type_inference = false;
@@ -1410,11 +1424,13 @@ public:
     Definition(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args, unique_ptr<SpecNode> body) :
         name(name), rettype(rettype), args(std::move(args)), body(std::move(body)) {
         this->length = this->body->length; // This cannot be done in the initializer list because body is moved.
+
     }
 
     Definition(Definition &other) :
         name(other.name), rettype(other.rettype), args(make_unique<vector<shared_ptr<Arg>>>(*other.args)),
-        body(other.body->deep_copy()), length(other.length) {}
+        body(other.body->deep_copy()), sufficient_none_condition(other.sufficient_none_condition ? other.sufficient_none_condition->deep_copy() : nullptr), 
+        length(other.length) {}
 
 
     bool operator==(const Definition& other) const {

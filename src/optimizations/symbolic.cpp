@@ -667,7 +667,7 @@ z3::expr formulate_post_cond_z3(Project* proj, std::string fname, SpecNode* func
 bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<ProveState> state, std::unordered_set<string> &used_abs_funcs, ProveMode mode, string fname, NoneConditionAccumulator none_accumulator=NoneConditionAccumulator()) {
     if(auto sym = instance_of(spec, Symbol)) {
         if(sym->text == "None") {
-            if(OPTS.check_none) {
+            if(OPTS.check_none && mode != ProveMode::None) {
                 auto res = z3_check(state, Z3_VERIFY_TIMEOUT);
                 if(res == Z3Result::Sat) {
                     LOG_ERROR << "Reached None Branch";
@@ -1095,7 +1095,10 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
             } else {
                 resolve_pattern(proj, m, pat, src, new_state);
             }
-            verify_success &= prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs, mode, fname, none_accumulator);
+            LOG_DEBUG << "After resolve pattern total: " << string(**pm);
+            auto p = (*pm)->pattern.get();
+            LOG_DEBUG << "After resolve pattern pattern: " << string(*p);
+            verify_success &= prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs, mode, fname, none_accumulator.add_condition(m->bool_cond_for(*pm)));
 			// if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs)) {
 				// return false;
 			// }
@@ -1295,7 +1298,21 @@ bool check_none(Project* proj, Definition *def, std::unordered_set<string>& used
     auto c = z3_eval(proj, nonecond.get(), state, false, true, used_fixpoint);
     state->conds->push_back(c->get_z3_value());
     unique_ptr<SpecNode> postcond = make_unique<BoolConst>(true);
-    bool res = prove_by_traverse(proj, spec_def->body.get(), postcond.get(), state, used_abs, ProveMode::None, def->name);
+
+    auto none_cond_accumulator = NoneConditionAccumulator();
+    none_cond_accumulator.discharge_none = [=](std::unique_ptr<SpecNode> n){
+        // LOG_DEBUG << "Discharging none condition to " << def->name << ": " << string(*n);
+
+        if(def->sufficient_none_condition) {
+            auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+            elems->push_back(std::move(def->sufficient_none_condition));
+            elems->push_back(std::move(n));
+            def->sufficient_none_condition = make_unique<Expr>(Expr::binops::OR, std::move(elems), Bool::BOOL);
+        } else {
+            def->sufficient_none_condition = std::move(n);
+        }
+    };
+    bool res = prove_by_traverse(proj, spec_def->body.get(), postcond.get(), state, used_abs, ProveMode::None, def->name, none_cond_accumulator);
 
     return res;
 }
@@ -1345,7 +1362,6 @@ bool check_pre_post(Project* proj, Definition *def, std::unordered_set<string>& 
     auto c = z3_eval(proj, precond.get(), state, false, true, used_fixpoint);
     state->conds->push_back(c->get_z3_value());
     bool res = prove_by_traverse(proj, spec_def->body.get(), postcond.get(), state, used_abs, ProveMode::PREPOST, def->name);
-
     return res;
 }
 
@@ -1646,30 +1662,22 @@ void spec_prover(Project *proj) {
     // with an if that surfaces the condition.
     for(auto &def_pair : proj->defs) {
         auto def = def_pair.second.get();
-        if(proj->cmds.PostCondWithNone.find(def->name) != proj->cmds.PostCondWithNone.end()) {
-            auto &conds_vec = proj->cmds.PostCondWithNone[def->name];
-            std::unique_ptr<SpecNode> conds_node = make_unique<BoolConst>(false);
-            auto elems = new vector<unique_ptr<SpecNode>>();
-            elems->push_back(std::move(conds_node));
-        	for(auto &cond : conds_vec) {
-                auto new_cond = cond->deep_copy();
-                elems->push_back(std::move(new_cond));
-	        }
-            conds_node = make_unique<Expr>(Expr::binops::OR, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
-
-            for(auto &other_def_pair : proj->defs) {
-                auto other_def = other_def_pair.second.get();
-                if(other_def == def) continue;
-                auto old_body = other_def->body->deep_copy();
-                auto new_body = proj->rules.wrap_none_call_with_cond(proj, std::move(other_def->body), def->name, conds_node->deep_copy());
-                other_def->body = std::move(new_body.first);
-                if(new_body.second) {
-                    LOG_DEBUG << "Applied PostCondWithNone for " << def->name << " in " << other_def->name;
-                    // LOG_DEBUG << "Old body: " << string(*old_body);
-                    // LOG_DEBUG << "New body: " << string(*other_def->body);
-                }
+        if(!def->sufficient_none_condition){
+            continue;
+        }
+        for(auto &other_def_pair : proj->defs) {
+            auto other_def = other_def_pair.second.get();
+            if(other_def == def || !other_def->body) continue;
+            auto old_body = other_def->body->deep_copy();
+            auto new_body = proj->rules.wrap_none_call_with_cond(proj, std::move(other_def->body), def->name, def->sufficient_none_condition->deep_copy());
+            other_def->body = std::move(new_body.first);
+            if(new_body.second) {
+                LOG_DEBUG << "Applied PostCondWithNone for " << def->name << " in " << other_def->name;
+                LOG_DEBUG << "Old body: " << string(*old_body);
+                LOG_DEBUG << "New body: " << string(*other_def->body);
             }
         }
+    
     }
 
     auto end = std::chrono::high_resolution_clock::now();

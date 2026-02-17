@@ -1793,7 +1793,8 @@ std::unique_ptr<SpecNode> subst(
     std::unique_ptr<SpecNode> spec,
     const std::string& name,
     SpecNode* value,
-    bool &succ
+    bool &succ,
+    SpecNode** last_place_substituted
 ) {
     if (!spec) {
         return spec; 
@@ -1808,17 +1809,20 @@ std::unique_ptr<SpecNode> subst(
             new_value->set_type(s->type);
         }
         succ = true;
+        if(last_place_substituted) {
+            *last_place_substituted = new_value.get();
+        }
         return new_value;
     } else if (auto e = instance_of(spec.get(), Expr)) {
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
         for (auto &elem : *e->elems) {
-            elems->push_back(subst(std::move(elem), name, value, succ));
+            elems->push_back(subst(std::move(elem), name, value, succ, last_place_substituted));
         }
         return std::visit([&](auto &&arg) -> std::unique_ptr<SpecNode> {
             using T = std::decay_t<decltype(arg)>;
             if constexpr (std::is_same_v<T, std::unique_ptr<SpecNode>>) {
                 // If op is a unique_ptr<SpecNode>, we substitute recursively
-                auto new_op = subst(std::move(arg), name, value, succ);
+                auto new_op = subst(std::move(arg), name, value, succ, last_place_substituted);
                 auto new_expr = std::make_unique<Expr>(std::move(new_op), std::move(elems), e->type);
                 return new_expr;
             } else {
@@ -1843,12 +1847,12 @@ std::unique_ptr<SpecNode> subst(
             }
             return false;
         };
-        auto new_src = subst(std::move(m->src), name, value, succ);
+        auto new_src = subst(std::move(m->src), name, value, succ, last_place_substituted);
         auto matches = make_unique<vector<unique_ptr<PatternMatch>>>();
 
         for (auto &pm : *(m->match_list)) {
             if (!exists_in_pattern(pm->pattern.get())) {
-                auto new_body = subst(std::move(pm->body), name, value, succ);
+                auto new_body = subst(std::move(pm->body), name, value, succ, last_place_substituted);
                 matches->push_back(std::make_unique<PatternMatch>(pm->pattern->deep_copy(), std::move(new_body)));
             } else {
                 matches->push_back(pm->deep_copy_down());
@@ -1859,21 +1863,21 @@ std::unique_ptr<SpecNode> subst(
         new_match->type = m->type;
         return new_match;
     } else if (auto r = instance_of(spec.get(), Rely)) {
-        auto new_prop = subst(std::move(r->prop), name, value, succ);
-        auto new_body = subst(std::move(r->body), name, value, succ);
+        auto new_prop = subst(std::move(r->prop), name, value, succ, last_place_substituted);
+        auto new_body = subst(std::move(r->body), name, value, succ, last_place_substituted);
         auto new_rely = std::make_unique<Rely>(std::move(new_prop), std::move(new_body));
         new_rely->type = r->type;
         return new_rely;
     } else if (auto r = instance_of(spec.get(), Anno)) {
-        auto new_prop = subst(std::move(r->prop), name, value, succ);
-        auto new_body = subst(std::move(r->body), name, value, succ);
+        auto new_prop = subst(std::move(r->prop), name, value, succ, last_place_substituted);
+        auto new_body = subst(std::move(r->body), name, value, succ, last_place_substituted);
         auto new_anno = std::make_unique<Anno>(std::move(new_prop), std::move(new_body));
         new_anno->type = r->type;
         return new_anno;
     } else if (auto i = instance_of(spec.get(), If)) {
-        auto new_cond = subst(std::move(i->cond), name, value, succ);
-        auto new_then = subst(std::move(i->then_body), name, value, succ);
-        auto new_else = subst(std::move(i->else_body), name, value, succ);
+        auto new_cond = subst(std::move(i->cond), name, value, succ, last_place_substituted);
+        auto new_then = subst(std::move(i->then_body), name, value, succ, last_place_substituted);
+        auto new_else = subst(std::move(i->else_body), name, value, succ, last_place_substituted);
         auto new_if = std::make_unique<If>(std::move(new_cond), std::move(new_then), std::move(new_else));
         new_if->type = i->type;
         return new_if;
@@ -1881,7 +1885,7 @@ std::unique_ptr<SpecNode> subst(
         auto vars = std::make_unique<std::vector<std::shared_ptr<Arg>>>(*fe->vars);
         for (auto &v : *vars) {
             if (v->expr) {
-                auto new_expr = subst(std::move(v->expr), name, value, succ);
+                auto new_expr = subst(std::move(v->expr), name, value, succ, last_place_substituted);
                 auto casted_expr = dynamic_cast<Expr*>(new_expr.release());
                 if (casted_expr) {
                     v->expr = std::unique_ptr<Expr>(casted_expr);
@@ -1891,7 +1895,7 @@ std::unique_ptr<SpecNode> subst(
                 }
             }
         }
-        auto new_body = subst(std::move(fe->body), name, value, succ);
+        auto new_body = subst(std::move(fe->body), name, value, succ, last_place_substituted);
         auto new_forall = std::make_unique<Forall>(std::move(vars), std::move(new_body));
         new_forall->type = fe->type;
         return new_forall;
@@ -1900,7 +1904,7 @@ std::unique_ptr<SpecNode> subst(
         auto vars = std::make_unique<std::vector<std::shared_ptr<Arg>>>(*fe->vars);
         for (auto &v : *vars) {
             if (v->expr) {
-                auto new_expr = subst(std::move(v->expr), name, value, succ);
+                auto new_expr = subst(std::move(v->expr), name, value, succ, last_place_substituted);
                 auto casted_expr = dynamic_cast<Expr*>(new_expr.release());
                 if (casted_expr) {
                     v->expr = std::unique_ptr<Expr>(casted_expr);
@@ -1909,8 +1913,7 @@ std::unique_ptr<SpecNode> subst(
                 }
             }
         }
-        auto new_body = subst(std::move(fe->body), name, value, succ);
-
+        auto new_body = subst(std::move(fe->body), name, value, succ, last_place_substituted);
         auto new_exists = std::make_unique<Exists>(
             std::move(vars), std::move(new_body)
         );
@@ -3033,12 +3036,11 @@ rule_ret_t SpecRules::wrap_none_call_with_cond(Project* proj,std::unique_ptr<Spe
             // Then the whole if should be replaced with that call, and the if should be reintroduced outside the match.
             auto iff = instance_of(m->src.get(), If);
             if (iff){
-                auto then_e = instance_of(iff->then_body.get(), Expr);
+                auto then_e = instance_of(iff->then_body.get(), Symbol);
                 auto else_e = instance_of(iff->else_body.get(), Expr);
                 if (then_e && else_e && 
-                    holds_alternative<string>(then_e->op) && holds_alternative<string>(else_e->op) && 
-                    std::get<string>(then_e->op) == func_name && std::get<string>(else_e->op) == func_name &&
-                    then_e->deep_eq(else_e)){
+                    holds_alternative<string>(else_e->op) && std::get<string>(else_e->op) == func_name &&
+                    then_e->text == "None"){
                     auto new_match = std::make_unique<Match>(std::move(iff->then_body), std::move(m->match_list));
                     auto new_node = std::make_unique<If>(std::move(iff->cond), new_match->deep_copy(), new_match->deep_copy());
                     return new_node;
@@ -3060,7 +3062,7 @@ rule_ret_t SpecRules::wrap_none_call_with_cond(Project* proj,std::unique_ptr<Spe
             }
             auto substituted_cond = subst_v2(proj, cond->deep_copy(), &names, &selems);
 
-            auto new_node = std::make_unique<If>(std::move(substituted_cond), node->deep_copy(), node->deep_copy());
+            auto new_node = std::make_unique<If>(std::move(substituted_cond), make_unique<Symbol>("None", node->get_type()), node->deep_copy());
             new_node->type = node->type;
             changed = true;
             return new_node;
