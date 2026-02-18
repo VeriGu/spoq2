@@ -3017,6 +3017,63 @@ rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> sp
     }
 }
 
+/*
+Consider the following function:
+when val, st == (if (match a with None => false Some x => true) then None else (some_func args st));
+Some(val, st)
+
+When evaluating the 'when', we will z3_eval the if, which will z3_eval the match.
+That will create existential quanitifies which will ruin our day.
+
+Therefore, we want the equivalent program:
+if (match a with None => false Some x => true)
+then when val, st == (some_func args st); Some(val, st)
+else None
+
+So the rule is, if the src of a when is an if statement of which
+one side is None and the other is a function call,
+replace with
+if cond
+then when x == func_call; when_body
+else None
+*/
+rule_ret_t SpecRules::hoist_branch_out_of_when(Project* proj, std::unique_ptr<SpecNode> spec) {
+    bool changed = false;
+    auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+        auto m = instance_of(node.get(), Match);
+        if (m && m->is_when()) {
+            auto src = m->src.get();
+            auto iff = instance_of(src, If);
+            if (iff) {
+                auto then_e = instance_of(iff->then_body.get(), Symbol);
+                auto else_e = instance_of(iff->else_body.get(), Expr);
+                if (then_e && else_e && 
+                    holds_alternative<string>(else_e->op) &&
+                    then_e->text == "None"){
+                        auto new_match_pm = std::make_unique<vector<unique_ptr<PatternMatch>>>();
+                        new_match_pm->push_back(std::make_unique<PatternMatch>(m->match_list->at(0)->pattern->deep_copy(), m->match_list->at(0)->body->deep_copy()));
+                        new_match_pm->push_back(std::make_unique<PatternMatch>(m->match_list->at(1)->pattern->deep_copy(), m->match_list->at(1)->body->deep_copy()));
+
+                        auto new_match = std::make_unique<Match>(iff->else_body->deep_copy(), std::move(new_match_pm));
+                        auto new_outer = make_unique<If>(std::move(iff->cond), std::move(new_match), std::make_unique<Symbol>("None", m->get_type())); 
+                        changed = true;
+                        return new_outer;
+                    }
+                }
+            // auto pattern = dynamic_cast<Expr*>(m->match_list->at(0)->pattern.get());
+            // auto &when_body = m->match_list->at(0)->body;
+
+            // auto new_node = std::make_unique<If>(pattern->deep_copy(), when_body->deep_copy(), when_body->deep_copy());
+            // new_node->type = when_body->get_type();
+            // changed = true;
+            // return new_node;
+        }
+        return node;
+    };
+
+    auto new_root = rec_apply(std::move(spec), f, false);
+    return { std::move(new_root), changed };
+}
 
 
 // If we know a function returns none with predicate P,
@@ -3029,6 +3086,26 @@ rule_ret_t SpecRules::wrap_none_call_with_cond(Project* proj,std::unique_ptr<Spe
     bool changed = false;
     auto &args = proj->defs[func_name]->args;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+        // auto m = instance_of(node.get(), Match);
+        // if (m) {
+        //     // if we are examining a match, the inner expr has already been substituted with an if.
+        //     // If both the if then_body and else_body are identical calls to the target function
+        //     // Then the whole if should be replaced with that call, and the if should be reintroduced outside the match
+
+        //     auto iff = instance_of(m->src.get(), If);
+        //     if (iff){
+        //         auto then_e = instance_of(iff->then_body.get(), Symbol);
+        //         auto else_e = instance_of(iff->else_body.get(), Expr);
+        //         if (then_e && else_e && 
+        //             holds_alternative<string>(else_e->op) && std::get<string>(else_e->op) == func_name &&
+        //             then_e->text == "None"){
+        //             auto new_match = std::make_unique<Match>(std::move(iff->then_body), std::move(m->match_list));
+        //             auto new_node = std::make_unique<If>(std::move(iff->cond), new_match->deep_copy(), new_match->deep_copy());
+        //             return new_node;
+        //         }
+        //     }
+
+        // }
         auto e = instance_of(node.get(), Expr);
         if (e && holds_alternative<string>(e->op) && std::get<string>(e->op) == func_name) {
             // Build a substituted version of the cond node in which the parameter names in cond

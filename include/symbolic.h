@@ -74,7 +74,6 @@ namespace autov {
 
 	bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv, std::set<std::string> &used_abs_funcs);
     bool check_states_implies_pre_condition(Project* proj, shared_ptr<ProveState> state, string fname, vector<unique_ptr<SpecNode>>* elems);
-    bool check_states_implies_none_condition(Project* proj, shared_ptr<ProveState> state, string fname, vector<unique_ptr<SpecNode>>* elems);
     z3::expr formulate_post_cond_z3(Project* proj, std::string fname, SpecNode* func_call, shared_ptr<ProveState> state);
     string query_saver_dir(const string &spec_name, const string &inv_name);
 }

@@ -59,7 +59,7 @@ namespace autov
 			bool det, const path_t &path, int i, bool allow_none) {
 				int random_code = rand() % 10000;
 			// bool det = false, const path_t &path = {}, int i = 0, bool allow_none = false) {
-		LOG_DEBUG << "[forward_simulation " << random_code << "] start! checking relation " << string(*rel) << " between\n"  << string(*st_check) << " and " << string(*impl) << std::endl;
+		LOG_DEBUG << "[forward_simulation " << random_code << "] start! checking " << string(*impl).substr(0,1000) << std::endl;
 		if (auto expr = instance_of(impl, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -448,23 +448,23 @@ namespace autov
 	 */
 	SimulateResult simulate_by_traverse(Project *proj, SpecNode *spec, SpecNode *impl, Definition *rel, Definition *ret_rel, shared_ptr<ProveState> state, path_t p, bool det) {
 		int random_code = rand() % 10000;
-		LOG_DEBUG << "[simulate_by_traverse " << random_code << "] start! checking relation " << string(*rel) << " between\n"  << string(*spec) << " and " << string(*impl).substr(0,50) << std::endl;
+		LOG_DEBUG << "[simulate_by_traverse " << random_code << "] start! checking relation " << string(*rel) << " between\n"  << string(*spec) << "\n and " << string(*impl).substr(0,50) << std::endl;
 		if (auto expr = instance_of(spec, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
 					if (auto ret_Some = instance_of(expr->elems->at(0).get(), Expr)) {
 						auto st_ret = expr->elems->at(0)->deep_copy();
-						SpecNode* spec_ret = nullptr;
+						unique_ptr<SpecNode> spec_ret = nullptr;
 						// if the return value is := Some (ret_val, st), then take the last 'st'
 						if (auto ret_op = std::get_if<Expr::ops>(&ret_Some->op)) {
 							if (*ret_op == Expr::Tuple) {
 								st_ret = ret_Some->elems->back()->deep_copy();
-								spec_ret = ret_Some->elems->front()->deep_copy().release();
+								spec_ret = ret_Some->elems->front()->deep_copy();
 							}
 						}
 						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] spec: " << string(*spec) << " moving to forward_simulation.";
 
-						auto result = forward_simulation(proj, st_ret.get(), spec_ret, impl, rel, ret_rel, state, det, p, 0, false);
+						auto result = forward_simulation(proj, st_ret.get(), spec_ret.get(), impl, rel, ret_rel, state, det, p, 0, false);
 						if(!result.verified){
 							LOG_DEBUG << "Verification failed";
 							for(auto cond: *state->conds) {
@@ -677,7 +677,7 @@ namespace autov
 			p_else.push_back(0);
 			auto sim_result = SimulateResult{true, false, false, false};
 			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if: " << string(*c).substr(0,200);
-			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if z3: " << c->get_z3_value();
+			// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if z3: " << c->get_z3_value();
 			if (true_branch_plausible){
 				sim_result = sim_result + simulate_by_traverse(proj, i->then_body.get(), impl, rel, ret_rel, true_state, p_then, det);
 				if (!sim_result.verified) {

@@ -9,6 +9,8 @@ namespace autov {
         // When a match is added to the condition, subsequent conditions must be placed within the pattern match body.
         // This pointer is needed to know what node to replace.
         SpecNode* last_pattern_match = nullptr; 
+        Project* proj = nullptr;
+        std::string def_name = "";
         public:
         // The function to call when we encounter a None condition.
         // It will receive the accumulated conditions as an argument.
@@ -16,7 +18,7 @@ namespace autov {
         std::optional<std::function<void(std::unique_ptr<SpecNode>)>> discharge_none = std::nullopt;
 
         void visit_none();
-        NoneConditionAccumulator add_condition(std::unique_ptr<SpecNode> cond);
+        const NoneConditionAccumulator add_condition(std::unique_ptr<SpecNode> cond);
         NoneConditionAccumulator add_inverse_condition(std::unique_ptr<SpecNode> cond);
 
         // Copy Constructor
@@ -28,13 +30,22 @@ namespace autov {
             }
             this->discharge_none = other.discharge_none;
             this->last_pattern_match = nullptr; // Cannot copy the weak pointer.
+            this->proj = other.proj;
+            this->def_name = other.def_name;
         }
         // Move Constructor
         NoneConditionAccumulator(NoneConditionAccumulator&& other) noexcept {
             this->accumulated_cond = std::move(other.accumulated_cond);
             this->discharge_none = other.discharge_none;
             this->last_pattern_match = other.last_pattern_match;
+            this->proj = other.proj;
+            this->def_name = other.def_name;
         }
+        NoneConditionAccumulator(Project* proj, std::string def_name) {
+            this->accumulated_cond = make_unique<BoolConst>(true);
+            this->proj = proj;
+            this->def_name = def_name;
+        };
         // Default Constructor
         NoneConditionAccumulator() {
             this->accumulated_cond = make_unique<BoolConst>(true);

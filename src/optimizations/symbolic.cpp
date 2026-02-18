@@ -1211,7 +1211,7 @@ bool check_none(Project* proj, Definition *def, std::unordered_set<string>& used
     // state->conds->push_back(c->get_z3_value());
     unique_ptr<SpecNode> postcond = make_unique<BoolConst>(true);
 
-    auto none_cond_accumulator = NoneConditionAccumulator();
+    auto none_cond_accumulator = NoneConditionAccumulator(proj, def->name);
     none_cond_accumulator.discharge_none = [=](std::unique_ptr<SpecNode> n){
         // LOG_DEBUG << "Discharging none condition to " << def->name << ": " << string(*n);
 
@@ -1226,6 +1226,43 @@ bool check_none(Project* proj, Definition *def, std::unordered_set<string>& used
         }
     };
     bool res = prove_by_traverse(proj, spec_def->body.get(), postcond.get(), state, used_abs, ProveMode::None, def->name, none_cond_accumulator);
+
+    // Now apply the simplification rules to the sufficient_none_condition.
+    if(def->sufficient_none_condition) {
+        LOG_DEBUG << "Original sufficient_none_condition for " << def->name << ": " << string(*def->sufficient_none_condition);
+        auto known = std::set<string>();
+
+        for (auto arg : *def->args) {
+            known.insert(arg->name);
+        }
+        auto new_spec = std::move(def->sufficient_none_condition);
+
+        // group 1
+        while (true) {
+            auto this_changed = false;
+            // tmp spec should only be used in rule group loop
+            auto tmp_spec = std::move(new_spec);
+            for (auto &r : proj->rules.rules_group1) {
+                if (r.id == RuleID::rule_eliminate_let) {
+                    auto prev_symbols = std::set<string>(known);
+                    auto __changed = false;
+                    tmp_spec = proj->rules.eliminate_ambiguity(std::move(tmp_spec), prev_symbols, __changed);
+
+                    this_changed |= __changed;
+                }
+                auto orig_spec_str = string(*tmp_spec.get());
+                auto [__spec, __changed] = r.call(std::move(tmp_spec));
+                tmp_spec = std::move(__spec);
+                this_changed |= __changed;
+                auto new_spec_str = string(*tmp_spec.get());
+            }
+            new_spec = std::move(tmp_spec);
+            if (!this_changed)
+                break;
+        }
+        def->sufficient_none_condition = std::move(new_spec);
+        LOG_DEBUG << "Final sufficient_none_condition for " << def->name << ": " << string(*def->sufficient_none_condition);
+    }
 
     return res;
 }
@@ -1537,6 +1574,12 @@ void spec_prover(Project *proj) {
         }
     }
 
+    for(auto &ub_export_def: proj->cmds.PostCondWithNone){
+        auto def = proj->defs[ub_export_def].get();
+        auto used_abs_for_none = std::unordered_set<string>();
+        check_none(proj, def, used_abs_for_none);
+    }
+
     auto begin = std::chrono::high_resolution_clock::now();
     //check loop_invariant, only check what's needed.
     if(OPTS.check_loop_inv || OPTS.check_pre_post) {
@@ -1555,7 +1598,7 @@ void spec_prover(Project *proj) {
                     else
                         LOG_ERROR << "loop invariant: " << func << "is not inductive! :(";
                 } else if(!is_instance(def, Fixpoint) && is_instance(def, Definition) && OPTS.check_pre_post){
-                    if(check_pre_post(proj, def, used_abstract_funcs) && check_none(proj, def, used_abstract_funcs)){
+                    if(check_pre_post(proj, def, used_abstract_funcs)){
                         LOG_DEBUG << "Precondition imply post condition :) : " << func;
                     } else {
                         LOG_ERROR << "Precondition does not imply post condition :( " << func;
@@ -1584,10 +1627,44 @@ void spec_prover(Project *proj) {
             auto old_body = other_def->body->deep_copy();
             auto new_body = proj->rules.wrap_none_call_with_cond(proj, std::move(other_def->body), def->name, def->sufficient_none_condition->deep_copy());
             other_def->body = std::move(new_body.first);
+            old_body = other_def->body->deep_copy();
+            new_body = proj->rules.hoist_branch_out_of_when(proj, std::move(other_def->body));
+            other_def->body = std::move(new_body.first);
             if(new_body.second) {
                 LOG_DEBUG << "Applied PostCondWithNone for " << def->name << " in " << other_def->name;
                 LOG_DEBUG << "Old body: " << string(*old_body);
                 LOG_DEBUG << "New body: " << string(*other_def->body);
+
+
+    auto known = std::set<string>();
+    auto fname = other_def->name;
+
+    for (auto arg : *other_def->args) {
+        known.insert(arg->name);
+    }
+        auto new_spec = std::move(other_def->body);
+        while (true) {
+            auto this_changed = false;
+            // tmp spec should only be used in rule group loop
+            auto tmp_spec = std::move(new_spec);
+            for (auto &r : proj->rules.rules_group1) {
+                if (r.id == RuleID::rule_eliminate_let) {
+                    auto prev_symbols = std::set<string>(known);
+                    auto __changed = false;
+                    tmp_spec = proj->rules.eliminate_ambiguity(std::move(tmp_spec), prev_symbols, __changed);
+                    this_changed |= __changed;
+                }
+                auto orig_spec_str = string(*tmp_spec.get());
+                auto [__spec, __changed] = r.call(std::move(tmp_spec));
+                tmp_spec = std::move(__spec);
+                this_changed |= __changed;
+                auto new_spec_str = string(*tmp_spec.get());
+            }
+            new_spec = std::move(tmp_spec);
+            if (!this_changed)
+                break;
+        }
+            other_def->body = std::move(new_spec);
             }
         }
     
