@@ -223,7 +223,7 @@ public:
         std::map<string, vector<unique_ptr<SpecNode>>> PreCond;
         std::map<string, vector<unique_ptr<SpecNode>>> PostEnsure;
         std::map<string, vector<unique_ptr<SpecNode>>> PostCond;  
-        std::map<string, vector<unique_ptr<SpecNode>>> PostCondWithNone;
+        std::set<string> PostCondWithNone; // Defs to be searched for preconditions that will cause None.
         vector<RefinesInfo> Refines;
         std::set<string> PreserveInv;
         std::unordered_map<string, std::unordered_map<string, string>> StackMap;

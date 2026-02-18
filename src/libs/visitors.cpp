@@ -11,19 +11,11 @@ namespace autov {
 
     NoneConditionAccumulator NoneConditionAccumulator::add_condition(std::unique_ptr<SpecNode> cond) {
         if (accumulated_cond) {
-            // if(string(*cond).find("(((st.(heap)).(blocks)) @ (spvn ((int_to_ptr byte).(pbase))))") != string::npos){
-
+            // if(string(*cond).find("when") != string::npos){
             //     LOG_DEBUG << "Adding condition ";
             //     LOG_DEBUG << "Condition: " <<string(*cond);
             //     LOG_DEBUG << "Current accumulated condition: " << string(*accumulated_cond);
             //     LOG_DEBUG << "...";
-            //     int x = 5;
-            // } else if(string(*cond).find("(Some byte) => true") != string::npos){
-            //     LOG_DEBUG << "Adding condition ";
-            //     LOG_DEBUG << "Condition: " <<string(*cond);
-            //     LOG_DEBUG << "Current accumulated condition: " << string(*accumulated_cond);
-            //     LOG_DEBUG << "...";
-            //     int x = 5;
             // }
             auto node_to_replace = make_unique<Symbol>(match_body_sym);
             unique_ptr<SpecNode> temp_held_match_body = nullptr;

@@ -537,73 +537,6 @@ bool check_states_implies_pre_condition(Project* proj, shared_ptr<ProveState> st
     return true;
 }
 
-bool check_states_implies_none_condition(Project* proj, shared_ptr<ProveState> state, string fname, vector<unique_ptr<SpecNode>>* elems) {
-    Z3Cache.clear();
-    auto &preconds = proj->cmds.PostCondWithNone[fname];
-    auto def = proj->defs[fname].get();
-    auto var = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
-    auto conds = std::make_shared<vector<z3::expr>>();
-	auto known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
-	//Check Precondition
-    for (auto arg : *def->args) {
-        (*var)[def->name + "_" + arg->name] = arg->type->declare(def->name + "_" + arg->name, 0); //current
-        (*known)[arg->name] = arg->type;
-    }
-	unique_ptr<SpecNode> aggrepres = make_unique<BoolConst>(false);
-	for(auto &inv : preconds) {
-			auto elems = new vector<unique_ptr<SpecNode>>();
-			elems->push_back(std::move(aggrepres));
-			elems->push_back(inv->deep_copy());
-			aggrepres = make_unique<Expr>(Expr::binops::OR, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
-	}
-    type_inference::infer_type(*proj, aggrepres.get(), known, Bool::BOOL);
-    unique_ptr<SpecNode> before_inv = std::move(aggrepres);
-    vector<string> names;
-    vector<unique_ptr<SpecNode>> selems;
-    int i = 0;
-    for(auto arg : *def->args) {    
-        names.push_back(arg->name);
-        selems.push_back(elems->at(i)->deep_copy());
-        i++;
-    }
-    before_inv = subst_v2(proj, std::move(before_inv), &names, &selems);
-    // auto sym = make_unique<Symbol>(def->name + "_" + "st_old", def->args->back()->type);
-    // bool succ;
-    // before_inv = subst(std::move(before_inv), "st_old", sym.get(), succ);
-    // auto vc = z3ctx.bool_val(true);
-    // set<string> used_fix;
-    // auto invval = z3_eval(proj, before_inv.get(), make_shared<EvalState>(var, conds), false, true, used_fix);
-    // int i = 0;
-    // for(auto arg : *def->args) {
-    //     auto name = arg->name;
-    //     //instantiate variable to each element
-    //     auto z3_eq_expr = elems.at(i)->get_z3_value() == (*var)[def->name + "_" + name]->get_z3_value();
-    //     vc = vc && z3_eq_expr;
-    //     i++;
-    // }
-
-    //vc = vc && (*var)[def->name + "_st_old"]->get_z3_value() == elems.back()->get_z3_value();
-    LOG_DEBUG << "Check None condition: " << string(*before_inv);
-    z3::model model(z3ctx);
-    set<string> fix_string;
-    auto before_inv_z3 = z3_eval(proj, before_inv.get(), state, false, true, fix_string);
-    auto res = z3_check_unsat(state, before_inv_z3->get_z3_value(), model, &proj->query_saver, Z3_VERIFY_TIMEOUT);
-    if(res == Z3Result::False || res == Z3Result::Unknown || res == Z3Result::Sat) {
-            if(res == Z3Result::Sat) {
-                LOG_ERROR << "Solver return SAT";
-                LOG_INFO << "model: " << model;
-            }
-            LOG_ERROR << "Conds can't infer None condition for function: " << def->name;
-            for(auto &cond: *state->conds) {
-                LOG_DEBUG << "Cond:" << cond;
-            }
-            return false;
-    }
-    LOG_INFO << "[Checking Precondition] Conds imply None condition for function: " << def->name;
-    return true;
-}
-
-
 z3::expr formulate_loop_invariant_z3(Project* proj, std::string fname, SpecNode* fun_call, shared_ptr<ProveState> state){
     auto expr = instance_of(fun_call, Expr);
     auto loop = proj->defs[fname].get();
@@ -910,13 +843,6 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                                         return false;
                                     };
                                 }
-
-                                if(proj->cmds.PostCondWithNone.find(op) != proj->cmds.PostCondWithNone.end()) {
-                                    if(check_states_implies_none_condition(proj, state, op, expr->elems.get())) {
-                                        LOG_INFO << "[Checking None Condition] None Condition Satified: " << op;
-                                        resolve_to_none = true;
-                                    }
-                                }
                                 // state->inductions->clear();
                                 LOG_INFO << "[Checking Loop Invariant] Precondition Satisfied";
             
@@ -944,13 +870,6 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                                 auto fname = def->name;
                                 post_cond = formulate_post_condition(proj, fname, expr->elems.get());
                                 subst_definition = true;
-                            }
-
-                            if(proj->cmds.PostCondWithNone.find(op) != proj->cmds.PostCondWithNone.end()) {
-                                if(check_states_implies_none_condition(proj, state, op, expr->elems.get())) {
-                                    LOG_INFO << "[Checking None Condition] None Condition Satified: " << op;
-                                    resolve_to_none = true;
-                                }
                             }
 
                             //if it is a preserving function, directly add post condition
@@ -1094,7 +1013,6 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                 }
             } 
             resolve_pattern(proj, m, pat, src, new_state);
-            auto p = (*pm)->pattern.get();
             verify_success &= prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs, mode, fname, none_accumulator.add_condition(m->bool_cond_for(*pm)));
 		}
         return verify_success;
@@ -1268,15 +1186,15 @@ bool check_none(Project* proj, Definition *def, std::unordered_set<string>& used
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
 
-    auto &noneconds = proj->cmds.PostCondWithNone[def->name];
+    // auto &noneconds = proj->cmds.PostCondWithNone[def->name];
 
-    unique_ptr<SpecNode> nonecond = make_unique<BoolConst>(false);
-    for(auto &in : noneconds) {
-        auto elems = new vector<unique_ptr<SpecNode>>();
-        elems->push_back(std::move(nonecond));
-        elems->push_back(in->deep_copy());
-        nonecond = make_unique<Expr>(Expr::binops::OR, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
-    }
+    // unique_ptr<SpecNode> nonecond = make_unique<BoolConst>(false);
+    // for(auto &in : noneconds) {
+    //     auto elems = new vector<unique_ptr<SpecNode>>();
+    //     elems->push_back(std::move(nonecond));
+    //     elems->push_back(in->deep_copy());
+    //     nonecond = make_unique<Expr>(Expr::binops::OR, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
+    // }
 
     auto l_args = make_unique<vector<shared_ptr<Arg>>>();
     for (auto arg : *def->args) {
@@ -1289,8 +1207,8 @@ bool check_none(Project* proj, Definition *def, std::unordered_set<string>& used
     auto induction = std::make_shared<vector<z3::expr>>();
     auto state = make_shared<ProveState>(vars, conds, induction);
     set<string> used_fixpoint;
-    auto c = z3_eval(proj, nonecond.get(), state, false, true, used_fixpoint);
-    state->conds->push_back(c->get_z3_value());
+    // auto c = z3_eval(proj, nonecond.get(), state, false, true, used_fixpoint);
+    // state->conds->push_back(c->get_z3_value());
     unique_ptr<SpecNode> postcond = make_unique<BoolConst>(true);
 
     auto none_cond_accumulator = NoneConditionAccumulator();
@@ -1298,10 +1216,11 @@ bool check_none(Project* proj, Definition *def, std::unordered_set<string>& used
         // LOG_DEBUG << "Discharging none condition to " << def->name << ": " << string(*n);
 
         if(def->sufficient_none_condition) {
-            auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-            elems->push_back(std::move(def->sufficient_none_condition));
-            elems->push_back(std::move(n));
-            def->sufficient_none_condition = make_unique<Expr>(Expr::binops::OR, std::move(elems), Bool::BOOL);
+            // auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+            // elems->push_back(std::move(def->sufficient_none_condition));
+            // elems->push_back(std::move(n));
+            // def->sufficient_none_condition = make_unique<Expr>(Expr::binops::OR, std::move(elems), Bool::BOOL);
+            def->sufficient_none_condition = make_unique<If>(std::move(n), make_unique<BoolConst>(true), std::move(def->sufficient_none_condition));
         } else {
             def->sufficient_none_condition = std::move(n);
         }

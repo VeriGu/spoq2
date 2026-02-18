@@ -57,8 +57,9 @@ namespace autov
 	 */
 	SimulateResult forward_simulation(Project *proj, SpecNode *st_check, SpecNode *spec_ret, SpecNode *impl, Definition *rel, Definition *ret_rel, shared_ptr<ProveState> state, 
 			bool det, const path_t &path, int i, bool allow_none) {
+				int random_code = rand() % 10000;
 			// bool det = false, const path_t &path = {}, int i = 0, bool allow_none = false) {
-		// LOG_DEBUG << "[forward_simulation] start! checking relation " << string(*rel) << " between\n"  << string(*st_check) << " and " << string(*impl) << std::endl;
+		LOG_DEBUG << "[forward_simulation " << random_code << "] start! checking relation " << string(*rel) << " between\n"  << string(*st_check) << " and " << string(*impl) << std::endl;
 		if (auto expr = instance_of(impl, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -119,7 +120,7 @@ namespace autov
 						return SimulateResult{is_relate, false, false, false};
 					}
 				} else if(*e_op == Expr::None) {
-					LOG_DEBUG << "[forward_simulation] None in impl, allow_none: " << allow_none;
+					LOG_DEBUG << "[forward_simulation " << random_code << "] None in impl, allow_none: " << allow_none;
 					return SimulateResult{allow_none, allow_none, false, !allow_none};
 				} else {
 					LOG_ERROR << "[forward_simulation] Expr with op: " << static_cast<int>(*e_op); 
@@ -152,13 +153,13 @@ namespace autov
 									auto fname = loop->name;
 									loop_post_cond = formulate_loop_invariant(proj, fname, expr->elems.get());
 									add_post_condition = true;
-									LOG_DEBUG << "[forward_simulation] Loop Invariant Adding loop postcondition: " << op;
+									LOG_DEBUG << "[forward_simulation " << random_code << "] Loop Invariant Adding loop postcondition: " << op;
 								} else {
 									LOG_WARNING << "[forward_simulation] Loop Invariant not specified: " << op;
 								}
 							} else {
 								if (proj->cmds.PreCond.find(op) != proj->cmds.PreCond.end()) {
-									LOG_DEBUG << "[forward_simulation] Call requiring precondition evaluation: " << string(*expr);
+									LOG_DEBUG << "[forward_simulation " << random_code << "] Call requiring precondition evaluation: " << string(*expr);
 									if (!check_states_implies_pre_condition(proj, state, op, expr->elems.get())){
 										LOG_INFO << "[forward_simulation] Loop Invariant Precondition not Satified";
 										return SimulateResult{false, false, false, false};
@@ -170,12 +171,6 @@ namespace autov
 									add_post_condition = true;
 								}
 							}
-							if(proj->cmds.PostCondWithNone.find(op) != proj->cmds.PostCondWithNone.end()) {
-                                if(check_states_implies_none_condition(proj, state, op, expr->elems.get())) {
-                                    LOG_INFO << "[Checking None Condition] None Condition Satified: " << op;
-                                    resolve_to_none = true;
-                                }
-                            }
 						}
 					}
 				}
@@ -222,7 +217,7 @@ namespace autov
 											}
 										}
 										auto new_inv = subst_v2(proj, move(loop_post_cond), &names, &elems);
-										LOG_DEBUG << "[forward_simulation] Checking loop invariant: Adding loop postcondition: " << string(*new_inv);
+										LOG_DEBUG << "[forward_simulation " << random_code << "] Checking loop invariant: Adding loop postcondition: " << string(*new_inv);
 										auto new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
 										pm_state->conds->push_back(new_inv_z3->get_z3_value());
 									}
@@ -231,7 +226,7 @@ namespace autov
 										(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 									}
 									auto new_inv = subst_v2(proj, move(loop_post_cond), loop->name + "_" + "st_new", p->elems->at(0)->deep_copy());
-									LOG_DEBUG << "[forward_simulation] Checking loop invariant: Adding loop postcondition: " << string(*new_inv);
+									LOG_DEBUG << "[forward_simulation " << random_code << "] Checking loop invariant: Adding loop postcondition: " << string(*new_inv);
 									auto new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
 									pm_state->conds->push_back(new_inv_z3->get_z3_value());
 								}
@@ -261,7 +256,7 @@ namespace autov
 											}
 										}
 										auto new_inv = subst_v2(proj, move(post_cond), &names, &elems);
-										LOG_DEBUG << "[forward_simulation] Adding postcondition: " << string(*new_inv);
+										LOG_DEBUG << "[forward_simulation " << random_code << "] Adding postcondition: " << string(*new_inv);
 										auto new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
 										pm_state->conds->push_back(new_inv_z3->get_z3_value());
 									}
@@ -271,7 +266,7 @@ namespace autov
 									}
 									auto new_inv = subst_v2(proj, move(post_cond), def->name + "_st_new_", p->elems->at(0)->deep_copy());
 
-									LOG_DEBUG << "[forward_simulation] Adding postcondition: " << string(*new_inv);
+									LOG_DEBUG << "[forward_simulation " << random_code << "] Adding postcondition: " << string(*new_inv);
 									auto new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
 									pm_state->conds->push_back(new_inv_z3->get_z3_value());
 								}
@@ -304,14 +299,14 @@ namespace autov
 				} else {
 					auto this_branch_result = forward_simulation(proj, st_check, spec_ret, (*pm)->body.get(), rel, ret_rel, pm_state, det, path, i+1, allow_none);
 					if(!this_branch_result.verified){
-						LOG_DEBUG << "[forward_simulation] Match verification failed on branch: " << string(*pat);
+						LOG_DEBUG << "[forward_simulation " << random_code << "] Match verification failed on branch: " << string(*pat);
 						LOG_DEBUG << "Matched expr: " << string(*m->src->deep_copy());	
 						return this_branch_result;		
 					}
 					sim_result = sim_result + this_branch_result;
 				}
 			}
-			// LOG_DEBUG << "[forward_simulation] Completed Match of src " << string(*m->src).substr(0,100);
+			// LOG_DEBUG << "[forward_simulation " << random_code << "] Completed Match of src " << string(*m->src).substr(0,100);
 			return sim_result;
 
 		} else if (auto iff = instance_of(impl, If)) {
@@ -320,16 +315,16 @@ namespace autov
 			if (cond_val.is_int()){
 				cond_val = (cond_val != 0);
 			}
-			// LOG_DEBUG << "[forward_simulation] If: " << cond.get()->get_z3_value();
+			LOG_DEBUG << "[forward_simulation " << random_code << "] If: " << cond.get()->get_z3_value();
 
 			bool true_branch_plausible = true;
 			bool false_branch_plausible = true;
 
 			if (det && iff->cond->is_determ_branch) {
-				LOG_DEBUG << "[forward_simulation] If is determ branch True";
+				LOG_DEBUG << "[forward_simulation " << random_code << "] If is determ branch True";
 				false_branch_plausible = (path[i] == 1) ? false : true;
 			} else {
-				// LOG_DEBUG << "[forward_simulation] If is determ branch False";
+				// LOG_DEBUG << "[forward_simulation " << random_code << "] If is determ branch False";
 				z3::model model(z3ctx);
 				auto t_race = OPTS.race_timeout;
 				// OPTS.race_timeout = Z3_SIM_TIMEOUT;
@@ -341,18 +336,18 @@ namespace autov
 				OPTS.race_timeout = t_race;
 			}
 			if (!true_branch_plausible && !false_branch_plausible) {
-				LOG_DEBUG << "[forward_simulation] If - Both branches impossible!";
+				LOG_DEBUG << "[forward_simulation " << random_code << "] If - Both branches impossible!";
 				return SimulateResult{true, false, false, false};
 			} else if (true_branch_plausible && !false_branch_plausible) {
-				LOG_DEBUG << "[forward_simulation] If - On True branch only";
+				LOG_DEBUG << "[forward_simulation " << random_code << "] If - On True branch only";
 				state->conds->push_back(cond_val);
 				return forward_simulation(proj, st_check, spec_ret, iff->then_body.get(), rel, ret_rel, state, det, path, i+1, allow_none);
 			} else if (!true_branch_plausible && false_branch_plausible) {
-				LOG_DEBUG << "[forward_simulation] If - On False branch only";
+				LOG_DEBUG << "[forward_simulation " << random_code << "] If - On False branch only";
 				state->conds->push_back(!cond_val);
 				return forward_simulation(proj, st_check, spec_ret, iff->else_body.get(), rel, ret_rel, state, det, path, i+1, allow_none);
 			} else {
-				LOG_DEBUG << "[forward_simulation] If - On both branches";
+				LOG_DEBUG << "[forward_simulation " << random_code << "] If - On both branches";
 				// O(N^2) simulation search 
 				// if (!det || !iff->cond->is_determ_branch) { 
 				// 	LOG_DEBUG << "Unsolved (try) If non-determ cond!" << string(*iff->cond.get());
@@ -363,13 +358,13 @@ namespace autov
 				else_state->conds->push_back(!cond_val);
 				auto then_sim_result = forward_simulation(proj, st_check, spec_ret, iff->then_body.get(), rel, ret_rel, then_state, false, path, i+1, allow_none);
 				if (!then_sim_result.verified) {
-					LOG_DEBUG << "[forward_simulation] Then branch of if not verified";
-					LOG_DEBUG << "[forward_simulation] Guilty condition " << cond.get()->get_z3_value();
+					LOG_DEBUG << "[forward_simulation " << random_code << "] Then branch of if not verified";
+					LOG_DEBUG << "[forward_simulation " << random_code << "] Guilty condition " << cond.get()->get_z3_value();
 				}
 				auto else_sim_result = forward_simulation(proj, st_check, spec_ret, iff->else_body.get(), rel, ret_rel, else_state, false, path, i+1, allow_none);
 				if (!else_sim_result.verified) {
-					LOG_DEBUG << "[forward_simulation] else branch of if not verified";
-					LOG_DEBUG << "[forward_simulation] Guilty condition " << (!cond_val);
+					LOG_DEBUG << "[forward_simulation " << random_code << "] else branch of if not verified";
+					LOG_DEBUG << "[forward_simulation " << random_code << "] Guilty condition " << (!cond_val);
 				}
 				return then_sim_result + else_sim_result;
 			}
@@ -382,7 +377,7 @@ namespace autov
 			auto sym = dynamic_cast<Symbol *>(impl);
 			if (sym->text == "None") {
 				if(!allow_none) {
-					LOG_DEBUG << "[forward_simulation] None Symbol in impl, allow_none: " << allow_none;
+					LOG_DEBUG << "[forward_simulation " << random_code << "] None Symbol in impl, allow_none: " << allow_none;
 					// for(auto cond: *state->conds) {
 					// 	LOG_DEBUG << "Condition: " << cond;
 					// }
@@ -453,7 +448,7 @@ namespace autov
 	 */
 	SimulateResult simulate_by_traverse(Project *proj, SpecNode *spec, SpecNode *impl, Definition *rel, Definition *ret_rel, shared_ptr<ProveState> state, path_t p, bool det) {
 		int random_code = rand() % 10000;
-		// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] start! checking relation " << string(*rel) << " between\n"  << string(*spec) << " and " << string(*impl).substr(0,50) << std::endl;
+		LOG_DEBUG << "[simulate_by_traverse " << random_code << "] start! checking relation " << string(*rel) << " between\n"  << string(*spec) << " and " << string(*impl).substr(0,50) << std::endl;
 		if (auto expr = instance_of(spec, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -536,12 +531,6 @@ namespace autov
 									add_post_condition = true;
 								}
 							}
-							if(proj->cmds.PostCondWithNone.find(op) != proj->cmds.PostCondWithNone.end()) {
-                                if(check_states_implies_none_condition(proj, state, op, expr->elems.get())) {
-                                    LOG_INFO << "[Checking None Condition] None Condition Satified: " << op;
-                                    resolve_to_none = true;
-                                }
-                            }
 						}
 					}
 				}
@@ -651,15 +640,15 @@ namespace autov
 				
 				auto state_works = z3_verify_state_sat(new_state->copy(), &proj->query_saver);
 				if (state_works != Z3Result::False) {
-					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] In Match: " << string(*m->src).substr(0,200) << ". Verifying pattern: " << string(*(*pm)->pattern.get()).substr(0,100) << ".";
+					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] In Match: " << string(*m->src).substr(0,200) << ".\n Verifying pattern: " << string(*(*pm)->pattern.get()).substr(0,100) << ".";
 					auto new_result = simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, ret_rel, new_state, p_match, det);
-					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Leaving Match: " << string(*m->src).substr(0,200) << ". pattern: " << string(*(*pm)->pattern.get()).substr(0,100) << ".";
 					if (sim_result.verified && !new_result.verified) {
 						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] In Match body at " << (*pm)->body.get() << " not verified.";
 					}
 					sim_result = sim_result + new_result;
 				} else {
 					// This match branch is not plausible, skip it.
+					// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] In Match: " << string(*m->src).substr(0,200) << ". Pattern not plausible: " << string(*(*pm)->pattern.get()).substr(0,100) << ".";
 					sim_result = sim_result + (SimulateResult {true, false, false, false});
 				}
 			}
@@ -726,25 +715,26 @@ namespace autov
 				LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected Symbol node.";
 				return SimulateResult{false, false, false, false};
 			}
-		} else if (auto r = instance_of(spec, Const)) { 
-			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected Const node.";
-			return SimulateResult{false, false, false, false};
-		} else if (auto r = instance_of(spec, RecordDef)) { 
-			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected RecordDef node.";
-			return SimulateResult{false, false, false, false};
-		} else if (auto r = instance_of(spec, PatternMatch)) { 
-			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected PatternMatch node.";
-			return SimulateResult{false, false, false, false};
-		} else if (auto r = instance_of(spec, RelyAnno)) { 
-			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected RelyAnno node.";
-			return SimulateResult{false, false, false, false};
-		} else if (auto r = instance_of(spec, ForallExists)) { 
-			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected ForallExists node.";
-			return SimulateResult{false, false, false, false};
+		// } else if (auto r = instance_of(spec, Const)) { 
+		// 	LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected Const node.";
+		// 	return SimulateResult{false, false, false, false};
+		// } else if (auto r = instance_of(spec, RecordDef)) { 
+		// 	LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected RecordDef node.";
+		// 	return SimulateResult{false, false, false, false};
+		// } else if (auto r = instance_of(spec, PatternMatch)) { 
+		// 	LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected PatternMatch node.";
+		// 	return SimulateResult{false, false, false, false};
+		// } else if (auto r = instance_of(spec, RelyAnno)) { 
+		// 	LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected RelyAnno node.";
+		// 	return SimulateResult{false, false, false, false};
+		// } else if (auto r = instance_of(spec, ForallExists)) { 
+		// 	LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected ForallExists node.";
+		// 	return SimulateResult{false, false, false, false};
 		} else {
 			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Detected unexpected SpecNode type..";
 			LOG_DEBUG << spec->type.get()->name;
 			LOG_DEBUG << (typeid(spec).name());
+			assert(false);
 			return SimulateResult{false, false, false, false};
 		}
 		LOG_ERROR << "[simulate_by_traverse " << random_code << "] Reached unexpected location.";

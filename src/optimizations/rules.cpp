@@ -3029,25 +3029,6 @@ rule_ret_t SpecRules::wrap_none_call_with_cond(Project* proj,std::unique_ptr<Spe
     bool changed = false;
     auto &args = proj->defs[func_name]->args;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
-        auto m = instance_of(node.get(), Match);
-        if (m) {
-            // if we are examining a match, the inner expr has already been substituted with an if.
-            // If both the if then_body and else_body are identical calls to the target function
-            // Then the whole if should be replaced with that call, and the if should be reintroduced outside the match.
-            auto iff = instance_of(m->src.get(), If);
-            if (iff){
-                auto then_e = instance_of(iff->then_body.get(), Symbol);
-                auto else_e = instance_of(iff->else_body.get(), Expr);
-                if (then_e && else_e && 
-                    holds_alternative<string>(else_e->op) && std::get<string>(else_e->op) == func_name &&
-                    then_e->text == "None"){
-                    auto new_match = std::make_unique<Match>(std::move(iff->then_body), std::move(m->match_list));
-                    auto new_node = std::make_unique<If>(std::move(iff->cond), new_match->deep_copy(), new_match->deep_copy());
-                    return new_node;
-                }
-            }
-
-        }
         auto e = instance_of(node.get(), Expr);
         if (e && holds_alternative<string>(e->op) && std::get<string>(e->op) == func_name) {
             // Build a substituted version of the cond node in which the parameter names in cond
