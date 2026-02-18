@@ -1094,9 +1094,7 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                 }
             } 
             resolve_pattern(proj, m, pat, src, new_state);
-            LOG_DEBUG << "After resolve pattern total: " << string(**pm);
             auto p = (*pm)->pattern.get();
-            LOG_DEBUG << "After resolve pattern pattern: " << string(*p);
             verify_success &= prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs, mode, fname, none_accumulator.add_condition(m->bool_cond_for(*pm)));
 		}
         return verify_success;
