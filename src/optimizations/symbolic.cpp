@@ -1092,16 +1092,12 @@ bool prove_by_traverse(Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<
                         new_state->add_induction(lemma_expr->get_z3_value());
                     }
                 }
-            } else {
-                resolve_pattern(proj, m, pat, src, new_state);
-            }
+            } 
+            resolve_pattern(proj, m, pat, src, new_state);
             LOG_DEBUG << "After resolve pattern total: " << string(**pm);
             auto p = (*pm)->pattern.get();
             LOG_DEBUG << "After resolve pattern pattern: " << string(*p);
             verify_success &= prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs, mode, fname, none_accumulator.add_condition(m->bool_cond_for(*pm)));
-			// if (!prove_by_traverse(proj, (*pm)->body.get(), inv, new_state, used_abs_funcs)) {
-				// return false;
-			// }
 		}
         return verify_success;
     } else if (auto i = instance_of(spec, If)) {
