@@ -489,7 +489,6 @@ namespace autov
 			bool resolve_to_none = false;
 			unique_ptr<SpecNode> post_cond;
 			unique_ptr<SpecNode> loop_post_cond;
-			auto src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
 			if (auto expr = instance_of(m->src.get(), Expr)) {
 				if (holds_alternative<string>(expr->op)){
 					auto op = std::get<string>(expr->op);
@@ -538,6 +537,7 @@ namespace autov
 
 			// auto abst_spec = abst_transition(proj, m->src.get()); 
 			// SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
+			auto src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
 
 			int cnt = 0;
 			auto sim_result = SimulateResult{true, false, false, false};
@@ -660,6 +660,8 @@ namespace autov
 			// push cond
 			auto c = z3_eval(proj, i->cond.get(), state);
 			z3::model model(z3ctx);
+			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if: " << string(*c).substr(0,200);
+
 			std::pair<bool,bool> plausibility = check_branch_plausibility(proj, state, c, model);
 			auto true_branch_plausible = plausibility.first;
 			auto false_branch_plausible = plausibility.second;
@@ -676,7 +678,6 @@ namespace autov
 			p_then.push_back(1);
 			p_else.push_back(0);
 			auto sim_result = SimulateResult{true, false, false, false};
-			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if: " << string(*c).substr(0,200);
 			// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if z3: " << c->get_z3_value();
 			if (true_branch_plausible){
 				sim_result = sim_result + simulate_by_traverse(proj, i->then_body.get(), impl, rel, ret_rel, true_state, p_then, det);
@@ -704,9 +705,6 @@ namespace autov
 			auto sym = dynamic_cast<Symbol*>(spec);
 			if(sym->text == "None") {
 				LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Detected None node in spec, checking if impl removes spec UB.";
-				// for(auto cond: *state->conds) {
-				// 	LOG_DEBUG << "[simulate_by_traverse] Condition at None: " << cond;
-				// }
 				// TODO: Something in forward_simulation is mutating impl.
 				auto impl_copy = impl->deep_copy();
 				return forward_simulation(proj, sym, nullptr, impl_copy.get(), rel, ret_rel, state, det, p, 0, true);
