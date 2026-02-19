@@ -434,7 +434,7 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
       if (x.first->isIntegerTy() || x.first->isPointerTy()) {
         load_result += 
         "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
-        "      Some(st.(stack).(" + getStackIdentifier(x.first, num) + "), st)) else\n";
+        "      Some(st.(stack).(" + getStackIdentifier(x.first, num) + "))) else\n";
 
         store_result += 
         "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
@@ -445,7 +445,7 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
         "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
         "      when ret == load_" + getStructTypeIdentifier(sty) + " sz p.(poffset) st.(stack).(" \
         + getStackIdentifier(x.first, num) + ");\n" \
-        "      Some(ret, st)) else\n";
+        "      Some(ret)) else\n";
 
         store_result += 
         "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
@@ -461,7 +461,7 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
           "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
           "      let idx := p.(poffset) / " + std::to_string(element_size) + " in \n"\
           "      let ptr := st.(stack).(" + getStackIdentifier(x.first, num) + ") @ idx in\n"\
-          "      Some(ptr, st)) else\n";
+          "      Some(ptr)) else\n";
 
           store_result += 
           "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
@@ -475,7 +475,7 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
           "       let elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
           "       when ret == load_"+ getStructTypeIdentifier(sty) +" sz elem_ofs (st.(stack).(" \
           + getStackIdentifier(x.first, num) + ") @ idx);\n " \
-          "       Some(ret, st)) else\n";
+          "       Some(ret)) else\n";
 
           store_result += 
           "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
@@ -522,7 +522,7 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
   }
   fout << "\n" << hint_result << "\n";
   fout << result 
-    << "\n(* Definition load_stack (sz: Z) (p: Ptr) (st: RData) : (option (Z * RData)) :=\n" 
+    << "\n(* Definition load_stack (sz: Z) (p: Ptr) (st: RData) : (option Z) :=\n" 
     << load_result 
     << "*) (* load_stack *)\n";
   fout << "\n(* Definition store_stack (sz: Z) (p: Ptr) (v: z) (st: RData) : option RData :=\n" 
@@ -655,7 +655,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
     if (vty->isIntegerTy() || vty->isPointerTy()) {
       g_load_result += 
       "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
-      "      Some(" + getGVLoadStr(&globalVar) + ", st)) else\n";
+      "      Some(" + getGVLoadStr(&globalVar) + ")) else\n";
       if(globalVar.isConstant()){
         // g_store_result += 
         // "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
@@ -671,7 +671,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
       "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
       "      when ret == load_" + getStructTypeIdentifier(sty) + " sz p.(poffset) " + \
         getGVLoadStr(&globalVar) + ";\n" \
-      "      Some(ret, st)) else\n";
+      "      Some(ret)) else\n";
       
       if(globalVar.isConstant()){
         // g_store_result += 
@@ -692,7 +692,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
         "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
         "      let idx := p.(poffset) / " + std::to_string(element_size) + " in \n"\
         "      let ptr := " + getGVLoadStr(&globalVar) + " @ idx in\n"\
-        "      Some(ptr, st)) else\n";
+        "      Some(ptr)) else\n";
         if (globalVar.isConstant()){
           // g_store_result += 
           // "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
@@ -711,7 +711,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
         "       let elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
         "       when ret == load_"+ getStructTypeIdentifier(sty) +" sz elem_ofs (" + getGVLoadStr(&globalVar) +\
         " @ idx);\n " \
-        "       Some(ret, st)) else\n";
+        "       Some(ret)) else\n";
         if (globalVar.isConstant()){
         // g_store_result += 
         // "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
@@ -734,7 +734,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
   g_result.erase(g_result.rfind(";"), 1);  // remove the last ;
   g_result += "    }.\n";
   fout << g_result 
-    << "\n(* Definition load_RData (sz: Z) (p: Ptr) (st: RData) : (option (Z * RData)) :=\n"
+    << "\n(* Definition load_RData (sz: Z) (p: Ptr) (st: RData) : (option Z) :=\n"
     << g_load_result 
     << "  None."
     << "\n*) (* load_RData *)\n";

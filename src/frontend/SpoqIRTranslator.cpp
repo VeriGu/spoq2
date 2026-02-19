@@ -560,21 +560,22 @@ SpoqIRModule::store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context
         operands->push_back(context.get_llvm_value_spec(load->getPointerOperand()));
         operands->push_back(context.get_abs_data());
 
-        auto children = std::make_unique<vector<unique_ptr<SpecNode>>>();
+        // auto children = std::make_unique<vector<unique_ptr<SpecNode>>>();
+        unique_ptr<SpecNode> ret = nullptr;
         if (value_type->isIntegerTy()) {
-            children->push_back(context.get_llvm_value_spec(load, nullptr, false));
+            ret = context.get_llvm_value_spec(load, nullptr, false);
         }
         else if (value_type->isPointerTy()) {
-            children->push_back(context.get_llvm_value_spec_ptr_in_Z(load));
+            ret = context.get_llvm_value_spec_ptr_in_Z(load);
         }
         else if (value_type->isFloatingPointTy()){
-            children->push_back(context.get_llvm_value_spec(load, nullptr, false));
+            ret = context.get_llvm_value_spec(load, nullptr, false);
         }
         else {
             assert(false && "load value type not supported");
         }
-        children->push_back(context.get_abs_data());
-        auto ret = Shortcut::_Tuple_u(std::move(children));
+        // children->push_back(context.get_abs_data());
+        // auto ret = Shortcut::_Tuple_u(std::move(children));
         auto expr = std::make_unique<Expr>(context.load_op_name, std::move(operands));
         return std::make_pair(std::move(ret), std::move(expr));
     } else if (auto store = llvm::dyn_cast<llvm::StoreInst>(inst)) {

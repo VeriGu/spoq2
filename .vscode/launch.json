@@ -178,7 +178,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
             "args": ["/home/rjs2247/workspace/patchverification/examples/lua/lua002/build/ldebug.main.v",
-            "--check-none", "--check-pre-post", "--new-trans", "--llvm",  "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments
+            "--check-pre-post", "--new-trans", "--llvm",  "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments
             "cwd": "/home/rjs2247/workspace/patchverification/examples/lua/lua002/build",
             "preLaunchTask": "CMake: build debug"
         },

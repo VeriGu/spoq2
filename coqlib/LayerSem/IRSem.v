@@ -24,7 +24,7 @@ Record Layer :=
     State: Type;
     Init: State;
 
-    Load: Z -> Ptr -> State -> option (Z * State);
+    Load: Z -> Ptr -> State -> option (Z);
     Store: Z -> Ptr -> Z -> State -> option State;
     NewFrame: string -> State -> option State;
     Alloca: string -> Z -> Z -> State -> option (Ptr * State);
