@@ -817,7 +817,6 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
             return { std::move(spec), false };
         }
     }
-    // LOG_DEBUG << "expr to be evaled: " << string(*spec);
 
     for (auto elem = spec->elems->begin(); elem != spec->elems->end(); elem++) {
         auto ret = this->rule_simple_by_z3(std::move(*elem), state);

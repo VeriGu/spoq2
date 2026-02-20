@@ -52,11 +52,11 @@
             "preLaunchTask": "CMake: build debug"
         },
          {
-            "name": "(lldb) pv findub int deref",
+            "name": "(lldb) pv findub nounfold not_triggered fail",
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
-            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/hidden_ub_nounfold_int_deref.ll.main.v",
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/hidden_ub_nounfold_not_triggered_fail.ll.main.v",
              "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/uaf_poc/"], // Any command-line arguments
             "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/",
             "preLaunchTask": "CMake: build debug"

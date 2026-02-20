@@ -1749,11 +1749,31 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             return _cache(static_pointer_cast<IntValue>(elems[0])->le(static_pointer_cast<IntValue>(elems[1])));
         if (op_eq(expr->op, Expr::ops::NOT) || op_eq(expr->op, Expr::ops::BNOT))
             return _cache(static_pointer_cast<BoolValue>(elems[0])->negb());
-        if (op_eq(expr->op, Expr::binops::AND) || op_eq(expr->op, Expr::binops::BAND))
-            return _cache(static_pointer_cast<BoolValue>(elems[0])->andb(static_pointer_cast<BoolValue>(elems[1])));
-        if (op_eq(expr->op, Expr::binops::OR) || op_eq(expr->op, Expr::binops::BOR))
-            return _cache(static_pointer_cast<BoolValue>(elems[0])->orb(static_pointer_cast<BoolValue>(elems[1])));
-        if (op_eq(expr->op, "xorb"))
+        if (op_eq(expr->op, Expr::binops::AND) || op_eq(expr->op, Expr::binops::BAND)){
+            auto left = static_pointer_cast<BoolValue>(elems[0]);
+            auto right = static_pointer_cast<BoolValue>(elems[1]);
+            if(auto iv = dynamic_pointer_cast<IntValue>(elems[0])){
+                auto zero_const = make_shared<IntValue>(0ul);
+                left = iv->ne(zero_const);
+            }
+            if(auto iv = dynamic_pointer_cast<IntValue>(elems[1])){
+                auto zero_const = make_shared<IntValue>(0ul);
+                right = iv->ne(zero_const);
+            }
+            return _cache(left->andb(right));
+        } else if (op_eq(expr->op, Expr::binops::OR) || op_eq(expr->op, Expr::binops::BOR)){
+            auto left = static_pointer_cast<BoolValue>(elems[0]);
+            auto right = static_pointer_cast<BoolValue>(elems[1]);
+            if(auto iv = dynamic_pointer_cast<IntValue>(elems[0])){
+                auto zero_const = make_shared<IntValue>(0ul);
+                left = iv->ne(zero_const);
+            }
+            if(auto iv = dynamic_pointer_cast<IntValue>(elems[1])){
+                auto zero_const = make_shared<IntValue>(0ul);
+                right = iv->ne(zero_const);
+            }
+            return _cache(left->orb(right));
+        } else if (op_eq(expr->op, "xorb"))
             return _cache(static_pointer_cast<BoolValue>(elems[0])->xorb(static_pointer_cast<BoolValue>(elems[1])));
         if (op_eq(expr->op, Expr::binops::IMPLIES))
             return _cache(static_pointer_cast<BoolValue>(elems[0])->implies(static_pointer_cast<BoolValue>(elems[1])));
@@ -1865,7 +1885,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             for (auto v = vars.begin(); v != vars.end(); v++) {
                 cond = z3::exists(v->second->get_z3_value(), cond);
             }
-            
+
             if (!OPTS.__OPT_ON_MATCH) {
                 // LOG_INFO << "[PROFILE]" << "z3_eval: z3_check: match stands: " << string(*val);
                 PROFILE_START(match_eval_check);
@@ -1887,7 +1907,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                 (*new_state->vars)[v->first] = v->second;
             }
             if (match_val == nullptr) {
-                //LOG_DEBUG << "match body:" << string(*(*pm)->body);
+                // LOG_DEBUG << "match body:" << string(*(*pm)->body);
                 match_val = z3_eval(proj, (*pm)->body.get(), new_state,  check_loop);
             } else {
                 auto then_val = z3_eval(proj, (*pm)->body.get(), new_state,  check_loop);

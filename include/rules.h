@@ -43,6 +43,7 @@ enum class RuleID {
     rule_simple_record_get_set,
     rule_move_rely_out_when, 
     rule_move_when_out_when,
+    rule_simple_const_bool,
     rule_move_if_out_match,
     rule_move_if_out_expr,
     rule_move_match_out_expr,
@@ -83,6 +84,7 @@ public:
             { RuleID::rule_move_rely_out_when,      [this](auto spec) { return rule_move_rely_out_when(std::move(spec), true); } },
             { RuleID::rule_move_when_out_when,      [this](auto spec) { return rule_move_when_out_when(std::move(spec), true); } },
             //{ RuleID::rule_move_if_out_match,       [this](auto spec) { return rule_move_if_out_match(std::move(spec), true); } },
+            { RuleID::rule_simple_const_bool,        [this](auto spec) { return simple_const_bool(std::move(spec)); } },
             { RuleID::rule_move_if_out_expr,        [this](auto spec) { return rule_move_if_out_expr(std::move(spec), true); } },
             { RuleID::rule_move_match_out_expr,     [this](auto spec) { return rule_move_match_out_expr(std::move(spec), true); } }
         },
@@ -125,7 +127,7 @@ public:
                                         std::unique_ptr<SpecNode> spec,
                                         std::string &func_name,
                                         std::unique_ptr<SpecNode> cond);
-
+    rule_ret_t simple_const_bool(std::unique_ptr<SpecNode> spec);
     rule_ret_t replace_spec_name(std::unique_ptr<SpecNode> spec, std::unordered_map<std::string, std::string>& name_map);
 
     std::unique_ptr<SpecNode> eliminate_ambiguity(std::unique_ptr<SpecNode> spec, std::set<std::string>& prev_symbols, bool& changed);

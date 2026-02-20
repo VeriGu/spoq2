@@ -2041,6 +2041,11 @@ void spec_prover(Project *proj) {
             new_body = proj->rules.hoist_branch_out_of_when(
                 proj, std::move(other_def->body));
             other_def->body = std::move(new_body.first);
+            old_body = other_def->body->deep_copy();
+            new_body = proj->rules.simple_const_bool(
+                std::move(other_def->body));
+            other_def->body = std::move(new_body.first);
+            
             if (new_body.second) {
                 LOG_DEBUG << "Applied PostCondWithNone for " << def->name
                           << " in " << other_def->name;

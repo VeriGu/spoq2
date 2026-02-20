@@ -3078,7 +3078,63 @@ rule_ret_t SpecRules::hoist_branch_out_of_when(Project* proj, std::unique_ptr<Sp
     return { std::move(new_root), changed };
 }
 
+/*
+    Simplify: 
+        - 0 -> false
+        - non-zero int const -> true
+        - true /\ x -> x
+        - false \/ x -> x
+*/
+rule_ret_t SpecRules::simple_const_bool(std::unique_ptr<SpecNode> spec) {
+    bool changed = false;
+    auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+        if(auto expr = instance_of(node.get(), Expr)){
+            if(holds_alternative<Expr::binops>(expr->op)){
+                auto op = std::get<Expr::binops>(expr->op);
+                if(op == Expr::AND || op == Expr::BAND || op == Expr::OR || op == Expr::BOR) {
+                    for(int i = 0; i <= 1; i++){
+                        auto target = expr->elems->at(i).get();
+                        if(auto int_const = instance_of(target, IntConst)){
+                            std::unique_ptr<SpecNode> new_const = make_unique<BoolConst>(bool(int_const->get_value()));
+                            expr->elems->at(i).swap(new_const);
+                            changed = true;
+                        } 
+                        // To effectively simplify this we would need to apply it recursively top down within
+                        // expressions required to be bool-typed looking for things that are int-typed.
+                        // else if(auto t_expr = instance_of(target, Expr)) {
+                        //     auto t_op = std::get<Expr::binops>(expr->op);
+                        //     if(t_op == Expr::ADD || t_op == Expr::MULT || t_op == Expr::MINUS){
+                        //         auto zero_const = make_unique<IntConst>(0);
+                        //         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                        //         elems->push_back(std::move(expr->elems->at(i)));
+                        //         elems->push_back(std::move(zero_const));
+                        //         std::unique_ptr<SpecNode> bool_expr = std::make_unique<If>(
+                        //             std::make_unique<Expr>(Expr::binops::NOT_EQUAL, std::move(elems)),
+                        //             std::make_unique<BoolConst>(true),
+                        //             std::make_unique<BoolConst>(false));
+                        //         changed = true;
+                        //         expr->elems->at(i).swap(bool_expr);
+                        //     }
+                        // }
+                        int other_idx = (i + 1) % 2;
+                        if(auto bool_const = instance_of(expr->elems->at(i).get(), BoolConst)){
+                            if(((op == Expr::AND || op == Expr::BAND) && std::get<bool>(bool_const->value)) ||
+                                ((op == Expr::OR || op == Expr::BOR) && std::get<bool>(bool_const->value)) ) {
+                                auto new_node = expr->elems->at(other_idx)->deep_copy();
+                                changed = true;
+                                return new_node;
+                            }
+                        }
+                    }
+                }
+        }
+        }
+        return node;
+    };
 
+    auto new_root = rec_apply(std::move(spec), f, false);
+    return { std::move(new_root), changed };
+}
 // If we know a function returns none with predicate P,
 // and we have that transformation primed using PostCondWithNone,
 // We still need to create the branch artificailly outside the function call.
