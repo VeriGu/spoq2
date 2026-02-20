@@ -3050,13 +3050,16 @@ rule_ret_t SpecRules::hoist_branch_out_of_when(Project* proj, std::unique_ptr<Sp
                 if (then_e && else_e && 
                     holds_alternative<string>(else_e->op) &&
                     then_e->text == "None"){
+                        // LOG_DEBUG << "Found hoist branch out of when candidate:" << string(*node);
                         auto new_match_pm = std::make_unique<vector<unique_ptr<PatternMatch>>>();
                         new_match_pm->push_back(std::make_unique<PatternMatch>(m->match_list->at(0)->pattern->deep_copy(), m->match_list->at(0)->body->deep_copy()));
                         new_match_pm->push_back(std::make_unique<PatternMatch>(m->match_list->at(1)->pattern->deep_copy(), m->match_list->at(1)->body->deep_copy()));
 
                         auto new_match = std::make_unique<Match>(iff->else_body->deep_copy(), std::move(new_match_pm));
-                        auto new_outer = make_unique<If>(std::move(iff->cond), std::move(new_match), std::make_unique<Symbol>("None", m->get_type())); 
+                        auto new_outer = make_unique<If>(std::move(iff->cond), std::make_unique<Symbol>("None", m->get_type()), std::move(new_match)); 
                         changed = true;
+                        // LOG_DEBUG << "Built replacement:" << string(*new_outer);
+
                         return new_outer;
                     }
                 }

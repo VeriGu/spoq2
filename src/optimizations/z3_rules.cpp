@@ -97,7 +97,6 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
             resolve_pattern(proj, spec, expr->elems->at(0).get(), value, state);
         } else if (op_eq(expr->op, Expr::Tuple)) {
             auto v = dynamic_pointer_cast<Tuple>(src->get_type());
-            LOG_DEBUG << "Resolving tuple pattern: " << string(*pat) << " with value: " << string(*src);
             auto recog = v->get_z3_type().recognizers()[0];
             state->conds->push_back(recog(src->get_z3_value()));
             for (int i = 0; i < expr->elems->size(); i++) {

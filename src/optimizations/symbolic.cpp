@@ -2048,6 +2048,8 @@ void spec_prover(Project *proj) {
                 LOG_DEBUG << "New body: " << string(*other_def->body);
 
                 spec_transformer_v2(proj, other_def, 0, true, true, 10);
+                LOG_DEBUG << "New body after simplification: " << string(*other_def->body);
+
             }
         }
     }

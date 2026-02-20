@@ -22,11 +22,21 @@
             "preLaunchTask": "CMake: build debug"
         },
         {
-            "name": "(lldb) pv findub",
+            "name": "(lldb) pv findub inner",
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
             "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/hidden_ub_nounfold_inner_load.ll.main.v",
+             "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/uaf_poc/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
+            "name": "(lldb) pv findub",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/hidden_ub_nounfold.ll.main.v",
              "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/uaf_poc/"], // Any command-line arguments
             "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/",
             "preLaunchTask": "CMake: build debug"
