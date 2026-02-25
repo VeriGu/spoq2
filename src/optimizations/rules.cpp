@@ -1670,6 +1670,10 @@ static bool try_match(Project *proj, SpecNode *pattern, SpecNode *src,
                     if (auto op = std::get_if<Expr::ops>(&p->op)) {
                         if (*op != Expr::None) {
                             if (auto s = instance_of(src, Expr)) {
+                                if(s->elems->size() != p->elems->size()){
+                                    LOG_ERROR << "S and p different sizes.  src: " << string(*src);
+                                    LOG_ERROR << "S and p different sizes.  pattern: " << string(*pattern);
+                                }
                                 for (int i = 0; i < p->elems->size(); ++i) {
                                     if (!try_match(proj, p->elems->at(i).get(), s->elems->at(i).get(), assigns, def))
                                         return false;
@@ -2093,7 +2097,7 @@ std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec
                     ps.insert(new_name);
                     if(new_name != sym) {
                         //subst the pattern and the body
-                        LOG_DEBUG << "[subst_v2] old name: " << sym << "， new_name:" << new_name;
+                        // LOG_DEBUG << "[subst_v2] old name: " << sym << "， new_name:" << new_name;
                         subst_names.push_back(sym);
                         subst_new_names.push_back(make_unique<Symbol>(new_name, typ));
                     }
@@ -3017,6 +3021,118 @@ rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> sp
     }
 }
 
+
+/*
+    Simplify if(match (load_RData 8 (ptr_offset p 88) st_1) with 
+                (Some x) => y 
+                None => false)
+            then None
+            else z
+
+    to 
+    match (load_RData 8 (ptr_offset p 88) st_1) with
+        Some x => if (y) then 
+                    None 
+                    else z
+        None => z
+    OR
+    match(match(load_RData 8 (ptr_offset p 88) st_1) with 
+                (Some x) => Some x
+                None => None)
+                with Some x => true
+                None => false
+    becomes:
+    match (load_RData 8 (ptr_offset p 88) st_1) with
+        Some x => match (Some x) with Some x => true None => false
+        None => match None with Some x => true None => false
+    becomes:
+    match (load_RData 8 (ptr_offset p 88) st_1) with
+        Some x => true
+        None => false
+*/
+rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec) {
+    bool changed = false;
+    auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+        if (auto m1 = instance_of(node.get(), Match)) {
+            if (auto m2 = instance_of(m1->src.get(), Match)) {
+                // LOG_DEBUG << "Found hoist match from match candidate:" << string(*node);
+                // new outer node will be m2,
+                // for each match pattern body of m2, it will be m1(body) with the same patterns and m1 body.
+                std::unique_ptr<Match> new_node = std::unique_ptr<Match>(static_cast<Match*>(m1->src.release()));
+                assert(!m1->src);
+                for (auto &pm: *new_node->match_list) {
+                    std::unique_ptr<Match> new_body = std::unique_ptr<Match>(static_cast<Match*>(m1->deep_copy().release()));
+                    new_body->src = std::move(pm->body);
+                    auto simplified = rule_eliminate_match_simple(std::move(new_body), false);
+                    pm->body = std::move(simplified.first);
+                    
+                    // if(is_instance(pm->body.get(), Match) || is_instance(pm->body.get(), If)) {
+                    //     simplified = hoist_match_from_branch(std::move(pm->body));
+                    //     pm->body = std::move(simplified.first);
+                    // }
+                }
+                auto simplified = hoist_match_from_branch(std::move(new_node));
+                // new_node = std::move(simplified.first);
+                changed = true;
+                // LOG_DEBUG << "Hoisted match from match:" << string(*simplified.first);
+                return std::move(simplified.first);
+            }
+            if (auto iff = instance_of(m1->src.get(), If)){
+                // LOG_DEBUG << "Found hoist if from match candidate:" << string(*node);
+                std::unique_ptr<If> new_node = std::unique_ptr<If>(static_cast<If*>(m1->src.release()));
+                assert(!m1->src);
+                std::unique_ptr<Match> new_then = std::unique_ptr<Match>(static_cast<Match*>(m1->deep_copy().release()));
+                new_then->src = std::move(new_node->then_body);
+                auto simplified_then = rule_eliminate_match_simple(std::move(new_then), false);
+
+                std::unique_ptr<Match> new_else = std::unique_ptr<Match>(static_cast<Match*>(m1->deep_copy().release()));
+                new_else->src = std::move(new_node->else_body);
+                auto simplified_else = rule_eliminate_match_simple(std::move(new_else), false);
+
+                new_node->then_body = std::move(simplified_then.first);
+                new_node->else_body = std::move(simplified_else.first);
+                auto simplified = hoist_match_from_branch(std::move(new_node));
+                // new_node = std::move(simplified.first);
+                // LOG_DEBUG << "Hoisted if from match, new node: " << string(*simplified.first);
+                changed = true;
+                return std::move(simplified.first);
+            }
+
+        }
+        if (auto iff = instance_of(node.get(), If)){
+            if(auto m = instance_of(iff->cond.get(), Match)){
+                // LOG_DEBUG << "Found hoist match from branch candidate:" << string(*node);
+                auto new_node = std::move(iff->cond);
+                assert(!iff->cond);
+                // new outer node is a match.
+                // src is the same as the old match.
+                // each match pattern body is if(old_body) then old_then else old_else
+                for (auto &pm: *m->match_list){
+                    std::unique_ptr<If> new_body = nullptr;
+                    if(pm.get() == m->match_list->back().get()){
+                        new_body = make_unique<If>(std::move(pm->body), std::move(iff->then_body), std::move(iff->else_body));
+                    }else {
+                        new_body = make_unique<If>(std::move(pm->body), iff->then_body->deep_copy(), iff->else_body->deep_copy());
+                    }
+                    pm->body = std::move(new_body);
+                    auto simplified = rule_eliminate_if(std::move(pm->body), false);
+                    // simplified = hoist_match_from_branch(std::move(simplified.first));
+                    pm->body = std::move(simplified.first);
+                }
+                changed = true;
+                auto simplified = hoist_match_from_branch(std::move(new_node));
+                new_node = std::move(simplified.first);
+                // LOG_DEBUG << "Hoisted match from if, new node: " << string(*new_node);
+                return new_node;
+            }
+        }
+        return node;
+    };
+
+    auto new_root = rec_apply(std::move(spec), f, false);
+    return { std::move(new_root), changed };
+}
+
 /*
 Consider the following function:
 when val, st == (if (match a with None => false Some x => true) then None else (some_func args st));
@@ -3037,40 +3153,40 @@ if cond
 then when x == func_call; when_body
 else None
 */
-rule_ret_t SpecRules::hoist_branch_out_of_when(Project* proj, std::unique_ptr<SpecNode> spec) {
+rule_ret_t SpecRules::hoist_branch_out_of_when(std::unique_ptr<SpecNode> spec) {
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
-        auto m = instance_of(node.get(), Match);
-        if (m && m->is_when()) {
-            auto src = m->src.get();
-            auto iff = instance_of(src, If);
-            if (iff) {
-                auto then_e = instance_of(iff->then_body.get(), Symbol);
-                auto else_e = instance_of(iff->else_body.get(), Expr);
-                if (then_e && else_e && 
-                    holds_alternative<string>(else_e->op) &&
-                    then_e->text == "None"){
-                        // LOG_DEBUG << "Found hoist branch out of when candidate:" << string(*node);
-                        auto new_match_pm = std::make_unique<vector<unique_ptr<PatternMatch>>>();
-                        new_match_pm->push_back(std::make_unique<PatternMatch>(m->match_list->at(0)->pattern->deep_copy(), m->match_list->at(0)->body->deep_copy()));
-                        new_match_pm->push_back(std::make_unique<PatternMatch>(m->match_list->at(1)->pattern->deep_copy(), m->match_list->at(1)->body->deep_copy()));
+        // auto m = instance_of(node.get(), Match);
+        // if (m && m->is_when()) {
+        //     auto src = m->src.get();
+        //     auto iff = instance_of(src, If);
+        //     if (iff) {
+        //         auto then_e = instance_of(iff->then_body.get(), Symbol);
+        //         auto else_e = instance_of(iff->else_body.get(), Expr);
+        //         if (then_e && else_e && 
+        //             holds_alternative<string>(else_e->op) &&
+        //             then_e->text == "None"){
+        //                 // LOG_DEBUG << "Found hoist branch out of when candidate:" << string(*node);
+        //                 auto new_match_pm = std::make_unique<vector<unique_ptr<PatternMatch>>>();
+        //                 new_match_pm->push_back(std::make_unique<PatternMatch>(m->match_list->at(0)->pattern->deep_copy(), m->match_list->at(0)->body->deep_copy()));
+        //                 new_match_pm->push_back(std::make_unique<PatternMatch>(m->match_list->at(1)->pattern->deep_copy(), m->match_list->at(1)->body->deep_copy()));
 
-                        auto new_match = std::make_unique<Match>(iff->else_body->deep_copy(), std::move(new_match_pm));
-                        auto new_outer = make_unique<If>(std::move(iff->cond), std::make_unique<Symbol>("None", m->get_type()), std::move(new_match)); 
-                        changed = true;
-                        // LOG_DEBUG << "Built replacement:" << string(*new_outer);
+        //                 auto new_match = std::make_unique<Match>(iff->else_body->deep_copy(), std::move(new_match_pm));
+        //                 auto new_outer = make_unique<If>(std::move(iff->cond), std::make_unique<Symbol>("None", m->get_type()), std::move(new_match)); 
+        //                 changed = true;
+        //                 // LOG_DEBUG << "Built replacement:" << string(*new_outer);
 
-                        return new_outer;
-                    }
-                }
-            // auto pattern = dynamic_cast<Expr*>(m->match_list->at(0)->pattern.get());
-            // auto &when_body = m->match_list->at(0)->body;
+        //                 return new_outer;
+        //             }
+        //         }
+        //     // auto pattern = dynamic_cast<Expr*>(m->match_list->at(0)->pattern.get());
+        //     // auto &when_body = m->match_list->at(0)->body;
 
-            // auto new_node = std::make_unique<If>(pattern->deep_copy(), when_body->deep_copy(), when_body->deep_copy());
-            // new_node->type = when_body->get_type();
-            // changed = true;
-            // return new_node;
-        }
+        //     // auto new_node = std::make_unique<If>(pattern->deep_copy(), when_body->deep_copy(), when_body->deep_copy());
+        //     // new_node->type = when_body->get_type();
+        //     // changed = true;
+        //     // return new_node;
+        // }
         return node;
     };
 
@@ -3099,35 +3215,25 @@ rule_ret_t SpecRules::simple_const_bool(std::unique_ptr<SpecNode> spec) {
                             expr->elems->at(i).swap(new_const);
                             changed = true;
                         } 
-                        // To effectively simplify this we would need to apply it recursively top down within
-                        // expressions required to be bool-typed looking for things that are int-typed.
-                        // else if(auto t_expr = instance_of(target, Expr)) {
-                        //     auto t_op = std::get<Expr::binops>(expr->op);
-                        //     if(t_op == Expr::ADD || t_op == Expr::MULT || t_op == Expr::MINUS){
-                        //         auto zero_const = make_unique<IntConst>(0);
-                        //         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-                        //         elems->push_back(std::move(expr->elems->at(i)));
-                        //         elems->push_back(std::move(zero_const));
-                        //         std::unique_ptr<SpecNode> bool_expr = std::make_unique<If>(
-                        //             std::make_unique<Expr>(Expr::binops::NOT_EQUAL, std::move(elems)),
-                        //             std::make_unique<BoolConst>(true),
-                        //             std::make_unique<BoolConst>(false));
-                        //         changed = true;
-                        //         expr->elems->at(i).swap(bool_expr);
-                        //     }
-                        // }
                         int other_idx = (i + 1) % 2;
-                        if(auto bool_const = instance_of(expr->elems->at(i).get(), BoolConst)){
-                            if(((op == Expr::AND || op == Expr::BAND) && std::get<bool>(bool_const->value)) ||
-                                ((op == Expr::OR || op == Expr::BOR) && std::get<bool>(bool_const->value)) ) {
-                                auto new_node = expr->elems->at(other_idx)->deep_copy();
-                                changed = true;
-                                return new_node;
+                        if(auto bool_const = instance_of(expr->elems->at(i).get(), Const)){
+                            if( std::holds_alternative<bool>(bool_const->value)){
+                                if((((op == Expr::AND || op == Expr::BAND) && std::get<bool>(bool_const->value)) ||
+                                    ((op == Expr::OR || op == Expr::BOR) && !std::get<bool>(bool_const->value)) )) {
+                                    // auto new_node = expr->elems->at(other_idx);
+                                    changed = true;
+                                    return std::move(expr->elems->at(other_idx));
+                                } else if((((op == Expr::AND || op == Expr::BAND) && !std::get<bool>(bool_const->value)) ||
+                                    ((op == Expr::OR || op == Expr::BOR) && std::get<bool>(bool_const->value)) )){
+                                    // auto new_node = expr->elems->at(i);
+                                    changed = true;
+                                    return std::move(expr->elems->at(i));
+                                }
                             }
                         }
                     }
                 }
-        }
+            }
         }
         return node;
     };
@@ -3800,7 +3906,7 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
 rule_ret_t SpecRules::rule_simplify_expr(std::unique_ptr<SpecNode> spec, bool rec) {
     bool expr_is_changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
-        unique_ptr<SpecNode> expr = node->deep_copy();
+        // unique_ptr<SpecNode> expr = node->deep_copy();
 
         if (auto m = instance_of(node.get(), If)) {
             if (auto c = instance_of(m->cond.get(), BoolConst)) {
@@ -3854,7 +3960,7 @@ rule_ret_t SpecRules::rule_simplify_expr(std::unique_ptr<SpecNode> spec, bool re
                     expr_is_changed = true;
                     return std::move(m->elems->at(0));
                 } else if (ops == op::MINUS && m->elems->size() == 1) {
-                    return expr;
+                    return node;
                 }
 
                 bool all_intconst = true;
@@ -3870,6 +3976,7 @@ rule_ret_t SpecRules::rule_simplify_expr(std::unique_ptr<SpecNode> spec, bool re
                 }
 
                 if(all_intconst) {
+                    std::unique_ptr<SpecNode> expr = nullptr;
                     auto elem0 = instance_of(m->elems->at(0).get(), Const);
                     auto elem1 = instance_of(m->elems->at(1).get(), Const);
 
@@ -3931,9 +4038,12 @@ rule_ret_t SpecRules::rule_simplify_expr(std::unique_ptr<SpecNode> spec, bool re
                     } else if(ops == op::BLE) {
                         expr_is_changed = true;
                         expr.reset(new BoolConst(std::get<unsigned long>(elem0->value) <= std::get<unsigned long>(elem1->value)));
+                    } else {
+                        expr = std::move(node);
                     }
 
                     expr->_str.clear();
+                    return expr;
                 }
             } else if (holds_alternative<Expr::ops>(m->op)) {
                 auto ops = std::get<Expr::ops>(m->op);
@@ -3974,7 +4084,7 @@ rule_ret_t SpecRules::rule_simplify_expr(std::unique_ptr<SpecNode> spec, bool re
                 }
             }
         }
-        return expr;
+        return node;
     };
   
     if(rec) {

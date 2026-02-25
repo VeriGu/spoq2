@@ -154,6 +154,7 @@ set(SOURCES
 add_executable(spoq ${SOURCES})
 
 target_link_libraries(spoq irloader parser antlr4_shared)
+target_link_libraries(spoq /usr/local/lib/libtcmalloc_and_profiler.so)
 target_link_libraries(spoq ${LLVM_LIBRARIES})
 target_link_libraries(spoq ${Z3_LIBRARIES})
 target_link_libraries(spoq ${Boost_LIBRARIES})

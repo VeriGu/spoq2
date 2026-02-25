@@ -299,7 +299,7 @@ namespace autov
 				} else {
 					auto this_branch_result = forward_simulation(proj, st_check, spec_ret, (*pm)->body.get(), rel, ret_rel, pm_state, det, path, i+1, allow_none);
 					if(!this_branch_result.verified){
-						LOG_DEBUG << "[forward_simulation " << random_code << "] Match verification failed on branch: " << string(*pat);
+						LOG_DEBUG << "[forward_simulation " << random_code << "] Match verification failed on branch: " << string(*pat).substr(0,200);
 						LOG_DEBUG << "Matched expr: " << string(*m->src->deep_copy());	
 						return this_branch_result;		
 					}
@@ -315,7 +315,7 @@ namespace autov
 			if (cond_val.is_int()){
 				cond_val = (cond_val != 0);
 			}
-			LOG_DEBUG << "[forward_simulation " << random_code << "] If: " << cond.get()->get_z3_value();
+			// LOG_DEBUG << "[forward_simulation " << random_code << "] If: " << cond.get()->get_z3_value();
 
 			bool true_branch_plausible = true;
 			bool false_branch_plausible = true;
@@ -448,7 +448,7 @@ namespace autov
 	 */
 	SimulateResult simulate_by_traverse(Project *proj, SpecNode *spec, SpecNode *impl, Definition *rel, Definition *ret_rel, shared_ptr<ProveState> state, path_t p, bool det) {
 		int random_code = rand() % 10000;
-		LOG_DEBUG << "[simulate_by_traverse " << random_code << "] start! checking relation " << string(*rel) << " between\n"  << string(*spec) << "\n and " << string(*impl).substr(0,50) << std::endl;
+		// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] start! checking relation " << string(*rel) << " between\n"  << string(*spec) << "\n and " << string(*impl).substr(0,50) << std::endl;
 		if (auto expr = instance_of(spec, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -660,7 +660,7 @@ namespace autov
 			// push cond
 			auto c = z3_eval(proj, i->cond.get(), state);
 			z3::model model(z3ctx);
-			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if: " << string(*c).substr(0,200);
+			// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if: " << string(*c).substr(0,200);
 
 			std::pair<bool,bool> plausibility = check_branch_plausibility(proj, state, c, model);
 			auto true_branch_plausible = plausibility.first;

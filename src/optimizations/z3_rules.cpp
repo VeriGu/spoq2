@@ -109,10 +109,16 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
             resolve_pattern(proj, spec, expr->elems->at(0).get(), dynamic_pointer_cast<IndValue>(src)->get("head"), state);
             resolve_pattern(proj, spec, expr->elems->at(1).get(), dynamic_pointer_cast<IndValue>(src)->get("tail"), state);
         } else if (op_eq(expr->op, Expr::None)) {
-            auto t = dynamic_pointer_cast<Inductive>(src->get_type());
-            auto v = t->construct("None", {});
+            auto value = dynamic_pointer_cast<IndValue>(src)->get("value");
+            auto t = dynamic_pointer_cast<Option>(src->get_type());
+            // auto t = dynamic_pointer_cast<Inductive>(src->get_type());
+            // auto v = t->construct("None", {});
+            auto idx = t->get_constr_index("None_" + t->elem_type->name);
+            auto is_some = t->get_z3_type().recognizers()[idx];
+            auto tester = is_some(src->get_z3_value());
+            state->conds->push_back(tester);
 
-            state->conds->push_back(src->get_z3_value() == v->get_z3_value());
+            // state->conds->push_back(src->get_z3_value() == v->get_z3_value());
         } else if (std::holds_alternative<string>(expr->op)) {
             auto op = std::get<string>(expr->op);
             auto sym = proj->symbols.find(op);

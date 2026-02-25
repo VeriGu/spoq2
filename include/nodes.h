@@ -479,7 +479,7 @@ public:
     Expr() { throw std::invalid_argument("Expr must have an op and elems"); }
     Expr(op_t op, elems_t elems) :
         SpecNode(SpecType::UNKNOWN_TYPE), op(std::move(op)), elems(std::move(elems)) {
-            this->length = calc_length();
+            // this->length = calc_length();
         if (std::holds_alternative<string>(this->op)) {
             auto s = std::get<string>(this->op);
 
@@ -787,14 +787,15 @@ public:
     }
     unique_ptr<SpecNode> deep_copy() const {
         // deep copy src and match_list
-        unique_ptr<SpecNode> new_src = this->src->deep_copy();
+        unique_ptr<SpecNode> new_src = this->src ? this->src->deep_copy() : nullptr;
         unique_ptr<vector<unique_ptr<PatternMatch>>> new_match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
 
         for (auto it = match_list->begin(); it != match_list->end(); it++) {
             new_match_list->push_back((*it)->deep_copy_down());
         }
-
+        if (new_src) {
         new_src->is_determ_branch = this->src->is_determ_branch;
+        }
         auto ret = make_unique<Match>(std::move(new_src), std::move(new_match_list));
 
         ret->length = this->length;
@@ -960,7 +961,7 @@ private:
     const string to_string() const;
 
     int calc_length() const{
-        int length = src->length;
+        int length = src ? src->length : 0;
 
         for (auto it = match_list->begin(); it != match_list->end(); it++) {
                 length += (*it)->length;

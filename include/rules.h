@@ -50,6 +50,8 @@ enum class RuleID {
     rule_unfold_specs, 
     rule_simplify_expr,
     rule_simple_by_z3,
+    rule_hoist_branch_out_of_when,
+    rule_hoist_match_from_branch
 };
 
 /** FIXME:
@@ -84,6 +86,8 @@ public:
             { RuleID::rule_move_rely_out_when,      [this](auto spec) { return rule_move_rely_out_when(std::move(spec), true); } },
             { RuleID::rule_move_when_out_when,      [this](auto spec) { return rule_move_when_out_when(std::move(spec), true); } },
             //{ RuleID::rule_move_if_out_match,       [this](auto spec) { return rule_move_if_out_match(std::move(spec), true); } },
+            // { RuleID::rule_hoist_branch_out_of_when,        [this](auto spec) { return hoist_branch_out_of_when(std::move(spec)); } },
+            // { RuleID::rule_hoist_match_from_branch,        [this](auto spec) { return hoist_match_from_branch(std::move(spec)); } },
             { RuleID::rule_simple_const_bool,        [this](auto spec) { return simple_const_bool(std::move(spec)); } },
             { RuleID::rule_move_if_out_expr,        [this](auto spec) { return rule_move_if_out_expr(std::move(spec), true); } },
             { RuleID::rule_move_match_out_expr,     [this](auto spec) { return rule_move_match_out_expr(std::move(spec), true); } }
@@ -121,8 +125,8 @@ public:
     rule_ret_t rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state);
     rule_ret_t rule_keep_fields_of_interest(std::unique_ptr<SpecNode> spec);
     rule_ret_t rule_simplify_lens(std::unique_ptr<SpecNode> spec);
-    rule_ret_t hoist_branch_out_of_when(Project *proj,
-                                        std::unique_ptr<SpecNode> spec);
+    rule_ret_t hoist_branch_out_of_when(std::unique_ptr<SpecNode> spec);
+    rule_ret_t hoist_match_from_branch(std::unique_ptr<SpecNode> spec);
     rule_ret_t wrap_none_call_with_cond(Project *proj,
                                         std::unique_ptr<SpecNode> spec,
                                         std::string &func_name,

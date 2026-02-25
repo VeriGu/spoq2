@@ -322,7 +322,7 @@ Z3Result z3_verify_state_sat(shared_ptr<ProveState> state, QueryInfo *qinfo, int
     } else if (res == z3::unsat) {
         return Z3Result::False;
     } else {
-        return Z3Result::Unknown;
+    return Z3Result::Unknown;
     }
 }
 
@@ -1885,6 +1885,9 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             for (auto v = vars.begin(); v != vars.end(); v++) {
                 cond = z3::exists(v->second->get_z3_value(), cond);
             }
+            // Rather than creating an existential quantifier for each variable in the pattern,
+            // we should use the recognizer to assert that the whole patter is_Some what we are looking for.
+            // Or is_none, depending.
 
             if (!OPTS.__OPT_ON_MATCH) {
                 // LOG_INFO << "[PROFILE]" << "z3_eval: z3_check: match stands: " << string(*val);

@@ -987,12 +987,12 @@ bool prove_by_traverse(
 
                     // here should assume that abstraction does not return None,
                     // will check individually
-                    auto t = dynamic_pointer_cast<Option>(src->get_type());
-                    auto idx =
-                        t->get_constr_index("Some_" + t->elem_type->name);
-                    auto is_some = t->get_z3_type().recognizers()[idx];
-                    auto tester = is_some(src->get_z3_value());
-                    state->conds->push_back(tester);
+                    // auto t = dynamic_pointer_cast<Option>(src->get_type());
+                    // auto idx =
+                    //     t->get_constr_index("Some_" + t->elem_type->name);
+                    // auto is_some = t->get_z3_type().recognizers()[idx];
+                    // auto tester = is_some(src->get_z3_value());
+                    // state->conds->push_back(tester);
 
                     for (auto e = expr->elems->begin(); e != expr->elems->end();
                          e++) {
@@ -1299,11 +1299,15 @@ bool prove_by_traverse(
                         new_state->add_induction(lemma_expr->get_z3_value());
                     }
                 }
+                LOG_DEBUG << "non resolve branch for pattern: " << string(*pat);
+            } else {
+                LOG_DEBUG << "Resolving pattern: " << string(*pat);
             }
             resolve_pattern(proj, m, pat, src, new_state);
             verify_success &= prove_by_traverse(
                 proj, (*pm)->body.get(), inv, new_state, used_abs_funcs, mode,
                 fname, none_accumulator.add_condition(m->bool_cond_for(*pm)));
+            LOG_DEBUG << "Resolved pattern: " << string(*pat);
         }
         return verify_success;
     } else if (auto i = instance_of(spec, If)) {
@@ -1314,18 +1318,21 @@ bool prove_by_traverse(
         true_state->conds->push_back(c->get_z3_value());
         false_state->conds->push_back(!c->get_z3_value());
         auto verify_success = true;
+        LOG_DEBUG << "Evaluating then branch: " << string(*i->cond);
         verify_success &= prove_by_traverse(
             proj, i->then_body.get(), inv, true_state, used_abs_funcs, mode,
             fname,
             none_accumulator
                 ? none_accumulator.add_condition(i->cond->deep_copy())
                 : none_accumulator);
+        LOG_DEBUG << "Evaluating else branch: " << string(*i->cond);
         verify_success &= prove_by_traverse(
             proj, i->else_body.get(), inv, false_state, used_abs_funcs, mode,
             fname,
             none_accumulator
                 ? none_accumulator.add_inverse_condition(i->cond->deep_copy())
                 : none_accumulator);
+        LOG_DEBUG << "Evaluated branch: " << string(*i->cond);
         return verify_success;
     } else if (auto r = instance_of(spec, Rely)) {
         // push cond
@@ -1574,30 +1581,31 @@ bool check_none(Project *proj, Definition *def,
         }
         auto new_spec = std::move(def->sufficient_none_condition);
 
-        // group 1
-        while (true) {
-            auto this_changed = false;
-            // tmp spec should only be used in rule group loop
-            auto tmp_spec = std::move(new_spec);
-            for (auto &r : proj->rules.rules_group1) {
-                if (r.id == RuleID::rule_eliminate_let) {
-                    auto prev_symbols = std::set<string>(known);
-                    auto __changed = false;
-                    tmp_spec = proj->rules.eliminate_ambiguity(
-                        std::move(tmp_spec), prev_symbols, __changed);
+        // // group 1
+        // while (true) {
+        //     auto this_changed = false;
+        //     // tmp spec should only be used in rule group loop
+        //     auto tmp_spec = std::move(new_spec);
+        //     for (auto &r : proj->rules.rules_group1) {
+        //         if (r.id == RuleID::rule_eliminate_let) {
+        //             auto prev_symbols = std::set<string>(known);
+        //             auto __changed = false;
+        //             tmp_spec = proj->rules.eliminate_ambiguity(
+        //                 std::move(tmp_spec), prev_symbols, __changed);
 
-                    this_changed |= __changed;
-                }
-                auto orig_spec_str = string(*tmp_spec.get());
-                auto [__spec, __changed] = r.call(std::move(tmp_spec));
-                tmp_spec = std::move(__spec);
-                this_changed |= __changed;
-                auto new_spec_str = string(*tmp_spec.get());
-            }
-            new_spec = std::move(tmp_spec);
-            if (!this_changed)
-                break;
-        }
+        //             this_changed |= __changed;
+        //         }
+        //         auto orig_spec_str = string(*tmp_spec.get());
+        //         LOG_DEBUG << "Current spec: " << orig_spec_str;
+        //         auto [__spec, __changed] = r.call(std::move(tmp_spec));
+        //         tmp_spec = std::move(__spec);
+        //         this_changed |= __changed;
+        //         auto new_spec_str = string(*tmp_spec.get());
+        //     }
+        //     new_spec = std::move(tmp_spec);
+        //     if (!this_changed)
+        //         break;
+        // }
         def->sufficient_none_condition = std::move(new_spec);
         LOG_DEBUG << "Final sufficient_none_condition for " << def->name << ": "
                   << string(*def->sufficient_none_condition);
@@ -1800,9 +1808,11 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     patched_body->clear_z3_eval();
     path_t p = {};
     proj->query_saver = QueryInfo(query_saver_dir(vuln_def->name, "refines"));
-    LOG_DEBUG << "Checking refinement between "
-              << string(*vuln_body).substr(0, 400) << " and "
-              << string(*patched_body).substr(0, 400);
+    if(z3_accumulative_time.count() < 1){
+        LOG_DEBUG << "Checking refinement between "
+                << string(*vuln_body).substr(0, 400) << " and "
+                << string(*patched_body).substr(0, 400);
+    }
     // LOG_DEBUG << "Using relation: " << string(*rel_with_rets_def->body);
     // LOG_DEBUG << "Original state relation: " << string(*rel_post->body);
     auto result = simulate_by_traverse(proj, vuln_body, patched_body, rel_post,
@@ -1978,6 +1988,10 @@ void spec_prover(Project *proj) {
         auto def = proj->defs[ub_export_def].get();
         auto used_abs_for_none = std::unordered_set<string>();
         check_none(proj, def, used_abs_for_none);
+        LOG_DEBUG << "Transforming sufficient_none_condition for " << def->name;
+        auto new_node = spec_transformer_v2(proj, std::move(def->sufficient_none_condition), 1, true, false);
+        def->sufficient_none_condition = std::move(new_node);
+        LOG_DEBUG << "Transformed sufficient_none_condition for " << def->name;
     }
 
     auto begin = std::chrono::high_resolution_clock::now();
@@ -2030,30 +2044,91 @@ void spec_prover(Project *proj) {
         }
         for (auto &other_def_pair : proj->defs) {
             auto other_def = other_def_pair.second.get();
-            if (other_def == def || !other_def->body)
+            if (other_def == def || !other_def->body || other_def->name.find("_vuln_spec") == std::string::npos || other_def->name.find("_patch_spec") != std::string::npos)
                 continue;
             auto old_body = other_def->body->deep_copy();
             auto new_body = proj->rules.wrap_none_call_with_cond(
                 proj, std::move(other_def->body), def->name,
                 def->sufficient_none_condition->deep_copy());
+                other_def->body = std::move(new_body.first);
+            bool did_wrap = new_body.second;
+            if(!did_wrap){
+                continue;
+            }
+            bool any_changes = true;
+            int max_iter = 10;
+            int i = 0;
+            while(i < max_iter && any_changes){
+                i++;
+                any_changes = false;
+                old_body = other_def->body->deep_copy();
+                auto start = std::chrono::high_resolution_clock::now();
+
+                LOG_DEBUG << "Starting simplification of " << other_def->name << " round "<< i;
+                new_body = proj->rules.hoist_branch_out_of_when(
+                    std::move(other_def->body));
+                auto next = std::chrono::high_resolution_clock::now();
+                LOG_DEBUG << "Simplification A " << new_body.second << ", " << (next-start).count() * 1.0e-9;
+                start = next;
+                other_def->body = std::move(new_body.first);
+                any_changes = any_changes || new_body.second;
+                // old_body = other_def->body->deep_copy();
+                new_body = proj->rules.hoist_match_from_branch(
+                    std::move(other_def->body));
+                    next = std::chrono::high_resolution_clock::now();
+                LOG_DEBUG << "Simplification B " << new_body.second << ", " << (next-start).count() * 1.0e-9;
+                start=next;
+                other_def->body = std::move(new_body.first);
+                any_changes = any_changes || new_body.second;
+
+                new_body = proj->rules.simple_const_bool(
+                    std::move(other_def->body));
+                next = std::chrono::high_resolution_clock::now();
+                    
+
+                LOG_DEBUG << "Simplification C " << new_body.second << ", " << (next-start).count() * 1.0e-9;
+                start=next;
+                other_def->body = std::move(new_body.first);
+                any_changes = any_changes || new_body.second;
+            }
+            auto start = std::chrono::high_resolution_clock::now();
+            auto next = start;
+            any_changes = any_changes || new_body.second;
+            // old_body = other_def->body->deep_copy();
+            new_body = proj->rules.rule_eliminate_if(
+                std::move(other_def->body), true);
+            next = std::chrono::high_resolution_clock::now();
+                LOG_DEBUG << "Simplification D " << new_body.second << ", " << (next-start).count() * 1.0e-9;
+            start=next;
+
             other_def->body = std::move(new_body.first);
+            any_changes = any_changes || new_body.second;
+            // old_body = other_def->body->deep_copy();
+            new_body = proj->rules.rule_eliminate_match_simple(
+                std::move(other_def->body), true);
+            next = std::chrono::high_resolution_clock::now();
+                LOG_DEBUG << "Simplification E " << new_body.second << ", " << (next-start).count() * 1.0e-9;
+            start=next;
+            other_def->body = std::move(new_body.first);
+            any_changes = any_changes || new_body.second;
+
             old_body = other_def->body->deep_copy();
-            new_body = proj->rules.hoist_branch_out_of_when(
-                proj, std::move(other_def->body));
+            new_body = proj->rules.rule_simplify_expr(
+                std::move(other_def->body), true);
+            next = std::chrono::high_resolution_clock::now();
+                LOG_DEBUG << "Simplification F " << new_body.second << ", " << (next-start).count() * 1.0e-9;
+            start=next;
             other_def->body = std::move(new_body.first);
-            old_body = other_def->body->deep_copy();
-            new_body = proj->rules.simple_const_bool(
-                std::move(other_def->body));
-            other_def->body = std::move(new_body.first);
-            
-            if (new_body.second) {
+            any_changes = any_changes || new_body.second;
+
+            if (did_wrap) {
                 LOG_DEBUG << "Applied PostCondWithNone for " << def->name
                           << " in " << other_def->name;
-                LOG_DEBUG << "Old body: " << string(*old_body);
-                LOG_DEBUG << "New body: " << string(*other_def->body);
+                // LOG_DEBUG << "Old body: " << string(*old_body).substr(0,10000);
+                // LOG_DEBUG << "New body: " << string(*other_def->body).substr(0,10000);
 
-                spec_transformer_v2(proj, other_def, 0, true, true, 10);
-                LOG_DEBUG << "New body after simplification: " << string(*other_def->body);
+                // spec_transformer_v2(proj, other_def, 0, true, true, 1);
+                // LOG_DEBUG << "New body after simplification: " << string(*other_def->body).substr(0,10000);
 
             }
         }
