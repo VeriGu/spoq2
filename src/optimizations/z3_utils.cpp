@@ -116,10 +116,6 @@ size_t hash_z3_state(std::shared_ptr<EvalState> state, z3::expr cond, int timeou
     return hash_unsigned_vector(hashes);
 }
 
-int complexity(shared_ptr<SpecNode> spec) {
-    return spec->length;
-}
-
 unsigned long z3_unknowns = 0;
 unsigned long z3_checks = 0;
 unsigned long z3_cache_hits = 0;

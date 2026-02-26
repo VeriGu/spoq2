@@ -109,7 +109,7 @@ enum class Z3Result {
 
 #define Z3_TIMEOUT 100
 #define Z3_VERIFY_TIMEOUT 500
-#define Z3_SAT_TIMEOUT 50
+#define Z3_SAT_TIMEOUT 500
 #define Z3_SOLVE_RDATA_TIMEOUT 50
 #define Z3_SOLVE_SECURE_TIMEOUT 50
 extern unordered_map<size_t, Z3Result> Z3Cache;

@@ -3801,8 +3801,8 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
     bool unfolded = false;
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
-        if (unfolded)
-            return node;
+        // if (unfolded)
+        //     return node;
         if (auto e = instance_of(node.get(), Expr)) {
             if (auto op = std::get_if<string>(&e->op)) {
                 if (proj->defs.find(*op) == proj->defs.end())

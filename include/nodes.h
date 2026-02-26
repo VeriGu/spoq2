@@ -44,14 +44,13 @@ public:
  
     shared_ptr<SpecType> type;
     unsigned long nid;
-    int length;
+    // int length;
     mutable string _str; // cached string representation
     shared_ptr<SpecType> tmp;
     shared_ptr<SpecValue> cached_eval;
 
-    SpecNode() : type(SpecType::UNKNOWN_TYPE), nid(id++), length(1) {}
-    SpecNode(shared_ptr<SpecType> type) : type(type), nid(id++), length(1) {}
-    SpecNode(shared_ptr<SpecType> type, int length) : type(type), nid(id++), length(length) {}
+    SpecNode() : type(SpecType::UNKNOWN_TYPE), nid(id++) {}
+    SpecNode(shared_ptr<SpecType> type) : type(type), nid(id++) {}
 
     virtual bool operator==(const SpecNode& other) const {
         if (typeid(other) != typeid(*this)) {
@@ -351,11 +350,9 @@ public:
     RecordDef() { throw std::invalid_argument("RecordDef must have fields"); }
     RecordDef(unique_ptr<std::map<unique_ptr<Symbol>, unique_ptr<SpecNode>>> fields) :
         SpecNode(SpecType::UNKNOWN_TYPE), fields(std::move(fields)){
-        this->length = calc_length();
     }
     RecordDef(unique_ptr<std::map<unique_ptr<Symbol>, unique_ptr<SpecNode>>> fields, shared_ptr<SpecType> type) :
         SpecNode(type), fields(std::move(fields)) {
-        this->length = calc_length();
     }
 
     bool operator==(const SpecNode& other) const {
@@ -411,17 +408,7 @@ private:
 
         return oss.str();
     }
-    int calc_length() const {
-        int length = 0;
 
-        for (auto it = fields->begin(); it != fields->end(); it++) {
-            if (it == fields->begin()) {
-                length += it->second->length;
-            }
-        }
-
-        return length;
-    }
 };
 
 extern unsigned long mono_lens_id;
@@ -496,7 +483,6 @@ public:
 
     Expr(op_t op, elems_t elems, shared_ptr<SpecType> type) :
         SpecNode(type), op(std::move(op)), elems(std::move(elems)) {
-            this->length = calc_length();
 
         if (std::holds_alternative<string>(this->op)) {
             auto s = std::get<string>(this->op);
@@ -516,7 +502,6 @@ public:
         SpecNode(type), op(std::move(op)) {
             this->elems = make_unique<vector<unique_ptr<SpecNode>>>();
             this->elems->push_back(std::move(node));
-            this->length = calc_length();
 
         if (std::holds_alternative<string>(this->op)) {
             auto s = std::get<string>(this->op);
@@ -609,7 +594,6 @@ public:
         }
 
         ret->is_lens = this->is_lens;
-        ret->length = this->length;
         return ret;
     }
 
@@ -625,15 +609,6 @@ public:
 private:
     const string to_string() const;
     static const unordered_map<binops, string> binops_to_str_map;
-
-    int calc_length() const{
-        int length = 0;
-
-        for (auto it = elems->begin(); it != elems->end(); it++) {
-                length += (*it)->length;
-        }
-        return length;
-    }
 
     bool elems_eq(const Expr &other) const {
         if (this->elems->size() != other.elems->size()) {
@@ -659,7 +634,6 @@ public:
     PatternMatch() { throw std::invalid_argument("PatternMatch must have a pattern and body"); }
     PatternMatch(unique_ptr<SpecNode>pattern, unique_ptr<SpecNode>body) :
         SpecNode(body->get_type()), pattern(std::move(pattern)), body(std::move(body)) {
-            this->length = calc_length();
         }
 
     bool operator==(const SpecNode& other) const {
@@ -703,8 +677,6 @@ public:
 
         auto ret = make_unique<PatternMatch>(std::move(new_pattern), std::move(new_body));
 
-        ret->length = this->length;
-
         return ret;
     }
 
@@ -714,7 +686,6 @@ public:
         unique_ptr<SpecNode> new_body = this->body->deep_copy();
 
         p = make_unique<PatternMatch>(std::move(new_pattern), std::move(new_body));
-        p->length = this->length;
     }
 
     ~PatternMatch() {}
@@ -722,9 +693,6 @@ public:
 private:
     const string to_string() const;
 
-    int calc_length() const{
-        return body->length + pattern->length;
-    }
 };
 
 class Match : public SpecNode {
@@ -735,7 +703,6 @@ public:
     Match() { throw std::invalid_argument("Match must have a src and match_list"); }
     Match(unique_ptr<SpecNode> src, unique_ptr<vector<unique_ptr<PatternMatch>>> match_list) :
         SpecNode((*match_list)[0]->body->get_type()), src(std::move(src)), match_list(std::move(match_list)) {
-        this->length = calc_length();
     }
 
     bool operator==(const SpecNode& other) const {
@@ -782,7 +749,6 @@ public:
             new_match_list->push_back(std::move(new_pm));
         }
         auto ret = make_unique<Match>(std::move(new_src), std::move(new_match_list));
-        ret->length = this->length;
         return ret;
     }
     unique_ptr<SpecNode> deep_copy() const {
@@ -798,8 +764,6 @@ public:
         }
         auto ret = make_unique<Match>(std::move(new_src), std::move(new_match_list));
 
-        ret->length = this->length;
-
         return ret;
     }
 
@@ -813,8 +777,6 @@ public:
         }
 
         p = make_unique<Match>(std::move(new_src), std::move(new_match_list));
-
-        p->length = this->length;
     }
 
     bool deep_eq(SpecNode* n) const {
@@ -959,16 +921,6 @@ public:
 
 private:
     const string to_string() const;
-
-    int calc_length() const{
-        int length = src ? src->length : 0;
-
-        for (auto it = match_list->begin(); it != match_list->end(); it++) {
-                length += (*it)->length;
-        }
-
-        return length;
-    }
 };
 
 class RelyAnno: public SpecNode {
@@ -988,7 +940,6 @@ public:
 
     Rely() { throw std::invalid_argument("Rely must have a prop and body"); }
     Rely(unique_ptr<SpecNode>prop, unique_ptr<SpecNode>body) : RelyAnno(std::move(prop), std::move(body)) {
-        this->length = calc_length();
     }
 
     bool operator==(const SpecNode& other) const {
@@ -1017,8 +968,6 @@ public:
 
         auto ret = make_unique<Rely>(std::move(new_prop), std::move(new_body));
 
-        ret->length = this->length;
-
         return ret;
     }
 
@@ -1028,8 +977,6 @@ public:
         unique_ptr<SpecNode> new_body = this->body->deep_copy();
 
         p = make_unique<Rely>(std::move(new_prop), std::move(new_body));
-
-        p->length = this->length;
     }
     bool deep_eq(SpecNode* n) const {
         auto other = dynamic_cast<Rely*>(n);
@@ -1044,16 +991,12 @@ public:
 private:
     const string to_string() const;
 
-    int calc_length() const{
-        return body->length + prop->length;
-    }
 };
 
 class Anno : public RelyAnno {
 public:
     Anno() { throw std::invalid_argument("Anno must have a prop and body"); }
     Anno(unique_ptr<SpecNode>prop, unique_ptr<SpecNode>body) : RelyAnno(std::move(prop), std::move(body)) {
-        this->length = calc_length();
     }
 
     bool operator==(const SpecNode& other) const {
@@ -1102,9 +1045,6 @@ public:
 private:
     const string to_string() const;
 
-    int calc_length() const{
-        return body->length + prop->length;
-    }
 };
 
 class If : public SpecNode {
@@ -1116,7 +1056,6 @@ public:
     If() { throw std::invalid_argument("If must have a cond, then_body, and else_body"); }
     If(unique_ptr<SpecNode>cond, unique_ptr<SpecNode>then_body, unique_ptr<SpecNode>else_body) :
         SpecNode(then_body->get_type()), cond(std::move(cond)), then_body(std::move(then_body)), else_body(std::move(else_body)) {
-        this->length = calc_length();
         if (this->cond.get() == nullptr)
             throw std::invalid_argument("If condition cannot be null");
     }
@@ -1164,10 +1103,6 @@ public:
 private:
     const string to_string() const;
 
-    int calc_length() const{
-        return then_body->length + else_body->length + cond->length;
-    }
-
     void deep_copy_impl(unique_ptr<SpecNode> &p) const {
         unique_ptr<SpecNode> new_cond;
         unique_ptr<SpecNode> new_then_body;
@@ -1202,7 +1137,6 @@ public:
     Forall() { throw std::invalid_argument("Forall must have vars and body"); }
     Forall(unique_ptr<vector<shared_ptr<Arg>>> vars, unique_ptr<SpecNode>body) :
         ForallExists(std::move(vars), std::move(body)) {
-        this->length = calc_length();
     }
 
     bool operator==(const SpecNode& other) const {
@@ -1275,10 +1209,6 @@ public:
 
 private:
     const string to_string() const;
-
-    int calc_length() const{
-        return body->length;
-    }
 };
 
 class Exists : public ForallExists {
@@ -1286,7 +1216,6 @@ public:
     Exists() { throw std::invalid_argument("Exists must have vars and body"); }
     Exists(unique_ptr<vector<shared_ptr<Arg>>> vars, unique_ptr<SpecNode>body) :
         ForallExists(std::move(vars), std::move(body)) {
-        this->length = calc_length();
     }
 
     bool operator==(const SpecNode& other) const {
@@ -1356,11 +1285,6 @@ public:
 
 private:
     const string to_string() const;
-
-    int calc_length() const{
-        return body->length;
-    }
-
 };
 
 class Declaration {
@@ -1416,7 +1340,6 @@ public:
     unique_ptr<vector<shared_ptr<Arg>>> args;
     unique_ptr<SpecNode> body;
     std::unique_ptr<SpecNode> sufficient_none_condition=nullptr;
-    int length;
     mutable string _str;
     bool deleyed_type_inference = false;
 
@@ -1424,14 +1347,12 @@ public:
     Definition() { throw std::invalid_argument("Definition must have a name, rettype, args, and body"); }
     Definition(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args, unique_ptr<SpecNode> body) :
         name(name), rettype(rettype), args(std::move(args)), body(std::move(body)) {
-        this->length = this->body->length; // This cannot be done in the initializer list because body is moved.
 
     }
 
     Definition(Definition &other) :
         name(other.name), rettype(other.rettype), args(make_unique<vector<shared_ptr<Arg>>>(*other.args)),
-        body(other.body->deep_copy()), sufficient_none_condition(other.sufficient_none_condition ? other.sufficient_none_condition->deep_copy() : nullptr), 
-        length(other.length) {}
+        body(other.body->deep_copy()), sufficient_none_condition(other.sufficient_none_condition ? other.sufficient_none_condition->deep_copy() : nullptr) {}
 
 
     bool operator==(const Definition& other) const {

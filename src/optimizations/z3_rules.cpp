@@ -149,7 +149,7 @@ void collect_exprs(SpecNode* expr, unordered_map<unsigned, std::pair<z3::expr, S
     }
     if (expr->cached_eval) {
         unsigned h = expr->cached_eval->get_z3_value().hash();
-        if (subexprs.find(h) == subexprs.end() || expr->length < subexprs.find(h)->second.second->length) {
+        if (subexprs.find(h) == subexprs.end() ) {
             SpecNode *expr_copy = expr->deep_copy().release();
             expr_copy->cached_eval = expr->cached_eval;
             subexprs.emplace(h, std::make_pair(expr_copy->cached_eval->get_z3_value(), expr_copy));
@@ -275,7 +275,7 @@ static SpecNode* reconstruct_expr(z3::expr z3_val,
             sorted_subexprs.push_back(s->second);
         }
         std::sort(sorted_subexprs.begin(), sorted_subexprs.end(), [](auto a, auto b) {
-            return a.second->length < b.second->length;
+            return a.second < b.second;
         });
 
         for (auto e = sorted_subexprs.begin(); e != sorted_subexprs.end(); e++) {
@@ -380,7 +380,7 @@ static SpecNode* reconstruct_expr(z3::expr z3_val,
         }
 
         std::sort(candidates.begin(), candidates.end(), [](auto a, auto b) {
-            return a->length < b->length;
+            return a < b;
         });
 
         if (candidates.size() > 0) {

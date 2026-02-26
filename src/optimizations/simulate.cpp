@@ -59,7 +59,7 @@ namespace autov
 			bool det, const path_t &path, int i, bool allow_none) {
 				int random_code = rand() % 10000;
 			// bool det = false, const path_t &path = {}, int i = 0, bool allow_none = false) {
-		LOG_DEBUG << "[forward_simulation " << random_code << "] start! checking " << string(*impl).substr(0,1000) << std::endl;
+		LOG_DEBUG << "[forward_simulation " << random_code << "] start! checking " << string(*impl).substr(0,10000) << std::endl;
 		if (auto expr = instance_of(impl, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -677,6 +677,8 @@ namespace autov
 			path_t p_then = p, p_else = p;
 			p_then.push_back(1);
 			p_else.push_back(0);
+			auto cond_str = string(*i->cond);
+			auto cond_val_str = string(*c);
 			auto sim_result = SimulateResult{true, false, false, false};
 			// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if z3: " << c->get_z3_value();
 			if (true_branch_plausible){

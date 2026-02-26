@@ -2,7 +2,6 @@
 #include <visitors.h>
 #include <utils.h>
 
-
 namespace autov {
     void NoneConditionAccumulator::visit_none() {
         if (discharge_none.has_value()) {

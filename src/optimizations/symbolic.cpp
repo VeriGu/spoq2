@@ -1988,10 +1988,10 @@ void spec_prover(Project *proj) {
         auto def = proj->defs[ub_export_def].get();
         auto used_abs_for_none = std::unordered_set<string>();
         check_none(proj, def, used_abs_for_none);
-        LOG_DEBUG << "Transforming sufficient_none_condition for " << def->name;
-        auto new_node = spec_transformer_v2(proj, std::move(def->sufficient_none_condition), 1, true, false);
-        def->sufficient_none_condition = std::move(new_node);
-        LOG_DEBUG << "Transformed sufficient_none_condition for " << def->name;
+        // LOG_DEBUG << "Transforming sufficient_none_condition for " << def->name;
+        // auto new_node = spec_transformer_v2(proj, std::move(def->sufficient_none_condition), 1, true, false);
+        // def->sufficient_none_condition = std::move(new_node);
+        // LOG_DEBUG << "Transformed sufficient_none_condition for " << def->name;
     }
 
     auto begin = std::chrono::high_resolution_clock::now();
@@ -2112,11 +2112,20 @@ void spec_prover(Project *proj) {
             other_def->body = std::move(new_body.first);
             any_changes = any_changes || new_body.second;
 
+            do{
+            new_body = proj->rules.rule_unfold_specs(
+                std::move(other_def->body), true);
+            next = std::chrono::high_resolution_clock::now();
+                LOG_DEBUG << "Simplification F " << new_body.second << ", " << (next-start).count() * 1.0e-9;
+            start=next;
+            other_def->body = std::move(new_body.first);
+            any_changes = any_changes || new_body.second;
+            } while (new_body.second);
             old_body = other_def->body->deep_copy();
             new_body = proj->rules.rule_simplify_expr(
                 std::move(other_def->body), true);
             next = std::chrono::high_resolution_clock::now();
-                LOG_DEBUG << "Simplification F " << new_body.second << ", " << (next-start).count() * 1.0e-9;
+                LOG_DEBUG << "Simplification G " << new_body.second << ", " << (next-start).count() * 1.0e-9;
             start=next;
             other_def->body = std::move(new_body.first);
             any_changes = any_changes || new_body.second;
@@ -2127,7 +2136,7 @@ void spec_prover(Project *proj) {
                 // LOG_DEBUG << "Old body: " << string(*old_body).substr(0,10000);
                 // LOG_DEBUG << "New body: " << string(*other_def->body).substr(0,10000);
 
-                // spec_transformer_v2(proj, other_def, 0, true, true, 1);
+                // spec_transformer_v2(proj, other_def, 0, true, true, 0);
                 // LOG_DEBUG << "New body after simplification: " << string(*other_def->body).substr(0,10000);
 
             }
