@@ -27,13 +27,16 @@ namespace autov {
                 if (auto lpm = dynamic_cast<PatternMatch*>(last_pattern_match)) {
                     lpm->body.swap(temp_held_match_body);
                     //  LOG_DEBUG << "last_pattern_match is a PatternMatch, adding condition to the pattern match body.";
+                } else if (auto if_node = dynamic_cast<If*>(last_pattern_match)) {
+                    // The if node is something like if (last_cond) then (previous_cond) else false
+                    if_node->then_body.swap(temp_held_match_body);
                 } else if (auto and_node = dynamic_cast<Expr*>(last_pattern_match)) {
                     // Currently 2/17/26 an AND node is strictly a binary operation.
                     // Therefore, the new condition must either be added onto elem 1 or 0, we choose 1.
                     // LOG_DEBUG << "last_pattern_match is an AND node, adding condition to the second element of the conjunction.";
                     and_node->elems->at(1).swap(temp_held_match_body);
                 } else {
-                    LOG_ERROR << "last_pattern_match's body is neither a PatternMatch nor an AND expression. This should never happen.";
+                    LOG_ERROR << "last_pattern_match's body is neither a PatternMatch nor an AND nor an If expression. This should never happen.";
                     assert(false);
                 }
                 // LOG_DEBUG << "Current Condition after LPM swap: " << string(*accumulated_cond);
@@ -51,10 +54,15 @@ namespace autov {
                 } else if (auto and_node = dynamic_cast<Expr*>(last_pattern_match)) {
                     and_node->elems->at(1) = temp_held_match_body->deep_copy();
                     // and_node->elems->at(1) = move(temp_held_match_body);
+                } else if (auto if_node = dynamic_cast<If*>(last_pattern_match)) {
+                    if_node->then_body = temp_held_match_body->deep_copy();
+                } else {
+                    LOG_ERROR << "last_pattern_match's body is neither a PatternMatch nor an AND nor an If expression. This should never happen.";
+                    assert(false);
                 }
             }
-            // LOG_DEBUG << "LPM swap back: " << string(*accumulated_cond);
-            // LOG_DEBUG << "temp held body: " << string(*temp_held_match_body);
+            LOG_DEBUG << "LPM swap back: " << string(*accumulated_cond);
+            LOG_DEBUG << "temp held body: " << string(*temp_held_match_body);
 
             // set last_pattern_match on the new_accumulator.
             // Needed if the new condition is a match.
@@ -63,41 +71,54 @@ namespace autov {
                 is_match = true;
             }
 
-            auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-            elems->push_back(std::move(cond));
+            // auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+            // elems->push_back(std::move(cond));
             if(last_pattern_match){
-                elems->push_back(std::move(temp_held_match_body));
-                auto new_predicate = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
+                // elems->push_back(std::move(temp_held_match_body));
+                // auto new_predicate = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
+                // Using an If instead of an AND makes it easier to have a program that we can split into smaller z3 queries later.
+                auto new_predicate = make_unique<If>(std::move(cond), std::move(temp_held_match_body), make_unique<BoolConst>(false));
                 bool success = false;
-                // LOG_DEBUG << "New Predicate to add to pattern match body: " << string(*new_predicate);
-                // LOG_DEBUG << "Original new accumulator condition: " << string(*new_accumulator.accumulated_cond);
+                LOG_DEBUG << "New Predicate to add to pattern match body: " << string(*new_predicate);
+                LOG_DEBUG << "Original new accumulator condition: " << string(*new_accumulator.accumulated_cond);
                 // If the new condition is not a match, we want the new last_pattern_match value to be the location of the substitution.
                 // If it is a match, we want the new last_pattern_match to point inside the new match,
                 // So we have to search the new match after substitution.
                 new_accumulator.accumulated_cond = subst(move(new_accumulator.accumulated_cond), match_body_sym, new_predicate.get(), success, &new_accumulator.last_pattern_match);
-                // LOG_DEBUG << "New accumulator condition after substitution: " << string(*new_accumulator.accumulated_cond);
+                LOG_DEBUG << "New accumulator condition after substitution: " << string(*new_accumulator.accumulated_cond);
                 // LOG_DEBUG << "Adding condition with pattern match. New condition: " << string(*new_accumulator.accumulated_cond);
-                // assert(string(*new_accumulator.accumulated_cond).find(match_body_sym) == string::npos);
+                assert(string(*new_accumulator.accumulated_cond).find(match_body_sym) == string::npos);
                 assert(success);
                 assert(new_accumulator.last_pattern_match); // We can never stop adding to the inner conjunction.
-                // LOG_DEBUG << "New last_pattern_match: " << string(*new_accumulator.last_pattern_match);
+                LOG_DEBUG << "New last_pattern_match: " << string(*new_accumulator.last_pattern_match);
             } else{
-                elems->push_back(std::move(new_accumulator.accumulated_cond));
-                new_accumulator.accumulated_cond = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
+                // elems->push_back(std::move(new_accumulator.accumulated_cond));
+                // new_accumulator.accumulated_cond = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
+                new_accumulator.accumulated_cond = make_unique<If>(std::move(cond), std::move(new_accumulator.accumulated_cond), make_unique<BoolConst>(false));
                 new_accumulator.last_pattern_match = new_accumulator.accumulated_cond.get();
             }
 
             if(is_match && new_accumulator.last_pattern_match){
-                auto and_node = dynamic_cast<Expr*>(new_accumulator.last_pattern_match);
-                assert(and_node);
-                auto m = dynamic_cast<Match*>(and_node->elems->at(0).get());
-                assert(m);
-                new_accumulator.last_pattern_match = nullptr;
-                auto true_const = make_unique<BoolConst>(true);
-                for(auto &pm : *m->match_list){
-                    if(pm->body.get()->deep_eq(true_const.get())){
-                        new_accumulator.last_pattern_match = pm.get();
-                        break;
+                if(auto and_node = dynamic_cast<Expr*>(new_accumulator.last_pattern_match)){
+                    auto m = dynamic_cast<Match*>(and_node->elems->at(0).get());
+                    assert(m);
+                    new_accumulator.last_pattern_match = nullptr;
+                    auto true_const = make_unique<BoolConst>(true);
+                    for(auto &pm : *m->match_list){
+                        if(pm->body.get()->deep_eq(true_const.get())){
+                            new_accumulator.last_pattern_match = pm.get();
+                            break; 
+                        }
+                    }
+                } else if(auto if_node = dynamic_cast<If*>(new_accumulator.last_pattern_match)){
+                    auto m = dynamic_cast<Match*>(if_node->cond.get());
+                    new_accumulator.last_pattern_match = nullptr;
+                    auto true_const = make_unique<BoolConst>(true);
+                    for(auto &pm : *m->match_list){
+                        if(pm->body.get()->deep_eq(true_const.get())){
+                            new_accumulator.last_pattern_match = pm.get();
+                            break;
+                        }
                     }
                 }
                 if(!new_accumulator.last_pattern_match){
@@ -107,6 +128,7 @@ namespace autov {
             }
 
             assert(!is_match || (new_accumulator.last_pattern_match != nullptr));
+            assert(!is_match || dynamic_cast<PatternMatch*>(new_accumulator.last_pattern_match));
             
             // LOG_DEBUG << "New condition added: " << string(*new_accumulator.accumulated_cond);
             auto updated_free_vars = std::set<string>();

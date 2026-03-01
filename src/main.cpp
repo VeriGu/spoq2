@@ -18,7 +18,6 @@ int main(int argc, char *argv[])
 {
     autov::log::init();
     autov::log::set_logging_level();
-
     if(!OPTS.parse_options(argc, argv)) return 0;
 
     std::unique_ptr<autov::Project> proj = std::make_unique<autov::Project>();

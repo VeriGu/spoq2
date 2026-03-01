@@ -114,6 +114,7 @@ unique_ptr<SpecNode> spec_transformer_v2(Project *proj, unique_ptr<SpecNode> nod
 void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfold, bool low_spec, int max_iter) {
     LOG_INFO << "Transforming " << def->name << ", unfold: " << unfold;
     LOG_INFO << "Transforming " << def->name << "def: " << string(*def);
+    proj->query_saver = query_saver_dir(def->name, "transforms" + std::to_string(layer_id) + std::to_string(max_iter));
     auto fname = def->name;
     auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
     auto conds = std::make_shared<vector<z3::expr>>();
@@ -165,62 +166,73 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             // LOG_DEBUG << "end partial eval" << "\n";
             //profile_print_transrule();
             // LOG_DEBUG << def->name << "------------------after_partial_eval:----------------------\n" << string(*spec);
-            unique_ptr<SpecNode> __tmp_spec;
+            assert(spec);
             bool changed = false;
             bool __unfold = false;
-            //type_inference::check_well_typed(*proj, spec.get(), known);
+            type_inference::check_well_typed(*proj, spec.get(), known);
             
             force_simpl = false;
+            changed = false;
             if(unfold && !proj->cmds.NoUnfoldAll) {
-                auto [__spec, __changed] = proj->rules.rule_unfold_specs(std::move(spec), true);
+                assert(spec);
+                auto [_spec, __changed] = proj->rules.rule_unfold_specs(std::move(spec), true);
                 __unfold = __changed;
-                // LOG_DEBUG << def->name <<  "------------------after unfold:----------------------\n" << string(*__spec);
+                LOG_DEBUG << def->name <<  " unfolded.  Changed: " << __changed;
                 changed |= __changed;
-                //type_inference::check_well_typed(*proj, __spec.get(), known);
-                spec = std::move(__spec);
+                spec = std::move(_spec);
+                type_inference::check_well_typed(*proj, spec.get(), known);
             }
             // LOG_DEBUG << "end unfold , start eliminate" << "\n";
-
+            
             known = std::set<string>();
             for (auto arg : *def->args) {
                 known.insert(arg->name);
             }
             bool um_changed = false;
-            __tmp_spec = proj->rules.eliminate_ambiguity(std::move(spec), known, um_changed);
+            assert(spec);
+            spec = proj->rules.eliminate_ambiguity(std::move(spec), known, um_changed);
             changed |= um_changed;
-            //type_inference::check_well_typed(*proj, __tmp_spec.get(), known);
+            type_inference::check_well_typed(*proj, spec.get(), known);
             // LOG_DEBUG << "end eliminate, start let" << "\n";
-        
-            auto [__tmp_spec1, le_changed] = proj->rules.rule_eliminate_let(std::move(__tmp_spec), true);
+            assert(spec);
+            auto [__tmp_spec1, le_changed] = proj->rules.rule_eliminate_let(std::move(spec), true);
             changed |= le_changed;
-            //type_inference::check_well_typed(*proj, __tmp_spec1.get(), known);
+            spec = std::move(__tmp_spec1);
+            assert(spec);
+            type_inference::check_well_typed(*proj, spec.get(), known);
             // LOG_DEBUG << def->name << "----------------after_let_elimination:---------------------\n";
 
             // LOG_DEBUG << "end let, start when" << "\n";
 
-            auto [__tmp_spec2, we_changed] = proj->rules.rule_eliminate_when(std::move(__tmp_spec1), true);
+            assert(spec);
+            auto [__tmp_spec2, we_changed] = proj->rules.rule_eliminate_when(std::move(spec), true);
+            spec = std::move(__tmp_spec2);
+            assert(spec);
             // LOG_DEBUG << "----------------after_when_elimination:---------------------\n";
             changed |= we_changed;
-            //type_inference::check_well_typed(*proj, __tmp_spec2.get(), known);
-            auto __tmp_spec3 = std::move(__tmp_spec2);
+            type_inference::check_well_typed(*proj, spec.get(), known);
             bool z3_changed = false;
             if (force_simpl || !__unfold) {
-                // LOG_DEBUG << "spec before: " << string(*__tmp_spec3.get()) << "\n";
+                if(def->name == "changedline_vuln_spec")
+                    LOG_DEBUG << "spec before: " << string(*spec.get()) << "\n";
                 // LOG_DEBUG << "spec: " << string(*__tmp_spec3.get()) << "\n";
                 auto start = std::chrono::high_resolution_clock::now();
                 // LOG_DEBUG << "start z3" << "\n";
                 force_simpl = true;
-                std::tie(__tmp_spec3, z3_changed) = proj->rules.rule_simple_by_z3(std::move(__tmp_spec3), state->copy());
+                std::tie(spec, z3_changed) = proj->rules.rule_simple_by_z3(std::move(spec), state->copy());
+                assert(spec);
                 // LOG_DEBUG << "end z3" << "\n";
                 auto end = std::chrono::high_resolution_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
                 LOG_DEBUG << "spec transformer Z3 time: " << duration.count() / 1000.0 << " seconds\n";
-                // LOG_DEBUG << "spec: " << string(*__tmp_spec3.get()) << "\n";
+                if(def->name == "changedline_vuln_spec")
+                    LOG_DEBUG << "spec: " << string(*spec.get()) << "\n";
             }
             changed |= z3_changed;
             profile_update_epoch();
-            //type_inference::check_well_typed(*proj, __tmp_spec3.get(), known);
-            def->body = std::move(__tmp_spec3);
+            type_inference::check_well_typed(*proj, spec.get(), known);
+            assert(spec);
+            def->body = std::move(spec);
             if(!changed) {
                 if (UNFOLD_POLICY.skip) {
                     // Dealy some branch-irrelevant spec to the last
@@ -229,7 +241,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 } else if (UNFOLD_POLICY.require_loop_unroll(def->name, proj->cmds.LoopUnroll)) {
                     LOG_DEBUG << "we start greedily unfolding for " << UNFOLD_POLICY.current_unfold << " times for " << def->name << "\n";
                 } else {
-                    // LOG_DEBUG << "finish spec transformer for " << def->name << "\n";
+                    LOG_DEBUG << "finish spec transformer for " << def->name << ", iterations " << cur_iter << ".";
                    break;
                 }
             }

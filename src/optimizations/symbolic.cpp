@@ -51,8 +51,8 @@ bool is_end_relation_defs(Project *proj, const string &name) {
 /** Separate prove-stage z3 translator from the specgen-stage one */
 shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
                               shared_ptr<EvalState> state) {
-    if (val->cached_eval)
-        return val->cached_eval;
+    // if (val->cached_eval)
+    //     return val->cached_eval;
 
     auto _cache = [&](shared_ptr<SpecValue> return_val) {
         val->set_z3_eval(return_val);
@@ -1822,7 +1822,14 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     auto seconds_duration =
         std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count() /
         1e9;
+    result.analysis_time = seconds_duration;
+
+    duration = (end - program_start_time);
+    seconds_duration =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count() /
+        1e9;
     result.total_time = seconds_duration;
+    
     result.z3_time = (z3_accumulative_time - z3_start).count();
     std::cout << result;
     return result.verified;
@@ -2055,6 +2062,11 @@ void spec_prover(Project *proj) {
             if(!did_wrap){
                 continue;
             }
+
+            auto known = std::set<string>();
+            for (auto arg : *def->args) {
+                known.insert(arg->name);
+            }
             bool any_changes = true;
             int max_iter = 10;
             int i = 0;
@@ -2120,12 +2132,21 @@ void spec_prover(Project *proj) {
             start=next;
             other_def->body = std::move(new_body.first);
             any_changes = any_changes || new_body.second;
+
+            bool changed = false;
+            auto disamb = proj->rules.eliminate_ambiguity(
+                std::move(other_def->body), known, changed);
+            next = std::chrono::high_resolution_clock::now();
+                LOG_DEBUG << "Simplification G " << new_body.second << ", " << (next-start).count() * 1.0e-9;
+            start=next;
+            other_def->body = std::move(disamb);
+            any_changes = any_changes || changed;
             } while (new_body.second);
             old_body = other_def->body->deep_copy();
             new_body = proj->rules.rule_simplify_expr(
                 std::move(other_def->body), true);
             next = std::chrono::high_resolution_clock::now();
-                LOG_DEBUG << "Simplification G " << new_body.second << ", " << (next-start).count() * 1.0e-9;
+                LOG_DEBUG << "Simplification H " << new_body.second << ", " << (next-start).count() * 1.0e-9;
             start=next;
             other_def->body = std::move(new_body.first);
             any_changes = any_changes || new_body.second;
@@ -2133,11 +2154,11 @@ void spec_prover(Project *proj) {
             if (did_wrap) {
                 LOG_DEBUG << "Applied PostCondWithNone for " << def->name
                           << " in " << other_def->name;
-                // LOG_DEBUG << "Old body: " << string(*old_body).substr(0,10000);
-                // LOG_DEBUG << "New body: " << string(*other_def->body).substr(0,10000);
+                LOG_DEBUG << "Old body: " << string(*old_body);
+                LOG_DEBUG << "New body: " << string(*other_def->body);
 
-                // spec_transformer_v2(proj, other_def, 0, true, true, 0);
-                // LOG_DEBUG << "New body after simplification: " << string(*other_def->body).substr(0,10000);
+                spec_transformer_v2(proj, other_def, 0, true, true, 0);
+                LOG_DEBUG << "New body after simplification: " << string(*other_def->body);
 
             }
         }

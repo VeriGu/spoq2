@@ -70,7 +70,7 @@ class ExtractPointersPass : public llvm::ModulePass {
     if( id == 0 ) return "stack_" + getTypeIdentifier(ty);
     return "stack_" + getTypeIdentifier(ty) + "__" + std::to_string(id);
   }
-  std::string getGVIdentifier(llvm::Value* v) {
+  std::string getGVIdentifier(llvm::GlobalVariable* v) {
     std::string name = "g_" + v->getName().str();
     std::replace(name.begin(), name.end(), '.', '_');
     std::replace(name.begin(), name.end(), ':', '_');

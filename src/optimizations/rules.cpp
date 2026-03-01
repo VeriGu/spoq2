@@ -3125,6 +3125,38 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec) {
                 // LOG_DEBUG << "Hoisted match from if, new node: " << string(*new_node);
                 return new_node;
             }
+            if (auto inner_if = instance_of(iff->cond.get(), If)){
+                // LOG_DEBUG << "Found hoist branch from branch candidate:" << string(*node);
+                /* Currently we have a program as follows:
+                    if (if P then A else B) 
+                    then C
+                    else D
+
+                    We want the following program:
+                    if P then
+                        if A then C
+                            else D
+                        else
+                        if B then C
+                        else D                
+                */
+                auto new_node = std::move(iff->cond);
+                auto node_a = std::move(inner_if->then_body);
+                auto node_b = std::move(inner_if->else_body);
+                // The original node, iff, is now if nullptr then C else D
+                // New node is now if P then nullptr else nullptr
+                auto new_node_if = dynamic_cast<If*>(new_node.get());
+                assert(new_node_if);
+
+                new_node_if->then_body = iff->deep_copy();
+                auto inner_then_if = dynamic_cast<If*>(new_node_if->then_body.get());
+                assert(inner_then_if);
+                inner_then_if->cond = std::move(node_a);
+                new_node_if->else_body = std::move(node);
+                iff->cond = std::move(node_b);
+                changed = true;
+                return new_node;                
+            }
         }
         return node;
     };
@@ -3801,8 +3833,10 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
     bool unfolded = false;
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
-        // if (unfolded)
-        //     return node;
+        // This seems to be needed right now due to variable name ambiguity 
+        // from the produced let statements
+        if (unfolded)
+            return node;
         if (auto e = instance_of(node.get(), Expr)) {
             if (auto op = std::get_if<string>(&e->op)) {
                 if (proj->defs.find(*op) == proj->defs.end())
@@ -3936,6 +3970,7 @@ rule_ret_t SpecRules::rule_simplify_expr(std::unique_ptr<SpecNode> spec, bool re
                     elems2->push_back(unique_ptr<SpecNode>(right));
 
                     return std::make_unique<Expr>(ops, unique_ptr<vector<unique_ptr<SpecNode>>>(elems2), node->get_type());
+                    // return node;
                 } else if (ops == op::ADD && is_const_zero(m->elems->at(0).get())) {
                     expr_is_changed = true;
                     return std::move(m->elems->at(1));

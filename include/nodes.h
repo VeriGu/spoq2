@@ -742,6 +742,16 @@ public:
     // To support export of conditions leading to None, create a Match statement which
     // gives False for every condition except the selected one.
     unique_ptr<SpecNode> bool_cond_for(unique_ptr<PatternMatch>& desired_match) const {
+        if(auto sym = dynamic_cast<Symbol*>(this->src.get())){
+            LOG_DEBUG << "Pat: " << (string(*desired_match->pattern));
+            if(auto pat_sym = dynamic_cast<Symbol*>(desired_match->pattern.get())){
+                return make_unique<BoolConst>(pat_sym->text == sym->text);
+            } else if(auto expr = dynamic_cast<Expr*>(desired_match->pattern.get())){
+                if(std::holds_alternative<Expr::ops>(expr->op) && std::get<Expr::ops>(expr->op) == Expr::ops::Some){
+                    return make_unique<BoolConst>(false);
+                }
+            }
+        }
         auto new_src = this->src->deep_copy();
         unique_ptr<vector<unique_ptr<PatternMatch>>> new_match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
         for (auto it = match_list->begin(); it != match_list->end(); it++) {
@@ -1056,8 +1066,8 @@ public:
     If() { throw std::invalid_argument("If must have a cond, then_body, and else_body"); }
     If(unique_ptr<SpecNode>cond, unique_ptr<SpecNode>then_body, unique_ptr<SpecNode>else_body) :
         SpecNode(then_body->get_type()), cond(std::move(cond)), then_body(std::move(then_body)), else_body(std::move(else_body)) {
-        if (this->cond.get() == nullptr)
-            throw std::invalid_argument("If condition cannot be null");
+        // if (this->cond.get() == nullptr)
+            // throw std::invalid_argument("If condition cannot be null");
     }
 
     bool operator==(const SpecNode& other) const {
@@ -1108,13 +1118,14 @@ private:
         unique_ptr<SpecNode> new_then_body;
         unique_ptr<SpecNode> new_else_body;
         if (!this->cond.get()){
-            throw std::runtime_error("nullptr cond");
+            // throw std::runtime_error("nullptr cond");
+            new_cond = nullptr;
+        } else {
+            this->cond->deep_copy(new_cond);
+            new_cond->is_determ_branch = this->cond->is_determ_branch;
         }
-        this->cond->deep_copy(new_cond);
         this->then_body->deep_copy(new_then_body);
         this->else_body->deep_copy(new_else_body);
-
-        new_cond->is_determ_branch = this->cond->is_determ_branch;
         p = make_unique<If>(std::move(new_cond), std::move(new_then_body), std::move(new_else_body));
     }
 };
@@ -1378,9 +1389,9 @@ public:
     }
 
     operator string() const {
-        if (this->_str == "") {
+        // if (this->_str == "") {
             this->_str = this->to_string();
-        }
+        // }
         return this->_str;
     }
 

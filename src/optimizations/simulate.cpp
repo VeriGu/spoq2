@@ -378,10 +378,11 @@ namespace autov
 			if (sym->text == "None") {
 				if(!allow_none) {
 					LOG_DEBUG << "[forward_simulation " << random_code << "] None Symbol in impl, allow_none: " << allow_none;
-					// for(auto cond: *state->conds) {
-					// 	LOG_DEBUG << "Condition: " << cond;
-					// }
+					for(auto cond: *state->conds) {
+						LOG_DEBUG << "Condition: " << cond;
+					}
 				}
+				auto res = z3_verify_state_sat(state);
 				return SimulateResult{allow_none, allow_none, false, !allow_none};
 			}
 			LOG_ERROR << "[forward_simulation] Unexpected Symbol in impl.";
@@ -448,7 +449,7 @@ namespace autov
 	 */
 	SimulateResult simulate_by_traverse(Project *proj, SpecNode *spec, SpecNode *impl, Definition *rel, Definition *ret_rel, shared_ptr<ProveState> state, path_t p, bool det) {
 		int random_code = rand() % 10000;
-		// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] start! checking relation " << string(*rel) << " between\n"  << string(*spec) << "\n and " << string(*impl).substr(0,50) << std::endl;
+		LOG_DEBUG << "[simulate_by_traverse " << random_code << "] start!" << std::endl;
 		if (auto expr = instance_of(spec, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -640,6 +641,8 @@ namespace autov
 				
 				auto state_works = z3_verify_state_sat(new_state->copy(), &proj->query_saver);
 				if (state_works != Z3Result::False) {
+					auto pat_str = string(*(*pm)->pattern.get());
+					auto src_str = string(*m->src);
 					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] In Match: " << string(*m->src).substr(0,200) << ".\n Verifying pattern: " << string(*(*pm)->pattern.get()).substr(0,100) << ".";
 					auto new_result = simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, ret_rel, new_state, p_match, det);
 					if (sim_result.verified && !new_result.verified) {
@@ -867,6 +870,7 @@ namespace autov
 		<< "\"impl_eliminates_ub\": "   << b_to_s(r.impl_eliminates_ub)  << ", "
 		<< "\"impl_has_non_spec_ub\": " << b_to_s(r.impl_has_non_spec_ub)  << ", "
 		<< "\"z3_seconds\": " << opt_to_s(r.z3_time)  << ", "
+		<< "\"analysis_seconds\": " << opt_to_s(r.analysis_time)  << ", "
 		<< "\"total_seconds\": " << opt_to_s(r.total_time)
 		<< "}" << std::endl;
 	}

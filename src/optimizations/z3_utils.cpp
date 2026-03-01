@@ -318,7 +318,7 @@ Z3Result z3_verify_state_sat(shared_ptr<ProveState> state, QueryInfo *qinfo, int
     } else if (res == z3::unsat) {
         return Z3Result::False;
     } else {
-    return Z3Result::Unknown;
+        return Z3Result::Unknown;
     }
 }
 
@@ -379,14 +379,17 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, 
 
     if (not_res == z3::unsat) {
         if (res == z3::unsat) {
-            string msg = "Pre-condition is False! Condition is:\n";
-            for (auto &c : *state->conds) {
-                msg += c.to_string().substr(0,400) + "\n";
-            }
-            msg += "Condition is:\n";
-            msg += cond.to_string().substr(0,400);
-            LOG_WARNING << msg << std::endl;
+            string msg = "Both branches of cond are unsat.  Original state is infeasible.";
+            LOG_WARNING << msg;
+            // string msg = "Pre-condition is False! Condition is:\n";
+            // for (auto &c : *state->conds) {
+            //     msg += c.to_string().substr(0,400) + "\n";
+            // }
+            // msg += "Condition is:\n";
+            // msg += cond.to_string().substr(0,400);
+            // LOG_WARNING << msg << std::endl;
             // throw std::runtime_error(msg);
+            return Z3Result::Unknown;
         }
         Z3Cache[hash] = Z3Result::True;
         return Z3Result::True;
@@ -1614,7 +1617,7 @@ z3::expr formulate_function(Project* proj, Definition* def) {
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state, bool check_loop) {
     // std::cout << "z3_eval: " << string(*val) << std::endl;
 
-    if (OPTS.z3_expr_cache && val->cached_eval) return val->cached_eval;
+    // if (OPTS.z3_expr_cache && val->cached_eval) return val->cached_eval;
 
     auto _cache = [&](shared_ptr<SpecValue> return_val) {
         val->set_z3_eval(return_val);
@@ -1876,11 +1879,46 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             unordered_map<string, shared_ptr<SpecValue>> vars;
             unordered_map<string, shared_ptr<SpecValue>> assigns;
             auto pat = resolve_pattern(proj, val, (*pm)->pattern.get(), src, vars, assigns);
+            // auto new_state = state->copy();
+            // for (auto v = assigns.begin(); v != assigns.end(); v++) {
+            //     (*new_state->vars)[v->first] = v->second;
+            // }
             auto cond = pat->get_z3_value() == src->get_z3_value();
             //exists v1,v2..., constructor v1 v2 ... = src.
-            for (auto v = vars.begin(); v != vars.end(); v++) {
-                cond = z3::exists(v->second->get_z3_value(), cond);
-            }
+            
+            // auto t = dynamic_cast<Option*>(match->src->type.get());
+            // // auto tuple_t = dynamic_cast<Tuple*>(match->src->type.get());
+            // auto expr_pat = dynamic_cast<Expr*>((*pm)->pattern.get());
+            // // auto sym_pat = dynamic_cast<Symbol*>((*pm)->pattern.get());
+            // if(t && expr_pat && std::holds_alternative<Expr::ops>(expr_pat->op)){
+            //     auto op = std::get<Expr::ops>(expr_pat->op);
+            //     std::string constr_name = "";
+            //     if (op == Expr::Some){
+            //         constr_name = "Some_" + t->elem_type->name;
+            //     } else if (op == Expr::None){
+            //         constr_name = "None_" + t->elem_type->name;
+            //     } else {
+            //         LOG_ERROR << "Unknown expr op in Option pattern match " << string(*match);
+            //         assert(false);
+            //     }
+            //     auto tz3 = t->get_z3_type();
+            //     auto idx = t->get_constr_index(constr_name);
+            //     auto recognizer = tz3.recognizers()[idx];
+            //     auto tester = recognizer(src->get_z3_value());
+            //     new_state->conds->push_back(tester);
+            //     cond = tester && cond;
+            // } else if (tuple_t && expr_pat && std::holds_alternative<Expr::ops>(expr_pat->op)) {
+            //     auto op = std::get<Expr::ops>(expr_pat->op);
+            //     auto recognizer = tuple_t->get_z3_type().recognizers()[0];
+            //     auto tester = recognizer(src->get_z3_value());
+            //     new_state->conds->push_back(tester);
+            //     cond = tester && cond;
+
+            // } else {
+                for (auto v = vars.begin(); v != vars.end(); v++) {
+                    cond = z3::exists(v->second->get_z3_value(), cond);
+                }
+            // }
             // Rather than creating an existential quantifier for each variable in the pattern,
             // we should use the recognizer to assert that the whole patter is_Some what we are looking for.
             // Or is_none, depending.

@@ -640,6 +640,10 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
         throw std::runtime_error("If condition return nullptr");
         // return std::make_pair(nullptr, cond_ret.second);
     }
+    auto s = string(*spec);
+    auto logthis = s.find("if ((call_dup - (call16_dup)) <>? (0))") != std::string::npos;
+    if(logthis)
+        LOG_DEBUG << "Spec before simple_if_by_z3: " << s;
     PROFILE_START(z3_eval);
     auto c = z3_eval(proj, cond_ret.first.get(), state);
 
@@ -688,41 +692,67 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
         }
 
         if (then_ret.first == nullptr && else_ret.first == nullptr) {
+            if(logthis)
+                LOG_DEBUG << "Spec after simple_if_by_z3 null";
             return std::make_pair(nullptr, changed);
         } else if (then_ret.first == nullptr && is_instance(else_ret.first->get_type().get(), Option)) {
             auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
             elems->push_back(std::move(cond_ret.first));
             elems->push_back(unique_ptr<SpecNode>(new BoolConst(false)));
             auto cond = make_unique<Expr>(Expr::EQUAL, std::move(elems), Prop::PROP);
-            return { make_unique<Rely>(std::move(cond), std::move(else_ret.first)), changed };
+            auto result = make_unique<Rely>(std::move(cond), std::move(else_ret.first));
+            if(logthis)
+                LOG_DEBUG << "Spec after rely else simple_if_by_z3: " << string(*result);
+
+            return { std::move(result), changed };
 
         } else if (else_ret.first == nullptr && is_instance(then_ret.first->get_type().get(), Option)) {
             auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
             elems->push_back(std::move(cond_ret.first));
             elems->push_back(unique_ptr<SpecNode>(new BoolConst(true)));
             auto cond = make_unique<Expr>(Expr::EQUAL, std::move(elems), Prop::PROP);
-            return { make_unique<Rely>(std::move(cond), std::move(then_ret.first)), changed };
+            auto result = make_unique<Rely>(std::move(cond), std::move(then_ret.first));
+            if(logthis)
+                LOG_DEBUG << "Spec after rely then simple_if_by_z3: " << string(*result);
+
+            return { std::move(result), changed };
 
         }
 
         if (!then_ret.first) {
+            if(logthis)
+                LOG_DEBUG << "Spec after simple_if_by_z3: " << string(*else_ret.first);
             return { std::move(else_ret.first), true };
         } 
         
         if (!else_ret.first) {
+            if(logthis)
+                LOG_DEBUG << "Spec after simple_if_by_z3: " << string(*then_ret.first);
             return { std::move(then_ret.first), true };
         }
+        auto result = make_unique<If>(std::move(cond_ret.first), std::move(then_ret.first), std::move(else_ret.first));
+            if(logthis)
+                LOG_DEBUG << "Spec after simple_if_by_z3: " << string(*result);
         return {
-            make_unique<If>(std::move(cond_ret.first), std::move(then_ret.first), std::move(else_ret.first)),
+            std::move(result),
             changed
         };
 
     } else if (res == Z3Result::True) {
         // profile_log_rule_if_solved((orig_cond));
+            if(logthis){
+                LOG_DEBUG << "Spec after (True) simple_if_by_z3: " << string(*spec->then_body);
+                for (auto &c: *state->conds){
+                    LOG_DEBUG << "Cond: " << c;
+                }
+
+            }
         auto ret = this->rule_simple_by_z3(std::move(spec->then_body), state);
         return { std::move(ret.first), true };
     } else {
         // profile_log_rule_if_solved((orig_cond));
+            if(logthis)
+                LOG_DEBUG << "Spec after (False) simple_if_by_z3: " << string(*spec->else_body);
         auto ret = this->rule_simple_by_z3(std::move(spec->else_body), state);
         return { std::move(ret.first), true };
     }
@@ -730,7 +760,10 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
 
 
 rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::shared_ptr<EvalState> state) {
-    // string orig_src = string(*spec->src);
+    string orig_src = string(*spec);
+    auto logthis = orig_src.find("if ((call_dup - (call16_dup)) <>? (0))") != std::string::npos;
+    if(logthis)
+        LOG_DEBUG << "Starting simple_match_by_z3 on " << orig_src;
     auto src_ret = this->rule_simple_by_z3(spec->src->deep_copy(), state);
 
     if (src_ret.first == nullptr) {
@@ -747,11 +780,16 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
     for (auto pm = spec->match_list->begin(); pm != spec->match_list->end(); pm++) {
         auto new_state = state->copy();
         resolve_pattern(proj, spec.get(), (*pm)->pattern.get(), src_val, new_state);
-        if (!OPTS.__OPT_ON_MATCH) {
-            auto res = z3_check(new_state, Z3_TIMEOUT);
-            if(res == Z3Result::False) {
+        auto true_const = make_shared<BoolValue>(true);
+        auto true_z3 = true_const->get_z3_value();
+        
+        auto res = z3_check(new_state, true_z3, &proj->query_saver, Z3_TIMEOUT);
+        if(res == Z3Result::Unknown && spec) {
+            LOG_DEBUG << "Infeasible match in match " << orig_src;
+            LOG_DEBUG << "Pattern: " << string(*(*pm)->pattern);
+            // if (!OPTS.__OPT_ON_MATCH) {
                 continue;
-            }
+            // }
         }
         auto body_ret = this->rule_simple_by_z3(std::move((*pm)->body), new_state);
         changed |= body_ret.second;
@@ -809,7 +847,10 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
         if (only_none) {
             return { std::make_unique<Symbol>("None", typ), changed };
         } else {
-            return { std::make_unique<Match>(std::move(src_ret.first), std::move(match_list)), changed };
+            auto result = std::make_unique<Match>(std::move(src_ret.first), std::move(match_list));
+            if(logthis)
+                LOG_DEBUG << "ending simple_match_by_z3 on " << string(*result);
+            return { std::move(result), changed };
         }
     }
 }
@@ -817,7 +858,11 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
 rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_ptr<EvalState> state) {
     auto elems = std::make_unique<std::vector<std::unique_ptr<SpecNode>>>();
     bool changed = false;
-
+    // auto s = string(*spec);
+    // auto logthis = true;//s.find("(Some (1, st") != std::string::npos;
+    // if(logthis)
+    //     LOG_DEBUG << "Spec before simple_expr_by_z3: " << s;
+    
     if (auto op = std::get_if<Expr::ops>(&spec->op)) {
         if (*op == Expr::None) {
             return { std::move(spec), false };
@@ -884,12 +929,15 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
             }
         }
     }
-
+    // auto new_s = string(*reduced_spec);
+    // if(logthis)
+    //     LOG_DEBUG << "Spec after simple_expr_by_z3: " << string(*reduced_spec);
     return { std::move(reduced_spec), changed };
 }
 
 rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state) {
     bool changed = false;
+    if (!spec) return {std::move(spec), false};
     if (!force_simpl) { return { std::move(spec), false } ; }
     // LOG_DEBUG << "Simplifying: " << string(*spec);
 // #ifdef Z3_OPT_CACHE
@@ -908,7 +956,6 @@ rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::sha
         return simple_expr_by_z3(std::unique_ptr<Expr>(static_cast<Expr*>(spec.release())), state);
     }
     else if (auto match = instance_of(spec.get(), Match)) {
-        //return { std::move(spec), false };
         return simple_match_by_z3(std::unique_ptr<Match>(static_cast<Match*>(spec.release())), state);
     }
     else if (auto rely = instance_of(spec.get(), RelyAnno)) {
@@ -940,7 +987,7 @@ rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::sha
         return { std::make_unique<Exists>(std::move(exists->vars), std::move(res.first)), res.second };
     }
     else {
-        throw std::runtime_error("Unknown node type: " + std::string(typeid(*spec).name()));
+        throw std::runtime_error("Unknown node type: " + std::string(*spec));
     }
 
 // #ifdef Z3_OPT_CACHE

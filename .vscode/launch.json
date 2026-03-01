@@ -240,7 +240,7 @@
             "request": "launch",
             "program": "/usr/bin/opt-14", // Path to your CMake target executable
             "args": ["-enable-new-pm=0","-O0","-load","${workspaceFolder}/scripts/preprocessing/extractpointers/lib/libextractpointers.so","-load", "${workspaceFolder}/scripts/preprocessing/extractbasics/lib/libextractbasics.so",
-               "--extractbasics",   "--extractpointers", "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/php009_static_arr.ll"],
+               "--extractbasics",   "--extractpointers", "/home/rjs2247/workspace/patchverification/examples/lua/lua002/build/ldebug.ll"],
             "cwd": "${workspaceFolder}/scripts/preprocessing/extractbasics",
             "preLaunchTask": "CMake: build debug"
         },

@@ -28,6 +28,7 @@ namespace autov
 		bool impl_eliminates_ub;
 		bool impl_has_non_spec_ub;
 		optional<double> z3_time;
+		optional<double> analysis_time;
 		optional<double> total_time;
 		SimulateResult operator+(const SimulateResult& rhs)
 		{                           

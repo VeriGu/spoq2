@@ -8,6 +8,7 @@
 #include <nodes.h>
 #include <log.h>
 #include <values.h>
+#include <chrono>
 
 #define is_instance(v, T) (dynamic_cast<T *>(v) != nullptr)
 #define instance_of(v, T) (dynamic_cast<T *>(v))
@@ -146,3 +147,4 @@ string join_underline(const vector<shared_ptr<SpecType>> &elems);
 
 } // namespace autov
 
+static const std::chrono::time_point<std::chrono::_V2::system_clock, std::chrono::nanoseconds> program_start_time = std::chrono::high_resolution_clock::now();
