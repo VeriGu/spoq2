@@ -40,7 +40,8 @@ type:
 	| prop_type = 'Prop'
 	| list_type = 'list' type
 	| option_type = 'option' type
-	| map_type = 'ZMap.t' type
+	| zmap_type = 'ZMap.t' type
+	| smap_type = 'SMap' type
 	| '(' type ( tup = '*' type  ) + ')'
 	| domain = type '->' '(' codomain = type ')'
 	| '(' par=type ')'

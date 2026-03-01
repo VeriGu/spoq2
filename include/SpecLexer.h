@@ -17,17 +17,17 @@ public:
     T__14 = 15, T__15 = 16, T__16 = 17, T__17 = 18, T__18 = 19, T__19 = 20, 
     T__20 = 21, T__21 = 22, T__22 = 23, T__23 = 24, T__24 = 25, T__25 = 26, 
     T__26 = 27, T__27 = 28, T__28 = 29, T__29 = 30, T__30 = 31, T__31 = 32, 
-    T__32 = 33, MK = 34, INDUC = 35, RECORD = 36, FIXPOINT = 37, SECTION = 38, 
-    SECTION_END = 39, APPEND = 40, CONCAT = 41, ADD = 42, MINUS = 43, MULT = 44, 
-    DIV = 45, MOD = 46, LSHIFT = 47, RSHIFT = 48, BITAND = 49, BITOR = 50, 
-    BAND = 51, BOR = 52, BEQ = 53, BNE = 54, BGT = 55, BLT = 56, BGE = 57, 
-    BLE = 58, SEQ = 59, SNE = 60, GET = 61, SET = 62, NTH = 63, AND = 64, 
-    OR = 65, NOT = 66, BNOT = 67, IMPLIES = 68, IFONLYIF = 69, EQUAL = 70, 
-    NOT_EQUAL = 71, GT = 72, LT = 73, GTE = 74, LTE = 75, LP = 76, RP = 77, 
-    IF = 78, THEN = 79, LET = 80, ELSE = 81, PARAM = 82, DEF = 83, WHEN = 84, 
-    FORALL = 85, EXISTS = 86, MATCH = 87, RETURN = 88, WITH = 89, END = 90, 
-    RELY = 91, ANNO = 92, TRUE = 93, FALSE = 94, NUMBER = 95, STR = 96, 
-    ID = 97, COMMENT = 98, WS = 99
+    T__32 = 33, T__33 = 34, MK = 35, INDUC = 36, RECORD = 37, FIXPOINT = 38, 
+    SECTION = 39, SECTION_END = 40, APPEND = 41, CONCAT = 42, ADD = 43, 
+    MINUS = 44, MULT = 45, DIV = 46, MOD = 47, LSHIFT = 48, RSHIFT = 49, 
+    BITAND = 50, BITOR = 51, BAND = 52, BOR = 53, BEQ = 54, BNE = 55, BGT = 56, 
+    BLT = 57, BGE = 58, BLE = 59, SEQ = 60, SNE = 61, LIST_EQ = 62, GET = 63, 
+    SET = 64, NTH = 65, AND = 66, OR = 67, NOT = 68, BNOT = 69, IMPLIES = 70, 
+    IFONLYIF = 71, EQUAL = 72, NOT_EQUAL = 73, GT = 74, LT = 75, GTE = 76, 
+    LTE = 77, LP = 78, RP = 79, IF = 80, THEN = 81, LET = 82, ELSE = 83, 
+    PARAM = 84, DEF = 85, WHEN = 86, FORALL = 87, EXISTS = 88, MATCH = 89, 
+    RETURN = 90, WITH = 91, END = 92, RELY = 93, ANNO = 94, TRUE = 95, FALSE = 96, 
+    NUMBER = 97, STR = 98, ID = 99, COMMENT = 100, WS = 101
   };
 
   explicit SpecLexer(antlr4::CharStream *input);

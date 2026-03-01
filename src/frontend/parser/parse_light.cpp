@@ -273,8 +273,10 @@ antlrcpp::Any LightProgramVisitor::visitType(SpecParser::TypeContext* ctx) {
         }
 
         return static_pointer_cast<SpecType>(make_shared<Tuple>(types));
-    } else if (ctx->map_type) {
+    } else if (ctx->zmap_type) {
         return static_pointer_cast<SpecType>(make_shared<ZMap>(any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)))));
+    } else if (ctx->smap_type) {
+        return static_pointer_cast<SpecType>(make_shared<SMap>(any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)))));
     } else if (ctx->name()) {
         std::string name = ctx->name()->getText();
 

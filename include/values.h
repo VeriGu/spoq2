@@ -190,7 +190,24 @@ public:
     virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
     virtual shared_ptr<SpecValue> declare(string name, int nid);
 };
+class SMap : public SpecType {
+public:
+    shared_ptr<SpecType> elem_type;
+    SMap() = default;
+    SMap(shared_ptr<SpecType> elem_type) : SpecType("SMap_" + elem_type->name), elem_type(elem_type) {}
 
+    shared_ptr<SMap> getptr() {
+        return static_pointer_cast<SMap>(shared_from_this());
+    }
+
+    operator string() const {
+        return "(SMap.t " + string(*elem_type) + ")";
+    }
+
+    virtual z3::sort get_z3_type();
+    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
+    virtual shared_ptr<SpecValue> declare(string name, int nid);
+};
 class Expr;
 class Arg {
 public:
@@ -544,7 +561,22 @@ public:
         return make_shared<BoolValue>((value == other->value).simplify());
     }
 };
+class SMapValue : public SpecValue {
+public:
+    SMapValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) {}
 
+    shared_ptr<SpecValue> get(shared_ptr<IntValue> key) {
+        return dynamic_cast<SMap *>(typ.get())->elem_type->from_z3_value(value[key->value].simplify());
+    }
+
+    shared_ptr<SMapValue> set(shared_ptr<IntValue> key, shared_ptr<SpecValue> value) {
+        return make_shared<SMapValue>(typ, z3::store(this->value, key->value, value->value).simplify());
+    }
+
+    shared_ptr<BoolValue> eq(shared_ptr<SMapValue> other) {
+        return make_shared<BoolValue>((value == other->value).simplify());
+    }
+};
 class FuncValue : public SpecValue {
 public:
     z3::func_decl z3_func;

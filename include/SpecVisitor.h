@@ -8,7 +8,7 @@
 #include "SpecParser.h"
 
 
-namespace autov::parser {
+
 /**
  * This class defines an abstract visitor for a parse tree
  * produced by SpecParser.
@@ -108,4 +108,3 @@ public:
 
 };
 
-}

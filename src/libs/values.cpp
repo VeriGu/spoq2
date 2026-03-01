@@ -187,6 +187,22 @@ shared_ptr<SpecValue> ZMap::declare(string name, int nid) {
 
     return make_shared<ZMapValue>(shared_from_this(), z3ctx.constant(name.c_str(), z3ctx.array_sort(z3ctx.int_sort(), this->elem_type->get_z3_type())));
 }
+// ----------------------------------------------------------------------------
+// SMap
+// ----------------------------------------------------------------------------
+z3::sort SMap::get_z3_type() {
+    return z3ctx.array_sort(z3ctx.string_sort(), this->elem_type->get_z3_type());
+}
+
+shared_ptr<SpecValue> SMap::from_z3_value(z3::expr value) {
+    return make_shared<ZMapValue>(shared_from_this(), value);
+}
+
+shared_ptr<SpecValue> SMap::declare(string name, int nid) {
+    auto sname = name + "." + std::to_string(nid);
+
+    return make_shared<SMapValue>(shared_from_this(), z3ctx.constant(name.c_str(), z3ctx.array_sort(z3ctx.string_sort(), this->elem_type->get_z3_type())));
+}
 
 // ----------------------------------------------------------------------------
 // Arg
