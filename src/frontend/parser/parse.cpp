@@ -265,6 +265,7 @@ antlrcpp::Any ProgramVisitor::visitDef(SpecParser::DefContext *ctx) {
         StringConst *str = dynamic_cast<StringConst *>(expr.get());
         proj.code_path = std::get<string>(str->value);
     } else if (name == Project::PROJ_NAME) {
+        auto s = string(*expr);
         StringConst *proj_name = dynamic_cast<StringConst *>(expr.get());
         proj.name = std::get<string>(proj_name->value);
     } else if (name == Project::PROJ_BASE) {

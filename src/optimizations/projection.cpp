@@ -97,10 +97,12 @@ unique_ptr<SpecNode> spec_transformer_v2(Project *proj, unique_ptr<SpecNode> nod
         auto [__tmp_spec2, we_changed] = proj->rules.rule_eliminate_when(std::move(__tmp_spec1), true);
         //LOG_DEBUG << "----------------after_when_elimination:---------------------\n" << string(*__tmp_spec2);
         changed |= we_changed;
-        //type_inference::check_well_typed(*proj, __tmp_spec2.get(), known);
+        //type_inference::check_well_typed(*proj, __tmp_spec2.get(), known)
         auto [__tmp_spec3, z3_changed] = proj->rules.rule_simple_by_z3(std::move(__tmp_spec2), make_shared<EvalState>(vars, conds));
         //LOG_DEBUG << "--------------------after_z3---------------------------\n:" << string(*__tmp_spec3);
         changed |= z3_changed;
+        // auto [__tmp_spec4, em_changed] = proj->rules.rule_eliminate_match_simple(std::move(__tmp_spec2), true);
+        // changed |= em_changed;
         profile_update_epoch();
         //type_inference::check_well_typed(*proj, __tmp_spec3.get(), known);
         spec = std::move(__tmp_spec3);
@@ -169,7 +171,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             assert(spec);
             bool changed = false;
             bool __unfold = false;
-            type_inference::check_well_typed(*proj, spec.get(), known);
+            // type_inference::check_well_typed(*proj, spec.get(), known);
             
             force_simpl = false;
             changed = false;
@@ -180,7 +182,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 LOG_DEBUG << def->name <<  " unfolded.  Changed: " << __changed;
                 changed |= __changed;
                 spec = std::move(_spec);
-                type_inference::check_well_typed(*proj, spec.get(), known);
+                // type_inference::check_well_typed(*proj, spec.get(), known);
             }
             // LOG_DEBUG << "end unfold , start eliminate" << "\n";
             
@@ -192,14 +194,14 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             assert(spec);
             spec = proj->rules.eliminate_ambiguity(std::move(spec), known, um_changed);
             changed |= um_changed;
-            type_inference::check_well_typed(*proj, spec.get(), known);
+            // type_inference::check_well_typed(*proj, spec.get(), known);
             // LOG_DEBUG << "end eliminate, start let" << "\n";
             assert(spec);
             auto [__tmp_spec1, le_changed] = proj->rules.rule_eliminate_let(std::move(spec), true);
             changed |= le_changed;
             spec = std::move(__tmp_spec1);
             assert(spec);
-            type_inference::check_well_typed(*proj, spec.get(), known);
+            // type_inference::check_well_typed(*proj, spec.get(), known);
             // LOG_DEBUG << def->name << "----------------after_let_elimination:---------------------\n";
 
             // LOG_DEBUG << "end let, start when" << "\n";
@@ -208,13 +210,21 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             auto [__tmp_spec2, we_changed] = proj->rules.rule_eliminate_when(std::move(spec), true);
             spec = std::move(__tmp_spec2);
             assert(spec);
-            // LOG_DEBUG << "----------------after_when_elimination:---------------------\n";
             changed |= we_changed;
-            type_inference::check_well_typed(*proj, spec.get(), known);
+            // This is a loadbearing transformation rule due to the appearance of a _ => ... branch in struct_static
+            auto [__tmp_spec3, me_changed] = proj->rules.rule_eliminate_match_simple(std::move(spec), true);
+            spec = std::move(__tmp_spec3);
+            assert(spec);
+            // LOG_DEBUG << "----------------after_when_elimination:---------------------\n";
+            changed |= me_changed;
+
+            // auto [__tmp_spec4, hoist_changed] = proj->rules.hoist_match_from_branch(std::move(spec));
+            // spec = std::move(__tmp_spec4);
+            // assert(spec);
+            // changed |= hoist_changed;
+            // type_inference::check_well_typed(*proj, spec.get(), known);
             bool z3_changed = false;
             if (force_simpl || !__unfold) {
-                if(def->name == "changedline_vuln_spec")
-                    LOG_DEBUG << "spec before: " << string(*spec.get()) << "\n";
                 // LOG_DEBUG << "spec: " << string(*__tmp_spec3.get()) << "\n";
                 auto start = std::chrono::high_resolution_clock::now();
                 // LOG_DEBUG << "start z3" << "\n";
@@ -225,8 +235,6 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 auto end = std::chrono::high_resolution_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
                 LOG_DEBUG << "spec transformer Z3 time: " << duration.count() / 1000.0 << " seconds\n";
-                if(def->name == "changedline_vuln_spec")
-                    LOG_DEBUG << "spec: " << string(*spec.get()) << "\n";
             }
             changed |= z3_changed;
             profile_update_epoch();

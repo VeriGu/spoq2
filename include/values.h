@@ -32,7 +32,9 @@ public:
     bool record;
 
     SpecType() = default;
-    SpecType(string name) : name(name), record(false) {}
+    SpecType(string name) : name(name), record(false) {
+
+    }
     SpecType(string name, bool record) : name(name), record(record) {}
 
     virtual z3::sort get_z3_type();
@@ -176,7 +178,7 @@ class ZMap : public SpecType {
 public:
     shared_ptr<SpecType> elem_type;
     ZMap() = default;
-    ZMap(shared_ptr<SpecType> elem_type) : SpecType("ZMap_" + elem_type->name), elem_type(elem_type) {}
+    ZMap(shared_ptr<SpecType> elem_type) : SpecType("ZMap_" + elem_type->name), elem_type(elem_type) { }
 
     shared_ptr<ZMap> getptr() {
         return static_pointer_cast<ZMap>(shared_from_this());
@@ -201,7 +203,7 @@ public:
     }
 
     operator string() const {
-        return "(SMap.t " + string(*elem_type) + ")";
+        return "(SMap " + string(*elem_type) + ")";
     }
 
     virtual z3::sort get_z3_type();
@@ -547,7 +549,7 @@ public:
 
 class ZMapValue : public SpecValue {
 public:
-    ZMapValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) {}
+    ZMapValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) { }
 
     shared_ptr<SpecValue> get(shared_ptr<IntValue> key) {
         return dynamic_cast<ZMap *>(typ.get())->elem_type->from_z3_value(value[key->value].simplify());
@@ -565,11 +567,11 @@ class SMapValue : public SpecValue {
 public:
     SMapValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) {}
 
-    shared_ptr<SpecValue> get(shared_ptr<IntValue> key) {
+    shared_ptr<SpecValue> get(shared_ptr<StringValue> key) {
         return dynamic_cast<SMap *>(typ.get())->elem_type->from_z3_value(value[key->value].simplify());
     }
 
-    shared_ptr<SMapValue> set(shared_ptr<IntValue> key, shared_ptr<SpecValue> value) {
+    shared_ptr<SMapValue> set(shared_ptr<StringValue> key, shared_ptr<SpecValue> value) {
         return make_shared<SMapValue>(typ, z3::store(this->value, key->value, value->value).simplify());
     }
 

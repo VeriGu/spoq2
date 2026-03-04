@@ -195,7 +195,7 @@ z3::sort SMap::get_z3_type() {
 }
 
 shared_ptr<SpecValue> SMap::from_z3_value(z3::expr value) {
-    return make_shared<ZMapValue>(shared_from_this(), value);
+    return make_shared<SMapValue>(shared_from_this(), value);
 }
 
 shared_ptr<SpecValue> SMap::declare(string name, int nid) {

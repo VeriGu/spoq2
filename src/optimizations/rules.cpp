@@ -3140,22 +3140,22 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec) {
                         if B then C
                         else D                
                 */
-                auto new_node = std::move(iff->cond);
-                auto node_a = std::move(inner_if->then_body);
-                auto node_b = std::move(inner_if->else_body);
-                // The original node, iff, is now if nullptr then C else D
-                // New node is now if P then nullptr else nullptr
-                auto new_node_if = dynamic_cast<If*>(new_node.get());
-                assert(new_node_if);
+                // auto new_node = std::move(iff->cond);
+                // auto node_a = std::move(inner_if->then_body);
+                // auto node_b = std::move(inner_if->else_body);
+                // // The original node, iff, is now if nullptr then C else D
+                // // New node is now if P then nullptr else nullptr
+                // auto new_node_if = dynamic_cast<If*>(new_node.get());
+                // assert(new_node_if);
 
-                new_node_if->then_body = iff->deep_copy();
-                auto inner_then_if = dynamic_cast<If*>(new_node_if->then_body.get());
-                assert(inner_then_if);
-                inner_then_if->cond = std::move(node_a);
-                new_node_if->else_body = std::move(node);
-                iff->cond = std::move(node_b);
-                changed = true;
-                return new_node;                
+                // new_node_if->then_body = iff->deep_copy();
+                // auto inner_then_if = dynamic_cast<If*>(new_node_if->then_body.get());
+                // assert(inner_then_if);
+                // inner_then_if->cond = std::move(node_a);
+                // new_node_if->else_body = std::move(node);
+                // iff->cond = std::move(node_b);
+                // changed = true;
+                // return new_node;                
             }
         }
         return node;

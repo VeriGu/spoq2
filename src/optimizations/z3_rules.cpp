@@ -52,8 +52,14 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
         if (proj->is_ind_constr(sym->text)) {
             auto t = dynamic_pointer_cast<Inductive>(src->get_type());
             state->conds->push_back(src->get_z3_value() == t->construct(sym->text, {})->get_z3_value());
-        }
-        else {
+        } else if(sym->text == "_" && dynamic_cast<Match*>(spec)){
+            auto m = dynamic_cast<Match*>(spec);
+            auto option = dynamic_pointer_cast<Option>(src->get_type());
+            auto idx = option->get_constr_index("None_" + option->elem_type->name);
+            auto is_some = option->get_z3_type().recognizers()[idx];
+            state->conds->push_back(is_some(src->get_z3_value()));
+
+        } else {
             // resolve_pattern in spec transformation will have  state->vars[sym->text] be empty.
             // but resolve_pattern during verification will already have a value.
             if (state->vars->find(sym->text) == state->vars->end()) {
@@ -784,9 +790,9 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
         auto true_z3 = true_const->get_z3_value();
         
         auto res = z3_check(new_state, true_z3, &proj->query_saver, Z3_TIMEOUT);
-        if(res == Z3Result::Unknown && spec) {
-            LOG_DEBUG << "Infeasible match in match " << orig_src;
-            LOG_DEBUG << "Pattern: " << string(*(*pm)->pattern);
+        if(res == Z3Result::False && spec) {
+            // LOG_DEBUG << "Infeasible match in match " << orig_src;
+            // LOG_DEBUG << "Pattern: " << string(*(*pm)->pattern);
             // if (!OPTS.__OPT_ON_MATCH) {
                 continue;
             // }

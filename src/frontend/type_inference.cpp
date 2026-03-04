@@ -335,13 +335,22 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(1).get(), 0, known_types));
                     } else if (n == 1) {
-                        if (expr->type != SpecType::UNKNOWN_TYPE) {
-                            expr->elems->at(0)->type = make_shared<ZMap>(expr->type);
+                        if (expr->type != SpecType::UNKNOWN_TYPE && expr->elems->at(1)->type != SpecType::UNKNOWN_TYPE) {
+                            if(expr->elems->at(1)->type->name == "Z"){
+                                expr->elems->at(0)->type = make_shared<ZMap>(expr->type);
+                            } else if(expr->elems->at(1)->type->name == "string") {
+                                expr->elems->at(0)->type = make_shared<SMap>(expr->type);
+                            } else {
+                                throw TypeInferenceException("Unknown Map Type.");
+                            }
                         }
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
                     } else if (dynamic_pointer_cast<ZMap>(expr->elems->at(0)->type)){
                         auto elem_type = dynamic_pointer_cast<ZMap>(expr->elems->at(0)->type);
+                        expr->type = elem_type->elem_type;
+                    } else if (dynamic_pointer_cast<SMap>(expr->elems->at(0)->type)){
+                        auto elem_type = dynamic_pointer_cast<SMap>(expr->elems->at(0)->type);
                         expr->type = elem_type->elem_type;
                     } else if (dynamic_pointer_cast<Tuple>(expr->elems->at(0)->type)){
                         auto elem_type = dynamic_pointer_cast<Tuple>(expr->elems->at(0)->type);
@@ -376,6 +385,8 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
 
                         if (zmap_type) {
                             expr->elems->at(0)->type = expr->type;
+                        } else if(auto smap_type = dynamic_pointer_cast<SMap>(expr->type)){
+                            expr->elems->at(0)->type = expr->type;
                         }
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
@@ -384,6 +395,8 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
 
                         if (zmap_type) {
                             expr->elems->at(2)->type = zmap_type->elem_type;
+                        } else if(auto smap_type = dynamic_pointer_cast<SMap>(expr->elems->at(0)->type)){
+                            expr->elems->at(2)->type = smap_type->elem_type;
                         }
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(2).get(), 0, known_types));
@@ -393,7 +406,11 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
 
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         if (elems0_type != SpecType::UNKNOWN_TYPE && elems2_type == SpecType::UNKNOWN_TYPE) {
-                            expr->elems->at(2)->type = dynamic_pointer_cast<ZMap>(elems0_type)->elem_type;
+                            if (auto zmap_type = dynamic_pointer_cast<ZMap>(elems0_type)) {
+                                expr->elems->at(2)->type = zmap_type->elem_type;
+                            } else if(auto smap_type = dynamic_pointer_cast<SMap>(elems0_type)){
+                                expr->elems->at(2)->type = smap_type->elem_type;
+                            }
                             stack.push_back(std::make_tuple(__LINE__, expr->elems->at(2).get(), 0, known_types));
                         }
                     } else if (n == 4) {
@@ -402,7 +419,11 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
 
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         if (elems2_type != SpecType::UNKNOWN_TYPE && elems0_type == SpecType::UNKNOWN_TYPE) {
-                            expr->elems->at(0)->type = make_shared<ZMap>(elems2_type);
+                            if(auto zmap_type = make_shared<ZMap>(elems2_type)){
+                                expr->elems->at(0)->type = zmap_type;
+                            } else if(auto smap_type = make_shared<SMap>(elems2_type)){
+                                expr->elems->at(0)->type = smap_type;
+                            }
                             stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
                         }
                     } else {

@@ -389,7 +389,8 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, 
             // msg += cond.to_string().substr(0,400);
             // LOG_WARNING << msg << std::endl;
             // throw std::runtime_error(msg);
-            return Z3Result::Unknown;
+            Z3Cache[hash] = Z3Result::True;
+            return Z3Result::False;
         }
         Z3Cache[hash] = Z3Result::True;
         return Z3Result::True;
@@ -1241,18 +1242,29 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
             states.push_back(std::make_pair(_cache(static_pointer_cast<BoolValue>(elems[0])->implies(static_pointer_cast<BoolValue>(elems[1]))), state));
         else if (op_eq(expr->op, Expr::GET)) {
             if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
+
                 if (op_eq(e->op, Expr::SET)) {
                     auto z3_res = z3_check(state, z3_eval(proj, e->elems->at(1).get(), state)->get_z3_value() == elems[1]->get_z3_value());
                     if (z3_res == Z3Result::True) {
                         vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>> retstates;
                         symbolic(proj, e->elems->at(2).get(), state, states);
                     } else if (z3_res == Z3Result::False) {
-                        states.push_back(std::make_pair(_cache(static_pointer_cast<ZMapValue>(z3_eval(proj, e->elems->at(0).get(), state))->get(static_pointer_cast<IntValue>(elems[1]))), state));
+                        auto map_val = z3_eval(proj, e->elems->at(0).get(), state);
+                        if(auto zmv = dynamic_pointer_cast<ZMapValue>(map_val)){
+                            states.push_back(std::make_pair(_cache(zmv->get(static_pointer_cast<IntValue>(elems[1]))), state));
+                        } else if(auto smv = dynamic_pointer_cast<SMapValue>(map_val)){
+                            states.push_back(std::make_pair(_cache(smv->get(static_pointer_cast<StringValue>(elems[1]))), state));
+                        }
                     }
                 }
             }
             //std::cout << "expr: " << string(*expr) << std::endl;
-            states.push_back(std::make_pair(_cache(static_pointer_cast<ZMapValue>(elems[0])->get(static_pointer_cast<IntValue>(elems[1]))), state));
+            auto map_val = elems[0];
+            if(auto zmv = dynamic_pointer_cast<ZMapValue>(map_val)){
+                states.push_back(std::make_pair(_cache(zmv->get(static_pointer_cast<IntValue>(elems[1]))), state));
+            } else if(auto smv = dynamic_pointer_cast<SMapValue>(map_val)){
+                states.push_back(std::make_pair(_cache(smv->get(static_pointer_cast<StringValue>(elems[1]))), state));
+            }
         } else if (op_eq(expr->op, Expr::SET)) {
             if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
                 if (op_eq(e->op, Expr::SET)) {
@@ -1262,8 +1274,13 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
                     }
                 }
             }
+            auto map_val = elems[0];
+            if(auto zmv = dynamic_pointer_cast<ZMapValue>(map_val)){
+                states.push_back(std::make_pair(_cache(zmv->set(static_pointer_cast<IntValue>(elems[1]), elems[2])), state));
+            } else if(auto smv = dynamic_pointer_cast<SMapValue>(map_val)){
+                states.push_back(std::make_pair(_cache(smv->set(static_pointer_cast<StringValue>(elems[1]), elems[2])), state));
+            }
 
-            states.push_back(std::make_pair(_cache(static_pointer_cast<ZMapValue>(elems[0])->set(static_pointer_cast<IntValue>(elems[1]), elems[2])), state));
         } else if (op_eq(expr->op, Expr::RecordGet)) {
             // expr.elem[0]: record
             // expr.elem[1...n-2]: (sub)fields
@@ -1777,9 +1794,17 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         if (op_eq(expr->op, Expr::binops::IMPLIES))
             return _cache(static_pointer_cast<BoolValue>(elems[0])->implies(static_pointer_cast<BoolValue>(elems[1])));
         else if (op_eq(expr->op, Expr::GET)) {
-            return _cache(static_pointer_cast<ZMapValue>(elems[0])->get(static_pointer_cast<IntValue>(elems[1])));
+            if(auto zmv = dynamic_pointer_cast<ZMapValue>(elems[0])){
+                return _cache(zmv->get(static_pointer_cast<IntValue>(elems[1])));
+            } else if(auto smv = dynamic_pointer_cast<SMapValue>(elems[0])){
+                return _cache(smv->get(static_pointer_cast<StringValue>(elems[1])));
+            } else { throw new std::runtime_error("Unknown map type."); }
         } else if (op_eq(expr->op, Expr::SET)) {
-            return _cache(static_pointer_cast<ZMapValue>(elems[0])->set(static_pointer_cast<IntValue>(elems[1]), elems[2]));
+            if(auto zmv = dynamic_pointer_cast<ZMapValue>(elems[0])){
+                return _cache(zmv->set(static_pointer_cast<IntValue>(elems[1]), elems[2]));
+            } else if(auto smv = dynamic_pointer_cast<SMapValue>(elems[0])){
+                return _cache(smv->set(static_pointer_cast<StringValue>(elems[1]), elems[2]));
+            } else { throw new std::runtime_error("Unknown map type."); }
         } else if (op_eq(expr->op, Expr::RecordGet)) {
             // expr.elem[0]: record
             // expr.elem[1...n-2]: (sub)fields
@@ -1884,8 +1909,9 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             //     (*new_state->vars)[v->first] = v->second;
             // }
             auto cond = pat->get_z3_value() == src->get_z3_value();
+            // LOG_DEBUG << "Adding condition " << cond;
             //exists v1,v2..., constructor v1 v2 ... = src.
-            
+
             // auto t = dynamic_cast<Option*>(match->src->type.get());
             // // auto tuple_t = dynamic_cast<Tuple*>(match->src->type.get());
             // auto expr_pat = dynamic_cast<Expr*>((*pm)->pattern.get());
@@ -2183,9 +2209,19 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         if (op_eq(expr->op, Expr::binops::IMPLIES))
             return _cache(static_pointer_cast<BoolValue>(elems[0])->implies(static_pointer_cast<BoolValue>(elems[1])));
         else if (op_eq(expr->op, Expr::GET)) {
-            return _cache(static_pointer_cast<ZMapValue>(elems[0])->get(static_pointer_cast<IntValue>(elems[1])));
+            auto map_val = elems[0];
+            if(auto zmv = dynamic_pointer_cast<ZMapValue>(map_val)) {
+                return _cache(zmv->get(static_pointer_cast<IntValue>(elems[1])));
+            } else if(auto smv = dynamic_pointer_cast<SMapValue>(map_val)){
+                return _cache(smv->get(static_pointer_cast<StringValue>(elems[1])));
+            }
         } else if (op_eq(expr->op, Expr::SET)) {
-            return _cache(static_pointer_cast<ZMapValue>(elems[0])->set(static_pointer_cast<IntValue>(elems[1]), elems[2]));
+            auto map_val = elems[0];
+            if(auto zmv = dynamic_pointer_cast<ZMapValue>(map_val)) {
+                return _cache(zmv->set(static_pointer_cast<IntValue>(elems[1]), elems[2]));
+            } else if(auto smv = dynamic_pointer_cast<SMapValue>(map_val)){
+                return _cache(smv->set(static_pointer_cast<StringValue>(elems[1]), elems[2]));
+            }
         } else if (op_eq(expr->op, Expr::RecordGet)) {
             // expr.elem[0]: record
             // expr.elem[1...n-2]: (sub)fields

@@ -185,6 +185,8 @@ namespace autov
 			for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 				auto pm_state = state->copy();
 				auto pat = (*pm)->pattern.get();
+				auto s = string(*pat);
+
 				resolve_pattern(proj, m, pat, src, pm_state);
 				if(resolve_to_none) {
 					if(auto expr = instance_of(pat, Expr)) {
@@ -291,12 +293,13 @@ namespace autov
 				if (det && m->src->is_determ_branch) {
 					res = (path[i] == cnt++) ? Z3Result::True : Z3Result::False;	
 				} else {
-					res = z3_verify_state_sat(pm_state, nullptr, Z3_SAT_TIMEOUT);
+					res = z3_verify_state_sat(pm_state, &proj->query_saver, Z3_SAT_TIMEOUT);
 				}
 
 				if (res == Z3Result::False) {
 					continue;
 				} else {
+					LOG_DEBUG << "[forward_simulation " << random_code << "] Checking Match Pattern: " << string(*pat).substr(0,200);
 					auto this_branch_result = forward_simulation(proj, st_check, spec_ret, (*pm)->body.get(), rel, ret_rel, pm_state, det, path, i+1, allow_none);
 					if(!this_branch_result.verified){
 						LOG_DEBUG << "[forward_simulation " << random_code << "] Match verification failed on branch: " << string(*pat).substr(0,200);
@@ -315,7 +318,7 @@ namespace autov
 			if (cond_val.is_int()){
 				cond_val = (cond_val != 0);
 			}
-			// LOG_DEBUG << "[forward_simulation " << random_code << "] If: " << cond.get()->get_z3_value();
+			LOG_DEBUG << "[forward_simulation " << random_code << "] If: " << cond.get()->get_z3_value();
 
 			bool true_branch_plausible = true;
 			bool false_branch_plausible = true;

@@ -203,11 +203,17 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
             return _cache(static_pointer_cast<BoolValue>(elems[0])->implies(
                 static_pointer_cast<BoolValue>(elems[1])));
         else if (op_eq(expr->op, Expr::GET)) {
-            return _cache(static_pointer_cast<ZMapValue>(elems[0])->get(
-                static_pointer_cast<IntValue>(elems[1])));
+            if(auto zmv = dynamic_pointer_cast<ZMapValue>(elems[0])){
+                return _cache(zmv->get(static_pointer_cast<IntValue>(elems[1])));
+            } else if(auto smv = dynamic_pointer_cast<SMapValue>(elems[0])){
+                return _cache(smv->get(static_pointer_cast<StringValue>(elems[1])));
+            } else { throw new std::runtime_error("Unknown map type."); }
         } else if (op_eq(expr->op, Expr::SET)) {
-            return _cache(static_pointer_cast<ZMapValue>(elems[0])->set(
-                static_pointer_cast<IntValue>(elems[1]), elems[2]));
+            if(auto zmv = dynamic_pointer_cast<ZMapValue>(elems[0])){
+                return _cache(zmv->set(static_pointer_cast<IntValue>(elems[1]), elems[2]));
+            } else if(auto smv = dynamic_pointer_cast<SMapValue>(elems[0])){
+                return _cache(smv->set(static_pointer_cast<StringValue>(elems[1]), elems[2]));
+            } else { throw new std::runtime_error("Unknown map type."); }
         } else if (op_eq(expr->op, Expr::RecordGet)) {
             // expr.elem[0]: record
             // expr.elem[1...n-2]: (sub)fields
@@ -1557,8 +1563,8 @@ bool check_none(Project *proj, Definition *def,
             // elems->push_back(std::move(def->sufficient_none_condition));
             // elems->push_back(std::move(n));
             // def->sufficient_none_condition =
-            // make_unique<Expr>(Expr::binops::OR, std::move(elems),
-            // Bool::BOOL);
+            //     make_unique<Expr>(Expr::binops::OR, std::move(elems),
+            //     Bool::BOOL);
             def->sufficient_none_condition =
                 make_unique<If>(std::move(n), make_unique<BoolConst>(true),
                                 std::move(def->sufficient_none_condition));

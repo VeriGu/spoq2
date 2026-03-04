@@ -58,9 +58,6 @@ class ExtractPointersPass : public llvm::ModulePass {
   std::map<std::string, llvm::Type*> named_global_ty;
   std::map<llvm::Type*, std::set<llvm::Type*>> elements_of_type;
 
-  std::string stack_load_rdata;
-  std::string stack_store_rdata;
-
   int type_id = 0;
   std::map<llvm::Type*, std::string> unique_type_name;
   std::string getTypeIdentifier(llvm::Type*);
@@ -379,6 +376,22 @@ void ExtractPointersPass::fillTypeElements(llvm::Module &M) {
 void ExtractPointersPass::collectStack(llvm::Module &M) {
   std::map<llvm::Function*, int> has_pre;
   int passed_count = 0, local_count = 0;
+  /*
+  3/3/26: RJS
+  I am changing the memory model to a associative-array-based stack
+  OLD WAY:
+  Stack is a Record with a field for each stack value
+  Produce a stack-load and stack-store function that are big
+  if-then chains
+  NEW WAY:
+  stack is an associative array string -> StackVal
+  StackVal is an Inductive data type with branches:
+  1. Z
+  2. Zmap Z
+  3. For every struct type in the stack, that type
+  4. For every array/pointer to a struct in the stack, that type.
+
+  */
   for (auto& F : M) {
     if( is_debug_intrinsic(F.getName()) ) continue;
     for (auto& B : F) {
@@ -419,88 +432,92 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
       sn[x.first] = std::max(sn[x.first], x.second);
     }
   }
+/*
+We need to produce 3+n items.
+The definition of StackVal, with a branch for each possible type in the stack
+The definition of stack_load, with a branch for each possible StackVal.
+The definition of stack_store, with a branch for each possible StackVal.
 
-  std::string result = "Record STACK :=\n"\
-  " mkSTACK {\n";
-  std::string load_result = "";
-  std::string store_result = "";
+n-times, where n is the number of structs
+struct_store and struct_load functions to be used in stack_load and stack_store.
 
-  int sum = 0;
+The necessary information is:
+What are all the types that are stored on the stack?
+For each stack pointer, what type is in it?
+
+At this point we have the sn map from type to the number of times that type occurs in the stack
+and getStackIdentifies which tells us for each type and idx what the right name is.
+Therefore, we are ready to build the stack model.
+
+We first make one pass through the types to build the StackVal type
+and to build the load_stack definition.
+For store_stack,
+we get the current value of the pointer, match it, and need to set
+all the other branches to None.
+We can do this in a proxy definition for each type
+*/
+  std::string stackval_def = "Inductive StackVal := \n" \
+  "| ZVal (z: Z)\n" \
+  "| ZMapVal (zmap: (ZMap.t Z))"; // left unclosed!
+  std::string load_result = "Definition load_stack (sz: Z) (p: Ptr) (stack: STACK): (option Z) := \n" \
+  "\tmatch (stack @ p.(pbase)) with\n" \
+  "\t\t| Some sv => match sv with\n"\
+  "\t\t\t| ZVal z => Some z\n"
+  "\t\t\t| ZMapVal zmap => Some (zmap @ p.(poffset))\n";
+  std::string store_result = "Definition store_stack (sz: Z) (p: Ptr) (v: Z) (stack: STACK): (option STACK) := \n" \
+  "\tmatch (stack @ p.(pbase)) with\n" \
+  "\t\t| Some sv => match sv with\n"\
+  "\t\t\t| ZVal z => Some (stack # p.(pbase) == Some(ZVal v))\n"
+  "\t\t\t| ZMapVal zmap => Some (stack # p.(pbase) == Some(ZMapVal (zmap # p.(poffset) == v)))\n";
+  std::string is_stack_ptr = "Definition is_stack_ptr (p: Ptr): bool := (false = true)";
   for (auto &x : sn) {
-    sum += x.second;
-    for (int num = 0; num < x.second; num++) {
-      this->named_stack_ty[getStackIdentifier(x.first, num)] = x.first;
-      result += "    " + getStackIdentifier(x.first, num) + ": " + generateField(x.first) + ";\n";
-      if (x.first->isIntegerTy() || x.first->isPointerTy()) {
-        load_result += 
-        "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
-        "      Some(st.(stack).(" + getStackIdentifier(x.first, num) + "))) else\n";
+    for(int i = 0; i < x.second; i++){
+      this->named_stack_ty[getStackIdentifier(x.first, i)] = x.first;
+      is_stack_ptr += " \\/ \n\tp.(pbase) =s \"" + getStackIdentifier(x.first, i) + "\"";
+    }
+    if (auto sty = llvm::dyn_cast<llvm::StructType>(x.first)){
+      auto struct_id = getStructTypeIdentifier(sty);
+      stackval_def += "\n| " + struct_id + "Val (struct_val: " + struct_id + ")";
 
-        store_result += 
-        "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
-        "      Some(st.[stack].[" + getStackIdentifier(x.first, num) + "] :< v)) else\n";
-      }
-      else if (auto sty = llvm::dyn_cast<llvm::StructType>(x.first)) {
-        load_result += 
-        "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
-        "      when ret == load_" + getStructTypeIdentifier(sty) + " sz p.(poffset) st.(stack).(" \
-        + getStackIdentifier(x.first, num) + ");\n" \
-        "      Some(ret)) else\n";
+      load_result += "\t\t\t| " + struct_id + "Val struct_val => \n";
+      load_result += "\t\t\t\twhen ret == load_" + struct_id + " sz p.(poffset) struct_val;\n";
+      load_result += "\t\t\t\t\tSome(ret)\n";
 
-        store_result += 
-        "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
-        "      when ret == store_" + getStructTypeIdentifier(sty) + " sz p.(poffset) v st.(stack).(" \
-        + getStackIdentifier(x.first, num) + ");\n" \
-        "      Some(st.[stack].[" + getStackIdentifier(x.first, num) + "] :< ret)) else\n";
-      }
-      else if (auto aty = llvm::dyn_cast<llvm::ArrayType>(x.first)) {
-        auto ety = aty->getElementType();
+      store_result += "\t\t\t| " + struct_id + "Val struct_val => \n"\
+                      "\t\t\t\t when ret == store_" + struct_id + " sz p.(poffset) v struct_val;\n"\
+                      "\t\t\t\t Some(stack # p.(pbase) == Some(" + struct_id + "Val ret))\n";
+    } else if(auto aty = llvm::dyn_cast<llvm::ArrayType>(x.first)){
+      auto ety = aty->getElementType();
+      if (auto sty = llvm::dyn_cast<llvm::StructType>(ety)){
+        auto struct_id = getStructTypeIdentifier(sty);
         int element_size = dl->getTypeAllocSize(ety);
-        if (ety->isIntegerTy() || ety->isPointerTy()) {
-          load_result += 
-          "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
-          "      let idx := p.(poffset) / " + std::to_string(element_size) + " in \n"\
-          "      let ptr := st.(stack).(" + getStackIdentifier(x.first, num) + ") @ idx in\n"\
-          "      Some(ptr)) else\n";
+        stackval_def += "\n| " + struct_id + "ArrVal ";
+        stackval_def += "(struct_val: (ZMap.t " + struct_id + ") struct_map_val)";
 
-          store_result += 
-          "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
-          "      let idx := p.(poffset) / " + std::to_string(element_size) + " in \n"\
-          "      let ptr := (st.(stack).(" + getStackIdentifier(x.first, num) + ") # idx == v) in\n"\
-          "      Some(st.[stack].[" +  getStackIdentifier(x.first, num) + "] :< ptr)) else\n";
-        } else if (auto sty = llvm::dyn_cast<llvm::StructType>(ety)) {
-          load_result += 
-          "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
-          "       let idx := p.(poffset) / " + std::to_string(element_size) + " in\n" \
-          "       let elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
-          "       when ret == load_"+ getStructTypeIdentifier(sty) +" sz elem_ofs (st.(stack).(" \
-          + getStackIdentifier(x.first, num) + ") @ idx);\n " \
-          "       Some(ret)) else\n";
-
-          store_result += 
-          "  if (p.(pbase) =s \"" + getStackIdentifier(x.first, num) + "\") then (\n" \
-          "       let idx := p.(poffset) / " + std::to_string(element_size) + " in\n" \
-          "       let elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
-          "       when ret == store_"+ getStructTypeIdentifier(sty) +" sz elem_ofs v (st.(stack).(" \
-          + getStackIdentifier(x.first, num) + ") @ idx);\n " \
-          "       Some(st.[stack].[" + getStackIdentifier(x.first, num) + "] :< (st.(stack).(" + getStackIdentifier(x.first, num) + ") # idx == ret))) else\n";
-        }
-      } else {
-        // llvm::errs() << "Cannot handle." << "\n";
+        load_result += "\t\t\t| " + struct_id + "ArrVal struct_map_val => \n";
+        load_result += "\t\t\t\tlet idx := p.(poffset) /" + std::to_string(element_size) + " in\n" \
+          "\t\t\t\tlet elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
+          "\t\t\t\twhen ret == load_" + struct_id + " sz elem_ofs (struct_map_val @ idx);\n"\
+          "\t\t\t\t\tSome(ret)\n";
+        store_result += "\t\t\t| " + struct_id + "ArrVal struct_map_val => \n"\
+                      "\t\t\t\tlet idx := p.(poffset) /" + std::to_string(element_size) + " in\n" \
+                      "\t\t\t\tlet elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
+                      
+                      "\t\t\t\twhen ret == store_" + struct_id + " sz p.(poffset) v (struct_map_val @ idx);\n"\
+                      "\t\t\t\tSome(stack # p.(pbase) == Some(" + struct_id + "ArrVal (struct_map_val # idx == ret)))\n";
       }
     }
   }
-  if (result.rfind(";") != std::string::npos){
-    result.erase(result.rfind(";"), 1);  // remove the last ;
+  stackval_def += ".\n";
+  stackval_def += "Definition STACK := (SMap (option StackVal)).";
 
-  } else {
-    assert(false && "Expected to find ; in the result string.  Revisit to make this tolerant of O1");
-  }
-  result += "    }.\n";
-  stack_load_rdata = load_result;
-  stack_store_rdata = store_result;
-
-
+  load_result += "\t\tend\n" \
+                "\t| None => None\n" \
+                 "end.";
+  store_result += "\t\tend\n" \
+                  "\t| None => None\n" \
+                 "end.";
+  is_stack_ptr += ".\n";
   std::string hint_result = "";
   for (auto& F : M) {
     auto func = &F;
@@ -521,13 +538,11 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
     }
   }
   fout << "\n" << hint_result << "\n";
-  fout << result 
-    << "\n(* Definition load_stack (sz: Z) (p: Ptr) (st: RData) : (option Z) :=\n" 
-    << load_result 
-    << "*) (* load_stack *)\n";
-  fout << "\n(* Definition store_stack (sz: Z) (p: Ptr) (v: z) (st: RData) : option RData :=\n" 
-    << store_result 
-    << "*) (* store_stack *)\n";
+  fout << "\n" << is_stack_ptr << "\n";
+  fout << "\n" << stackval_def << "\n";
+  fout << "\n" << load_result << " (* load_stack *)\n"; 
+  fout << store_result << " (* store_stack *)\n"; 
+    
 }
 void ExtractPointersPass::dumpMemTypInfo(std::string filename, llvm::Module &M){
   llvm::json::Object result;
@@ -616,6 +631,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
   std::vector<llvm::GlobalVariable*> fail_gv;
   std::string g_load_result = "";
   std::string g_store_result = "";
+  std::string is_global_ptr = "Definition is_global_ptr (p: Ptr): bool := (false = true)";
   std::string g_result = "Record GLOBALS :=\n" \
                          "  mkGLOBALS {\n"\
                          "    pointers: (ZMap.t (ZMap.t Z));\n";
@@ -635,6 +651,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
 
     auto vty = globalVar.getValueType();
     this->named_global_ty[getGVIdentifier(&globalVar)] = globalVar.getValueType();
+    is_global_ptr += "\\/\n\t\"" + getGVIdentifier(&globalVar).substr(2) + "\" =s p.(pbase)";
     // Pointers are not explicitly represented, but instead kept in a pointers field in order to mitigate long runtime from explicit modeling
     // Trying to create a smt query sort of like this
     // (declare-datatypes ((GLOBALS 0)) (((mkGLOBALS (pointers (Array Int (Array Int Int)))))))
@@ -734,14 +751,18 @@ void ExtractPointersPass::generate(llvm::Module& M) {
   g_result.erase(g_result.rfind(";"), 1);  // remove the last ;
   g_result += "    }.\n";
   fout << g_result 
-    << "\n(* Definition load_RData (sz: Z) (p: Ptr) (st: RData) : (option Z) :=\n"
+    << "Record RData := mkRData {" \
+    "\tstack: STACK;" \
+    "\theap: MEM;" \
+    "\tglobals: GLOBALS" \
+    "}.\n"
+    << is_global_ptr << ".\n"
+    << "\nDefinition load_global (sz: Z) (p: Ptr) (st: RData) : (option Z) :=\n"
     << g_load_result 
-    << "  None."
-    << "\n*) (* load_RData *)\n";
-  fout << "\n(* Definition store_RData (sz: Z) (p: Ptr) (v: Z) (st: RData) : option RData :=\n"
+    << "  None. (* load_global *)\n";
+  fout << "\nDefinition store_global (sz: Z) (p: Ptr) (v: Z) (st: RData) : option RData :=\n"
    << g_store_result 
-   << "  None."
-   << "\n*) (* store_RData *)\n\n";
+   << "  None. (* store_global *)\n\n";
 
   // llvm::errs() << "page: " << page_count << " " << "base:" << base << "\n";
 

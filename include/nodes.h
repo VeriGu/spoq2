@@ -236,7 +236,7 @@ private:
                 return "(-" + std::to_string(-v) + ")";
             } else
                 return std::to_string((unsigned long)v);
-        } else if (dynamic_cast<String *>(this->type.get()) != nullptr) {
+        } else if (std::holds_alternative<string>(this->value)) {
             return "\"" + std::get<string>(this->value) + "\"";
         } else if (std::holds_alternative<bool>(this->value)) {
             return std::get<bool>(this->value) ? "true" : "false";
