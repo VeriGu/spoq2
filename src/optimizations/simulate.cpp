@@ -299,7 +299,7 @@ namespace autov
 				if (res == Z3Result::False) {
 					continue;
 				} else {
-					LOG_DEBUG << "[forward_simulation " << random_code << "] Checking Match Pattern: " << string(*pat).substr(0,200);
+					LOG_DEBUG << "[forward_simulation " << random_code << "] Checking Match src: " << string(*m->src).substr(0,200) <<  "\nPattern: " << string(*pat).substr(0,200);
 					auto this_branch_result = forward_simulation(proj, st_check, spec_ret, (*pm)->body.get(), rel, ret_rel, pm_state, det, path, i+1, allow_none);
 					if(!this_branch_result.verified){
 						LOG_DEBUG << "[forward_simulation " << random_code << "] Match verification failed on branch: " << string(*pat).substr(0,200);
@@ -666,7 +666,7 @@ namespace autov
 			// push cond
 			auto c = z3_eval(proj, i->cond.get(), state);
 			z3::model model(z3ctx);
-			// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if: " << string(*c).substr(0,200);
+			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if: " << string(*c).substr(0,1000);
 
 			std::pair<bool,bool> plausibility = check_branch_plausibility(proj, state, c, model);
 			auto true_branch_plausible = plausibility.first;

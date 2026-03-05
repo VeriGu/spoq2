@@ -71,13 +71,13 @@ namespace autov {
                 is_match = true;
             }
 
-            // auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-            // elems->push_back(std::move(cond));
+            auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+            elems->push_back(std::move(cond));
             if(last_pattern_match){
-                // elems->push_back(std::move(temp_held_match_body));
-                // auto new_predicate = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
+                elems->push_back(std::move(temp_held_match_body));
+                auto new_predicate = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
                 // Using an If instead of an AND makes it easier to have a program that we can split into smaller z3 queries later.
-                auto new_predicate = make_unique<If>(std::move(cond), std::move(temp_held_match_body), make_unique<BoolConst>(false));
+                // auto new_predicate = make_unique<If>(std::move(cond), std::move(temp_held_match_body), make_unique<BoolConst>(false));
                 bool success = false;
                 LOG_DEBUG << "New Predicate to add to pattern match body: " << string(*new_predicate);
                 LOG_DEBUG << "Original new accumulator condition: " << string(*new_accumulator.accumulated_cond);
@@ -92,9 +92,9 @@ namespace autov {
                 assert(new_accumulator.last_pattern_match); // We can never stop adding to the inner conjunction.
                 LOG_DEBUG << "New last_pattern_match: " << string(*new_accumulator.last_pattern_match);
             } else{
-                // elems->push_back(std::move(new_accumulator.accumulated_cond));
-                // new_accumulator.accumulated_cond = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
-                new_accumulator.accumulated_cond = make_unique<If>(std::move(cond), std::move(new_accumulator.accumulated_cond), make_unique<BoolConst>(false));
+                elems->push_back(std::move(new_accumulator.accumulated_cond));
+                new_accumulator.accumulated_cond = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
+                // new_accumulator.accumulated_cond = make_unique<If>(std::move(cond), std::move(new_accumulator.accumulated_cond), make_unique<BoolConst>(false));
                 new_accumulator.last_pattern_match = new_accumulator.accumulated_cond.get();
             }
 

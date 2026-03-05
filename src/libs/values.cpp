@@ -383,15 +383,21 @@ shared_ptr<SpecValue> IndValue::get(string key) {
     if(auto type = instance_of(typ.get(), Inductive)) {
         auto val = get_z3_value();
         int i = 0;
-
-        for(auto [arg, type]: type->arg_type) {
-            if(arg == accessor)
-                break;
-            i++;
+        auto ind_type = dynamic_cast<Inductive*>(typ.get());
+        // for(auto [arg, type]: type->arg_type) {
+        //     if(arg == accessor)
+        //         break;
+        //     i++;
+        // }
+        // Here we need to pick the accessor that matches type->arg_type[accessor]
+        // rather than the one that matches the actual value.
+        // The order of z3 accessors is not necessarily the same as the order of constrs
+        for(auto acc: accessors){
+            if(acc.name().str() == accessor){
+                return type->arg_type[accessor]->from_z3_value(acc(val).simplify());
+            }
         }
-
-        auto acc = accessors[i];
-        return type->arg_type[accessor]->from_z3_value(acc(val).simplify());
+        throw std::runtime_error("Could not find correct accessor.");
     }
 
     throw std::runtime_error("Not an inductive type");

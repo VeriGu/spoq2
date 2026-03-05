@@ -549,7 +549,9 @@ public:
 
 class ZMapValue : public SpecValue {
 public:
-    ZMapValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) { }
+    ZMapValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) { 
+        assert(value.get_sort().to_string() == typ->get_z3_type().to_string());
+    }
 
     shared_ptr<SpecValue> get(shared_ptr<IntValue> key) {
         return dynamic_cast<ZMap *>(typ.get())->elem_type->from_z3_value(value[key->value].simplify());

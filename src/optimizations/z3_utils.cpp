@@ -1445,10 +1445,34 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
             z3::expr cond = pat->get_z3_value() == src->get_z3_value();
 
             //cond : exists v1,v2...., constructor v1 v2 = src.
+
+            if (auto ind_ty = dynamic_pointer_cast<Inductive>(src->get_type())) {
+                auto z3t = ind_ty->get_z3_type();
+                if(auto ind_constr_expr = dynamic_cast<Expr*>((*pm)->pattern.get())){
+                // } else if (info.kind == SymbolKind::IndConstructor) {
+                    if(std::holds_alternative<string>(ind_constr_expr->op)){
+                        auto constr_name = std::get<string>(ind_constr_expr->op);
+                        auto recognizer = ind_ty->get_recognizer(constr_name);
+                        cond = recognizer(src->get_z3_value()) && (cond);
+                    } else if(std::holds_alternative<Expr::ops>(ind_constr_expr->op)){
+                        // This is an indication that we are looking at a Some or a None
+                        auto op = std::get<Expr::ops>(ind_constr_expr->op);
+                        auto option_ty = dynamic_pointer_cast<Option>(ind_ty);
+                        assert(option_ty);
+                        std::string constr_name = "";
+                        if(op == Expr::ops::Some) {
+                            constr_name = "Some_" + option_ty->elem_type->name;
+                        } else if(op == Expr::ops::None){
+                            constr_name = "None_" + option_ty->elem_type->name;
+                        }
+                        auto recognizer = option_ty->get_recognizer(constr_name);
+                        cond = recognizer(src->get_z3_value()) && (cond);
+                    }
+                }
+            }
             for (auto v = vars.begin(); v != vars.end(); v++) {                
                 cond = z3::exists(v->second->get_z3_value(), cond);
             }
-
             auto z3_res = z3_check(state, cond);
             if (z3_res == Z3Result::False) {
                 continue;
@@ -1458,6 +1482,9 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
             for (auto v = assigns.begin(); v != assigns.end(); v++) {
                 new_state->vars->emplace(v->first, v->second);
             }
+            // new_state->conds->push_back(cond);
+            auto new_z3_res = z3_check(new_state, cond);
+
             if (match_val == nullptr) {
                 match_val = z3_eval(proj, (*pm)->body.get(), new_state);
             } else {
@@ -1909,45 +1936,38 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             //     (*new_state->vars)[v->first] = v->second;
             // }
             auto cond = pat->get_z3_value() == src->get_z3_value();
-            // LOG_DEBUG << "Adding condition " << cond;
-            //exists v1,v2..., constructor v1 v2 ... = src.
 
-            // auto t = dynamic_cast<Option*>(match->src->type.get());
-            // // auto tuple_t = dynamic_cast<Tuple*>(match->src->type.get());
-            // auto expr_pat = dynamic_cast<Expr*>((*pm)->pattern.get());
-            // // auto sym_pat = dynamic_cast<Symbol*>((*pm)->pattern.get());
-            // if(t && expr_pat && std::holds_alternative<Expr::ops>(expr_pat->op)){
-            //     auto op = std::get<Expr::ops>(expr_pat->op);
-            //     std::string constr_name = "";
-            //     if (op == Expr::Some){
-            //         constr_name = "Some_" + t->elem_type->name;
-            //     } else if (op == Expr::None){
-            //         constr_name = "None_" + t->elem_type->name;
-            //     } else {
-            //         LOG_ERROR << "Unknown expr op in Option pattern match " << string(*match);
-            //         assert(false);
-            //     }
-            //     auto tz3 = t->get_z3_type();
-            //     auto idx = t->get_constr_index(constr_name);
-            //     auto recognizer = tz3.recognizers()[idx];
-            //     auto tester = recognizer(src->get_z3_value());
-            //     new_state->conds->push_back(tester);
-            //     cond = tester && cond;
-            // } else if (tuple_t && expr_pat && std::holds_alternative<Expr::ops>(expr_pat->op)) {
-            //     auto op = std::get<Expr::ops>(expr_pat->op);
-            //     auto recognizer = tuple_t->get_z3_type().recognizers()[0];
-            //     auto tester = recognizer(src->get_z3_value());
-            //     new_state->conds->push_back(tester);
-            //     cond = tester && cond;
+            if (auto ind_ty = dynamic_pointer_cast<Inductive>(src->get_type())) {
+                auto z3t = ind_ty->get_z3_type();
+                if(auto ind_constr_expr = dynamic_cast<Expr*>((*pm)->pattern.get())){
+                // } else if (info.kind == SymbolKind::IndConstructor) {
+                    if(std::holds_alternative<string>(ind_constr_expr->op)){
+                        auto constr_name = std::get<string>(ind_constr_expr->op);
+                        auto recognizer = ind_ty->get_recognizer(constr_name);
+                        cond = recognizer(src->get_z3_value()) && (cond);
+                    } else if(std::holds_alternative<Expr::ops>(ind_constr_expr->op)){
+                        // This is an indication that we are looking at a Some or a None
+                        auto op = std::get<Expr::ops>(ind_constr_expr->op);
+                        auto option_ty = dynamic_pointer_cast<Option>(ind_ty);
+                        assert(option_ty);
+                        std::string constr_name = "";
+                        if(op == Expr::ops::Some) {
+                            constr_name = "Some_" +  option_ty->elem_type->name;
+                        } else if(op == Expr::ops::None){
+                            constr_name = "None_" + option_ty->elem_type->name;
+                        }
+                        if(constr_name.find("StackVal") != std::string::npos){
+                            int x = 4;
+                        }
+                        auto recognizer = option_ty->get_recognizer(constr_name);
+                        cond = recognizer(src->get_z3_value()) && (cond);
+                    }
+                }
+            }
 
-            // } else {
                 for (auto v = vars.begin(); v != vars.end(); v++) {
                     cond = z3::exists(v->second->get_z3_value(), cond);
                 }
-            // }
-            // Rather than creating an existential quantifier for each variable in the pattern,
-            // we should use the recognizer to assert that the whole patter is_Some what we are looking for.
-            // Or is_none, depending.
 
             if (!OPTS.__OPT_ON_MATCH) {
                 // LOG_INFO << "[PROFILE]" << "z3_eval: z3_check: match stands: " << string(*val);
@@ -1969,9 +1989,14 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             for (auto v = assigns.begin(); v != assigns.end(); v++) {
                 (*new_state->vars)[v->first] = v->second;
             }
+            auto new_z3_res = z3_check(new_state, cond);
+
             if (match_val == nullptr) {
                 // LOG_DEBUG << "match body:" << string(*(*pm)->body);
                 match_val = z3_eval(proj, (*pm)->body.get(), new_state,  check_loop);
+                if(match_val->get_z3_value().get_sort().is_bool()) {
+                    match_val = make_shared<SpecValue>(match_val->typ, match_val->get_z3_value() && cond);
+                }
             } else {
                 auto then_val = z3_eval(proj, (*pm)->body.get(), new_state,  check_loop);
                 /** Optimization: instantiate Exists: 
@@ -1982,11 +2007,16 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                  *  * It's always sufficient to jsut have Prop(v) for proof!
                  */
                 if (match_val->get_z3_value().is_true()) {
-                    match_val = then_val;
+                    if(then_val->get_z3_value().get_sort().is_bool()) {
+                        match_val = make_shared<SpecValue>(then_val->typ, then_val->get_z3_value() && cond);
+                    } else {
+                        match_val = then_val;
+                    }
                 } else {
                     match_val = match_val->get_type()->from_z3_value(z3::ite(cond, then_val->get_z3_value(), match_val->get_z3_value()));
                 }
             }
+
         }
         if (match_val == nullptr) {
             auto opt = static_pointer_cast<Option>(val->get_type());
@@ -2341,6 +2371,33 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
             unordered_map<string, shared_ptr<SpecValue>> assigns;
             auto pat = resolve_pattern(proj, val, (*pm)->pattern.get(), src, vars, assigns);
             auto cond = pat->get_z3_value() == src->get_z3_value();
+
+            // Find recognizer
+            if (auto ind_ty = dynamic_pointer_cast<Inductive>(src->get_type())) {
+                auto z3t = ind_ty->get_z3_type();
+                if(auto ind_constr_expr = dynamic_cast<Expr*>((*pm)->pattern.get())){
+                // } else if (info.kind == SymbolKind::IndConstructor) {
+                    if(std::holds_alternative<string>(ind_constr_expr->op)){
+                        auto constr_name = std::get<string>(ind_constr_expr->op);
+                        auto recognizer = ind_ty->get_recognizer(constr_name);
+                        cond = recognizer(src->get_z3_value()) && (cond);
+                    } else if(std::holds_alternative<Expr::ops>(ind_constr_expr->op)){
+                        // This is an indication that we are looking at a Some or a None
+                        auto op = std::get<Expr::ops>(ind_constr_expr->op);
+                        auto option_ty = dynamic_pointer_cast<Option>(ind_ty);
+                        assert(option_ty);
+                        std::string constr_name = "";
+                        if(op == Expr::ops::Some) {
+                            constr_name = "Some_" + option_ty->elem_type->name;
+                        } else if(op == Expr::ops::None){
+                            constr_name = "None_" + option_ty->elem_type->name;
+                        }
+                        auto recognizer = option_ty->get_recognizer(constr_name);
+                        cond = recognizer(src->get_z3_value()) && (cond);
+                    }
+                }
+            }
+
             //exists v1,v2..., constructor v1 v2 ... = src.
             for (auto v = vars.begin(); v != vars.end(); v++) {
                 cond = z3::exists(v->second->get_z3_value(), cond);
@@ -2354,6 +2411,9 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
             for (auto v = assigns.begin(); v != assigns.end(); v++) {
                 (*new_state->vars)[v->first] = v->second;
             }
+            // new_state->conds->push_back(cond);
+            auto new_z3_res = z3_check(new_state, cond);
+
             if (match_val == nullptr) {
                 match_val = z3_eval(proj, (*pm)->body.get(), new_state,  check_loop, unfold, used_fixpoint);
             } else {

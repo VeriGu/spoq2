@@ -317,9 +317,9 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
             auto pat = resolve_pattern(proj, val, (*pm)->pattern.get(), src,
                                        vars, assigns);
             auto cond = pat->get_z3_value() == src->get_z3_value();
-            for (auto v = vars.begin(); v != vars.end(); v++) {
-                cond = z3::exists(v->second->get_z3_value(), cond);
-            }
+            // for (auto v = vars.begin(); v != vars.end(); v++) {
+            //     cond = z3::exists(v->second->get_z3_value(), cond);
+            // }
             auto new_state = state->copy();
             for (auto v = assigns.begin(); v != assigns.end(); v++) {
                 new_state->vars->emplace(v->first, v->second);

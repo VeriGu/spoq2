@@ -457,18 +457,18 @@ all the other branches to None.
 We can do this in a proxy definition for each type
 */
   std::string stackval_def = "Inductive StackVal := \n" \
-  "| ZVal (z: Z)\n" \
-  "| ZMapVal (zmap: (ZMap.t Z))"; // left unclosed!
-  std::string load_result = "Definition load_stack (sz: Z) (p: Ptr) (stack: STACK): (option Z) := \n" \
-  "\tmatch (stack @ p.(pbase)) with\n" \
+  "| ZVal (zStackVal: Z)\n" \
+  "| ZMapVal (zmapStackVal: (ZMap.t Z))"; // left unclosed!
+  std::string load_result = "Definition load_stack (sz: Z) (p: Ptr) (stack_map: STACK): (option Z) := \n" \
+  "\tmatch (stack_map @ p.(pbase)) with\n" \
   "\t\t| Some sv => match sv with\n"\
   "\t\t\t| ZVal z => Some z\n"
   "\t\t\t| ZMapVal zmap => Some (zmap @ p.(poffset))\n";
-  std::string store_result = "Definition store_stack (sz: Z) (p: Ptr) (v: Z) (stack: STACK): (option STACK) := \n" \
-  "\tmatch (stack @ p.(pbase)) with\n" \
+  std::string store_result = "Definition store_stack (sz: Z) (p: Ptr) (v: Z) (stack_map: STACK): (option STACK) := \n" \
+  "\tmatch (stack_map @ p.(pbase)) with\n" \
   "\t\t| Some sv => match sv with\n"\
-  "\t\t\t| ZVal z => Some (stack # p.(pbase) == Some(ZVal v))\n"
-  "\t\t\t| ZMapVal zmap => Some (stack # p.(pbase) == Some(ZMapVal (zmap # p.(poffset) == v)))\n";
+  "\t\t\t| ZVal z => Some (stack_map # p.(pbase) == Some(ZVal v))\n"
+  "\t\t\t| ZMapVal zmap => Some (stack_map # p.(pbase) == Some(ZMapVal (zmap # p.(poffset) == v)))\n";
   std::string is_stack_ptr = "Definition is_stack_ptr (p: Ptr): bool := (false = true)";
   for (auto &x : sn) {
     for(int i = 0; i < x.second; i++){
@@ -477,7 +477,7 @@ We can do this in a proxy definition for each type
     }
     if (auto sty = llvm::dyn_cast<llvm::StructType>(x.first)){
       auto struct_id = getStructTypeIdentifier(sty);
-      stackval_def += "\n| " + struct_id + "Val (struct_val: " + struct_id + ")";
+      stackval_def += "\n| " + struct_id + "Val (struct"+struct_id+"Val: " + struct_id + ")";
 
       load_result += "\t\t\t| " + struct_id + "Val struct_val => \n";
       load_result += "\t\t\t\twhen ret == load_" + struct_id + " sz p.(poffset) struct_val;\n";
@@ -485,14 +485,14 @@ We can do this in a proxy definition for each type
 
       store_result += "\t\t\t| " + struct_id + "Val struct_val => \n"\
                       "\t\t\t\t when ret == store_" + struct_id + " sz p.(poffset) v struct_val;\n"\
-                      "\t\t\t\t Some(stack # p.(pbase) == Some(" + struct_id + "Val ret))\n";
+                      "\t\t\t\t Some(stack_map # p.(pbase) == Some(" + struct_id + "Val ret))\n";
     } else if(auto aty = llvm::dyn_cast<llvm::ArrayType>(x.first)){
       auto ety = aty->getElementType();
       if (auto sty = llvm::dyn_cast<llvm::StructType>(ety)){
         auto struct_id = getStructTypeIdentifier(sty);
         int element_size = dl->getTypeAllocSize(ety);
         stackval_def += "\n| " + struct_id + "ArrVal ";
-        stackval_def += "(struct_val: (ZMap.t " + struct_id + ") struct_map_val)";
+        stackval_def += "(struct"+struct_id+"ArrVal: (ZMap.t " + struct_id + ") struct_map_val)";
 
         load_result += "\t\t\t| " + struct_id + "ArrVal struct_map_val => \n";
         load_result += "\t\t\t\tlet idx := p.(poffset) /" + std::to_string(element_size) + " in\n" \
@@ -504,7 +504,7 @@ We can do this in a proxy definition for each type
                       "\t\t\t\tlet elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
                       
                       "\t\t\t\twhen ret == store_" + struct_id + " sz p.(poffset) v (struct_map_val @ idx);\n"\
-                      "\t\t\t\tSome(stack # p.(pbase) == Some(" + struct_id + "ArrVal (struct_map_val # idx == ret)))\n";
+                      "\t\t\t\tSome(stack_map # p.(pbase) == Some(" + struct_id + "ArrVal (struct_map_val # idx == ret)))\n";
       }
     }
   }
