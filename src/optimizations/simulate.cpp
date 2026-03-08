@@ -59,7 +59,7 @@ namespace autov
 			bool det, const path_t &path, int i, bool allow_none) {
 				int random_code = rand() % 10000;
 			// bool det = false, const path_t &path = {}, int i = 0, bool allow_none = false) {
-		LOG_DEBUG << "[forward_simulation " << random_code << "] start! checking " << string(*impl).substr(0,10000) << std::endl;
+		// LOG_DEBUG << "[forward_simulation " << random_code << "] start! checking " << string(*impl).substr(0,10000) << std::endl;
 		if (auto expr = instance_of(impl, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -102,6 +102,7 @@ namespace autov
 							// 	LOG_DEBUG << "Condition: " << cond;
 							//  	}
 						}
+						auto res = z3_verify_state_sat(state);
 						if(!is_relate || !ret_is_relate)
 							int x = 5;
 						return SimulateResult{is_relate && ret_is_relate, false, false, false};
@@ -159,7 +160,7 @@ namespace autov
 								}
 							} else {
 								if (proj->cmds.PreCond.find(op) != proj->cmds.PreCond.end()) {
-									LOG_DEBUG << "[forward_simulation " << random_code << "] Call requiring precondition evaluation: " << string(*expr);
+									// LOG_DEBUG << "[forward_simulation " << random_code << "] Call requiring precondition evaluation: " << string(*expr);
 									if (!check_states_implies_pre_condition(proj, state, op, expr->elems.get())){
 										LOG_INFO << "[forward_simulation] Loop Invariant Precondition not Satified";
 										return SimulateResult{false, false, false, false};
@@ -185,7 +186,7 @@ namespace autov
 			for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 				auto pm_state = state->copy();
 				auto pat = (*pm)->pattern.get();
-				auto s = string(*pat);
+				// auto s = string(*pat);
 
 				resolve_pattern(proj, m, pat, src, pm_state);
 				if(resolve_to_none) {
@@ -299,7 +300,7 @@ namespace autov
 				if (res == Z3Result::False) {
 					continue;
 				} else {
-					LOG_DEBUG << "[forward_simulation " << random_code << "] Checking Match src: " << string(*m->src).substr(0,200) <<  "\nPattern: " << string(*pat).substr(0,200);
+					// LOG_DEBUG << "[forward_simulation " << random_code << "] Checking Match src: " << string(*m->src).substr(0,200) <<  "\nPattern: " << string(*pat).substr(0,200);
 					auto this_branch_result = forward_simulation(proj, st_check, spec_ret, (*pm)->body.get(), rel, ret_rel, pm_state, det, path, i+1, allow_none);
 					if(!this_branch_result.verified){
 						LOG_DEBUG << "[forward_simulation " << random_code << "] Match verification failed on branch: " << string(*pat).substr(0,200);
@@ -644,12 +645,14 @@ namespace autov
 				
 				auto state_works = z3_verify_state_sat(new_state->copy(), &proj->query_saver);
 				if (state_works != Z3Result::False) {
-					auto pat_str = string(*(*pm)->pattern.get());
-					auto src_str = string(*m->src);
-					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] In Match: " << string(*m->src).substr(0,200) << ".\n Verifying pattern: " << string(*(*pm)->pattern.get()).substr(0,100) << ".";
+					// auto pat_str = string(*(*pm)->pattern.get());
+					// auto src_str = string(*m->src);
+					// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] In Match: " << string(*m->src).substr(0,200) << ".\n Verifying pattern: " << string(*(*pm)->pattern.get()).substr(0,100) << ".";
 					auto new_result = simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, ret_rel, new_state, p_match, det);
 					if (sim_result.verified && !new_result.verified) {
 						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] In Match body at " << (*pm)->body.get() << " not verified.";
+						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Match src: " << string(*m->src) << " not verified.";
+						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Match pat: " << string(*(*pm)->pattern) << " not verified.";
 					}
 					sim_result = sim_result + new_result;
 				} else {
@@ -666,7 +669,7 @@ namespace autov
 			// push cond
 			auto c = z3_eval(proj, i->cond.get(), state);
 			z3::model model(z3ctx);
-			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if: " << string(*c).substr(0,1000);
+			// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if: " << string(*c).substr(0,1000);
 
 			std::pair<bool,bool> plausibility = check_branch_plausibility(proj, state, c, model);
 			auto true_branch_plausible = plausibility.first;
@@ -683,8 +686,8 @@ namespace autov
 			path_t p_then = p, p_else = p;
 			p_then.push_back(1);
 			p_else.push_back(0);
-			auto cond_str = string(*i->cond);
-			auto cond_val_str = string(*c);
+			// auto cond_str = string(*i->cond);
+			// auto cond_val_str = string(*c);
 			auto sim_result = SimulateResult{true, false, false, false};
 			// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if z3: " << c->get_z3_value();
 			if (true_branch_plausible){

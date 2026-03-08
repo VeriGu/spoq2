@@ -646,6 +646,7 @@ rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::sha
 
 rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<EvalState> state) {
     if (!force_simpl) return { std::move(spec), false };
+    auto z3t_string = spec->get_type()->get_z3_type().to_string();
 
     bool changed = false;
     // auto orig_cond = string(*spec->cond);
@@ -714,6 +715,7 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
             elems->push_back(unique_ptr<SpecNode>(new BoolConst(false)));
             auto cond = make_unique<Expr>(Expr::EQUAL, std::move(elems), Prop::PROP);
             auto result = make_unique<Rely>(std::move(cond), std::move(else_ret.first));
+            assert(z3t_string == result->get_type()->get_z3_type().to_string());
             return { std::move(result), changed };
 
         } else if (else_ret.first == nullptr && is_instance(then_ret.first->get_type().get(), Option)) {
@@ -722,18 +724,22 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
             elems->push_back(unique_ptr<SpecNode>(new BoolConst(true)));
             auto cond = make_unique<Expr>(Expr::EQUAL, std::move(elems), Prop::PROP);
             auto result = make_unique<Rely>(std::move(cond), std::move(then_ret.first));
+            assert(z3t_string == result->get_type()->get_z3_type().to_string());
             return { std::move(result), changed };
 
         }
 
         if (!then_ret.first) {
+            assert(z3t_string == else_ret.first->get_type()->get_z3_type().to_string());
             return { std::move(else_ret.first), true };
         } 
         
         if (!else_ret.first) {
+            assert(z3t_string == then_ret.first->get_type()->get_z3_type().to_string());
             return { std::move(then_ret.first), true };
         }
         auto result = make_unique<If>(std::move(cond_ret.first), std::move(then_ret.first), std::move(else_ret.first));
+            assert(z3t_string == result->get_type()->get_z3_type().to_string());
         return {
             std::move(result),
             changed
@@ -742,20 +748,23 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
     } else if (res == Z3Result::True) {
         // profile_log_rule_if_solved((orig_cond));
         auto ret = this->rule_simple_by_z3(std::move(spec->then_body), state);
+            assert(z3t_string == ret.first->get_type()->get_z3_type().to_string());
         return { std::move(ret.first), true };
     } else {
         // profile_log_rule_if_solved((orig_cond));
         auto ret = this->rule_simple_by_z3(std::move(spec->else_body), state);
+            assert(z3t_string == ret.first->get_type()->get_z3_type().to_string());
         return { std::move(ret.first), true };
     }
 }
 
 
 rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::shared_ptr<EvalState> state) {
-    string orig_src = string(*spec);
-    auto logthis = orig_src.find("if ((call_dup - (call16_dup)) <>? (0))") != std::string::npos;
-    if(logthis)
-        LOG_DEBUG << "Starting simple_match_by_z3 on " << orig_src;
+    // string orig_src = string(*spec);
+    // auto logthis = orig_src.find("if ((call_dup - (call16_dup)) <>? (0))") != std::string::npos;
+    // if(logthis)
+    //     LOG_DEBUG << "Starting simple_match_by_z3 on " << orig_src;
+    auto z3t_string = spec->get_type()->get_z3_type().to_string();
     auto src_ret = this->rule_simple_by_z3(spec->src->deep_copy(), state);
 
     if (src_ret.first == nullptr) {
@@ -840,8 +849,10 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
             return { std::make_unique<Symbol>("None", typ), changed };
         } else {
             auto result = std::make_unique<Match>(std::move(src_ret.first), std::move(match_list));
-            if(logthis)
-                LOG_DEBUG << "ending simple_match_by_z3 on " << string(*result);
+            // if(logthis)
+            //     LOG_DEBUG << "ending simple_match_by_z3 on " << string(*result);
+            assert(z3t_string == result->get_type()->get_z3_type().to_string());
+
             return { std::move(result), changed };
         }
     }
@@ -850,7 +861,8 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
 rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_ptr<EvalState> state) {
     auto elems = std::make_unique<std::vector<std::unique_ptr<SpecNode>>>();
     bool changed = false;
-    auto s = string(*spec);
+    auto z3t_string = spec->get_type()->get_z3_type().to_string();
+    // auto s = string(*spec);
     // auto logthis = true;//s.find("(Some (1, st") != std::string::npos;
     // if(logthis)
         // LOG_DEBUG << "Spec before simple_expr_by_z3: " << s;
@@ -908,7 +920,8 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
     auto res = reduce_id_write(proj, std::move(new_spec), state);
     auto reduced_spec = std::move(res.first);
     changed |= res.second;
-
+    auto z3t_string2 = reduced_spec->get_type()->get_z3_type().to_string();
+    assert(z3t_string == z3t_string2);
     if (auto reduced_expr = instance_of(reduced_spec.get(), Expr)) {
         if (auto op = std::get_if<Expr::ops>(&reduced_expr->op)) {
             if (*op == Expr::SET || *op == Expr::GET) {
@@ -921,6 +934,8 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
             }
         }
     }
+    auto z3t_string3 = reduced_spec->get_type()->get_z3_type().to_string();
+    assert(z3t_string == z3t_string3);
     // auto new_s = string(*reduced_spec);
     // if(logthis)
     //     LOG_DEBUG << "Spec after simple_expr_by_z3: " << string(*reduced_spec);

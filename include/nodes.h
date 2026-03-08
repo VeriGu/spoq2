@@ -743,7 +743,7 @@ public:
     // gives False for every condition except the selected one.
     unique_ptr<SpecNode> bool_cond_for(unique_ptr<PatternMatch>& desired_match) const {
         if(auto sym = dynamic_cast<Symbol*>(this->src.get())){
-            LOG_DEBUG << "Pat: " << (string(*desired_match->pattern));
+            // LOG_DEBUG << "Pat: " << (string(*desired_match->pattern));
             if(auto pat_sym = dynamic_cast<Symbol*>(desired_match->pattern.get())){
                 return make_unique<BoolConst>(pat_sym->text == sym->text);
             } else if(auto expr = dynamic_cast<Expr*>(desired_match->pattern.get())){

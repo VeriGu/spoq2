@@ -61,8 +61,8 @@ namespace autov {
                     assert(false);
                 }
             }
-            LOG_DEBUG << "LPM swap back: " << string(*accumulated_cond);
-            LOG_DEBUG << "temp held body: " << string(*temp_held_match_body);
+            // LOG_DEBUG << "LPM swap back: " << string(*accumulated_cond);
+            // LOG_DEBUG << "temp held body: " << string(*temp_held_match_body);
 
             // set last_pattern_match on the new_accumulator.
             // Needed if the new condition is a match.
@@ -79,18 +79,18 @@ namespace autov {
                 // Using an If instead of an AND makes it easier to have a program that we can split into smaller z3 queries later.
                 // auto new_predicate = make_unique<If>(std::move(cond), std::move(temp_held_match_body), make_unique<BoolConst>(false));
                 bool success = false;
-                LOG_DEBUG << "New Predicate to add to pattern match body: " << string(*new_predicate);
-                LOG_DEBUG << "Original new accumulator condition: " << string(*new_accumulator.accumulated_cond);
+                // LOG_DEBUG << "New Predicate to add to pattern match body: " << string(*new_predicate);
+                // LOG_DEBUG << "Original new accumulator condition: " << string(*new_accumulator.accumulated_cond);
                 // If the new condition is not a match, we want the new last_pattern_match value to be the location of the substitution.
                 // If it is a match, we want the new last_pattern_match to point inside the new match,
                 // So we have to search the new match after substitution.
                 new_accumulator.accumulated_cond = subst(move(new_accumulator.accumulated_cond), match_body_sym, new_predicate.get(), success, &new_accumulator.last_pattern_match);
-                LOG_DEBUG << "New accumulator condition after substitution: " << string(*new_accumulator.accumulated_cond);
+                // LOG_DEBUG << "New accumulator condition after substitution: " << string(*new_accumulator.accumulated_cond);
                 // LOG_DEBUG << "Adding condition with pattern match. New condition: " << string(*new_accumulator.accumulated_cond);
-                assert(string(*new_accumulator.accumulated_cond).find(match_body_sym) == string::npos);
+                // assert(string(*new_accumulator.accumulated_cond).find(match_body_sym) == string::npos);
                 assert(success);
                 assert(new_accumulator.last_pattern_match); // We can never stop adding to the inner conjunction.
-                LOG_DEBUG << "New last_pattern_match: " << string(*new_accumulator.last_pattern_match);
+                // LOG_DEBUG << "New last_pattern_match: " << string(*new_accumulator.last_pattern_match);
             } else{
                 elems->push_back(std::move(new_accumulator.accumulated_cond));
                 new_accumulator.accumulated_cond = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);

@@ -2652,7 +2652,8 @@ rule_ret_t SpecRules::rule_eliminate_let(std::unique_ptr<SpecNode> spec, bool re
         }
         if (auto m = instance_of(node.get(), Match)) {
             if (m->is_let()) {
-                if (auto pattern = instance_of(m->match_list->at(0)->pattern.get(), Symbol)) {
+                auto let_pm = m->match_list->at(0).get();
+                if (auto pattern = instance_of(let_pm->pattern.get(), Symbol)) {
                     std::string name = pattern->text;
                     if (!proj->is_known_symbol(name)) {
                         SpecNode* value = m->src.get();
@@ -2685,95 +2686,20 @@ when X == (if c then (Some Y) else (Some Z)); body
 */
 rule_ret_t SpecRules::rule_eliminate_when(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
-    std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)> f =
-        [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
-            if (auto m = instance_of(node.get(), Match)) {
-                if (m->is_when()) {
-                    auto pattern = dynamic_cast<Expr*>(m->match_list->at(0)->pattern.get());
-                    auto &when_body = m->match_list->at(0)->body;
+    auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+            auto m = dynamic_cast<Match*>(node.get());
+            if (m && m->is_when()) {
+                auto &when_body = m->match_list->at(0)->body;
 
-                    // an aux function to substitute the when body
-                    std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>&)> subst_when =
-                        [&](std::unique_ptr<SpecNode>& node) -> std::unique_ptr<SpecNode> {
-                        if (auto m = instance_of(node.get(), Symbol)) {
-                            if (m->text == "None") {
-                                return std::make_unique<Symbol>("None", when_body->get_type());
-                            } else {
-                                return nullptr;
-                            }
-                        } else if (auto m = instance_of(node.get(), Expr)) {
-                            if (holds_alternative<Expr::ops>(m->op) && std::get<Expr::ops>(m->op) == Expr::ops::Some) {
-                                auto vec = std::make_unique<std::vector<std::unique_ptr<PatternMatch>>>();
-                                vec->push_back(std::make_unique<PatternMatch>(pattern->elems->at(0)->deep_copy(), when_body->deep_copy()));
-                                auto new_spec = std::make_unique<Match>(m->elems->at(0)->deep_copy(), std::move(vec));
-                                new_spec->type = when_body->get_type();
-                                return new_spec;
-                            }
-                            return nullptr;
-                        } else if (auto m = instance_of(node.get(), Match)) {
-                            auto vec = std::make_unique<std::vector<std::unique_ptr<PatternMatch>>>();
-                            for (auto& pm : *m->match_list) {
-                                auto subst_body = subst_when(pm->body);
-                                if (!subst_body) {
-                                    return nullptr;
-                                }
-                                vec->push_back(std::make_unique<PatternMatch>(pm->pattern->deep_copy(), std::move(subst_body)));
-                            }
-                            auto new_spec = std::make_unique<Match>(m->src->deep_copy(), std::move(vec));
-                            new_spec->type = when_body->get_type();
-                            return new_spec;
-                        } else if (auto m = instance_of(node.get(), Rely)) {
-                            auto body = subst_when(m->body);
-                            if (!body) {
-                                return nullptr;
-                            }
-                            auto type = make_shared<Option>(body->type);
-                            auto new_spec = std::make_unique<Rely>(m->prop->deep_copy(), std::move(body));
-                            new_spec->type = type;
-                            return new_spec;
-                        } else if (auto m = instance_of(node.get(), Anno)) {
-                            auto body = subst_when(m->body);
-                            if (!body) {
-                                return nullptr;
-                            }
-                            auto type = make_shared<Option>(body->type);
-                            auto new_spec = std::make_unique<Anno>(m->prop->deep_copy(), std::move(body));
-                            new_spec->type = type;
-                            return new_spec;
-                        } else if (auto m = instance_of(node.get(), If)) {
-                            auto then_body = subst_when(m->then_body);
-                            auto else_body = subst_when(m->else_body);
-                            if (!then_body || !else_body) {
-                                return nullptr;
-                            }
-                            auto type = then_body->type;
-                            auto new_spec = std::make_unique<If>(m->cond->deep_copy(), std::move(then_body), std::move(else_body));
-                            new_spec->type = type;
-                            return new_spec;
-                        } else if (auto m = instance_of(node.get(), Forall)) {
-                            return std::move(node);
-                        } else if (auto m = instance_of(node.get(), Exists)) {
-                            return std::move(node);
-                        } else if (auto m = instance_of(node.get(), Const)) {
-                            return nullptr;
-                        } else {
-                            throw std::runtime_error("Unknown node type:" + string(*node->type));
-                        }
-                    };
-                    
-                    auto new_body = subst_when(m->src);
-                    if (!new_body) {
-                        return node;
-                    }
+            if (auto src = instance_of(m->src.get(), Symbol)) {
+                if (src->text == "None") {
                     changed = true;
-                    return new_body;
-                } else {
-                    return node;
+                    return std::make_unique<Symbol>("None", when_body->get_type());
                 }
-            } else {
-                return node;
             }
-        };
+        }
+        return node;
+    };
    if(rec) {
         auto new_root = rec_apply(std::move(spec), f, false);
         return { std::move(new_root), changed };
@@ -3273,6 +3199,19 @@ rule_ret_t SpecRules::simple_const_bool(std::unique_ptr<SpecNode> spec) {
     auto new_root = rec_apply(std::move(spec), f, false);
     return { std::move(new_root), changed };
 }
+
+rule_ret_t SpecRules::collect_all_vars(std::unique_ptr<SpecNode> spec, std::set<string> &vars){
+    bool changed = false;
+    auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+        if(auto sym = dynamic_cast<Symbol*>(node.get())){
+            vars.insert(sym->text);
+        }
+        return node;
+    };
+    auto new_root = rec_apply(std::move(spec), f, false);
+    return { std::move(new_root), changed };
+
+}
 // If we know a function returns none with predicate P,
 // and we have that transformation primed using PostCondWithNone,
 // We still need to create the branch artificailly outside the function call.
@@ -3661,18 +3600,21 @@ rule_ret_t SpecRules::rule_move_when_out_when(std::unique_ptr<SpecNode> spec, bo
             if (auto src = instance_of(m->src.get(), Match)) {
                 if (src->is_when() && is_instance(m->type.get(), Option)) {
                     for (const auto &pm : *m->match_list) {
-                        if (string(*pm->pattern) == "None" && string(*pm->body) == "None") {
-                            auto pattern = dynamic_cast<Expr*>(src->match_list->at(0)->pattern.get());
-                            auto match = make_unique<Match>(std::move(src->match_list->at(0)->body), std::move(m->match_list));
-                            auto new_match = std::unique_ptr<Match>(
-                                Match::raw_when(
-                                    std::move(pattern->elems->at(0)),
-                                    std::move(src->src),
-                                    std::move(match)
-                                )
-                            );
-                            changed = true;
-                            return new_match;
+                        if (auto pattern = dynamic_cast<Expr*>(src->match_list->at(0)->pattern.get())) {
+                            // if (string(*pm->pattern) == "None" && string(*pm->body) == "None") {
+                            auto sym = dynamic_cast<Symbol*>(pm->body.get());
+                            if (op_eq(pattern->op, Expr::ops::None) && sym && sym->text == "None") {
+                                auto match = make_unique<Match>(std::move(src->match_list->at(0)->body), std::move(m->match_list));
+                                auto new_match = std::unique_ptr<Match>(
+                                    Match::raw_when(
+                                        std::move(pattern->elems->at(0)),
+                                        std::move(src->src),
+                                        std::move(match)
+                                    )
+                                );
+                                changed = true;
+                                return new_match;
+                            }
                         }
                     }
                     return node;

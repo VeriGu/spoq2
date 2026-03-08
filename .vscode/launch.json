@@ -101,6 +101,16 @@
             "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/",
             "preLaunchTask": "CMake: build debug"
         },
+                {
+            "name": "(lldb) pv assign needs precond",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/assign_needs_precond.main.v",
+            "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/anp/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
         {
             "name": "(lldb) pv struct static",
             "type": "lldb",

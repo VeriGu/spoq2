@@ -371,7 +371,7 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
         PROFILE_END(eval_check);
         PROFILE_END(if_eval_check);
         if (res == Z3Result::Unknown) {
-            profile_log_eval_if_unsolved(string(*iff->cond.get()));
+            // profile_log_eval_if_unsolved(string(*iff->cond.get()));
             auto true_state = state->copy();
             true_state->conds->push_back(c->get_z3_value());
             auto True = z3_expr(proj, iff->then_body.get(), true_state);
@@ -765,7 +765,7 @@ bool prove_by_traverse(
                 }
                 // Prove the return state maintains the invariant
                 // construct new invariants
-                auto ret_st_str = string(*ret_st);
+                // auto ret_st_str = string(*ret_st);
                 unique_ptr<SpecNode> prop;
                 if (mode == ProveMode::SYS) {
                     vector<string> names;
@@ -850,14 +850,14 @@ bool prove_by_traverse(
                 // Goal Query\n" << c->get_z3_value() << std::endl; std::cout <<
                 // "----------------------------------" << std::endl;
                 if (z3_ret == Z3Result::Sat) {
-                    LOG_WARNING << "[prove_by_traverse] Invariant is violated "
-                                   "for state\n"
-                                << ret_st_str << std::endl;
+                    // LOG_WARNING << "[prove_by_traverse] Invariant is violated "
+                    //                "for state\n"
+                    //             << ret_st_str << std::endl;
                     return false;
                 } else if (z3_ret == Z3Result::Unknown) {
-                    LOG_WARNING << "[prove_by_traverse] Invariant is unknown "
-                                   "for state\n"
-                                << ret_st_str << std::endl;
+                    // LOG_WARNING << "[prove_by_traverse] Invariant is unknown "
+                    //                "for state\n"
+                    //             << ret_st_str << std::endl;
                     LOG_DEBUG << "prop: " << c->get_z3_value();
                     for (auto &cond : *state->conds) {
                         LOG_DEBUG << "Cond:" << cond;
@@ -867,9 +867,9 @@ bool prove_by_traverse(
                     }
                     return false;
                 } else {
-                    LOG_INFO
-                        << "[prove_by_traverse] Invariant is proved for state\n"
-                        << ret_st_str << std::endl;
+                    // LOG_INFO
+                    //     << "[prove_by_traverse] Invariant is proved for state\n"
+                    //     << ret_st_str << std::endl;
                     return true;
                 }
             }
@@ -1305,15 +1305,15 @@ bool prove_by_traverse(
                         new_state->add_induction(lemma_expr->get_z3_value());
                     }
                 }
-                LOG_DEBUG << "non resolve branch for pattern: " << string(*pat);
+                // LOG_DEBUG << "non resolve branch for pattern: " << string(*pat);
             } else {
-                LOG_DEBUG << "Resolving pattern: " << string(*pat);
+                // LOG_DEBUG << "Resolving pattern: " << string(*pat);
             }
             resolve_pattern(proj, m, pat, src, new_state);
             verify_success &= prove_by_traverse(
                 proj, (*pm)->body.get(), inv, new_state, used_abs_funcs, mode,
                 fname, none_accumulator.add_condition(m->bool_cond_for(*pm)));
-            LOG_DEBUG << "Resolved pattern: " << string(*pat);
+            // LOG_DEBUG << "Resolved pattern: " << string(*pat);
         }
         return verify_success;
     } else if (auto i = instance_of(spec, If)) {
@@ -1324,21 +1324,21 @@ bool prove_by_traverse(
         true_state->conds->push_back(c->get_z3_value());
         false_state->conds->push_back(!c->get_z3_value());
         auto verify_success = true;
-        LOG_DEBUG << "Evaluating then branch: " << string(*i->cond);
+        // LOG_DEBUG << "Evaluating then branch: " << string(*i->cond);
         verify_success &= prove_by_traverse(
             proj, i->then_body.get(), inv, true_state, used_abs_funcs, mode,
             fname,
             none_accumulator
                 ? none_accumulator.add_condition(i->cond->deep_copy())
                 : none_accumulator);
-        LOG_DEBUG << "Evaluating else branch: " << string(*i->cond);
+        // LOG_DEBUG << "Evaluating else branch: " << string(*i->cond);
         verify_success &= prove_by_traverse(
             proj, i->else_body.get(), inv, false_state, used_abs_funcs, mode,
             fname,
             none_accumulator
                 ? none_accumulator.add_inverse_condition(i->cond->deep_copy())
                 : none_accumulator);
-        LOG_DEBUG << "Evaluated branch: " << string(*i->cond);
+        // LOG_DEBUG << "Evaluated branch: " << string(*i->cond);
         return verify_success;
     } else if (auto r = instance_of(spec, Rely)) {
         // push cond
@@ -1578,8 +1578,8 @@ bool check_none(Project *proj, Definition *def,
 
     // Now apply the simplification rules to the sufficient_none_condition.
     if (def->sufficient_none_condition) {
-        LOG_DEBUG << "Original sufficient_none_condition for " << def->name
-                  << ": " << string(*def->sufficient_none_condition);
+        // LOG_DEBUG << "Original sufficient_none_condition for " << def->name
+        //           << ": " << string(*def->sufficient_none_condition);
         auto known = std::set<string>();
 
         for (auto arg : *def->args) {
@@ -1613,8 +1613,8 @@ bool check_none(Project *proj, Definition *def,
         //         break;
         // }
         def->sufficient_none_condition = std::move(new_spec);
-        LOG_DEBUG << "Final sufficient_none_condition for " << def->name << ": "
-                  << string(*def->sufficient_none_condition);
+        // LOG_DEBUG << "Final sufficient_none_condition for " << def->name << ": "
+        //           << string(*def->sufficient_none_condition);
     }
 
     return res;
@@ -1732,13 +1732,19 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     for (auto arg : *vuln_def->args) {
         args->push_back(arg);
     }
+    // Remove variable name conflicts between the two sides.
+    std::set<string> used_var_names;
+    bool unneeded = false;
+    std::tie(vuln_def->body, unneeded) = proj->rules.collect_all_vars(std::move(vuln_def->body), used_var_names);
 
     SpecNode *vuln_body = nullptr, *patched_body = nullptr;
     vuln_body = vuln_def->body.get();
-    patched_body =
+    auto tmp_patched_body =
         subst_v2(proj, patched_def->body->deep_copy(),
-                 patched_def->args->back()->name, st_sym_1->deep_copy())
-            .release();
+                 patched_def->args->back()->name, st_sym_1->deep_copy());
+    
+    tmp_patched_body = proj->rules.eliminate_ambiguity(std::move(tmp_patched_body), used_var_names, unneeded);
+    patched_body = tmp_patched_body.get();
     // LOG_DEBUG << "subst Patched body: " << z3_eval(proj, patched_body,
     // state)->value.to_string();;
 
@@ -2059,6 +2065,8 @@ void spec_prover(Project *proj) {
             auto other_def = other_def_pair.second.get();
             if (other_def == def || !other_def->body || other_def->name.find("_vuln_spec") == std::string::npos || other_def->name.find("_patch_spec") != std::string::npos)
                 continue;
+            LOG_DEBUG << "Applying PostCondWithNone for " << def->name
+                << " in " << other_def->name;
             auto old_body = other_def->body->deep_copy();
             auto new_body = proj->rules.wrap_none_call_with_cond(
                 proj, std::move(other_def->body), def->name,
@@ -2160,11 +2168,11 @@ void spec_prover(Project *proj) {
             if (did_wrap) {
                 LOG_DEBUG << "Applied PostCondWithNone for " << def->name
                           << " in " << other_def->name;
-                LOG_DEBUG << "Old body: " << string(*old_body);
-                LOG_DEBUG << "New body: " << string(*other_def->body);
+                // LOG_DEBUG << "Old body: " << string(*old_body);
+                // LOG_DEBUG << "New body: " << string(*other_def->body);
 
                 spec_transformer_v2(proj, other_def, 0, true, true, 0);
-                LOG_DEBUG << "New body after simplification: " << string(*other_def->body);
+                // LOG_DEBUG << "New body after simplification: " << string(*other_def->body);
 
             }
         }

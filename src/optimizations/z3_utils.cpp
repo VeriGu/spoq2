@@ -757,7 +757,7 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     auto option_elem = make_unique<vector<unique_ptr<SpecNode>>>();
     option_elem->push_back(unique_ptr<SpecNode>(body_expr));
     auto full_expr = new Expr(Expr::Some, std::move(option_elem), rettype); 
-    LOG_DEBUG << "expr:" << string(*full_expr);
+    // LOG_DEBUG << "expr:" << string(*full_expr);
 
     auto full_val_var = make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var);
     
@@ -1483,8 +1483,6 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
                 new_state->vars->emplace(v->first, v->second);
             }
             // new_state->conds->push_back(cond);
-            auto new_z3_res = z3_check(new_state, cond);
-
             if (match_val == nullptr) {
                 match_val = z3_eval(proj, (*pm)->body.get(), new_state);
             } else {
@@ -1661,7 +1659,7 @@ z3::expr formulate_function(Project* proj, Definition* def) {
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state, bool check_loop) {
     // std::cout << "z3_eval: " << string(*val) << std::endl;
 
-    // if (OPTS.z3_expr_cache && val->cached_eval) return val->cached_eval;
+    if (OPTS.z3_expr_cache && val->cached_eval) return val->cached_eval;
 
     auto _cache = [&](shared_ptr<SpecValue> return_val) {
         val->set_z3_eval(return_val);
@@ -1956,9 +1954,6 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                         } else if(op == Expr::ops::None){
                             constr_name = "None_" + option_ty->elem_type->name;
                         }
-                        if(constr_name.find("StackVal") != std::string::npos){
-                            int x = 4;
-                        }
                         auto recognizer = option_ty->get_recognizer(constr_name);
                         cond = recognizer(src->get_z3_value()) && (cond);
                     }
@@ -1977,19 +1972,18 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                 PROFILE_END(eval_check);
                 PROFILE_END(match_eval_check);
                 if (z3_res == Z3Result::False) {
-                    profile_log_eval_match_solved(string(*(match->src.get())));
+                    // profile_log_eval_match_solved(string(*(match->src.get())));
                     continue;
                 } else if (z3_res == Z3Result::True) {
-                    profile_log_eval_match_solved(string(*(match->src.get())));
+                    // profile_log_eval_match_solved(string(*(match->src.get())));
                 } else {
-                    profile_log_eval_match_unsolved(string(*(match->src.get())));
+                    // profile_log_eval_match_unsolved(string(*(match->src.get())));
                 }
             }
             auto new_state = state->copy();
             for (auto v = assigns.begin(); v != assigns.end(); v++) {
                 (*new_state->vars)[v->first] = v->second;
             }
-            auto new_z3_res = z3_check(new_state, cond);
 
             if (match_val == nullptr) {
                 // LOG_DEBUG << "match body:" << string(*(*pm)->body);
@@ -2037,7 +2031,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         } else if (res == Z3Result::True) {
             return _cache(z3_eval(proj, rely->body.get(), state,  check_loop));
         } else {
-            profile_log_eval_rely_solved(string(*rely->prop.get()));
+            // profile_log_eval_rely_solved(string(*rely->prop.get()));
             return _cache(static_pointer_cast<Option>(val->get_type())->construct("None", {}));
         }
     }
@@ -2051,7 +2045,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         PROFILE_END(if_eval_check);
         if (res == Z3Result::Unknown || res == Z3Result::Sat)
         {
-            profile_log_eval_if_unsolved(string(*iff->cond.get()));
+            // profile_log_eval_if_unsolved(string(*iff->cond.get()));
             auto true_state = state->copy();
             true_state->conds->push_back(c->get_z3_value());
             auto True = z3_eval(proj, iff->then_body.get(), true_state,  check_loop);
@@ -2063,13 +2057,13 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         }
         else if (res == Z3Result::True)
         {
-            profile_log_eval_if_solved(string(*iff->cond.get()));
+            // profile_log_eval_if_solved(string(*iff->cond.get()));
             state->conds->push_back(c->get_z3_value());
             return _cache(z3_eval(proj, iff->then_body.get(), state,  check_loop));
         }
         else
         {
-            profile_log_eval_if_solved(string(*iff->cond.get()));
+            // profile_log_eval_if_solved(string(*iff->cond.get()));
             state->conds->push_back(!c->get_z3_value());
             return _cache(z3_eval(proj, iff->else_body.get(), state,  check_loop));
         }
@@ -2412,7 +2406,6 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
                 (*new_state->vars)[v->first] = v->second;
             }
             // new_state->conds->push_back(cond);
-            auto new_z3_res = z3_check(new_state, cond);
 
             if (match_val == nullptr) {
                 match_val = z3_eval(proj, (*pm)->body.get(), new_state,  check_loop, unfold, used_fixpoint);

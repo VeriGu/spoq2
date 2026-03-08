@@ -60,21 +60,19 @@ unique_ptr<SpecNode> spec_transformer_v2(Project *proj, unique_ptr<SpecNode> nod
             known.insert(arg);
         }
         LOG_DEBUG << "start partial_eval" << "\n";
-        auto spec1 = partial_eval(proj, std::move(spec), 0, make_shared<EvalState>(vars, conds), known, unfold);
+        spec = partial_eval(proj, std::move(spec), 0, make_shared<EvalState>(vars, conds), known, unfold);
         LOG_DEBUG << "end partial_eval" << "\n";
-        // profile_print_transrule();
-        // LOG_DEBUG << "------------------after_partial_eval:----------------------\n" << string(*spec1);
-        unique_ptr<SpecNode> __tmp_spec;
         bool changed = false;
+        assert(spec);
         //type_inference::check_well_typed(*proj, spec.get(), known);
         
 
         if(unfold && !proj->cmds.NoUnfoldAll) {
-            auto [__spec, __changed] = proj->rules.rule_unfold_specs(std::move(spec1), true);
+            auto [spec1, __changed] = proj->rules.rule_unfold_specs(std::move(spec), true);
             //LOG_DEBUG <<  "------------------after unfold:----------------------\n" << string(*__spec);
             changed |= __changed;
             //type_inference::check_well_typed(*proj, __spec.get(), known);
-            spec1 = std::move(__spec);
+            spec = std::move(spec1);
         }
 
         known = std::set<string>();
@@ -82,13 +80,13 @@ unique_ptr<SpecNode> spec_transformer_v2(Project *proj, unique_ptr<SpecNode> nod
             known.insert(arg);
         }
         bool um_changed = false;
-        __tmp_spec = proj->rules.eliminate_ambiguity(std::move(spec1), known, um_changed);
+        spec = proj->rules.eliminate_ambiguity(std::move(spec), known, um_changed);
         changed |= um_changed;
 
         //type_inference::check_well_typed(*proj, __tmp_spec.get(), known);
 
     
-        auto [__tmp_spec1, le_changed] = proj->rules.rule_eliminate_let(std::move(__tmp_spec), true);
+        auto [__tmp_spec1, le_changed] = proj->rules.rule_eliminate_let(std::move(spec), true);
         changed |= le_changed;
         //type_inference::check_well_typed(*proj, __tmp_spec1.get(), known);
         LOG_DEBUG << "----------------after_let_elimination:---------------------\n" << string(*__tmp_spec1);
@@ -115,7 +113,7 @@ unique_ptr<SpecNode> spec_transformer_v2(Project *proj, unique_ptr<SpecNode> nod
 
 void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfold, bool low_spec, int max_iter) {
     LOG_INFO << "Transforming " << def->name << ", unfold: " << unfold;
-    LOG_INFO << "Transforming " << def->name << "def: " << string(*def);
+    // LOG_INFO << "Transforming " << def->name << "def: " << string(*def);
     proj->query_saver = query_saver_dir(def->name, "transforms" + std::to_string(layer_id) + std::to_string(max_iter));
     auto fname = def->name;
     auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
@@ -132,7 +130,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
         elems->push_back(inv->deep_copy());
         aggrepres = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
 	}
-    LOG_DEBUG << "ADDING PreConditions: " << string(*aggrepres);
+    // LOG_DEBUG << "ADDING PreConditions: " << string(*aggrepres);
 
     auto llvm_func = proj->spoq_code.llvm_module->getFunction(fname);
     size_t idx = 0;
@@ -163,8 +161,20 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             for (auto arg : *def->args) {
                 known.insert(arg->name);
             }
+            if(def->name == "entry_vuln_spec"){
+                auto s = string(*def->body);
+                LOG_DEBUG << "Starting transformation iteration " << cur_iter << ".";//  Current spec " << s << "\n\n";
+                auto dumpfile = def->name + "_transform_" + std::to_string(cur_iter);
+                std::ofstream ofs(dumpfile);
+                ofs << s;
+                ofs.close();
+            }
+            auto spec = std::move(def->body);
             // LOG_DEBUG << "start partial eval" << " " << force_simpl << "\n";
-            auto spec = partial_eval(proj, std::move(def->body), 0, make_shared<EvalState>(vars, conds), known, unfold);
+            spec = partial_eval(proj, std::move(spec), 0, make_shared<EvalState>(vars, conds), known, unfold);
+                        if(def->name == "entry_vuln_spec")
+            LOG_DEBUG << "spec after partial eval: " << string(*spec.get()) << "\n";
+
             // LOG_DEBUG << "end partial eval" << "\n";
             //profile_print_transrule();
             // LOG_DEBUG << def->name << "------------------after_partial_eval:----------------------\n" << string(*spec);
@@ -175,12 +185,17 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             
             force_simpl = false;
             changed = false;
+            bool still_unfolding;
+            bool um_changed, le_changed, me_changed, we_changed, cb_changed, hoist_changed = false;
+            do {
+                still_unfolding = false;
             if(unfold && !proj->cmds.NoUnfoldAll) {
                 assert(spec);
-                auto [_spec, __changed] = proj->rules.rule_unfold_specs(std::move(spec), true);
-                __unfold = __changed;
-                LOG_DEBUG << def->name <<  " unfolded.  Changed: " << __changed;
-                changed |= __changed;
+                auto [_spec, unfolded] = proj->rules.rule_unfold_specs(std::move(spec), true);
+                __unfold = unfolded;
+                LOG_DEBUG << def->name <<  " unfolded.  Changed: " << unfolded;
+                changed |= unfolded;
+                still_unfolding |= unfolded;
                 spec = std::move(_spec);
                 // type_inference::check_well_typed(*proj, spec.get(), known);
             }
@@ -190,33 +205,63 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             for (auto arg : *def->args) {
                 known.insert(arg->name);
             }
-            bool um_changed = false;
             assert(spec);
+            um_changed = false;
             spec = proj->rules.eliminate_ambiguity(std::move(spec), known, um_changed);
             changed |= um_changed;
+            still_unfolding |= um_changed;
+            if(def->name == "entry_vuln_spec")
+            LOG_DEBUG << "spec after unfolding: " << string(*spec.get()) << "\n";
             // type_inference::check_well_typed(*proj, spec.get(), known);
             // LOG_DEBUG << "end eliminate, start let" << "\n";
             assert(spec);
-            auto [__tmp_spec1, le_changed] = proj->rules.rule_eliminate_let(std::move(spec), true);
+            auto [__tmp_spec1, _le_changed] = proj->rules.rule_eliminate_let(std::move(spec), true);
+            le_changed = _le_changed;
             changed |= le_changed;
             spec = std::move(__tmp_spec1);
+            if(def->name == "entry_vuln_spec")
+            LOG_DEBUG << "spec after eliminate_let: " << string(*spec.get()) << "\n";
             assert(spec);
+
             // type_inference::check_well_typed(*proj, spec.get(), known);
             // LOG_DEBUG << def->name << "----------------after_let_elimination:---------------------\n";
 
             // LOG_DEBUG << "end let, start when" << "\n";
 
             assert(spec);
-            auto [__tmp_spec2, we_changed] = proj->rules.rule_eliminate_when(std::move(spec), true);
+            auto [__tmp_spec2, _we_changed] = proj->rules.rule_eliminate_when(std::move(spec), true);
+            we_changed = _we_changed;
             spec = std::move(__tmp_spec2);
             assert(spec);
+            if(def->name == "entry_vuln_spec")
+                LOG_DEBUG << "spec after eliminate_when: " << string(*spec.get()) << "\n";
             changed |= we_changed;
-            // This is a loadbearing transformation rule due to the appearance of a _ => ... branch in struct_static
-            auto [__tmp_spec3, me_changed] = proj->rules.rule_eliminate_match_simple(std::move(spec), true);
+            // This eliminate_match_simple is a loadbearing transformation rule due to the appearance of a _ => ... branch in struct_static
+            auto [__tmp_spec3, _me_changed] = proj->rules.rule_eliminate_match_simple(std::move(spec), true);
+            me_changed = _me_changed;
             spec = std::move(__tmp_spec3);
             assert(spec);
             // LOG_DEBUG << "----------------after_when_elimination:---------------------\n";
-            changed |= me_changed;
+            // changed |= me_changed;
+            if(def->name == "entry_vuln_spec")
+                LOG_DEBUG << "spec after eliminate_match_simple: " << string(*spec.get()) << "\n";
+                
+                spec = partial_eval(proj, std::move(spec), 0, make_shared<EvalState>(vars, conds), known, unfold);
+                if(def->name == "entry_vuln_spec")
+                    LOG_DEBUG << "spec after partial eval: " << string(*spec.get()) << "\n";
+            
+
+                std::tie(spec, cb_changed) = proj->rules.simple_const_bool(std::move(spec));
+                if(def->name == "entry_vuln_spec")
+                    LOG_DEBUG << "spec after simple_const_bool: " << string(*spec.get()) << "\n";
+            changed |= cb_changed;
+            std::tie(spec, hoist_changed) = proj->rules.hoist_match_from_branch(std::move(spec));
+            changed |= hoist_changed;
+            spec = proj->rules.eliminate_ambiguity(std::move(spec), known, um_changed);
+
+            if(def->name == "entry_vuln_spec")
+                    LOG_DEBUG << "spec after hoist: " << string(*spec.get()) << "\n";
+            } while(still_unfolding);
 
             // auto [__tmp_spec4, hoist_changed] = proj->rules.hoist_match_from_branch(std::move(spec));
             // spec = std::move(__tmp_spec4);
@@ -225,16 +270,19 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             // type_inference::check_well_typed(*proj, spec.get(), known);
             bool z3_changed = false;
             if (force_simpl || !__unfold) {
-                // LOG_DEBUG << "spec: " << string(*__tmp_spec3.get()) << "\n";
                 auto start = std::chrono::high_resolution_clock::now();
                 // LOG_DEBUG << "start z3" << "\n";
                 force_simpl = true;
                 std::tie(spec, z3_changed) = proj->rules.rule_simple_by_z3(std::move(spec), state->copy());
                 assert(spec);
+                if(def->name == "entry_vuln_spec")
+                    LOG_DEBUG << "spec after simple_by_z3: " << string(*spec.get()) << "\n";
+
                 // LOG_DEBUG << "end z3" << "\n";
                 auto end = std::chrono::high_resolution_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-                LOG_DEBUG << "spec transformer Z3 time: " << duration.count() / 1000.0 << " seconds\n";
+                LOG_DEBUG << "spec transformer for " << def->name << " Z3 time: " << duration.count() / 1000.0 << " seconds\n";
+                LOG_DEBUG << "z3_changed: " << z3_changed << ", me_changed: " << me_changed << ", we_changed: " << we_changed << ", le_changed: " << le_changed << ",um_changed: " << um_changed;
             }
             changed |= z3_changed;
             profile_update_epoch();

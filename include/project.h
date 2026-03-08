@@ -75,7 +75,7 @@ public:
     
     void dump(const string &q) {
         auto dumpfile = query_dir + "/query_" + std::to_string(query_id) + ".smt2";
-        std::clog << "Dumping query to " << dumpfile << std::endl;
+        LOG_INFO << "Dumping query to " << dumpfile << std::endl;
         std::ofstream ofs(dumpfile);
         ofs << q;
         ofs.close();

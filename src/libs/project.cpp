@@ -973,7 +973,7 @@ static void collect_lemmas(Project *proj) {
             pure_lemma = new Definition(lemma_def->name, lemma_def->rettype, std::move(l_args),
                                       lemma_def->body->deep_copy());
         }
-        LOG_INFO << "Pure Lemma: " << string(*pure_lemma) << std::endl;
+        // LOG_INFO << "Pure Lemma: " << string(*pure_lemma) << std::endl;
         if (lemma_def->deleyed_type_inference) {
             LOG_INFO << "Pure Lemma (infer_type): " << string(*pure_lemma) << std::endl;
             try{
@@ -988,7 +988,7 @@ static void collect_lemmas(Project *proj) {
         profile_finalize();
         profile_print();
         proj->defs[def.first].reset(pure_lemma);
-        LOG_INFO << "Pure Lemma (spec_transformer): " << string(*(proj->defs[def.first])) << std::endl;
+        // LOG_INFO << "Pure Lemma (spec_transformer): " << string(*(proj->defs[def.first])) << std::endl;
 
     }
     /** TODO: support lemma selection command */
@@ -1449,7 +1449,7 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
             } else {
                 spec_transformer(proj, high_def, layer_id, layer_id, true);
             }
-            LOG_INFO << "Transformed: " << std::endl << string(*high_def);
+            LOG_INFO << "Transformed: " << high_name;// << std::endl << string(*high_def);
         } else {
             LOG_INFO << "No transformation for " << high_name;
         }

@@ -80,10 +80,11 @@ bool ExtractBasicsPass::isUnion(llvm::StructType* ty) {
 std::string ExtractBasicsPass::generateStoreStructField(std::string obj, int offset, std::string field, llvm::StructType* ty) {
   if(ty == nullptr) return "";
   int size = dl->getTypeStoreSize(ty);
+  std::string ret_name = "ret_store_" + getStructTypeIdentifier(ty, false);
   std::string result =  "  if (ofs >=? " + std::to_string(offset) + ") && (ofs <? " + std::to_string(offset + size) + ") then (\n";
   result += "    let elem_ofs := ofs - " + std::to_string(offset) + " in\n";
-  result += "    when ret == store_" + getStructTypeIdentifier(ty, false) + " sz elem_ofs v " + obj + ".(" + field + ");\n";
-  result += "    Some (" + obj + ".[" + field + "] :< ret)) else ";
+  result += "    when " + ret_name + " == store_" + getStructTypeIdentifier(ty, false) + " sz elem_ofs v " + obj + ".(" + field + ");\n";
+  result += "    Some (" + obj + ".[" + field + "] :< " + ret_name + ")) else ";
   return result;
 }
 
@@ -280,11 +281,9 @@ std::string ExtractBasicsPass::generateField(llvm::Type* ty, bool pointers_are_p
       return "Metadata";
     }
     case llvm::Type::TypeID::FloatTyID: {
-      auto fty = ty->getFloatTy(ty->getContext());
       return "Float";
     }
     case llvm::Type::TypeID::DoubleTyID: {
-      auto fty = ty->getFloatTy(ty->getContext());
       return "Double";
     }
     default: {

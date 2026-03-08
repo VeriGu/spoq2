@@ -127,6 +127,7 @@ public:
     rule_ret_t rule_simplify_lens(std::unique_ptr<SpecNode> spec);
     rule_ret_t hoist_branch_out_of_when(std::unique_ptr<SpecNode> spec);
     rule_ret_t hoist_match_from_branch(std::unique_ptr<SpecNode> spec);
+    rule_ret_t collect_all_vars(std::unique_ptr<SpecNode> spec, std::set<string> &vars);
     rule_ret_t wrap_none_call_with_cond(Project *proj,
                                         std::unique_ptr<SpecNode> spec,
                                         std::string &func_name,

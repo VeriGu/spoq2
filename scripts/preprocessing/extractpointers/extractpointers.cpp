@@ -21,6 +21,8 @@
 #include <map>
 #include <fstream>
 #include <filesystem>
+#include <iostream>
+#include <optional>
 #include "../../../include/anon_structs.h"
 // using namespace llvm;
 // static cl::opt<bool> MergeFunctionsPDI("mymergefunc-preserve-debug-info",
@@ -68,10 +70,18 @@ class ExtractPointersPass : public llvm::ModulePass {
     return "stack_" + getTypeIdentifier(ty) + "__" + std::to_string(id);
   }
   std::string getGVIdentifier(llvm::GlobalVariable* v) {
-    std::string name = "g_" + v->getName().str();
-    std::replace(name.begin(), name.end(), '.', '_');
-    std::replace(name.begin(), name.end(), ':', '_');
-    return name;
+    if(v->isConstant() && v->getType()->isPointerTy() && 
+      v->getType()->getPointerElementType()->isArrayTy() && 
+      v->getType()->getPointerElementType()->getArrayElementType()->isIntegerTy() && 
+      v->hasName() && v->getName().startswith(".str.")){
+      std::string name = "g_merged_constant_global_string";
+      return name;
+    } else {
+      std::string name = "g_" + v->getName().str();
+      std::replace(name.begin(), name.end(), '.', '_');
+      std::replace(name.begin(), name.end(), ':', '_');
+      return name;
+    }
   }
   std::string getGVLoadStr(llvm::GlobalVariable* v) {
     if(v->isConstant()){
@@ -456,58 +466,140 @@ we get the current value of the pointer, match it, and need to set
 all the other branches to None.
 We can do this in a proxy definition for each type
 */
-  std::string stackval_def = "Inductive StackVal := \n" \
-  "| ZVal (zStackVal: Z)\n" \
-  "| ZMapVal (zmapStackVal: (ZMap.t Z))"; // left unclosed!
+
+  // store_stack and load_stack match bodies for StackVal branches
+  // will be prefixed by rely statements fixing the possible source stack pointers
+  // Map stack type identifiers from getStructTypeIdentifier to stackval branch and possible pointers
+  using stackval_info_entry_t = std::tuple<std::string,bool,bool,std::optional<std::string>, int, std::vector<std::string>>;
+  std::map<std::string,stackval_info_entry_t> stackval_info;
+  // This corresponds to  | ZVal (ZValConstr: Z)
+  stackval_info_entry_t z_val_entry = {"ZVal", false, false, std::nullopt, 0, {}};
+  stackval_info.emplace("Z", z_val_entry);
+  stackval_info_entry_t zmap_val_entry = {"ZMapVal", true, false, std::nullopt, 0, {}};
+  stackval_info.emplace("(ZMap.t Z)", zmap_val_entry);
+
+  std::string stackval_def = "Inductive StackVal := \n";
+  // stackval_info_entry_t z_val_entry = {"ZVal", false, {}};
+  // "| ZVal (zStackVal: Z)\n"
+  // "| ZMapVal (zmapStackVal: (ZMap.t Z))"; // left unclosed!
   std::string load_result = "Definition load_stack (sz: Z) (p: Ptr) (stack_map: STACK): (option Z) := \n" \
   "\tmatch (stack_map @ p.(pbase)) with\n" \
-  "\t\t| Some sv => match sv with\n"\
-  "\t\t\t| ZVal z => Some z\n"
-  "\t\t\t| ZMapVal zmap => Some (zmap @ p.(poffset))\n";
+  "\t\t| Some sv => match sv with\n";
+  // "\t\t\t| ZVal z => Some z\n"
+  // "\t\t\t| ZMapVal zmap => Some (zmap @ p.(poffset))\n";
   std::string store_result = "Definition store_stack (sz: Z) (p: Ptr) (v: Z) (stack_map: STACK): (option STACK) := \n" \
   "\tmatch (stack_map @ p.(pbase)) with\n" \
-  "\t\t| Some sv => match sv with\n"\
-  "\t\t\t| ZVal z => Some (stack_map # p.(pbase) == Some(ZVal v))\n"
-  "\t\t\t| ZMapVal zmap => Some (stack_map # p.(pbase) == Some(ZMapVal (zmap # p.(poffset) == v)))\n";
+  "\t\t| Some sv => match sv with\n";
+  // "\t\t\t| ZVal z => Some (stack_map # p.(pbase) == Some(ZVal v))\n"
+  // "\t\t\t| ZMapVal zmap => Some (stack_map # p.(pbase) == Some(ZMapVal (zmap # p.(poffset) == v)))\n";
   std::string is_stack_ptr = "Definition is_stack_ptr (p: Ptr): bool := (false = true)";
   for (auto &x : sn) {
-    for(int i = 0; i < x.second; i++){
-      this->named_stack_ty[getStackIdentifier(x.first, i)] = x.first;
-      is_stack_ptr += " \\/ \n\tp.(pbase) =s \"" + getStackIdentifier(x.first, i) + "\"";
-    }
+    std::string stackval_branch_id = "";
+    std::string stackval_accessor = "";
+    std::optional<std::string> struct_name = std::nullopt;
+    bool is_struct = false;
+    int element_size = 0;
     if (auto sty = llvm::dyn_cast<llvm::StructType>(x.first)){
+      is_struct = true;
       auto struct_id = getStructTypeIdentifier(sty);
-      stackval_def += "\n| " + struct_id + "Val (struct"+struct_id+"Val: " + struct_id + ")";
-
-      load_result += "\t\t\t| " + struct_id + "Val struct_val => \n";
-      load_result += "\t\t\t\twhen ret == load_" + struct_id + " sz p.(poffset) struct_val;\n";
-      load_result += "\t\t\t\t\tSome(ret)\n";
-
-      store_result += "\t\t\t| " + struct_id + "Val struct_val => \n"\
-                      "\t\t\t\t when ret == store_" + struct_id + " sz p.(poffset) v struct_val;\n"\
-                      "\t\t\t\t Some(stack_map # p.(pbase) == Some(" + struct_id + "Val ret))\n";
+      struct_name = struct_id;
+      stackval_branch_id = struct_id + "Val";
+      stackval_accessor = struct_id;
     } else if(auto aty = llvm::dyn_cast<llvm::ArrayType>(x.first)){
       auto ety = aty->getElementType();
       if (auto sty = llvm::dyn_cast<llvm::StructType>(ety)){
+        is_struct = true;
         auto struct_id = getStructTypeIdentifier(sty);
-        int element_size = dl->getTypeAllocSize(ety);
-        stackval_def += "\n| " + struct_id + "ArrVal ";
-        stackval_def += "(struct"+struct_id+"ArrVal: (ZMap.t " + struct_id + ") struct_map_val)";
+        struct_name = struct_id;
+        element_size = dl->getTypeAllocSize(ety);
+        stackval_branch_id = struct_id + "ArrVal";
+        stackval_accessor = ("(ZMap.t "+struct_id+")", struct_id);
+      } else {
+        stackval_branch_id = "ZMapVal";
+        stackval_accessor = generateField(x.first);
+      }
+    } else {
+      stackval_branch_id = "Z";
+      stackval_accessor = generateField(x.first);
+    }
+    if(stackval_info.count(stackval_accessor) == 0){
+      stackval_info_entry_t entry = {stackval_branch_id, x.first->isArrayTy(), is_struct, struct_name, element_size, {}};
+      stackval_info.emplace(stackval_accessor, entry);
+    }
+    for(int i = 0; i < x.second; i++){
+      this->named_stack_ty[getStackIdentifier(x.first, i)] = x.first;
+      is_stack_ptr += " \\/ \n\tp.(pbase) =s \"" + getStackIdentifier(x.first, i) + "\"";
+      auto &[branch_id, is_map, is_struct, struct_name, element_size, name_vec] = stackval_info.at(stackval_accessor);
+      name_vec.push_back(getStackIdentifier(x.first, i));
+    }
+  }
 
-        load_result += "\t\t\t| " + struct_id + "ArrVal struct_map_val => \n";
+  for (auto [type_ident, entry]: stackval_info){
+    auto [stackval_ident, is_map, is_struct, struct_id_opt, element_size, pointers] = entry;
+    std::string constr_e_ident = stackval_ident + "_val";
+
+    // StackVal
+    if(is_map){
+      stackval_def += "\t| "+stackval_ident+" ("+stackval_ident+"Constr: (ZMap.t "+type_ident+"))\n";
+    } else {
+      stackval_def += "\t| "+stackval_ident+" ("+stackval_ident+"Constr: "+type_ident+")\n";
+    }
+
+    std::string rely_clause;
+    rely_clause = "false";
+    for (auto &pointer_name : pointers){
+      rely_clause += " \\/ (p.(pbase) =s \"" + pointer_name + "\")";
+    }
+    rely_clause = "rely ("+rely_clause+");";
+    // Load & Store
+    if(!is_map && !is_struct){
+      // Z
+      load_result  += "\t\t\t| " + stackval_ident + " " + constr_e_ident + " => "+rely_clause+\
+        "\n\t\t\t\tSome " + constr_e_ident + "\n";
+      store_result += "\t\t\t| " + stackval_ident + " " + constr_e_ident + " => "+rely_clause+\
+      "\n\t\t\t\tSome (stack_map # p.(pbase) == Some(" + stackval_ident + " " + constr_e_ident + "))\n";
+    } else if(is_map && !is_struct){
+      // ZMap.t Z
+    } else if(!is_map && is_struct){
+      auto struct_id = struct_id_opt.value();
+      std::string load_ret_name = "ret_load_" + stackval_ident;
+      std::string store_ret_name = "ret_store_" + stackval_ident;
+
+      load_result += "\t\t\t| "+stackval_ident+" "+constr_e_ident +" => \n";
+      load_result += "\t\t\t\t" + rely_clause + "\n";
+      load_result += "\t\t\t\twhen "+load_ret_name+" == load_" + struct_id + " sz p.(poffset) " + constr_e_ident + ";\n";
+      load_result += "\t\t\t\t\tSome("+load_ret_name+")\n";
+
+      store_result += "\t\t\t| " + stackval_ident + " "+ constr_e_ident+" => \n"\
+                      "\t\t\t\t" + rely_clause +"\n"\
+                      "\t\t\t\twhen "+store_ret_name+" == store_" + struct_id + " sz p.(poffset) v "+constr_e_ident+";\n"\
+                      "\t\t\t\tSome(stack_map # p.(pbase) == Some(" + stackval_ident + " "+store_ret_name+"))\n";
+
+      // struct
+    } else if(is_map && is_struct){
+      auto struct_id = struct_id_opt.value();
+      std::string load_ret_name = "ret_load_arr_" + struct_id;
+      std::string store_ret_name = "ret_store_arr_" + struct_id;
+        load_result += "\t\t\t| " + stackval_ident + " "+constr_e_ident+" => \n";
+        load_result += "\t\t\t\t" + rely_clause + "\n";
         load_result += "\t\t\t\tlet idx := p.(poffset) /" + std::to_string(element_size) + " in\n" \
           "\t\t\t\tlet elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
-          "\t\t\t\twhen ret == load_" + struct_id + " sz elem_ofs (struct_map_val @ idx);\n"\
-          "\t\t\t\t\tSome(ret)\n";
-        store_result += "\t\t\t| " + struct_id + "ArrVal struct_map_val => \n"\
+          "\t\t\t\twhen "+load_ret_name+" == load_" + struct_id + " sz elem_ofs ("+constr_e_ident+" @ idx);\n"\
+          "\t\t\t\t\tSome("+load_ret_name+")\n";
+        store_result += "\t\t\t| " + stackval_ident +" "+constr_e_ident+" => \n"\
+                      "\t\t\t\t" + rely_clause +"\n"\
                       "\t\t\t\tlet idx := p.(poffset) /" + std::to_string(element_size) + " in\n" \
                       "\t\t\t\tlet elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
                       
-                      "\t\t\t\twhen ret == store_" + struct_id + " sz p.(poffset) v (struct_map_val @ idx);\n"\
-                      "\t\t\t\tSome(stack_map # p.(pbase) == Some(" + struct_id + "ArrVal (struct_map_val # idx == ret)))\n";
-      }
+                      "\t\t\t\twhen "+store_ret_name+" == store_" + struct_id + " sz p.(poffset) v ("+constr_e_ident+" @ idx);\n"\
+                      "\t\t\t\tSome(stack_map # p.(pbase) == Some(" + stackval_ident + " ("+constr_e_ident+" # idx == "+store_ret_name+")))\n";
+
+      // ZMap.t struct
+    } else {
+      assert(false);
     }
   }
+
   stackval_def += ".\n";
   stackval_def += "Definition STACK := (SMap (option StackVal)).";
 
@@ -635,6 +727,8 @@ void ExtractPointersPass::generate(llvm::Module& M) {
   std::string g_result = "Record GLOBALS :=\n" \
                          "  mkGLOBALS {\n"\
                          "    pointers: (ZMap.t (ZMap.t Z));\n";
+  std::set<std::string> done_ids;
+  
   for (llvm::GlobalVariable& globalVar : M.globals()) {
     if (globalVar.getName().startswith("llvm.")) continue;
     // if (globalVar.isConstant()) continue;
@@ -642,6 +736,12 @@ void ExtractPointersPass::generate(llvm::Module& M) {
     if (globalVar.isDeclaration()) continue;
     if (llvm::dyn_cast<llvm::FunctionType>(gv_type)) continue;
     if (!gv_type->isSized()) continue;
+    std::string id = getGVIdentifier(&globalVar);
+    if(done_ids.count(id) > 0){
+      continue;
+    } else{
+      done_ids.insert(id);
+    }
     int size = dl->getTypeAllocSize(gv_type);
     int page = ((size - 1) / page_size) + 1;
     page_count += page;
