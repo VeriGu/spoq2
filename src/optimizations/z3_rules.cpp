@@ -765,18 +765,20 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
     // if(logthis)
     //     LOG_DEBUG << "Starting simple_match_by_z3 on " << orig_src;
     auto z3t_string = spec->get_type()->get_z3_type().to_string();
-    auto src_ret = this->rule_simple_by_z3(spec->src->deep_copy(), state);
+    // auto src_ret = this->rule_simple_by_z3(spec->src->deep_copy(), state);
+    bool src_changed = false;
+    std::tie(spec->src, src_changed) = this->rule_simple_by_z3(std::move(spec->src), state);
 
-    if (src_ret.first == nullptr) {
+    if (spec->src == nullptr) {
         return std::make_pair(nullptr, true);
     }
 
     PROFILE_START(z3_eval);
-    auto src_val = z3_eval(proj, src_ret.first.get(), state);
+    auto src_val = z3_eval(proj, spec->src.get(), state);
     PROFILE_END(z3_eval);
     auto match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
 
-    bool changed = src_ret.second;
+    bool changed = src_changed;
 
     for (auto pm = spec->match_list->begin(); pm != spec->match_list->end(); pm++) {
         auto new_state = state->copy();
@@ -792,6 +794,7 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
                 continue;
             // }
         }
+
         auto body_ret = this->rule_simple_by_z3(std::move((*pm)->body), new_state);
         changed |= body_ret.second;
         if (body_ret.first) {
@@ -800,7 +803,8 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
 
     }
 
-    if (auto src_opt = dynamic_pointer_cast<Option>(src_ret.first->get_type())) {
+    // Ensure that an option match has both a Some and a None.  The branches could have been eliminated above.
+    if (auto src_opt = dynamic_pointer_cast<Option>(spec->src->get_type())) {
         if (auto spec_opt = dynamic_pointer_cast<Option>(spec->get_type())) {
             bool has_some = false;
             bool has_none = false;
@@ -848,9 +852,9 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
         if (only_none) {
             return { std::make_unique<Symbol>("None", typ), changed };
         } else {
-            auto result = std::make_unique<Match>(std::move(src_ret.first), std::move(match_list));
+            auto result = std::make_unique<Match>(std::move(spec->src), std::move(match_list));
             // if(logthis)
-            //     LOG_DEBUG << "ending simple_match_by_z3 on " << string(*result);
+                // LOG_DEBUG << "ending simple_match_by_z3 on " << string(*result);
             assert(z3t_string == result->get_type()->get_z3_type().to_string());
 
             return { std::move(result), changed };

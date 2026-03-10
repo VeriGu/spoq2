@@ -1376,7 +1376,7 @@ bool prove_by_traverse(
             state->conds->push_back(c->get_z3_value());
             return prove_by_traverse(proj, r->body.get(), inv, state,
                                      used_abs_funcs, mode, fname,
-                                     none_accumulator);
+                                     std::move(none_accumulator));
         }
     } else {
         // pass
@@ -1555,8 +1555,11 @@ bool check_none(Project *proj, Definition *def,
 
     auto none_cond_accumulator = NoneConditionAccumulator(proj, def->name);
     none_cond_accumulator.discharge_none = [=](std::unique_ptr<SpecNode> n) {
-        // LOG_DEBUG << "Discharging none condition to " << def->name << ": " <<
-        // string(*n);
+        if(def->name == "luaG_getfuncline_spec"){
+            LOG_DEBUG << "Discharging none condition to " << def->name << ": " << string(*n);
+            LOG_DEBUG << ".";
+
+        }
 
         if (def->sufficient_none_condition) {
             // auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
@@ -1574,12 +1577,17 @@ bool check_none(Project *proj, Definition *def,
     };
     bool res = prove_by_traverse(proj, spec_def->body.get(), postcond.get(),
                                  state, used_abs, ProveMode::None, def->name,
-                                 none_cond_accumulator);
-
+                                 std::move(none_cond_accumulator));
+    std::set<string> vars_in_none_cond;
+    free_vars(proj, def->sufficient_none_condition.get(), vars_in_none_cond);
+    for (auto &a: *def->args){
+        vars_in_none_cond.erase(a->name);
+    }
+    assert(vars_in_none_cond.empty());
     // Now apply the simplification rules to the sufficient_none_condition.
     if (def->sufficient_none_condition) {
-        // LOG_DEBUG << "Original sufficient_none_condition for " << def->name
-        //           << ": " << string(*def->sufficient_none_condition);
+        LOG_DEBUG << "Original sufficient_none_condition for " << def->name
+                  << ": " << string(*def->sufficient_none_condition);
         auto known = std::set<string>();
 
         for (auto arg : *def->args) {
@@ -1732,22 +1740,50 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     for (auto arg : *vuln_def->args) {
         args->push_back(arg);
     }
-    // Remove variable name conflicts between the two sides.
-    std::set<string> used_var_names;
-    bool unneeded = false;
-    std::tie(vuln_def->body, unneeded) = proj->rules.collect_all_vars(std::move(vuln_def->body), used_var_names);
-
     SpecNode *vuln_body = nullptr, *patched_body = nullptr;
-    vuln_body = vuln_def->body.get();
     auto tmp_patched_body =
         subst_v2(proj, patched_def->body->deep_copy(),
                  patched_def->args->back()->name, st_sym_1->deep_copy());
+
+
+
+    // Remove variable name conflicts between the two sides.
+    std::set<string> used_var_names;
+    bool unneeded = false;
+    // Collect all the symbols in the vuln-def
+    std::tie(vuln_def->body, unneeded) = proj->rules.collect_all_vars(std::move(vuln_def->body), used_var_names);
+    vuln_body = vuln_def->body.get();
+
+    // Remove the arguments, functions, and definitions
+    used_var_names.erase("None");
+    LOG_DEBUG << "Used Var Names 1: ";
+    for (auto s: used_var_names){ std::cerr << s << ", ";}
+     std::cerr << std::endl;
+    for (auto arg: *vuln_def->args) {
+        used_var_names.erase(arg->name);
+    }
+    LOG_DEBUG << "Used Var Names 2: ";
+    for (auto s: used_var_names){ std::cerr << s << ", ";}
+     std::cerr << std::endl;    
+     for (auto &[def_name, def]: proj->defs){
+        used_var_names.erase(def_name);
+    }
+    LOG_DEBUG << "Used Var Names 3: ";
+    for (auto s: used_var_names){ std::cerr << s << ", ";}
+     std::cerr << std::endl;
+          for (auto &[def_name, def]: proj->symbols){
+        used_var_names.erase(def_name);
+    }
+        LOG_DEBUG << "Used Var Names 4: ";
+    for (auto s: used_var_names){ std::cerr << s << ", ";}
+     std::cerr << std::endl;
     
     tmp_patched_body = proj->rules.eliminate_ambiguity(std::move(tmp_patched_body), used_var_names, unneeded);
-    patched_body = tmp_patched_body.get();
     // LOG_DEBUG << "subst Patched body: " << z3_eval(proj, patched_body,
     // state)->value.to_string();;
-
+    patched_def->body = tmp_patched_body->deep_copy();
+    
+    patched_body = tmp_patched_body.get();
     field_t ret_rel_names;
     unique_ptr<vector<shared_ptr<Arg>>> ret_rel_args =
         make_unique<vector<shared_ptr<Arg>>>();
@@ -2065,13 +2101,30 @@ void spec_prover(Project *proj) {
             auto other_def = other_def_pair.second.get();
             if (other_def == def || !other_def->body || other_def->name.find("_vuln_spec") == std::string::npos || other_def->name.find("_patch_spec") != std::string::npos)
                 continue;
-            LOG_DEBUG << "Applying PostCondWithNone for " << def->name
+            
+            auto current_free_vars = std::set<string>();
+            free_vars(proj, other_def->body.get(), current_free_vars);
+            for (auto &arg : *(def->args)){
+                current_free_vars.insert(arg->name);
+            }
+            auto updated_free_vars = std::set<string>();
+            auto new_free_vars = std::set<string>();
+
+            
+                LOG_DEBUG << "Applying PostCondWithNone for " << def->name
                 << " in " << other_def->name;
             auto old_body = other_def->body->deep_copy();
             auto new_body = proj->rules.wrap_none_call_with_cond(
                 proj, std::move(other_def->body), def->name,
                 def->sufficient_none_condition->deep_copy());
-                other_def->body = std::move(new_body.first);
+            other_def->body = std::move(new_body.first);
+
+            updated_free_vars = std::set<string>();
+            new_free_vars = std::set<string>();
+            free_vars(proj, other_def->body.get(), updated_free_vars);
+            std::set_difference(updated_free_vars.begin(), updated_free_vars.end(), current_free_vars.begin(), current_free_vars.end(), inserter(new_free_vars, new_free_vars.begin()));
+            assert(new_free_vars.empty());
+
             bool did_wrap = new_body.second;
             if(!did_wrap){
                 continue;
@@ -2161,6 +2214,11 @@ void spec_prover(Project *proj) {
                 std::move(other_def->body), true);
             next = std::chrono::high_resolution_clock::now();
                 LOG_DEBUG << "Simplification H " << new_body.second << ", " << (next-start).count() * 1.0e-9;
+                            updated_free_vars = std::set<string>();
+            new_free_vars = std::set<string>();
+            free_vars(proj, other_def->body.get(), updated_free_vars);
+            std::set_difference(updated_free_vars.begin(), updated_free_vars.end(), current_free_vars.begin(), current_free_vars.end(), inserter(new_free_vars, new_free_vars.begin()));
+            assert(new_free_vars.empty());
             start=next;
             other_def->body = std::move(new_body.first);
             any_changes = any_changes || new_body.second;

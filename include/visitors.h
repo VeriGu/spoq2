@@ -45,10 +45,12 @@ namespace autov {
             this->accumulated_cond = make_unique<BoolConst>(true);
             this->proj = proj;
             this->def_name = def_name;
+            this->last_pattern_match = this->accumulated_cond.get();
         };
         // Default Constructor
         NoneConditionAccumulator() {
             this->accumulated_cond = make_unique<BoolConst>(true);
+            this->last_pattern_match = this->accumulated_cond.get();
         };
 
         // Conversion to bool:

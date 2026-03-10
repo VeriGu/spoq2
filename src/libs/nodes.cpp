@@ -607,6 +607,8 @@ void Expr::infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>>
 // ----------------------------------------------------------------------------
 const string PatternMatch::to_string() const {
     std::ostringstream oss;
+    if(!this->body || !this->pattern)
+        return "| --- => --- ";
     string body = string(*(this->body));
 
     if (body.find("\n") != string::npos) {

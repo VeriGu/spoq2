@@ -65,7 +65,7 @@ private:
     Project *proj;
     std::unique_ptr<SpecNode> rec_apply(std::unique_ptr<SpecNode> spec,
                                               const std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)>& f,
-                                              bool apply_anno);
+                                              bool apply_anno = false, bool *abort = nullptr);
 public: 
     using rule_t = std::function<rule_ret_t(std::unique_ptr<SpecNode>)>;
     struct SpecRule {

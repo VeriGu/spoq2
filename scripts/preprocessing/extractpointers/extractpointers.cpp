@@ -837,7 +837,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
         "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
         "       let idx := p.(poffset) / " + std::to_string(element_size) + " in\n" \
         "       let elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
-        "       when ret == store_"+ getStructTypeIdentifier(sty) +" sz elem_ofs v " + getGVLoadStr(&globalVar) + " @ idx);\n " \
+        "       when ret == (store_"+ getStructTypeIdentifier(sty) +" sz elem_ofs v " + getGVLoadStr(&globalVar) + " @ idx);\n " \
         "       Some(" + getGVStoreStr(&globalVar) + ":< " + "(st.(globals).(" + getGVIdentifier(&globalVar) + ") # idx == ret) )) else\n";
         }
       }

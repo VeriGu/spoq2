@@ -454,6 +454,7 @@ namespace autov
 	SimulateResult simulate_by_traverse(Project *proj, SpecNode *spec, SpecNode *impl, Definition *rel, Definition *ret_rel, shared_ptr<ProveState> state, path_t p, bool det) {
 		int random_code = rand() % 10000;
 		LOG_DEBUG << "[simulate_by_traverse " << random_code << "] start!" << std::endl;
+		// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] start!" << std::endl << string(*spec) << std::endl;
 		if (auto expr = instance_of(spec, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -542,6 +543,7 @@ namespace autov
 
 			// auto abst_spec = abst_transition(proj, m->src.get()); 
 			// SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
+			
 			auto src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
 
 			int cnt = 0;

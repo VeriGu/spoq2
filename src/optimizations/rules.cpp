@@ -1298,6 +1298,7 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
         }
         PROFILE_START(move_if_out_expr);
         auto [__spec, changed] = proj->rules.rule_move_if_out_expr(std::move(spec), false);
+        // auto __spec = std::move(spec); bool changed = false;
         PROFILE_END(move_if_out_expr);
         if(changed) {
             return cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
@@ -1307,6 +1308,7 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
         }
         PROFILE_START(move_match_out_expr);
         auto [__spec2, changed2] = proj->rules.rule_move_match_out_expr(std::move(spec), false);
+        // auto __spec2 = std::move(spec); bool changed2 = false;
         PROFILE_END(move_match_out_expr);
         if(changed2) {
             return cache(partial_eval(proj, std::move(__spec2), level, state, used_symbols, unfold));
@@ -1316,6 +1318,7 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
         }
         PROFILE_START(simplify_built_in);
         auto [__spec3, changed3] = proj->rules.rule_simple_builtin_functions(std::move(spec), false);
+        // auto __spec3 = std::move(spec); bool changed3 = false;
         PROFILE_END(simplify_built_in);
         if(changed3) {
             return cache(partial_eval(proj, std::move(__spec3), level, state, used_symbols, unfold));
@@ -1337,6 +1340,7 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
                 //LOG_DEBUG << "before get set:------------------------" << string(*spec);
                 PROFILE_START(simplify_getset);
                 auto [__spec, changed] = proj->rules.rule_simple_record_get_set(std::move(spec),false);
+                // auto __spec = std::move(spec); bool changed = false;
                 PROFILE_END(simplify_getset);
                 if(changed) {
                     return cache(partial_eval(proj, std::move(__spec), level, state, used_symbols, unfold));
@@ -1940,7 +1944,8 @@ void free_vars(Project* proj, SpecNode* spec, std::set<std::string>& free) {
     } else if (auto m = instance_of(spec, Match)) {
         free_vars(proj, m->src.get(), free);
         for (const auto& pm : *m->match_list) {
-            free_vars(proj, pm->body.get(), free);
+            std::set<std::string> body_vars;
+            free_vars(proj, pm->body.get(), body_vars);
             std::set<std::string> symbols;
             std::function<void(SpecNode*)> collect_symbols = [&](SpecNode* pattern) {
                 if (auto s = instance_of(pattern, Symbol))
@@ -1953,7 +1958,10 @@ void free_vars(Project* proj, SpecNode* spec, std::set<std::string>& free) {
 
             collect_symbols(pm->pattern.get());
             for (const auto &sym : symbols) {
-                free.erase(sym);
+                body_vars.erase(sym);
+            }
+            for (const auto &var : body_vars){
+                free.insert(var);
             }
         }
 
@@ -2373,40 +2381,50 @@ std::unique_ptr<SpecNode> SpecRules::eliminate_ambiguity(
     if (!spec) {
         return spec;
     }
+    // auto z3t_string = spec->get_type()->get_z3_type().to_string();
     if (auto e = instance_of(spec.get(), Expr)) {
-        auto new_elems = std::make_unique<std::vector<std::unique_ptr<SpecNode>>>();
+        // auto new_elems = std::make_unique<std::vector<std::unique_ptr<SpecNode>>>();
         for (auto &elem : *e->elems) {
-            new_elems->push_back(eliminate_ambiguity(std::move(elem), prev_symbols, changed));
+            elem = eliminate_ambiguity(std::move(elem), prev_symbols, changed);
         }
         return std::visit([&](auto&& arg) -> std::unique_ptr<SpecNode> {
             using T = std::decay_t<decltype(arg)>;
             if constexpr (std::is_same_v<T, std::unique_ptr<SpecNode>>) {
                 auto new_op = eliminate_ambiguity(std::move(arg), prev_symbols, changed);
-                return std::make_unique<Expr>(std::move(new_op), std::move(new_elems), e->type);
+                e->op = std::move(new_op);
             } else {
-                return std::make_unique<Expr>(arg, std::move(new_elems), e->type);
+                e->op = arg;
             }
+            // assert(spec->get_type()->get_z3_type().to_string() == z3t_string);
+            return std::move(spec);
         }, e->op);
     } else if (auto m = instance_of(spec.get(), Match)) {
-        auto src = eliminate_ambiguity(std::move(m->src), prev_symbols, changed);
+        m->src = eliminate_ambiguity(std::move(m->src), prev_symbols, changed);
         std::set<string> src_free;
-        free_vars(proj, src.get(), src_free);
-        auto matches = make_unique<vector<unique_ptr<PatternMatch>>>();
+        free_vars(proj, m->src.get(), src_free);
+        // auto matches = make_unique<vector<unique_ptr<PatternMatch>>>();
         for (auto &pm : *m->match_list) {
             std::unordered_map<string, shared_ptr<SpecType>> symbols;
             std::function<void(SpecNode*)> collect_symbols = [&](SpecNode *pattern) {
-                if (auto s = instance_of(pattern, Symbol))
+                if (auto s = instance_of(pattern, Symbol)){
+                    assert(symbols.count(s->text) == 0 || symbols[s->text] == s->get_type());
                     symbols[s->text] = s->get_type();
+                }
                 else if (auto e = instance_of(pattern, Expr)) {
                     for (auto &elem : *e->elems)
                         collect_symbols(elem.get());
                 }
             };
             collect_symbols(pm->pattern.get());
+            for (auto [sym,_] : symbols){
+                if(proj->is_known_symbol(sym)){
+                    symbols.erase(sym);
+                }
+            }
+            // set `symbols` now has all symbols defined in this pattern.
 
-            auto _prev = std::set<string>(prev_symbols);
-            auto pattern = pm->pattern->deep_copy();
-            auto body = pm->body->deep_copy();
+            auto pattern = std::move(pm->pattern);
+            auto body = std::move(pm->body);
 
             std::set<string> body_free;
             free_vars(proj, pm->body.get(), body_free);
@@ -2414,21 +2432,32 @@ std::unique_ptr<SpecNode> SpecRules::eliminate_ambiguity(
             for (auto [sym,_] : symbols) {
                 body_free.erase(sym);   
             }
+            symbols.erase("_");
+            // body_free is now free variables in the body - variables defined in the pattern.
+            // this is the free variables of this PatternMatch
 
             std::set<string> ps;
-            std::set_union(body_free.begin(), body_free.end(), _prev.begin(), _prev.end(),
+            std::set_union(body_free.begin(), body_free.end(), prev_symbols.begin(), prev_symbols.end(),
                    std::inserter(ps, ps.end()));
+            // ps is now free variables of this PatternMatch + free variables passed into this call.
 
             std::set<string> magic_variables;
             std::set_union(ps.begin(), ps.end(), src_free.begin(), src_free.end(),
                    std::inserter(magic_variables, magic_variables.end()));
+            // magic_variables is now free variables of this PatternMatch + free variables passed in + free variables in the src
 
             std::set<string> ps2 = std::set<string>(magic_variables);
 
+            // For each symbol `sym` in the pattern
+            //  copy magic_variables to temp
+            //  for each symbol `inner_sym` in the pattern
+            //      if it's not the same as the outer symbol, add it to temp
+            //  pick a new name for `sym` not in temp
+            //  add the new name to magic_variables
             for (auto [sym,_] : symbols) {
-                if (sym == "_")
-                    continue;
-                if (!proj->is_known_symbol(sym)) {
+                // if (sym == "_")
+                    // continue;
+                // if (!proj->is_known_symbol(sym)) {
                     std::set<string> temp = std::set<string>(magic_variables);
                     for (auto [osym,_]: symbols) {
                         if (sym != osym) {
@@ -2437,15 +2466,15 @@ std::unique_ptr<SpecNode> SpecRules::eliminate_ambiguity(
                     }
                     auto new_sym = pick_new_name(sym, temp);
                     magic_variables.insert(new_sym);
-                }
+                // }
             }
 
             body = eliminate_ambiguity(std::move(body), magic_variables, changed);
 
             for (auto [sym,typ] : symbols) {
-                if (sym == "_")
-                    continue;
-                if (!proj->is_known_symbol(sym)) {
+                // if (sym == "_")
+                    // continue;
+                // if (!proj->is_known_symbol(sym)) {
                     std::set<string> temp = std::set<string>(ps2);
                     for(auto [osym,_]: symbols) {
                         if(sym != osym) {
@@ -2463,12 +2492,15 @@ std::unique_ptr<SpecNode> SpecRules::eliminate_ambiguity(
                         body = subst(std::move(body), sym, new_symbol.get(), succ);
                         changed |= succ;
                     }
-                }
+                // }
             }
-            matches->push_back(make_unique<PatternMatch>(std::move(pattern), std::move(body)));
+            pm->pattern = std::move(pattern);
+            pm->body = std::move(body);
+            // assert(pm->body->get_type()->get_z3_type().to_string() == z3t_string);
         }
 
-        return std::make_unique<Match>(std::move(src), std::move(matches));
+        // return std::make_unique<Match>(std::move(m->src), std::move(m->match_list));
+        return spec;
     } else if (auto r = instance_of(spec.get(), Rely)) {
         auto new_prop = eliminate_ambiguity(std::move(r->prop), prev_symbols, changed);
         auto new_body = eliminate_ambiguity(std::move(r->body), prev_symbols, changed);
@@ -2482,7 +2514,10 @@ std::unique_ptr<SpecNode> SpecRules::eliminate_ambiguity(
     } else if (auto i = instance_of(spec.get(), If)) {
         auto cond = eliminate_ambiguity(std::move(i->cond), prev_symbols, changed);
         auto then_body = eliminate_ambiguity(std::move(i->then_body), prev_symbols, changed);
+        // assert(z3t_string == then_body->get_type()->get_z3_type().to_string());
+
         auto else_body = eliminate_ambiguity(std::move(i->else_body), prev_symbols, changed);
+        // assert(z3t_string == else_body->get_type()->get_z3_type().to_string());
         return std::make_unique<If>(std::move(cond), std::move(then_body), std::move(else_body));
 
     } else if (auto fe = instance_of(spec.get(), ForallExists)) {
@@ -2548,67 +2583,68 @@ std::unique_ptr<SpecNode> SpecRules::eliminate_ambiguity(
  */
 std::unique_ptr<SpecNode> SpecRules::rec_apply(std::unique_ptr<SpecNode> spec,
                                                      const std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)>& f,
-                                                     bool apply_anno = true) {
+                                                     bool apply_anno, bool *abort) {
     if (!spec) {
         return spec;
     }
-
+    bool local_abort;
+    if(!abort) {
+        abort = &local_abort;
+    }
+    if(*abort) {return spec;}
     if (is_instance(spec.get(), Symbol)) {
         return f(std::move(spec));
     } else if (is_instance(spec.get(), Const)) {
         return f(std::move(spec));
     } else if (auto e = instance_of(spec.get(), Expr)) {
-        auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
         if (e->elems) {
-            for (auto &old_elems : *(e->elems)) {
-                new_elems->push_back(rec_apply(std::move(old_elems), f, apply_anno));
+            for (auto &elem : *(e->elems)) {
+                elem = (rec_apply(std::move(elem), f, apply_anno, abort));
             }
-            e->elems->clear();
         }
 
         return std::visit([&](auto &&arg) -> std::unique_ptr<SpecNode> {
             using T = std::decay_t<decltype(arg)>;
             if constexpr (std::is_same_v<T, std::unique_ptr<SpecNode>>) {
-                auto new_op = rec_apply(std::move(arg), f, apply_anno);
-                return f(std::make_unique<Expr>(std::move(new_op), std::move(new_elems), e->type));
+                e->op = rec_apply(std::move(arg), f, apply_anno, abort);
             } else {
-                return f(std::make_unique<Expr>(arg, std::move(new_elems), e->type));
+                e->op = arg;
             }
+            return f(std::move(spec));
         }, e->op);
 
         // throw std::runtime_error("Unknown SpecNode " + string(*spec.get()));
     } else if (auto m = instance_of(spec.get(), Match)) {
         auto is_determ = m->src->is_determ_branch;
-        auto new_src = rec_apply(std::move(m->src), f, apply_anno);
-        new_src->is_determ_branch = is_determ;
-        auto new_matches = make_unique<vector<unique_ptr<PatternMatch>>>();
+        m->src = rec_apply(std::move(m->src), f, apply_anno, abort);
+        m->src->is_determ_branch = is_determ;
+        // auto new_matches = make_unique<vector<unique_ptr<PatternMatch>>>();
         if (m->match_list) {
             for (auto &pm : *(m->match_list)) {
-                auto pm_copy = std::make_unique<PatternMatch>(rec_apply((std::move(pm->pattern)), f, apply_anno), rec_apply(std::move(pm->body), f, apply_anno));
-                new_matches->push_back(std::move(pm_copy));
+                pm->pattern = rec_apply((std::move(pm->pattern)), f, apply_anno, abort);
+                pm->body = rec_apply(std::move(pm->body), f, apply_anno, abort);
             }
         }
-        return f(std::make_unique<Match>(std::move(new_src), std::move(new_matches)));
+        return f(std::move(spec));
     } else if (auto r = instance_of(spec.get(), Rely)) {
-        auto new_prop = rec_apply(std::move(r->prop), f, apply_anno);
-        auto new_body = rec_apply(std::move(r->body), f, apply_anno);
-        return f(std::make_unique<Rely>(std::move(new_prop), std::move(new_body)));
+        r->prop = rec_apply(std::move(r->prop), f, apply_anno, abort);
+        r->body = rec_apply(std::move(r->body), f, apply_anno, abort);
+        return f(std::move(spec));
 
     } else if (auto r = instance_of(spec.get(), Anno)) {
-        auto new_prop = rec_apply(std::move(r->prop), f, apply_anno);
-        auto new_body = rec_apply(std::move(r->body), f, apply_anno);
-        return f(std::make_unique<Anno>(std::move(new_prop), std::move(new_body)));
-
+        r->prop = rec_apply(std::move(r->prop), f, apply_anno, abort);
+        r->body = rec_apply(std::move(r->body), f, apply_anno, abort);
+        return f(std::move(spec));
     } else if (auto i = instance_of(spec.get(), If)) {
         auto is_determ = i->cond->is_determ_branch;
-        auto new_cond = rec_apply(std::move(i->cond), f, apply_anno);
-        new_cond->is_determ_branch = is_determ; 
-        auto new_then = rec_apply(std::move(i->then_body), f, apply_anno);
-        auto new_else = rec_apply(std::move(i->else_body), f, apply_anno);
-        return f(std::make_unique<If>(std::move(new_cond), std::move(new_then), std::move(new_else)));
+        i->cond = rec_apply(std::move(i->cond), f, apply_anno, abort);
+        i->cond->is_determ_branch = is_determ; 
+        i->then_body = rec_apply(std::move(i->then_body), f, apply_anno, abort);
+        i->else_body = rec_apply(std::move(i->else_body), f, apply_anno, abort);
+        return f(std::move(spec));
 
     } else if (auto fe = instance_of(spec.get(), Forall)) {
-        auto vars = make_unique<vector<shared_ptr<Arg>>>();
+        // auto vars = make_unique<vector<shared_ptr<Arg>>>();
         if (fe->vars) {
             for (auto &v : *(fe->vars)) {
                 if (v->expr) {
@@ -2616,7 +2652,7 @@ std::unique_ptr<SpecNode> SpecRules::rec_apply(std::unique_ptr<SpecNode> spec,
                      *  this release will not leak since v->expr takes the ownership of the Expr object
                      *      by Ganxiang Yang, Feb 16, 2025
                      */
-                    auto new_expr = rec_apply(std::move(v->expr), f, apply_anno);
+                    auto new_expr = rec_apply(std::move(v->expr), f, apply_anno, abort);
                     auto e = dynamic_cast<Expr*>(new_expr.release());
                     if (e) {
                         v->expr = std::unique_ptr<Expr>(e);
@@ -2624,20 +2660,19 @@ std::unique_ptr<SpecNode> SpecRules::rec_apply(std::unique_ptr<SpecNode> spec,
                         throw std::runtime_error("rec_apply did not return an Expr type for the hypothesis!");
                     }
                 }
-                vars->push_back(v);
             }
-            fe->vars->clear();
         }
-        return f(std::make_unique<Forall>(std::move(vars), rec_apply(std::move(fe->body), f, apply_anno)));
+        return f(std::move(spec));
     } else if (auto fe = instance_of(spec.get(), Exists)) {
-        auto vars = make_unique<vector<shared_ptr<Arg>>>();
-        if (fe->vars) {
-            for (auto &v : *(fe->vars)) {
-                vars->push_back(v);
-            }
-            fe->vars->clear();
-        }
-        return f(std::make_unique<Exists>(std::move(vars), rec_apply(std::move(fe->body), f, apply_anno)));
+        // auto vars = make_unique<vector<shared_ptr<Arg>>>();
+        // if (fe->vars) {
+            // for (auto &v : *(fe->vars)) {
+                // vars->push_back(v);
+            // }
+            // fe->vars->clear();
+        // }
+        fe->body = rec_apply(std::move(fe->body), f, apply_anno, abort);
+        return f(std::move(spec));
 
     } else {
         return f(std::move(spec));
@@ -2979,8 +3014,10 @@ rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> sp
 rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec) {
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+        // auto z3t_string = node->get_type()->get_z3_type().to_string();
         if (auto m1 = instance_of(node.get(), Match)) {
             if (auto m2 = instance_of(m1->src.get(), Match)) {
+                auto orig_type = m1->get_type();
                 // LOG_DEBUG << "Found hoist match from match candidate:" << string(*node);
                 // new outer node will be m2,
                 // for each match pattern body of m2, it will be m1(body) with the same patterns and m1 body.
@@ -2990,17 +3027,23 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec) {
                     std::unique_ptr<Match> new_body = std::unique_ptr<Match>(static_cast<Match*>(m1->deep_copy().release()));
                     new_body->src = std::move(pm->body);
                     auto simplified = rule_eliminate_match_simple(std::move(new_body), false);
+                    // assert(simplified.first->get_type()->get_z3_type().to_string() == z3t_string);
                     pm->body = std::move(simplified.first);
-                    
+                
+                    pm->type = orig_type;
+                    pm->body->type = orig_type;
                     // if(is_instance(pm->body.get(), Match) || is_instance(pm->body.get(), If)) {
                     //     simplified = hoist_match_from_branch(std::move(pm->body));
                     //     pm->body = std::move(simplified.first);
                     // }
                 }
+                // manually set the type since we're reusing a node
+                new_node->type = orig_type;
                 auto simplified = hoist_match_from_branch(std::move(new_node));
                 // new_node = std::move(simplified.first);
                 changed = true;
                 // LOG_DEBUG << "Hoisted match from match:" << string(*simplified.first);
+                // assert(simplified.first->get_type()->get_z3_type().to_string() == z3t_string);
                 return std::move(simplified.first);
             }
             if (auto iff = instance_of(m1->src.get(), If)){
@@ -3017,10 +3060,15 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec) {
 
                 new_node->then_body = std::move(simplified_then.first);
                 new_node->else_body = std::move(simplified_else.first);
+                new_node->type = new_node->then_body->get_type();
+                // assert(new_node->then_body->get_type() == new_node->else_body->get_type());
+                // assert(new_node->then_body->get_type()->get_z3_type().to_string() == z3t_string);
+                // assert(new_node->else_body->get_type()->get_z3_type().to_string() == z3t_string);
                 auto simplified = hoist_match_from_branch(std::move(new_node));
                 // new_node = std::move(simplified.first);
                 // LOG_DEBUG << "Hoisted if from match, new node: " << string(*simplified.first);
                 changed = true;
+                // assert(simplified.first->get_type()->get_z3_type().to_string() == z3t_string);
                 return std::move(simplified.first);
             }
 
@@ -3047,6 +3095,7 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec) {
                 }
                 changed = true;
                 auto simplified = hoist_match_from_branch(std::move(new_node));
+                // assert(simplified.first->get_type()->get_z3_type().to_string() == z3t_string);
                 new_node = std::move(simplified.first);
                 // LOG_DEBUG << "Hoisted match from if, new node: " << string(*new_node);
                 return new_node;
@@ -3218,9 +3267,25 @@ rule_ret_t SpecRules::collect_all_vars(std::unique_ptr<SpecNode> spec, std::set<
 // This function iterates through the defs in Project,
 // finds calls to the target function, and substitutes in a 
 // if P then func_call else func_call.
+// func_name: The name of the def to which calls are being wrapped.
 rule_ret_t SpecRules::wrap_none_call_with_cond(Project* proj,std::unique_ptr<SpecNode> spec, std::string &func_name, std::unique_ptr<SpecNode> cond) {
     bool changed = false;
     auto &args = proj->defs[func_name]->args;
+
+    std::set<string> used_var_names;
+    std::tie(spec, changed) = collect_all_vars(std::move(spec), used_var_names);
+    bool unused = false;
+    if (func_name == "luaG_getfuncline_spec"){
+        LOG_DEBUG << "cond before eliminate_ambiguity: " << string(*cond) << std::endl;
+    }
+    cond = proj->rules.eliminate_ambiguity(std::move(cond), used_var_names, unused);
+    if (func_name == "luaG_getfuncline_spec"){
+        LOG_DEBUG << "cond after eliminate_ambiguity: " << string(*cond) << std::endl;
+    }
+    if (func_name == "luaG_getfuncline_spec"){
+        LOG_DEBUG << "spec before wrap_cond: " << string(*spec) << std::endl;
+    }
+
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         // auto m = instance_of(node.get(), Match);
         // if (m) {
@@ -3774,6 +3839,7 @@ rule_ret_t SpecRules::rule_move_match_out_expr(std::unique_ptr<SpecNode> spec, b
 rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec) {
     bool unfolded = false;
     bool changed = false;
+
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         // This seems to be needed right now due to variable name ambiguity 
         // from the produced let statements
@@ -3830,9 +3896,9 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
                 }
 
                 if (proj->symbols.find(define->name) != proj->symbols.end() &&
-                    std::get<0>(proj->symbols[define->name].loc) != "")
+                    std::get<0>(proj->symbols[define->name].loc) != ""){
                     unfolded = true;
-
+                }
                 changed = true;
                 if (e->elems->size() == 0) {
                     return body;
@@ -3871,7 +3937,7 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
         return node;
     };
     if(rec) { 
-        auto new_spec = rec_apply(std::move(spec), f, false); 
+        auto new_spec = rec_apply(std::move(spec), f, false, &unfolded); 
         return { std::move(new_spec), changed };
     } else { 
         auto new_spec = f(std::move(spec)); 

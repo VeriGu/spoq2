@@ -161,20 +161,41 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             for (auto arg : *def->args) {
                 known.insert(arg->name);
             }
-            if(def->name == "entry_vuln_spec"){
+
+            auto log_fn_name = "luaG_getfuncline_spec";
+            bool log_spec = false;
+            if(def->name == log_fn_name){
                 auto s = string(*def->body);
                 LOG_DEBUG << "Starting transformation iteration " << cur_iter << ".";//  Current spec " << s << "\n\n";
                 auto dumpfile = def->name + "_transform_" + std::to_string(cur_iter);
                 std::ofstream ofs(dumpfile);
                 ofs << s;
                 ofs.close();
+            }else {
+                LOG_DEBUG << def->name << " transformation iteration " << cur_iter << ".";//  Current spec " << s << "\n\n";
             }
             auto spec = std::move(def->body);
+            
+            // Trying to figure out where we're getting a new unknown symbol from.
+            auto current_free_vars = std::set<string>();
+            free_vars(proj, spec.get(), current_free_vars);
+            for (auto &arg : *(def->args)){
+                current_free_vars.insert(arg->name);
+            }
+            auto updated_free_vars = std::set<string>();
+            auto new_free_vars = std::set<string>();
+
+
             // LOG_DEBUG << "start partial eval" << " " << force_simpl << "\n";
             spec = partial_eval(proj, std::move(spec), 0, make_shared<EvalState>(vars, conds), known, unfold);
-                        if(def->name == "entry_vuln_spec")
-            LOG_DEBUG << "spec after partial eval: " << string(*spec.get()) << "\n";
+            if(def->name == log_fn_name)
+                LOG_DEBUG << "spec after partial eval: " << (log_spec ? string(*spec.get()) : "") << "\n";
 
+            // updated_free_vars = std::set<string>();
+            // new_free_vars = std::set<string>();
+            // free_vars(proj, spec.get(), updated_free_vars);
+            // std::set_difference(updated_free_vars.begin(), updated_free_vars.end(), current_free_vars.begin(), current_free_vars.end(), inserter(new_free_vars, new_free_vars.begin()));
+            // assert(new_free_vars.empty());
             // LOG_DEBUG << "end partial eval" << "\n";
             //profile_print_transrule();
             // LOG_DEBUG << def->name << "------------------after_partial_eval:----------------------\n" << string(*spec);
@@ -193,7 +214,8 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 assert(spec);
                 auto [_spec, unfolded] = proj->rules.rule_unfold_specs(std::move(spec), true);
                 __unfold = unfolded;
-                LOG_DEBUG << def->name <<  " unfolded.  Changed: " << unfolded;
+                if(def->name == log_fn_name)
+                    LOG_DEBUG << "Unfolded within " << def->name <<  ".  Changed: " << unfolded;
                 changed |= unfolded;
                 still_unfolding |= unfolded;
                 spec = std::move(_spec);
@@ -207,11 +229,19 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             }
             assert(spec);
             um_changed = false;
-            spec = proj->rules.eliminate_ambiguity(std::move(spec), known, um_changed);
+            if (still_unfolding){
+                spec = proj->rules.eliminate_ambiguity(std::move(spec), known, um_changed);
+            }
             changed |= um_changed;
             still_unfolding |= um_changed;
-            if(def->name == "entry_vuln_spec")
-            LOG_DEBUG << "spec after unfolding: " << string(*spec.get()) << "\n";
+            if(def->name == log_fn_name)
+            LOG_DEBUG << "spec after unfolding: " << (log_spec ? string(*spec.get()) : "") << "\n";
+            // free var check
+            // updated_free_vars = std::set<string>();
+            // new_free_vars = std::set<string>();
+            // free_vars(proj, spec.get(), updated_free_vars);
+            // std::set_difference(updated_free_vars.begin(), updated_free_vars.end(), current_free_vars.begin(), current_free_vars.end(), inserter(new_free_vars, new_free_vars.begin()));
+            // assert(new_free_vars.empty());
             // type_inference::check_well_typed(*proj, spec.get(), known);
             // LOG_DEBUG << "end eliminate, start let" << "\n";
             assert(spec);
@@ -219,10 +249,15 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             le_changed = _le_changed;
             changed |= le_changed;
             spec = std::move(__tmp_spec1);
-            if(def->name == "entry_vuln_spec")
-            LOG_DEBUG << "spec after eliminate_let: " << string(*spec.get()) << "\n";
+            if(def->name == log_fn_name)
+            LOG_DEBUG << "spec after eliminate_let: " << (log_spec ? string(*spec.get()) : "") << "\n";
             assert(spec);
-
+            // free var check
+            // updated_free_vars = std::set<string>();
+            // new_free_vars = std::set<string>();
+            // free_vars(proj, spec.get(), updated_free_vars);
+            // std::set_difference(updated_free_vars.begin(), updated_free_vars.end(), current_free_vars.begin(), current_free_vars.end(), inserter(new_free_vars, new_free_vars.begin()));
+            // assert(new_free_vars.empty());
             // type_inference::check_well_typed(*proj, spec.get(), known);
             // LOG_DEBUG << def->name << "----------------after_let_elimination:---------------------\n";
 
@@ -233,34 +268,52 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             we_changed = _we_changed;
             spec = std::move(__tmp_spec2);
             assert(spec);
-            if(def->name == "entry_vuln_spec")
-                LOG_DEBUG << "spec after eliminate_when: " << string(*spec.get()) << "\n";
+            if(def->name == log_fn_name)
+                LOG_DEBUG << "spec after eliminate_when: " << (log_spec ? string(*spec.get()) : "") << "\n";
             changed |= we_changed;
             // This eliminate_match_simple is a loadbearing transformation rule due to the appearance of a _ => ... branch in struct_static
             auto [__tmp_spec3, _me_changed] = proj->rules.rule_eliminate_match_simple(std::move(spec), true);
             me_changed = _me_changed;
             spec = std::move(__tmp_spec3);
             assert(spec);
+            // free var check
+            // updated_free_vars = std::set<string>();
+            // new_free_vars = std::set<string>();
+            // free_vars(proj, spec.get(), updated_free_vars);
+            // std::set_difference(updated_free_vars.begin(), updated_free_vars.end(), current_free_vars.begin(), current_free_vars.end(), inserter(new_free_vars, new_free_vars.begin()));
+            // assert(new_free_vars.empty());
             // LOG_DEBUG << "----------------after_when_elimination:---------------------\n";
             // changed |= me_changed;
-            if(def->name == "entry_vuln_spec")
-                LOG_DEBUG << "spec after eliminate_match_simple: " << string(*spec.get()) << "\n";
+            if(def->name == log_fn_name)
+                LOG_DEBUG << "spec after eliminate_match_simple: " << (log_spec ? string(*spec.get()) : "") << "\n";
                 
                 spec = partial_eval(proj, std::move(spec), 0, make_shared<EvalState>(vars, conds), known, unfold);
-                if(def->name == "entry_vuln_spec")
-                    LOG_DEBUG << "spec after partial eval: " << string(*spec.get()) << "\n";
-            
+                if(def->name == log_fn_name)
+                    LOG_DEBUG << "spec after partial eval: " << (log_spec ? string(*spec.get()) : "") << "\n";
+            // free var check
+            // updated_free_vars = std::set<string>();
+            // new_free_vars = std::set<string>();
+            // free_vars(proj, spec.get(), updated_free_vars);
+            // std::set_difference(updated_free_vars.begin(), updated_free_vars.end(), current_free_vars.begin(), current_free_vars.end(), inserter(new_free_vars, new_free_vars.begin()));
+            // assert(new_free_vars.empty());
 
                 std::tie(spec, cb_changed) = proj->rules.simple_const_bool(std::move(spec));
-                if(def->name == "entry_vuln_spec")
-                    LOG_DEBUG << "spec after simple_const_bool: " << string(*spec.get()) << "\n";
+                if(def->name == log_fn_name)
+                    LOG_DEBUG << "spec after simple_const_bool: " << (log_spec ? string(*spec.get()) : "") << "\n";
             changed |= cb_changed;
             std::tie(spec, hoist_changed) = proj->rules.hoist_match_from_branch(std::move(spec));
             changed |= hoist_changed;
-            spec = proj->rules.eliminate_ambiguity(std::move(spec), known, um_changed);
-
-            if(def->name == "entry_vuln_spec")
-                    LOG_DEBUG << "spec after hoist: " << string(*spec.get()) << "\n";
+            if (hoist_changed) {
+                spec = proj->rules.eliminate_ambiguity(std::move(spec), known, um_changed);
+            }
+// free var check
+            // updated_free_vars = std::set<string>();
+            // new_free_vars = std::set<string>();
+            // free_vars(proj, spec.get(), updated_free_vars);
+            // std::set_difference(updated_free_vars.begin(), updated_free_vars.end(), current_free_vars.begin(), current_free_vars.end(), inserter(new_free_vars, new_free_vars.begin()));
+            // assert(new_free_vars.empty());
+            if(def->name == log_fn_name)
+                    LOG_DEBUG << "spec after hoist: " << (log_spec ? string(*spec.get()) : "") << "\n";
             } while(still_unfolding);
 
             // auto [__tmp_spec4, hoist_changed] = proj->rules.hoist_match_from_branch(std::move(spec));
@@ -275,9 +328,14 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 force_simpl = true;
                 std::tie(spec, z3_changed) = proj->rules.rule_simple_by_z3(std::move(spec), state->copy());
                 assert(spec);
-                if(def->name == "entry_vuln_spec")
-                    LOG_DEBUG << "spec after simple_by_z3: " << string(*spec.get()) << "\n";
-
+                if(def->name == log_fn_name)
+                    LOG_DEBUG << "spec after simple_by_z3: " << (log_spec ? string(*spec.get()) : "") << "\n";
+// free var check
+            updated_free_vars = std::set<string>();
+            new_free_vars = std::set<string>();
+            free_vars(proj, spec.get(), updated_free_vars);
+            std::set_difference(updated_free_vars.begin(), updated_free_vars.end(), current_free_vars.begin(), current_free_vars.end(), inserter(new_free_vars, new_free_vars.begin()));
+            assert(new_free_vars.empty());
                 // LOG_DEBUG << "end z3" << "\n";
                 auto end = std::chrono::high_resolution_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);

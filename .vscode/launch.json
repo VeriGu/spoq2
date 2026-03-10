@@ -153,6 +153,26 @@
             "preLaunchTask": "CMake: build debug"
         },
                 {
+            "name": "(lldb) pv struct in global array",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/struct_in_array_global.ll.main.v",
+            "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/struct_in_array_g/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+                {
+            "name": "(lldb) pv struct in stack array",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/struct_in_array_stack.ll.main.v",
+            "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/struct_in_array_s/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+                {
             "name": "(lldb) pv buf const string",
             "type": "lldb",
             "request": "launch",
