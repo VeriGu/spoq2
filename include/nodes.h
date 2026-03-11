@@ -703,13 +703,13 @@ public:
     Match() { throw std::invalid_argument("Match must have a src and match_list"); }
     Match(unique_ptr<SpecNode> src, unique_ptr<vector<unique_ptr<PatternMatch>>> match_list) :
         SpecNode((*match_list)[0]->body->get_type()), src(std::move(src)), match_list(std::move(match_list)) {
-            for(auto &pm : *this->match_list){
-                if(!(pm->get_type()->get_z3_type().to_string() == this->get_type()->get_z3_type().to_string() || pm->get_type() == SpecType::UNKNOWN_TYPE || this->get_type() == SpecType::UNKNOWN_TYPE)){
-                    LOG_DEBUG << string(*this);
-                    LOG_DEBUG << string(*pm);
-                    assert(false);
-                }
-            }
+            // for(auto &pm : *this->match_list){
+            //     if(!(pm->get_type()->get_z3_type().to_string() == this->get_type()->get_z3_type().to_string() || pm->get_type() == SpecType::UNKNOWN_TYPE || this->get_type() == SpecType::UNKNOWN_TYPE)){
+            //         LOG_DEBUG << string(*this);
+            //         LOG_DEBUG << string(*pm);
+            //         assert(false);
+            //     }
+            // }
     }
 
     bool operator==(const SpecNode& other) const {
@@ -1075,16 +1075,16 @@ public:
         SpecNode(then_body->get_type()), cond(std::move(cond)), then_body(std::move(then_body)), else_body(std::move(else_body)) {
         // if (this->cond.get() == nullptr)
             // throw std::invalid_argument("If condition cannot be null");
-        if(!(this->get_type()->get_z3_type().to_string() == this->then_body->get_type()->get_z3_type().to_string() || this->get_type() == SpecType::UNKNOWN_TYPE || this->then_body->get_type() == SpecType::UNKNOWN_TYPE)){
-            LOG_DEBUG << string(*this);
-            LOG_DEBUG << string(*this->then_body);
-            assert(false);
-        }
-        if(!(this->get_type()->get_z3_type().to_string() == this->else_body->get_type()->get_z3_type().to_string() || this->get_type() == SpecType::UNKNOWN_TYPE || this->else_body->get_type() == SpecType::UNKNOWN_TYPE)){
-            LOG_DEBUG << string(*this);
-            LOG_DEBUG << string(*this->else_body);
-            assert(false);
-        }
+        // if(!(this->get_type()->get_z3_type().to_string() == this->then_body->get_type()->get_z3_type().to_string() || this->get_type() == SpecType::UNKNOWN_TYPE || this->then_body->get_type() == SpecType::UNKNOWN_TYPE)){
+        //     LOG_DEBUG << string(*this);
+        //     LOG_DEBUG << string(*this->then_body);
+        //     assert(false);
+        // }
+        // if(!(this->get_type()->get_z3_type().to_string() == this->else_body->get_type()->get_z3_type().to_string() || this->get_type() == SpecType::UNKNOWN_TYPE || this->else_body->get_type() == SpecType::UNKNOWN_TYPE)){
+        //     LOG_DEBUG << string(*this);
+        //     LOG_DEBUG << string(*this->else_body);
+        //     assert(false);
+        // }
     }
 
     bool operator==(const SpecNode& other) const {

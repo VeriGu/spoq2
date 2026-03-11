@@ -2996,6 +2996,9 @@ rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> sp
                     None 
                     else z
         None => z
+
+    In this case, the inner match starts with type bool and the outer if starts with type T
+    In the result, the match has type T, each match body has type T
     OR
     match(match(load_RData 8 (ptr_offset p 88) st_1) with 
                 (Some x) => Some x
@@ -3014,7 +3017,7 @@ rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> sp
 rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec) {
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
-        // auto z3t_string = node->get_type()->get_z3_type().to_string();
+        auto z3t_string = node->get_type()->get_z3_type().to_string();
         if (auto m1 = instance_of(node.get(), Match)) {
             if (auto m2 = instance_of(m1->src.get(), Match)) {
                 auto orig_type = m1->get_type();
@@ -3061,9 +3064,8 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec) {
                 new_node->then_body = std::move(simplified_then.first);
                 new_node->else_body = std::move(simplified_else.first);
                 new_node->type = new_node->then_body->get_type();
-                // assert(new_node->then_body->get_type() == new_node->else_body->get_type());
-                // assert(new_node->then_body->get_type()->get_z3_type().to_string() == z3t_string);
-                // assert(new_node->else_body->get_type()->get_z3_type().to_string() == z3t_string);
+                assert(new_node->then_body->get_type()->get_z3_type().to_string() == z3t_string);
+                assert(new_node->else_body->get_type()->get_z3_type().to_string() == z3t_string);
                 auto simplified = hoist_match_from_branch(std::move(new_node));
                 // new_node = std::move(simplified.first);
                 // LOG_DEBUG << "Hoisted if from match, new node: " << string(*simplified.first);
@@ -3075,6 +3077,7 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec) {
         }
         if (auto iff = instance_of(node.get(), If)){
             if(auto m = instance_of(iff->cond.get(), Match)){
+                auto orig_type = iff->get_type();
                 // LOG_DEBUG << "Found hoist match from branch candidate:" << string(*node);
                 auto new_node = std::move(iff->cond);
                 assert(!iff->cond);
@@ -3089,6 +3092,7 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec) {
                         new_body = make_unique<If>(std::move(pm->body), iff->then_body->deep_copy(), iff->else_body->deep_copy());
                     }
                     pm->body = std::move(new_body);
+                    pm->type = pm->body->get_type();
                     auto simplified = rule_eliminate_if(std::move(pm->body), false);
                     // simplified = hoist_match_from_branch(std::move(simplified.first));
                     pm->body = std::move(simplified.first);
@@ -3097,6 +3101,7 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec) {
                 auto simplified = hoist_match_from_branch(std::move(new_node));
                 // assert(simplified.first->get_type()->get_z3_type().to_string() == z3t_string);
                 new_node = std::move(simplified.first);
+                new_node->type = orig_type;
                 // LOG_DEBUG << "Hoisted match from if, new node: " << string(*new_node);
                 return new_node;
             }

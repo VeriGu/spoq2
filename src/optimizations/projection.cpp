@@ -162,7 +162,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 known.insert(arg->name);
             }
 
-            auto log_fn_name = "luaG_getfuncline_spec";
+            auto log_fn_name = "changedline_vuln_spec";
             bool log_spec = false;
             if(def->name == log_fn_name){
                 auto s = string(*def->body);
@@ -235,7 +235,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             changed |= um_changed;
             still_unfolding |= um_changed;
             if(def->name == log_fn_name)
-            LOG_DEBUG << "spec after unfolding: " << (log_spec ? string(*spec.get()) : "") << "\n";
+            LOG_DEBUG << "spec after post unfolding ea: " << (log_spec ? string(*spec.get()) : "") << "\n";
             // free var check
             // updated_free_vars = std::set<string>();
             // new_free_vars = std::set<string>();
@@ -301,20 +301,16 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 if(def->name == log_fn_name)
                     LOG_DEBUG << "spec after simple_const_bool: " << (log_spec ? string(*spec.get()) : "") << "\n";
             changed |= cb_changed;
+            } while(still_unfolding);
             std::tie(spec, hoist_changed) = proj->rules.hoist_match_from_branch(std::move(spec));
+            if(def->name == log_fn_name)
+                    LOG_DEBUG << "spec after hoist: " << (log_spec ? string(*spec.get()) : "") << "\n";
             changed |= hoist_changed;
             if (hoist_changed) {
                 spec = proj->rules.eliminate_ambiguity(std::move(spec), known, um_changed);
             }
-// free var check
-            // updated_free_vars = std::set<string>();
-            // new_free_vars = std::set<string>();
-            // free_vars(proj, spec.get(), updated_free_vars);
-            // std::set_difference(updated_free_vars.begin(), updated_free_vars.end(), current_free_vars.begin(), current_free_vars.end(), inserter(new_free_vars, new_free_vars.begin()));
-            // assert(new_free_vars.empty());
             if(def->name == log_fn_name)
-                    LOG_DEBUG << "spec after hoist: " << (log_spec ? string(*spec.get()) : "") << "\n";
-            } while(still_unfolding);
+                    LOG_DEBUG << "spec after post-hoist ea: " << (log_spec ? string(*spec.get()) : "") << "\n";
 
             // auto [__tmp_spec4, hoist_changed] = proj->rules.hoist_match_from_branch(std::move(spec));
             // spec = std::move(__tmp_spec4);
