@@ -42,6 +42,7 @@ type:
 	| option_type = 'option' type
 	| zmap_type = 'ZMap.t' type
 	| smap_type = 'SMap' type
+	| vector_type = 'Vector' type
 	| '(' type ( tup = '*' type  ) + ')'
 	| domain = type '->' '(' codomain = type ')'
 	| '(' par=type ')'
@@ -117,6 +118,10 @@ name: ID;
 number: NUMBER;
 string: STR;
 bool: TRUE | FALSE;
+
+veclen: 'veclen';
+vecget: 'vecget';
+vecreplace: 'vecreplace';
 
 MK: 'mk';
 INDUC: 'Inductive';

@@ -218,6 +218,10 @@ antlrcpp::Any ProgramVisitor::visitType(SpecParser::TypeContext *ctx) {
     } else if (ctx->smap_type) {
         return static_pointer_cast<SpecType>(make_shared<SMap>(
             any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)))));
+    } else if (ctx->vector_type) {
+        return static_pointer_cast<SpecType>(make_shared<Vector>(
+            any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)))
+        ));
     } else if (ctx->name()) {
         std::string name = ctx->name()->getText();
         // LOG_DEBUG << "Visiting type: " << name;

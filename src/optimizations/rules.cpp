@@ -1736,6 +1736,8 @@ SpecNode* try_divide_const_factor(SpecNode *expr, int factor) {
             return new IntConst(std::get<unsigned long>(m->value) / factor);
         }
     } else if(auto m = instance_of(expr, Expr)) {
+        if(m->type->name != "Z")
+            return expr;
         if(holds_alternative<Expr::binops>(m->op)) {
             auto op = std::get<Expr::binops>(m->op);
             if((op == Expr::binops::ADD || op == Expr::binops::MINUS) && m->elems->size() == 2) {

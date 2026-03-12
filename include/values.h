@@ -173,7 +173,25 @@ public:
         throw std::runtime_error("Type.declare not implemented");
     }
 };
+// finite map Z -> V
+class Vector : public SpecType {
+public:
+    shared_ptr<SpecType> elem_type;
+    Vector() = default;
+    Vector(shared_ptr<SpecType> elem_type) : SpecType("Vec_" + elem_type->name), elem_type(elem_type) { }
 
+    shared_ptr<Vector> getptr() {
+        return static_pointer_cast<Vector>(shared_from_this());
+    }
+
+    operator string() const {
+        return "(Vec " + string(*elem_type) + ")";
+    }
+
+    virtual z3::sort get_z3_type();
+    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
+    virtual shared_ptr<SpecValue> declare(string name, int nid);    
+};
 class ZMap : public SpecType {
 public:
     shared_ptr<SpecType> elem_type;
@@ -423,8 +441,12 @@ public:
     shared_ptr<SpecType> typ;
     z3::expr value;
 
-    SpecValue(shared_ptr<SpecType> typ, unsigned long value, bool sign = false) : typ(typ), value(z3ctx.int_val(value)) {
-        if(sign) value = z3ctx.int_val((long)value);
+    SpecValue(shared_ptr<SpecType> typ, unsigned long value, bool sign = false) : typ(typ), value(z3ctx.bool_val(false)) {
+        if(sign) {
+            this->value = z3ctx.int_val((long)value);
+        } else {
+            this->value = z3ctx.int_val(value);
+        }
     }
     SpecValue(shared_ptr<SpecType> typ, long value, bool sign = false) : typ(typ), value(z3ctx.int_val(value)) {}
     SpecValue(shared_ptr<SpecType> typ, bool value) : typ(typ), value(z3ctx.bool_val(value)) {}
@@ -481,14 +503,56 @@ public:
 
 class IntValue : public SpecValue {
 public:
-    IntValue(unsigned long value, bool sign = false) : SpecValue(Int::INT, value, sign) {}
-    IntValue(long value, bool sign = false) : SpecValue(Int::INT, value, sign) {}
-    IntValue(z3::expr value) : SpecValue(Int::INT, value) {}
+    IntValue(unsigned long value, bool sign = false) : SpecValue(Int::INT, value, sign) {
+        auto res = this->get_z3_value();
+        if(this->get_z3_value().to_string().find("1844674407370955161") != std::string::npos){
+            std::cerr << "AAAAAAAAAAAAAAAAH sixth place";
+            std::cerr << string(*this);
+            std::cerr << "z3 value: " << res.to_string();
+            int x = 5;
+        }
+    }
+    IntValue(long value, bool sign = false) : SpecValue(Int::INT, value, sign) {
+        auto res = this->get_z3_value();
+
+        if(res.to_string().find("1844674407370955161") != std::string::npos){
+            std::cerr << "AAAAAAAAAAAAAAAAH fifth place";
+            std::cerr << string(*this);
+            std::cerr << "z3 value: " << res.to_string();
+            int x = 5;
+        }
+    }
+    IntValue(z3::expr value) : SpecValue(Int::INT, value) {
+
+    }
 
 
     shared_ptr<IntValue> neg() { return make_shared<IntValue>((-value).simplify()); }
-    shared_ptr<IntValue> add(shared_ptr<IntValue> other) { return make_shared<IntValue>((value + other->value).simplify()); }
-    shared_ptr<IntValue> sub(shared_ptr<IntValue> other) { return make_shared<IntValue>((value - other->value).simplify()); }
+    shared_ptr<IntValue> add(shared_ptr<IntValue> other) { 
+        auto res = value + other->value;
+        auto v_res = value.to_string().find("1844674407370955161") == std::string::npos;
+        auto o_res = other->value.to_string().find("1844674407370955161") == std::string::npos;
+
+        if(!v_res && !o_res && res.to_string().find("1844674407370955161") != std::string::npos){
+            std::cerr << "AAAAAAAAAAAAAAAAH fifth place";
+            std::cerr << string(*this);
+            std::cerr << "z3 value: " << res.to_string();
+            int x = 5;
+        }
+        return make_shared<IntValue>((value + other->value).simplify()); 
+    }
+    shared_ptr<IntValue> sub(shared_ptr<IntValue> other) { 
+        auto res = value - other->value;
+        auto v_res = value.to_string().find("1844674407370955161") == std::string::npos;
+        auto o_res = other->value.to_string().find("1844674407370955161") == std::string::npos;
+        if(!v_res && !o_res && res.to_string().find("1844674407370955161") != std::string::npos){
+            std::cerr << "AAAAAAAAAAAAAAAAH fifth place";
+            std::cerr << string(*this);
+            std::cerr << "z3 value: " << res.to_string();
+            int x = 5;
+        }
+        return make_shared<IntValue>((value - other->value).simplify()); 
+    }
     shared_ptr<IntValue> mul(shared_ptr<IntValue> other) { return make_shared<IntValue>((value * other->value).simplify()); }
     shared_ptr<IntValue> div(shared_ptr<IntValue> other) { return make_shared<IntValue>((value / other->value).simplify()); }
     shared_ptr<IntValue> mod(shared_ptr<IntValue> other) {return make_shared<IntValue>((value % other->value).simplify()); }
@@ -547,6 +611,24 @@ public:
     shared_ptr<BoolValue> ne(shared_ptr<StringValue> other) { return make_shared<BoolValue>((value != other->value).simplify()); }
 };
 
+class VectorValue : public SpecValue {
+public:
+    VectorValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) { 
+        assert(value.get_sort().to_string() == typ->get_z3_type().to_string());
+    }
+
+    shared_ptr<SpecValue> get(shared_ptr<IntValue> key) {
+        return dynamic_cast<Vector *>(typ.get())->elem_type->from_z3_value(value[key->value].simplify());
+    }
+
+    shared_ptr<VectorValue> set(shared_ptr<IntValue> key, shared_ptr<SpecValue> value) {
+        return make_shared<VectorValue>(typ, z3::store(this->value, key->value, value->value).simplify());
+    }
+
+    shared_ptr<BoolValue> eq(shared_ptr<VectorValue> other) {
+        return make_shared<BoolValue>((value == other->value).simplify());
+    }
+};
 class ZMapValue : public SpecValue {
 public:
     ZMapValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) { 

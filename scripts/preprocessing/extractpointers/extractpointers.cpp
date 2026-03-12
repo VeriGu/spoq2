@@ -478,6 +478,7 @@ We can do this in a proxy definition for each type
   stackval_info_entry_t zmap_val_entry = {"ZMapVal", true, false, std::nullopt, 0, {}};
   stackval_info.emplace("(ZMap.t Z)", zmap_val_entry);
 
+  std::string stackkey_def = "Inductive StackKey := \n";
   std::string stackval_def = "Inductive StackVal := \n";
   // stackval_info_entry_t z_val_entry = {"ZVal", false, {}};
   // "| ZVal (zStackVal: Z)\n"
@@ -529,6 +530,7 @@ We can do this in a proxy definition for each type
     for(int i = 0; i < x.second; i++){
       this->named_stack_ty[getStackIdentifier(x.first, i)] = x.first;
       is_stack_ptr += " \\/ \n\tp.(pbase) =s \"" + getStackIdentifier(x.first, i) + "\"";
+      stackkey_def += "\t| sk_"+getStackIdentifier(x.first, i) + "\n";
       auto &[branch_id, is_map, is_struct, struct_name, element_size, name_vec] = stackval_info.at(stackval_accessor);
       name_vec.push_back(getStackIdentifier(x.first, i));
     }
@@ -610,6 +612,7 @@ We can do this in a proxy definition for each type
                   "\t| None => None\n" \
                  "end.";
   is_stack_ptr += ".\n";
+  stackkey_def += "| sk_Null.\n";
   std::string hint_result = "";
   for (auto& F : M) {
     auto func = &F;
@@ -632,6 +635,7 @@ We can do this in a proxy definition for each type
   fout << "\n" << hint_result << "\n";
   fout << "\n" << is_stack_ptr << "\n";
   fout << "\n" << stackval_def << "\n";
+  fout << "\n" << stackkey_def << "\n";
   fout << "\n" << load_result << " (* load_stack *)\n"; 
   fout << store_result << " (* store_stack *)\n"; 
     
@@ -725,8 +729,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
   std::string g_store_result = "";
   std::string is_global_ptr = "Definition is_global_ptr (p: Ptr): bool := (false = true)";
   std::string g_result = "Record GLOBALS :=\n" \
-                         "  mkGLOBALS {\n"\
-                         "    pointers: (ZMap.t (ZMap.t Z));\n";
+                         "  mkGLOBALS {\n";
   std::set<std::string> done_ids;
   
   for (llvm::GlobalVariable& globalVar : M.globals()) {

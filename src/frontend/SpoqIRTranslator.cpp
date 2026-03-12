@@ -297,9 +297,15 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
         if (auto poison = llvm::dyn_cast<llvm::PoisonValue>(value)) {
             auto ty = poison->getType();
             if (ty->isVectorTy()) {
-                auto node = std::make_unique<Symbol>("poison_vector");
-                node->type = SpoqIRModule::llvm_ir_type_to_spec_pure(ty);
-                return node;
+                if(auto fvty = llvm::dyn_cast<llvm::FixedVectorType>(ty)){
+                    auto node = std::make_unique<Symbol>("poison_vector_" + std::to_string(fvty->getNumElements()));
+                    node->type = SpoqIRModule::llvm_ir_type_to_spec_pure(ty);
+                    return node;
+                } else {
+                    auto node = std::make_unique<Symbol>("poison_vector");
+                    node->type = SpoqIRModule::llvm_ir_type_to_spec_pure(ty);
+                    return node;
+                }
             }
             llvm::errs() << "poison value encountered: " << *poison << "\n";
             assert(false && "poison value encountered");
@@ -307,9 +313,15 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
         if (auto undef = llvm::dyn_cast<llvm::UndefValue>(value)) {
             auto ty = undef->getType();
             if (ty->isVectorTy()) {
-                auto node = std::make_unique<Symbol>("undef_vector");
-                node->type = SpoqIRModule::llvm_ir_type_to_spec_pure(ty);
-                return node;
+                if(auto fvty = llvm::dyn_cast<llvm::FixedVectorType>(ty)){
+                    auto node = std::make_unique<Symbol>("undef_vector_" + std::to_string(fvty->getNumElements()));
+                    node->type = SpoqIRModule::llvm_ir_type_to_spec_pure(ty);
+                    return node;
+                } else {
+                    auto node = std::make_unique<Symbol>("undef_vector");
+                    node->type = SpoqIRModule::llvm_ir_type_to_spec_pure(ty);
+                    return node;
+                }
             }
             llvm::errs() << "unsupported undef value encountered: " << *undef << "\n";
             assert(false && "unsupported undef value encountered");
@@ -433,10 +445,17 @@ shared_ptr<SpecType> SpoqIRModule::llvm_ir_type_to_spec_pure(llvm::Type* type) {
         assert(elem_type != SpecType::UNKNOWN_TYPE && "array element type is unknown");
         return make_shared<ZMap>(elem_type);
     } else if (type->isVectorTy()) {
-        auto vty = llvm::dyn_cast<llvm::VectorType>(type);
-        auto elem_type = llvm_ir_type_to_spec_pure(vty->getElementType());
-        assert(elem_type != SpecType::UNKNOWN_TYPE && "vector element type is unknown");
-        return make_shared<ZMap>(elem_type);
+        if(auto fvty = llvm::dyn_cast<llvm::FixedVectorType>(type)){
+            auto elem_type = llvm_ir_type_to_spec_pure(fvty->getElementType());
+            assert(elem_type != SpecType::UNKNOWN_TYPE && "vector element type is unknown");
+            return make_shared<ZMap>(elem_type);
+        } else if(auto vty = llvm::dyn_cast<llvm::VectorType>(type)){
+            auto elem_type = llvm_ir_type_to_spec_pure(vty->getElementType());
+            assert(elem_type != SpecType::UNKNOWN_TYPE && "vector element type is unknown");
+            return make_shared<ZMap>(elem_type);
+        } else {
+            assert(false);
+        }
     } else {
         throw std::invalid_argument("invalid types: " + type->getStructName().str());
         return SpecType::UNKNOWN_TYPE;
@@ -525,7 +544,7 @@ SpoqIRModule::gep_inst_to_spec (llvm::Value* gep_inst_or_expr, SpoqIRContext& co
             auto operands = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
             operands->push_back(std::move(index_value));
             operands->push_back(std::make_unique<IntConst>(type_size));
-            auto mul_expr = std::make_unique<Expr>(Expr::binops::MULT,std:: move(operands));
+            auto mul_expr = std::make_unique<Expr>(Expr::binops::MULT,std::move(operands));
             operands = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
             operands->push_back(std::move(mul_expr));
             operands->push_back(std::move(expr));
@@ -935,7 +954,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     auto operands = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
                     operands->push_back(std::move(index_value));
                     operands->push_back(std::make_unique<IntConst>(type_size));
-                    auto mul_expr = std::make_unique<Expr>(Expr::binops::MULT,std:: move(operands));
+                    auto mul_expr = std::make_unique<Expr>(Expr::binops::MULT,std::move(operands));
                     operands = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
                     operands->push_back(std::move(mul_expr));
                     operands->push_back(std::move(expr));

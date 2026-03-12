@@ -17,17 +17,17 @@ public:
     T__14 = 15, T__15 = 16, T__16 = 17, T__17 = 18, T__18 = 19, T__19 = 20, 
     T__20 = 21, T__21 = 22, T__22 = 23, T__23 = 24, T__24 = 25, T__25 = 26, 
     T__26 = 27, T__27 = 28, T__28 = 29, T__29 = 30, T__30 = 31, T__31 = 32, 
-    T__32 = 33, T__33 = 34, MK = 35, INDUC = 36, RECORD = 37, FIXPOINT = 38, 
-    SECTION = 39, SECTION_END = 40, APPEND = 41, CONCAT = 42, ADD = 43, 
-    MINUS = 44, MULT = 45, DIV = 46, MOD = 47, LSHIFT = 48, RSHIFT = 49, 
-    BITAND = 50, BITOR = 51, BAND = 52, BOR = 53, BEQ = 54, BNE = 55, BGT = 56, 
-    BLT = 57, BGE = 58, BLE = 59, SEQ = 60, SNE = 61, LIST_EQ = 62, GET = 63, 
-    SET = 64, NTH = 65, AND = 66, OR = 67, NOT = 68, BNOT = 69, IMPLIES = 70, 
-    IFONLYIF = 71, EQUAL = 72, NOT_EQUAL = 73, GT = 74, LT = 75, GTE = 76, 
-    LTE = 77, LP = 78, RP = 79, IF = 80, THEN = 81, LET = 82, ELSE = 83, 
-    PARAM = 84, DEF = 85, WHEN = 86, FORALL = 87, EXISTS = 88, MATCH = 89, 
-    RETURN = 90, WITH = 91, END = 92, RELY = 93, ANNO = 94, TRUE = 95, FALSE = 96, 
-    NUMBER = 97, STR = 98, ID = 99, COMMENT = 100, WS = 101
+    T__32 = 33, T__33 = 34, T__34 = 35, MK = 36, INDUC = 37, RECORD = 38, 
+    FIXPOINT = 39, SECTION = 40, SECTION_END = 41, APPEND = 42, CONCAT = 43, 
+    ADD = 44, MINUS = 45, MULT = 46, DIV = 47, MOD = 48, LSHIFT = 49, RSHIFT = 50, 
+    BITAND = 51, BITOR = 52, BAND = 53, BOR = 54, BEQ = 55, BNE = 56, BGT = 57, 
+    BLT = 58, BGE = 59, BLE = 60, SEQ = 61, SNE = 62, LIST_EQ = 63, GET = 64, 
+    SET = 65, NTH = 66, AND = 67, OR = 68, NOT = 69, BNOT = 70, IMPLIES = 71, 
+    IFONLYIF = 72, EQUAL = 73, NOT_EQUAL = 74, GT = 75, LT = 76, GTE = 77, 
+    LTE = 78, LP = 79, RP = 80, IF = 81, THEN = 82, LET = 83, ELSE = 84, 
+    PARAM = 85, DEF = 86, WHEN = 87, FORALL = 88, EXISTS = 89, MATCH = 90, 
+    RETURN = 91, WITH = 92, END = 93, RELY = 94, ANNO = 95, TRUE = 96, FALSE = 97, 
+    NUMBER = 98, STR = 99, ID = 100, COMMENT = 101, WS = 102
   };
 
   enum {
@@ -348,6 +348,7 @@ public:
     antlr4::Token *option_type = nullptr;
     antlr4::Token *zmap_type = nullptr;
     antlr4::Token *smap_type = nullptr;
+    antlr4::Token *vector_type = nullptr;
     antlr4::Token *tup = nullptr;
     SpecParser::TypeContext *par = nullptr;
     SpecParser::TypeContext *codomain = nullptr;

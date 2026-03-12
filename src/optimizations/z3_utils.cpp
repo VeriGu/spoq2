@@ -379,8 +379,8 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, 
 
     if (not_res == z3::unsat) {
         if (res == z3::unsat) {
-            string msg = "Both branches of cond are unsat.  Original state is infeasible.";
-            LOG_WARNING << msg;
+            // string msg = "Both branches of cond are unsat.  Original state is infeasible.";
+            // LOG_WARNING << msg;
             // string msg = "Pre-condition is False! Condition is:\n";
             // for (auto &c : *state->conds) {
             //     msg += c.to_string().substr(0,400) + "\n";
@@ -389,7 +389,7 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, 
             // msg += cond.to_string().substr(0,400);
             // LOG_WARNING << msg << std::endl;
             // throw std::runtime_error(msg);
-            Z3Cache[hash] = Z3Result::True;
+            Z3Cache[hash] = Z3Result::False;
             return Z3Result::False;
         }
         Z3Cache[hash] = Z3Result::True;
@@ -397,6 +397,9 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, 
     } else if (res == z3::unsat) {
         Z3Cache[hash] = Z3Result::False;
         return Z3Result::False;
+    } else if(res == z3::sat && not_res == z3::sat){
+        Z3Cache[hash] = Z3Result::Unknown;
+        return Z3Result::Unknown;
     } else {
         Z3Cache[hash] = Z3Result::Unknown;
         z3_unknowns++;
@@ -1176,8 +1179,24 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
 
         if (op_eq(expr->op, Expr::None))
             states.push_back(std::make_pair(_cache(static_pointer_cast<Inductive>(val->get_type())->construct("None", {})),state));
-        else if (op_eq(expr->op, Expr::binops::ADD))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1]))), state));
+        else if (op_eq(expr->op, Expr::binops::ADD)){
+            if (expr->type->name == "Z"){
+                auto res = static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1]));
+                auto sres = string(*res);
+                if(res->get_z3_value().to_string().find("1844674407370955161") != std::string::npos){
+                    LOG_DEBUG << "AAAAAAAAAAAAAAAAH first place";
+                    LOG_DEBUG << sres;
+                    int x = 5;
+                }
+                states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1]))), state));
+            }else if (expr->type->name == "ZMap_Z"){
+                // find the definition of the zmap_z_add function
+                // use func->call to generate the right z3 expr
+                auto func = proj->defs.find("zmap_z_add");
+                auto absf = func->second->absf();
+                states.push_back(std::make_pair(_cache(absf->call(elems)), state));
+            }
+        }
         else if (op_eq(expr->op, Expr::binops::MINUS)) {
             if (expr->elems->size() == 2)
                 states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->sub(static_pointer_cast<IntValue>(elems[1]))), state));
@@ -1726,7 +1745,16 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             return _cache(static_pointer_cast<Inductive>(val->get_type())->construct("None", {}));
         }
         if (op_eq(expr->op, Expr::binops::ADD) ){
+            
             if (expr->type->name == "Z") {
+                auto res = static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1]));
+                auto sres = string(*res);
+                if(res->get_z3_value().to_string().find("1844674407370955161") != std::string::npos){
+                    LOG_DEBUG << "AAAAAAAAAAAAAAAAH second place";
+                    LOG_DEBUG << sres;
+
+                        int x = 5;
+                    }
                 return _cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1])));
             } else if (expr->type->name == "ZMap_Z"){
                 // find the definition of the zmap_z_add function
@@ -2150,6 +2178,13 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
     } else if (auto con = instance_of(val, Const)) {
         if (auto intc = std::get_if<unsigned long>(&con->value)) {
             auto icon = instance_of(val, IntConst);
+            auto res = make_shared<IntValue>(*intc, icon->is_signed());
+                if(res->get_z3_value().to_string().find("1844674407370955161") != std::string::npos){
+                    LOG_DEBUG << "AAAAAAAAAAAAAAAAH fourth place";
+                    LOG_DEBUG << "spec node: " << string(*con);
+                    LOG_DEBUG << "z3 value: " << res->get_z3_value().to_string();
+                    int x = 5;
+                }
             return make_shared<IntValue>(*intc, icon->is_signed());
         } else if (auto boolc = std::get_if<bool>(&con->value)) {
             return make_shared<BoolValue>(*boolc);
@@ -2168,8 +2203,28 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
 
         if (op_eq(expr->op, Expr::None))
             return _cache(static_pointer_cast<Inductive>(val->get_type())->construct("None", {}));
-        if (op_eq(expr->op, Expr::binops::ADD))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::ADD)){
+            if (expr->type->name == "Z") {
+                auto res = static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1]));
+                auto elem_left = dynamic_cast<IntValue*>(elems[0].get());
+                auto elem_right = dynamic_cast<IntValue*>(elems[1].get());
+                auto sres = string(*res);
+                if(res->get_z3_value().to_string().find("1844674407370955161") != std::string::npos){
+                    LOG_DEBUG << "AAAAAAAAAAAAAAAAH third place";
+                    LOG_DEBUG << "spec node: " << string(*expr);
+                    LOG_DEBUG << "spec value: " << string(sres);
+                    LOG_DEBUG << "z3 value: " << res->get_z3_value().to_string();
+                    int x = 5;
+                }
+                return _cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1])));
+            } else if (expr->type->name == "ZMap_Z"){
+                // find the definition of the zmap_z_add function
+                // use func->call to generate the right z3 expr
+                auto func = proj->defs.find("zmap_z_add");
+                auto absf = func->second->absf();
+                return _cache(absf->call(elems));
+            }
+        }
         if (op_eq(expr->op, Expr::binops::MINUS)) {
             if (expr->elems->size() == 2)
                 return _cache(static_pointer_cast<IntValue>(elems[0])->sub(static_pointer_cast<IntValue>(elems[1])));

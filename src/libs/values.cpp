@@ -94,6 +94,11 @@ z3::sort Int::get_z3_type() {
 }
 
 shared_ptr<SpecValue> Int::from_z3_value(z3::expr value) {
+    if(value.to_string().find("1844674407370955161") != std::string::npos){
+        LOG_DEBUG << "AAAAAAAAAAAAAAAAH third place";
+        LOG_DEBUG << "z3 value: " << value.to_string();
+        int x = 5;
+    }
     return make_shared<IntValue>(value);
 }
 
@@ -170,7 +175,24 @@ shared_ptr<SpecValue> Prop::declare(string name, int nid) {
 
     return make_shared<BoolValue>(z3ctx.constant(sname.c_str(), get_z3_type()));
 }
+// ----------------------------------------------------------------------------
+// Vector
+// ----------------------------------------------------------------------------
+z3::sort Vector::get_z3_type() {
+    auto z3t = this->elem_type->get_z3_type();
+    return z3ctx.seq_sort(z3t);
+}
 
+shared_ptr<SpecValue> Vector::from_z3_value(z3::expr value) {
+    return make_shared<VectorValue>(shared_from_this(), value);
+}
+
+shared_ptr<SpecValue> Vector::declare(string name, int nid) {
+    auto sname = name + "." + std::to_string(nid);
+    auto z3t = this->elem_type->get_z3_type();
+    
+    return make_shared<VectorValue>(shared_from_this(), z3ctx.constant(name.c_str(), z3ctx.seq_sort(z3t)));
+}
 // ----------------------------------------------------------------------------
 // ZMap
 // ----------------------------------------------------------------------------

@@ -73,10 +73,10 @@ namespace autov {
                 // last_pattern_match is a pointer into this.accumulated_cond.
                 if (auto lpm = dynamic_cast<PatternMatch*>(last_pattern_match)) {
                     lpm->body = temp_held_match_body->deep_copy();
-                    // lpm->body = move(temp_held_match_body);
+                    // lpm->body =std::move(temp_held_match_body);
                 } else if (auto and_node = dynamic_cast<Expr*>(last_pattern_match)) {
                     and_node->elems->at(1) = temp_held_match_body->deep_copy();
-                    // and_node->elems->at(1) = move(temp_held_match_body);
+                    // and_node->elems->at(1) =std::move(temp_held_match_body);
                 } else if (auto if_node = dynamic_cast<If*>(last_pattern_match)) {
                     if_node->then_body = temp_held_match_body->deep_copy();
                 } else if (auto const_node = dynamic_cast<Const*>(last_pattern_match)){

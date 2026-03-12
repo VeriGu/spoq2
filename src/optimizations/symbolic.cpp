@@ -103,10 +103,25 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
         if (op_eq(expr->op, Expr::None))
             return _cache(static_pointer_cast<Inductive>(val->get_type())
                               ->construct("None", {}));
-        if (op_eq(expr->op, Expr::binops::ADD))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->add(
+        if (op_eq(expr->op, Expr::binops::ADD)){
+            if(expr->type->name == "Z"){
+                auto res = static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1]));
+                auto sres = string(*res);
+                if(res->get_z3_value().to_string().find("1844674407370955161") != std::string::npos){
+                    LOG_DEBUG << "AAAAAAAAAAAAAAAAH";
+                    int x = 5;
+                }
+                return _cache(static_pointer_cast<IntValue>(elems[0])->add(
                 static_pointer_cast<IntValue>(elems[1])));
-        if (op_eq(expr->op, Expr::binops::MINUS)) {
+            } else if (expr->type->name == "ZMap_Z"){
+                // find the definition of the zmap_z_add function
+                // use func->call to generate the right z3 expr
+                auto func = proj->defs.find("zmap_z_add");
+                auto absf = func->second->absf();
+                return _cache(absf->call(elems));
+            }
+            
+        } if (op_eq(expr->op, Expr::binops::MINUS)) {
             if (expr->elems->size() == 2)
                 return _cache(static_pointer_cast<IntValue>(elems[0])->sub(
                     static_pointer_cast<IntValue>(elems[1])));
@@ -1143,7 +1158,7 @@ bool prove_by_traverse(
                                                     }
                                                 }
                                                 auto new_inv = subst_v2(
-                                                    proj, move(loop_post_cond),
+                                                    proj,std::move(loop_post_cond),
                                                     &names, &elems);
                                                 LOG_DEBUG
                                                     << "[Checking Loop "
@@ -1167,7 +1182,7 @@ bool prove_by_traverse(
                                                         sym->text, 0);
                                             }
                                             auto new_inv = subst_v2(
-                                                proj, move(loop_post_cond),
+                                                proj,std::move(loop_post_cond),
                                                 loop->name + "_" + "st_new",
                                                 p->elems->at(0)->deep_copy());
                                             LOG_DEBUG
@@ -1227,7 +1242,7 @@ bool prove_by_traverse(
                                                     }
                                                 }
                                                 auto new_inv = subst_v2(
-                                                    proj, move(post_cond),
+                                                    proj,std::move(post_cond),
                                                     &names, &elems);
                                                 LOG_DEBUG
                                                     << "Adding postcondition: "
@@ -1249,7 +1264,7 @@ bool prove_by_traverse(
                                                         sym->text, 0);
                                             }
                                             auto new_inv = subst_v2(
-                                                proj, move(post_cond),
+                                                proj,std::move(post_cond),
                                                 def->name + "_st_new_",
                                                 p->elems->at(0)->deep_copy());
 

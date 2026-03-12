@@ -551,7 +551,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
         for (int i = 0; i < def->args->size() - skip_state; i++)
             new_body_elems->push_back(make_unique<Symbol>(def->args->at(i)->name));
 
-        auto new_expr = new Expr(def->name + "'", move(new_body_elems));
+        auto new_expr = new Expr(def->name + "'",std::move(new_body_elems));
 
         SpecNode *res;
         if (!skip_state) {

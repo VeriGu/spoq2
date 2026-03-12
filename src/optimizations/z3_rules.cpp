@@ -681,7 +681,7 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
     // LOG_DEBUG << "else: " << string(*spec->else_body);
     // LOG_DEBUG << "cond: " << string(*spec->cond);
 
-    auto res = z3_check(state, c->get_z3_value(), nullptr, 1);
+    auto res = z3_check(state, c->get_z3_value(), &proj->query_saver, 200);
     PROFILE_END(z3_rule_check);
     PROFILE_END(if_rule_check);
 
@@ -730,18 +730,21 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
         }
 
         if (!then_ret.first) {
-            assert(z3t_string == else_ret.first->get_type()->get_z3_type().to_string());
+            // assert(z3t_string == else_ret.first->get_type()->get_z3_type().to_string());
             return { std::move(else_ret.first), true };
         } 
         
         if (!else_ret.first) {
-            assert(z3t_string == then_ret.first->get_type()->get_z3_type().to_string());
+            // assert(z3t_string == then_ret.first->get_type()->get_z3_type().to_string());
             return { std::move(then_ret.first), true };
         }
-        auto result = make_unique<If>(std::move(cond_ret.first), std::move(then_ret.first), std::move(else_ret.first));
-            assert(z3t_string == result->get_type()->get_z3_type().to_string());
+        // auto result = make_unique<If>(std::move(cond_ret.first), std::move(then_ret.first), std::move(else_ret.first));
+        spec->cond = std::move(cond_ret.first);
+        spec->then_body = std::move(then_ret.first);
+        spec->else_body = std::move(else_ret.first);
+            // assert(z3t_string == result->get_type()->get_z3_type().to_string());
         return {
-            std::move(result),
+            std::move(spec),
             changed
         };
 
@@ -786,7 +789,7 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
         auto true_const = make_shared<BoolValue>(true);
         auto true_z3 = true_const->get_z3_value();
         
-        auto res = z3_check(new_state, true_z3, &proj->query_saver, Z3_TIMEOUT);
+        auto res = z3_check(new_state, true_z3, nullptr, Z3_TIMEOUT);
         if(res == Z3Result::False && spec) {
             // LOG_DEBUG << "Infeasible match in match " << orig_src;
             // LOG_DEBUG << "Pattern: " << string(*(*pm)->pattern);

@@ -219,7 +219,7 @@ namespace autov
 												(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 											}
 										}
-										auto new_inv = subst_v2(proj, move(loop_post_cond), &names, &elems);
+										auto new_inv = subst_v2(proj,std::move(loop_post_cond), &names, &elems);
 										LOG_DEBUG << "[forward_simulation " << random_code << "] Checking loop invariant: Adding loop postcondition: " << string(*new_inv);
 										auto new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
 										pm_state->conds->push_back(new_inv_z3->get_z3_value());
@@ -228,7 +228,7 @@ namespace autov
 									if(auto sym = instance_of(p->elems->at(0).get(), Symbol)) {
 										(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 									}
-									auto new_inv = subst_v2(proj, move(loop_post_cond), loop->name + "_" + "st_new", p->elems->at(0)->deep_copy());
+									auto new_inv = subst_v2(proj,std::move(loop_post_cond), loop->name + "_" + "st_new", p->elems->at(0)->deep_copy());
 									LOG_DEBUG << "[forward_simulation " << random_code << "] Checking loop invariant: Adding loop postcondition: " << string(*new_inv);
 									auto new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
 									pm_state->conds->push_back(new_inv_z3->get_z3_value());
@@ -258,7 +258,7 @@ namespace autov
 												(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 											}
 										}
-										auto new_inv = subst_v2(proj, move(post_cond), &names, &elems);
+										auto new_inv = subst_v2(proj,std::move(post_cond), &names, &elems);
 										LOG_DEBUG << "[forward_simulation " << random_code << "] Adding postcondition: " << string(*new_inv);
 										auto new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
 										pm_state->conds->push_back(new_inv_z3->get_z3_value());
@@ -267,7 +267,7 @@ namespace autov
 									if(auto sym = instance_of(p->elems->at(0).get(), Symbol)) {
 										(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 									}
-									auto new_inv = subst_v2(proj, move(post_cond), def->name + "_st_new_", p->elems->at(0)->deep_copy());
+									auto new_inv = subst_v2(proj,std::move(post_cond), def->name + "_st_new_", p->elems->at(0)->deep_copy());
 
 									LOG_DEBUG << "[forward_simulation " << random_code << "] Adding postcondition: " << string(*new_inv);
 									auto new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
@@ -585,7 +585,7 @@ namespace autov
 												(*new_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 											}
 										}
-										auto new_inv = subst_v2(proj, move(loop_post_cond), &names, &elems);
+										auto new_inv = subst_v2(proj,std::move(loop_post_cond), &names, &elems);
 										LOG_DEBUG << "Adding loop postcondition: " << string(*new_inv);
 										auto new_inv_z3 = z3_eval(proj, new_inv.get(), new_state, true, false, used_fix);
 										new_state->conds->push_back(new_inv_z3->get_z3_value());
@@ -594,7 +594,7 @@ namespace autov
 									if(auto sym = instance_of(p->elems->at(0).get(), Symbol)) {
 										(*new_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 									}
-									auto new_inv = subst_v2(proj, move(loop_post_cond), loop->name + "_" + "st_new", p->elems->at(0)->deep_copy());
+									auto new_inv = subst_v2(proj,std::move(loop_post_cond), loop->name + "_" + "st_new", p->elems->at(0)->deep_copy());
 									LOG_DEBUG << "Adding loop postcondition: " << string(*new_inv);
 									auto new_inv_z3 = z3_eval(proj, new_inv.get(), new_state, true, false, used_fix);
 									new_state->conds->push_back(new_inv_z3->get_z3_value());
@@ -624,7 +624,7 @@ namespace autov
 												(*new_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 											}
 										}
-										auto new_inv = subst_v2(proj, move(post_cond), &names, &elems);
+										auto new_inv = subst_v2(proj,std::move(post_cond), &names, &elems);
 										LOG_DEBUG << "Adding postcondition: " << string(*new_inv);
 										auto new_inv_z3 = z3_eval(proj, new_inv.get(), new_state, true, false, used_fix);
 										new_state->conds->push_back(new_inv_z3->get_z3_value());
@@ -633,7 +633,7 @@ namespace autov
 									if(auto sym = instance_of(p->elems->at(0).get(), Symbol)) {
 										(*new_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 									}
-									auto new_inv = subst_v2(proj, move(post_cond), def->name + "_st_new_", p->elems->at(0)->deep_copy());
+									auto new_inv = subst_v2(proj,std::move(post_cond), def->name + "_st_new_", p->elems->at(0)->deep_copy());
 									LOG_DEBUG << "Adding postcondition: " << string(*new_inv);
 									auto new_inv_z3 = z3_eval(proj, new_inv.get(), new_state, true, false, used_fix);
 									new_state->conds->push_back(new_inv_z3->get_z3_value());

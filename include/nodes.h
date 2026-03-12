@@ -423,6 +423,9 @@ public:
         RecordSet, RecordGet, // Record
         Tuple,
         Some, None,
+        veclen,
+        vecget,
+        vecreplace,
     };
 
     enum binops {
