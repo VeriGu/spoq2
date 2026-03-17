@@ -11,11 +11,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PVIROutliner.h"
+#include "llvm/Transforms/IPO/IROutliner.h"
 #include "llvm/Analysis/IRSimilarityIdentifier.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
-#include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugInfo.h"
@@ -29,7 +28,7 @@
 #include "llvm/Transforms/IPO.h"
 #include <vector>
 
-#define DEBUG_TYPE "iroutliner"
+#define DEBUG_TYPE "pviroutliner"
 
 using namespace llvm;
 using namespace IRSimilarity;
@@ -55,7 +54,7 @@ extern cl::opt<bool> DisableIntrinsics;
 // this is off by default. It should, however, be the default behavior in
 // LTO.
 static cl::opt<bool> EnableLinkOnceODRIROutlining(
-    "pv-enable-linkonceodr-ir-outlining", cl::Hidden,
+    "enable-linkonceodr-pv-ir-outlining", cl::Hidden,
     cl::desc("Enable the IR outliner on linkonceodr functions"),
     cl::init(false));
 
@@ -73,7 +72,7 @@ static cl::opt<bool> NoCostModel(
 /// deduplication of extracted regions with the same structure.
 struct OutlinableGroup {
   /// The sections that could be outlined
-  std::vector<PVOutlinableRegion *> Regions;
+  std::vector<OutlinableRegion *> Regions;
 
   /// The argument types for the function created as the overall function to
   /// replace the extracted function for each region.
@@ -83,7 +82,7 @@ struct OutlinableGroup {
   /// The Function for the collective overall function.
   Function *OutlinedFunction = nullptr;
 
-  /// Flag for whether we should not consider this group of PVOutlinableRegions
+  /// Flag for whether we should not consider this group of OutlinableRegions
   /// for extraction.
   bool IgnoreGroup = false;
 
@@ -180,18 +179,18 @@ static void getSortedConstantKeys(std::vector<Value *> &SortedKeys,
   });
 }
 
-Value *PVOutlinableRegion::findCorrespondingValueIn(const PVOutlinableRegion &Other,
+Value *OutlinableRegion::findCorrespondingValueIn(const OutlinableRegion &Other,
                                                   Value *V) {
   Optional<unsigned> GVN = Candidate->getGVN(V);
   assert(GVN && "No GVN for incoming value");
   Optional<unsigned> CanonNum = Candidate->getCanonicalNum(*GVN);
   Optional<unsigned> FirstGVN = Other.Candidate->fromCanonicalNum(*CanonNum);
   Optional<Value *> FoundValueOpt = Other.Candidate->fromGVN(*FirstGVN);
-  return FoundValueOpt.getValueOr(nullptr);
+  return FoundValueOpt.value_or(nullptr);
 }
 
 BasicBlock *
-PVOutlinableRegion::findCorrespondingBlockIn(const PVOutlinableRegion &Other,
+OutlinableRegion::findCorrespondingBlockIn(const OutlinableRegion &Other,
                                            BasicBlock *BB) {
   Instruction *FirstNonPHI = BB->getFirstNonPHI();
   assert(FirstNonPHI && "block is empty?");
@@ -241,7 +240,7 @@ static void replaceTargetsFromPHINode(BasicBlock *PHIBlock, BasicBlock *Find,
 }
 
 
-void PVOutlinableRegion::splitCandidate() {
+void OutlinableRegion::splitCandidate() {
   assert(!CandidateSplit && "Candidate already split!");
 
   Instruction *BackInst = Candidate->backInstruction();
@@ -296,7 +295,7 @@ void PVOutlinableRegion::splitCandidate() {
       }
 
       // We must consider the case there the incoming block to the PHINode is
-      // the same as the final block of the PVOutlinableRegion.  If this is the
+      // the same as the final block of the OutlinableRegion.  If this is the
       // case, the branch from this block must also be outlined to be valid.
       IBlock = PN->getIncomingBlock(i);
       if (IBlock == EndBB && EndBBTermAndBackInstDifferent) {
@@ -368,7 +367,7 @@ void PVOutlinableRegion::splitCandidate() {
     replaceTargetsFromPHINode(FollowBB, EndBB, FollowBB, BBSet);
 }
 
-void PVOutlinableRegion::reattachCandidate() {
+void OutlinableRegion::reattachCandidate() {
   assert(CandidateSplit && "Candidate is not split!");
 
   // The basic block gets reattached like so:
@@ -479,7 +478,7 @@ constantMatches(Value *V, unsigned GVN,
   return false;
 }
 
-InstructionCost PVOutlinableRegion::getBenefit(TargetTransformInfo &TTI) {
+InstructionCost OutlinableRegion::getBenefit(TargetTransformInfo &TTI) {
   InstructionCost Benefit = 0;
 
   // Estimate the benefit of outlining a specific sections of the program.  We
@@ -535,14 +534,14 @@ static Value *findOutputMapping(const DenseMap<Value *, Value *> OutputMappings,
 /// Find whether \p Region matches the global value numbering to Constant
 /// mapping found so far.
 ///
-/// \param Region - The PVOutlinableRegion we are checking for constants
+/// \param Region - The OutlinableRegion we are checking for constants
 /// \param GVNToConstant - The mapping of global value number to Constants.
 /// \param NotSame - The set of global value numbers that do not have the same
 /// constant in each region.
 /// \returns true if all Constants are the same in every use of a Constant in \p
 /// Region and false if not
 static bool
-collectRegionsConstants(PVOutlinableRegion &Region,
+collectRegionsConstants(OutlinableRegion &Region,
                         DenseMap<unsigned, Constant *> &GVNToConstant,
                         DenseSet<unsigned> &NotSame) {
   bool ConstantsTheSame = true;
@@ -556,7 +555,7 @@ collectRegionsConstants(PVOutlinableRegion &Region,
     for (Value *V : ID.OperVals) {
       Optional<unsigned> GVNOpt = C.getGVN(V);
       assert(GVNOpt && "Expected a GVN for operand?");
-      unsigned GVN = GVNOpt.getValue();
+      unsigned GVN = GVNOpt.value();
 
       // Check if this global value has been found to not be the same already.
       if (NotSame.contains(GVN)) {
@@ -571,7 +570,7 @@ collectRegionsConstants(PVOutlinableRegion &Region,
       // it is considered to not be the same value.
       Optional<bool> ConstantMatches = constantMatches(V, GVN, GVNToConstant);
       if (ConstantMatches) {
-        if (ConstantMatches.getValue())
+        if (ConstantMatches.value())
           continue;
         else
           ConstantsTheSame = false;
@@ -593,12 +592,12 @@ collectRegionsConstants(PVOutlinableRegion &Region,
 void OutlinableGroup::findSameConstants(DenseSet<unsigned> &NotSame) {
   DenseMap<unsigned, Constant *> GVNToConstant;
 
-  for (PVOutlinableRegion *Region : Regions)
+  for (OutlinableRegion *Region : Regions)
     collectRegionsConstants(*Region, GVNToConstant, NotSame);
 }
 
 void OutlinableGroup::collectGVNStoreSets(Module &M) {
-  for (PVOutlinableRegion *OS : Regions)
+  for (OutlinableRegion *OS : Regions)
     OutputGVNCombinations.insert(OS->GVNStores);
 
   // We are adding an extracted argument to decide between which output path
@@ -613,7 +612,7 @@ void OutlinableGroup::collectGVNStoreSets(Module &M) {
 /// \param [in] Group - The set of regions to find a subprogram for.
 /// \returns the subprogram if it exists, or nullptr.
 static DISubprogram *getSubprogramOrNull(OutlinableGroup &Group) {
-  for (PVOutlinableRegion *OS : Group.Regions)
+  for (OutlinableRegion *OS : Group.Regions)
     if (Function *F = OS->Call->getFunction())
       if (DISubprogram *SP = F->getSubprogram())
         return SP;
@@ -621,7 +620,7 @@ static DISubprogram *getSubprogramOrNull(OutlinableGroup &Group) {
   return nullptr;
 }
 
-Function *PVIROutliner::createFunction(Module &M, OutlinableGroup &Group,
+Function *IROutliner::createFunction(Module &M, OutlinableGroup &Group,
                                      unsigned FunctionNameSuffix) {
   assert(!Group.OutlinedFunction && "Function is already defined!");
 
@@ -634,7 +633,7 @@ Function *PVIROutliner::createFunction(Module &M, OutlinableGroup &Group,
   // needed, meaning that we could branch within the region or out, it is
   // possible that we will need to switch to using the most general case all of
   // the time.
-  for (PVOutlinableRegion *R : Group.Regions) {
+  for (OutlinableRegion *R : Group.Regions) {
     Type *ExtractedFuncType = R->ExtractedFunction->getReturnType();
     if ((RetTy->isVoidTy() && !ExtractedFuncType->isVoidTy()) ||
         (RetTy->isIntegerTy(1) && ExtractedFuncType->isIntegerTy(16)))
@@ -652,7 +651,7 @@ Function *PVIROutliner::createFunction(Module &M, OutlinableGroup &Group,
 
   // Transfer the swifterr attribute to the correct function parameter.
   if (Group.SwiftErrorArgument)
-    Group.OutlinedFunction->addParamAttr(Group.SwiftErrorArgument.getValue(),
+    Group.OutlinedFunction->addParamAttr(Group.SwiftErrorArgument.value(),
                                          Attribute::SwiftError);
 
   Group.OutlinedFunction->addFnAttr(Attribute::OptimizeForSize);
@@ -765,7 +764,7 @@ static void moveFunctionData(Function &Old, Function &New,
 /// \param [in] C - The IRSimilarityCandidate containing the region we are
 /// analyzing.
 /// \param [in] NotSame - The set of global value numbers that do not have a
-/// single Constant across all PVOutlinableRegions similar to \p C.
+/// single Constant across all OutlinableRegions similar to \p C.
 /// \param [out] Inputs - The list containing the global value numbers of the
 /// arguments needed for the region of code.
 static void findConstants(IRSimilarityCandidate &C, DenseSet<unsigned> &NotSame,
@@ -810,7 +809,7 @@ static void mapInputsToGVNs(IRSimilarityCandidate &C,
     if (OutputMappings.find(Input) != OutputMappings.end())
       Input = OutputMappings.find(Input)->second;
     assert(C.getGVN(Input) && "Could not find a numbering for the given input");
-    EndInputNumbers.push_back(C.getGVN(Input).getValue());
+    EndInputNumbers.push_back(C.getGVN(Input).value());
   }
 }
 
@@ -854,7 +853,7 @@ remapExtractedInputs(const ArrayRef<Value *> ArgInputs,
 /// \param [out] Outputs - The set of values extracted by the CodeExtractor
 /// as outputs.
 static void getCodeExtractorArguments(
-    PVOutlinableRegion &Region, std::vector<unsigned> &InputGVNs,
+    OutlinableRegion &Region, std::vector<unsigned> &InputGVNs,
     DenseSet<unsigned> &NotSame, DenseMap<Value *, Value *> &OutputMappings,
     SetVector<Value *> &ArgInputs, SetVector<Value *> &Outputs) {
   IRSimilarityCandidate &C = *Region.Candidate;
@@ -914,7 +913,7 @@ static void getCodeExtractorArguments(
 }
 
 /// Look over the inputs and map each input argument to an argument in the
-/// overall function for the PVOutlinableRegions.  This creates a way to replace
+/// overall function for the OutlinableRegions.  This creates a way to replace
 /// the arguments of the extracted function with the arguments of the new
 /// overall function.
 ///
@@ -924,7 +923,7 @@ static void getCodeExtractorArguments(
 /// \param [in] ArgInputs - The values of the arguments to the extracted
 /// function.
 static void
-findExtractedInputToOverallInputMapping(PVOutlinableRegion &Region,
+findExtractedInputToOverallInputMapping(OutlinableRegion &Region,
                                         std::vector<unsigned> &InputGVNs,
                                         SetVector<Value *> &ArgInputs) {
 
@@ -949,11 +948,11 @@ findExtractedInputToOverallInputMapping(PVOutlinableRegion &Region,
   for (unsigned InputVal : InputGVNs) {
     Optional<unsigned> CanonicalNumberOpt = C.getCanonicalNum(InputVal);
     assert(CanonicalNumberOpt && "Canonical number not found?");
-    unsigned CanonicalNumber = CanonicalNumberOpt.getValue();
+    unsigned CanonicalNumber = CanonicalNumberOpt.value();
 
     Optional<Value *> InputOpt = C.fromGVN(InputVal);
     assert(InputOpt && "Global value number not found?");
-    Value *Input = InputOpt.getValue();
+    Value *Input = InputOpt.value();
 
     DenseMap<unsigned, unsigned>::iterator AggArgIt =
         Group.CanonicalNumberToAggArg.find(CanonicalNumber);
@@ -1164,7 +1163,7 @@ static hash_code encodePHINodeData(PHINodeData &PND) {
 /// \param AggArgIdx - The argument \p PN will be stored into.
 /// \returns An optional holding the assigned canonical number, or None if
 /// there is some attribute of the PHINode blocking it from being used.
-static Optional<unsigned> getGVNForPHINode(PVOutlinableRegion &Region,
+static Optional<unsigned> getGVNForPHINode(OutlinableRegion &Region,
                                            PHINode *PN,
                                            DenseSet<BasicBlock *> &Blocks,
                                            unsigned AggArgIdx) {
@@ -1237,13 +1236,13 @@ static Optional<unsigned> getGVNForPHINode(PVOutlinableRegion &Region,
   Optional<unsigned> BBGVN = Cand.getGVN(PHIBB);
   assert(BBGVN && "Could not find GVN for the incoming block!");
 
-  BBGVN = Cand.getCanonicalNum(BBGVN.getValue());
+  BBGVN = Cand.getCanonicalNum(BBGVN.value());
   assert(BBGVN && "Could not find canonical number for the incoming block!");
   // Create a pair of the exit block canonical value, and the aggregate
   // argument location, connected to the canonical numbers stored in the
   // PHINode.
   PHINodeData TemporaryPair =
-      std::make_pair(std::make_pair(BBGVN.getValue(), AggArgIdx), PHIGVNs);
+      std::make_pair(std::make_pair(BBGVN.value(), AggArgIdx), PHIGVNs);
   hash_code PHINodeDataHash = encodePHINodeData(TemporaryPair);
 
   // Look for and create a new entry in our connection between canonical
@@ -1266,7 +1265,7 @@ static Optional<unsigned> getGVNForPHINode(PVOutlinableRegion &Region,
 /// \param [in,out] Region - The region of code to be analyzed.
 /// \param [in] Outputs - The values found by the code extractor.
 static void
-findExtractedOutputToOverallOutputMapping(PVOutlinableRegion &Region,
+findExtractedOutputToOverallOutputMapping(OutlinableRegion &Region,
                                           SetVector<Value *> &Outputs) {
   OutlinableGroup &Group = *Region.Parent;
   IRSimilarityCandidate &C = *Region.Candidate;
@@ -1390,7 +1389,7 @@ findExtractedOutputToOverallOutputMapping(PVOutlinableRegion &Region,
   stable_sort(Region.GVNStores);
 }
 
-void PVIROutliner::findAddInputsOutputs(Module &M, PVOutlinableRegion &Region,
+void IROutliner::findAddInputsOutputs(Module &M, OutlinableRegion &Region,
                                       DenseSet<unsigned> &NotSame) {
   std::vector<unsigned> Inputs;
   SetVector<Value *> ArgInputs, Outputs;
@@ -1419,7 +1418,7 @@ void PVIROutliner::findAddInputsOutputs(Module &M, PVOutlinableRegion &Region,
 /// \param [in] Region - The regions of extracted code to be replaced with a new
 /// function.
 /// \returns a call instruction with the replaced function.
-CallInst *replaceCalledFunction(Module &M, PVOutlinableRegion &Region) {
+CallInst *replaceCalledFunction(Module &M, OutlinableRegion &Region) {
   std::vector<Value *> NewCallArgs;
   DenseMap<unsigned, unsigned>::iterator ArgPair;
 
@@ -1517,7 +1516,7 @@ CallInst *replaceCalledFunction(Module &M, PVOutlinableRegion &Region) {
   // Make sure that the argument in the new function has the SwiftError
   // argument.
   if (Group.SwiftErrorArgument)
-    Call->addParamAttr(Group.SwiftErrorArgument.getValue(), Attribute::SwiftError);
+    Call->addParamAttr(Group.SwiftErrorArgument.value(), Attribute::SwiftError);
 
   return Call;
 }
@@ -1585,7 +1584,7 @@ static BasicBlock *findOrCreatePHIBlock(OutlinableGroup &Group, Value *RetVal) {
 /// \returns The Value representing \p A at the call site.
 static Value *
 getPassedArgumentInAlreadyOutlinedFunction(const Argument *A,
-                                           const PVOutlinableRegion &Region) {
+                                           const OutlinableRegion &Region) {
   // If we don't need to adjust the argument number at all (since the call
   // has already been replaced by a call to the overall outlined function)
   // we can just get the specified argument.
@@ -1601,7 +1600,7 @@ getPassedArgumentInAlreadyOutlinedFunction(const Argument *A,
 /// \returns The Value representing \p A at the call site.
 static Value *
 getPassedArgumentAndAdjustArgumentLocation(const Argument *A,
-                                           const PVOutlinableRegion &Region) {
+                                           const OutlinableRegion &Region) {
   unsigned ArgNum = A->getArgNo();
   
   // If it is a constant, we can look at our mapping from when we created
@@ -1618,7 +1617,7 @@ getPassedArgumentAndAdjustArgumentLocation(const Argument *A,
 /// Find the canonical numbering for the incoming Values into the PHINode \p PN.
 ///
 /// \param PN [in] - The PHINode that we are finding the canonical numbers for.
-/// \param Region [in] - The PVOutlinableRegion containing \p PN.
+/// \param Region [in] - The OutlinableRegion containing \p PN.
 /// \param OutputMappings [in] - The mapping of output values from outlined
 /// region to their original values.
 /// \param CanonNums [out] - The canonical numbering for the incoming values to
@@ -1626,7 +1625,7 @@ getPassedArgumentAndAdjustArgumentLocation(const Argument *A,
 /// \param ReplacedWithOutlinedCall - A flag to use the extracted function call
 /// of \p Region rather than the overall function's call.
 static void findCanonNumsForPHI(
-    PHINode *PN, PVOutlinableRegion &Region,
+    PHINode *PN, OutlinableRegion &Region,
     const DenseMap<Value *, Value *> &OutputMappings,
     SmallVector<std::pair<unsigned, BasicBlock *>> &CanonNums,
     bool ReplacedWithOutlinedCall = true) {
@@ -1660,7 +1659,7 @@ static void findCanonNumsForPHI(
 /// function.
 ///
 /// \param PN [in] - The PHINode that we are finding the canonical numbers for.
-/// \param Region [in] - The PVOutlinableRegion containing \p PN.
+/// \param Region [in] - The OutlinableRegion containing \p PN.
 /// \param OverallPhiBlock [in] - The overall PHIBlock we are trying to find
 /// \p PN in.
 /// \param OutputMappings [in] - The mapping of output values from outlined
@@ -1669,7 +1668,7 @@ static void findCanonNumsForPHI(
 /// matched.
 /// \return the newly found or created PHINode in \p OverallPhiBlock.
 static PHINode*
-findOrCreatePHIInBlock(PHINode &PN, PVOutlinableRegion &Region,
+findOrCreatePHIInBlock(PHINode &PN, OutlinableRegion &Region,
                        BasicBlock *OverallPhiBlock,
                        const DenseMap<Value *, Value *> &OutputMappings,
                        DenseSet<PHINode *> &UsedPHIs) {
@@ -1687,7 +1686,7 @@ findOrCreatePHIInBlock(PHINode &PN, PVOutlinableRegion &Region,
   findCanonNumsForPHI(&PN, Region, OutputMappings, PNCanonNums,
                       /* ReplacedWithOutlinedCall = */ false);
 
-  PVOutlinableRegion *FirstRegion = Group.Regions[0];
+  OutlinableRegion *FirstRegion = Group.Regions[0];
 
   // A list of the canonical numbering assigned to each incoming value, paired
   // with the incoming block for the PHINode that we are currently comparing
@@ -1791,7 +1790,7 @@ findOrCreatePHIInBlock(PHINode &PN, PVOutlinableRegion &Region,
 /// function to define the overall outlined function for all the regions, or
 /// if we are operating on one of the following regions.
 static void
-replaceArgumentUses(PVOutlinableRegion &Region,
+replaceArgumentUses(OutlinableRegion &Region,
                     DenseMap<Value *, BasicBlock *> &OutputBBs,
                     const DenseMap<Value *, Value *> &OutputMappings,
                     bool FirstFunction = false) {
@@ -1869,7 +1868,7 @@ replaceArgumentUses(PVOutlinableRegion &Region,
       // If this is storing a PHINode, we must make sure it is included in the
       // overall function.
       if (!isa<PHINode>(ValueOperand) ||
-          Region.Candidate->getGVN(ValueOperand).hasValue()) {
+          Region.Candidate->getGVN(ValueOperand).has_value()) {
         if (FirstFunction)
           continue;
         Value *CorrVal =
@@ -1926,7 +1925,7 @@ replaceArgumentUses(PVOutlinableRegion &Region,
 /// into arguments with the actual argument.
 ///
 /// \param Region [in] - The region of extracted code to be changed.
-void replaceConstants(PVOutlinableRegion &Region) {
+void replaceConstants(OutlinableRegion &Region) {
   OutlinableGroup &Group = *Region.Parent;
   // Iterate over the constants that need to be elevated into arguments
   for (std::pair<unsigned, Constant *> &Const : Region.AggArgToConstant) {
@@ -2012,10 +2011,10 @@ Optional<unsigned> findDuplicateOutputBlock(
 ///
 /// \param BlocksToPrune - Mapping of return values output blocks for the \p
 /// Region.
-/// \param Region - The PVOutlinableRegion we are analyzing.
+/// \param Region - The OutlinableRegion we are analyzing.
 static bool
 analyzeAndPruneOutputBlocks(DenseMap<Value *, BasicBlock *> &BlocksToPrune,
-                            PVOutlinableRegion &Region) {
+                            OutlinableRegion &Region) {
   bool AllRemoved = true;
   Value *RetValueForBB;
   BasicBlock *NewBB;
@@ -2054,7 +2053,7 @@ analyzeAndPruneOutputBlocks(DenseMap<Value *, BasicBlock *> &BlocksToPrune,
 /// output block already created.
 ///
 /// \param [in] OG - The OutlinableGroup of regions to be outlined.
-/// \param [in] Region - The PVOutlinableRegion that is being analyzed.
+/// \param [in] Region - The OutlinableRegion that is being analyzed.
 /// \param [in,out] OutputBBs - the blocks that stores for this region will be
 /// placed in.
 /// \param [in] EndBBs - the final blocks of the extracted function.
@@ -2062,7 +2061,7 @@ analyzeAndPruneOutputBlocks(DenseMap<Value *, BasicBlock *> &BlocksToPrune,
 /// been replaced by a new output value.
 /// \param [in,out] OutputStoreBBs - The existing output blocks.
 static void alignOutputBlockWithAggFunc(
-    OutlinableGroup &OG, PVOutlinableRegion &Region,
+    OutlinableGroup &OG, OutlinableRegion &Region,
     DenseMap<Value *, BasicBlock *> &OutputBBs,
     DenseMap<Value *, BasicBlock *> &EndBBs,
     const DenseMap<Value *, Value *> &OutputMappings,
@@ -2082,9 +2081,9 @@ static void alignOutputBlockWithAggFunc(
   if (MatchingBB) {
     LLVM_DEBUG(dbgs() << "Set output block for region in function"
                       << Region.ExtractedFunction << " to "
-                      << MatchingBB.getValue());
+                      << MatchingBB.value());
 
-    Region.OutputBlockNum = MatchingBB.getValue();
+    Region.OutputBlockNum = MatchingBB.value();
     for (std::pair<Value *, BasicBlock *> &VtoBB : OutputBBs)
       VtoBB.second->eraseFromParent();
     return;
@@ -2241,7 +2240,7 @@ static void fillOverallFunction(
     std::vector<DenseMap<Value *, BasicBlock *>> &OutputStoreBBs,
     std::vector<Function *> &FuncsToRemove,
     const DenseMap<Value *, Value *> &OutputMappings) {
-  PVOutlinableRegion *CurrentOS = CurrentGroup.Regions[0];
+  OutlinableRegion *CurrentOS = CurrentGroup.Regions[0];
 
   // Move first extracted function's instructions into new function.
   LLVM_DEBUG(dbgs() << "Move instructions from "
@@ -2285,14 +2284,14 @@ static void fillOverallFunction(
   FuncsToRemove.push_back(CurrentOS->ExtractedFunction);
 }
 
-void PVIROutliner::deduplicateExtractedSections(
+void IROutliner::deduplicateExtractedSections(
     Module &M, OutlinableGroup &CurrentGroup,
     std::vector<Function *> &FuncsToRemove, unsigned &OutlinedFunctionNum) {
   createFunction(M, CurrentGroup, OutlinedFunctionNum);
 
   std::vector<DenseMap<Value *, BasicBlock *>> OutputStoreBBs;
 
-  PVOutlinableRegion *CurrentOS;
+  OutlinableRegion *CurrentOS;
 
   fillOverallFunction(M, CurrentGroup, OutputStoreBBs, FuncsToRemove,
                       OutputMappings);
@@ -2353,8 +2352,8 @@ static bool nextIRInstructionDataMatchesNextInst(IRInstructionData &ID) {
   return true;
 }
 
-bool PVIROutliner::isCompatibleWithAlreadyOutlinedCode(
-    const PVOutlinableRegion &Region) {
+bool IROutliner::isCompatibleWithAlreadyOutlinedCode(
+    const OutlinableRegion &Region) {
   IRSimilarityCandidate *IRSC = Region.Candidate;
   unsigned StartIdx = IRSC->getStartIdx();
   unsigned EndIdx = IRSC->getEndIdx();
@@ -2391,7 +2390,7 @@ bool PVIROutliner::isCompatibleWithAlreadyOutlinedCode(
   });
 }
 
-void PVIROutliner::pruneIncompatibleRegions(
+void IROutliner::pruneIncompatibleRegions(
     std::vector<IRSimilarityCandidate> &CandidateVec,
     OutlinableGroup &CurrentGroup) {
   bool PreviouslyOutlined;
@@ -2457,8 +2456,8 @@ void PVIROutliner::pruneIncompatibleRegions(
     if (BadInst)
       continue;
 
-    PVOutlinableRegion *OS = new (RegionAllocator.Allocate())
-        PVOutlinableRegion(IRSC, CurrentGroup);
+    OutlinableRegion *OS = new (RegionAllocator.Allocate())
+        OutlinableRegion(IRSC, CurrentGroup);
     CurrentGroup.Regions.push_back(OS);
 
     CurrentEndIdx = EndIdx;
@@ -2466,9 +2465,9 @@ void PVIROutliner::pruneIncompatibleRegions(
 }
 
 InstructionCost
-PVIROutliner::findBenefitFromAllRegions(OutlinableGroup &CurrentGroup) {
+IROutliner::findBenefitFromAllRegions(OutlinableGroup &CurrentGroup) {
   InstructionCost RegionBenefit = 0;
-  for (PVOutlinableRegion *Region : CurrentGroup.Regions) {
+  for (OutlinableRegion *Region : CurrentGroup.Regions) {
     TargetTransformInfo &TTI = getTTI(*Region->StartBB->getParent());
     // We add the number of instructions in the region to the benefit as an
     // estimate as to how much will be removed.
@@ -2484,11 +2483,11 @@ PVIROutliner::findBenefitFromAllRegions(OutlinableGroup &CurrentGroup) {
 /// canonical number. If it is from a PHINode, we pick the first incoming
 /// value and return that Value instead.
 ///
-/// \param Region - The PVOutlinableRegion to get the Value from.
+/// \param Region - The OutlinableRegion to get the Value from.
 /// \param OutputCanon - The canonical number to find the Value from.
 /// \returns The Value represented by a canonical number \p OutputCanon in \p
 /// Region.
-static Value *findOutputValueInRegion(PVOutlinableRegion &Region,
+static Value *findOutputValueInRegion(OutlinableRegion &Region,
                                       unsigned OutputCanon) {
   OutlinableGroup &CurrentGroup = *Region.Parent;
   // If the value is greater than the value in the tracker, we have a
@@ -2509,9 +2508,9 @@ static Value *findOutputValueInRegion(PVOutlinableRegion &Region,
 }
 
 InstructionCost
-PVIROutliner::findCostOutputReloads(OutlinableGroup &CurrentGroup) {
+IROutliner::findCostOutputReloads(OutlinableGroup &CurrentGroup) {
   InstructionCost OverallCost = 0;
-  for (PVOutlinableRegion *Region : CurrentGroup.Regions) {
+  for (OutlinableRegion *Region : CurrentGroup.Regions) {
     TargetTransformInfo &TTI = getTTI(*Region->StartBB->getParent());
 
     // Each output incurs a load after the call, so we add that to the cost.
@@ -2535,7 +2534,7 @@ PVIROutliner::findCostOutputReloads(OutlinableGroup &CurrentGroup) {
 /// region.
 ///
 /// \param [in] M - The Module to outline from.
-/// \param [in] CurrentGroup - The collection of PVOutlinableRegions to analyze.
+/// \param [in] CurrentGroup - The collection of OutlinableRegions to analyze.
 /// \param [in] TTI - The TargetTransformInfo used to collect information for
 /// new instruction costs.
 /// \returns the additional cost to handle the outputs.
@@ -2545,7 +2544,7 @@ static InstructionCost findCostForOutputBlocks(Module &M,
   InstructionCost OutputCost = 0;
   unsigned NumOutputBranches = 0;
 
-  PVOutlinableRegion &FirstRegion = *CurrentGroup.Regions[0];
+  OutlinableRegion &FirstRegion = *CurrentGroup.Regions[0];
   IRSimilarityCandidate &Candidate = *CurrentGroup.Regions[0]->Candidate;
   DenseSet<BasicBlock *> CandidateBlocks;
   Candidate.getBasicBlocks(CandidateBlocks);
@@ -2612,7 +2611,7 @@ static InstructionCost findCostForOutputBlocks(Module &M,
   return OutputCost;
 }
 
-void PVIROutliner::findCostBenefit(Module &M, OutlinableGroup &CurrentGroup) {
+void IROutliner::findCostBenefit(Module &M, OutlinableGroup &CurrentGroup) {
   InstructionCost RegionBenefit = findBenefitFromAllRegions(CurrentGroup);
   CurrentGroup.Benefit += RegionBenefit;
   LLVM_DEBUG(dbgs() << "Current Benefit: " << CurrentGroup.Benefit << "\n");
@@ -2659,7 +2658,7 @@ void PVIROutliner::findCostBenefit(Module &M, OutlinableGroup &CurrentGroup) {
   LLVM_DEBUG(dbgs() << "Current Cost: " << CurrentGroup.Cost << "\n");
 }
 
-void PVIROutliner::updateOutputMapping(PVOutlinableRegion &Region,
+void IROutliner::updateOutputMapping(OutlinableRegion &Region,
                                      ArrayRef<Value *> Outputs,
                                      LoadInst *LI) {
   // For and load instructions following the call
@@ -2679,21 +2678,21 @@ void PVIROutliner::updateOutputMapping(PVOutlinableRegion &Region,
   if (!OutputIdx)
     return;
 
-  if (OutputMappings.find(Outputs[OutputIdx.getValue()]) == OutputMappings.end()) {
+  if (OutputMappings.find(Outputs[OutputIdx.value()]) == OutputMappings.end()) {
     LLVM_DEBUG(dbgs() << "Mapping extracted output " << *LI << " to "
-                      << *Outputs[OutputIdx.getValue()] << "\n");
-    OutputMappings.insert(std::make_pair(LI, Outputs[OutputIdx.getValue()]));
+                      << *Outputs[OutputIdx.value()] << "\n");
+    OutputMappings.insert(std::make_pair(LI, Outputs[OutputIdx.value()]));
   } else {
-    Value *Orig = OutputMappings.find(Outputs[OutputIdx.getValue()])->second;
+    Value *Orig = OutputMappings.find(Outputs[OutputIdx.value()])->second;
     LLVM_DEBUG(dbgs() << "Mapping extracted output " << *Orig << " to "
-                      << *Outputs[OutputIdx.getValue()] << "\n");
+                      << *Outputs[OutputIdx.value()] << "\n");
     OutputMappings.insert(std::make_pair(LI, Orig));
   }
 }
 
-bool PVIROutliner::extractSection(PVOutlinableRegion &Region) {
+bool IROutliner::extractSection(OutlinableRegion &Region) {
   SetVector<Value *> ArgInputs, Outputs, SinkCands;
-  assert(Region.StartBB && "StartBB for the PVOutlinableRegion is nullptr!");
+  assert(Region.StartBB && "StartBB for the OutlinableRegion is nullptr!");
   BasicBlock *InitialStart = Region.StartBB;
   Function *OrigF = Region.StartBB->getParent();
   CodeExtractorAnalysisCache CEAC(*OrigF);
@@ -2701,7 +2700,7 @@ bool PVIROutliner::extractSection(PVOutlinableRegion &Region) {
       Region.CE->extractCodeRegion(CEAC, ArgInputs, Outputs);
 
   // If the extraction was successful, find the BasicBlock, and reassign the
-  // PVOutlinableRegion blocks
+  // OutlinableRegion blocks
   if (!Region.ExtractedFunction) {
     LLVM_DEBUG(dbgs() << "CodeExtractor failed to outline " << Region.StartBB
                       << "\n");
@@ -2766,7 +2765,7 @@ bool PVIROutliner::extractSection(PVOutlinableRegion &Region) {
   return true;
 }
 
-unsigned PVIROutliner::doOutline(Module &M) {
+unsigned IROutliner::doOutline(Module &M) {
   // Find the possible similarity sections.
   InstructionClassifier.EnableBranches = !DisableBranches;
   InstructionClassifier.EnableIndirectCalls = !DisableIndirectCalls;
@@ -2792,7 +2791,7 @@ unsigned PVIROutliner::doOutline(Module &M) {
 
   DenseSet<unsigned> NotSame;
   std::vector<OutlinableGroup *> NegativeCostGroups;
-  std::vector<PVOutlinableRegion *> OutlinedRegions;
+  std::vector<OutlinableRegion *> OutlinedRegions;
   // Iterate over the possible sets of similarity.
   unsigned PotentialGroupIdx = 0;
   for (SimilarityGroup &CandidateVec : SimilarityCandidates) {
@@ -2819,7 +2818,7 @@ unsigned PVIROutliner::doOutline(Module &M) {
     // outputs for each section using the code extractor and create the argument
     // types for the Aggregate Outlining Function.
     OutlinedRegions.clear();
-    for (PVOutlinableRegion *OS : CurrentGroup.Regions) {
+    for (OutlinableRegion *OS : CurrentGroup.Regions) {
       // Break the outlinable region out of its parent BasicBlock into its own
       // BasicBlocks (see function implementation).
       OS->splitCandidate();
@@ -2835,7 +2834,7 @@ unsigned PVIROutliner::doOutline(Module &M) {
       OS->Candidate->getBasicBlocks(BlocksInRegion, BE);
       OS->CE = new (ExtractorAllocator.Allocate())
           CodeExtractor(BE, nullptr, false, nullptr, nullptr, nullptr, false,
-                        false, "outlined");
+                        false, nullptr, "outlined");
       findAddInputsOutputs(M, *OS, NotSame);
       if (!OS->IgnoreRegion)
         OutlinedRegions.push_back(OS);
@@ -2872,7 +2871,7 @@ unsigned PVIROutliner::doOutline(Module &M) {
           << " instructions at locations ";
         interleave(
             CurrentGroup.Regions.begin(), CurrentGroup.Regions.end(),
-            [&R](PVOutlinableRegion *Region) {
+            [&R](OutlinableRegion *Region) {
               R << ore::NV(
                   "DebugLoc",
                   Region->Candidate->frontInstruction()->getDebugLoc());
@@ -2899,7 +2898,7 @@ unsigned PVIROutliner::doOutline(Module &M) {
     OutlinableGroup &CurrentGroup = *CG;
 
     OutlinedRegions.clear();
-    for (PVOutlinableRegion *Region : CurrentGroup.Regions) {
+    for (OutlinableRegion *Region : CurrentGroup.Regions) {
       // We check whether our region is compatible with what has already been
       // outlined, and whether we need to ignore this item.
       if (!isCompatibleWithAlreadyOutlinedCode(*Region))
@@ -2921,7 +2920,7 @@ unsigned PVIROutliner::doOutline(Module &M) {
         continue;
     }
     OutlinedRegions.clear();
-    for (PVOutlinableRegion *Region : CurrentGroup.Regions) {
+    for (OutlinableRegion *Region : CurrentGroup.Regions) {
       Region->splitCandidate();
       if (!Region->CandidateSplit)
         continue;
@@ -2930,7 +2929,7 @@ unsigned PVIROutliner::doOutline(Module &M) {
 
     CurrentGroup.Regions = std::move(OutlinedRegions);
     if (CurrentGroup.Regions.size() < 2) {
-      for (PVOutlinableRegion *R : CurrentGroup.Regions)
+      for (OutlinableRegion *R : CurrentGroup.Regions)
         R->reattachCandidate();
       continue;
     }
@@ -2940,13 +2939,13 @@ unsigned PVIROutliner::doOutline(Module &M) {
 
     // Create functions out of all the sections, and mark them as outlined.
     OutlinedRegions.clear();
-    for (PVOutlinableRegion *OS : CurrentGroup.Regions) {
+    for (OutlinableRegion *OS : CurrentGroup.Regions) {
       SmallVector<BasicBlock *> BE;
       DenseSet<BasicBlock *> BlocksInRegion;
       OS->Candidate->getBasicBlocks(BlocksInRegion, BE);
       OS->CE = new (ExtractorAllocator.Allocate())
           CodeExtractor(BE, nullptr, false, nullptr, nullptr, nullptr, false,
-                        false, "outlined");
+                        false, nullptr, "outlined");
       bool FunctionOutlined = extractSection(*OS);
       if (FunctionOutlined) {
         unsigned StartIdx = OS->Candidate->getStartIdx();
@@ -2978,7 +2977,7 @@ unsigned PVIROutliner::doOutline(Module &M) {
         << " instructions at locations ";
       interleave(
           CurrentGroup.Regions.begin(), CurrentGroup.Regions.end(),
-          [&R](PVOutlinableRegion *Region) {
+          [&R](OutlinableRegion *Region) {
             R << ore::NV("DebugLoc",
                          Region->Candidate->frontInstruction()->getDebugLoc());
           },
@@ -2996,7 +2995,7 @@ unsigned PVIROutliner::doOutline(Module &M) {
   return OutlinedFunctionNum;
 }
 
-bool PVIROutliner::run(Module &M) {
+bool IROutliner::run(Module &M) {
   CostModel = !NoCostModel;
   OutlineFromLinkODRs = EnableLinkOnceODRIROutlining;
 
@@ -3004,11 +3003,11 @@ bool PVIROutliner::run(Module &M) {
 }
 
 // Pass Manager Boilerplate
-namespace llvm {
-class PVIROutlinerLegacyPass : public ModulePass {
+namespace {
+class IROutlinerLegacyPass : public ModulePass {
 public:
   static char ID;
-  PVIROutlinerLegacyPass() : ModulePass(ID) {
+  IROutlinerLegacyPass() : ModulePass(ID) {
     initializeIROutlinerLegacyPassPass(*PassRegistry::getPassRegistry());
   }
 
@@ -3016,15 +3015,13 @@ public:
     AU.addRequired<OptimizationRemarkEmitterWrapperPass>();
     AU.addRequired<TargetTransformInfoWrapperPass>();
     AU.addRequired<IRSimilarityIdentifierWrapperPass>();
-  
   }
 
   bool runOnModule(Module &M) override;
 };
-char PVIROutlinerLegacyPass::ID = 0;
 } // namespace
 
-bool PVIROutlinerLegacyPass::runOnModule(Module &M) {
+bool IROutlinerLegacyPass::runOnModule(Module &M) {
   if (skipModule(M))
     return false;
 
@@ -3040,13 +3037,12 @@ bool PVIROutlinerLegacyPass::runOnModule(Module &M) {
 
   auto GIRSI = [this](Module &) -> IRSimilarityIdentifier & {
     return this->getAnalysis<IRSimilarityIdentifierWrapperPass>().getIRSI();
-  }; 
+  };
 
-  return PVIROutliner(GTTI, GIRSI, GORE).run(M);
+  return IROutliner(GTTI, GIRSI, GORE).run(M);
 }
 
-// New pass manager run function
-PreservedAnalyses PVIROutlinerPass::run(Module &M, ModuleAnalysisManager &AM) {
+PreservedAnalyses IROutlinerPass::run(Module &M, ModuleAnalysisManager &AM) {
   auto &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
 
   std::function<TargetTransformInfo &(Function &)> GTTI =
@@ -3066,19 +3062,24 @@ PreservedAnalyses PVIROutlinerPass::run(Module &M, ModuleAnalysisManager &AM) {
     return *ORE;
   };
 
-  if (PVIROutliner(GTTI, GIRSI, GORE).run(M))
+  if (IROutliner(GTTI, GIRSI, GORE).run(M))
     return PreservedAnalyses::none();
   return PreservedAnalyses::all();
 }
 
-using namespace llvm;
-// static llvm::RegisterPass<PVIROutlinerLegacyPass>
-    // X("pviroutliner", "PV IR Outliner", false, false);
-INITIALIZE_PASS_BEGIN(PVIROutlinerLegacyPass, "pviroutliner", "PV IR Outliner", false,
+char IROutlinerLegacyPass::ID = 0;
+INITIALIZE_PASS_BEGIN(IROutlinerLegacyPass, "pviroutliner", "PV IR Outliner", false,
                       false)
 INITIALIZE_PASS_DEPENDENCY(IRSimilarityIdentifierWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(OptimizationRemarkEmitterWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
-INITIALIZE_PASS_END(PVIROutlinerLegacyPass, "pviroutliner", "PV IR Outliner", false,
+INITIALIZE_PASS_END(IROutlinerLegacyPass, "pviroutliner", "PV IR Outliner", false,
                     false)
-ModulePass *llvm::createIROutlinerPass() { return new PVIROutlinerLegacyPass(); }
+
+ModulePass *llvm::createIROutlinerPass() { return new IROutlinerLegacyPass(); }
+
+static llvm::RegisterPass<IROutlinerLegacyPass> X(
+    "pviroutliner", "Custom IR Outliner",
+    false,  // This pass doesn't modify the CFG => true
+    false   // This pass is not a pure analysis pass => false
+);
