@@ -128,8 +128,8 @@ antlrcpp::Any LightProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx)
         auto op1 = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(1))));
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-        elems->push_back(move(op0));
-        elems->push_back(move(op1));
+        elems->push_back(std::move(op0));
+        elems->push_back(std::move(op1));
 
         return (SpecNode *)(new Expr(parse_binop(ctx->binop), std::move(elems)));
     } else if (ctx->record_set) {
@@ -137,13 +137,13 @@ antlrcpp::Any LightProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx)
         auto op1 = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(1))));
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-        elems->push_back(move(op0));
+        elems->push_back(std::move(op0));
 
         for (auto name : ctx->name()) {
             elems->push_back(unique_ptr<SpecNode>(any_cast<SpecNode *>(visitName(name))));
         }
 
-        elems->push_back(move(op1));
+        elems->push_back(std::move(op1));
 
         return (SpecNode *)(new Expr(Expr::ops::RecordSet, std::move(elems)));
     } else if (ctx->record_set2) {
@@ -152,9 +152,9 @@ antlrcpp::Any LightProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx)
         auto op1 = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(1))));
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-        elems->push_back(move(op0));
-        elems->push_back(move(name));
-        elems->push_back(move(op1));
+        elems->push_back(std::move(op0));
+        elems->push_back(std::move(name));
+        elems->push_back(std::move(op1));
 
         return (SpecNode *)(new Expr(Expr::ops::RecordSet, std::move(elems)));
     } else if (ctx->map_get) {
@@ -162,8 +162,8 @@ antlrcpp::Any LightProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx)
         auto op1 = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(1))));
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-        elems->push_back(move(op0));
-        elems->push_back(move(op1));
+        elems->push_back(std::move(op0));
+        elems->push_back(std::move(op1));
 
         return (SpecNode *)(new Expr(Expr::ops::GET, std::move(elems)));
     } else if (ctx->map_set) {
@@ -172,21 +172,21 @@ antlrcpp::Any LightProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx)
         auto op2 = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(2))));
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-        elems->push_back(move(op0));
-        elems->push_back(move(op1));
-        elems->push_back(move(op2));
+        elems->push_back(std::move(op0));
+        elems->push_back(std::move(op1));
+        elems->push_back(std::move(op2));
 
         return (SpecNode *)(new Expr(Expr::ops::SET, std::move(elems)));
     } else if (ctx->forall_expr()) {
         auto vars = unique_ptr<vector<shared_ptr<Arg>>>(any_cast<vector<shared_ptr<Arg>> *>(visitForall_expr(ctx->forall_expr())));
         auto op0 = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(0))));
 
-        return (SpecNode *)(new Forall(move(vars), std::move(op0)));
+        return (SpecNode *)(new Forall(std::move(vars), std::move(op0)));
     } else if (ctx->exists_expr()) {
         auto vars = unique_ptr<vector<shared_ptr<Arg>>>(any_cast<vector<shared_ptr<Arg>> *>(visitExists_expr(ctx->exists_expr())));
         auto op0 = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(0))));
 
-        return (SpecNode *)(new Exists(move(vars), std::move(op0)));
+        return (SpecNode *)(new Exists(std::move(vars), std::move(op0)));
     } else if (ctx->op) {
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
         unique_ptr<SpecNode> op;
@@ -219,7 +219,7 @@ antlrcpp::Any LightProgramVisitor::visitExpr_op(SpecParser::Expr_opContext* ctx)
             else
                 return (SpecNode *)(new Expr(string(((Symbol *)op.get())->text), std::move(elems)));
         } else {
-            return (SpecNode *)(new Expr(move(op), std::move(elems)));
+            return (SpecNode *)(new Expr(std::move(op), std::move(elems)));
         }
     }
 

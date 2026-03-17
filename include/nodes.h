@@ -1075,7 +1075,7 @@ public:
 
     If() { throw std::invalid_argument("If must have a cond, then_body, and else_body"); }
     If(unique_ptr<SpecNode>cond, unique_ptr<SpecNode>then_body, unique_ptr<SpecNode>else_body) :
-        SpecNode(then_body->get_type()), cond(std::move(cond)), then_body(std::move(then_body)), else_body(std::move(else_body)) {
+        SpecNode(then_body ? then_body->get_type() : SpecType::UNKNOWN_TYPE), cond(std::move(cond)), then_body(std::move(then_body)), else_body(std::move(else_body)) {
         // if (this->cond.get() == nullptr)
             // throw std::invalid_argument("If condition cannot be null");
         // if(!(this->get_type()->get_z3_type().to_string() == this->then_body->get_type()->get_z3_type().to_string() || this->get_type() == SpecType::UNKNOWN_TYPE || this->then_body->get_type() == SpecType::UNKNOWN_TYPE)){

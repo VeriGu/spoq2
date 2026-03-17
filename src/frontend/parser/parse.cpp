@@ -425,7 +425,7 @@ antlrcpp::Any ProgramVisitor::visitDef(SpecParser::DefContext *ctx) {
         } else {
             loc = make_shared<loc_t>(loc_t(Project::LOC_GLOBALDEFS, "", ""));
         }
-        proj.add_definition(move(def), loc);
+        proj.add_definition(std::move(def), loc);
     }
 
     // LOG_INFO << "Parsed Definition " << name;
@@ -692,8 +692,8 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext *ctx) {
             any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(1))));
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-        elems->push_back(move(op0));
-        elems->push_back(move(op1));
+        elems->push_back(std::move(op0));
+        elems->push_back(std::move(op1));
 
         return (
             SpecNode *)(new Expr(parse_binop(ctx->binop), std::move(elems)));
@@ -704,14 +704,14 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext *ctx) {
             any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(1))));
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-        elems->push_back(move(op0));
+        elems->push_back(std::move(op0));
 
         for (auto name : ctx->name()) {
             elems->push_back(
                 unique_ptr<SpecNode>(any_cast<SpecNode *>(visitName(name))));
         }
 
-        elems->push_back(move(op1));
+        elems->push_back(std::move(op1));
 
         return (SpecNode *)(new Expr(Expr::ops::RecordSet, std::move(elems)));
     } else if (ctx->record_set2) {
@@ -723,9 +723,9 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext *ctx) {
             any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(1))));
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-        elems->push_back(move(op0));
-        elems->push_back(move(name));
-        elems->push_back(move(op1));
+        elems->push_back(std::move(op0));
+        elems->push_back(std::move(name));
+        elems->push_back(std::move(op1));
 
         return (SpecNode *)(new Expr(Expr::ops::RecordSet, std::move(elems)));
     } else if (ctx->map_get) {
@@ -735,8 +735,8 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext *ctx) {
             any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(1))));
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-        elems->push_back(move(op0));
-        elems->push_back(move(op1));
+        elems->push_back(std::move(op0));
+        elems->push_back(std::move(op1));
 
         return (SpecNode *)(new Expr(Expr::ops::GET, std::move(elems)));
     } else if (ctx->map_set) {
@@ -748,9 +748,9 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext *ctx) {
             any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(2))));
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-        elems->push_back(move(op0));
-        elems->push_back(move(op1));
-        elems->push_back(move(op2));
+        elems->push_back(std::move(op0));
+        elems->push_back(std::move(op1));
+        elems->push_back(std::move(op2));
 
         return (SpecNode *)(new Expr(Expr::ops::SET, std::move(elems)));
     } else if (ctx->list_nth) {
@@ -760,8 +760,8 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext *ctx) {
             any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(1))));
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-        elems->push_back(move(op0));
-        elems->push_back(move(op1));
+        elems->push_back(std::move(op0));
+        elems->push_back(std::move(op1));
 
         return (SpecNode *)(new Expr(Expr::ops::NTH, std::move(elems)));
     } else if (ctx->forall_expr()) {
@@ -771,7 +771,7 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext *ctx) {
         auto op0 = unique_ptr<SpecNode>(
             any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(0))));
 
-        return (SpecNode *)(new Forall(move(vars), std::move(op0)));
+        return (SpecNode *)(new Forall(std::move(vars), std::move(op0)));
     } else if (ctx->exists_expr()) {
         auto vars = unique_ptr<vector<shared_ptr<Arg>>>(
             any_cast<vector<shared_ptr<Arg>> *>(
@@ -779,7 +779,7 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext *ctx) {
         auto op0 = unique_ptr<SpecNode>(
             any_cast<SpecNode *>(visitExpr_op(ctx->expr_op(0))));
 
-        return (SpecNode *)(new Exists(move(vars), std::move(op0)));
+        return (SpecNode *)(new Exists(std::move(vars), std::move(op0)));
     } else if (ctx->op) {
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
         unique_ptr<SpecNode> op;
@@ -817,7 +817,7 @@ antlrcpp::Any ProgramVisitor::visitExpr_op(SpecParser::Expr_opContext *ctx) {
                 return (SpecNode *)(new Expr(string(((Symbol *)op.get())->text),
                                              std::move(elems)));
         } else {
-            return (SpecNode *)(new Expr(move(op), std::move(elems)));
+            return (SpecNode *)(new Expr(std::move(op), std::move(elems)));
         }
     }
 
@@ -848,7 +848,7 @@ antlrcpp::Any ProgramVisitor::visitTerm(SpecParser::TermContext *ctx) {
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
         auto op = parse_uniop(ctx->uniop);
 
-        elems->push_back(move(term));
+        elems->push_back(std::move(term));
 
         if (op == Expr::ops::__NEG)
             return (
@@ -861,7 +861,7 @@ antlrcpp::Any ProgramVisitor::visitTerm(SpecParser::TermContext *ctx) {
             unique_ptr<SpecNode>(any_cast<SpecNode *>(visitTerm(ctx->term())));
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
-        elems->push_back(move(term));
+        elems->push_back(std::move(term));
         elems->push_back(
             unique_ptr<SpecNode>(any_cast<SpecNode *>(visitName(ctx->name()))));
 
@@ -885,20 +885,20 @@ antlrcpp::Any ProgramVisitor::visitLet_stmt(SpecParser::Let_stmtContext *ctx) {
         auto pattern = unique_ptr<SpecNode>(
             any_cast<SpecNode *>(visitTuple(ctx->tuple())));
         auto match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
-        auto match = make_unique<PatternMatch>(move(pattern), std::move(body));
+        auto match = make_unique<PatternMatch>(std::move(pattern), std::move(body));
 
-        match_list->push_back(move(match));
+        match_list->push_back(std::move(match));
 
-        return (SpecNode *)(new Match(move(src), std::move(match_list)));
+        return (SpecNode *)(new Match(std::move(src), std::move(match_list)));
     } else if (ctx->name()) {
         auto pattern =
             unique_ptr<SpecNode>(any_cast<SpecNode *>(visitName(ctx->name())));
         auto match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
-        auto match = make_unique<PatternMatch>(move(pattern), std::move(body));
+        auto match = make_unique<PatternMatch>(std::move(pattern), std::move(body));
 
-        match_list->push_back(move(match));
+        match_list->push_back(std::move(match));
 
-        return (SpecNode *)(new Match(move(src), std::move(match_list)));
+        return (SpecNode *)(new Match(std::move(src), std::move(match_list)));
     }
 
     throw std::runtime_error("Unknown pattern");
@@ -916,7 +916,7 @@ ProgramVisitor::visitMatch_stmt(SpecParser::Match_stmtContext *ctx) {
             any_cast<PatternMatch *>(visitMatch_branch(match_branch))));
     }
 
-    return (SpecNode *)(new Match(move(src), std::move(match_list)));
+    return (SpecNode *)(new Match(std::move(src), std::move(match_list)));
 }
 
 antlrcpp::Any
@@ -935,7 +935,7 @@ ProgramVisitor::visitMatch_branch(SpecParser::Match_branchContext *ctx) {
         }
     }
 
-    return (PatternMatch *)(new PatternMatch(move(pattern), std::move(body)));
+    return (PatternMatch *)(new PatternMatch(std::move(pattern), std::move(body)));
 }
 
 antlrcpp::Any
@@ -954,12 +954,12 @@ ProgramVisitor::visitWhen_stmt(SpecParser::When_stmtContext *ctx) {
     body = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr(ctx->expr(1))));
 
     if (names->size() == 1) {
-        return (SpecNode *)(Match::raw_when(move((*names)[0]), std::move(value),
+        return (SpecNode *)(Match::raw_when(std::move((*names)[0]), std::move(value),
                                             std::move(body)));
     }
 
     tuple_node = make_unique<Expr>(Expr::Tuple, std::move(names));
-    return (SpecNode *)(Match::raw_when(move(tuple_node), std::move(value),
+    return (SpecNode *)(Match::raw_when(std::move(tuple_node), std::move(value),
                                         std::move(body)));
 }
 
@@ -970,7 +970,7 @@ ProgramVisitor::visitAssert_stmt(SpecParser::Assert_stmtContext *ctx) {
     auto body =
         unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr(ctx->expr(1))));
 
-    return (SpecNode *)(new Rely(move(prop), std::move(body)));
+    return (SpecNode *)(new Rely(std::move(prop), std::move(body)));
 }
 
 antlrcpp::Any
@@ -980,7 +980,7 @@ ProgramVisitor::visitAnno_stmt(SpecParser::Anno_stmtContext *ctx) {
     auto body =
         unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr(ctx->expr(1))));
 
-    return (SpecNode *)(new Anno(move(prop), std::move(body)));
+    return (SpecNode *)(new Anno(std::move(prop), std::move(body)));
 }
 
 antlrcpp::Any

@@ -140,6 +140,7 @@ public:
     std::unique_ptr<SpecNode> build_simulate_spec(std::unique_ptr<SpecNode> spec);
     rule_ret_t merge_branch(std::unique_ptr<SpecNode> spec);
     rule_ret_t hide_write(std::unique_ptr<SpecNode> spec, std::set<field_t> coi_fields, const std::set<std::pair<string, string>> &anc);
+    bool enforce_no_div_by_zero(Definition* def);
 };
 
 using rule_t = std::function<rule_ret_t(std::unique_ptr<SpecNode>)>;

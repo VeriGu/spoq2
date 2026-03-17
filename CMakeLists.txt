@@ -1,5 +1,5 @@
-set(CMAKE_C_COMPILER "clang-14")
-set(CMAKE_CXX_COMPILER "clang++-14")
+set(CMAKE_C_COMPILER "clang-18")
+set(CMAKE_CXX_COMPILER "clang++-18")
 
 cmake_minimum_required(VERSION 3.10)
 project(spoq)
@@ -7,7 +7,7 @@ project(spoq)
 # ------------------------------------------------------------------------------
 # Basic setup
 # ------------------------------------------------------------------------------
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -gdwarf-4 -Wall -Wno-unused-function -fstandalone-debug")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -g3 -gdwarf-4 -Wall -Wno-unused-function -fstandalone-debug")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wno-unused-function")
 set(CMAKE_CXX_STANDARD 17)
 
@@ -43,11 +43,15 @@ include_directories(${Boost_INCLUDE_DIRS})
 # External libaries are always build in release mode
 # ------------------------------------------------------------------------------
 set(MAIN_CMAKE_BUILDTYPE ${CMAKE_BUILD_TYPE})
-set(CMAKE_BUILD_TYPE "Release")
-
+# set(CMAKE_BUILD_TYPE "Release")
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    # set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    # add_definitions(-DDEBUG)
+endif()
 # ------------------------------------------------------------------------------
 # ANTRL4 runtime
 # ------------------------------------------------------------------------------
+
 message("ANTLR4 build type: ${CMAKE_BUILD_TYPE}")
 add_subdirectory(src/frontend/parser/antlr4/runtime/Cpp/)
 #target_compile_options(antlr4_shared PRIVATE -Wno-unused-parameter -w -Wno-unused-variable)
@@ -60,6 +64,7 @@ include_directories(src/frontend/parser/antlr4/runtime/Cpp/runtime/src/)
 # ------------------------------------------------------------------------------
 set(CMAKE_BUILD_TYPE ${MAIN_CMAKE_BUILDTYPE})
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    # set(CMAKE_POSITION_INDEPENDENT_CODE ON)
     add_definitions(-DDEBUG)
 endif()
 
@@ -154,10 +159,10 @@ set(SOURCES
 add_executable(spoq ${SOURCES})
 
 target_link_libraries(spoq irloader parser antlr4_shared)
-target_link_libraries(spoq /usr/local/lib/libtcmalloc_and_profiler.so)
 target_link_libraries(spoq ${LLVM_LIBRARIES})
 target_link_libraries(spoq ${Z3_LIBRARIES})
 target_link_libraries(spoq ${Boost_LIBRARIES})
+target_link_libraries(spoq libtcmalloc_and_profiler.so)
  
 set_target_properties(spoq PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build")

@@ -763,7 +763,7 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
 
 
 rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::shared_ptr<EvalState> state) {
-    // string orig_src = string(*spec);
+    string orig_src = string(*spec);
     // auto logthis = orig_src.find("if ((call_dup - (call16_dup)) <>? (0))") != std::string::npos;
     // if(logthis)
     //     LOG_DEBUG << "Starting simple_match_by_z3 on " << orig_src;
@@ -771,6 +771,24 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
     // auto src_ret = this->rule_simple_by_z3(spec->src->deep_copy(), state);
     bool src_changed = false;
     std::tie(spec->src, src_changed) = this->rule_simple_by_z3(std::move(spec->src), state);
+
+    // If the src is a function call, we can bring in the loop invariants and/or postconditions for that function
+    auto expr_src = dynamic_cast<Expr*>(spec->src.get());
+    std::unique_ptr<SpecNode> some_loop_inv = nullptr;
+    Definition* func = nullptr;
+
+    if(expr_src && std::holds_alternative<string>(expr_src->op)){
+        auto func_name = std::get<string>(expr_src->op);
+        func = this->proj->defs[func_name].get();
+        auto fixpoint = dynamic_cast<Fixpoint*>(func);
+        if(fixpoint){
+            some_loop_inv = formulate_loop_invariant(proj, func_name, expr_src->elems.get());
+            // We can't z3_eval the loop inv without the variables in it being declared, 
+            // so we have to wait for resolve_pattern.
+
+        }
+    }
+
 
     if (spec->src == nullptr) {
         return std::make_pair(nullptr, true);
@@ -786,6 +804,45 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
     for (auto pm = spec->match_list->begin(); pm != spec->match_list->end(); pm++) {
         auto new_state = state->copy();
         resolve_pattern(proj, spec.get(), (*pm)->pattern.get(), src_val, new_state);
+
+        auto sym_pat = dynamic_cast<Symbol*>((*pm)->pattern.get());
+        auto exp_pat = dynamic_cast<Expr*>((*pm)->pattern.get());
+        auto bod_pat = dynamic_cast<Symbol*>((*pm)->body.get());
+        
+        if(exp_pat && op_eq(exp_pat->op, Expr::ops::Some) && some_loop_inv){
+            // TODO: Check for inner tuple.  Look at simulate.cpp:290 for example.
+            auto inner_tuple_ty = dynamic_cast<Tuple*>(exp_pat->elems->at(0)->type.get());
+            auto inner_tuple = dynamic_cast<Expr*>(exp_pat->elems->at(0).get());
+            if(inner_tuple_ty && inner_tuple){
+                vector<string> names;
+                vector<unique_ptr<SpecNode>> elems;
+                // inner_tuple->elems is the names in the pattern, the names used in the body
+                // func->args is the names of the function parameters.
+                // we want to rename func_param_name -> inner_tuple_name
+                //   and func_param_name_old -> func argument name (expr_src->elems.at(i))
+                for(int i = 0; i < inner_tuple->elems->size(); i++) {
+                    auto elem = inner_tuple->elems->at(i).get();
+                    if(auto sym = instance_of(elem, Symbol)) {
+                        // Why is this the right sub but only for the state???
+                        names.push_back(func->name + "_" + func->args->at(i)->name + "_new");
+                        elems.push_back(sym->deep_copy());
+                        names.push_back(func->args->at(i)->name);
+                        elems.push_back(sym->deep_copy());
+                        (*new_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
+                        names.push_back(func->args->at(i)->name + "_old");
+                        elems.push_back(expr_src->elems->at(i)->deep_copy());
+                    }
+				}
+            // LOG_DEBUG << "Pre subst loop inv " << string(*some_loop_inv);
+				some_loop_inv = subst_v2(proj,std::move(some_loop_inv), &names, &elems);
+            
+            set<string> used_fix;
+            // LOG_DEBUG << "Post subst loop inv " << string(*some_loop_inv);
+            auto some_z3_val = z3_eval(proj, some_loop_inv.get(), new_state, true, false, used_fix);
+            new_state->conds->push_back(some_z3_val->get_z3_value());
+            }
+
+        }
         auto true_const = make_shared<BoolValue>(true);
         auto true_z3 = true_const->get_z3_value();
         
@@ -793,8 +850,14 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
         if(res == Z3Result::False && spec) {
             // LOG_DEBUG << "Infeasible match in match " << orig_src;
             // LOG_DEBUG << "Pattern: " << string(*(*pm)->pattern);
-            // if (!OPTS.__OPT_ON_MATCH) {
+            // LOG_DEBUG << "Body: " << string(*(*pm)->body);
+            
+            if(((exp_pat && op_eq(exp_pat->op, Expr::ops::None)) || (sym_pat && sym_pat->text == "None")) && bod_pat && bod_pat->text == "None"){
+
+            } else {
                 continue;
+            }
+            // if (!OPTS.__OPT_ON_MATCH) {
             // }
         }
 
@@ -856,10 +919,15 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
             return { std::make_unique<Symbol>("None", typ), changed };
         } else {
             auto result = std::make_unique<Match>(std::move(spec->src), std::move(match_list));
+            auto new_src = string(*result);
+            if(changed && orig_src == new_src) {
+                LOG_DEBUG << "Unchanged source with changed marker!!!!";
+                LOG_DEBUG << orig_src;
+                LOG_DEBUG << "AAAAAAAAAAAAAAAAAH";
+            }
             // if(logthis)
                 // LOG_DEBUG << "ending simple_match_by_z3 on " << string(*result);
-            assert(z3t_string == result->get_type()->get_z3_type().to_string());
-
+            // assert(z3t_string == result->get_type()->get_z3_type().to_string());
             return { std::move(result), changed };
         }
     }

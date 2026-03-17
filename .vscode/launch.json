@@ -243,6 +243,26 @@
             "preLaunchTask": "CMake: build debug"
         },
         {
+            "name": "(lldb) pv div ",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/div.main.v",
+            "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/div/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+                {
+            "name": "(lldb) pv sdiv ",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/sdiv.main.v",
+            "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/sdiv/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+        {
             "name": "(lldb) pv buf ",
             "type": "lldb",
             "request": "launch",

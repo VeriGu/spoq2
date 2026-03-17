@@ -94,11 +94,6 @@ z3::sort Int::get_z3_type() {
 }
 
 shared_ptr<SpecValue> Int::from_z3_value(z3::expr value) {
-    if(value.to_string().find("1844674407370955161") != std::string::npos){
-        LOG_DEBUG << "AAAAAAAAAAAAAAAAH third place";
-        LOG_DEBUG << "z3 value: " << value.to_string();
-        int x = 5;
-    }
     return make_shared<IntValue>(value);
 }
 

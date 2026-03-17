@@ -607,6 +607,7 @@ namespace autov {
         std::string ptr_eqb_op_name = "ptr_eqb";
         std::string ptr_ltb_op_name = "ptr_ltb";
         std::string ptr_leb_op_name = "ptr_leb";
+        std::string ptr_ugt_op_name = "ptr_ugt";
 
         std::string ptr_off_op_name = "ptr_offset";
 

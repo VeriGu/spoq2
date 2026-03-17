@@ -132,8 +132,8 @@ unique_ptr<SpecNode> formulate_preserved_function(Project* proj, string fname);
 unique_ptr<SpecNode> formulate_post_condition(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args);
 void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>>& states);
 unsigned long length_of_exp(SpecNode* spec);
-static inline bool op_eq(Expr::op_t& val,
-                  Expr::op_t op) {
+static inline bool op_eq(const Expr::op_t& val,
+                  const Expr::op_t op) {
     return val == op;
 }
 

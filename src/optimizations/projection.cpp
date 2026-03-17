@@ -153,6 +153,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
     
     converged_spec.clear();
     UNFOLD_POLICY.set_skip(true);
+    proj->rules.enforce_no_div_by_zero(def);
     int cur_iter = 0;
     while(cur_iter < max_iter) {
             cur_iter++;
@@ -162,7 +163,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 known.insert(arg->name);
             }
 
-            auto log_fn_name = "changedline_vuln_spec";
+            auto log_fn_name = "exif_process_IFD_in_MAKERNOTE_vuln_spec";
             bool log_spec = false;
             if(def->name == log_fn_name){
                 auto s = string(*def->body);
@@ -206,15 +207,17 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             
             force_simpl = false;
             changed = false;
-            bool still_unfolding;
+            bool still_unfolding = true;
+            int inner_iter = 0;
             bool um_changed, le_changed, me_changed, we_changed, cb_changed, hoist_changed = false;
-            do {
+            while(still_unfolding && inner_iter < 50){
                 still_unfolding = false;
+                inner_iter += 1;
             if(unfold && !proj->cmds.NoUnfoldAll) {
                 assert(spec);
                 auto [_spec, unfolded] = proj->rules.rule_unfold_specs(std::move(spec), true);
                 __unfold = unfolded;
-                if(def->name == log_fn_name)
+                // if(def->name == log_fn_name)
                     LOG_DEBUG << "Unfolded within " << def->name <<  ".  Changed: " << unfolded;
                 changed |= unfolded;
                 still_unfolding |= unfolded;
@@ -301,7 +304,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 if(def->name == log_fn_name)
                     LOG_DEBUG << "spec after simple_const_bool: " << (log_spec ? string(*spec.get()) : "") << "\n";
             changed |= cb_changed;
-            } while(still_unfolding);
+            } 
             std::tie(spec, hoist_changed) = proj->rules.hoist_match_from_branch(std::move(spec));
             if(def->name == log_fn_name)
                     LOG_DEBUG << "spec after hoist: " << (log_spec ? string(*spec.get()) : "") << "\n";
@@ -311,6 +314,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             }
             if(def->name == log_fn_name)
                     LOG_DEBUG << "spec after post-hoist ea: " << (log_spec ? string(*spec.get()) : "") << "\n";
+                assert(spec);
 
             // auto [__tmp_spec4, hoist_changed] = proj->rules.hoist_match_from_branch(std::move(spec));
             // spec = std::move(__tmp_spec4);

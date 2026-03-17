@@ -105,12 +105,6 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
                               ->construct("None", {}));
         if (op_eq(expr->op, Expr::binops::ADD)){
             if(expr->type->name == "Z"){
-                auto res = static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1]));
-                auto sres = string(*res);
-                if(res->get_z3_value().to_string().find("1844674407370955161") != std::string::npos){
-                    LOG_DEBUG << "AAAAAAAAAAAAAAAAH";
-                    int x = 5;
-                }
                 return _cache(static_pointer_cast<IntValue>(elems[0])->add(
                 static_pointer_cast<IntValue>(elems[1])));
             } else if (expr->type->name == "ZMap_Z"){

@@ -504,23 +504,8 @@ public:
 class IntValue : public SpecValue {
 public:
     IntValue(unsigned long value, bool sign = false) : SpecValue(Int::INT, value, sign) {
-        auto res = this->get_z3_value();
-        if(this->get_z3_value().to_string().find("1844674407370955161") != std::string::npos){
-            std::cerr << "AAAAAAAAAAAAAAAAH sixth place";
-            std::cerr << string(*this);
-            std::cerr << "z3 value: " << res.to_string();
-            int x = 5;
-        }
     }
     IntValue(long value, bool sign = false) : SpecValue(Int::INT, value, sign) {
-        auto res = this->get_z3_value();
-
-        if(res.to_string().find("1844674407370955161") != std::string::npos){
-            std::cerr << "AAAAAAAAAAAAAAAAH fifth place";
-            std::cerr << string(*this);
-            std::cerr << "z3 value: " << res.to_string();
-            int x = 5;
-        }
     }
     IntValue(z3::expr value) : SpecValue(Int::INT, value) {
 
@@ -529,28 +514,9 @@ public:
 
     shared_ptr<IntValue> neg() { return make_shared<IntValue>((-value).simplify()); }
     shared_ptr<IntValue> add(shared_ptr<IntValue> other) { 
-        auto res = value + other->value;
-        auto v_res = value.to_string().find("1844674407370955161") == std::string::npos;
-        auto o_res = other->value.to_string().find("1844674407370955161") == std::string::npos;
-
-        if(!v_res && !o_res && res.to_string().find("1844674407370955161") != std::string::npos){
-            std::cerr << "AAAAAAAAAAAAAAAAH fifth place";
-            std::cerr << string(*this);
-            std::cerr << "z3 value: " << res.to_string();
-            int x = 5;
-        }
         return make_shared<IntValue>((value + other->value).simplify()); 
     }
     shared_ptr<IntValue> sub(shared_ptr<IntValue> other) { 
-        auto res = value - other->value;
-        auto v_res = value.to_string().find("1844674407370955161") == std::string::npos;
-        auto o_res = other->value.to_string().find("1844674407370955161") == std::string::npos;
-        if(!v_res && !o_res && res.to_string().find("1844674407370955161") != std::string::npos){
-            std::cerr << "AAAAAAAAAAAAAAAAH fifth place";
-            std::cerr << string(*this);
-            std::cerr << "z3 value: " << res.to_string();
-            int x = 5;
-        }
         return make_shared<IntValue>((value - other->value).simplify()); 
     }
     shared_ptr<IntValue> mul(shared_ptr<IntValue> other) { return make_shared<IntValue>((value * other->value).simplify()); }

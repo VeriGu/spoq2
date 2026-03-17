@@ -319,7 +319,7 @@ SpecNode* get_elem_ptr(Layer *l, IRValue *val, vector<unique_ptr<SpecNode>> *idx
 SpecNode *ir_expr_to_spec(Layer* l, IRLoader::Op op, vector<unique_ptr<IRValue>> *_args, vector<unique_ptr<SpecNode>> *relies)
 {
     auto args = unique_ptr<vector<unique_ptr<SpecNode>>>(new vector<unique_ptr<SpecNode>>());
-
+    auto extra_args = unique_ptr<vector<unique_ptr<SpecNode>>>(new vector<unique_ptr<SpecNode>>());
     for(auto & arg : *_args) {
         args->push_back(unique_ptr<SpecNode>(ir_value_to_spec(l, arg.get(), relies)));
     }
@@ -416,16 +416,26 @@ SpecNode *ir_expr_to_spec(Layer* l, IRLoader::Op op, vector<unique_ptr<IRValue>>
         return new Expr(Expr::binops::BOR, std::move(args));
         }
     case Op::OSdiv:
+    // if denominator <>? 0 then div else None?
         return new Expr(Expr::binops::DIV, std::move(args));
+        // extra_args->push_back(args->at(1)->deep_copy());
+        // extra_args->push_back(make_unique<IntConst>(0));
+        // return new If(make_unique<Expr>(Expr::binops::NOT_EQUAL, std::move(extra_args)), 
+        //     make_unique<Expr>(Expr::binops::DIV, std::move(args)),
+        //     make_unique<Symbol>("None") 
+        // );
     case Op::OSrem:
+    // if denominator <>? 0 then div else None?
         return new Expr(Expr::binops::MOD, std::move(args));
     case Op::OShl:
         return new Expr(Expr::binops::LSHIFT, std::move(args));
     case Op::OSub:
         return new Expr(Expr::binops::MINUS, std::move(args));
     case Op::OUdiv:
+    // if denominator <>? 0 then div else None?
         return new Expr(Expr::binops::DIV, std::move(args));
     case Op::OUrem:
+    // if denominator <>? 0 then div else None?
         return new Expr(Expr::binops::MOD, std::move(args));
     case Op::OXor:
         if(dynamic_cast<TInt*>(_args->at(0)->type.get())) {

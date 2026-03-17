@@ -717,6 +717,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                        expr = std::make_unique<Expr>(Expr::binops::MULT, std::move(operands));
                     else assert(false && "unexpected shift operation");
                 } else {
+                    // RJS most div exprs are made here.
                    expr = std::make_unique<Expr>(binops_lut.at(bi->getOpcode()), std::move(operands));
                 }
             } 
@@ -769,12 +770,14 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 } else if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_ULE) {
                     expr = std::make_unique<Expr>(context.ptr_leb_op_name, std::move(operands));
 
+                } else if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_UGT) {
+                    expr = std::make_unique<Expr>(context.ptr_ugt_op_name, std::move(operands));
                 } else {
                     llvm::errs() << "Unsupported binary cmp operation with pointer operand" << "\n";
                 }
             } else if(cmpops_lut.find(cmp->getPredicate()) != cmpops_lut.end()) {
                 expr = std::make_unique<Expr>(cmpops_lut.at(cmp->getPredicate()), std::move(operands));
-            }
+            }// z3 only has signed integers, so signed and unsigned gt should be the same
             if (expr == nullptr) {
                 llvm::errs() << "Binary Cmp operation not supported: " << *cmp << "\n";
                 assert(false && "Binary Cmp operation not supported");

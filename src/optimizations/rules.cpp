@@ -3776,6 +3776,138 @@ rule_ret_t SpecRules::rule_move_if_out_expr(std::unique_ptr<SpecNode> spec, bool
     }
 }
 
+/*
+    Spoq's IR->Spec translation turns division and remainder
+    directly into z3 division and modulus.
+    While division by zero is undefined in z3, it is not 
+    really detectable.  
+
+    Unfortunately given (1 + (a/b)), we cannot directly turn (a/b)
+    into None without disrupting types.  Instead, we need
+    when div_res == (a/b);
+    1 + (div_res).
+
+    In order to do that, we need to look at the parent node.
+    Unless the full body is the division.  Then we need the whole Definition.
+
+    The substitution must happen at the closest non-expr parent in order to preserve
+    the types of any function calls
+*/
+bool enforce_no_div_by_zero_inner(SpecNode* spec, std::unique_ptr<SpecNode> *last_point_to_wrap);
+bool SpecRules::enforce_no_div_by_zero(Definition *def) {
+    bool changed = false;
+    auto body_type = def->body->get_type();
+    if(!dynamic_cast<Option*>(body_type.get())){
+        // We need an option typed node to do a substitution.
+        return false;
+    }
+    auto wrap = [&](std::unique_ptr<SpecNode> wrappable, Expr* div_expr) -> std::unique_ptr<SpecNode> {
+        auto extra_args = make_unique<std::vector<std::unique_ptr<SpecNode>>>();
+        extra_args->push_back(div_expr->elems->at(1)->deep_copy());
+        extra_args->push_back(make_unique<IntConst>(0));
+        return make_unique<If>(make_unique<Expr>(Expr::binops::NOT_EQUAL, std::move(extra_args)), 
+            std::move(wrappable),
+            make_unique<Symbol>("None") 
+        );
+    };
+    auto is_div = [&](const SpecNode* spec) -> bool {
+        if(auto exp = dynamic_cast<const Expr*>(spec)){
+            if(op_eq(exp->op, Expr::binops::DIV)){
+                return true;
+            }
+        }
+        return false;
+    };
+    // LOG_DEBUG << "No div by zero! \n" << string(*def->body);
+    changed = enforce_no_div_by_zero_inner(def->body.get(), &def->body);
+    // LOG_DEBUG << "No div by zero done! \n" << string(*def->body);
+     
+    return changed;
+}
+/*
+    spec: a pointer to the node currently being considered for div-by-0 enforcement
+    last_point_to_wrap: a pointer to the pointer to the closest viable replacement location
+        Must be option-typed
+        All the free variables in spec must be free at *last_point_to_wrap.
+*/
+bool enforce_no_div_by_zero_inner(SpecNode* spec, std::unique_ptr<SpecNode> *last_point_to_wrap){
+    bool changed = false;
+    assert(dynamic_cast<Option*>((*last_point_to_wrap)->get_type().get()));
+    
+    // If the type of the current node is an option,
+    // then when we recurse into a child node, we will carry
+    // the address of the branch we took as the last_point_to_wrap.
+    auto this_type = spec->get_type();
+
+    if (dynamic_cast<Symbol*>(spec)) {
+    } else if (dynamic_cast<Const*>(spec)) {
+    } else if (auto e = instance_of(spec, Expr)) {
+        if (op_eq(e->op, Expr::binops::DIV)) {
+            // When we encounter a division, we want to wrap that division in:
+            // if(denominator = 0) then None else original_code.
+            // LOG_DEBUG << "Doing div by zero replacement " << string(**last_point_to_wrap);
+            // TODO, check that all the variables that are free in the denominator are also free in last_point_to_wrap.
+            auto den = e->elems->at(1)->deep_copy();
+            auto if_args = make_unique<std::vector<std::unique_ptr<SpecNode>>>();
+            auto ty = (*last_point_to_wrap)->get_type();
+            if_args->push_back(std::move(den));
+            if_args->push_back(make_unique<IntConst>(0));
+            auto new_node = make_unique<If>(make_unique<Expr>(Expr::binops::NOT_EQUAL, std::move(if_args)), 
+                nullptr,
+                make_unique<Symbol>("None", ty) 
+            );
+
+            new_node->set_type(ty);
+            auto bool_const = new BoolConst(true);
+            new_node->cond->set_type(bool_const->get_type());
+            auto tmp = std::move(*last_point_to_wrap);
+            auto tmp_if_ptr = new_node.get();
+            *last_point_to_wrap = std::move(new_node);
+            tmp_if_ptr->then_body = std::move(tmp);
+            
+            // LOG_DEBUG << "Did div by zero replacement " << string(**last_point_to_wrap);
+            assert(*last_point_to_wrap);
+            assert(tmp_if_ptr->then_body);
+        }
+        if (e->elems) {
+            for (auto &elem : *(e->elems)) {
+                bool is_option = dynamic_cast<Option*>(elem->get_type().get());
+                auto new_lptw = is_option ? &elem : last_point_to_wrap;
+                changed |= enforce_no_div_by_zero_inner(elem.get(), new_lptw);
+            }
+        }
+    } else if (auto m = instance_of(spec, Match)) {
+        changed |= enforce_no_div_by_zero_inner(m->src.get(), last_point_to_wrap);
+        bool is_option = dynamic_cast<Option*>(m->get_type().get());
+        if (m->match_list) {
+            for (auto &pm : *(m->match_list)) {
+                auto new_lptw = is_option ? &(pm->body) : last_point_to_wrap;
+                changed |= enforce_no_div_by_zero_inner(pm->body.get(), new_lptw);
+            }
+        }
+    } else if (auto r = instance_of(spec, Rely)) {
+        changed |= enforce_no_div_by_zero_inner(r->body.get(), last_point_to_wrap);
+    } else if (auto r = instance_of(spec, Anno)) {
+        // r->prop = rec_apply(std::move(r->prop), f, apply_anno, abort);
+        changed |= enforce_no_div_by_zero_inner(r->body.get(), last_point_to_wrap);
+        // r->body = rec_apply(std::move(r->body), f, apply_anno, abort);
+    } else if (auto i = instance_of(spec, If)) {
+        changed |= enforce_no_div_by_zero_inner(i->cond.get(), last_point_to_wrap);
+        changed |= enforce_no_div_by_zero_inner(i->then_body.get(), last_point_to_wrap);
+        changed |= enforce_no_div_by_zero_inner(i->else_body.get(), last_point_to_wrap);
+        // auto is_determ = i->cond->is_determ_branch;
+        // i->cond = rec_apply(std::move(i->cond), f, apply_anno, abort);
+        // i->cond->is_determ_branch = is_determ; 
+        // i->then_body = rec_apply(std::move(i->then_body), f, apply_anno, abort);
+        // i->else_body = rec_apply(std::move(i->else_body), f, apply_anno, abort);
+    } else if (auto fe = instance_of(spec, Forall)) {
+    } else if (auto fe = instance_of(spec, Exists)) {
+    } else {
+        assert(false);
+    }
+    return changed;
+}
+
 rule_ret_t SpecRules::rule_move_match_out_expr(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
@@ -3850,8 +3982,8 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
     auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         // This seems to be needed right now due to variable name ambiguity 
         // from the produced let statements
-        if (unfolded)
-            return node;
+        // if (unfolded)
+        //     return node;
         if (auto e = instance_of(node.get(), Expr)) {
             if (auto op = std::get_if<string>(&e->op)) {
                 if (proj->defs.find(*op) == proj->defs.end())

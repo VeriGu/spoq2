@@ -1181,13 +1181,6 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
             states.push_back(std::make_pair(_cache(static_pointer_cast<Inductive>(val->get_type())->construct("None", {})),state));
         else if (op_eq(expr->op, Expr::binops::ADD)){
             if (expr->type->name == "Z"){
-                auto res = static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1]));
-                auto sres = string(*res);
-                if(res->get_z3_value().to_string().find("1844674407370955161") != std::string::npos){
-                    LOG_DEBUG << "AAAAAAAAAAAAAAAAH first place";
-                    LOG_DEBUG << sres;
-                    int x = 5;
-                }
                 states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1]))), state));
             }else if (expr->type->name == "ZMap_Z"){
                 // find the definition of the zmap_z_add function
@@ -1205,9 +1198,11 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
         }
         else if (op_eq(expr->op, Expr::binops::MULT))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->mul(static_pointer_cast<IntValue>(elems[1]))), state));
-        else if (op_eq(expr->op, Expr::binops::DIV))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->div(static_pointer_cast<IntValue>(elems[1]))), state));
-        else if (op_eq(expr->op, Expr::binops::MOD))
+        else if (op_eq(expr->op, Expr::binops::DIV)){
+            auto num = static_pointer_cast<IntValue>(elems[0]);
+            auto den = static_pointer_cast<IntValue>(elems[1]);
+            states.push_back(std::make_pair(_cache(num->div(den)), state));
+        } else if (op_eq(expr->op, Expr::binops::MOD))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->mod(static_pointer_cast<IntValue>(elems[1]))), state));
         else if (op_eq(expr->op, Expr::binops::LSHIFT))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->shiftl(static_pointer_cast<IntValue>(elems[1]))), state));
@@ -1747,14 +1742,6 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         if (op_eq(expr->op, Expr::binops::ADD) ){
             
             if (expr->type->name == "Z") {
-                auto res = static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1]));
-                auto sres = string(*res);
-                if(res->get_z3_value().to_string().find("1844674407370955161") != std::string::npos){
-                    LOG_DEBUG << "AAAAAAAAAAAAAAAAH second place";
-                    LOG_DEBUG << sres;
-
-                        int x = 5;
-                    }
                 return _cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1])));
             } else if (expr->type->name == "ZMap_Z"){
                 // find the definition of the zmap_z_add function
@@ -1916,7 +1903,8 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             auto sym = std::get<string>(expr->op);
             auto info = proj->symbols[sym];
             if (info.kind == SymbolKind::StructConstr) {
-                return _cache(static_pointer_cast<Struct>(val->get_type())->construct(elems));
+                auto struct_t = proj->structs[info.info];
+                return _cache(struct_t->construct(elems));
             } else if (info.kind == SymbolKind::IndConstructor) {
                 return _cache(static_pointer_cast<Inductive>(val->get_type())->construct(sym, elems));
             } else if (info.kind == SymbolKind::Def) {
@@ -2178,13 +2166,6 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
     } else if (auto con = instance_of(val, Const)) {
         if (auto intc = std::get_if<unsigned long>(&con->value)) {
             auto icon = instance_of(val, IntConst);
-            auto res = make_shared<IntValue>(*intc, icon->is_signed());
-                if(res->get_z3_value().to_string().find("1844674407370955161") != std::string::npos){
-                    LOG_DEBUG << "AAAAAAAAAAAAAAAAH fourth place";
-                    LOG_DEBUG << "spec node: " << string(*con);
-                    LOG_DEBUG << "z3 value: " << res->get_z3_value().to_string();
-                    int x = 5;
-                }
             return make_shared<IntValue>(*intc, icon->is_signed());
         } else if (auto boolc = std::get_if<bool>(&con->value)) {
             return make_shared<BoolValue>(*boolc);
@@ -2205,17 +2186,6 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
             return _cache(static_pointer_cast<Inductive>(val->get_type())->construct("None", {}));
         if (op_eq(expr->op, Expr::binops::ADD)){
             if (expr->type->name == "Z") {
-                auto res = static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1]));
-                auto elem_left = dynamic_cast<IntValue*>(elems[0].get());
-                auto elem_right = dynamic_cast<IntValue*>(elems[1].get());
-                auto sres = string(*res);
-                if(res->get_z3_value().to_string().find("1844674407370955161") != std::string::npos){
-                    LOG_DEBUG << "AAAAAAAAAAAAAAAAH third place";
-                    LOG_DEBUG << "spec node: " << string(*expr);
-                    LOG_DEBUG << "spec value: " << string(sres);
-                    LOG_DEBUG << "z3 value: " << res->get_z3_value().to_string();
-                    int x = 5;
-                }
                 return _cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1])));
             } else if (expr->type->name == "ZMap_Z"){
                 // find the definition of the zmap_z_add function
