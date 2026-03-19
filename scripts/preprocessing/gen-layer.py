@@ -315,6 +315,9 @@ class Generator:
       # Hack by Raphael, don't ignore renamed functions
       if fname in sink and not fname.endswith(("_vuln", "_patch")):
         continue
+      # This should not happen but does in ffm021 for nsv_read_header_patch
+      if fname not in self.funcs:
+        continue
       for suc in self.funcs[fname]["sucs"]:
         if suc not in reachable:
           q.put(suc)

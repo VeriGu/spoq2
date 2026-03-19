@@ -82,14 +82,14 @@ namespace autov
 						if (is_relate && ret_is_relate) {
 							auto rel_expr = formulate_relation(proj, rel, st_check, st_ret.get(), state);
 							auto ret_expr = formulate_relation(proj, ret_rel, spec_ret, impl_ret, state);
-							LOG_INFO << "[forward_simulation] St Relation " << rel_expr->get_z3_value() << " is proved between\n"  << string(*st_check) << " and " << string(*st_ret.get()) << std::endl;
-							if(!spec_ret) {
-								LOG_INFO << "[forward_simulation] Spec SpecNode null." << std::endl;
-							} else if (!impl_ret){
-								LOG_INFO << "[forward_simulation] Impl SpecNode null." << std::endl;
-							}else{
-								LOG_INFO << "[forward_simulation] Ret Relation " << ret_expr->get_z3_value() << " is proved between\n"  << string(*spec_ret) << " and " << string(*impl_ret) << std::endl;
-							}
+							// LOG_INFO << "[forward_simulation] St Relation " << rel_expr->get_z3_value() << " is proved between\n"  << string(*st_check) << " and " << string(*st_ret.get()) << std::endl;
+							// if(!spec_ret) {
+							// 	LOG_INFO << "[forward_simulation] Spec SpecNode null." << std::endl;
+							// } else if (!impl_ret){
+							// 	LOG_INFO << "[forward_simulation] Impl SpecNode null." << std::endl;
+							// }else{
+							// 	LOG_INFO << "[forward_simulation] Ret Relation " << ret_expr->get_z3_value() << " is proved between\n"  << string(*spec_ret) << " and " << string(*impl_ret) << std::endl;
+							// }
 						} else {
 							if (!is_relate) {
 								LOG_WARNING << "[forward_simulation] State Relation can not be proved between\n"  << string(*st_check) << " and " << string(*st_ret.get())  << std::endl;
@@ -300,7 +300,7 @@ namespace autov
 				if (res == Z3Result::False) {
 					continue;
 				} else {
-					// LOG_DEBUG << "[forward_simulation " << random_code << "] Checking Match src: " << string(*m->src).substr(0,200) <<  "\nPattern: " << string(*pat).substr(0,200);
+					LOG_DEBUG << "[forward_simulation " << random_code << "] Checking Match src: " << string(*m->src).substr(0,200) <<  "\nPattern: " << string(*pat).substr(0,200);
 					auto this_branch_result = forward_simulation(proj, st_check, spec_ret, (*pm)->body.get(), rel, ret_rel, pm_state, det, path, i+1, allow_none);
 					if(!this_branch_result.verified){
 						LOG_DEBUG << "[forward_simulation " << random_code << "] Match verification failed on branch: " << string(*pat).substr(0,200);
@@ -319,7 +319,8 @@ namespace autov
 			if (cond_val.is_int()){
 				cond_val = (cond_val != 0);
 			}
-			LOG_DEBUG << "[forward_simulation " << random_code << "] If: " << cond.get()->get_z3_value();
+			// LOG_DEBUG << "[forward_simulation " << random_code << "] If: " << cond.get()->get_z3_value();
+			LOG_DEBUG << "[forward_simulation " << random_code << "] If: " << string(*iff->cond).substr(0,1000);
 
 			bool true_branch_plausible = true;
 			bool false_branch_plausible = true;
@@ -382,11 +383,12 @@ namespace autov
 			if (sym->text == "None") {
 				if(!allow_none) {
 					LOG_DEBUG << "[forward_simulation " << random_code << "] None Symbol in impl, allow_none: " << allow_none;
-					for(auto cond: *state->conds) {
-						LOG_DEBUG << "Condition: " << cond;
-					}
+					// for(auto cond: *state->conds) {
+					// 	LOG_DEBUG << "Condition: " << cond;
+					// }
+					auto res = z3_verify_state_sat(state, &proj->query_saver);
+					LOG_DEBUG << "[forward_simulation " << random_code << "] allow_none violation state saved.";
 				}
-				auto res = z3_verify_state_sat(state);
 				return SimulateResult{allow_none, allow_none, false, !allow_none};
 			}
 			LOG_ERROR << "[forward_simulation] Unexpected Symbol in impl.";
@@ -691,7 +693,7 @@ namespace autov
 			// auto cond_str = string(*i->cond);
 			// auto cond_val_str = string(*c);
 			auto sim_result = SimulateResult{true, false, false, false};
-			// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if z3: " << c->get_z3_value();
+			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if z3: " << c->get_z3_value();
 			if (true_branch_plausible){
 				sim_result = sim_result + simulate_by_traverse(proj, i->then_body.get(), impl, rel, ret_rel, true_state, p_then, det);
 				if (!sim_result.verified) {

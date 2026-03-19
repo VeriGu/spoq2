@@ -5,8 +5,9 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 // "${workspaceFolder}/src/AutoV/Spec/Parser/antlr4/runtime/Cpp/runtime/src/",
-                "${workspaceFolder}/include"
+                "${workspaceFolder}/include",
                 // "${workspaceFolder}/include/z3"
+                "/usr/lib/llvm-14/include"
             ],
             "defines": [],
             "cStandard": "c17",

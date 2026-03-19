@@ -222,10 +222,22 @@ std::string ExtractPointersPass::generateField(llvm::Type* ty) {
       if( ety->isIntegerTy() || ety->isPointerTy() ) {
       // TODO: assert Array is [constant x iXXX]
         return "(ZMap.t Z)";
+      } else if(ety->isDoubleTy() || ety->isFloatTy() || ety->isFloatingPointTy()){
+        return "(ZMap.t Float)";
       } else if(ety->isStructTy()) {
         return "(ZMap.t " + getStructTypeIdentifier(llvm::dyn_cast<llvm::StructType>(ety)) + ")";
+      } else if(ety->isArrayTy()){
+        auto aty2 = llvm::dyn_cast<llvm::ArrayType>(ety);
+        auto ety2 = aty2->getElementType();
+        if(ety2->isIntegerTy()){
+          return "(ZMap.t (ZMap.t Z))";
+
+        } else {
+          return "None (* FIXME: nd array *)";
+
+        }
       } else {
-        return "None (* FIXME: nd array *)";
+        return "None (* FIXME: unknown subtype *)";
       }
     } 
     case llvm::Type::TypeID::MetadataTyID: {
@@ -820,7 +832,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
           g_store_result += 
           "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
           "      let idx := p.(poffset) / " + std::to_string(element_size) + " in \n"\
-          "      let ptr := " + getGVLoadStr(&globalVar) + " # idx == v) in\n"\
+          "      let ptr := (" + getGVLoadStr(&globalVar) + " # idx == v) in\n"\
           "      Some(" + getGVStoreStr(&globalVar) + " :< ptr)) else\n";
         }
       } else if (auto sty = llvm::dyn_cast<llvm::StructType>(ety)) {

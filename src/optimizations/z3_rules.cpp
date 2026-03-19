@@ -924,6 +924,7 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
                 LOG_DEBUG << "Unchanged source with changed marker!!!!";
                 LOG_DEBUG << orig_src;
                 LOG_DEBUG << "AAAAAAAAAAAAAAAAAH";
+                assert(false);
             }
             // if(logthis)
                 // LOG_DEBUG << "ending simple_match_by_z3 on " << string(*result);

@@ -2102,6 +2102,9 @@ void spec_prover(Project *proj) {
     // Use wrap_call_with_cond to replace calls to the first def,
     // with an if that surfaces the condition.
     for (auto &def_pair : proj->defs) {
+        if (!def_pair.second){
+            continue;
+        }
         auto def = def_pair.second.get();
         if (!def->sufficient_none_condition) {
             continue;

@@ -583,6 +583,13 @@ SpoqIRModule::store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context
         unique_ptr<SpecNode> ret = nullptr;
         if (value_type->isIntegerTy()) {
             ret = context.get_llvm_value_spec(load, nullptr, false);
+            std::unique_ptr<SpecNode> expr = std::make_unique<Expr>(context.load_op_name, std::move(operands));
+            // llvm::errs() << *inst << "\n";
+            // llvm::errs() << *value_type << "\n";
+            // auto int_ty = llvm::dyn_cast<llvm::IntegerType>(value_type);
+            // inst->getModule()->getNamedMetadata(int_ty->deb)
+            // int_ty->
+            return std::make_pair(std::move(ret), std::move(expr));
         }
         else if (value_type->isPointerTy()) {
             ret = context.get_llvm_value_spec_ptr_in_Z(load);
@@ -690,7 +697,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 operands->push_back(std::move(op1));
             }
 
-            unique_ptr<Expr> expr = nullptr;
+            unique_ptr<SpecNode> expr = nullptr;
 
             if (bi->getOpcode() == llvm::Instruction::BinaryOps::Xor) {
                 if(bi->getOperand(0)->getType()->isIntegerTy(1)) {
@@ -719,6 +726,14 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 } else {
                     // RJS most div exprs are made here.
                    expr = std::make_unique<Expr>(binops_lut.at(bi->getOpcode()), std::move(operands));
+                    if(bi->getOpcode() == llvm::Instruction::BinaryOps::UDiv){
+                        auto bexpr_elems = make_unique<std::vector<std::unique_ptr<SpecNode>>>();
+                        bexpr_elems->push_back(expr->deep_copy());
+                        bexpr_elems->push_back(make_unique<IntConst>(0));
+                        auto bexpr = make_unique<Expr>(Expr::binops::GTE, std::move(bexpr_elems));
+                        // expr = make_unique<Rely>(std::move(bexpr), std::move(expr));
+                        rely_expr = std::move(bexpr);
+                    }
                 }
             } 
             if (expr == nullptr) {

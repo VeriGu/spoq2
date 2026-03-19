@@ -312,6 +312,25 @@
             "cwd": "/home/rjs2247/workspace/patchverification/examples/lua/lua002/build",
             "preLaunchTask": "CMake: build debug"
         },
+                        {
+            "name": "(lldb) pv libtiff003",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/libtiff/tif003/build/tif_read.main.v",
+            "--check-pre-post", "--new-trans", "--llvm",  "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/libtiff/tif003/build",
+            "preLaunchTask": "CMake: build debug"
+        },              {
+            "name": "(lldb) pv ffmpeg001",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm001/build/utils.main.v",
+            "--check-pre-post", "--new-trans", "--llvm",  "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm001/build",
+            "preLaunchTask": "CMake: build debug"
+        },
                 {
             "name": "(lldb) pv lua004",
             "type": "lldb",
@@ -322,28 +341,7 @@
             "cwd": "/home/rjs2247/workspace/patchverification/examples/lua/lua004/build",
             "preLaunchTask": "CMake: build debug"
         },
-        {
-            "name": "(lldb) pv outliner synth",
-            "type": "lldb",
-            "request": "launch",
-            "program": "/usr/bin/opt-14", // Path to your CMake target executable
-            "args": ["-enable-new-pm=0","-load","${workspaceFolder}/scripts/preprocessing/pv_ir_outliner/lib/libpviroutliner.so",
-               "--pviroutliner", "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/php009_static_arr.ll",
-            "-S", "-pv-ir-outlining-no-cost", "-o", "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/php009_static_arr.outlined.ll"],
-            "cwd": "${workspaceFolder}/scripts/preprocessing/extractbasics",
-            "preLaunchTask": "CMake: build debug"
-        },
-        {
-            "name": "(lldb) pv outliner",
-            "type": "lldb",
-            "request": "launch",
-            "program": "/usr/bin/opt-14", // Path to your CMake target executable
-            "args": ["-enable-new-pm=0","-load","${workspaceFolder}/scripts/preprocessing/pv_ir_outliner/lib/libpviroutliner.so",
-               "--pviroutliner", "/home/rjs2247/workspace/patchverification/examples/php/php009/build/exif.unoptimized.ll",
-            "-S", "-o", "/home/rjs2247/workspace/patchverification/examples/php/php009/build/exif.outlined.ll"],
-            "cwd": "${workspaceFolder}/scripts/preprocessing/extractbasics",
-            "preLaunchTask": "CMake: build debug"
-        },
+
         {
             "name": "(lldb) pv extract-info synthetic",
             "type": "lldb",
@@ -360,7 +358,17 @@
             "request": "launch",
             "program": "/usr/bin/opt-14", // Path to your CMake target executable
             "args": ["-enable-new-pm=0","-O0","-load","${workspaceFolder}/scripts/preprocessing/extractpointers/lib/libextractpointers.so","-load", "${workspaceFolder}/scripts/preprocessing/extractbasics/lib/libextractbasics.so",
-               "--extractbasics",   "--extractpointers", "/home/rjs2247/workspace/patchverification/examples/lua/lua002/build/ldebug.ll"],
+               "--extractbasics",   "--extractpointers", "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm001/build/utils.ll"],
+            "cwd": "${workspaceFolder}/scripts/preprocessing/extractbasics",
+            "preLaunchTask": "CMake: build debug"
+        },
+                {
+            "name": "(lldb) pv outliner",
+            "type": "lldb",
+            "request": "launch",
+            "program": "/usr/bin/opt-15", // Path to your CMake target executable
+            "args": ["-enable-new-pm=0","-load","${workspaceFolder}/scripts/preprocessing/pv_ir_outliner/lib/libpviroutliner.so",
+                 "--pviroutliner", "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm001/build/utils.outlined.ll", "-o", "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm001/build/utils.outlined2.ll"],
             "cwd": "${workspaceFolder}/scripts/preprocessing/extractbasics",
             "preLaunchTask": "CMake: build debug"
         },

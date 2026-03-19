@@ -70,7 +70,8 @@ bool SpoqIRModule::control_flow_duplicate(llvm::BasicBlock *bb,
 }
 
 bool SpoqIRModule::control_flow_clone_and_split(llvm::BasicBlock *bb, SpoqLoopContext &context) {
-    if (bb->getParent()->getBasicBlockList().size() > 20000) 
+    // LOG_DEBUG << "clone and split " << (bb->hasName() ? bb->getName().str() : "no name"); 
+    if (bb->getParent()->getBasicBlockList().size() > 200000) 
         throw std::runtime_error("block size too large in fn " + bb->getParent()->getName().str() + ": " + std::to_string(bb->getParent()->getBasicBlockList().size()));
 
     if (bb == context.get_postheader()) return true;

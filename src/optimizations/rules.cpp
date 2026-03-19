@@ -3842,7 +3842,7 @@ bool enforce_no_div_by_zero_inner(SpecNode* spec, std::unique_ptr<SpecNode> *las
     if (dynamic_cast<Symbol*>(spec)) {
     } else if (dynamic_cast<Const*>(spec)) {
     } else if (auto e = instance_of(spec, Expr)) {
-        if (op_eq(e->op, Expr::binops::DIV)) {
+        if (op_eq(e->op, Expr::binops::DIV) || op_eq(e->op, Expr::binops::MOD)) {
             // When we encounter a division, we want to wrap that division in:
             // if(denominator = 0) then None else original_code.
             // LOG_DEBUG << "Doing div by zero replacement " << string(**last_point_to_wrap);
@@ -3886,15 +3886,19 @@ bool enforce_no_div_by_zero_inner(SpecNode* spec, std::unique_ptr<SpecNode> *las
             }
         }
     } else if (auto r = instance_of(spec, Rely)) {
-        changed |= enforce_no_div_by_zero_inner(r->body.get(), last_point_to_wrap);
+        auto new_lptw = dynamic_cast<Option*>(r->body.get()) ? &(r->body) : last_point_to_wrap;
+        changed |= enforce_no_div_by_zero_inner(r->body.get(), new_lptw);
     } else if (auto r = instance_of(spec, Anno)) {
         // r->prop = rec_apply(std::move(r->prop), f, apply_anno, abort);
-        changed |= enforce_no_div_by_zero_inner(r->body.get(), last_point_to_wrap);
+        auto new_lptw = dynamic_cast<Option*>(r->body.get()) ? &(r->body) : last_point_to_wrap;
+        changed |= enforce_no_div_by_zero_inner(r->body.get(), new_lptw);
         // r->body = rec_apply(std::move(r->body), f, apply_anno, abort);
     } else if (auto i = instance_of(spec, If)) {
         changed |= enforce_no_div_by_zero_inner(i->cond.get(), last_point_to_wrap);
-        changed |= enforce_no_div_by_zero_inner(i->then_body.get(), last_point_to_wrap);
-        changed |= enforce_no_div_by_zero_inner(i->else_body.get(), last_point_to_wrap);
+        bool is_option = dynamic_cast<Option*>(i->get_type().get());
+
+        changed |= enforce_no_div_by_zero_inner(i->then_body.get(), is_option ? &(i->then_body) : last_point_to_wrap);
+        changed |= enforce_no_div_by_zero_inner(i->else_body.get(), is_option ? &(i->else_body) : last_point_to_wrap);
         // auto is_determ = i->cond->is_determ_branch;
         // i->cond = rec_apply(std::move(i->cond), f, apply_anno, abort);
         // i->cond->is_determ_branch = is_determ; 
@@ -3994,7 +3998,10 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
                     return node;
 
                 auto define = proj->defs[*op].get();
-
+                if(!define){
+                    // This shouldn't be reached, but it is for TIFFVStripSize_spec in libtiff003
+                    return node;
+                }
                 bool self_unfold = false;
                 if (is_instance(define, Fixpoint)) {
                     // LOG_DEBUG << "we encounter a loop: " << define->name << std::endl;

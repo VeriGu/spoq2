@@ -153,7 +153,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
     
     converged_spec.clear();
     UNFOLD_POLICY.set_skip(true);
-    proj->rules.enforce_no_div_by_zero(def);
+    bool have_done_no_div_by_zero = false;
     int cur_iter = 0;
     while(cur_iter < max_iter) {
             cur_iter++;
@@ -163,7 +163,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 known.insert(arg->name);
             }
 
-            auto log_fn_name = "exif_process_IFD_in_MAKERNOTE_vuln_spec";
+            auto log_fn_name = "TIFFReadEncodedStripGetStripSize_patch_spec";
             bool log_spec = false;
             if(def->name == log_fn_name){
                 auto s = string(*def->body);
@@ -354,6 +354,9 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                     profile_print_transrule();
                 } else if (UNFOLD_POLICY.require_loop_unroll(def->name, proj->cmds.LoopUnroll)) {
                     LOG_DEBUG << "we start greedily unfolding for " << UNFOLD_POLICY.current_unfold << " times for " << def->name << "\n";
+                } else if (!have_done_no_div_by_zero) {
+                    proj->rules.enforce_no_div_by_zero(def);
+                    have_done_no_div_by_zero = true;
                 } else {
                     LOG_DEBUG << "finish spec transformer for " << def->name << ", iterations " << cur_iter << ".";
                    break;

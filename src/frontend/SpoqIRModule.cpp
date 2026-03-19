@@ -38,10 +38,14 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
         if (name == "exif_discard_imageinfo") continue;
         if (name == "zif_exif_thumbnail_vuln") continue;
         if (name == "zif_exif_thumbnail_patch") continue;
+        if (name == "sws_setColorspaceDetails") continue;
+        if (name == "fill_rgb2yuv_table") continue;
+        if (name == "phar_flush") continue;
         SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs[name];
         spoq_func.llvm_func = &func; // llvm_func;
         bool ret = false;
         try {
+            LOG_DEBUG << "[CFG] Attempting conversion on: " << name << ".";
             ret = control_flow_conversion_v2(name, spoq_func);
         } catch (const std::runtime_error& e) { 
             llvm::errs() << "error: " << e.what() << "\n";
