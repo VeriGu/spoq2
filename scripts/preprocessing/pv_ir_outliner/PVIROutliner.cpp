@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/IPO/IROutliner.h"
+#include "PVIROutliner.h"
 #include "llvm/Analysis/IRSimilarityIdentifier.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
@@ -27,6 +28,8 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/IPO.h"
 #include <vector>
+#include <map>
+#include "llvm/ADT/PostOrderIterator.h"
 
 #define DEBUG_TYPE "pviroutliner"
 
@@ -620,7 +623,7 @@ static DISubprogram *getSubprogramOrNull(OutlinableGroup &Group) {
   return nullptr;
 }
 
-Function *IROutliner::createFunction(Module &M, OutlinableGroup &Group,
+Function *PVIROutliner::createFunction(Module &M, OutlinableGroup &Group,
                                      unsigned FunctionNameSuffix) {
   assert(!Group.OutlinedFunction && "Function is already defined!");
 
@@ -1389,7 +1392,7 @@ findExtractedOutputToOverallOutputMapping(OutlinableRegion &Region,
   stable_sort(Region.GVNStores);
 }
 
-void IROutliner::findAddInputsOutputs(Module &M, OutlinableRegion &Region,
+void PVIROutliner::findAddInputsOutputs(Module &M, OutlinableRegion &Region,
                                       DenseSet<unsigned> &NotSame) {
   std::vector<unsigned> Inputs;
   SetVector<Value *> ArgInputs, Outputs;
@@ -2284,7 +2287,7 @@ static void fillOverallFunction(
   FuncsToRemove.push_back(CurrentOS->ExtractedFunction);
 }
 
-void IROutliner::deduplicateExtractedSections(
+void PVIROutliner::deduplicateExtractedSections(
     Module &M, OutlinableGroup &CurrentGroup,
     std::vector<Function *> &FuncsToRemove, unsigned &OutlinedFunctionNum) {
   createFunction(M, CurrentGroup, OutlinedFunctionNum);
@@ -2352,7 +2355,7 @@ static bool nextIRInstructionDataMatchesNextInst(IRInstructionData &ID) {
   return true;
 }
 
-bool IROutliner::isCompatibleWithAlreadyOutlinedCode(
+bool PVIROutliner::isCompatibleWithAlreadyOutlinedCode(
     const OutlinableRegion &Region) {
   IRSimilarityCandidate *IRSC = Region.Candidate;
   unsigned StartIdx = IRSC->getStartIdx();
@@ -2390,7 +2393,7 @@ bool IROutliner::isCompatibleWithAlreadyOutlinedCode(
   });
 }
 
-void IROutliner::pruneIncompatibleRegions(
+void PVIROutliner::pruneIncompatibleRegions(
     std::vector<IRSimilarityCandidate> &CandidateVec,
     OutlinableGroup &CurrentGroup) {
   bool PreviouslyOutlined;
@@ -2465,7 +2468,7 @@ void IROutliner::pruneIncompatibleRegions(
 }
 
 InstructionCost
-IROutliner::findBenefitFromAllRegions(OutlinableGroup &CurrentGroup) {
+PVIROutliner::findBenefitFromAllRegions(OutlinableGroup &CurrentGroup) {
   InstructionCost RegionBenefit = 0;
   for (OutlinableRegion *Region : CurrentGroup.Regions) {
     TargetTransformInfo &TTI = getTTI(*Region->StartBB->getParent());
@@ -2508,7 +2511,7 @@ static Value *findOutputValueInRegion(OutlinableRegion &Region,
 }
 
 InstructionCost
-IROutliner::findCostOutputReloads(OutlinableGroup &CurrentGroup) {
+PVIROutliner::findCostOutputReloads(OutlinableGroup &CurrentGroup) {
   InstructionCost OverallCost = 0;
   for (OutlinableRegion *Region : CurrentGroup.Regions) {
     TargetTransformInfo &TTI = getTTI(*Region->StartBB->getParent());
@@ -2611,7 +2614,7 @@ static InstructionCost findCostForOutputBlocks(Module &M,
   return OutputCost;
 }
 
-void IROutliner::findCostBenefit(Module &M, OutlinableGroup &CurrentGroup) {
+void PVIROutliner::findCostBenefit(Module &M, OutlinableGroup &CurrentGroup) {
   InstructionCost RegionBenefit = findBenefitFromAllRegions(CurrentGroup);
   CurrentGroup.Benefit += RegionBenefit;
   LLVM_DEBUG(dbgs() << "Current Benefit: " << CurrentGroup.Benefit << "\n");
@@ -2631,7 +2634,7 @@ void IROutliner::findCostBenefit(Module &M, OutlinableGroup &CurrentGroup) {
   // inside of the newly created function.
   LLVM_DEBUG(dbgs() << "Adding: " << AverageRegionBenefit
                     << " instructions to cost for body of new function.\n");
-  CurrentGroup.Cost += AverageRegionBenefit;
+  // CurrentGroup.Cost += AverageRegionBenefit;
   LLVM_DEBUG(dbgs() << "Current Cost: " << CurrentGroup.Cost << "\n");
 
   // For each argument, we must add an instruction for loading the argument
@@ -2639,8 +2642,8 @@ void IROutliner::findCostBenefit(Module &M, OutlinableGroup &CurrentGroup) {
   LLVM_DEBUG(dbgs() << "Adding: " << OverallArgumentNum
                     << " instructions to cost for each argument in the new"
                     << " function.\n");
-  CurrentGroup.Cost +=
-      OverallArgumentNum * TargetTransformInfo::TCC_Basic;
+  // CurrentGroup.Cost +=
+  //     OverallArgumentNum * TargetTransformInfo::TCC_Basic;
   LLVM_DEBUG(dbgs() << "Current Cost: " << CurrentGroup.Cost << "\n");
 
   // Each argument needs to either be loaded into a register or onto the stack.
@@ -2658,7 +2661,7 @@ void IROutliner::findCostBenefit(Module &M, OutlinableGroup &CurrentGroup) {
   LLVM_DEBUG(dbgs() << "Current Cost: " << CurrentGroup.Cost << "\n");
 }
 
-void IROutliner::updateOutputMapping(OutlinableRegion &Region,
+void PVIROutliner::updateOutputMapping(OutlinableRegion &Region,
                                      ArrayRef<Value *> Outputs,
                                      LoadInst *LI) {
   // For and load instructions following the call
@@ -2690,7 +2693,7 @@ void IROutliner::updateOutputMapping(OutlinableRegion &Region,
   }
 }
 
-bool IROutliner::extractSection(OutlinableRegion &Region) {
+bool PVIROutliner::extractSection(OutlinableRegion &Region) {
   SetVector<Value *> ArgInputs, Outputs, SinkCands;
   assert(Region.StartBB && "StartBB for the OutlinableRegion is nullptr!");
   BasicBlock *InitialStart = Region.StartBB;
@@ -2765,7 +2768,7 @@ bool IROutliner::extractSection(OutlinableRegion &Region) {
   return true;
 }
 
-unsigned IROutliner::doOutline(Module &M) {
+unsigned PVIROutliner::doOutline(Module &M) {
   // Find the possible similarity sections.
   InstructionClassifier.EnableBranches = !DisableBranches;
   InstructionClassifier.EnableIndirectCalls = !DisableIndirectCalls;
@@ -2794,6 +2797,72 @@ unsigned IROutliner::doOutline(Module &M) {
   std::vector<OutlinableRegion *> OutlinedRegions;
   // Iterate over the possible sets of similarity.
   unsigned PotentialGroupIdx = 0;
+
+  // Map from function to the last instruction in any outlining candidate touching that function
+  std::map<llvm::GlobalValue::GUID,std::pair<llvm::Instruction*,llvm::BasicBlock*>> last_inst_map;
+  // Map from function to postorder traversal order labeling of basicblocks
+  std::map<llvm::GlobalValue::GUID,std::map<llvm::BasicBlock*,size_t>> func_postorder_map;
+  // For each function we are possibly outlining from, find the last instruction in any outlining candidate.
+
+  for(auto &outlinable_list: SimilarityCandidates){
+    for(auto &cand: outlinable_list){
+      auto func = cand.getFunction();
+      auto guid = func->getGUID();
+      if(func_postorder_map.count(guid) == 0){
+        std::map<BasicBlock*,size_t> this_func_order;
+        size_t counter = 0;
+        auto rpo = llvm::ReversePostOrderTraversal(func);
+        for(auto bb = rpo.begin(); bb != rpo.end(); bb++){
+          this_func_order[*bb] = counter;
+          counter++;
+        }
+        func_postorder_map[guid] = this_func_order;
+      }
+      if(last_inst_map.count(guid) == 0){
+        last_inst_map[guid] = std::make_pair(cand.backInstruction(),cand.getEndBB());
+      } else {
+        auto [current_inst, currentBB] = last_inst_map[guid];
+        auto candBB = cand.getEndBB();
+        if(func_postorder_map[guid][candBB] > func_postorder_map[guid][currentBB]){
+          last_inst_map[guid] = std::make_pair(cand.backInstruction(),cand.getEndBB());
+        } else if (func_postorder_map[guid][candBB] == func_postorder_map[guid][currentBB]){
+          if(current_inst->comesBefore(cand.backInstruction())){
+            last_inst_map[guid] = std::make_pair(cand.backInstruction(),cand.getEndBB());
+          }
+        }
+      }
+    }
+  }
+  // Discard all candidates that do not end there.
+  auto is_last =  [last_inst_map](const SimilarityGroup &a){
+    if(a.empty()){
+      return true;
+    }
+    auto cand = a[0];
+    auto endbb = cand.getEndBB();
+    auto endinst = cand.backInstruction();
+    auto guid = cand.getFunction()->getGUID();
+    auto [curinst, curbb] = last_inst_map.at(guid);
+    if(curbb != endbb){
+      return true;
+    }
+    if(endinst->comesBefore(curinst)){
+      return true;
+    }
+    return false;
+  };
+  // SimilarityCandidates.erase(to_remove);
+
+  std::sort(SimilarityCandidates.begin(), SimilarityCandidates.end(), [](const SimilarityGroup &a, const SimilarityGroup &b){
+    // We want numBasicBlocksInA < numBasicBlocksInB
+    auto firstA = a[0];
+    auto firstB = b[0];
+    DenseSet<BasicBlock *> BBSetA;
+    DenseSet<BasicBlock *> BBSetB;
+    firstA.getBasicBlocks(BBSetA);
+    firstB.getBasicBlocks(BBSetB);
+    return BBSetA.size() < BBSetB.size();
+  });
   for (SimilarityGroup &CandidateVec : SimilarityCandidates) {
     OutlinableGroup &CurrentGroup = PotentialGroups[PotentialGroupIdx++];
 
@@ -2805,7 +2874,41 @@ unsigned IROutliner::doOutline(Module &M) {
     // code.
     if (CurrentGroup.Regions.size() < 2)
       continue;
+    DenseSet<BasicBlock *> BBSet;
+    CandidateVec[0].getBasicBlocks(BBSet);
 
+    // We only want to outline when we have a _patch _vuln pair
+    std::set<llvm::StringRef> containing_functions;
+    for(auto &cand : CandidateVec){
+      if(cand.getFunction()->hasName()){
+        auto name = cand.getFunction()->getName();
+        containing_functions.insert(name);
+      }
+    }
+    bool on_patch = true;
+    bool found_patch_or_vuln = false;
+    bool found_violation = false;
+    llvm::errs() << "Considering new outlining group containing " << std::to_string(BBSet.size()) << " basic blocks." << "\n";
+    for(auto &name: containing_functions){
+      llvm::errs() << "\t" << name << "?" << "\n";
+      if(name.endswith("_patch") || name.endswith("_vuln")){
+        found_patch_or_vuln = true;
+      }
+      if(on_patch && !(name.endswith("_patch"))){
+        found_violation = true;
+        break;
+      } else if(!on_patch && !(name.endswith("_vuln"))){
+        found_violation = true;
+        break;
+      }
+      on_patch = !on_patch;
+    }
+    if (found_violation && found_patch_or_vuln){
+      llvm::errs() << "Skipping outlining." << "\n";
+      continue;
+    } else {
+      llvm::errs() << "Doing outlining maybe." << "\n";
+    }
     // Determine if there are any values that are the same constant throughout
     // each section in the set.
     NotSame.clear();
@@ -2826,8 +2929,10 @@ unsigned IROutliner::doOutline(Module &M) {
       // There's a chance that when the region is split, extra instructions are
       // added to the region. This makes the region no longer viable
       // to be split, so we ignore it for outlining.
-      if (!OS->CandidateSplit)
+      if (!OS->CandidateSplit){
+        llvm::errs() << "Aborting region due to candidate split.\n";
         continue;
+      }
 
       SmallVector<BasicBlock *> BE;
       DenseSet<BasicBlock *> BlocksInRegion;
@@ -2836,8 +2941,11 @@ unsigned IROutliner::doOutline(Module &M) {
           CodeExtractor(BE, nullptr, false, nullptr, nullptr, nullptr, false,
                         false, nullptr, "outlined");
       findAddInputsOutputs(M, *OS, NotSame);
-      if (!OS->IgnoreRegion)
+      if (!OS->IgnoreRegion){
         OutlinedRegions.push_back(OS);
+      } else {
+        llvm::errs() << "Region marked for ignoring.\n";
+      }
 
       // We recombine the blocks together now that we have gathered all the
       // needed information.
@@ -2846,8 +2954,10 @@ unsigned IROutliner::doOutline(Module &M) {
 
     CurrentGroup.Regions = std::move(OutlinedRegions);
 
-    if (CurrentGroup.Regions.empty())
+    if (CurrentGroup.Regions.empty()){
+      llvm::errs() << "No regions successfully extracted.\n";
       continue;
+    }
 
     CurrentGroup.collectGVNStoreSets(M);
 
@@ -2869,6 +2979,8 @@ unsigned IROutliner::doOutline(Module &M) {
           << ore::NV("InstructionIncrease",
                      CurrentGroup.Cost - CurrentGroup.Benefit)
           << " instructions at locations ";
+        
+        
         interleave(
             CurrentGroup.Regions.begin(), CurrentGroup.Regions.end(),
             [&R](OutlinableRegion *Region) {
@@ -2879,19 +2991,30 @@ unsigned IROutliner::doOutline(Module &M) {
             [&R]() { R << " "; });
         return R;
       });
+                  llvm::errs() << "did not outline " \
+          << std::to_string(CurrentGroup.Regions.size())\
+          << " regions due to estimated increase of "\
+          << std::to_string((CurrentGroup.Cost - CurrentGroup.Benefit).getValue().getValue())\
+          << " instructions at locations " << "\n";
+
       continue;
     }
-
+    if (BBSet.size() < 2 && CandidateVec[0].getLength() < 20)
+      continue;
+    if(!is_last(CandidateVec)){
+      continue;
+    }
     NegativeCostGroups.push_back(&CurrentGroup);
   }
 
   ExtractorAllocator.DestroyAll();
 
-  if (NegativeCostGroups.size() > 1)
-    stable_sort(NegativeCostGroups,
-                [](const OutlinableGroup *LHS, const OutlinableGroup *RHS) {
-                  return LHS->Benefit - LHS->Cost > RHS->Benefit - RHS->Cost;
-                });
+  // if (NegativeCostGroups.size() > 1)
+  //   stable_sort(NegativeCostGroups,
+  //               [](const OutlinableGroup *LHS, const OutlinableGroup *RHS) {
+  //                 // return LHS->Benefit - LHS->Cost > RHS->Benefit - RHS->Cost;
+  //                 return LHS->Benefit - LHS->Cost > RHS->Benefit - RHS->Cost;
+  //               });
 
   std::vector<Function *> FuncsToRemove;
   for (OutlinableGroup *CG : NegativeCostGroups) {
@@ -2901,8 +3024,10 @@ unsigned IROutliner::doOutline(Module &M) {
     for (OutlinableRegion *Region : CurrentGroup.Regions) {
       // We check whether our region is compatible with what has already been
       // outlined, and whether we need to ignore this item.
-      if (!isCompatibleWithAlreadyOutlinedCode(*Region))
+      if (!isCompatibleWithAlreadyOutlinedCode(*Region)){
+        llvm::errs() << "Disregarding region due to incompatibility with already outlined code.\n";
         continue;
+      }
       OutlinedRegions.push_back(Region);
     }
 
@@ -2916,21 +3041,28 @@ unsigned IROutliner::doOutline(Module &M) {
       CurrentGroup.Benefit = 0;
       CurrentGroup.Cost = 0;
       findCostBenefit(M, CurrentGroup);
-      if (CurrentGroup.Cost >= CurrentGroup.Benefit)
+      if (CurrentGroup.Cost >= CurrentGroup.Benefit){
+        llvm::errs() << "Disregarding outlineable group due to bad cb in location 2.\n";
+
         continue;
+      }
     }
     OutlinedRegions.clear();
     for (OutlinableRegion *Region : CurrentGroup.Regions) {
       Region->splitCandidate();
-      if (!Region->CandidateSplit)
+      if (!Region->CandidateSplit){
+        llvm::errs() << "Disregarding region due to failed candidate split.\n";
         continue;
+      }
       OutlinedRegions.push_back(Region);
     }
 
     CurrentGroup.Regions = std::move(OutlinedRegions);
     if (CurrentGroup.Regions.size() < 2) {
-      for (OutlinableRegion *R : CurrentGroup.Regions)
+      for (OutlinableRegion *R : CurrentGroup.Regions){
+        llvm::errs() << "Disregarding group due to not enough regions.\n";
         R->reattachCandidate();
+      }
       continue;
     }
 
@@ -2960,6 +3092,9 @@ unsigned IROutliner::doOutline(Module &M) {
     LLVM_DEBUG(dbgs() << "Outlined " << OutlinedRegions.size()
                       << " with benefit " << CurrentGroup.Benefit
                       << " and cost " << CurrentGroup.Cost << "\n");
+    llvm::errs() << "Outlined " << OutlinedRegions.size()
+                      << " with benefit " << CurrentGroup.Benefit
+                      << " and cost " << CurrentGroup.Cost << "\n";
 
     CurrentGroup.Regions = std::move(OutlinedRegions);
 
@@ -2995,7 +3130,7 @@ unsigned IROutliner::doOutline(Module &M) {
   return OutlinedFunctionNum;
 }
 
-bool IROutliner::run(Module &M) {
+bool PVIROutliner::run(Module &M) {
   CostModel = !NoCostModel;
   OutlineFromLinkODRs = EnableLinkOnceODRIROutlining;
 
@@ -3039,10 +3174,10 @@ bool IROutlinerLegacyPass::runOnModule(Module &M) {
     return this->getAnalysis<IRSimilarityIdentifierWrapperPass>().getIRSI();
   };
 
-  return IROutliner(GTTI, GIRSI, GORE).run(M);
+  return PVIROutliner(GTTI, GIRSI, GORE).run(M);
 }
 
-PreservedAnalyses IROutlinerPass::run(Module &M, ModuleAnalysisManager &AM) {
+PreservedAnalyses PVIROutlinerPass::run(Module &M, ModuleAnalysisManager &AM) {
   auto &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
 
   std::function<TargetTransformInfo &(Function &)> GTTI =

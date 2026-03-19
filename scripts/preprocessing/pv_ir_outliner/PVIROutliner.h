@@ -38,8 +38,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_TRANSFORMS_IPO_IROUTLINER_H
-#define LLVM_TRANSFORMS_IPO_IROUTLINER_H
+#ifndef LLVM_TRANSFORMS_IPO_PVIROUTLINER_H
+#define LLVM_TRANSFORMS_IPO_PVIROUTLINER_H
 
 #include "llvm/Analysis/IRSimilarityIdentifier.h"
 #include "llvm/IR/PassManager.h"
@@ -60,135 +60,135 @@ class OptimizationRemarkEmitter;
 /// sequence of instructions. This includes what values need to be hoisted to
 /// arguments from the extracted function, inputs and outputs to the region, and
 /// mapping from the extracted function arguments to overall function arguments.
-struct OutlinableRegion {
-  /// Describes the region of code.
-  IRSimilarityCandidate *Candidate = nullptr;
+// struct OutlinableRegion {
+//   /// Describes the region of code.
+//   IRSimilarityCandidate *Candidate = nullptr;
 
-  /// If this region is outlined, the front and back IRInstructionData could
-  /// potentially become invalidated if the only new instruction is a call.
-  /// This ensures that we replace in the instruction in the IRInstructionData.
-  IRInstructionData *NewFront = nullptr;
-  IRInstructionData *NewBack = nullptr;
+//   /// If this region is outlined, the front and back IRInstructionData could
+//   /// potentially become invalidated if the only new instruction is a call.
+//   /// This ensures that we replace in the instruction in the IRInstructionData.
+//   IRInstructionData *NewFront = nullptr;
+//   IRInstructionData *NewBack = nullptr;
 
-  /// The number of extracted inputs from the CodeExtractor.
-  unsigned NumExtractedInputs = 0;
+//   /// The number of extracted inputs from the CodeExtractor.
+//   unsigned NumExtractedInputs = 0;
 
-  /// The corresponding BasicBlock with the appropriate stores for this
-  /// OutlinableRegion in the overall function.
-  unsigned OutputBlockNum = -1;
+//   /// The corresponding BasicBlock with the appropriate stores for this
+//   /// OutlinableRegion in the overall function.
+//   unsigned OutputBlockNum = -1;
 
-  /// Mapping the extracted argument number to the argument number in the
-  /// overall function.  Since there will be inputs, such as elevated constants
-  /// that are not the same in each region in a SimilarityGroup, or values that
-  /// cannot be sunk into the extracted section in every region, we must keep
-  /// track of which extracted argument maps to which overall argument.
-  DenseMap<unsigned, unsigned> ExtractedArgToAgg;
-  DenseMap<unsigned, unsigned> AggArgToExtracted;
+//   /// Mapping the extracted argument number to the argument number in the
+//   /// overall function.  Since there will be inputs, such as elevated constants
+//   /// that are not the same in each region in a SimilarityGroup, or values that
+//   /// cannot be sunk into the extracted section in every region, we must keep
+//   /// track of which extracted argument maps to which overall argument.
+//   DenseMap<unsigned, unsigned> ExtractedArgToAgg;
+//   DenseMap<unsigned, unsigned> AggArgToExtracted;
 
-  /// Values in the outlined functions will often be replaced by arguments. When
-  /// finding corresponding values from one region to another, the found value
-  /// will be the value the argument previously replaced.  This structure maps
-  /// any replaced values for the region to the aggregate aggregate argument
-  /// in the overall function.
-  DenseMap<Value *, Value *> RemappedArguments;
+//   /// Values in the outlined functions will often be replaced by arguments. When
+//   /// finding corresponding values from one region to another, the found value
+//   /// will be the value the argument previously replaced.  This structure maps
+//   /// any replaced values for the region to the aggregate aggregate argument
+//   /// in the overall function.
+//   DenseMap<Value *, Value *> RemappedArguments;
 
-  /// Marks whether we need to change the order of the arguments when mapping
-  /// the old extracted function call to the new aggregate outlined function
-  /// call.
-  bool ChangedArgOrder = false;
+//   /// Marks whether we need to change the order of the arguments when mapping
+//   /// the old extracted function call to the new aggregate outlined function
+//   /// call.
+//   bool ChangedArgOrder = false;
 
-  /// Marks whether this region ends in a branch, there is special handling
-  /// required for the following basic blocks in this case.
-  bool EndsInBranch = false;
+//   /// Marks whether this region ends in a branch, there is special handling
+//   /// required for the following basic blocks in this case.
+//   bool EndsInBranch = false;
 
-  /// The PHIBlocks with their corresponding return block based on the return
-  /// value as the key.
-  DenseMap<Value *, BasicBlock *> PHIBlocks;
+//   /// The PHIBlocks with their corresponding return block based on the return
+//   /// value as the key.
+//   DenseMap<Value *, BasicBlock *> PHIBlocks;
 
-  /// Mapping of the argument number in the deduplicated function
-  /// to a given constant, which is used when creating the arguments to the call
-  /// to the newly created deduplicated function.  This is handled separately
-  /// since the CodeExtractor does not recognize constants.
-  DenseMap<unsigned, Constant *> AggArgToConstant;
+//   /// Mapping of the argument number in the deduplicated function
+//   /// to a given constant, which is used when creating the arguments to the call
+//   /// to the newly created deduplicated function.  This is handled separately
+//   /// since the CodeExtractor does not recognize constants.
+//   DenseMap<unsigned, Constant *> AggArgToConstant;
 
-  /// The global value numbers that are used as outputs for this section. Once
-  /// extracted, each output will be stored to an output register.  This
-  /// documents the global value numbers that are used in this pattern.
-  SmallVector<unsigned, 4> GVNStores;
+//   /// The global value numbers that are used as outputs for this section. Once
+//   /// extracted, each output will be stored to an output register.  This
+//   /// documents the global value numbers that are used in this pattern.
+//   SmallVector<unsigned, 4> GVNStores;
 
-  /// Used to create an outlined function.
-  CodeExtractor *CE = nullptr;
+//   /// Used to create an outlined function.
+//   CodeExtractor *CE = nullptr;
 
-  /// The call site of the extracted region.
-  CallInst *Call = nullptr;
+//   /// The call site of the extracted region.
+//   CallInst *Call = nullptr;
 
-  /// The function for the extracted region.
-  Function *ExtractedFunction = nullptr;
+//   /// The function for the extracted region.
+//   Function *ExtractedFunction = nullptr;
 
-  /// Flag for whether we have split out the IRSimilarityCanidate. That is,
-  /// make the region contained the IRSimilarityCandidate its own BasicBlock.
-  bool CandidateSplit = false;
+//   /// Flag for whether we have split out the IRSimilarityCanidate. That is,
+//   /// make the region contained the IRSimilarityCandidate its own BasicBlock.
+//   bool CandidateSplit = false;
 
-  /// Flag for whether we should not consider this region for extraction.
-  bool IgnoreRegion = false;
+//   /// Flag for whether we should not consider this region for extraction.
+//   bool IgnoreRegion = false;
 
-  /// The BasicBlock that is before the start of the region BasicBlock,
-  /// only defined when the region has been split.
-  BasicBlock *PrevBB = nullptr;
+//   /// The BasicBlock that is before the start of the region BasicBlock,
+//   /// only defined when the region has been split.
+//   BasicBlock *PrevBB = nullptr;
 
-  /// The BasicBlock that contains the starting instruction of the region.
-  BasicBlock *StartBB = nullptr;
+//   /// The BasicBlock that contains the starting instruction of the region.
+//   BasicBlock *StartBB = nullptr;
 
-  /// The BasicBlock that contains the ending instruction of the region.
-  BasicBlock *EndBB = nullptr;
+//   /// The BasicBlock that contains the ending instruction of the region.
+//   BasicBlock *EndBB = nullptr;
 
-  /// The BasicBlock that is after the start of the region BasicBlock,
-  /// only defined when the region has been split.
-  BasicBlock *FollowBB = nullptr;
+//   /// The BasicBlock that is after the start of the region BasicBlock,
+//   /// only defined when the region has been split.
+//   BasicBlock *FollowBB = nullptr;
 
-  /// The Outlinable Group that contains this region and structurally similar
-  /// regions to this region.
-  OutlinableGroup *Parent = nullptr;
+//   /// The Outlinable Group that contains this region and structurally similar
+//   /// regions to this region.
+//   OutlinableGroup *Parent = nullptr;
 
-  OutlinableRegion(IRSimilarityCandidate &C, OutlinableGroup &Group)
-      : Candidate(&C), Parent(&Group) {
-    StartBB = C.getStartBB();
-    EndBB = C.getEndBB();
-  }
+//   OutlinableRegion(IRSimilarityCandidate &C, OutlinableGroup &Group)
+//       : Candidate(&C), Parent(&Group) {
+//     StartBB = C.getStartBB();
+//     EndBB = C.getEndBB();
+//   }
 
-  /// For the contained region, split the parent BasicBlock at the starting and
-  /// ending instructions of the contained IRSimilarityCandidate.
-  void splitCandidate();
+//   /// For the contained region, split the parent BasicBlock at the starting and
+//   /// ending instructions of the contained IRSimilarityCandidate.
+//   void splitCandidate();
 
-  /// For the contained region, reattach the BasicBlock at the starting and
-  /// ending instructions of the contained IRSimilarityCandidate, or if the
-  /// function has been extracted, the start and end of the BasicBlock
-  /// containing the called function.
-  void reattachCandidate();
+//   /// For the contained region, reattach the BasicBlock at the starting and
+//   /// ending instructions of the contained IRSimilarityCandidate, or if the
+//   /// function has been extracted, the start and end of the BasicBlock
+//   /// containing the called function.
+//   void reattachCandidate();
 
-  /// Find a corresponding value for \p V in similar OutlinableRegion \p Other.
-  ///
-  /// \param Other [in] - The OutlinableRegion to find the corresponding Value
-  /// in.
-  /// \param V [in] - The Value to look for in the other region.
-  /// \return The corresponding Value to \p V if it exists, otherwise nullptr.
-  Value *findCorrespondingValueIn(const OutlinableRegion &Other, Value *V);
+//   /// Find a corresponding value for \p V in similar OutlinableRegion \p Other.
+//   ///
+//   /// \param Other [in] - The OutlinableRegion to find the corresponding Value
+//   /// in.
+//   /// \param V [in] - The Value to look for in the other region.
+//   /// \return The corresponding Value to \p V if it exists, otherwise nullptr.
+//   Value *findCorrespondingValueIn(const OutlinableRegion &Other, Value *V);
 
-  /// Find a corresponding BasicBlock for \p BB in similar OutlinableRegion \p Other.
-  ///
-  /// \param Other [in] - The OutlinableRegion to find the corresponding
-  /// BasicBlock in.
-  /// \param BB [in] - The BasicBlock to look for in the other region.
-  /// \return The corresponding Value to \p V if it exists, otherwise nullptr.
-  BasicBlock *findCorrespondingBlockIn(const OutlinableRegion &Other,
-                                       BasicBlock *BB);
+//   /// Find a corresponding BasicBlock for \p BB in similar OutlinableRegion \p Other.
+//   ///
+//   /// \param Other [in] - The OutlinableRegion to find the corresponding
+//   /// BasicBlock in.
+//   /// \param BB [in] - The BasicBlock to look for in the other region.
+//   /// \return The corresponding Value to \p V if it exists, otherwise nullptr.
+//   BasicBlock *findCorrespondingBlockIn(const OutlinableRegion &Other,
+//                                        BasicBlock *BB);
 
-  /// Get the size of the code removed from the region.
-  ///
-  /// \param [in] TTI - The TargetTransformInfo for the parent function.
-  /// \returns the code size of the region
-  InstructionCost getBenefit(TargetTransformInfo &TTI);
-};
+//   /// Get the size of the code removed from the region.
+//   ///
+//   /// \param [in] TTI - The TargetTransformInfo for the parent function.
+//   /// \returns the code size of the region
+//   InstructionCost getBenefit(TargetTransformInfo &TTI);
+// };
 
 /// This class is a pass that identifies similarity in a Module, extracts
 /// instances of the similarity, and then consolidating the similar regions
@@ -196,9 +196,9 @@ struct OutlinableRegion {
 /// to identify the similar regions of code, and then extracts the similar
 /// sections into a single function.  See the above for an example as to
 /// how code is extracted and consolidated into a single function.
-class IROutliner {
+class PVIROutliner {
 public:
-  IROutliner(function_ref<TargetTransformInfo &(Function &)> GTTI,
+  PVIROutliner(function_ref<TargetTransformInfo &(Function &)> GTTI,
              function_ref<IRSimilarityIdentifier &(Module &)> GIRSI,
              function_ref<OptimizationRemarkEmitter &(Function &)> GORE)
       : getTTI(GTTI), getIRSI(GIRSI), getORE(GORE) {
@@ -441,7 +441,7 @@ private:
 };
 
 /// Pass to outline similar regions.
-class IROutlinerPass : public PassInfoMixin<IROutlinerPass> {
+class PVIROutlinerPass : public PassInfoMixin<PVIROutlinerPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
