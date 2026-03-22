@@ -392,8 +392,10 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, 
             Z3Cache[hash] = Z3Result::False;
             return Z3Result::False;
         }
-        Z3Cache[hash] = Z3Result::True;
-        return Z3Result::True;
+        // Z3Cache[hash] = Z3Result::True;
+
+        return Z3Result::Unknown; // trying to have a way to avoid complex simplification of things that cannot be simplified.
+        // return Z3Result::True;
     } else if (res == z3::unsat) {
         Z3Cache[hash] = Z3Result::False;
         return Z3Result::False;
@@ -1909,6 +1911,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                 return _cache(static_pointer_cast<Inductive>(val->get_type())->construct(sym, elems));
             } else if (info.kind == SymbolKind::Def) {
                 auto df = proj->defs[sym].get();
+                // LOG_DEBUG << string(*val);
                 return _cache(df->absf()->call(elems));
             } else if (info.kind == SymbolKind::Decl) {
                 if(sym != "lens_v") {

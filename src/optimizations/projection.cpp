@@ -163,7 +163,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 known.insert(arg->name);
             }
 
-            auto log_fn_name = "TIFFReadEncodedStripGetStripSize_patch_spec";
+            auto log_fn_name = "exif_process_IFD_in_MAKERNOTE_vuln_spec";
             bool log_spec = false;
             if(def->name == log_fn_name){
                 auto s = string(*def->body);

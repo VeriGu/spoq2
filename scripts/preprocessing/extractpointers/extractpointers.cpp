@@ -74,6 +74,7 @@ class ExtractPointersPass : public llvm::ModulePass {
       v->getType()->getPointerElementType()->isArrayTy() && 
       v->getType()->getPointerElementType()->getArrayElementType()->isIntegerTy() && 
       v->hasName() && v->getName().startswith(".str.")){
+        // (!v->getName().endswith("_vuln") || !v->getName().endswith("_patch"))){
       std::string name = "g_merged_constant_global_string";
       return name;
     } else {

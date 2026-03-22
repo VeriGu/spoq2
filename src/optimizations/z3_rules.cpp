@@ -847,6 +847,11 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
         auto true_z3 = true_const->get_z3_value();
         
         auto res = z3_check(new_state, true_z3, nullptr, Z3_TIMEOUT);
+        if (res == Z3Result::Unknown){
+            // Abort as everything from here will timeout
+            match_list->push_back(std::move((*pm)));
+            continue;
+        }
         if(res == Z3Result::False && spec) {
             // LOG_DEBUG << "Infeasible match in match " << orig_src;
             // LOG_DEBUG << "Pattern: " << string(*(*pm)->pattern);

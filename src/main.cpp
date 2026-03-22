@@ -34,6 +34,5 @@ int main(int argc, char *argv[])
         proj->finalize_project();
         autov::generate_proj(proj.get());
     }
-
     return 0;
 }

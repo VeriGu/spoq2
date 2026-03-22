@@ -321,10 +321,41 @@
             "--check-pre-post", "--new-trans", "--llvm",  "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments
             "cwd": "/home/rjs2247/workspace/patchverification/examples/libtiff/tif003/build",
             "preLaunchTask": "CMake: build debug"
-        },              {
+        },  {
+            "name": "(lldb) pv libtiff004",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/libtiff/tif004/build/tif_ojpeg.main.v",
+            "--check-pre-post", "--new-trans", "--llvm",  "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/libtiff/tif004/build",
+            "preLaunchTask": "CMake: build debug"
+        },  {
+            "name": "(lldb) pv ffmpeg015",
+            "type": "lldb",
+            "request": "launch",
+            // "env": {"CPUPROFILE": "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm001/build/ffm021.prof"},
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm015/build/id3v2.main.v",
+            "--check-pre-post", "--new-trans", "--llvm",  "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm015/build",
+            "preLaunchTask": "CMake: build debug"
+        },          {
+            "name": "(lldb) pv ffmpeg021",
+            "type": "lldb",
+            "request": "launch",
+            // "env": {"CPUPROFILE": "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm001/build/ffm021.prof"},
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm021/build/nsvdec.main.v",
+            "--check-pre-post", "--new-trans", "--llvm",  "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm021/build",
+            "preLaunchTask": "CMake: build debug"
+        },
+              {
             "name": "(lldb) pv ffmpeg001",
             "type": "lldb",
             "request": "launch",
+            "env": {"CPUPROFILE": "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm001/build/ffm001.prof"},
             "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
             "args": ["/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm001/build/utils.main.v",
             "--check-pre-post", "--new-trans", "--llvm",  "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments

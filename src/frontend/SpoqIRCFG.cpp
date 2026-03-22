@@ -274,12 +274,15 @@ bool SpoqIRModule::control_flow_duplicate(llvm::BasicBlock *bb,
 //   everything downstream.  This produces 2^N blocks.
 //   A safety limit of 5000 blocks prevents runaway memory usage.
 
+static int repeats = 0;
 bool SpoqIRModule::control_flow_clone_and_split(llvm::BasicBlock *bb, SpoqLoopContext &context) {
     // LOG_DEBUG << "clone and split " << (bb->hasName() ? bb->getName().str() : "no name"); 
-    if (bb->getParent()->getBasicBlockList().size() > 200000) 
-        throw std::runtime_error("block size too large in fn " + bb->getParent()->getName().str() + ": " + std::to_string(bb->getParent()->getBasicBlockList().size()));
-
-    // Reached the end of the current region.
+    // if (bb->getParent()->getBasicBlockList().size() > 200000) 
+    //     throw std::runtime_error("block size too large in fn " + bb->getParent()->getName().str() + ": " + std::to_string(bb->getParent()->getBasicBlockList().size()));
+    if (repeats > 10000000){
+        throw std::runtime_error("block size too large in fn " + bb->getParent()->getName().str() + ".");
+    }
+    repeats++;
     if (bb == context.get_postheader()) return true;
 
     // If bb is a nested loop's preheader, skip over the entire loop
@@ -402,6 +405,7 @@ bool SpoqIRModule::control_flow_conversion_DAG(string fname, SpoqFunction &spoq_
     context.init(spoq_func.llvm_func);
     bool state = false;
     while (context.step()) {
+        repeats = 0;
         state = control_flow_clone_and_split(context.get_start(), context);
         if (!state) return false;
 
