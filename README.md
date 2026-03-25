@@ -66,7 +66,6 @@ Key options: `--llvm`, `--new-trans`, `--transform-io`, `--race`, `--check-simul
 | `--check-loop-inv` | Check loop invariants (defined by `Loop_inv`) |
 | `--check-pre-post` | Check precondition ⇒ postcondition |
 | `--check-simulation` | Check relational simulation |
-| `--check-drf` | Check data-race freedom |
 | `--race` | Multi-solver: race multiple Z3 versions, keep best result |
 | `--race-timeout <sec>` | Z3 CPU limit per solver in seconds (default 120000) |
 | `--new-trans` | Use new transformation rules |
