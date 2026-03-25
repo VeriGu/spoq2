@@ -2,6 +2,8 @@
 
 Highly automated verification framework for security properties of unmodified system software. Spoq2 reduces security properties (e.g., noninterference) to inductive invariants on individual transitions, then automatically verifies them using Z3. Published at [ASPLOS '26](https://doi.org/10.1145/3779212.3790171).
 
+> **Note:** For the artifact packed for ASPLOS '26, please see https://zenodo.org/records/17946847
+
 ## Quick Start (Docker)
 
 ```bash
