@@ -103,11 +103,13 @@ public:
     virtual unique_ptr<SpecNode> deep_copy() const = 0;
     virtual bool deep_eq(SpecNode* n) const = 0;
     virtual void deep_copy(unique_ptr<SpecNode> &p) const = 0;
-
+    virtual size_t count_leaves() const = 0;
+    virtual std::ostream& stream(std::ostream& out) const = 0;
     virtual ~SpecNode() {}
 private:
     virtual const string to_string() const = 0;
 };
+std::ostream& operator<<(std::ostream& out, const std::unique_ptr<SpecNode>& r);
 
 
 class Symbol : public SpecNode {
@@ -152,12 +154,15 @@ public:
             return false;
         }
     }
+    size_t count_leaves() const { return 1; };
 
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
                     optional<shared_ptr<SpecType>> &result_type);
 
     ~Symbol() {}
-
+    std::ostream& stream(std::ostream& out) const {
+        return out << this->text;
+    }
 private:
     const string to_string() const {
         return this->text;
@@ -217,6 +222,29 @@ public:
         }
     }
     virtual ~Const() {}
+    std::ostream& stream(std::ostream& out) const {
+        if (this->type == SpecType::UNKNOWN_TYPE) {
+            throw std::invalid_argument("Const must have a type");
+        } else if (std::holds_alternative<unsigned long>(this->value)) {
+            long long v = std::get<unsigned long>(this->value);
+            if (v > -100 && v < 0) {
+                return out << "(-" << std::to_string(-v) << ")";
+            } else
+                return out << std::to_string((unsigned long)v);
+        } else if (std::holds_alternative<string>(this->value)) {
+            return out <<  "\"" << std::get<string>(this->value) << "\"";
+        } else if (std::holds_alternative<bool>(this->value)) {
+            return out << (std::get<bool>(this->value) ? "true" : "false");
+        } else if (dynamic_cast<Bool *>(this->type.get()) != nullptr) {
+            return out << (std::get<bool>(this->value) ? "true" : "false");
+        } else if (this->type == Prop::PROP) {
+            return out << (std::get<bool>(this->value) ? "true" : "false");
+        } else {
+            throw std::invalid_argument("Const must have invalid type: " + string(*this->type));
+        }
+    }
+    size_t count_leaves() const { return 1; };
+
 private:
     virtual const string to_string() const {
         if (this->type == SpecType::UNKNOWN_TYPE) {
@@ -390,6 +418,28 @@ public:
         return false;
     }
     ~RecordDef() {}
+    std::ostream& stream(std::ostream& out) const {
+        bool first = true;
+
+        out << "{|\n";
+        for (auto it = fields->begin(); it != fields->end(); it++) {
+            if (!first) {
+                out << ";\n";
+            }
+            out << "    ";
+            it->first->stream(out);
+            out << " =: " << it->second;
+            first = false;
+        }
+        return out << "|}\n";
+    }
+    size_t count_leaves() const { 
+        size_t count = 0;
+        for(auto &f: *fields){
+            count += f.second->count_leaves();
+        }
+        return count;
+     };
 
 private:
     const string to_string() const {
@@ -554,7 +604,13 @@ public:
         }
         return false;
     }
-
+    size_t count_leaves() const {
+        size_t count = 0;
+        for (auto &e : *this->elems) {
+            count += e->count_leaves();
+        }
+        return count;
+    }
     void clear_z3_eval() {
         this->cached_eval = nullptr;
         for (auto it = elems->begin(); it != elems->end(); it++) {
@@ -604,28 +660,31 @@ public:
         p = deep_copy_down();
     }
 
-    void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
+
+    void infer_type(Project &proj,
+                    unordered_map<string, shared_ptr<SpecType>> &known_types,
                     optional<shared_ptr<SpecType>> &result_type);
 
     ~Expr() {}
 
+    std::ostream &stream(std::ostream &out) const;
 private:
-    const string to_string() const;
-    static const unordered_map<binops, string> binops_to_str_map;
+  const string to_string() const;
+  static const unordered_map<binops, string> binops_to_str_map;
 
-    bool elems_eq(const Expr &other) const {
-        if (this->elems->size() != other.elems->size()) {
-            return false;
-        }
+  bool elems_eq(const Expr &other) const {
+      if (this->elems->size() != other.elems->size()) {
+          return false;
+      }
 
-        for (int i = 0; i < this->elems->size(); i++) {
-            if (*(*this->elems)[i] != *(*other.elems)[i]) {
-                return false;
-            }
-        }
+      for (int i = 0; i < this->elems->size(); i++) {
+          if (*(*this->elems)[i] != *(*other.elems)[i]) {
+              return false;
+          }
+      }
 
-        return true;
-    }
+      return true;
+  }
 
 };
 
@@ -690,12 +749,14 @@ public:
 
         p = make_unique<PatternMatch>(std::move(new_pattern), std::move(new_body));
     }
-
+    size_t count_leaves() const {
+        return this->pattern->count_leaves() + this->body->count_leaves();
+    }
     ~PatternMatch() {}
 
+    std::ostream &stream(std::ostream &out) const;
 private:
-    const string to_string() const;
-
+  const string to_string() const;
 };
 
 class Match : public SpecNode {
@@ -806,7 +867,16 @@ public:
         }
         return false;
     }
-
+    size_t count_leaves() const {
+        size_t count = 0;
+        if (this->src) {
+            count += this->src->count_leaves();
+        }
+        for (auto &pm : *this->match_list) {
+            count += pm->count_leaves();
+        }
+        return count;
+    }
     bool is_let() const {
         if (match_list->size() == 1) {
             if (dynamic_cast<Symbol *>((*match_list)[0]->pattern.get()) != nullptr)
@@ -939,8 +1009,9 @@ public:
         return unique_ptr<Match>(raw_let(name, std::move(value), std::move(body), typ));
     }
 
+    std::ostream &stream(std::ostream &out) const;
 private:
-    const string to_string() const;
+  const string to_string() const;
 };
 
 class RelyAnno: public SpecNode {
@@ -953,6 +1024,9 @@ public:
         SpecNode(body->get_type()), prop(std::move(prop)), body(std::move(body)) {}
 
     virtual ~RelyAnno() = default;
+    size_t count_leaves() const {
+        return this->prop->count_leaves() + this->body->count_leaves();
+     };
 };
 
 class Rely : public RelyAnno {
@@ -1008,9 +1082,9 @@ public:
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
                 optional<shared_ptr<SpecType>> &result_type);
 
+                std::ostream &stream(std::ostream &out) const;
 private:
-    const string to_string() const;
-
+  const string to_string() const;
 };
 
 class Anno : public RelyAnno {
@@ -1062,9 +1136,9 @@ public:
     }
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
                     optional<shared_ptr<SpecType>> &result_type);
+                    std::ostream &stream(std::ostream &out) const;
 private:
-    const string to_string() const;
-
+  const string to_string() const;
 };
 
 class If : public SpecNode {
@@ -1127,27 +1201,32 @@ public:
         }
         return false;
     }
+    size_t count_leaves() const {
+        return this->cond->count_leaves() + this->then_body->count_leaves() + this->else_body->count_leaves();
+    }
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
                 optional<shared_ptr<SpecType>> &result_type);
 
+                std::ostream &stream(std::ostream &out) const;
 private:
-    const string to_string() const;
+  const string to_string() const;
 
-    void deep_copy_impl(unique_ptr<SpecNode> &p) const {
-        unique_ptr<SpecNode> new_cond;
-        unique_ptr<SpecNode> new_then_body;
-        unique_ptr<SpecNode> new_else_body;
-        if (!this->cond.get()){
-            // throw std::runtime_error("nullptr cond");
-            new_cond = nullptr;
-        } else {
-            this->cond->deep_copy(new_cond);
-            new_cond->is_determ_branch = this->cond->is_determ_branch;
-        }
-        this->then_body->deep_copy(new_then_body);
-        this->else_body->deep_copy(new_else_body);
-        p = make_unique<If>(std::move(new_cond), std::move(new_then_body), std::move(new_else_body));
-    }
+  void deep_copy_impl(unique_ptr<SpecNode> &p) const {
+      unique_ptr<SpecNode> new_cond;
+      unique_ptr<SpecNode> new_then_body;
+      unique_ptr<SpecNode> new_else_body;
+      if (!this->cond.get()) {
+          // throw std::runtime_error("nullptr cond");
+          new_cond = nullptr;
+      } else {
+          this->cond->deep_copy(new_cond);
+          new_cond->is_determ_branch = this->cond->is_determ_branch;
+      }
+      this->then_body->deep_copy(new_then_body);
+      this->else_body->deep_copy(new_else_body);
+      p = make_unique<If>(std::move(new_cond), std::move(new_then_body),
+                          std::move(new_else_body));
+  }
 };
 
 class ForallExists : public SpecNode {
@@ -1159,7 +1238,16 @@ public:
     ForallExists(unique_ptr<vector<shared_ptr<Arg>>> vars, unique_ptr<SpecNode>body) :
         SpecNode(Prop::PROP), vars(std::move(vars)), body(std::move(body)) {
     }
-
+    size_t count_leaves() const {
+        size_t count = 0;
+        for (auto &v : *this->vars) {
+            if (v->expr) {
+                count += v->expr->count_leaves();
+            }
+        }
+        count += this->body->count_leaves();
+        return count;
+     };
     virtual ~ForallExists() = default;
 };
 
@@ -1238,8 +1326,9 @@ public:
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
                 optional<shared_ptr<SpecType>> &result_type);
 
+                std::ostream &stream(std::ostream &out) const;
 private:
-    const string to_string() const;
+  const string to_string() const;
 };
 
 class Exists : public ForallExists {
@@ -1314,8 +1403,9 @@ public:
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
                 optional<shared_ptr<SpecType>> &result_type);
 
+                std::ostream &stream(std::ostream &out) const;
 private:
-    const string to_string() const;
+  const string to_string() const;
 };
 
 class Declaration {

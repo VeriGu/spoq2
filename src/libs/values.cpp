@@ -238,12 +238,12 @@ std::string Arg::to_string() const {
 std::string Struct::define() const {
     std::string res = "Record " + name + " :=\n";
     std::string args;
-    for(auto arg: *elems) {
+    for(auto &arg: *elems) {
         args += arg->name;
         args += ": ";
         args += string(*arg->type);
 
-        if(arg != *elems->end()) {
+        if(arg != elems->back()) {
             args += ";\n";
         }
     }

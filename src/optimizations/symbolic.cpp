@@ -1886,7 +1886,12 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
         std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count() /
         1e9;
     result.total_time = seconds_duration;
-    
+    if (OPTS.count_leaves) {
+        result.vuln_leaves_before_transform = proj->leaves_in_unfolded_func_pre_transform[vuln_def->name];
+        result.vuln_leaves_after_transform = proj->leaves_in_unfolded_func_post_transform[vuln_def->name];
+        result.patch_leaves_before_transform = proj->leaves_in_unfolded_func_pre_transform[patched_def->name];
+        result.patch_leaves_after_transform = proj->leaves_in_unfolded_func_post_transform[patched_def->name];
+    }
     result.z3_time = (z3_accumulative_time - z3_start).count();
     std::cout << result;
     return result.verified;

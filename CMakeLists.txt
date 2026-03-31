@@ -1,6 +1,3 @@
-set(CMAKE_C_COMPILER "clang-18")
-set(CMAKE_CXX_COMPILER "clang++-18")
-
 cmake_minimum_required(VERSION 3.10)
 project(spoq)
 
@@ -10,12 +7,12 @@ project(spoq)
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -g3 -gdwarf-4 -Wall -Wno-unused-function -fstandalone-debug")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wno-unused-function")
 set(CMAKE_CXX_STANDARD 17)
-
 include_directories(include)
-
+set(ANTLR_BUILD_CPP_TESTS OFF)
 # ------------------------------------------------------------------------------
 # Z3
 # ------------------------------------------------------------------------------
+set(Z3_DIR "~/workspace/VeriFrame/build/_deps/z3-build")
 find_package(Z3 4.12.5 REQUIRED CONFIG)
 include_directories(${Z3_CXX_INCLUDE_DIRS})
 message(STATUS "Found Z3 ${Z3_VERSION_STRING}")
@@ -43,18 +40,17 @@ include_directories(${Boost_INCLUDE_DIRS})
 # External libaries are always build in release mode
 # ------------------------------------------------------------------------------
 set(MAIN_CMAKE_BUILDTYPE ${CMAKE_BUILD_TYPE})
-# set(CMAKE_BUILD_TYPE "Release")
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    # set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_BUILD_TYPE "Release")
+# if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    # set(CMAKE_POSITION_INDEPENDENT_CODE OFF)
     # add_definitions(-DDEBUG)
-endif()
+# endif()
 # ------------------------------------------------------------------------------
 # ANTRL4 runtime
 # ------------------------------------------------------------------------------
 
 message("ANTLR4 build type: ${CMAKE_BUILD_TYPE}")
 add_subdirectory(src/frontend/parser/antlr4/runtime/Cpp/)
-#target_compile_options(antlr4_shared PRIVATE -Wno-unused-parameter -w -Wno-unused-variable)
 
 # Include ANTLR4 runtime headers
 include_directories(src/frontend/parser/antlr4/runtime/Cpp/runtime/src/)
@@ -64,7 +60,6 @@ include_directories(src/frontend/parser/antlr4/runtime/Cpp/runtime/src/)
 # ------------------------------------------------------------------------------
 set(CMAKE_BUILD_TYPE ${MAIN_CMAKE_BUILDTYPE})
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    # set(CMAKE_POSITION_INDEPENDENT_CODE ON)
     add_definitions(-DDEBUG)
 endif()
 
@@ -157,12 +152,19 @@ set(SOURCES
 
 # Specify the executable target and its source files
 add_executable(spoq ${SOURCES})
+# target_link_options(spoq PUBLIC -fsanitize=address)
+# target_link_options(spoq PUBLIC -fsanitize=address -fno-pie -fno-PIE)
+# target_link_options(json2coq PUBLIC -fno-pie -fno-PIE)
+# target_link_options(irloader PUBLIC -fno-pie -fno-PIE)
+# target_link_options(antlr4_shared PUBLIC -fno-pie -fno-PIE)
+# target_link_options(parser PUBLIC -fno-pie -fno-PIE)
+# set_target_properties(spoq PROPERTIES POSITION_INDEPENDENT_CODE FALSE)
 
 target_link_libraries(spoq irloader parser antlr4_shared)
 target_link_libraries(spoq ${LLVM_LIBRARIES})
 target_link_libraries(spoq ${Z3_LIBRARIES})
 target_link_libraries(spoq ${Boost_LIBRARIES})
-target_link_libraries(spoq libtcmalloc_and_profiler.so)
+# target_link_libraries(spoq libtcmalloc_and_profiler.so)
  
 set_target_properties(spoq PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build")

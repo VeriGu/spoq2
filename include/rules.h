@@ -64,8 +64,7 @@ class SpecRules {
 private:
     Project *proj;
     std::unique_ptr<SpecNode> rec_apply(std::unique_ptr<SpecNode> spec,
-                                              const std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)>& f,
-                                              bool apply_anno = false, bool *abort = nullptr);
+                                              const std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)>& f);
 public: 
     using rule_t = std::function<rule_ret_t(std::unique_ptr<SpecNode>)>;
     struct SpecRule {
@@ -126,7 +125,7 @@ public:
     rule_ret_t rule_keep_fields_of_interest(std::unique_ptr<SpecNode> spec);
     rule_ret_t rule_simplify_lens(std::unique_ptr<SpecNode> spec);
     rule_ret_t hoist_branch_out_of_when(std::unique_ptr<SpecNode> spec);
-    rule_ret_t hoist_match_from_branch(std::unique_ptr<SpecNode> spec);
+    rule_ret_t hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bool rec=true);
     rule_ret_t collect_all_vars(std::unique_ptr<SpecNode> spec, std::set<string> &vars);
     rule_ret_t wrap_none_call_with_cond(Project *proj,
                                         std::unique_ptr<SpecNode> spec,

@@ -41,6 +41,7 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
         if (name == "sws_setColorspaceDetails") continue;
         if (name == "fill_rgb2yuv_table") continue;
         if (name == "phar_flush") continue;
+        if (name.find("for_cond") != std::string::npos) continue;
         SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs[name];
         spoq_func.llvm_func = &func; // llvm_func;
         bool ret = false;
@@ -120,15 +121,6 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
     SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs.at(fname);
     SpoqIRContext context(spoq_func, proj->layers[layer_id], layer_id, proj->abs_config, proj->abs_layout);
 
-    unique_ptr<vector<shared_ptr<Arg>>> args = std::make_unique<vector<shared_ptr<Arg>>>();
-    for(auto &arg : spoq_func.llvm_func->args()) {
-        auto sym = context.get_llvm_value_spec(&arg, nullptr, false);
-        auto symbol = dynamic_cast<Symbol*>(sym.get());
-        assert(symbol && "arg is not a symbol without abstraction");
-        args->push_back(std::make_shared<Arg> (symbol->text, symbol->type));
-    }
-    args->push_back(make_shared<Arg>(context.abs_data_name, context.abs_data_type));
-
     unique_ptr<SpecNode> spec;
     if (!spoq_func.stub) {
         spec = proj->spoq_code.spoq_inst_to_spec(proj, spoq_func.spoq_insts, 0, context);
@@ -140,7 +132,44 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
     if(proj->cmds.InitRely.find(fname) != proj->cmds.InitRely.end()) {
         for(auto & f : proj->cmds.InitRely[fname])
             spec = std::make_unique<Rely>(f->deep_copy(), std::move(spec));
-    }    
+    }
+
+    unique_ptr<vector<shared_ptr<Arg>>> args = std::make_unique<vector<shared_ptr<Arg>>>();
+    for(auto &arg : spoq_func.llvm_func->args()) {
+        auto sym = context.get_llvm_value_spec(&arg, nullptr, false);
+        auto symbol = dynamic_cast<Symbol*>(sym.get());
+        assert(symbol && "arg is not a symbol without abstraction");
+        
+        if(arg.getType()->isPointerTy()){
+            // We make an assumption about LLVM IR.
+            // IR compiled from C code will never pass a pointer to a struct as a parameter
+            // that does not point at the beginning of the struct or 1 past the end of the struct
+            auto ty = arg.getType();
+            auto pointee_ty = ty->getPointerElementType();
+            if(pointee_ty->isStructTy()){
+                std::unique_ptr<SpecNode> mod_expr = sym->deep_copy();
+                auto record_get_elems = make_unique<std::vector<unique_ptr<SpecNode>>>();
+                record_get_elems->push_back(std::move(mod_expr));
+                record_get_elems->push_back(make_unique<Symbol>("poffset"));
+                mod_expr = make_unique<Expr>(Expr::RecordGet, std::move(record_get_elems));
+                auto mod_elems = make_unique<std::vector<unique_ptr<SpecNode>>>();
+                mod_elems->push_back(std::move(mod_expr));
+                // calculate total aggregate size
+                auto aggregate_size = context.llvm_dl->getTypeAllocSize(pointee_ty);
+                mod_elems->push_back(make_unique<IntConst>(aggregate_size));
+                mod_expr = make_unique<Expr>(Expr::binops::MOD, std::move(mod_elems));
+                auto rely_prop_elems = make_unique<std::vector<unique_ptr<SpecNode>>>();
+                rely_prop_elems->push_back(std::move(mod_expr));
+                rely_prop_elems->push_back(make_unique<IntConst>(0));
+                auto rely_prop = make_unique<Expr>(Expr::binops::EQUAL, std::move(rely_prop_elems));
+                spec = make_unique<Rely>(std::move(rely_prop), std::move(spec));
+
+            }
+
+        }
+        args->push_back(std::make_shared<Arg> (symbol->text, symbol->type));
+    }
+    args->push_back(make_shared<Arg>(context.abs_data_name, context.abs_data_type));
 
     for (auto & f : context.abs_rely) {
         spec = std::make_unique<Rely>(f->deep_copy(), std::move(spec));

@@ -30,6 +30,10 @@ namespace autov
 		optional<double> z3_time;
 		optional<double> analysis_time;
 		optional<double> total_time;
+		optional<size_t> vuln_leaves_before_transform;
+		optional<size_t> vuln_leaves_after_transform;
+		optional<size_t> patch_leaves_before_transform;
+		optional<size_t> patch_leaves_after_transform;
 		SimulateResult operator+(const SimulateResult& rhs)
 		{                           
 			return SimulateResult {

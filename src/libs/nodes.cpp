@@ -103,6 +103,77 @@ const unordered_map<Expr::binops, string> Expr::binops_to_str_map = {
     // {xorb, "xorb"}
 };
 
+std::ostream& Expr::stream(std::ostream& out) const{
+    const auto &op = this->op;
+
+    if (holds_alternative<binops>(op)) {
+        auto &op = std::get<binops>(this->op);
+
+        if (this->elems->size() == 1) {
+            return out << "(" << binops_to_str_map.at(op) << " " << elems->at(0) << ")";
+        } else {
+            out << "(";
+            auto& elem = *this->elems->at(0);
+
+            if (typeid(elem) == typeid(Match))
+                out << "(" << elems->at(0) << ")";
+            else
+                out << elems->at(0);
+
+            return out << " " << binops_to_str_map.at(op) << " " << elems->at(1) << ")";
+        }
+    } else if (holds_alternative<ops>(op)) {
+        auto op = std::get<ops>(this->op);
+
+        if (op == Tuple) {
+            return out << "(" << join_elems_comma(*elems) << ")";
+        } else if (op == GET) {
+            return out << "(" << elems->at(0) << " @\n" << elems->at(1) << ")";
+        } else if (op == SET) {
+            return out << "(" + string(*elems->at(0)) + " # " + string(*elems->at(1)) + " == " + string(*elems->at(2)) + ")";
+        } else if (op == RecordGet) {
+            return out << "(" << elems->at(0) << ".(" << elems->at(1) << "))";
+        } else if (op == RecordSet) {
+            out << "(" << elems->at(0);
+
+            for (auto it = elems->begin() + 1; it != elems->end() - 1; it++) {
+                out << ".[" << *it << "]";
+            }
+            return out << " :< " << elems->back() << ")";
+        } else if (op == Some) {
+            return out << "(Some " << elems->at(0) << ")";
+        } else if (op == None) {
+            return out << "None";
+        } else if (op == NOT) {
+            return out << "(~ " << elems->at(0) << ")";
+        } else if (op == BNOT) {
+            return out << "(! " << elems->at(0) << ")";
+        } else {
+            throw std::runtime_error("Unknown op");
+        }
+    } else {
+        string op_str = holds_alternative<string>(op) ? std::get<string>(op) : string(*std::get<unique_ptr<SpecNode>>(op));
+        if (op_str == "lens_v") {
+            return out << "(lens_v " << string(*type) << " " << elems->at(0) << ")"; 
+        }
+        out << "(" + op_str << " ";
+
+        if (elems->size()) {
+            //LOG_INFO << "op_str: " << op_str;
+            //LOG_INFO << "join_elems_space(*elems): " << join_elems_space(*elems);
+            for (auto &elem: *elems){
+                out << elem;
+                if(elem != elems->back()){
+                    out << " ";
+                }
+            }
+        }
+        return out << ")";
+    }
+    // Unreachable
+    assert(false);
+    return out;
+}
 const string Expr::to_string() const {
     const auto &op = this->op;
 
@@ -605,6 +676,11 @@ void Expr::infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>>
 // ----------------------------------------------------------------------------
 // PatternMatch
 // ----------------------------------------------------------------------------
+std::ostream& PatternMatch::stream(std::ostream& out) const {
+    if(!this->body || !this->pattern)
+        out << "| --- => --- ";
+    return out << "\t| " << this->pattern << " => " << this->body;
+}
 const string PatternMatch::to_string() const {
     std::ostringstream oss;
     if(!this->body || !this->pattern)
@@ -620,6 +696,48 @@ const string PatternMatch::to_string() const {
 // ----------------------------------------------------------------------------
 // Match
 // ----------------------------------------------------------------------------
+std::ostream& Match::stream(std::ostream& out) const {
+    if (is_let()) {
+        auto pm = (*match_list)[0].get();
+        return out << "let " << pm->pattern << " := " << this->src << " in\n\t" << pm->body;
+    } else if (is_when()) {
+        auto pm = (*match_list)[0].get();
+        auto pm_pattern_expr = dynamic_cast<Expr*>(pm->pattern.get());
+        out << "when ";
+        if (pm_pattern_expr) {
+            auto pm_pattern_elems0 = pm_pattern_expr->elems->at(0).get();
+
+            if (auto sym = dynamic_cast<Symbol *>(pm_pattern_elems0)) {
+                out << sym->text;
+            } else if (dynamic_cast<Expr *>(pm_pattern_elems0)) {
+                auto elems = dynamic_cast<Expr *>(pm_pattern_elems0)->elems.get();
+                for(auto &elem: *elems){
+                    out << elem;
+                    if(elem != elems->back()){
+                        out << ", ";
+                    }
+                }
+            } else {
+                throw std::runtime_error("Pattern is not an expression");
+            }
+
+        } else {
+            throw std::runtime_error("Pattern is not an expression");
+        }
+
+
+        return out << " == (" << src << ");\n" << pm->body;
+    }
+    out << "match (" << src << ") with\n";
+    for (auto it = match_list->begin(); it != match_list->end(); it++) {
+        if (it != match_list->begin())
+            out << "\n";
+
+        (*it)->stream(out);
+    }
+
+    return out << "\nend";
+}
 const string Match::to_string() const {
     string src = string(*(this->src));
     string arms;
@@ -700,22 +818,19 @@ void Match::infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>
 // ----------------------------------------------------------------------------
 // Rely
 // ----------------------------------------------------------------------------
+std::ostream& Rely::stream(std::ostream& out) const {
+    return out << "rely (" << prop << ");\n" << body;
+}
+
 const string Rely::to_string() const {
-    // std::ostringstream oss;
-    // string body = string(*(this->body));
-
-    // return body;
-
-
-    std::ostringstream oss;
     string body = string(*(this->body));
     string prop = string(*(this->prop));
 
     if (prop.find("\n") != string::npos) {
         return "rely (\n" + add_indent(prop, 2) + ");\n" + body;
-    } else
+    } else {
         return "rely (" + string(*(this->prop)) + ");\n" + body;
-
+    }
 }
 
 void Rely::infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
@@ -733,6 +848,10 @@ void Rely::infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>>
 // ----------------------------------------------------------------------------
 // Anno
 // ----------------------------------------------------------------------------
+std::ostream& Anno::stream(std::ostream& out) const {
+    return out << "anno (" << prop << ");\n" << body;
+}
+
 const string Anno::to_string() const {
     return string(*(this->body));
 #if 0
@@ -762,6 +881,10 @@ void Anno::infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>>
 // ----------------------------------------------------------------------------
 // If
 // ----------------------------------------------------------------------------
+std::ostream& If::stream(std::ostream& out) const {
+    return out << "if " << cond << "\nthen " << then_body << "\nelse " << else_body;
+}
+
 const string If::to_string() const {
     std::ostringstream oss;
     string then_body;
@@ -822,6 +945,16 @@ void If::infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &
 // ----------------------------------------------------------------------------
 // Forall
 // ----------------------------------------------------------------------------
+std::ostream& Forall::stream(std::ostream& out) const {
+    out << "(forall ";
+    for (auto &v: *this->vars){
+        out << v;
+        if(v != this->vars->back()){
+            out << " ";
+        }
+    }
+    return out << ", " << body << ")";
+}
 const string Forall::to_string() const {
     std::ostringstream oss;
     string body = string(*(this->body));
@@ -847,6 +980,16 @@ void Forall::infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType
 // ----------------------------------------------------------------------------
 // Exists
 // ----------------------------------------------------------------------------
+std::ostream& Exists::stream(std::ostream& out) const {
+    out << "(exists ";
+    for (auto &v: *this->vars){
+        out << v;
+        if(v != this->vars->back()){
+            out << " ";
+        }
+    }
+    return out << ", " << body << ")";
+}
 const string Exists::to_string() const {
     std::ostringstream oss;
     string body = string(*(this->body));
@@ -980,5 +1123,15 @@ shared_ptr<IRLoader::IRModule> Layer::load_module(void) {
 
     return nullptr;
 }
+
+std::ostream &operator<<(std::ostream &out,
+                         const std::unique_ptr<SpecNode> &r) {
+    if (r){
+        return r->stream(out);
+    } else {
+        return out << " null ";
+    }
+}
+
 
 }; // namespace autov

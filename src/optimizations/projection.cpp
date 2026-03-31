@@ -40,6 +40,28 @@ inline std::string ruleid_to_string(RuleID rule) {
 }
 
 
+size_t leaves_in_spec_unfolded(Project* proj, const SpecNode *node) {
+    if (proj->name == "struct_array_elem") return 0;  
+    auto new_node = node->deep_copy();
+    auto changed = false;
+    int iter = 0;
+    do {
+        // LOG_DEBUG << "Unfold iteration " << iter << ": \n" << new_node << "\n\n";
+        iter++;
+        changed = false;
+        bool unfold_changed, hoist_changed = false;
+        std::tie(new_node, hoist_changed) = proj->rules.hoist_match_from_branch(std::move(new_node), true);
+        std::set<string> known;
+        new_node = proj->rules.eliminate_ambiguity(std::move(new_node), known, unfold_changed);
+        std::tie(new_node, unfold_changed) = proj->rules.rule_unfold_specs(std::move(new_node), true);
+        std::set<string> known2;
+        new_node = proj->rules.eliminate_ambiguity(std::move(new_node), known2, unfold_changed);
+
+        changed = unfold_changed || hoist_changed;
+    } while(changed);
+    return new_node->count_leaves();
+}
+
 unique_ptr<SpecNode> spec_transformer_v2(Project *proj, unique_ptr<SpecNode> node, int layer_id, bool unfold, bool low_spec) {
                 LOG_DEBUG << "Transforming node" << string(*node);
     std::map<string, Symbol*> fvars;
@@ -120,6 +142,10 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
     auto conds = std::make_shared<vector<z3::expr>>();
     auto &preconds = proj->cmds.PreCond[fname];
 
+    if (OPTS.count_leaves){
+        proj->leaves_in_unfolded_func_pre_transform[fname] = leaves_in_spec_unfolded(proj, def->body.get());
+    }
+
     for (auto arg : *def->args) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
@@ -146,8 +172,12 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
         idx++;
     }
     auto state = make_shared<EvalState>(vars, conds);
-
     set<string> fix_string;
+    for (auto const &a : proj->axioms) {
+        auto axiom_body = proj->defs[a]->body.get();
+        auto axiom_expr = z3_eval(proj, axiom_body, state, false, true, fix_string);
+        state->conds->push_back(axiom_expr->get_z3_value());
+    }
     auto precond_z3 = z3_eval(proj, aggrepres.get(), state, false, true, fix_string);
     state->conds->push_back(precond_z3->get_z3_value());
     
@@ -163,17 +193,17 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 known.insert(arg->name);
             }
 
-            auto log_fn_name = "exif_process_IFD_in_MAKERNOTE_vuln_spec";
+            auto log_fn_name = "avpriv_ac3_parse_header_vuln_spec";
             bool log_spec = false;
             if(def->name == log_fn_name){
-                auto s = string(*def->body);
-                LOG_DEBUG << "Starting transformation iteration " << cur_iter << ".";//  Current spec " << s << "\n\n";
+                // auto s = string(*def->body);
+                LOG_DEBUG << "Starting transformation iteration " << cur_iter << ".";//  Current spec " << s << "";
                 auto dumpfile = def->name + "_transform_" + std::to_string(cur_iter);
                 std::ofstream ofs(dumpfile);
-                ofs << s;
+                ofs << def->body;
                 ofs.close();
             }else {
-                LOG_DEBUG << def->name << " transformation iteration " << cur_iter << ".";//  Current spec " << s << "\n\n";
+                LOG_DEBUG << def->name << " transformation iteration " << cur_iter << ".";//  Current spec " << s << "";
             }
             auto spec = std::move(def->body);
             
@@ -186,11 +216,19 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             auto updated_free_vars = std::set<string>();
             auto new_free_vars = std::set<string>();
 
-
+            
             // LOG_DEBUG << "start partial eval" << " " << force_simpl << "\n";
             spec = partial_eval(proj, std::move(spec), 0, make_shared<EvalState>(vars, conds), known, unfold);
-            if(def->name == log_fn_name)
-                LOG_DEBUG << "spec after partial eval: " << (log_spec ? string(*spec.get()) : "") << "\n";
+            if(def->name == log_fn_name){
+                if(string(*spec.get()) == "None"){
+                    assert(false);
+                }
+                if(log_spec){
+                    LOG_DEBUG << "spec after partial eval: " << spec << "\n";
+                } else {
+                    LOG_DEBUG << "Completed partial eval. \n";
+                }
+            }
 
             // updated_free_vars = std::set<string>();
             // new_free_vars = std::set<string>();
@@ -237,8 +275,17 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             }
             changed |= um_changed;
             still_unfolding |= um_changed;
-            if(def->name == log_fn_name)
-            LOG_DEBUG << "spec after post unfolding ea: " << (log_spec ? string(*spec.get()) : "") << "\n";
+            if(def->name == log_fn_name){
+                if(string(*spec.get()) == "None"){
+                    assert(false);
+                }
+                if(log_spec){
+                    LOG_DEBUG << "spec after post unfolding ea: " << spec << "\n";
+                } else {
+                    LOG_DEBUG << "Completed post unfolding ea.\n";
+                }
+            }
+
             // free var check
             // updated_free_vars = std::set<string>();
             // new_free_vars = std::set<string>();
@@ -252,8 +299,16 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             le_changed = _le_changed;
             changed |= le_changed;
             spec = std::move(__tmp_spec1);
-            if(def->name == log_fn_name)
-            LOG_DEBUG << "spec after eliminate_let: " << (log_spec ? string(*spec.get()) : "") << "\n";
+            if(def->name == log_fn_name){
+                if(string(*spec.get()) == "None"){
+                    assert(false);
+                }
+                if(log_spec){
+                    LOG_DEBUG << "spec after eliminate_let: " << spec << "\n";
+                } else {
+                    LOG_DEBUG << "Completed eliminate_let.\n";
+                }
+            }
             assert(spec);
             // free var check
             // updated_free_vars = std::set<string>();
@@ -271,9 +326,16 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             we_changed = _we_changed;
             spec = std::move(__tmp_spec2);
             assert(spec);
-            if(def->name == log_fn_name)
-                LOG_DEBUG << "spec after eliminate_when: " << (log_spec ? string(*spec.get()) : "") << "\n";
-            changed |= we_changed;
+            if(def->name == log_fn_name){
+                if(string(*spec.get()) == "None"){
+                    assert(false);
+                }
+                if(log_spec){
+                    LOG_DEBUG << "spec after eliminate_when: " << spec << "\n";
+                } else {
+                    LOG_DEBUG << "Completed eliminate_when.\n";
+                }
+            }            changed |= we_changed;
             // This eliminate_match_simple is a loadbearing transformation rule due to the appearance of a _ => ... branch in struct_static
             auto [__tmp_spec3, _me_changed] = proj->rules.rule_eliminate_match_simple(std::move(spec), true);
             me_changed = _me_changed;
@@ -286,65 +348,122 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             // std::set_difference(updated_free_vars.begin(), updated_free_vars.end(), current_free_vars.begin(), current_free_vars.end(), inserter(new_free_vars, new_free_vars.begin()));
             // assert(new_free_vars.empty());
             // LOG_DEBUG << "----------------after_when_elimination:---------------------\n";
-            // changed |= me_changed;
-            if(def->name == log_fn_name)
-                LOG_DEBUG << "spec after eliminate_match_simple: " << (log_spec ? string(*spec.get()) : "") << "\n";
-                
+            changed |= me_changed;
+            if(def->name == log_fn_name){
+                if(string(*spec.get()) == "None"){
+                    assert(false);
+                }
+                if(log_spec){
+                    LOG_DEBUG << "spec after eliminate_match_simple: " << spec << "\n";
+                } else {
+                    LOG_DEBUG << "Completed eliminate_match_simple.\n";
+                }
+            }      
+                            
                 spec = partial_eval(proj, std::move(spec), 0, make_shared<EvalState>(vars, conds), known, unfold);
-                if(def->name == log_fn_name)
-                    LOG_DEBUG << "spec after partial eval: " << (log_spec ? string(*spec.get()) : "") << "\n";
+            if(def->name == log_fn_name){
+                if(string(*spec.get()) == "None"){
+                    assert(false);
+                }
+                if(log_spec){
+                    LOG_DEBUG << "spec after partial_eval: " << spec << "\n";
+                } else {
+                    LOG_DEBUG << "Completed partial_eval.\n";
+                }
+            }               
             // free var check
             // updated_free_vars = std::set<string>();
             // new_free_vars = std::set<string>();
             // free_vars(proj, spec.get(), updated_free_vars);
             // std::set_difference(updated_free_vars.begin(), updated_free_vars.end(), current_free_vars.begin(), current_free_vars.end(), inserter(new_free_vars, new_free_vars.begin()));
             // assert(new_free_vars.empty());
-
+            
                 std::tie(spec, cb_changed) = proj->rules.simple_const_bool(std::move(spec));
-                if(def->name == log_fn_name)
-                    LOG_DEBUG << "spec after simple_const_bool: " << (log_spec ? string(*spec.get()) : "") << "\n";
+            if(def->name == log_fn_name){
+                if(string(*spec.get()) == "None"){
+                    assert(false);
+                }
+                if(log_spec){
+                    LOG_DEBUG << "spec after simple_const_bool: " << spec << "\n";
+                } else {
+                    LOG_DEBUG << "Completed simple_const_bool.\n";
+                }
+            }           
             changed |= cb_changed;
             } 
+            
             std::tie(spec, hoist_changed) = proj->rules.hoist_match_from_branch(std::move(spec));
-            if(def->name == log_fn_name)
-                    LOG_DEBUG << "spec after hoist: " << (log_spec ? string(*spec.get()) : "") << "\n";
+            if(def->name == log_fn_name){
+                if(string(*spec.get()) == "None"){
+                    assert(false);
+                }
+                if(log_spec){
+                    LOG_DEBUG << "spec after hoist: " << spec << "\n";
+                } else {
+                    LOG_DEBUG << "Completed hoist.\n";
+                }
+            }
             changed |= hoist_changed;
             if (hoist_changed) {
                 spec = proj->rules.eliminate_ambiguity(std::move(spec), known, um_changed);
             }
-            if(def->name == log_fn_name)
-                    LOG_DEBUG << "spec after post-hoist ea: " << (log_spec ? string(*spec.get()) : "") << "\n";
-                assert(spec);
-
+            
+            if(def->name == log_fn_name){
+                if(string(*spec.get()) == "None"){
+                    assert(false);
+                }
+                if(log_spec){
+                    LOG_DEBUG << "spec after post-hoist-ea: " << spec << "\n";
+                } else {
+                    LOG_DEBUG << "Completed post-hoist-ea.\n";
+                }
+            }
             // auto [__tmp_spec4, hoist_changed] = proj->rules.hoist_match_from_branch(std::move(spec));
             // spec = std::move(__tmp_spec4);
             // assert(spec);
             // changed |= hoist_changed;
-            // type_inference::check_well_typed(*proj, spec.get(), known);
             bool z3_changed = false;
+            if(def->name == log_fn_name){
+                // auto s = string(*def->body);
+                LOG_DEBUG << "z3 simplification iteration " << cur_iter << ".";//  Current spec " << s << "";
+                auto dumpfile = def->name + "_transform_" + std::to_string(cur_iter) + "_pre_z3";
+                std::ofstream ofs(dumpfile);
+                ofs << spec;
+                ofs.close();
+            }
             if (force_simpl || !__unfold) {
-                auto start = std::chrono::high_resolution_clock::now();
-                // LOG_DEBUG << "start z3" << "\n";
-                force_simpl = true;
-                std::tie(spec, z3_changed) = proj->rules.rule_simple_by_z3(std::move(spec), state->copy());
-                assert(spec);
-                if(def->name == log_fn_name)
-                    LOG_DEBUG << "spec after simple_by_z3: " << (log_spec ? string(*spec.get()) : "") << "\n";
-// free var check
-            updated_free_vars = std::set<string>();
-            new_free_vars = std::set<string>();
-            free_vars(proj, spec.get(), updated_free_vars);
-            std::set_difference(updated_free_vars.begin(), updated_free_vars.end(), current_free_vars.begin(), current_free_vars.end(), inserter(new_free_vars, new_free_vars.begin()));
-            assert(new_free_vars.empty());
-                // LOG_DEBUG << "end z3" << "\n";
+                    auto start = std::chrono::high_resolution_clock::now();
+                    // LOG_DEBUG << "start z3" << "\n";
+                    force_simpl = true;
+                
+                    std::tie(spec, z3_changed) = proj->rules.rule_simple_by_z3(std::move(spec), state->copy());
+                    if(!spec){
+                        LOG_ERROR << "No reachable leaf nodes in spec!";
+                    }
+                    assert(spec);
+                if(def->name == log_fn_name){
+                    if(string(*spec.get()) == "None"){
+                        assert(false);
+                    }
+                    if(log_spec){
+                        LOG_DEBUG << "spec after simple_by_z3: " << spec << "\n";
+                    } else {
+                        LOG_DEBUG << "Completed simple_by_z3.\n";
+                    }
+                }// free var check
+                updated_free_vars = std::set<string>();
+                new_free_vars = std::set<string>();
+                free_vars(proj, spec.get(), updated_free_vars);
+                std::set_difference(updated_free_vars.begin(), updated_free_vars.end(), current_free_vars.begin(), current_free_vars.end(), inserter(new_free_vars, new_free_vars.begin()));
+                assert(new_free_vars.empty());
+                    // LOG_DEBUG << "end z3" << "\n";
                 auto end = std::chrono::high_resolution_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
                 LOG_DEBUG << "spec transformer for " << def->name << " Z3 time: " << duration.count() / 1000.0 << " seconds\n";
-                LOG_DEBUG << "z3_changed: " << z3_changed << ", me_changed: " << me_changed << ", we_changed: " << we_changed << ", le_changed: " << le_changed << ",um_changed: " << um_changed;
+                LOG_DEBUG << "z3_changed: " << z3_changed << ", me_changed: " << me_changed << ", we_changed: " << we_changed << ", le_changed: " << le_changed << ",um_changed: " << um_changed << ", hoist_changed: " << hoist_changed << ", cb_changed: " << cb_changed << ", unfolded: " << __unfold;
             }
             changed |= z3_changed;
             profile_update_epoch();
-            type_inference::check_well_typed(*proj, spec.get(), known);
             assert(spec);
             def->body = std::move(spec);
             if(!changed) {
@@ -363,8 +482,10 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 }
             }
     }
+    if (OPTS.count_leaves){
+        proj->leaves_in_unfolded_func_post_transform[fname] = leaves_in_spec_unfolded(proj, def->body.get());
+    }
 }
-
 
 void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold, bool low_spec) {
     LOG_INFO << "Transforming " << def->name << ", unfold: " << unfold;
@@ -590,5 +711,6 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
 #endif
 
 }
+
 
 } // namespace autov

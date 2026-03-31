@@ -55,9 +55,12 @@
             "name": "(lldb) pv findub",
             "type": "lldb",
             "request": "launch",
+            "env": {
+                "ASAN_OPTIONS": "detect_leaks=0"
+            },
             "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
             "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/hidden_ub_nounfold.ll.main.v",
-             "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/hidden_ub_nounfold/"], // Any command-line arguments
+             "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--count-leaves", "--check-patch-refinement", "--query-path", "debugger_z3/hidden_ub_nounfold/"], // Any command-line arguments
             "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/",
             "preLaunchTask": "CMake: build debug"
         },
@@ -148,7 +151,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
             "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/struct_array_elem.ll.main.v",
-            "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/struct_array_elem/"], // Any command-line arguments
+            "--new-trans", "--llvm", "--check-pre-post", "--count-leaves", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/struct_array_elem/"], // Any command-line arguments
             "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/",
             "preLaunchTask": "CMake: build debug"
         },
@@ -179,6 +182,16 @@
             "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
             "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/buf_static_const_string.main.v",
             "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/struct_array_elem/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/",
+            "preLaunchTask": "CMake: build debug"
+        },
+                {
+            "name": "(lldb) pv buf local string",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/buf_local_string.main.v",
+            "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--count-leaves","--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/bls/"], // Any command-line arguments
             "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/spoq_projects/",
             "preLaunchTask": "CMake: build debug"
         },
@@ -350,6 +363,17 @@
             "--check-pre-post", "--new-trans", "--llvm",  "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments
             "cwd": "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm021/build",
             "preLaunchTask": "CMake: build debug"
+        },         {
+            "name": "(lldb) pv ffmpeg049",
+            "type": "lldb",
+            "request": "launch",
+            "initCommands": ["set set target.disable-aslr false"],
+            // "env": {"CPUPROFILE": "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm001/build/ffm021.prof"},
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm049/build/ac3_parser.main.v",
+            "--check-pre-post", "--new-trans", "--llvm",  "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm049/build",
+            "preLaunchTask": "CMake: build debug"
         },
               {
             "name": "(lldb) pv ffmpeg001",
@@ -399,7 +423,7 @@
             "request": "launch",
             "program": "/usr/bin/opt-15", // Path to your CMake target executable
             "args": ["-enable-new-pm=0","-load","${workspaceFolder}/scripts/preprocessing/pv_ir_outliner/lib/libpviroutliner.so",
-                 "--pviroutliner", "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm001/build/utils.outlined.ll", "-o", "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm001/build/utils.outlined2.ll"],
+                 "--pviroutliner", "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm001/build/utils.outlined.ll1",  "-o", "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm001/build/utils.outlined2.ll"],
             "cwd": "${workspaceFolder}/scripts/preprocessing/extractbasics",
             "preLaunchTask": "CMake: build debug"
         },

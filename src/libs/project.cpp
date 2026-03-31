@@ -1444,7 +1444,7 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
         profile_clear();
         if (!no_trans) {
             if(OPTS.new_trans) {
-                spec_transformer_v2(proj, high_def, layer_id, layer_id, true);
+                spec_transformer_v2(proj, high_def, layer_id, layer_id, true, 50);
             } else {
                 spec_transformer(proj, high_def, layer_id, layer_id, true);
             }

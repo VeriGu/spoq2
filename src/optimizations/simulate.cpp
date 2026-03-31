@@ -186,7 +186,6 @@ namespace autov
 			for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 				auto pm_state = state->copy();
 				auto pat = (*pm)->pattern.get();
-				// auto s = string(*pat);
 
 				resolve_pattern(proj, m, pat, src, pm_state);
 				if(resolve_to_none) {
@@ -300,7 +299,7 @@ namespace autov
 				if (res == Z3Result::False) {
 					continue;
 				} else {
-					LOG_DEBUG << "[forward_simulation " << random_code << "] Checking Match src: " << string(*m->src).substr(0,200) <<  "\nPattern: " << string(*pat).substr(0,200);
+					// LOG_DEBUG << "[forward_simulation " << random_code << "] Checking Match src: " << string(*m->src).substr(0,200) <<  "\nPattern: " << string(*pat).substr(0,200);
 					auto this_branch_result = forward_simulation(proj, st_check, spec_ret, (*pm)->body.get(), rel, ret_rel, pm_state, det, path, i+1, allow_none);
 					if(!this_branch_result.verified){
 						LOG_DEBUG << "[forward_simulation " << random_code << "] Match verification failed on branch: " << string(*pat).substr(0,200);
@@ -320,7 +319,7 @@ namespace autov
 				cond_val = (cond_val != 0);
 			}
 			// LOG_DEBUG << "[forward_simulation " << random_code << "] If: " << cond.get()->get_z3_value();
-			LOG_DEBUG << "[forward_simulation " << random_code << "] If: " << string(*iff->cond).substr(0,1000);
+			// LOG_DEBUG << "[forward_simulation " << random_code << "] If: " << string(*iff->cond).substr(0,1000);
 
 			bool true_branch_plausible = true;
 			bool false_branch_plausible = true;
@@ -693,7 +692,7 @@ namespace autov
 			// auto cond_str = string(*i->cond);
 			// auto cond_val_str = string(*c);
 			auto sim_result = SimulateResult{true, false, false, false};
-			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if z3: " << c->get_z3_value();
+			// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if z3: " << c->get_z3_value();
 			if (true_branch_plausible){
 				sim_result = sim_result + simulate_by_traverse(proj, i->then_body.get(), impl, rel, ret_rel, true_state, p_then, det);
 				if (!sim_result.verified) {
@@ -872,6 +871,13 @@ namespace autov
 			return "null";
 		}
 	}
+	std::string opt_to_s(optional<size_t> t) {
+		if (t.has_value()) {
+			return std::to_string(t.value());
+		} else {
+			return "null";
+		}
+	}
 	std::ostream& operator<<(std::ostream& out, const SimulateResult& r)
 	{
 	return out << "{" 
@@ -881,7 +887,11 @@ namespace autov
 		<< "\"impl_has_non_spec_ub\": " << b_to_s(r.impl_has_non_spec_ub)  << ", "
 		<< "\"z3_seconds\": " << opt_to_s(r.z3_time)  << ", "
 		<< "\"analysis_seconds\": " << opt_to_s(r.analysis_time)  << ", "
-		<< "\"total_seconds\": " << opt_to_s(r.total_time)
+		<< "\"total_seconds\": " << opt_to_s(r.total_time) << ", "
+		<< "\"vuln_leaves_before_transform\": " << opt_to_s(r.vuln_leaves_before_transform) << ", "
+		<< "\"vuln_leaves_after_transform\": " << opt_to_s(r.vuln_leaves_after_transform) << ", "
+		<< "\"patch_leaves_before_transform\": " << opt_to_s(r.patch_leaves_before_transform) << ", "
+		<< "\"patch_leaves_after_transform\": " << opt_to_s(r.patch_leaves_after_transform)
 		<< "}" << std::endl;
 	}
 }

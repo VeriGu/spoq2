@@ -21,6 +21,7 @@ public:
     bool check_loop_inv = false;
     bool check_pre_post = false;
     bool check_refinements = false;
+    bool count_leaves = false;
     bool profile = false;
     bool new_trans = false;
     bool check_simulation = false;
@@ -29,7 +30,7 @@ public:
     bool transform_io = false;
     bool race = false;
     // int race_timeout = 120; // 2min as default
-    int race_timeout = 120000; // 2min as default
+    int race_timeout = 2000; // 2sec as default
     bool dry_run_asm = false; // used to show all register 
     bool z3_expr_cache = true; // enable z3 expr cache by default
     std::string target_spec   = "";  
@@ -92,6 +93,7 @@ public:
             ("no-lens", po::bool_switch()->default_value(false), "do not use lens (ovrride --lens)")
             ("new-trans", po::bool_switch()->default_value(false), "use new transformation") 
             ("llvm", po::bool_switch()->default_value(false), "use llvm frontend") 
+            ("count-leaves", po::bool_switch()->default_value(false), "count leaves (unfolded) before and after transformation")
             ("check-loop-inv", po::bool_switch()->default_value(false), "checking loop invariants")
             ("check-pre-post", po::bool_switch()->default_value(false), "checking pre/post conditions")
             ("check-patch-refinement", po::bool_switch()->default_value(false), "check that a patched function only changes undefined behavior of the original function")
@@ -147,6 +149,7 @@ public:
         this->check_none = vmap["check-none"].as<bool>();
         this->lens = !vmap["no-lens"].as<bool>();
         this->dry_run_asm = vmap["dry-run-asm"].as<bool>();
+        this->count_leaves = vmap["count-leaves"].as<bool>();
         if (this->dry_run_asm) {
             std::ofstream mfile("missing_asm.txt");
             if (mfile) mfile << "";

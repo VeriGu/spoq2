@@ -17,7 +17,6 @@
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Bitcode/BitcodeReader.h>
-
 #include "SpoqIRLoader.h"
 
 namespace fs = std::filesystem;
@@ -204,6 +203,9 @@ public:
     //unordered_map<string, std::unordered_map<string, std::set<field_t>>> cone_of_influence;
    // unordered_map<string, std::set<field_t>> inv_fields;
 
+   std::map<string,size_t> leaves_in_unfolded_func_pre_transform;
+   std::map<string,size_t> leaves_in_unfolded_func_post_transform;
+   
     class cmds {
     public:
         std::set<string> Unfold;

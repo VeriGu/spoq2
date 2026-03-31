@@ -115,6 +115,7 @@ enum class Z3Result {
 extern unordered_map<size_t, Z3Result> Z3Cache;
 Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo = nullptr, int timeout = Z3_VERIFY_TIMEOUT);
 Z3Result z3_verify_state_sat(shared_ptr<ProveState> state, QueryInfo *qinfo = nullptr, int timeout = Z3_VERIFY_TIMEOUT);
+Z3Result z3_verify_state_sat(shared_ptr<EvalState> state, QueryInfo *qinfo = nullptr, int timeout = Z3_VERIFY_TIMEOUT);
 Z3Result z3_check(std::shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo = nullptr, int timeout=Z3_TIMEOUT);
 Z3Result z3_check(shared_ptr<EvalState> state, int timeout=Z3_TIMEOUT);
 Z3Result z3_check_unsat(std::shared_ptr<ProveState> state, z3::expr cond, z3::model& model, QueryInfo *qinfo = nullptr, int timeout=Z3_TIMEOUT);

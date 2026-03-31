@@ -456,7 +456,7 @@ rule_ret_t SpecRules::hide_write(std::unique_ptr<SpecNode> spec, std::set<field_
         }
         return node; // keep the original node if no change
     };
-    auto new_root = rec_apply(std::move(spec), f, false);
+    auto new_root = rec_apply(std::move(spec), f);
     return { std::move(new_root), changed };
 }
 
@@ -573,7 +573,7 @@ rule_ret_t SpecRules::merge_branch(std::unique_ptr<SpecNode> spec) {
         }
         return node; 
     };
-    auto new_root = rec_apply(std::move(spec), f, false);
+    auto new_root = rec_apply(std::move(spec), f);
     return { std::move(new_root), changed };
 }
 

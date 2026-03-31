@@ -620,7 +620,7 @@ SpoqIRModule::store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context
             operands->push_back(std::make_unique<Expr>(context.ptr2int_op_name, std::move(vec)));
         } else if (value_type->isFloatingPointTy() ){
             operands->push_back(std::move(value_op));
-        }else {
+        } else {
             llvm::errs() << "store inst:" << *store << "\n";
             llvm::errs() << "store value type: " << *value_type << "\n";
             assert(false && "store value type not supported");
@@ -628,7 +628,6 @@ SpoqIRModule::store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context
         operands->push_back(context.get_abs_data());
 
         auto ret = context.get_abs_data();
-
         return std::make_pair(std::move(ret), std::make_unique<Expr>(context.store_op_name, std::move(operands)));
     }
     assert(false && "store_load_to_spec: Not implemented yet[store inst]");
@@ -638,8 +637,6 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
     if(num >= vec.size()) { 
         return construct_return_spec(proj, context);
     }
-         
-
 
     if (auto spoq_inst = Shortcut::dyn_cast_u<SpoqLLVMInst>(vec[num])) {
         // LOG_DEBUG << (spoq_inst->get_llvm_inst()->getOpcodeName());
@@ -949,7 +946,14 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             unique_ptr<SpecNode> expr = std::make_unique<IntConst>(0);
             auto source_element_type = gep->getPointerOperandType();
             std::vector<llvm::Value*> indices;
+            // llvm::errs() << "\n" << *gep << "\n";
+            
+            // A getElementPtr command may have many indexes into a nested aggregate structure.
+            // This constructs a (ptr_offset base_ptr (... result of indexing ...))
+            // In the end, however, we should know that the resulting pointer's offset % size = result of indexing.
+            // Otherwise we would have UB.
             for(auto idx = gep->idx_begin(); idx != gep->idx_end(); ++idx) {
+
                 llvm::Value* index = *idx;
                 indices.push_back(index);
                 auto elem_type = llvm::GetElementPtrInst::getIndexedType(gep->getSourceElementType(), indices);
@@ -982,12 +986,42 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             }
             auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
             operands->push_back(context.get_llvm_value_spec(gep->getPointerOperand()));
+            auto offset_calc = expr->deep_copy();
             operands->push_back(std::move(expr));
             expr = std::make_unique<Expr>(context.ptr_off_op_name, std::move(operands));
             expr->type = Struct::Ptr;
+            // We just constructed a pointer.  How can we express that the pointer is going to be aligned?`
             auto sym = context.get_llvm_value_spec(gep);
             context.add_cache(context.get_llvm_value_name(gep), expr);
-            return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
+            auto pointed_type = gep->getPointerOperandType()->getPointerElementType();
+            std::unique_ptr<SpecNode> result;
+            if(pointed_type->isStructTy()){
+                // This rely clause should express that the resulting pointer is aligned with the proper field
+                // We want sym.(poffset) % size_of_aggregate = (calculated_offset).
+                std::unique_ptr<SpecNode> mod_expr = sym->deep_copy();
+                
+                auto record_get_elems = make_unique<std::vector<unique_ptr<SpecNode>>>();
+                record_get_elems->push_back(std::move(mod_expr));
+                record_get_elems->push_back(make_unique<Symbol>("poffset"));
+                mod_expr = make_unique<Expr>(Expr::RecordGet, std::move(record_get_elems));
+                auto mod_elems = make_unique<std::vector<unique_ptr<SpecNode>>>();
+                mod_elems->push_back(std::move(mod_expr));
+                // calculate total aggregate size
+                auto aggregate_size = context.llvm_dl->getTypeAllocSize(pointed_type);
+                mod_elems->push_back(make_unique<IntConst>(aggregate_size));
+                mod_expr = make_unique<Expr>(Expr::binops::MOD, std::move(mod_elems));
+                auto rely_prop_elems = make_unique<std::vector<unique_ptr<SpecNode>>>();
+                rely_prop_elems->push_back(std::move(mod_expr));
+                rely_prop_elems->push_back(std::move(offset_calc));
+                auto rely_prop = make_unique<Expr>(Expr::binops::EQUAL, std::move(rely_prop_elems));
+                auto rely_clause = make_unique<Rely>(std::move(rely_prop), spoq_inst_to_spec(proj, vec, num + 1, context));
+                result = Shortcut::_Let_u(std::move(sym), std::move(expr), std::move(rely_clause));
+            } else {
+                result = Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
+            }
+            // llvm::errs() << "\n" << *gep << "\n";
+            // LOG_DEBUG << string(*result);
+            return result;
         }
         if (auto ins = llvm::dyn_cast<llvm::InsertElementInst>(spoq_inst->inst)) {
             

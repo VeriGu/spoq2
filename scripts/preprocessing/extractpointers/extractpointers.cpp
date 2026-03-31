@@ -532,8 +532,12 @@ We can do this in a proxy definition for each type
         stackval_branch_id = "ZMapVal";
         stackval_accessor = generateField(x.first);
       }
+    } else if(x.first->isFloatingPointTy()) {
+      stackval_branch_id = "ZFloatVal";
+      stackval_accessor = generateField(x.first);
+
     } else {
-      stackval_branch_id = "Z";
+      stackval_branch_id = "ZVal";
       stackval_accessor = generateField(x.first);
     }
     if(stackval_info.count(stackval_accessor) == 0){
@@ -572,7 +576,7 @@ We can do this in a proxy definition for each type
       load_result  += "\t\t\t| " + stackval_ident + " " + constr_e_ident + " => "+rely_clause+\
         "\n\t\t\t\tSome " + constr_e_ident + "\n";
       store_result += "\t\t\t| " + stackval_ident + " " + constr_e_ident + " => "+rely_clause+\
-      "\n\t\t\t\tSome (stack_map # p.(pbase) == Some(" + stackval_ident + " " + constr_e_ident + "))\n";
+      "\n\t\t\t\tSome (stack_map # p.(pbase) == Some(" + stackval_ident + " " + "v" + "))\n";
     } else if(is_map && !is_struct){
       // ZMap.t Z
     } else if(!is_map && is_struct){

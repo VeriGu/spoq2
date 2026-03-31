@@ -116,7 +116,7 @@ namespace autov {
             // If the new condition is not a match, we want the new last_pattern_match value to be the location of the substitution.
             // If it is a match, we want the new last_pattern_match to point inside the new match,
             // So we have to search the new match after substitution.
-            new_accumulator.accumulated_cond = subst(move(new_accumulator.accumulated_cond), match_body_sym, new_predicate.get(), success, &new_accumulator.last_pattern_match);
+            new_accumulator.accumulated_cond = subst(std::move(new_accumulator.accumulated_cond), match_body_sym, new_predicate.get(), success, &new_accumulator.last_pattern_match);
             // LOG_DEBUG << "New accumulator condition after substitution: " << string(*new_accumulator.accumulated_cond);
             // LOG_DEBUG << "Adding condition with pattern match. New condition: " << string(*new_accumulator.accumulated_cond);
             // assert(string(*new_accumulator.accumulated_cond).find(match_body_sym) == string::npos);

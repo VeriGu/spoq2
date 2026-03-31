@@ -886,6 +886,7 @@ static void getCodeExtractorArguments(
   // case we ignore the region.
   if (!CE->isEligible()) {
     Region.IgnoreRegion = true;
+    bool x = CE->isEligible();
     return;
   }
 
@@ -2834,26 +2835,26 @@ unsigned PVIROutliner::doOutline(Module &M) {
     }
   }
   // Discard all candidates that do not end there.
-  auto is_last =  [last_inst_map](const SimilarityGroup &a){
-    if(a.empty()){
-      return true;
-    }
-    auto cand = a[0];
-    auto endbb = cand.getEndBB();
-    auto endinst = cand.backInstruction();
-    auto guid = cand.getFunction()->getGUID();
-    auto [curinst, curbb] = last_inst_map.at(guid);
-    if(curbb != endbb){
-      return true;
-    }
-    if(endinst->comesBefore(curinst)){
-      return true;
-    }
-    return false;
-  };
+  // auto is_last =  [last_inst_map](const SimilarityGroup &a){
+  //   if(a.empty()){
+  //     return true;
+  //   }
+  //   auto cand = a[0];
+  //   auto endbb = cand.getEndBB();
+  //   auto endinst = cand.backInstruction();
+  //   auto guid = cand.getFunction()->getGUID();
+  //   auto [curinst, curbb] = last_inst_map.at(guid);
+  //   if(curbb != endbb){
+  //     return true;
+  //   }
+  //   if(endinst->comesBefore(curinst)){
+  //     return true;
+  //   }
+  //   return false;
+  // };
   // SimilarityCandidates.erase(to_remove);
 
-  std::sort(SimilarityCandidates.begin(), SimilarityCandidates.end(), [](const SimilarityGroup &a, const SimilarityGroup &b){
+  std::sort(SimilarityCandidates.begin(), SimilarityCandidates.end(), [last_inst_map,func_postorder_map](const SimilarityGroup &a, const SimilarityGroup &b){
     // We want numBasicBlocksInA < numBasicBlocksInB
     auto firstA = a[0];
     auto firstB = b[0];
@@ -2861,7 +2862,19 @@ unsigned PVIROutliner::doOutline(Module &M) {
     DenseSet<BasicBlock *> BBSetB;
     firstA.getBasicBlocks(BBSetA);
     firstB.getBasicBlocks(BBSetB);
-    return BBSetA.size() < BBSetB.size();
+
+    // We want lastBasicBlockInA is after lastBasicBlockInB
+    auto guidA = firstA.getFunction()->getGUID();
+    auto guidB = firstB.getFunction()->getGUID();
+    auto [instA, bbA] = last_inst_map.at(guidA);
+    auto [instB, bbB] = last_inst_map.at(guidB);
+    auto bbAIdx = func_postorder_map.at(guidA).at(bbA);
+    auto bbBIdx = func_postorder_map.at(guidB).at(bbB);
+    if(bbAIdx != bbBIdx){
+      return bbAIdx > bbBIdx;
+    } else{
+      return BBSetA.size() < BBSetB.size();
+    }
   });
   for (SimilarityGroup &CandidateVec : SimilarityCandidates) {
     OutlinableGroup &CurrentGroup = PotentialGroups[PotentialGroupIdx++];
@@ -2876,7 +2889,8 @@ unsigned PVIROutliner::doOutline(Module &M) {
       continue;
     DenseSet<BasicBlock *> BBSet;
     CandidateVec[0].getBasicBlocks(BBSet);
-
+    if(BBSet.size() < 2)
+      continue;
     // We only want to outline when we have a _patch _vuln pair
     std::set<llvm::StringRef> containing_functions;
     for(auto &cand : CandidateVec){
@@ -2957,6 +2971,9 @@ unsigned PVIROutliner::doOutline(Module &M) {
     if (CurrentGroup.Regions.empty()){
       llvm::errs() << "No regions successfully extracted.\n";
       continue;
+    } else {
+      llvm::errs() << "Extracted some regions!.\n";
+
     }
 
     CurrentGroup.collectGVNStoreSets(M);
@@ -3001,9 +3018,9 @@ unsigned PVIROutliner::doOutline(Module &M) {
     }
     if (BBSet.size() < 2 && CandidateVec[0].getLength() < 20)
       continue;
-    if(!is_last(CandidateVec)){
-      continue;
-    }
+    // if(!is_last(CandidateVec)){
+    //   continue;
+    // }
     NegativeCostGroups.push_back(&CurrentGroup);
   }
 
