@@ -40,7 +40,12 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
         if (name == "zif_exif_thumbnail_patch") continue;
         if (name == "sws_setColorspaceDetails") continue;
         if (name == "fill_rgb2yuv_table") continue;
-        if (name == "phar_flush") continue;
+        if (name == "phar_flush") continue; // php015
+        if (name == "avcodec_string") continue; // ffm050
+        if (name.find("avcodec_open") != std::string::npos) continue; // ffm050
+        if (name.find("avcodec_decode") != std::string::npos) continue; // ffm050
+        if (name.find("av_get_") != std::string::npos) continue; // ffm050
+        if (name.find("get_buffer") != std::string::npos) continue; // ffm050
         if (name.find("for_cond") != std::string::npos) continue;
         SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs[name];
         spoq_func.llvm_func = &func; // llvm_func;

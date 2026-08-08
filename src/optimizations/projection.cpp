@@ -248,7 +248,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             bool still_unfolding = true;
             int inner_iter = 0;
             bool um_changed, le_changed, me_changed, we_changed, cb_changed, hoist_changed = false;
-            while(still_unfolding && inner_iter < 50){
+            // while(still_unfolding && inner_iter < 50){
                 still_unfolding = false;
                 inner_iter += 1;
             if(unfold && !proj->cmds.NoUnfoldAll) {
@@ -390,7 +390,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 }
             }           
             changed |= cb_changed;
-            } 
+            // } 
             
             std::tie(spec, hoist_changed) = proj->rules.hoist_match_from_branch(std::move(spec));
             if(def->name == log_fn_name){

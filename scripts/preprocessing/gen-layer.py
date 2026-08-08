@@ -42,7 +42,7 @@ class Config:
     self.layer = None
     self.layer_map = None
     self.src_fn = ""
-  
+
   def set_top(self, top):
     self.top = copy.deepcopy(top)
 
@@ -53,7 +53,7 @@ class Config:
     with open(filepath, "w+") as f:
       if funcs:
         filtered_funcs = {k: {k2: funcs[k][k2] for k2 in funcs[k] if k2 in ["pres", "sucs", "entry", "fname", "args", "rettype", "is_declaration"]} for k in funcs}
-        json.dump({"layer_map": self.layer_map, "funcs": filtered_funcs}, fp = f, indent=4)  
+        json.dump({"layer_map": self.layer_map, "funcs": filtered_funcs}, fp = f, indent=4)
       else:
         json.dump(self.layer_map, fp = f, indent=4)
 
@@ -103,11 +103,11 @@ class Config:
         result = result + \
       (f"    \"%s\" ::\n" % f.replace(".", "_"))
       result += \
-      "    nil.\n\n" 
+      "    nil.\n\n"
       result += \
       "End %s.\n\n" % ("Layer" + str(id))
       return result
-  
+
   def dump_config_in_coq(self, filepath, num_layer = 0x7fffffff):
     num = num_layer if len(self.layer) > num_layer else len(self.layer)
     result_header = \
@@ -166,14 +166,14 @@ class Generator:
         return True
     return False
 
-  @staticmethod  
+  @staticmethod
   def is_printf_intrinsic(fname):
     for l in Generator.PRINT_INTRINSICS:
       if fname.startswith(l) or fname.endswith(l):
         return True
     return False
-  
-  # get_funcs computes self.funcs. 
+
+  # get_funcs computes self.funcs.
   # It ignores function calls for debug functions such as llvm.dbg*, llvm.lifetime*
   def compute_funcs(self):
     self.funcs = {}
@@ -185,11 +185,11 @@ class Generator:
       self.funcs[fname]["pres"] = []
       self.funcs[fname]["sucs"] = []
 
-  # TODO: quick fix function pointer call for a given list. 
+  # TODO: quick fix function pointer call for a given list.
   def quick_fix_fptr_call(self, fname):
     # TODO
     return None
-    
+
   def analyze_inst(self, inst, f):
     self.insttype.add(inst["type"])
     if inst["type"] == "CallInst":
@@ -197,7 +197,7 @@ class Generator:
         self.inline_asm_calls.append((f["fname"], inst)) # TODO: handle inline assembly file
         return
       if inst["arguments"][-1]["source"] != "constant":
-        self.fptr_calls.append((f["fname"], inst)) # TODO: handle function pointer calls 
+        self.fptr_calls.append((f["fname"], inst)) # TODO: handle function pointer calls
         if (callee := self.quick_fix_fptr_call(f["fname"])) is None:
           return
       else:
@@ -213,10 +213,10 @@ class Generator:
           pass
         else:
           debug("warning: ", callee , " is called without declaritions")
-          return 
+          return
       self.funcs[callee]["pres"].append(f["fname"])
       self.callee_list.add(callee)
-    
+
   def analyze_function(self, func):
     for arg_i in range(len(func["args"])):
       arg = func["args"][arg_i]
@@ -227,7 +227,7 @@ class Generator:
   def analyze(self):
     for fname in self.funcs:
       f = self.funcs[fname]
-    
+
       if f["is_declaration"] is True:
         self.declarations.append(f)
         self.external_nodes.append(f["fname"])
@@ -254,14 +254,14 @@ class Generator:
     self.compute_funcs()
     self.analyze()
     # toDO
-  
-  def check_for_missing_callee(self) -> tuple[bool, list]:  
+
+  def check_for_missing_callee(self) -> tuple[bool, list]:
     fname_list = set(self.proj["functions"].keys())
     callee_list = set()
     if len(callee_list - fname_list) > 0:
       return True, list(callee_list - fname_list)
     return False, []
-  
+
   def get_inst_type(self):
     return self.insttype
 
@@ -274,20 +274,20 @@ class Generator:
         cycles.append(copy.deepcopy(stamp))
         return True
       stamp.append(x)
-  
-      # end of a path 
+
+      # end of a path
       if len(self.funcs[x]["sucs"]) == 0:
         # path_list.append(copy.deepcopy(stamp))
         stamp.pop()
         return False
-      
+
       cycle = False
       for suc in self.funcs[x]["sucs"]:
         cycle = cycle | self.dfs(suc, l + 1, stamp, cycles)
-  
+
       stamp.pop()
       return cycle
-   
+
   def find_cycle(self, source = None) -> tuple[bool, list]:
     source = source if source is not None else self.source_nodes
     cycle = False
@@ -301,8 +301,8 @@ class Generator:
       if len(self.funcs[cycle[i]]["sucs"]) != 0:
         return (len(cycle) - 1 - i), cycle[i]
     return (len(cycle) - 1), cycle[0]
-  
-  def compute_reachable(self, source, sink): 
+
+  def compute_reachable(self, source, sink):
     reachable = []
     q = queue.Queue()
     for fname in source:
@@ -333,7 +333,7 @@ class Generator:
         continue
       for suc in self.funcs[func]["sucs"]:
         pres[suc] = pres.get(suc, 0) + 1
-  
+
     for t in top:
       q.append(t)
 
@@ -343,7 +343,7 @@ class Generator:
       func = q.pop(0)
       # funcs_top_order.append(func)
       if func in bottom:
-        continue 
+        continue
       for suc in self.funcs[func]["sucs"]:
         pres[suc] = pres[suc] - 1
         if pres[suc] == 0:
@@ -356,7 +356,7 @@ class Generator:
         # funcs_top_order.append(a)
 
     return topological_steps# , funcs_top_order
-  
+
   def compute_layers(self, top, bottom, steps):
     x = 0
     layer = []
@@ -367,7 +367,7 @@ class Generator:
       in_layer = False
       for q in steps[x]:
         if q in bottom:
-          layer_map[q] = 0 
+          layer_map[q] = 0
         elif q in top:
           in_layer = True
           layer_map[q] = -1
@@ -375,23 +375,23 @@ class Generator:
           in_layer = True
           layer_map[q] = -c
       if in_layer:
-        c += 1   
+        c += 1
       x += len(steps[x])
-      
+
     if len(bottom) == 0:
       c -= 1
 
     for i in range(c):
       layer.append([])
-    
+
     for t in layer_map.keys():
       if layer_map[t] < 0:
         layer_map[t] = layer_map[t] + c
       layer[layer_map[t]].append(t)
-    
+
     layer_map = dict(sorted(layer_map.items(), key=(lambda item: -item[1])) )
     return layer, layer_map
-  
+
 
   def dot_underscore_covert(self, f_list: list):
     rv = []
@@ -406,9 +406,9 @@ class Generator:
           inserted = True
           break
       if not inserted:
-        rv.append(b)  
+        rv.append(b)
     return rv
-  
+
   def compute_config(self, top = None, bottom = None, name = "default-config"):
     config = Config()
 
@@ -417,7 +417,7 @@ class Generator:
     if self.filter_printf:
       _top = list(filter(lambda f : not self.is_printf_intrinsic(f), _top))
       # put printf-like function in the bottom
-      _bottom = _bottom + list(filter(lambda f : self.is_printf_intrinsic(f), self.funcs.keys())) 
+      _bottom = _bottom + list(filter(lambda f : self.is_printf_intrinsic(f), self.funcs.keys()))
       # put external function in the bottom
       _bottom = _bottom + list(filter(lambda f : self.is_external_function(f), self.funcs.keys()) )
     _top = self.dot_underscore_covert(_top)
@@ -445,7 +445,7 @@ class Generator:
           config.bottom.append(func)
 
     config.reachable = self.compute_reachable(config.top, config.bottom)
-    
+
     steps = self.get_topological_steps(config.top, config.bottom, config.reachable)
     # debug("Steps: ", steps)
     # debug(config.name, "have", len(config.reachable), "reachable functions")
@@ -461,14 +461,18 @@ class Generator:
 def run():
   generator = Generator()
   generator.read_json_and_analyze(IR_JSON_PATH)
-  config = generator.compute_config(top = predefined["top"], bottom = predefined["bottom"])
+  bottom = predefined["bottom"].copy()
+  for f in generator.declarations:
+      if f["fname"].startswith("pv_shared"):
+          bottom.append(f["fname"])
+  config = generator.compute_config(top = predefined["top"], bottom = bottom)
   config.dump_config(IR_JSON_PATH.split("/")[-1][:-4] + "gen" + "." + config.name + ".json", funcs=(generator.funcs if args.dump_funcs else None))
   debug(len(generator.inline_asm_calls), " inline asm calls are ignored")
   debug(len(generator.fptr_calls), " function pointer calls are ignored")
   debug(len(generator.fptr_arguments), " functions pointer in arguments")
   debug(len(generator.declarations), " functions with declartions required spec manually", [f["fname"] for f in generator.declarations])
   config.dump_config_in_coq(IR_JSON_PATH.split("/")[-1][:-4] + "gen" + "." + config.name + ".v")
-  debug("config(json) dumped into", IR_JSON_PATH.split("/")[-1][:-4] + "gen" + "." + config.name + ".json") 
+  debug("config(json) dumped into", IR_JSON_PATH.split("/")[-1][:-4] + "gen" + "." + config.name + ".json")
   debug("config(coq) dumped into", IR_JSON_PATH.split("/")[-1][:-4] + "gen" + "." + config.name + ".v")
 
   # simple config with only 2 layers

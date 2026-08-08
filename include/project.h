@@ -60,7 +60,7 @@ public:
 
 
 class QueryInfo {
-public: 
+public:
     string query_dir;
     unsigned long query_id;
 
@@ -70,8 +70,9 @@ public:
             std::filesystem::remove_all(d);
         }
         std::filesystem::create_directories(d);
+        // TODO: Just don't dump files if directory creation fails.
     }
-    
+
     void dump(const string &q) {
         auto dumpfile = query_dir + "/query_" + std::to_string(query_id) + ".smt2";
         LOG_INFO << "Dumping query to " << dumpfile << std::endl;
@@ -197,15 +198,15 @@ public:
     std::map<unsigned, string> sys_inv_order; // order of system invariants
 
     unique_ptr<SpecNode> conjoined_sys_inv;
-    
-    std::set<std::pair<string, string>> field_ancestor; // pari<child field, ancestor field> 
+
+    std::set<std::pair<string, string>> field_ancestor; // pari<child field, ancestor field>
     // cone_of_influence[spec_name][invariant_name] -> coi
     //unordered_map<string, std::unordered_map<string, std::set<field_t>>> cone_of_influence;
    // unordered_map<string, std::set<field_t>> inv_fields;
 
    std::map<string,size_t> leaves_in_unfolded_func_pre_transform;
    std::map<string,size_t> leaves_in_unfolded_func_post_transform;
-   
+
     class cmds {
     public:
         std::set<string> Unfold;
@@ -224,7 +225,7 @@ public:
         std::map<string, vector<unique_ptr<SpecNode>>> InitRely;
         std::map<string, vector<unique_ptr<SpecNode>>> PreCond;
         std::map<string, vector<unique_ptr<SpecNode>>> PostEnsure;
-        std::map<string, vector<unique_ptr<SpecNode>>> PostCond;  
+        std::map<string, vector<unique_ptr<SpecNode>>> PostCond;
         std::set<string> PostCondWithNone; // Defs to be searched for preconditions that will cause None.
         vector<RefinesInfo> Refines;
         std::set<string> PreserveInv;
@@ -266,7 +267,7 @@ public:
     void add_loop_inv(unique_ptr<Expr> cmd);
 
     void add_options();
-    
+
     bool is_ind_constr(string name);
     bool is_struct_constr(string name);
     shared_ptr<SpecType> get_indtype_by_constr(string name);
@@ -283,9 +284,9 @@ public:
 
     /**
      * @brief control flow conversion algorithm on llvm
-     * 
-     * @return true 
-     * @return false 
+     *
+     * @return true
+     * @return false
      */
     bool control_flow_conversion_v2();
 
@@ -293,7 +294,7 @@ public:
 
     static std::tuple<string, vector<Definition *> *, vector<unique_ptr<Definition>> *> infer_spec_task_v2(Project* proj, int layer_id, string fname);
 
-    static bool infer_low_spec_v2(Project* proj, int layer_id, string fname, bool &have_loop, bool &have_sub, std::unordered_map<string, string> &name_map, 
+    static bool infer_low_spec_v2(Project* proj, int layer_id, string fname, bool &have_loop, bool &have_sub, std::unordered_map<string, string> &name_map,
     std::vector<std::string>& low_specs);
 };
 

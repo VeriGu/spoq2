@@ -652,9 +652,13 @@ rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::sha
                 // LOG_DEBUG << "Simple Rely by Z3 done: " << string(*body_ret.first) << "\n";
                 // HMMMMM
             if (is_rely) {
-                auto result = make_unique<Rely>(std::move(cond), std::move(body_ret.first));
+                if (res == Z3Result::True){
+                    return { std::move(body_ret.first), true};
+                } else {
+                    return { make_unique<Rely>(std::move(cond), std::move(body_ret.first)), changed };
+                }
                 // LOG_DEBUG << "Simple Rely by Z3 done: " << string(*result) << "\n";
-                return { std::move(result), changed };
+                // return { std::move(result), changed };
             } else {
                 return { make_unique<Anno>(std::move(cond), std::move(body_ret.first)), changed };
             }

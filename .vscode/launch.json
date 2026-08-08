@@ -1,6 +1,16 @@
 {
     "version": "0.2.0",
     "configurations": [
+    {
+        "name": "(lldb) ldebug synthetic_final_ir",
+        "type": "lldb",
+        "request": "launch",
+        "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+        "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic_final_ir/spoq_projects/lua002_perfect_outline.main.v",
+        "--new-trans", "--llvm", "--check-pre-post", "--race","--no-profile", "--check-patch-refinement"], // Any command-line arguments
+        "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic_final_ir/spoq_projects/",
+        "preLaunchTask": "CMake: build debug"
+    },
         {
             "name": "(lldb) pv two_file_simple_assign",
             "type": "lldb",
@@ -93,7 +103,7 @@
              "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/uaf_poc/"], // Any command-line arguments
             "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic/two_file_spoq_projects/",
             "preLaunchTask": "CMake: build debug"
-        },       
+        },
         {
             "name": "(lldb) pv uaf poc",
             "type": "lldb",
@@ -374,6 +384,26 @@
             "--check-pre-post", "--new-trans", "--llvm",  "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments
             "cwd": "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm049/build",
             "preLaunchTask": "CMake: build debug"
+        },{
+            "name": "(lldb) pv ffmpeg050",
+            "type": "lldb",
+            "request": "launch",
+            "initCommands": ["set set target.disable-aslr false"],
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm050/build/utils.main.v",
+            "--check-pre-post", "--new-trans", "--llvm",  "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm050/build",
+            "preLaunchTask": "CMake: build debug"
+        },{
+            "name": "(lldb) pv ffmpeg053",
+            "type": "lldb",
+            "request": "launch",
+            "initCommands": ["set set target.disable-aslr false"],
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm053/build/j2k_dwt.main.v",
+            "--check-pre-post", "--new-trans", "--llvm",  "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm053/build",
+            "preLaunchTask": "CMake: build debug"
         },
               {
             "name": "(lldb) pv ffmpeg001",
@@ -396,7 +426,16 @@
             "cwd": "/home/rjs2247/workspace/patchverification/examples/lua/lua004/build",
             "preLaunchTask": "CMake: build debug"
         },
-
+                {
+            "name": "(lldb) pv synth-final-lua002",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/spoq", // Path to your CMake target executable
+            "args": ["/home/rjs2247/workspace/patchverification/examples/synthetic_final_ir/spoq_projects/ldebug_perfect_outline.main.v",
+            "--new-trans", "--llvm", "--no-coi", "--no-profile", "--check-pre-post", "--check-patch-refinement", "--query-path", "debugger_z3/"], // Any command-line arguments
+            "cwd": "/home/rjs2247/workspace/patchverification/examples/synthetic_final_ir/spoq_projects",
+            "preLaunchTask": "CMake: build debug"
+        },
         {
             "name": "(lldb) pv extract-info synthetic",
             "type": "lldb",
@@ -413,7 +452,7 @@
             "request": "launch",
             "program": "/usr/bin/opt-14", // Path to your CMake target executable
             "args": ["-enable-new-pm=0","-O0","-load","${workspaceFolder}/scripts/preprocessing/extractpointers/lib/libextractpointers.so","-load", "${workspaceFolder}/scripts/preprocessing/extractbasics/lib/libextractbasics.so",
-               "--extractbasics",   "--extractpointers", "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm001/build/utils.ll"],
+               "--extractbasics",   "--extractpointers", "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm053/build/j2k_dwt.ll"],
             "cwd": "${workspaceFolder}/scripts/preprocessing/extractbasics",
             "preLaunchTask": "CMake: build debug"
         },

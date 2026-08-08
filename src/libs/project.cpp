@@ -261,19 +261,19 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             cmd->elems->at(1).release();
             this->cmds.InitRely[s->text].push_back(unique_ptr<SpecNode>(expr));
         } else if (op_str == "PostEnsure") {
-            assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) && 
+            assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) &&
                    dynamic_cast<Expr *>(cmd->elems->at(1).get()));
             auto s = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
             auto expr = dynamic_cast<Expr *>(cmd->elems->at(1).get());
-            /* The symbol in config might be mismatched with that in generated spec. 
+            /* The symbol in config might be mismatched with that in generated spec.
                 We need a symbol matching/renaming because we cannot require users to manually match it */
-            
-            /* We also assume the ensure statement takes no other variables other than return value. 
-                e.g. v_0.(pbase) = "granule" 
+
+            /* We also assume the ensure statement takes no other variables other than return value.
+                e.g. v_0.(pbase) = "granule"
                 instead of : v_0.(poffset) = v_n + x_n */
             cmd->elems->at(1).release();
             this->cmds.PostEnsure[s->text].push_back(unique_ptr<Expr>(expr));
-            
+
             LOG_INFO << "Adding PostEnsure: " << s->text << " " << string(*expr) << "\n";
         } else if (op_str == "AddDep") {
             assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) &&
@@ -303,7 +303,7 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             if (string(*s) == "true")
                 this->cmds.NoHighSpec = true;
         } else if (op_str == "StackVar") {
-            assert(cmd->elems->size() == 3 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) 
+            assert(cmd->elems->size() == 3 && dynamic_cast<Symbol *>(cmd->elems->at(0).get())
                    && dynamic_cast<Symbol *>(cmd->elems->at(1).get())
                    && dynamic_cast<Symbol *>(cmd->elems->at(2).get()) );
 
@@ -314,7 +314,7 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             this->cmds.StackMap[f->text][Shortcut::replace_dot(local_var->text)] = stack_var->text;
             // LOG_INFO << "STACKVAR:" << f->text << ":" << local_var->text << "->" << stack_var->text << "\n";
         } else if (op_str == "Abstract") {
-            assert(cmd->elems->size() == 3 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) 
+            assert(cmd->elems->size() == 3 && dynamic_cast<Symbol *>(cmd->elems->at(0).get())
                    && dynamic_cast<Symbol *>(cmd->elems->at(1).get())
                    && dynamic_cast<Symbol *>(cmd->elems->at(2).get()) );
             auto func = dynamic_cast<Symbol *>(cmd->elems->at(0).get());
@@ -338,7 +338,7 @@ void Project::add_command(unique_ptr<Expr> cmd) {
                 abs.raw_spec_name = dynamic_cast<Symbol *>(cmd->elems->at(0).get())->text;
                 abs.abs_spec_name = dynamic_cast<Symbol *>(cmd->elems->at(1).get())->text;
                 abs.constant_assumption = false;
-            } 
+            }
             else if (cmd->elems->size() == 3) {
                 abs.mem_start = (unsigned long)parse_cmd_int(cmd, 0);
                 abs.mem_size = (unsigned long)parse_cmd_int(cmd, 1);
@@ -393,7 +393,7 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             this->cmds.PreserveInv.insert(s->text);
         } else if(op_str == "Refines"){
             assert(cmd->elems->size() == 5
-                && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) 
+                && dynamic_cast<Symbol *>(cmd->elems->at(0).get())
                 && dynamic_cast<Symbol *>(cmd->elems->at(1).get())
                 && dynamic_cast<Symbol *>(cmd->elems->at(2).get())
                 && dynamic_cast<Symbol *>(cmd->elems->at(3).get())
@@ -407,7 +407,7 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             auto rel_post = dynamic_cast<Symbol *>(cmd->elems->at(3).release());
             auto ret_val_rel = dynamic_cast<SpecNode *>(cmd->elems->at(4).release());
             auto key = func1->text + "&" + func2->text + "&" + rel_post->text;
-            
+
             LOG_DEBUG << "Refines command " << key;
             this->cmds.Refines.push_back(
                 RefinesInfo {
@@ -858,7 +858,7 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         bool no_trans = proj->cmds.NoHighSpec || proj->cmds.NoTrans.find(name_map[low_name]) != proj->cmds.NoTrans.end();
 
         // LOG_DEBUG << "NO HIGH SPEC:" << proj->cmds.NoHighSpec;
-        
+
         profile_clear();
         if (!no_trans) {
             if(OPTS.new_trans) {
@@ -959,9 +959,9 @@ static void collect_lemmas(Project *proj) {
         } else {
             continue;
         }
-        // Transform the lemma to unfolded 
+        // Transform the lemma to unfolded
         auto lemma_def = def.second.get();
-        
+
         Definition *pure_lemma = nullptr;
         auto l_args = make_unique<vector<shared_ptr<Arg>>>();
         for (auto &arg: *lemma_def->args)
@@ -1000,27 +1000,27 @@ static void collect_field_ancestors(Project *proj)
     using Pair = std::pair<std::string, std::string>;
     std::set<Pair> field_to_father_type; // child field -> father record type
     std::unordered_map<std::string, std::set<std::string>> fields_by_type; // type → { fields }
-        
+
     for (auto &s : proj->structs) {
-        auto father_type = s.first;             
+        auto father_type = s.first;
 
         for (const auto &field : *(s.second->elems)) {
-            auto child_field = field->name;      
+            auto child_field = field->name;
             auto field_type = s.second->elems_map.at(child_field)->name;
-            field_to_father_type.emplace(child_field, father_type);  
-            fields_by_type[field_type].insert(child_field);  
+            field_to_father_type.emplace(child_field, father_type);
+            fields_by_type[field_type].insert(child_field);
         }
     }
 
     proj->field_ancestor.clear();
 
     for (const Pair &edge : field_to_father_type) {
-        const std::string &child_field = edge.first;      
-        const std::string &father_type = edge.second;     
+        const std::string &child_field = edge.first;
+        const std::string &father_type = edge.second;
 
         auto it = fields_by_type.find(father_type);
         auto it_zmap = fields_by_type.find("ZMap_" + father_type);
-        
+
         if (it != fields_by_type.end()) {
             for (const std::string &father_field : it->second) {
                 proj->field_ancestor.emplace(child_field, father_field);
@@ -1036,13 +1036,13 @@ static void collect_field_ancestors(Project *proj)
     bool changed = true;
     while (changed) {
         changed = false;
-        std::set<Pair> to_add;                    
+        std::set<Pair> to_add;
 
         for (const Pair &p1 : proj->field_ancestor) {
             for (const Pair &p2 : proj->field_ancestor) {
-                if (p1.second != p2.first) 
-                    continue;        
-                Pair np{p1.first, p2.second};               
+                if (p1.second != p2.first)
+                    continue;
+                Pair np{p1.first, p2.second};
                 if (!proj->field_ancestor.count(np)) {
                     to_add.insert(np);
                     changed = true;
@@ -1109,7 +1109,7 @@ void trans_inv(Project *proj) {
 
 /**
  * @brief finalize the project
- * 
+ *
  */
 void Project::finalize_project()
 {
@@ -1251,7 +1251,7 @@ bool Project::finalize_project_v2() {
 
         for (auto &p: L->prims) {
             auto func = this->spoq_code.llvm_module->getFunction(p);
-            if (func == nullptr || func->isDeclaration()) 
+            if (func == nullptr || func->isDeclaration())
                 continue;
             L->prim_deps[p] = SpoqIRModule::get_func_dependencies(func);
 
@@ -1296,7 +1296,7 @@ bool Project::finalize_project_v2() {
 
     LOG_DEBUG << "filter and lemma ok" << "\n";
     LOG_DEBUG << "layer: " << this->layers.size() << "\n";
-    
+
     for (int i = 1; i < this->layers.size(); i++) {
         auto &L = this->layers[i];
         auto &prev_L = this->layers[i - 1];
@@ -1323,13 +1323,13 @@ bool Project::finalize_project_v2() {
             // LOG_DEBUG << "primitive: " << p << "\n";
             auto func = this->spoq_code.llvm_module->getFunction(p);
             // LOG_DEBUG << "primitive: " << p << "\n";
-            if (func == nullptr || func->isDeclaration()) 
+            if (func == nullptr || func->isDeclaration())
                 continue;
             // LOG_DEBUG << "primitive infer: " << p << "\n";
 
-            auto start = std::chrono::high_resolution_clock::now();
+            // auto start = std::chrono::high_resolution_clock::now();
             auto [fname, low_specs, high_specs] = infer_spec_task_v2(this, i, p);
-            auto end = std::chrono::high_resolution_clock::now();
+            // auto end = std::chrono::high_resolution_clock::now();
             // LOG_DEBUG << "####[" << p << "]" << "infer spec task cost" << std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count() << "" << std::endl;
         }
     }
@@ -1341,7 +1341,7 @@ bool Project::finalize_project_v2() {
     spec_prover(this);
     auto end = std::chrono::high_resolution_clock::now();
     auto proof_cost = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
-    
+
     extern unsigned long z3_unknowns, z3_checks, z3_cache_hits, z3_global_hash_hit, z3_global_hash_total;
     extern std::chrono::duration<double> z3_accumulative_time;
 
@@ -1440,11 +1440,11 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
 
 
         // LOG_DEBUG << "NO HIGH SPEC " << proj->cmds.NoHighSpec;
-        
+
         profile_clear();
         if (!no_trans) {
             if(OPTS.new_trans) {
-                spec_transformer_v2(proj, high_def, layer_id, layer_id, true, 50);
+                spec_transformer_v2(proj, high_def, layer_id, layer_id, true, 300);
             } else {
                 spec_transformer(proj, high_def, layer_id, layer_id, true);
             }
@@ -1483,9 +1483,9 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
         LOG_DEBUG << "low spec not found: " << low_name << "\n";
         std::string suffix = "_low";
         bool ret = proj->spoq_code.code_to_spec(proj, fname, layer_id, low_specs, name_map);
-        if(!ret) { 
+        if(!ret) {
             LOG_ERROR << "fail to generate low spec for: " << fname << "\n";
-            return false; 
+            return false;
         }
         auto subs_defs_low = new vector<Definition*>();
         for(auto &def_name: low_specs) {
@@ -1540,7 +1540,7 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
         if(proj->cmds.InitRely.find(fname) != proj->cmds.InitRely.end()) {
             for(auto & f : proj->cmds.InitRely[fname])
                 spec = std::make_unique<Rely>(f->deep_copy(), std::move(spec));
-        }    
+        }
         proj->defs[low_name]->body = std::move(spec);
 
         // TODO: function types
@@ -1581,7 +1581,7 @@ void Project::prepare_abstraction() {
     // TODO: complete the abstraction configruation and extract unique_ptr<Expr>
 
     std::vector<std::pair<int, int>> assumptions;
-    
+
     for (auto &abs: this->abs_config) {
         if (!abs.constant_assumption) {
             auto& raw_def = this->defs[abs.raw_spec_name];

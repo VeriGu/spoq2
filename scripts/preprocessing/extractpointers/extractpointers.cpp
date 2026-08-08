@@ -529,7 +529,7 @@ We can do this in a proxy definition for each type
         stackval_branch_id = struct_id + "ArrVal";
         stackval_accessor = ("(ZMap.t "+struct_id+")", struct_id);
       } else {
-        stackval_branch_id = "ZMapVal";
+        stackval_branch_id = "ZMapOtherVal";
         stackval_accessor = generateField(x.first);
       }
     } else if(x.first->isFloatingPointTy()) {

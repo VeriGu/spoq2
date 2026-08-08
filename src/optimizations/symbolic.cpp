@@ -1,3 +1,4 @@
+#include "log.h"
 #include <cassert>
 #include <cmd.h>
 #include <coi.h>
@@ -114,7 +115,7 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
                 auto absf = func->second->absf();
                 return _cache(absf->call(elems));
             }
-            
+
         } if (op_eq(expr->op, Expr::binops::MINUS)) {
             if (expr->elems->size() == 2)
                 return _cache(static_pointer_cast<IntValue>(elems[0])->sub(
@@ -1773,7 +1774,7 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     }
     LOG_DEBUG << "Used Var Names 2: ";
     for (auto s: used_var_names){ std::cerr << s << ", ";}
-     std::cerr << std::endl;    
+     std::cerr << std::endl;
      for (auto &[def_name, def]: proj->defs){
         used_var_names.erase(def_name);
     }
@@ -1786,12 +1787,12 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
         LOG_DEBUG << "Used Var Names 4: ";
     for (auto s: used_var_names){ std::cerr << s << ", ";}
      std::cerr << std::endl;
-    
+
     tmp_patched_body = proj->rules.eliminate_ambiguity(std::move(tmp_patched_body), used_var_names, unneeded);
     // LOG_DEBUG << "subst Patched body: " << z3_eval(proj, patched_body,
     // state)->value.to_string();;
     patched_def->body = tmp_patched_body->deep_copy();
-    
+
     patched_body = tmp_patched_body.get();
     field_t ret_rel_names;
     unique_ptr<vector<shared_ptr<Arg>>> ret_rel_args =
@@ -2054,7 +2055,12 @@ void spec_prover(Project *proj) {
     }
 
     for (auto &ub_export_def : proj->cmds.PostCondWithNone) {
-        auto def = proj->defs[ub_export_def].get();
+        auto def_it = proj->defs.find(ub_export_def);
+        if(def_it == proj->defs.end()){
+            LOG_WARNING << "PostCondWithNone def " << ub_export_def << " not found";
+            continue;
+        }
+        auto def = def_it->second.get();
         auto used_abs_for_none = std::unordered_set<string>();
         check_none(proj, def, used_abs_for_none);
         // LOG_DEBUG << "Transforming sufficient_none_condition for " << def->name;
@@ -2116,9 +2122,9 @@ void spec_prover(Project *proj) {
         }
         for (auto &other_def_pair : proj->defs) {
             auto other_def = other_def_pair.second.get();
-            if (other_def == def || !other_def->body || other_def->name.find("_vuln_spec") == std::string::npos || other_def->name.find("_patch_spec") != std::string::npos)
+            if (!other_def || other_def == def || !other_def->body || other_def->name.find("_vuln_spec") == std::string::npos || other_def->name.find("_patch_spec") != std::string::npos)
                 continue;
-            
+
             auto current_free_vars = std::set<string>();
             free_vars(proj, other_def->body.get(), current_free_vars);
             for (auto &arg : *(def->args)){
@@ -2127,7 +2133,7 @@ void spec_prover(Project *proj) {
             auto updated_free_vars = std::set<string>();
             auto new_free_vars = std::set<string>();
 
-            
+
                 LOG_DEBUG << "Applying PostCondWithNone for " << def->name
                 << " in " << other_def->name;
             auto old_body = other_def->body->deep_copy();
@@ -2180,7 +2186,7 @@ void spec_prover(Project *proj) {
                 new_body = proj->rules.simple_const_bool(
                     std::move(other_def->body));
                 next = std::chrono::high_resolution_clock::now();
-                    
+
 
                 LOG_DEBUG << "Simplification C " << new_body.second << ", " << (next-start).count() * 1.0e-9;
                 start=next;

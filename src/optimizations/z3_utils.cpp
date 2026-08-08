@@ -513,6 +513,8 @@ Z3Result z3_check(shared_ptr<EvalState> state, int timeout) {
     } else if(res == z3::sat) {
         Z3Cache[hash] = Z3Result::Sat;
         return Z3Result::Sat;
+    } else {
+        assert(false);
     }
 }
 
@@ -1438,8 +1440,8 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
                         //ret_tuple
                         // auto rettuple = instance_of(some->get("value").get(), StructValue);
                         
-                        auto rettype = loop->rettype;
-                        auto rettypesome = instance_of(rettype.get(), Option);
+                        // auto rettype = loop->rettype;
+                        // auto rettypesome = instance_of(rettype.get(), Option);
                         // auto tupletype = instance_of(rettypesome->elem_type.get(), Tuple);
 
                         //after checks, we should assume that inv is hold after loop. i.e
@@ -1726,8 +1728,6 @@ z3::expr formulate_function(Project* proj, Definition* def) {
 //ite is like a state merging.
 
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state, bool check_loop) {
-				int random_code = rand();
-
     shared_ptr<SpecValue> result;
 
     if (OPTS.z3_expr_cache && val->cached_eval) {
@@ -2048,7 +2048,8 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                 // LOG_INFO << "[PROFILE]" << "z3_eval: z3_check: match stands: " << string(*val);
                 PROFILE_START(match_eval_check);
                 PROFILE_START(eval_check);
-                auto z3_res = z3_check(state, cond);
+                auto z3_res = Z3Result::Unknown;
+                // auto z3_res = z3_check(state, cond);
                 PROFILE_END(eval_check);
                 PROFILE_END(match_eval_check);
                 if (z3_res == Z3Result::False) {
@@ -2100,7 +2101,8 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         }
     } else if (auto rely = instance_of(val, Rely)) {
         auto cond = z3_eval(proj, rely->prop.get(), state,  check_loop);
-        auto res = z3_check(state, cond->get_z3_value());
+        auto res = Z3Result::Unknown;
+        // auto res = z3_check(state, cond->get_z3_value());
         if (res == Z3Result::Unknown || res == Z3Result::Sat) {
             //LOG_DEBUG << "rely body:" << string(*rely->body);
             auto body = z3_eval(proj, rely->body.get(), state,  check_loop);
@@ -2128,8 +2130,8 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             LOG_DEBUG << "In z3_eval, if cond is nullptr!!!.";
             assert(false);
         }
-        auto res = z3_check(state, c->get_z3_value());
-        
+        // auto res = z3_check(state, c->get_z3_value());
+        auto res = Z3Result::Unknown;
         // LOG_DEBUG << "In z3_eval, checked if cond. "; 
         PROFILE_END(eval_check);
         PROFILE_END(if_eval_check);
