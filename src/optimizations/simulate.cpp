@@ -689,18 +689,40 @@ namespace autov
 			path_t p_then = p, p_else = p;
 			p_then.push_back(1);
 			p_else.push_back(0);
+
+			// If the impl node is an equivalent `if` whose condition is provably
+			// identical to the spec's condition (i.e. there is no model in which
+			// the two conditions differ), advance the impl into the corresponding
+			// branch alongside the spec instead of descending into it separately.
+			SpecNode *impl_then = impl;
+			SpecNode *impl_else = impl;
+			if (auto impl_if = instance_of(impl, If)) {
+				auto impl_c = z3_eval(proj, impl_if->cond.get(), state);
+				auto impl_cond_val = impl_c->get_z3_value();
+				if (impl_cond_val.is_int()) {
+					impl_cond_val = (impl_cond_val != 0);
+				}
+				z3::model diff_model(z3ctx);
+				// Conditions are equivalent iff there is no model in which they differ.
+				auto diff_res = z3_check_unsat(state, (cond_val != impl_cond_val), diff_model, &proj->query_saver, Z3_SIM_TIMEOUT);
+				if (diff_res == Z3Result::True) {
+					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Impl if-condition provably equivalent to spec, advancing impl.";
+					impl_then = impl_if->then_body.get();
+					impl_else = impl_if->else_body.get();
+				}
+			}
 			// auto cond_str = string(*i->cond);
 			// auto cond_val_str = string(*c);
 			auto sim_result = SimulateResult{true, false, false, false};
 			// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if z3: " << c->get_z3_value();
 			if (true_branch_plausible){
-				sim_result = sim_result + simulate_by_traverse(proj, i->then_body.get(), impl, rel, ret_rel, true_state, p_then, det);
+				sim_result = sim_result + simulate_by_traverse(proj, i->then_body.get(), impl_then, rel, ret_rel, true_state, p_then, det);
 				if (!sim_result.verified) {
 					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Then branch of if not verified" << c->get_z3_value();
 				}
 			}
 			if (false_branch_plausible){
-				sim_result = sim_result + simulate_by_traverse(proj, i->else_body.get(), impl, rel, ret_rel, false_state, p_else, det);
+				sim_result = sim_result + simulate_by_traverse(proj, i->else_body.get(), impl_else, rel, ret_rel, false_state, p_else, det);
 				if (!sim_result.verified) {
 					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] If not verified: " << !cond_val;
 				}
