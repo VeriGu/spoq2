@@ -1,3 +1,4 @@
+#include "log.h"
 #include <symbolic.h>
 #include <simulate.h>
 #include <coi.h>
@@ -28,11 +29,11 @@ namespace autov
 		auto z3_ret = z3_check_unsat(state, rel_expr->get_z3_value(), model, &proj->query_saver, Z3_VERIFY_TIMEOUT);
 		return std::make_pair(z3_ret == Z3Result::True, rel_expr->get_z3_value());
 	}
-	
+
 	/**
-	 * 
-	 * @brief Compute the simulation states and add inductive constraints 
-	 * 
+	 *
+	 * @brief Compute the simulation states and add inductive constraints
+	 *
 	 * @details
 	 * The simulation relation can be visualized with the following diagram:
 	 *			(spec)					  (spec_sim)
@@ -44,18 +45,18 @@ namespace autov
 	 *             v                          v
 	 *       +----------+      rel      +-----------+
 	 *       | spec(st) |      ~~~      | spec(st') |
-	 *       +----------+   (to-prove)  +-----------+ 
+	 *       +----------+   (to-prove)  +-----------+
 	 *
-	 *  forward_simulation will utilize the induction (rel st st') 
+	 *  forward_simulation will utilize the induction (rel st st')
 	 *  to compute the unique witness, spec(st'), from current branch constraints.
-	 * 
+	 *
 	 * Lemma 1 (skip None): (st ~ st') /\ (Some st1 = spec(st)) => (Some st1' = spec(st'))
 	 * Lemma 2 (Inductive Simulation): (st ~ st') /\ (Some st1 = spec(st)) => (spec(st) ~ spec(st'))
-	 * 
-	 * @return [result, its following spec body] 
+	 *
+	 * @return [result, its following spec body]
 	 * 		   We assume that abstract function will not occur in multiple branches. otherwise the return value should be std::pair<bool, std::set<SpecNode *>>
 	 */
-	SimulateResult forward_simulation(Project *proj, SpecNode *st_check, SpecNode *spec_ret, SpecNode *impl, Definition *rel, Definition *ret_rel, shared_ptr<ProveState> state, 
+	SimulateResult forward_simulation(Project *proj, SpecNode *st_check, SpecNode *spec_ret, SpecNode *impl, Definition *rel, Definition *ret_rel, shared_ptr<ProveState> state,
 			bool det, const path_t &path, int i, bool allow_none) {
 				int random_code = rand() % 10000;
 			// bool det = false, const path_t &path = {}, int i = 0, bool allow_none = false) {
@@ -97,7 +98,7 @@ namespace autov
 							if (!ret_is_relate){
 								LOG_WARNING << "[forward_simulation] ret val Relation can not be proved between\n"  << string(*spec_ret) << " and " << string(*impl_ret)  << std::endl;
 							}
-							
+
 							// for(auto cond: *state->conds) {
 							// 	LOG_DEBUG << "Condition: " << cond;
 							//  	}
@@ -108,7 +109,7 @@ namespace autov
 						return SimulateResult{is_relate && ret_is_relate, false, false, false};
 					} else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
 						st_ret = expr->elems->at(0)->deep_copy();
-						
+
 						auto [is_relate, expr_relate] = check_relation(proj, rel, st_check, st_ret.get(), state);
 						if (is_relate) {
 							LOG_INFO << "[forward_simulation] Symbol Relation is proved between\n"  << string(*st_check) << " and " << string(*st_ret.get()) << std::endl;
@@ -124,7 +125,7 @@ namespace autov
 					LOG_DEBUG << "[forward_simulation " << random_code << "] None in impl, allow_none: " << allow_none;
 					return SimulateResult{allow_none, allow_none, false, !allow_none};
 				} else {
-					LOG_ERROR << "[forward_simulation] Expr with op: " << static_cast<int>(*e_op); 
+					LOG_ERROR << "[forward_simulation] Expr with op: " << static_cast<int>(*e_op);
 				}
 			}
 		} else if (auto m = instance_of(impl, Match)) {
@@ -176,7 +177,7 @@ namespace autov
 					}
 				}
 			}
-			auto abst_spec = abst_transition(proj, m->src.get()); 
+			auto abst_spec = abst_transition(proj, m->src.get());
 			SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
 
 			auto sim_result = SimulateResult{true, false, false, false};
@@ -275,14 +276,14 @@ namespace autov
 							}
 						}
 					}
-				} 
-			
+				}
+
 
 				if (!std::holds_alternative<std::nullptr_t>(abst_spec)) {
 					SpecNode *st_ret = extract_st_from_expr(proj, pat);
 					if (st_input && st_ret) {
 						/** TODO: add lemmas and invariants here */
-						/** TODO: check weak induction pre-condition: 
+						/** TODO: check weak induction pre-condition:
 						 * 		st_input ~ st_sim_input
 						 */
 					}
@@ -291,7 +292,7 @@ namespace autov
 				// for non-abst func here (match-as-branch), check state validity here
 				Z3Result res = Z3Result::Unknown;
 				if (det && m->src->is_determ_branch) {
-					res = (path[i] == cnt++) ? Z3Result::True : Z3Result::False;	
+					res = (path[i] == cnt++) ? Z3Result::True : Z3Result::False;
 				} else {
 					res = z3_verify_state_sat(pm_state, &proj->query_saver, Z3_SAT_TIMEOUT);
 				}
@@ -303,8 +304,8 @@ namespace autov
 					auto this_branch_result = forward_simulation(proj, st_check, spec_ret, (*pm)->body.get(), rel, ret_rel, pm_state, det, path, i+1, allow_none);
 					if(!this_branch_result.verified){
 						LOG_DEBUG << "[forward_simulation " << random_code << "] Match verification failed on branch: " << string(*pat).substr(0,200);
-						LOG_DEBUG << "Matched expr: " << string(*m->src->deep_copy());	
-						return this_branch_result;		
+						LOG_DEBUG << "Matched expr: " << string(*m->src->deep_copy());
+						return this_branch_result;
 					}
 					sim_result = sim_result + this_branch_result;
 				}
@@ -352,8 +353,8 @@ namespace autov
 				return forward_simulation(proj, st_check, spec_ret, iff->else_body.get(), rel, ret_rel, state, det, path, i+1, allow_none);
 			} else {
 				LOG_DEBUG << "[forward_simulation " << random_code << "] If - On both branches";
-				// O(N^2) simulation search 
-				// if (!det || !iff->cond->is_determ_branch) { 
+				// O(N^2) simulation search
+				// if (!det || !iff->cond->is_determ_branch) {
 				// 	LOG_DEBUG << "Unsolved (try) If non-determ cond!" << string(*iff->cond.get());
 				// }
 				auto then_state = state->copy();
@@ -428,19 +429,19 @@ namespace autov
     /**
 	 * @brief Try to prove: (rel st st') => (rel spec(st) spec(st'))
 	 * P
-	 * @details	The simulation proof will admits all invariants, lemmas, and post conditions without checking. 
+	 * @details	The simulation proof will admits all invariants, lemmas, and post conditions without checking.
 	 * 			It should be performed after checking all of things above.
-	 * 
+	 *
 	 * 			Theoretically, the simulation property can also be formulated as pre-/post- conds:
-	 * 
-	 * 				P_relate(st, spec) : Prop := 
+	 *
+	 * 				P_relate(st, spec) : Prop :=
 	 * 					forall st', (rel st st') /\ (forall st_1, Some st_1 = spec(st)) /\ (forall st'_1, Some st'_1 = spec(st')) => (rel st_1 st'_1)
-	 * 
-	 * 			However, letting z3 solve the quantifiers above are not efficient enough. 
+	 *
+	 * 			However, letting z3 solve the quantifiers above are not efficient enough.
 	 * 			So we compute the witness st_1 and st'_1 by traversing the spec(st) and spec(st') respectively.
-	 * 
-	 * 			Following previous works (CAL, CCA, etc.), we perform downward (forward) simulations here. 
-	 * 
+	 *
+	 * 			Following previous works (CAL, CCA, etc.), we perform downward (forward) simulations here.
+	 *
 	 * @param proj
 	 * @param spec		The top-level specification (as small-step semantics of the system)
 	 * @param impl		The implementation of the system
@@ -448,7 +449,7 @@ namespace autov
 	 * @param state		A state stack that stores z3 constriants
 	 * @param p			The path of current traverse
 	 * @param det		Whether the simulation is deterministic (i.e. st st' takes same branch).  Spec and impl must have exactly the same branches in the same order.
-	 * 
+	 *
 	 * @return true if the specification relation is proved
 	 * @return false if the specification relation is not proved
 	 */
@@ -542,26 +543,63 @@ namespace autov
 				}
 			}
 
-			// auto abst_spec = abst_transition(proj, m->src.get()); 
+			// auto abst_spec = abst_transition(proj, m->src.get());
 			// SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
-			
+
 			auto src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
+
+			// If the impl node is a `match` and src == impl_src by SMT check
+			// and has the same branch structure, advance the impl into
+			// the corresponding branch alongside the spec instead of descending into
+			// it separately. Each impl branch's pattern is resolved into the branch
+			// state so its bound variables are available to the impl body.
+			Match *impl_match = nullptr;
+			shared_ptr<SpecValue> impl_src;
+			if (auto impl_m = instance_of(impl, Match)) {
+
+				if (src->get_type() == impl_m->src.get()->get_type() &&
+					impl_m->match_list->size() == m->match_list->size()) {
+					set<string> impl_used_fix;
+					impl_src = z3_eval(proj, impl_m->src.get(), state, true, false, impl_used_fix);
+					// Scrutinees are equivalent iff there is no model in which they differ.
+					auto diff_res = z3_check(state, (src->get_z3_value() != impl_src->get_z3_value()), &proj->query_saver, Z3_SIM_TIMEOUT);
+					if (diff_res == Z3Result::False) {
+						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Impl match src provably equivalent to spec, advancing impl.";
+						impl_match = impl_m;
+					}
+				}
+			}
 
 			int cnt = 0;
 			auto sim_result = SimulateResult{true, false, false, false};
 			for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 				path_t p_match = p;
+				int branch_idx = cnt;
 				p_match.push_back(cnt++);
 
 				auto new_state = state->copy();
 				auto pat = (*pm)->pattern.get();
 				resolve_pattern(proj, m, pat, src, new_state);
+
+				// Advance the impl into its corresponding branch (positionally) when it
+				// is an equivalent match, binding the impl pattern's variables.
+				SpecNode *impl_branch = impl;
+				if (impl_match) {
+					auto impl_pm = impl_match->match_list->at(branch_idx).get();
+				    auto impl_pat = impl_pm->pattern.get();
+					LOG_DEBUG << "Can skip? Pattern: " << string(*pat) << " vs " << string(*impl_pat);
+					if (impl_pat->deep_eq(pat)) {
+	                    LOG_DEBUG << "Simultaneously resolving pattern: " << string(*impl_pat);
+						resolve_pattern(proj, impl_match, impl_pat, impl_src, new_state);
+						impl_branch = impl_pm->body.get();
+					}
+				}
 				if(resolve_to_none) {
 					if(auto expr = instance_of(pat, Expr)) {
 						if(!op_eq(expr->op, Expr::None)) {
 							continue;
 						} else {
-							auto new_result = simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, ret_rel, new_state, p_match, det);
+							auto new_result = simulate_by_traverse(proj, (*pm)->body.get(), impl_branch, rel, ret_rel, new_state, p_match, det);
 							sim_result = sim_result + new_result;
 							return sim_result;
 						}
@@ -645,13 +683,13 @@ namespace autov
 						}
 					}
 				}
-				
+
 				auto state_works = z3_verify_state_sat(new_state->copy(), &proj->query_saver);
 				if (state_works != Z3Result::False) {
 					// auto pat_str = string(*(*pm)->pattern.get());
 					// auto src_str = string(*m->src);
 					// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] In Match: " << string(*m->src).substr(0,200) << ".\n Verifying pattern: " << string(*(*pm)->pattern.get()).substr(0,100) << ".";
-					auto new_result = simulate_by_traverse(proj, (*pm)->body.get(), impl, rel, ret_rel, new_state, p_match, det);
+					auto new_result = simulate_by_traverse(proj, (*pm)->body.get(), impl_branch, rel, ret_rel, new_state, p_match, det);
 					if (sim_result.verified && !new_result.verified) {
 						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] In Match body at " << (*pm)->body.get() << " not verified.";
 						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Match src: " << string(*m->src) << " not verified.";
@@ -677,7 +715,7 @@ namespace autov
 			std::pair<bool,bool> plausibility = check_branch_plausibility(proj, state, c, model);
 			auto true_branch_plausible = plausibility.first;
 			auto false_branch_plausible = plausibility.second;
-			
+
 			auto true_state = state->copy();
 			auto false_state = state->copy();
 			auto cond_val = c->get_z3_value();
@@ -697,18 +735,24 @@ namespace autov
 			SpecNode *impl_then = impl;
 			SpecNode *impl_else = impl;
 			if (auto impl_if = instance_of(impl, If)) {
-				auto impl_c = z3_eval(proj, impl_if->cond.get(), state);
-				auto impl_cond_val = impl_c->get_z3_value();
-				if (impl_cond_val.is_int()) {
-					impl_cond_val = (impl_cond_val != 0);
-				}
-				z3::model diff_model(z3ctx);
-				// Conditions are equivalent iff there is no model in which they differ.
-				auto diff_res = z3_check_unsat(state, (cond_val != impl_cond_val), diff_model, &proj->query_saver, Z3_SIM_TIMEOUT);
-				if (diff_res == Z3Result::True) {
-					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Impl if-condition provably equivalent to spec, advancing impl.";
-					impl_then = impl_if->then_body.get();
-					impl_else = impl_if->else_body.get();
+                // Check the types are the same.
+                if (impl_if->cond.get()->get_type() == c->get_type()){
+    			    auto impl_c = z3_eval(proj, impl_if->cond.get(), state);
+    				auto impl_cond_val = impl_c->get_z3_value();
+    				if (impl_cond_val.is_int()) {
+    					impl_cond_val = (impl_cond_val != 0);
+    				}
+    				// Conditions are equivalent iff there is no model in which they differ.
+   					// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] " << "Spec: " << string(*c) << "\nImpl: " << string(*impl_c);
+    				auto diff_res = z3_check(state, (cond_val != impl_cond_val), &proj->query_saver, Z3_SIM_TIMEOUT);
+    				if (diff_res == Z3Result::False) {
+    					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Impl if-condition provably equivalent to spec, advancing impl.";
+    					impl_then = impl_if->then_body.get();
+    					impl_else = impl_if->else_body.get();
+    				} else {
+
+
+    				}
 				}
 			}
 			// auto cond_str = string(*i->cond);
@@ -737,7 +781,7 @@ namespace autov
 			auto c = z3_eval(proj, r->prop.get(), state);
 			state->conds->push_back(c->get_z3_value());
 			return simulate_by_traverse(proj, r->body.get(), impl, rel, ret_rel, state, p, det);
-		} else if (auto r = instance_of(spec, Symbol)) { 
+		} else if (auto r = instance_of(spec, Symbol)) {
 			auto sym = dynamic_cast<Symbol*>(spec);
 			if(sym->text == "None") {
 				LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Detected None node in spec, checking if impl removes spec UB.";
@@ -749,19 +793,19 @@ namespace autov
 				LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected Symbol node.";
 				return SimulateResult{false, false, false, false};
 			}
-		// } else if (auto r = instance_of(spec, Const)) { 
+		// } else if (auto r = instance_of(spec, Const)) {
 		// 	LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected Const node.";
 		// 	return SimulateResult{false, false, false, false};
-		// } else if (auto r = instance_of(spec, RecordDef)) { 
+		// } else if (auto r = instance_of(spec, RecordDef)) {
 		// 	LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected RecordDef node.";
 		// 	return SimulateResult{false, false, false, false};
-		// } else if (auto r = instance_of(spec, PatternMatch)) { 
+		// } else if (auto r = instance_of(spec, PatternMatch)) {
 		// 	LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected PatternMatch node.";
 		// 	return SimulateResult{false, false, false, false};
-		// } else if (auto r = instance_of(spec, RelyAnno)) { 
+		// } else if (auto r = instance_of(spec, RelyAnno)) {
 		// 	LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected RelyAnno node.";
 		// 	return SimulateResult{false, false, false, false};
-		// } else if (auto r = instance_of(spec, ForallExists)) { 
+		// } else if (auto r = instance_of(spec, ForallExists)) {
 		// 	LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Unexpected ForallExists node.";
 		// 	return SimulateResult{false, false, false, false};
 		} else {
@@ -777,7 +821,7 @@ namespace autov
 
 	/**
 	 * @brief Check relational property
-	 * 
+	 *
 	 * @param proj		The project
 	 * @param rel		The simulation relation
 	 * @param spec		The first trace
@@ -796,7 +840,7 @@ namespace autov
 		(*vars)[get_sim_name("st")] = proj->layers[0]->abs_data->declare(get_sim_name("st"), 0);
 		auto induction = std::make_shared<vector<z3::expr>>();
 		auto state = std::make_shared<ProveState>(vars, conds, induction);
-		
+
 		SpecNode* impl_body = nullptr, *spec_body = nullptr;
 
 		auto l_args = make_unique<vector<shared_ptr<Arg>>>();
@@ -841,7 +885,7 @@ namespace autov
 		auto prec = z3_eval(proj, precond.get(), state, false, true, used_fixpoint);
 		state->conds->push_back(prec->get_z3_value());
 		// add invariants for both
-		
+
 		for (auto proved : proj->verified_invariants) {
 			auto inv_for_spec = proj->sys_invs[proved].get();
 			auto inv_for_impl = proj->rules.build_simulate_spec(proj->sys_invs[proved]->deep_copy()).release();
@@ -902,7 +946,7 @@ namespace autov
 	}
 	std::ostream& operator<<(std::ostream& out, const SimulateResult& r)
 	{
-	return out << "{" 
+	return out << "{"
 		<< "\"verified\": "             << b_to_s(r.verified) << ", "
 		<< "\"spec_has_ub\": "          << b_to_s(r.spec_has_ub)  << ", "
 		<< "\"impl_eliminates_ub\": "   << b_to_s(r.impl_eliminates_ub)  << ", "

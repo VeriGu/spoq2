@@ -1077,7 +1077,7 @@ void trans_inv(Project *proj) {
         // }
 
         for(auto &inv: loop_inv) {
-            //LOG_DEBUG << "Processing loop invariant for " << string(*inv);
+            // LOG_DEBUG << "Processing loop invariant for " << string(*inv);
             type_inference::infer_type(*proj, inv.get(), known, Bool::BOOL);
             auto new_node = spec_transformer_v2(proj, std::move(inv), 0, true, true);
             inv.reset(new_node.release());
