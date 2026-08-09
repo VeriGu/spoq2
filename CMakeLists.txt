@@ -22,7 +22,7 @@ message(STATUS "Using Z3Config.cmake in: ${Z3_DIR}")
 # ------------------------------------------------------------------------------
 # LLVM
 # ------------------------------------------------------------------------------
-find_package(LLVM 14.0.0 REQUIRED CONFIG)
+find_package(LLVM 15.0.0 REQUIRED CONFIG)
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
@@ -98,7 +98,7 @@ target_link_libraries(json2coq ${Boost_LIBRARIES})
 target_link_libraries(json2coq irloader)
 target_link_libraries(json2coq ${LLVM_LIBRARIES})
 target_link_libraries(json2coq ${Z3_LIBRARIES})
- 
+
 # ------------------------------------------------------------------------------
 # Parser is compiled as a shared library
 # ------------------------------------------------------------------------------
@@ -112,7 +112,7 @@ add_library(parser SHARED ${PARSER_SOURCES})
 target_link_libraries(parser ${Boost_LIBRARIES})
 target_link_libraries(parser ${Z3_LIBRARIES})
 target_compile_options(parser PRIVATE -O3 -UDEBUG)
- 
+
 set(SOURCES
     src/main.cpp
     src/libs/log.cpp
@@ -165,6 +165,6 @@ target_link_libraries(spoq ${LLVM_LIBRARIES})
 target_link_libraries(spoq ${Z3_LIBRARIES})
 target_link_libraries(spoq ${Boost_LIBRARIES})
 # target_link_libraries(spoq libtcmalloc_and_profiler.so)
- 
+
 set_target_properties(spoq PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build")

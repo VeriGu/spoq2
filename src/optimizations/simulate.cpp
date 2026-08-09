@@ -457,6 +457,13 @@ namespace autov
 		int random_code = rand() % 10000;
 		LOG_DEBUG << "[simulate_by_traverse " << random_code << "] start!" << std::endl;
 		// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] start!" << std::endl << string(*spec) << std::endl;
+		// If the impl node is a Rely, discharge its prop into the state immediately
+		// and continue traversal on the Rely's body against the same spec.
+		if (auto impl_rely = instance_of(impl, Rely)) {
+			auto c = z3_eval(proj, impl_rely->prop.get(), state);
+			state->conds->push_back(c->get_z3_value());
+			return simulate_by_traverse(proj, spec, impl_rely->body.get(), rel, ret_rel, state, p, det);
+		}
 		if (auto expr = instance_of(spec, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {

@@ -52,7 +52,7 @@ find_package(LLVM 15 REQUIRED CONFIG)
 
 # Another sanity check
 if(NOT "15" VERSION_EQUAL "${LLVM_VERSION_MAJOR}")
-  message(FATAL_ERROR "Found LLVM ${LLVM_VERSION_MAJOR}, but need LLVM 16")
+  message(FATAL_ERROR "Found LLVM ${LLVM_VERSION_MAJOR}, but need LLVM 15")
 endif()
 
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
