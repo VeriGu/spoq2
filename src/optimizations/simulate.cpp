@@ -561,7 +561,8 @@ namespace autov
 					impl_m->match_list->size() == m->match_list->size()) {
 					set<string> impl_used_fix;
 					impl_src = z3_eval(proj, impl_m->src.get(), state, true, false, impl_used_fix);
-					// Scrutinees are equivalent iff there is no model in which they differ.
+					// srcs are equivalent iff there is no model in which they differ.
+					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Comparing Match src values: " << "Spec: " << string(*src) << "\nImpl: " << string(*impl_src);
 					auto diff_res = z3_check(state, (src->get_z3_value() != impl_src->get_z3_value()), &proj->query_saver, Z3_SIM_TIMEOUT);
 					if (diff_res == Z3Result::False) {
 						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Impl match src provably equivalent to spec, advancing impl.";
@@ -743,15 +744,12 @@ namespace autov
     					impl_cond_val = (impl_cond_val != 0);
     				}
     				// Conditions are equivalent iff there is no model in which they differ.
-   					// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] " << "Spec: " << string(*c) << "\nImpl: " << string(*impl_c);
+   					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Comparing if conditions: " << "Spec: " << string(*c) << "\nImpl: " << string(*impl_c);
     				auto diff_res = z3_check(state, (cond_val != impl_cond_val), &proj->query_saver, Z3_SIM_TIMEOUT);
     				if (diff_res == Z3Result::False) {
     					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Impl if-condition provably equivalent to spec, advancing impl.";
     					impl_then = impl_if->then_body.get();
     					impl_else = impl_if->else_body.get();
-    				} else {
-
-
     				}
 				}
 			}
