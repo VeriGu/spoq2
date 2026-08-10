@@ -119,7 +119,7 @@ std::string ExtractBasicsPass::generateStoreZField(std::string obj, int offset, 
 
 std::string ExtractBasicsPass::generateStore(llvm::StructType* sty) {
   auto ty_name = getStructTypeIdentifier(sty, false);
-  std::string definition = 
+  std::string definition =
     "Definition store_" + ty_name + " (sz: Z) (ofs:Z) (v:Z) " \
     " (st: " + ty_name + ") : option " + ty_name + " := \n";
   int n = sty->getNumElements();
@@ -159,7 +159,7 @@ std::string ExtractBasicsPass::generateLoadStructField(std::string obj, int offs
 
 std::string ExtractBasicsPass::generateLoad(llvm::StructType* sty) {
   auto ty_name = getStructTypeIdentifier(sty, false);
-  std::string definition = 
+  std::string definition =
     "Definition load_" + ty_name + " (sz: Z) (ofs:Z) " \
     " (st_" + ty_name + ": " + ty_name + ") : option Z := \n";
   int n = sty->getNumElements();
@@ -226,7 +226,7 @@ std::string ExtractBasicsPass::getFieldIdentifier(llvm::StructType* sty, int cou
   else if(used_id[name] != sty) {
     field_names[tyname][count] += "_" + getStructTypeIdentifier(sty, pointers_are_ptr);
     name = field_names[tyname][count];
-  } 
+  }
   return "e_" + name;
 }
 
@@ -332,7 +332,7 @@ void ExtractBasicsPass::runStruct(llvm::StructType *ty) {
 
     size_t count = 0;
     for(auto e: elements) {
-      if (count == elements.size() - 1) 
+      if (count == elements.size() - 1)
         record += "    " + getFieldIdentifier(ty, count, false) +" : " + generateField(e, false) + "\n";
       else
         record += "    " + getFieldIdentifier(ty, count, false) +" : " + generateField(e, false) + ";\n";
@@ -355,7 +355,7 @@ std::vector<llvm::StructType*> ExtractBasicsPass::sortTypes(std::vector<llvm::St
   std::map<llvm::StructType*, int> predecessor;
   std::map<llvm::StructType*, std::vector<llvm::StructType*> > g;
   std::vector<llvm::StructType*> sorted;
-  for(auto ty: vec) predecessor[ty] = 0; 
+  for(auto ty: vec) predecessor[ty] = 0;
   for(auto ty: vec) {
     for(llvm::Type* e: ty->elements()) {
       if(llvm::StructType* se = llvm::dyn_cast<llvm::StructType>(e)) {
@@ -416,7 +416,7 @@ bool ExtractBasicsPass::parseDebugInfo(llvm::DIType* ty, std::string name, int c
     int i = 0;
     for(auto element: ccty->getElements()) {
       if( auto ety = llvm::dyn_cast<llvm::DIType>(element) ) {
-        parseDebugInfo(ety, name, i); 
+        parseDebugInfo(ety, name, i);
       }
       ++i;
     }
@@ -457,10 +457,10 @@ void ExtractBasicsPass::generateRecordForStruct(llvm::Module &M) {
   std::filesystem::path abs_path = std::filesystem::absolute(file);
   llvm::errs() << "datatype info dumped into:" << abs_path.string() << "\n";
   return;
-}  
+}
 
 /* Given an LLVM function, build a string representation of that function in Coq
-   This will be either 1 Parameter for a declaration or 1 Parameter and 
+   This will be either 1 Parameter for a declaration or 1 Parameter and
    2 Definitions for a definition.  */
 std::string ExtractBasicsPass::buildDeclarationStub(const llvm::Function &f){
   // Here the args include the return type, because
@@ -496,11 +496,11 @@ std::string ExtractBasicsPass::buildDeclarationStub(const llvm::Function &f){
     arg_str = arg_str + "(" + arg_ty + "-> ";
     end_str = end_str + ")";
   }
-    
+
   std::string result;
   // If the function is not actually a declaration, we will also need a Definition
   if (f.isDeclaration()){
-    result = "Parameter " + name + " : " + arg_str + "(" + retty_str + end_str + ").";  
+    result = "Parameter " + name + " : " + arg_str + "(" + retty_str + end_str + ").";
   } else {
     result = "";
     result = "Parameter " + name + "_oracle : " + arg_str + "(" + retty_str + end_str + ").\n";
@@ -511,7 +511,7 @@ std::string ExtractBasicsPass::buildDeclarationStub(const llvm::Function &f){
       // needs to be real arg name
       std::string final_arg_name;
       if(arg_name.empty()) {
-        final_arg_name = "p_" + std::to_string(idx); 
+        final_arg_name = "p_" + std::to_string(idx);
       } else {
         final_arg_name = arg_name;
       }
@@ -522,7 +522,7 @@ std::string ExtractBasicsPass::buildDeclarationStub(const llvm::Function &f){
     result = result + "Definition " + name + " " + arg_str + ": "  + retty_str + " := (" + name + "_oracle " + param_str + ").\n";
     result = result + "Definition " + name + "_low " + arg_str + ": "  + retty_str + " := (" + name + "_oracle " + param_str + ").";
   }
-  
+
 
   return result;
 }
@@ -559,11 +559,11 @@ void ExtractBasicsPass::findAnonStructs(llvm::Module &M){
 void ExtractBasicsPass::generateFunctionStubs(llvm::Module &M) {
   auto file = M.getName().str() + ".declarations.v";
   std::ofstream fout;
-  
+
   fout.open(file, std::ios::out | std::ios::trunc);
   for( const llvm::Function &f: M.functions()){
     if(f.hasName()){
-      std::string s = buildDeclarationStub(f); 
+      std::string s = buildDeclarationStub(f);
       fout << s << std::endl;
     }
   }

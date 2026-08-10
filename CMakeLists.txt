@@ -28,6 +28,8 @@ add_definitions(${LLVM_DEFINITIONS})
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 llvm_map_components_to_libnames(LLVM_LIBRARIES support core irreader analysis passes)
+# set(NO_RTTI "-fno-rtti")
+# add_definitions(${NO_RTTI})
 
 
 # ------------------------------------------------------------------------------
