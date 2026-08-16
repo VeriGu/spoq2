@@ -29,5 +29,6 @@
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/ModuleSlotTracker.h"
+#include "llvm/BinaryFormat/Dwarf.h"
 
 using namespace llvm;

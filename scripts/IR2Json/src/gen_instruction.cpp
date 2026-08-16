@@ -6,12 +6,12 @@ namespace ir2json
     {
         json::Object inst;
         inst["type"] = "AllocaInst";
-        inst["align"] = I.getAlignment();
+        inst["align"] = I.getAlign().value();
         inst["assign"] = gen_value(&I);
         return inst;
     }
 
-    json::Value gen_AtomicCmpXchgInst(llvm::AtomicCmpXchgInst &I) 
+    json::Value gen_AtomicCmpXchgInst(llvm::AtomicCmpXchgInst &I)
     {
         json::Object inst;
         inst["type"] = "CmpXchgInst";
@@ -25,7 +25,7 @@ namespace ir2json
         return inst;
     }
 
-    json::Value gen_AtomicRMWInst(llvm::AtomicRMWInst &I) 
+    json::Value gen_AtomicRMWInst(llvm::AtomicRMWInst &I)
     {
         json::Object inst;
         inst["type"] = "AtomicRMWInst";
@@ -38,8 +38,8 @@ namespace ir2json
         return inst;
     }
 
-    json::Value gen_BinaryOperator(const llvm::BinaryOperator &I) 
-    { 
+    json::Value gen_BinaryOperator(const llvm::BinaryOperator &I)
+    {
         json::Object inst;
         inst["type"] = "BinaryOperator";
         inst["operator"] = std::string(I.getOpcodeName());
@@ -150,7 +150,7 @@ namespace ir2json
     }
 
     json::Value gen_FCmpInst(llvm::FCmpInst &I)
-    { 
+    {
         json::Object inst;
         inst["type"] = "FCmpInst";
         inst["predicate"] = I.getPredicateName(I.getPredicate()).str();
@@ -162,11 +162,11 @@ namespace ir2json
         inst["assign"] = gen_value(&I);
         return inst;
 
-        return json::Object(); 
+        return json::Object();
     }
 
     json::Value gen_FPExtInst(llvm::FPExtInst &I)
-    { 
+    {
         json::Object inst;
         inst["type"] = "FPExtInst";
         inst["src"] = gen_value(I.getOperand(0));
@@ -175,7 +175,7 @@ namespace ir2json
     }
 
     json::Value gen_FPToSIInst(llvm::FPToSIInst &I)
-    { 
+    {
         json::Object inst;
         inst["type"] = "FPToSIInst";
         inst["src"] = gen_value(I.getOperand(0));
@@ -184,7 +184,7 @@ namespace ir2json
     }
 
     json::Value gen_FPToUIInst(llvm::FPToUIInst &I)
-    { 
+    {
         json::Object inst;
         inst["type"] = "FPToUIInst";
         inst["src"] = gen_value(I.getOperand(0));
@@ -201,7 +201,7 @@ namespace ir2json
         return inst;
     }
 
-    json::Value gen_FenceInst(llvm::FenceInst &I) 
+    json::Value gen_FenceInst(llvm::FenceInst &I)
     {
         json::Object inst;
         inst["type"] = "FenceInst";
@@ -218,8 +218,8 @@ namespace ir2json
         return inst;
     }
 
-    json::Value gen_GetElementPtrInst(llvm::GetElementPtrInst &I) 
-    { 
+    json::Value gen_GetElementPtrInst(llvm::GetElementPtrInst &I)
+    {
         json::Object inst;
         inst["type"] = "GetElementPtrInst";
         inst["assign"] = gen_value(&I);
@@ -234,8 +234,8 @@ namespace ir2json
         return inst;
     }
 
-    json::Value gen_ICmpInst(llvm::ICmpInst &I) 
-    { 
+    json::Value gen_ICmpInst(llvm::ICmpInst &I)
+    {
         json::Object inst;
         inst["type"] = "ICmpInst";
         inst["predicate"] = I.getPredicateName(I.getPredicate()).str();
@@ -247,7 +247,7 @@ namespace ir2json
         inst["assign"] = gen_value(&I);
         return inst;
 
-        return json::Object(); 
+        return json::Object();
     }
 
     json::Value gen_InsertElementInst(llvm::InsertElementInst &I)
@@ -278,7 +278,7 @@ namespace ir2json
     }
 
     json::Value gen_IntToPtrInst(llvm::IntToPtrInst &I)
-    { 
+    {
         json::Object inst;
         inst["type"] = "IntToPtrInst";
         inst["src"] = gen_value(I.getOperand(0));
@@ -286,17 +286,17 @@ namespace ir2json
         return inst;
     }
 
-    json::Value gen_LoadInst(llvm::LoadInst &I) 
-    { 
+    json::Value gen_LoadInst(llvm::LoadInst &I)
+    {
         json::Object inst;
         inst["type"] = "LoadInst";
         inst["assign"] = gen_value(&I);
         inst["src"] = gen_value(I.getPointerOperand());
-        inst["align"] = I.getAlignment();
+        inst["align"] = I.getAlign().value();
         return inst;
     }
 
-    json::Value gen_PHINode(llvm::PHINode &I) 
+    json::Value gen_PHINode(llvm::PHINode &I)
     {
         json::Object inst;
         inst["type"] = "PHINode";
@@ -313,7 +313,7 @@ namespace ir2json
     }
 
     json::Value gen_PtrToIntInst(llvm::PtrToIntInst &I)
-    { 
+    {
         json::Object inst;
         inst["type"] = "PtrToIntInst";
         inst["src"] = gen_value(I.getOperand(0));
@@ -321,7 +321,7 @@ namespace ir2json
         return inst;
     }
 
-    json::Value gen_ReturnInst(llvm::ReturnInst &I) 
+    json::Value gen_ReturnInst(llvm::ReturnInst &I)
     {
         json::Object inst;
         inst["type"] = "ReturnInst";
@@ -339,7 +339,7 @@ namespace ir2json
     }
 
     json::Value gen_SExtInst(llvm::SExtInst &I)
-    { 
+    {
         json::Object inst;
         inst["type"] = "SExtInst";
         inst["src"] = gen_value(I.getOperand(0));
@@ -348,7 +348,7 @@ namespace ir2json
     }
 
     json::Value gen_SIToFPInst(llvm::SIToFPInst &I)
-    { 
+    {
         json::Object inst;
         inst["type"] = "SIToFPInst";
         inst["src"] = gen_value(I.getOperand(0));
@@ -356,7 +356,7 @@ namespace ir2json
         return inst;
     }
 
-    json::Value gen_SelectInst(llvm::SelectInst &I) 
+    json::Value gen_SelectInst(llvm::SelectInst &I)
     {
         json::Object inst;
         inst["type"] = "SelectInst";
@@ -367,7 +367,7 @@ namespace ir2json
         return inst;
     }
 
-    json::Value gen_ShuffleVectorInst(llvm::ShuffleVectorInst &I) 
+    json::Value gen_ShuffleVectorInst(llvm::ShuffleVectorInst &I)
     {
         json::Object inst;
         inst["type"] = "ShuffleVectorInst";
@@ -380,13 +380,13 @@ namespace ir2json
         return inst;
     }
 
-    json::Value gen_StoreInst(llvm::StoreInst &I) 
-    { 
+    json::Value gen_StoreInst(llvm::StoreInst &I)
+    {
         json::Object inst;
         inst["type"] = "StoreInst";
         inst["src"] = gen_value(I.getValueOperand());
         inst["target"] = gen_value(I.getPointerOperand());
-        inst["align"] = I.getAlignment();
+        inst["align"] = I.getAlign().value();
         return inst;
     }
 
@@ -409,7 +409,7 @@ namespace ir2json
     }
 
     json::Value gen_TruncInst(llvm::TruncInst &I)
-    { 
+    {
         json::Object inst;
         inst["type"] = "TruncInst";
         inst["src"] = gen_value(I.getOperand(0));
@@ -426,8 +426,8 @@ namespace ir2json
         return inst;
     }
 
-    json::Value gen_UnaryOperator(const llvm::UnaryOperator &I) 
-    { 
+    json::Value gen_UnaryOperator(const llvm::UnaryOperator &I)
+    {
         json::Object inst;
         inst["type"] = "UnaryOperator";
         inst["operator"] = std::string(I.getOpcodeName());
@@ -448,7 +448,7 @@ namespace ir2json
     }
 
     json::Value gen_ZExtInst(llvm::ZExtInst &I)
-    { 
+    {
         json::Object inst;
         inst["type"] = "ZExtInst";
         inst["src"] = gen_value(I.getOperand(0));

@@ -8,6 +8,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfo.h"
+#include "llvm/BinaryFormat/Dwarf.h"
 #include <utility>
 #include <string>
 #include <vector>
@@ -390,7 +391,7 @@ std::vector<llvm::StructType*> ExtractBasicsPass::sortTypes(std::vector<llvm::St
 bool ExtractBasicsPass::parseDebugInfo(llvm::DIType* ty, std::string name, int count = 0) {
   llvm::DICompositeType* ccty;
   if (name == "") {
-    if (ty->getTag() == llvm::dwarf::Tag::DW_TAG_typedef) {
+    if (ty->getTag() == llvm::dwarf::DW_TAG_typedef) {
       if (auto dty = llvm::dyn_cast<llvm::DIDerivedType>(ty)) {
         if (!dty->getBaseType()) return false;
         if (auto cty = llvm::dyn_cast<llvm::DICompositeType>(dty->getBaseType())) {
@@ -401,7 +402,7 @@ bool ExtractBasicsPass::parseDebugInfo(llvm::DIType* ty, std::string name, int c
           ccty = cty;
         } else return false;
       }
-    } else if(ty->getTag() == llvm::dwarf::Tag::DW_TAG_structure_type) {
+    } else if(ty->getTag() == llvm::dwarf::DW_TAG_structure_type) {
       if(auto cty = llvm::dyn_cast<llvm::DICompositeType>(ty) ) {
         if(cty->getName().empty()) {
           return false;
@@ -550,7 +551,7 @@ void ExtractBasicsPass::findAnonStructs(llvm::Module &M){
 
   for (auto &gv: M.globals()){
     // auto name = gv.getName();
-    auto ty = gv.getType()->getPointerElementType();
+    auto ty = gv.getValueType();
     if (ty->isStructTy() && ty->getStructName().empty()) {
       registerAnonStruct(static_cast<llvm::StructType*>(ty));
     }

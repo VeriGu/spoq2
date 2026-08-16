@@ -83,7 +83,7 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Compiler flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall\
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-deprecated-declarations\
   -fdiagnostics-color=always -fPIC")
 
 # LLVM is normally built without RTTI. Be consistent with that.

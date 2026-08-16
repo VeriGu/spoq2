@@ -121,7 +121,7 @@ namespace ir2json
             return type;
         }
     }
-    
+
     int calc_struct_ofs(llvm::DICompositeType *dict, int ofs, int indent);
     static void print_array(llvm::DIType *dit, int ofs, int indent)
     {
