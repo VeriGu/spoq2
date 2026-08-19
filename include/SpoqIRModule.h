@@ -181,6 +181,23 @@ namespace autov {
         }
 
         /**
+         * @brief Look up `val` in `value_map` WITHOUT inserting anything.
+         *
+         * `llvm::ValueToValueMapTy::operator[]` is a DenseMap subscript: on a
+         * miss it default-constructs a NULL entry in the map.  Later,
+         * `llvm::remapInstructionsInBlocks` walks the same map and asserts
+         * `I->second && "Unexpected null mapping"` on any such entry.  So the
+         * map must only ever be probed with `find`, never with `[]`.
+         *
+         * @return The mapped value, or `val` itself when it is not mapped.
+         */
+        static llvm::Value* mapped_or_self(llvm::ValueToValueMapTy &value_map, llvm::Value* val) {
+            auto it = value_map.find(val);
+            if (it == value_map.end() || !it->second) return val;
+            return it->second;
+        }
+
+        /**
          * @brief Fix PHI nodes in loop headers and post headers. This must be called if a in-loop basic block is cloned.
          * 
          * @param src The source block
@@ -192,8 +209,7 @@ namespace autov {
                 for(auto& phi: loopheader->phis()) {
                     for(int i = 0; i < phi.getNumIncomingValues(); i++) {
                         if(phi.getIncomingBlock(i) == src) {
-                            auto val = phi.getIncomingValue(i);
-                            if (value_map[val] != nullptr ) val = value_map[val];
+                            auto val = mapped_or_self(value_map, phi.getIncomingValue(i));
                             phi.addIncoming(val, cloned);
                         }
                     }
@@ -203,8 +219,7 @@ namespace autov {
                 for(auto& phi: postheader->phis()) {
                     for(int i = 0; i < phi.getNumIncomingValues(); i++) {
                         if(phi.getIncomingBlock(i) == src) {
-                            auto val = phi.getIncomingValue(i);
-                            if (value_map[val] != nullptr ) val = value_map[val];
+                            auto val = mapped_or_self(value_map, phi.getIncomingValue(i));
                             phi.addIncoming(val, cloned);
                         }
                     }
@@ -293,8 +308,10 @@ namespace autov {
         inline void update_jump(llvm::ValueToValueMapTy &value_map) {
             std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*>> records;
             for (auto &pair: jump) {
-                auto v1 = llvm::dyn_cast_or_null<llvm::BasicBlock>(value_map[pair.first]);
-                auto v2 = llvm::dyn_cast_or_null<llvm::BasicBlock>(value_map[pair.second]);
+                auto i1 = value_map.find(pair.first);
+                auto i2 = value_map.find(pair.second);
+                auto v1 = i1 == value_map.end() ? nullptr : llvm::dyn_cast_or_null<llvm::BasicBlock>(i1->second);
+                auto v2 = i2 == value_map.end() ? nullptr : llvm::dyn_cast_or_null<llvm::BasicBlock>(i2->second);
                 assert(((!v1)== (!v2)) && "only one of the jump start and target is duplicated");
                 if (v1 && v2) {
                     records.push_back(std::make_pair(v1, v2));
