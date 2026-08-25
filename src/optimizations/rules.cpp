@@ -4103,7 +4103,24 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
                 //     body = make_unique<Rely>(f->deep_copy(), std::move(body));
                 // }
                 // LOG_DEBUG << "Unfolding with relys:" << string(*body);
-                assert(e->elems->size() >= define->args->size());
+                if (e->elems->size() < define->args->size()) {
+                    string msg = "Call to " + define->name + " passes " +
+                                 std::to_string(e->elems->size()) + " argument(s) but " +
+                                 define->name + " takes " + std::to_string(define->args->size()) +
+                                 ". A hand-written spec for it is probably out of date.";
+                    LOG_ERROR << msg;
+                    throw std::runtime_error(msg);
+                }
+                if (e->elems->size() > define->args->size()) {
+                    // Dropping arguments is only sound for a varargs stub.  For anything else
+                    // it silently pairs actuals with the wrong formals, which later blows up as
+                    // an "Overwriting type X with Y" far away from the real cause, so say so here.
+                    LOG_ERROR << "Call to " << define->name << " passes " << e->elems->size()
+                              << " argument(s) but " << define->name << " takes "
+                              << define->args->size()
+                              << "; dropping the extras as varargs. If " << define->name
+                              << " is not varargs, its declared signature is out of date.";
+                }
                 while(e->elems->size() > define->args->size()){
                     // This is a varargs function and we are going to drop our extra args.
                     // We drop the second to last argument to keep the state at the back.

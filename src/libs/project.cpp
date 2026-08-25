@@ -1354,6 +1354,59 @@ bool Project::finalize_project_v2() {
 }
 
 
+/**
+ * @brief Render a definition's parameter list and return type, e.g.
+ *        "(a: Ptr) (b: Z) (st: RData) : (option (Z * RData))".
+ *
+ * Used to tell the user what signature a hand-written spec is expected to have.
+ */
+static string signature_string(const Definition *def) {
+    string sig;
+    for (auto &arg : *def->args)
+        sig += "(" + arg->name + ": " + string(*arg->type) + ") ";
+    sig += ": " + string(*def->rettype);
+    return sig;
+}
+
+/**
+ * @brief Check that a hand-written high spec lines up with the low spec inferred from the IR.
+ *
+ * Calls to the high spec are emitted by the frontend using the *low* spec's parameter list,
+ * so a stale hand-written definition (e.g. one written against an older IR) makes the
+ * unfolder pair up arguments and parameters that have nothing to do with each other.  That
+ * used to surface much later as an unhandled "Overwriting type X with Y" from
+ * SpecNode::set_type, with nothing pointing back at the offending definition.
+ */
+static void check_provided_spec_signature(const Definition *provided, const Definition *low_def) {
+    if (!provided->args || !low_def->args)
+        return;
+
+    string problem;
+    if (provided->args->size() != low_def->args->size()) {
+        problem = "takes " + std::to_string(provided->args->size()) + " argument(s), but " +
+                  low_def->name + " takes " + std::to_string(low_def->args->size());
+    } else {
+        for (size_t i = 0; i < provided->args->size(); i++) {
+            auto &given = provided->args->at(i)->type;
+            auto &expected = low_def->args->at(i)->type;
+            if (!given || !expected || given->name == expected->name)
+                continue;
+            problem = "declares argument " + std::to_string(i + 1) + " (" +
+                      provided->args->at(i)->name + ") as " + given->name + ", but " +
+                      low_def->name + " expects " + expected->name;
+            break;
+        }
+    }
+
+    if (problem.empty())
+        return;
+
+    string msg = "Provided spec " + provided->name + " " + problem +
+                 ".\n  Expected signature: " + provided->name + " " + signature_string(low_def);
+    LOG_ERROR << msg;
+    throw std::runtime_error(msg);
+}
+
 std::tuple<string, vector<Definition *> *, vector<unique_ptr<Definition>> *>
 Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
 
@@ -1390,6 +1443,7 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
             proj->deps[high_name] = proj->calc_dependencies(_def->body.get());
 
             if (_def->body) {
+                check_provided_spec_signature(_def, low_def.get());
                 LOG_INFO << "Provided: " << high_name << std::endl;
                 proj->update_symbol_loc(high_name, make_shared<loc_t>(proj->layers[layer_id]->name, Project::LOC_SPEC, ""));
                 continue;
