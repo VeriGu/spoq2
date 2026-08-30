@@ -19,6 +19,7 @@
 #include <vector>
 #include <queue>
 #include <map>
+#include <set>
 #include <fstream>
 #include <filesystem>
 #include "../../../include/anon_structs.h"
@@ -41,6 +42,9 @@ class ExtractBasicsPass : public llvm::PassInfoMixin<ExtractBasicsPass> {
   std::map<std::string, llvm::StructType*> used_id;
   std::map<llvm::StructType*, std::vector<llvm::Type*>> generated_types;
   std::map<llvm::StructType*, std::string> anon_structs;
+  // Registration order, innermost first, so a nested anonymous struct is
+  // emitted before the one that contains it.
+  std::vector<llvm::StructType*> anon_struct_order;
   ExtractBasicsPass() {
   }
   bool isUnion(llvm::StructType* ty);
@@ -63,6 +67,7 @@ class ExtractBasicsPass : public llvm::PassInfoMixin<ExtractBasicsPass> {
   std::vector<llvm::StructType*> sortTypes(std::vector<llvm::StructType*>);
   void generateAnonStructRecords();
   void registerAnonStruct(llvm::StructType *ty);
+  void registerAnonStructsIn(llvm::Type *ty, std::set<llvm::Type*> &seen);
   void findAnonStructs(llvm::Module &M);
   void generateRecordForStruct(llvm::Module &M);
   std::string buildDeclarationStub(const llvm::Function &f);
@@ -460,8 +465,8 @@ void ExtractBasicsPass::generateRecordForStruct(llvm::Module &M) {
   for (llvm::StructType *structType : s) {
     runStruct(structType);
   }
-  for (auto s: anon_structs) {
-    runStruct(s.first);
+  for (llvm::StructType *anon: anon_struct_order) {
+    runStruct(anon);
   }
 
   fout.close();
@@ -543,29 +548,48 @@ void ExtractBasicsPass::generateAnonStructRecords(){
 }
 void ExtractBasicsPass::registerAnonStruct(llvm::StructType* ty){
   auto struct_name = getStructTypeIdentifier(ty, false);
-  anon_structs.emplace(ty, struct_name);
+  if (anon_structs.emplace(ty, struct_name).second)
+    anon_struct_order.push_back(ty);
+}
+
+/* Register every anonymous struct reachable from [ty].
+
+   An anonymous struct only ever has to be *mentioned* to end up in the
+   generated Coq, and the mention can sit arbitrarily deep inside a type: a
+   global of type [2 x { ptr, i8, [7 x i8] }] names its element struct nowhere
+   else in the module.  Walking the whole type also covers anonymous structs
+   used as a field of a named struct, which getFieldIdentifier would otherwise
+   fail to look up.  Elements are visited before the struct itself so that the
+   nested definition is emitted first. */
+void ExtractBasicsPass::registerAnonStructsIn(llvm::Type *ty, std::set<llvm::Type*> &seen){
+  if (!ty || !seen.insert(ty).second) return;
+
+  if (auto *sty = llvm::dyn_cast<llvm::StructType>(ty)) {
+    if (sty->isOpaque()) return;
+    for (llvm::Type *elem : sty->elements())
+      registerAnonStructsIn(elem, seen);
+    if (!sty->hasName())
+      registerAnonStruct(sty);
+  } else if (auto *aty = llvm::dyn_cast<llvm::ArrayType>(ty)) {
+    registerAnonStructsIn(aty->getElementType(), seen);
+  } else if (auto *vty = llvm::dyn_cast<llvm::VectorType>(ty)) {
+    registerAnonStructsIn(vty->getElementType(), seen);
+  }
 }
 void ExtractBasicsPass::findAnonStructs(llvm::Module &M){
-    for( const llvm::Function &f: M.functions()){
-      for(auto &a: f.args()) {
-      auto ty = a.getType();
-      if (ty->isStructTy() && ty->getStructName().empty()) {
-        registerAnonStruct(static_cast<llvm::StructType*>(ty));
-      }
-    }
-    auto ty = f.getReturnType();
-    if (ty->isStructTy() && ty->getStructName().empty()){
-      registerAnonStruct(static_cast<llvm::StructType*>(ty));
-    }
+  std::set<llvm::Type*> seen;
+
+  for (const llvm::Function &f: M.functions()){
+    for (auto &a: f.args())
+      registerAnonStructsIn(a.getType(), seen);
+    registerAnonStructsIn(f.getReturnType(), seen);
   }
 
-  for (auto &gv: M.globals()){
-    // auto name = gv.getName();
-    auto ty = gv.getValueType();
-    if (ty->isStructTy() && ty->getStructName().empty()) {
-      registerAnonStruct(static_cast<llvm::StructType*>(ty));
-    }
-  }
+  for (auto &gv: M.globals())
+    registerAnonStructsIn(gv.getValueType(), seen);
+
+  for (llvm::StructType *sty: M.getIdentifiedStructTypes())
+    registerAnonStructsIn(sty, seen);
 }
 void ExtractBasicsPass::generateFunctionStubs(llvm::Module &M) {
   auto file = M.getName().str() + ".declarations.v";
