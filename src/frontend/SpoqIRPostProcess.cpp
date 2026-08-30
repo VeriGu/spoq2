@@ -31,7 +31,8 @@ int SpoqIRModule::find_inline_asm(spoq_inst_vec_t &insts) {
                 call->getCalledOperand());
             assert(asm_func && "Inline asm function is nullptr");
             string iasm_prefix = "";
-            string asm_text = asm_func->getAsmString();
+            // getAsmString() returns a StringRef in LLVM 23.
+            string asm_text = asm_func->getAsmString().str();
             if (asm_text.find("smc") != string::npos)
                 iasm_prefix = "smc_";
             auto norm_asm_id = std::regex_replace(asm_text, std::regex("[^a-zA-Z0-9]"), "_");
@@ -42,7 +43,7 @@ int SpoqIRModule::find_inline_asm(spoq_inst_vec_t &insts) {
             }
 
             string old_name = fname;
-            string constraints = asm_func->getConstraintString();
+            string constraints = asm_func->getConstraintString().str();
             auto rettype = call->getType();
 
             vector<llvm::Type *> arg_types;

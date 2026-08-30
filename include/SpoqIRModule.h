@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <unordered_set>
 #include <stack>
+#include <queue>
 
 #include "SpoqIR.h"
 #include "inline_asm.h"

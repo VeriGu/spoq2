@@ -1,5 +1,10 @@
 #include "llvm/IR/Type.h"
-#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/Passes/PassBuilder.h"
+// PassPlugin.h moved from llvm/Passes/ to llvm/Plugins/ in LLVM 23, and the
+// plugin API version went from 1 to 2.  Including the old path silently picks
+// up an older LLVM if one is installed under /usr/local.
+#include "llvm/Plugins/PassPlugin.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
@@ -25,9 +30,8 @@
 // mergefunc "
 //  "transformations are made."));
 
-class RMOptNonePass : public llvm::ModulePass {
+class RMOptNonePass : public llvm::PassInfoMixin<RMOptNonePass> {
  public:
-  static char ID;
   const llvm::DataLayout* dl;
   llvm::LLVMContext* context;
 
@@ -38,8 +42,14 @@ class RMOptNonePass : public llvm::ModulePass {
   std::vector<llvm::Function*> sources;
 
   void remove_opt_none(llvm::Module &M);
-  RMOptNonePass() : ModulePass(ID) { }
-  bool runOnModule(llvm::Module& M) override {
+  RMOptNonePass() { }
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+    runOnModule(M);
+    return llvm::PreservedAnalyses::none();
+  }
+  static bool isRequired() { return true; }
+
+  bool runOnModule(llvm::Module& M) {
     context = &M.getContext();
     dl = &M.getDataLayout();
     remove_opt_none(M);
@@ -56,10 +66,26 @@ void RMOptNonePass::remove_opt_none(llvm::Module& M) {
     }
 }
 
-char RMOptNonePass::ID = 0;
 
-static llvm::RegisterPass<RMOptNonePass> X(
-    "rm_opt_none", "Remove the optnone attribute from all functions",
-    false,  // This pass doesn't modify the CFG => true
-    false   // This pass is not a pure analysis pass => false
-);
+// LLVM 17 dropped the legacy pass manager from opt, so the pass is exposed as a
+// New PM plugin.  Run it with:
+//   opt-17 --load-pass-plugin=<lib> -passes=rm_opt_none ...
+llvm::PassPluginLibraryInfo getRMOptNonePassPluginInfo() {
+  return {LLVM_PLUGIN_API_VERSION, "rm_opt_none", LLVM_VERSION_STRING,
+          [](llvm::PassBuilder &PB) {
+            PB.registerPipelineParsingCallback(
+                [](llvm::StringRef Name, llvm::ModulePassManager &MPM,
+                   llvm::ArrayRef<llvm::PassBuilder::PipelineElement>) {
+                  if (Name == "rm_opt_none") {
+                    MPM.addPass(RMOptNonePass());
+                    return true;
+                  }
+                  return false;
+                });
+          }};
+}
+
+extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
+llvmGetPassPluginInfo() {
+  return getRMOptNonePassPluginInfo();
+}

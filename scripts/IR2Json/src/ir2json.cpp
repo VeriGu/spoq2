@@ -14,7 +14,7 @@ void pretty_print(json::Value val, int indent = 0)
     }
     case json::Value::Boolean:
     {
-        if (val.getAsBoolean().getValue())
+        if (val.getAsBoolean().value())
         {
             std::cout << "true";
         }
@@ -26,12 +26,12 @@ void pretty_print(json::Value val, int indent = 0)
     }
     case json::Value::Number:
     {
-        std::cout << val.getAsNumber().getValue();
+        std::cout << val.getAsNumber().value();
         break;
     }
     case json::Value::String:
     {
-        std::cout << '"' << val.getAsString().getValue().str() << '"';
+        std::cout << '"' << val.getAsString().value().str() << '"';
         break;
     }
     case json::Value::Object:

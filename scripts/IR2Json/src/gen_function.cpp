@@ -5,7 +5,7 @@ namespace ir2json
     json::Value gen_basic_block(llvm::BasicBlock &bb)
     {
         json::Value obj = json::Array();
-        for (auto &instr : bb.getInstList()) {
+        for (auto &instr : bb) {
             obj.getAsArray()->push_back(gen_instruction(instr));
         }
         return obj;
@@ -46,7 +46,7 @@ namespace ir2json
             const std::string entry = printValue(&func.getEntryBlock());
             obj["entry"] = entry;
             auto blocks = json::Object();
-            for (auto &bb : func.getBasicBlockList())
+            for (auto &bb : func)
             {
                 blocks[printValue(&bb)] = gen_basic_block(bb);
             }

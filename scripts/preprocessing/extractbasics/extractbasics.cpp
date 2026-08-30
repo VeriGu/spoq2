@@ -1,5 +1,10 @@
 #include "llvm/IR/Type.h"
-#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/Passes/PassBuilder.h"
+// PassPlugin.h moved from llvm/Passes/ to llvm/Plugins/ in LLVM 23, and the
+// plugin API version went from 1 to 2.  Including the old path silently picks
+// up an older LLVM if one is installed under /usr/local.
+#include "llvm/Plugins/PassPlugin.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
@@ -24,9 +29,8 @@
 // mergefunc "
 //  "transformations are made."));
 
-class ExtractBasicsPass : public llvm::ModulePass {
+class ExtractBasicsPass : public llvm::PassInfoMixin<ExtractBasicsPass> {
  public:
-  static char ID;
 
   std::string file;
   std::ofstream fout;
@@ -37,7 +41,7 @@ class ExtractBasicsPass : public llvm::ModulePass {
   std::map<std::string, llvm::StructType*> used_id;
   std::map<llvm::StructType*, std::vector<llvm::Type*>> generated_types;
   std::map<llvm::StructType*, std::string> anon_structs;
-  ExtractBasicsPass() : ModulePass(ID) {
+  ExtractBasicsPass() {
   }
   bool isUnion(llvm::StructType* ty);
   int getSizeForType(llvm::Type* ty);
@@ -63,7 +67,13 @@ class ExtractBasicsPass : public llvm::ModulePass {
   void generateRecordForStruct(llvm::Module &M);
   std::string buildDeclarationStub(const llvm::Function &f);
   void generateFunctionStubs(llvm::Module &M);
-  bool runOnModule(llvm::Module &M) override {
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+    runOnModule(M);
+    return llvm::PreservedAnalyses::none();
+  }
+  static bool isRequired() { return true; }
+
+  bool runOnModule(llvm::Module &M) {
       context = &M.getContext();
       dl = &M.getDataLayout();
       findAnonStructs(M);
@@ -75,7 +85,7 @@ class ExtractBasicsPass : public llvm::ModulePass {
 };
 
 bool ExtractBasicsPass::isUnion(llvm::StructType* ty) {
-  return ty->getName().startswith("union.");
+  return ty->getName().starts_with("union.");
 }
 
 std::string ExtractBasicsPass::generateStoreStructField(std::string obj, int offset, std::string field, llvm::StructType* ty) {
@@ -573,10 +583,26 @@ void ExtractBasicsPass::generateFunctionStubs(llvm::Module &M) {
   llvm::errs() << "function decl info dumped into:" << abs_path.string() << "\n";
 
 }
-char ExtractBasicsPass::ID = 0;
 
-static llvm::RegisterPass<ExtractBasicsPass> X(
-    "extractbasics", "Extract datatype and global objects",
-    false,  // This pass doesn't modify the CFG => true
-    false   // This pass is not a pure analysis pass => false
-);
+// LLVM 17 dropped the legacy pass manager from opt, so the pass is exposed as a
+// New PM plugin.  Run it with:
+//   opt-17 --load-pass-plugin=<lib> -passes=extractbasics ...
+llvm::PassPluginLibraryInfo getExtractBasicsPassPluginInfo() {
+  return {LLVM_PLUGIN_API_VERSION, "extractbasics", LLVM_VERSION_STRING,
+          [](llvm::PassBuilder &PB) {
+            PB.registerPipelineParsingCallback(
+                [](llvm::StringRef Name, llvm::ModulePassManager &MPM,
+                   llvm::ArrayRef<llvm::PassBuilder::PipelineElement>) {
+                  if (Name == "extractbasics") {
+                    MPM.addPass(ExtractBasicsPass());
+                    return true;
+                  }
+                  return false;
+                });
+          }};
+}
+
+extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
+llvmGetPassPluginInfo() {
+  return getExtractBasicsPassPluginInfo();
+}

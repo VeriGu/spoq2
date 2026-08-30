@@ -1,6 +1,11 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
-#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/Passes/PassBuilder.h"
+// PassPlugin.h moved from llvm/Passes/ to llvm/Plugins/ in LLVM 23, and the
+// plugin API version went from 1 to 2.  Including the old path silently picks
+// up an older LLVM if one is installed under /usr/local.
+#include "llvm/Plugins/PassPlugin.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
@@ -12,6 +17,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Operator.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include <utility>
@@ -30,9 +36,38 @@
 // mergefunc "
 //  "transformations are made."));
 
-class ExtractPointersPass : public llvm::ModulePass {
+/**
+ * @brief Recover the type a pointer argument points at, or nullptr if unknown.
+ *
+ * Opaque pointers dropped the pointee from the pointer type itself, so reconstruct it
+ * from what the IR still records: an explicit byval/sret/elementtype attribute, or the
+ * type an instruction using the pointer accesses it as.  An unresolved pointer is
+ * reported as "not_ptr_or_array", which only ever drops a generated precondition.
+ */
+static llvm::Type *recoverPointeeType(llvm::Argument *arg) {
+  for (auto *ty : {arg->getParamByValType(), arg->getParamStructRetType(),
+                   arg->getParamByRefType(), arg->getParamInAllocaType()})
+    if (ty)
+      return ty;
+
+  for (auto *user : arg->users()) {
+    if (auto *gep = llvm::dyn_cast<llvm::GEPOperator>(user)) {
+      if (gep->getPointerOperand() == arg)
+        return gep->getSourceElementType();
+    } else if (auto *load = llvm::dyn_cast<llvm::LoadInst>(user)) {
+      if (load->getPointerOperand() == arg)
+        return load->getType();
+    } else if (auto *store = llvm::dyn_cast<llvm::StoreInst>(user)) {
+      if (store->getPointerOperand() == arg)
+        return store->getValueOperand()->getType();
+    }
+  }
+
+  return nullptr;
+}
+
+class ExtractPointersPass : public llvm::PassInfoMixin<ExtractPointersPass> {
  public:
-  static char ID;
 
   std::string file;
   std::ofstream fout;
@@ -70,11 +105,10 @@ class ExtractPointersPass : public llvm::ModulePass {
     return "stack_" + getTypeIdentifier(ty) + "__" + std::to_string(id);
   }
   std::string getGVIdentifier(llvm::GlobalVariable* v) {
-    if(v->isConstant() && v->getType()->isPointerTy() && 
-      v->getType()->getPointerElementType()->isArrayTy() && 
-      v->getType()->getPointerElementType()->getArrayElementType()->isIntegerTy() && 
-      v->hasName() && v->getName().startswith(".str.")){
-        // (!v->getName().endswith("_vuln") || !v->getName().endswith("_patch"))){
+    if(v->isConstant() && v->getValueType()->isArrayTy() &&
+      v->getValueType()->getArrayElementType()->isIntegerTy() &&
+      v->hasName() && v->getName().starts_with(".str.")){
+        // (!v->getName().ends_with("_vuln") || !v->getName().ends_with("_patch"))){
       std::string name = "g_merged_constant_global_string";
       return name;
     } else {
@@ -101,7 +135,7 @@ class ExtractPointersPass : public llvm::ModulePass {
   }
 
   bool isUnion(llvm::StructType* ty) {
-    return ty->getName().startswith("union.");
+    return ty->getName().starts_with("union.");
   }
 
   std::string generateGlobalBaseDefinition() {
@@ -165,8 +199,14 @@ class ExtractPointersPass : public llvm::ModulePass {
 
 
   bool is_debug_intrinsic(llvm::StringRef fname);
-  ExtractPointersPass() : ModulePass(ID) { }
-  bool runOnModule(llvm::Module& M) override {
+  ExtractPointersPass() { }
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+    runOnModule(M);
+    return llvm::PreservedAnalyses::none();
+  }
+  static bool isRequired() { return true; }
+
+  bool runOnModule(llvm::Module& M) {
     context = &M.getContext();
     dl = &M.getDataLayout();
     file = M.getName().str() + ".machine.v";
@@ -258,7 +298,7 @@ std::string ExtractPointersPass::generateField(llvm::Type* ty) {
 
 bool ExtractPointersPass::is_debug_intrinsic(llvm::StringRef fname) {
   for (auto l : debug_intrinsics) {
-    if (fname.startswith(l) || fname.endswith(l)) return true;
+    if (fname.starts_with(l) || fname.ends_with(l)) return true;
   }
   return false;
 }
@@ -267,7 +307,7 @@ std::map<llvm::Type*, int> ExtractPointersPass::dfsStack(
     llvm::Function* func, std::vector<llvm::Function*>& vec) {
   visited[func] = 1;
   std::vector<llvm::Function*> succ;
-  for (auto& B : func->getBasicBlockList()) {
+  for (auto& B : *func) {
     for (auto& I : B) {
       auto inst = &I;
       if (auto ci = llvm::dyn_cast<llvm::CallInst>(inst)) {
@@ -687,8 +727,9 @@ void ExtractPointersPass::dumpMemTypInfo(std::string filename, llvm::Module &M){
       auto ty = arg.getType();
       // here need to check if ty is pointer and if it is get the unique id of the pointed to type
       std::string ty_str;
-      if (ty->isPointerTy()) {
-        ty_str = getTypeIdentifier(ty->getPointerElementType());
+      llvm::Type* pointee = ty->isPointerTy() ? recoverPointeeType(&arg) : nullptr;
+      if (pointee) {
+        ty_str = getTypeIdentifier(pointee);
       } else if (ty->isArrayTy()) {
         ty_str = getTypeIdentifier(ty->getArrayElementType());
       } else {
@@ -699,8 +740,8 @@ void ExtractPointersPass::dumpMemTypInfo(std::string filename, llvm::Module &M){
       if(ty_str != "not_ptr_or_array" && result["ty_elem_map"].getAsObject()->find(ty_str) == result["ty_elem_map"].getAsObject()->end()) {
         // if the type is not in the ty_elem_map, we need to add it
         llvm::Type* inner_ty;
-        if(ty->isPointerTy()) {
-          inner_ty = ty->getPointerElementType();
+        if(pointee) {
+          inner_ty = pointee;
         } else if (ty->isArrayTy()) {
           inner_ty = ty->getArrayElementType();
         } else {
@@ -750,7 +791,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
   std::set<std::string> done_ids;
   
   for (llvm::GlobalVariable& globalVar : M.globals()) {
-    if (globalVar.getName().startswith("llvm.")) continue;
+    if (globalVar.getName().starts_with("llvm.")) continue;
     // if (globalVar.isConstant()) continue;
     auto gv_type = globalVar.getValueType();
     if (globalVar.isDeclaration()) continue;
@@ -893,10 +934,26 @@ void ExtractPointersPass::generate(llvm::Module& M) {
   dumpMemTypInfo(M.getName().str() + ".memtypes.json", M);
 }
 
-char ExtractPointersPass::ID = 0;
 
-static llvm::RegisterPass<ExtractPointersPass> X(
-    "extractpointers", "Extract datatype and global objects",
-    false,  // This pass doesn't modify the CFG => true
-    false   // This pass is not a pure analysis pass => false
-);
+// LLVM 17 dropped the legacy pass manager from opt, so the pass is exposed as a
+// New PM plugin.  Run it with:
+//   opt-17 --load-pass-plugin=<lib> -passes=extractpointers ...
+llvm::PassPluginLibraryInfo getExtractPointersPassPluginInfo() {
+  return {LLVM_PLUGIN_API_VERSION, "extractpointers", LLVM_VERSION_STRING,
+          [](llvm::PassBuilder &PB) {
+            PB.registerPipelineParsingCallback(
+                [](llvm::StringRef Name, llvm::ModulePassManager &MPM,
+                   llvm::ArrayRef<llvm::PassBuilder::PipelineElement>) {
+                  if (Name == "extractpointers") {
+                    MPM.addPass(ExtractPointersPass());
+                    return true;
+                  }
+                  return false;
+                });
+          }};
+}
+
+extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
+llvmGetPassPluginInfo() {
+  return getExtractPointersPassPluginInfo();
+}

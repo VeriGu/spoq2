@@ -517,12 +517,13 @@ SpoqIRModule::gep_inst_to_spec (llvm::Value* gep_inst_or_expr, SpoqIRContext& co
 
     auto ptr = context.get_llvm_value_spec(gep->getOperand(0));
     unique_ptr<SpecNode> expr = std::make_unique<IntConst>(0);
-    auto source_ptr_type = llvm::dyn_cast<llvm::PointerType>(gep->getOperand(0)->getType());
-    assert(source_ptr_type && "source pointer type is not a pointer type for GEP");
-    auto source_type = source_ptr_type->getPointerElementType();
+    assert(gep->getOperand(0)->getType()->isPointerTy() &&
+           "source pointer type is not a pointer type for GEP");
+    // Under opaque pointers the operand type no longer names the pointee, so read the
+    // element type the GEP itself records.  GEPOperator covers both the instruction
+    // and the constant-expression form handled above.
+    auto source_type = llvm::cast<llvm::GEPOperator>(gep_inst_or_expr)->getSourceElementType();
     auto const c_source_type = source_type;
-    // TODO: fix me like the gep instruction, use pointer type first
-    // getSourceElementType();
     std::vector<llvm::Value*> indices;
     for(int i = 1; i < gep->getNumOperands(); i++) {
         llvm::Value* index = gep->getOperand(i);
@@ -571,8 +572,9 @@ SpoqIRModule::store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context
     if (auto load = llvm::dyn_cast<llvm::LoadInst>(inst)) {
         // TODO: pointer abstraction here
         unique_ptr<vector<unique_ptr<SpecNode>>> operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
-        auto ptr_type = llvm::dyn_cast<llvm::PointerType>(load->getPointerOperand()->getType());
-        auto value_type = ptr_type->getPointerElementType();
+        assert(load->getPointerOperand()->getType()->isPointerTy() &&
+               "load operand is not a pointer");
+        auto value_type = load->getType();
         auto value_size = context.llvm_dl->getTypeStoreSize(value_type);
 
         operands->push_back(make_unique<IntConst>(value_size));
@@ -839,7 +841,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 if (callee_func && callee_func->isIntrinsic()) {
                     llvm::errs() << "Intrinsic function call: " << *call << "\n";
                     assert(false && "Not impl: intrinsic function call");
-                } else if (callee_func && callee->getName().startswith("llvm_dbg_")) {
+                } else if (callee_func && callee->getName().starts_with("llvm_dbg_")) {
                     return spoq_inst_to_spec(proj, vec, num + 1, context);
                 } else if (callee_func && proj->disable_funcs[callee->getName().str()]) {
                     return spoq_inst_to_spec(proj, vec, num + 1, context);
@@ -993,7 +995,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             // We just constructed a pointer.  How can we express that the pointer is going to be aligned?`
             auto sym = context.get_llvm_value_spec(gep);
             context.add_cache(context.get_llvm_value_name(gep), expr);
-            auto pointed_type = gep->getPointerOperandType()->getPointerElementType();
+            auto pointed_type = gep->getSourceElementType();
             std::unique_ptr<SpecNode> result;
             if(pointed_type->isStructTy()){
                 // This rely clause should express that the resulting pointer is aligned with the proper field

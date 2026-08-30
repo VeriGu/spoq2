@@ -10,20 +10,20 @@ namespace ir2json
 
     json::Value gen_struct(llvm::StructType &type, const llvm::Module *module)
     {
-        auto layout = llvm::DataLayout(module);
+        auto layout = module->getDataLayout();
         json::Object str;
         str["elems"] = json::Array();
         const llvm::StructLayout *str_layout = layout.getStructLayout(&type);
         int nelements = type.getNumElements();
         auto stlayout = layout.getStructLayout(&type);
-        auto size = stlayout->getSizeInBytes();
+        uint64_t size = stlayout->getSizeInBytes().getFixedValue();
         str["size"] = size;
         for (int i = 0; i < nelements; i++) {
             auto e = type.getTypeAtIndex(i);
             json::Value v = gen_type(e);
             json::Object *obj = v.getAsObject();
 
-            (*obj)["offset"] = str_layout->getElementOffset(i);
+            (*obj)["offset"] = (uint64_t)str_layout->getElementOffset(i);
             str["elems"].getAsArray()->push_back(v);
         }
         return str;
@@ -385,12 +385,11 @@ namespace ir2json
         for (auto &type : module->getIdentifiedStructTypes())
         {
             auto name = type->getName().str();
-            auto layout = llvm::DataLayout(module);
             structs[name] = gen_struct(*type, module);
         }
         obj["struct_types"] = obj2value(structs);
 
-        for (auto &var : module->getGlobalList())
+        for (auto &var : module->globals())
         {
             auto name = var.getName().str();
             vars[name] = gen_global_var(var);

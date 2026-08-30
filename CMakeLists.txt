@@ -4,7 +4,16 @@ project(spoq)
 # ------------------------------------------------------------------------------
 # Basic setup
 # ------------------------------------------------------------------------------
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -g3 -gdwarf-4 -Wall -Wno-unused-function -fstandalone-debug")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -g3 -gdwarf-4 -Wall -Wno-unused-function")
+# GCC encodes variadic templates with DW_TAG_GNU_{formal,template}_parameter_pack,
+# which lldb's Clang-based DWARF parser cannot represent -- it then reports
+# "DW_TAG_member '_M_t' refers to type 0x... which was unable to be parsed" for
+# anything held in a unique_ptr/shared_ptr/tuple.  gdb reads GCC's DWARF fine; for
+# lldb, configure a build with -DCMAKE_CXX_COMPILER=clang++, which also gets the
+# complete type info that -fstandalone-debug asks for.
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fstandalone-debug")
+endif()
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wno-unused-function")
 set(CMAKE_CXX_STANDARD 17)
 include_directories(include)
@@ -22,7 +31,41 @@ message(STATUS "Using Z3Config.cmake in: ${Z3_DIR}")
 # ------------------------------------------------------------------------------
 # LLVM
 # ------------------------------------------------------------------------------
-find_package(LLVM 15.0.0 REQUIRED CONFIG)
+# Which LLVM 23 to build against.  Defaults to the local source build; override
+# with -DLLVM_ROOT=<prefix-or-build-tree>, -DLLVM_DIR=<...>/lib/cmake/llvm, or by
+# exporting LLVM_ROOT.  A packaged install would be LLVM_ROOT=/usr/lib/llvm-23.
+if(NOT DEFINED LLVM_ROOT)
+  if(DEFINED ENV{LLVM_ROOT})
+    set(LLVM_ROOT "$ENV{LLVM_ROOT}")
+  else()
+    set(LLVM_ROOT "$ENV{HOME}/workspace/llvm-project/build")
+  endif()
+endif()
+if(NOT DEFINED LLVM_DIR)
+  set(LLVM_DIR "${LLVM_ROOT}/lib/cmake/llvm")
+endif()
+
+# LLVMConfigVersion.cmake only accepts an exact major.minor match, so asking for
+# "23" would reject 23.1.  Find whatever is configured and assert the major here.
+find_package(LLVM REQUIRED CONFIG)
+if(NOT LLVM_VERSION_MAJOR EQUAL 23)
+  message(FATAL_ERROR
+    "Found LLVM ${LLVM_PACKAGE_VERSION} via ${LLVM_DIR}, but spoq needs LLVM 23. "
+    "Set -DLLVM_ROOT=<prefix-or-build-tree>.")
+endif()
+
+# spoq uses C++ RTTI throughout (typeid in irtypes.h, dynamic_cast in values.h,
+# and Boost.Log requires it), so it cannot be compiled -fno-rtti.  Linking it
+# against an LLVM built with LLVM_ENABLE_RTTI=OFF fails with missing typeinfo for
+# LLVM's polymorphic classes (e.g. llvm::CallbackVH, via llvm::ValueMap).  Say so
+# here instead of at link time.  LLVM defaults to RTTI off; distro packages
+# enable it.
+if(NOT LLVM_ENABLE_RTTI)
+  message(FATAL_ERROR
+    "The LLVM at ${LLVM_DIR} was built with LLVM_ENABLE_RTTI=OFF; spoq requires "
+    "an RTTI-enabled LLVM.  Rebuild it with -DLLVM_ENABLE_RTTI=ON, or point "
+    "-DLLVM_ROOT at an RTTI-enabled LLVM 23 (distro llvm-23 packages qualify).")
+endif()
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")

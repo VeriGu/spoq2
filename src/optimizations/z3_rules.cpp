@@ -64,7 +64,7 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
             if (state->vars->find(sym->text) == state->vars->end()) {
                 (*state->vars)[sym->text] = src;
             }
-            
+
             if (src->get_z3_value().get_sort().to_string() == sym->get_type()->get_z3_type().to_string()){
                 state->conds->push_back(src->get_z3_value() == (sym->get_type())->declare(sym->text, 0)->get_z3_value());
             } else {
@@ -256,7 +256,7 @@ static SpecNode* reconstruct_expr(z3::expr z3_val,
             } else
                 return new IntConst(z3_val.get_numeral_int64());
         } else {
-            /** 
+            /**
              * When simplifying the arithmetic operation, spoq may introduce implicit conversion from u64 to s64 in term transposition,
              * These terms should not be simplified to IntConst, but should be converted to constraints by z3.
              *  by Ganxiang Yang, Nov 29, 2024 */
@@ -431,9 +431,9 @@ static SpecNode* __simplify_zmap_init(Project* proj, Expr* expr, shared_ptr<Eval
 }
 
 /**
- * Use z3 to reduce: 
+ * Use z3 to reduce:
  * 1. Expr::Set:  x # y = (x' @ y) ==> (if (x @ y) = (x' @ y)) ==> (x)
- * 2. Expr::RecordSet: x.[f] :< y ==> (if (x.(f) = y)) ==> (x) 
+ * 2. Expr::RecordSet: x.[f] :< y ==> (if (x.(f) = y)) ==> (x)
  */
 std::pair<unique_ptr<SpecNode>, bool> reduce_id_write(Project *proj, unique_ptr<Expr> spec, shared_ptr<EvalState> state) {
     static int Z3_REDUCE_TIMEOUT = 300;
@@ -448,8 +448,8 @@ std::pair<unique_ptr<SpecNode>, bool> reduce_id_write(Project *proj, unique_ptr<
             auto src = instance_of(spec->elems->at(0).get(), Expr); // x
             auto idx = instance_of(spec->elems->at(1).get(), Expr); // y
             auto val = instance_of(spec->elems->at(2).get(), Expr); // (x' @ y)
-            if (!src || !idx || !val) 
-                return { std::move(spec), changed }; 
+            if (!src || !idx || !val)
+                return { std::move(spec), changed };
 
             if (auto v_op = std::get_if<Expr::ops>(&val->op)) {
                 if (*v_op == Expr::GET) {
@@ -467,7 +467,7 @@ std::pair<unique_ptr<SpecNode>, bool> reduce_id_write(Project *proj, unique_ptr<
                         // if (x @ y) = (x' @ y), then return x
                         changed = true;
                         return { src->deep_copy(), changed };
-                    } 
+                    }
                 }
             }
         } else if (*op == Expr::RecordSet) {
@@ -494,7 +494,7 @@ std::pair<unique_ptr<SpecNode>, bool> reduce_id_write(Project *proj, unique_ptr<
             }
         }
     }
-    return { std::move(spec), changed }; 
+    return { std::move(spec), changed };
 }
 
 SpecNode* reconstruct_zmap(Project* proj, SpecNode* spec, shared_ptr<EvalState> state) {
@@ -583,7 +583,7 @@ rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::sha
 
     auto cond = std::move(ret.first);
     if (cond == nullptr) {
-        return { nullptr, changed }; 
+        return { nullptr, changed };
     }
 
     PROFILE_START(z3_eval);
@@ -638,7 +638,7 @@ rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::sha
             //     return { make_unique<Anno>(std::move(cond), std::move(body)), changed };
             // }
 
-        // } else 
+        // } else
         if (res == Z3Result::True || res == Z3Result::Sat || res == Z3Result::Unknown) {
             // profile_log_rule_rely_solved(string(orig_prop));
             state->conds->push_back(c->get_z3_value());
@@ -729,11 +729,11 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
         changed |= then_ret.second || else_ret.second;
 
         if (then_ret.first && then_ret.second) {
-            then_ret.first = subst_expr(proj, std::move(then_ret.first), cond_ret.first, 
+            then_ret.first = subst_expr(proj, std::move(then_ret.first), cond_ret.first,
                                                 std::make_unique<BoolConst>(true), changed);
-        } 
+        }
         if (else_ret.first && else_ret.second) {
-            else_ret.first = subst_expr(proj, std::move(else_ret.first), cond_ret.first, 
+            else_ret.first = subst_expr(proj, std::move(else_ret.first), cond_ret.first,
                                                 std::make_unique<BoolConst>(false), changed);
         }
 
@@ -762,8 +762,8 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
         if (!then_ret.first) {
             // assert(z3t_string == else_ret.first->get_type()->get_z3_type().to_string());
             return { std::move(else_ret.first), true };
-        } 
-        
+        }
+
         if (!else_ret.first) {
             // assert(z3t_string == then_ret.first->get_type()->get_z3_type().to_string());
             return { std::move(then_ret.first), true };
@@ -791,7 +791,7 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
     } //else if(res == Z3Result::Unknown){
         // This timeout suggests we should bail out.
         // return { std::move(spec), changed };
-    //} 
+    //}
     else {
         assert(false);
     }
@@ -822,7 +822,7 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
         auto fixpoint = dynamic_cast<Fixpoint*>(func);
         if(fixpoint){
             some_loop_inv = formulate_loop_invariant(proj, func_name, expr_src->elems.get());
-            // We can't z3_eval the loop inv without the variables in it being declared, 
+            // We can't z3_eval the loop inv without the variables in it being declared,
             // so we have to wait for resolve_pattern.
 
         }
@@ -841,7 +841,7 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
         auto sym_pat = dynamic_cast<Symbol*>((*pm)->pattern.get());
         auto exp_pat = dynamic_cast<Expr*>((*pm)->pattern.get());
         auto bod_pat = dynamic_cast<Symbol*>((*pm)->body.get());
-        
+
         if(exp_pat && op_eq(exp_pat->op, Expr::ops::Some) && some_loop_inv){
             // Check for inner tuple.  Look at simulate.cpp:290 for example.
             auto inner_tuple_ty = dynamic_cast<Tuple*>(exp_pat->elems->at(0)->type.get());
@@ -868,7 +868,7 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
 				}
             // LOG_DEBUG << "Pre subst loop inv " << string(*some_loop_inv);
 				some_loop_inv = subst_v2(proj,std::move(some_loop_inv), &names, &elems);
-            
+
             set<string> used_fix;
             // LOG_DEBUG << "Post subst loop inv " << string(*some_loop_inv);
             auto some_z3_val = z3_eval(proj, some_loop_inv.get(), new_state, true, false, used_fix);
@@ -889,7 +889,7 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
             // LOG_DEBUG << "Infeasible match in match " << orig_src;
             // LOG_DEBUG << "Pattern: " << string(*(*pm)->pattern);
             // LOG_DEBUG << "Body: " << string(*(*pm)->body);
-            
+
             if(((exp_pat && op_eq(exp_pat->op, Expr::ops::None)) || (sym_pat && sym_pat->text == "None")) && bod_pat && bod_pat->text == "None"){
 
             } else {
@@ -934,7 +934,7 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
             }
         }
     }
-    
+
     if (match_list->size() == 0) {
         return std::make_pair(nullptr, true);
     } else {
@@ -976,11 +976,11 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
     auto elems = std::make_unique<std::vector<std::unique_ptr<SpecNode>>>();
     bool changed = false;
     auto z3t_string = spec->get_type()->get_z3_type().to_string();
-    // auto s = string(*spec);
+    auto s = string(*spec);
     // auto logthis = true;//s.find("(Some (1, st") != std::string::npos;
     // if(logthis)
-        // LOG_DEBUG << "Spec before simple_expr_by_z3: " << s;
-    
+    LOG_DEBUG << "Spec before simple_expr_by_z3: " << s;
+
     if (auto op = std::get_if<Expr::ops>(&spec->op)) {
         if (*op == Expr::None) {
             return { std::move(spec), false };

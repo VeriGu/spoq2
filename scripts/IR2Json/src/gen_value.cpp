@@ -26,7 +26,7 @@ namespace ir2json
             value["source"] = "inline_asm";
             json::Object obj;
             obj["type"] = gen_type(con->getFunctionType());
-            std::string asm_str = con->getAsmString();
+            std::string asm_str = con->getAsmString().str();
             obj["asm"] = wrap_string(asm_str);
             obj["constraints"] = con->getConstraintString();
             obj["side_effect"] = con->hasSideEffects();

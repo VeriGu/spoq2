@@ -48,6 +48,13 @@ endif()
 # `find_package(llvm)`. So there's no need to add it here.
 list(APPEND CMAKE_PREFIX_PATH "${LT_LLVM_INSTALL_DIR}/lib/cmake/llvm/")
 
+# NOT PORTED PAST LLVM 15.  This is a vendored copy of LLVM 15's IROutliner and
+# it depends on IRSimilarityIdentifier internals that changed in LLVM 16/17
+# (llvm::Optional -> std::optional, OutlinableGroup::SwiftErrorArgument, the
+# getGVNForPHINode signature, ...) and have kept moving since.  Porting it means
+# re-vendoring the current upstream pass and re-applying the local changes.
+# Nothing in the pipeline calls it -- it is superseded by patchverification's
+# pv_outline_share -- so it stays pinned to 15 and build-passes.sh skips it.
 find_package(LLVM 15 REQUIRED CONFIG)
 
 # Another sanity check

@@ -1,5 +1,10 @@
 #include "llvm/IR/Type.h"
-#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/Passes/PassBuilder.h"
+// PassPlugin.h moved from llvm/Passes/ to llvm/Plugins/ in LLVM 23, and the
+// plugin API version went from 1 to 2.  Including the old path silently picks
+// up an older LLVM if one is installed under /usr/local.
+#include "llvm/Plugins/PassPlugin.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -25,9 +30,8 @@
 // mergefunc "
 //  "transformations are made."));
 
-class RenamePass : public llvm::ModulePass {
+class RenamePass : public llvm::PassInfoMixin<RenamePass> {
  public:
-  static char ID;
 
   std::string file;
   const llvm::DataLayout* dl;
@@ -36,14 +40,20 @@ class RenamePass : public llvm::ModulePass {
   std::map<std::string, int> parsed_type;
   std::map<std::string, llvm::StructType*> used_id;
   std::map<llvm::StructType*, std::vector<llvm::Type*>> generated_types;
-  RenamePass() : ModulePass(ID) {
+  RenamePass() {
   }
   bool refersToTys(llvm::Type *ty, std::set<llvm::Type *> &typs);
   bool refersToTys(llvm::Function &fn, std::set<llvm::Type *> &typs);
   void renameFunc(llvm::Function &fn, llvm::json::Object &change_log,
                   llvm::Module &M);
   bool renameAll(llvm::Module &M);
-  bool runOnModule(llvm::Module &M) override { 
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+    runOnModule(M);
+    return llvm::PreservedAnalyses::none();
+  }
+  static bool isRequired() { return true; }
+
+  bool runOnModule(llvm::Module &M) { 
     context = &M.getContext();
     dl = &M.getDataLayout();
     renameAll(M);
@@ -102,8 +112,8 @@ std::set<llvm::Function*> callersOfRenamedFunctions(llvm::Module &M, llvm::json:
     }
       auto name = fn.getName().str();
       auto to_rename = func_defs_plan.getAsObject()->getString("@" + name);
-    // doesReachRenamed.insert(std::pair(&fn, to_rename.getValue().str() == "rename"));
-    doesReachRenamed[&fn] = (to_rename.getValue().str() == "rename");
+    // doesReachRenamed.insert(std::pair(&fn, to_rename.value().str() == "rename"));
+    doesReachRenamed[&fn] = (to_rename.value().str() == "rename");
     if (doesReachRenamed[&fn]){
       // llvm::errs() << "function added to reaching " << fn.getName().str() << "\n";
       reaching.emplace(&fn);
@@ -138,7 +148,8 @@ bool RenamePass::refersToTys(llvm::Type *ty, std::set<llvm::Type*>&typs){
     return true;
   }
   if(ty->isPointerTy()){
-    return refersToTys(ty->getPointerElementType(), typs);
+    // Opaque pointers carry no pointee, so a pointer type names no struct.
+    return false;
   } else if(ty->isArrayTy()){
     return refersToTys(ty->getArrayElementType(), typs);
   } else if (ty->isStructTy()){
@@ -156,8 +167,10 @@ bool RenamePass::refersToTys(llvm::Function &fn, std::set<llvm::Type*>& typs){
   if(refersToTys(fn.getReturnType(), typs)){
     return true;
   }
-  for(auto &bb: fn.getBasicBlockList()){
-    for(auto &inst: bb.instructionsWithoutDebug()){
+  for(auto &bb: fn){
+    // instructionsWithoutDebug() is gone in LLVM 23: debug values are DbgRecords
+    // attached to instructions now, not instructions, so there is nothing to skip.
+    for(auto &inst: bb){
       if(refersToTys(inst.getType(), typs)) {
         return true;
       }
@@ -192,10 +205,10 @@ bool RenamePass::renameAll(llvm::Module &M) {
   for(auto &st: M.getIdentifiedStructTypes()) {
     auto old_name = st->getName().str();
     auto to_rename = types_plan.getAsObject()->getString("%" + old_name);
-    if (!to_rename.hasValue()) {
+    if (!to_rename.has_value()) {
       llvm::errs() << "No renaming plan entry for struct type: " << old_name << ", skipping.\n";
       continue;
-    } else if (to_rename.getValue().str() == "rename") {
+    } else if (to_rename.value().str() == "rename") {
       std::string new_name = old_name + suffix;
       st->setName(new_name);
       (*changes["types"].getAsObject())["%" + old_name] = "%" + new_name;
@@ -225,10 +238,10 @@ bool RenamePass::renameAll(llvm::Module &M) {
     }
     auto to_rename = globals_plan.getAsObject()->getString("@" + old_name);
     // Three possibilities: 'delete_duplicate' 'rename', 'no_change'
-    if (!to_rename.hasValue()) {
+    if (!to_rename.has_value()) {
       llvm::errs() << "No renaming plan entry for global variable: " << old_name << ", skipping.\n";
       continue;
-    } else if (to_rename.getValue().str() == "rename" || ty_changed) {
+    } else if (to_rename.value().str() == "rename" || ty_changed) {
       std::string new_name = old_name + suffix;
       gv.setName(new_name);
       (*changes["globals"].getAsObject())["@" + old_name] = "@" + new_name;
@@ -261,11 +274,11 @@ bool RenamePass::renameAll(llvm::Module &M) {
       change_log = changes["func_defs"].getAsObject();
     }
     auto to_rename_opt = renaming_plan->getAsObject()->getString("@" + old_name);
-    if (!to_rename_opt.hasValue()) {
+    if (!to_rename_opt.has_value()) {
       llvm::errs() << "No renaming plan entry for function declaration: " << old_name << ", skipping.\n";
       continue;
     }
-    auto to_rename = to_rename_opt.getValue().str();
+    auto to_rename = to_rename_opt.value().str();
 
     // If any instruction in this function refers to a type that has been renamed, the function must be renamed
 
@@ -281,8 +294,8 @@ bool RenamePass::renameAll(llvm::Module &M) {
   // Rename metadata nodes:
   changes["metadata"] = llvm::json::Object();
   std::vector<std::string> md_names;
-  for(auto &md: M.getNamedMDList()){
-    if (md.getName().startswith("llvm.")) continue;
+  for(auto &md: M.named_metadata()){
+    if (md.getName().starts_with("llvm.")) continue;
     md_names.push_back(md.getName().str());
   }
   for(auto name: md_names){
@@ -306,7 +319,7 @@ bool RenamePass::renameAll(llvm::Module &M) {
   return true;
 }
 // bool RenamePass::isUnion(llvm::StructType* ty) {
-//   return ty->getName().startswith("union.");
+//   return ty->getName().starts_with("union.");
 // }
 
 // std::string RenamePass::getFieldIdentifier(llvm::StructType* sty, int count) {
@@ -401,10 +414,26 @@ bool RenamePass::renameAll(llvm::Module &M) {
 // }
 
 
-char RenamePass::ID = 0;
 
-static llvm::RegisterPass<RenamePass> X(
-    "renamepass", "Rename all externally accessible identifiers defined in this module.  Struct types, struct fields, functions, and global variables.",
-    false,  // This pass doesn't modify the CFG => true
-    false   // This pass is not a pure analysis pass => false
-);
+// LLVM 17 dropped the legacy pass manager from opt, so the pass is exposed as a
+// New PM plugin.  Run it with:
+//   opt-17 --load-pass-plugin=<lib> -passes=renamepass ...
+llvm::PassPluginLibraryInfo getRenamePassPluginInfo() {
+  return {LLVM_PLUGIN_API_VERSION, "renamepass", LLVM_VERSION_STRING,
+          [](llvm::PassBuilder &PB) {
+            PB.registerPipelineParsingCallback(
+                [](llvm::StringRef Name, llvm::ModulePassManager &MPM,
+                   llvm::ArrayRef<llvm::PassBuilder::PipelineElement>) {
+                  if (Name == "renamepass") {
+                    MPM.addPass(RenamePass());
+                    return true;
+                  }
+                  return false;
+                });
+          }};
+}
+
+extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
+llvmGetPassPluginInfo() {
+  return getRenamePassPluginInfo();
+}

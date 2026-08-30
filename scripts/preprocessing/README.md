@@ -2,13 +2,25 @@
 
 ## Build
 
-For each pass in this directory, link the llvm-14.0.0. For example:
+Run `./build-passes.sh` to configure and build every pass against LLVM 23
+(`/usr/lib/llvm-23` by default; pass a different install dir as the first
+argument). It also refreshes each pass's `llvm` symlink, which is what the
+per-pass `CMakeLists.txt` defaults to.
+
+The passes are New Pass Manager plugins. LLVM 17 removed the legacy pass manager
+from `opt`, so run them as:
 
 ```
-link -s /path/to/llvm/14 cleaner/llvm
+opt-23 --load-pass-plugin=cleaner/lib/libcleaner.so -passes=cleaner ...
 ```
 
-Then, compile each pass.
+rather than the old `opt -enable-new-pm=0 -load ... --cleaner` form.
+
+`pv_ir_outliner` has not been ported past LLVM 15 and `build-passes.sh` skips it;
+see the note in its `CMakeLists.txt`.
+
+The wrapper scripts (`extract-info.sh`, `rename_with_suffix.sh`, `opt.sh`) call
+`opt-23`; set `OPT=/path/to/opt` to use an LLVM 23 that is not on `PATH`.
 
 ## Get IR and its JSON version
 

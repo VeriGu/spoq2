@@ -165,7 +165,7 @@ bool SpoqIRModule::control_flow_elinminate_select(llvm::Function* func) {
                 auto new_phi = llvm::PHINode::Create(true_val->getType(), 2, "phi");
                 new_phi->addIncoming(true_val, true_bb);
                 new_phi->addIncoming(false_val, false_bb);
-                suffix_bb->getInstList().push_front(new_phi);
+                new_phi->insertInto(suffix_bb, suffix_bb->begin());
 
                 // Replace all uses of the original select with the phi.
                 select->replaceAllUsesWith(new_phi);
@@ -360,7 +360,7 @@ void SpoqIRModule::control_flow_merge_bridge(llvm::BasicBlock* bb, std::set<llvm
             auto succ = br->getSuccessor(0);
             if (context.can_remove(succ)) {
                 // Splice succ's instructions into bb.
-                bb->getInstList().splice(bb->end(), succ->getInstList());
+                bb->splice(bb->end(), succ);
                 for(auto pred: llvm::predecessors(succ)) {
                     pred->replaceSuccessorsPhiUsesWith(succ, bb);
                 }

@@ -42,8 +42,14 @@ std::string SpoqIRModule::llvm_ir_type_to_str(llvm::Type* type, bool input) {
     else if (type->isIntegerTy(64))  return "u64";
     else if (type->isIntegerTy()) throw std::runtime_error("Unsupported integer type: " + std::to_string(type->getIntegerBitWidth()));
 
-    if (type->isPointerTy() && type->getPointerElementType()->isIntegerTy()) {
-        return llvm_ir_type_to_str(type->getPointerElementType(), input) + "*";
+    // Opaque pointers carry no pointee, and the C signature we hand to asmgen needs
+    // the pointee width to be meaningful.  Guessing here would silently generate the
+    // wrong model for the asm, so report it instead: find_inline_asm() catches this
+    // and falls back to a stub the same way it does for other unsupported asm.
+    if (type->isPointerTy()) {
+        throw std::runtime_error(
+            "inline asm pointer operand: the pointee type is not recoverable under "
+            "LLVM opaque pointers");
     }
 
     if (type->isVoidTy()) return "void";

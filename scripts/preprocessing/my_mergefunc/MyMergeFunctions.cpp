@@ -123,10 +123,14 @@
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/MergeFunctions.h"
 #include "llvm/Transforms/Utils/FunctionComparator.h"
+#include "llvm/IR/StructuralHash.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
-#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Passes/PassBuilder.h"
-#include "llvm/Passes/PassPlugin.h"
+// PassPlugin.h moved from llvm/Passes/ to llvm/Plugins/ in LLVM 23, and the
+// plugin API version went from 1 to 2.  Including the old path silently picks
+// up an older LLVM if one is installed under /usr/local.
+#include "llvm/Plugins/PassPlugin.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
@@ -180,15 +184,15 @@ namespace {
 
 class FunctionNode {
   mutable AssertingVH<Function> F;
-  FunctionComparator::FunctionHash Hash;
+  llvm::stable_hash Hash;
 
 public:
   // Note the hash is recalculated potentially multiple times, but it is cheap.
   FunctionNode(Function *F)
-    : F(F), Hash(FunctionComparator::functionHash(*F))  {}
+    : F(F), Hash(llvm::StructuralHash(*F))  {}
 
   Function *getFunc() const { return F; }
-  FunctionComparator::FunctionHash getHash() const { return Hash; }
+  llvm::stable_hash getHash() const { return Hash; }
 
   /// Replace the reference to the function F by the function G, assuming their
   /// implementations are equal.
@@ -316,22 +320,19 @@ private:
   DenseMap<AssertingVH<Function>, FnTreeType::iterator> FNodesInTree;
 };
 
-class MergeFunctionsLegacyPass : public ModulePass {
+class MyMergeFunctionsPass : public llvm::PassInfoMixin<MyMergeFunctionsPass> {
 public:
-  static char ID;
-
-  MergeFunctionsLegacyPass(): ModulePass(ID) {
+  MyMergeFunctionsPass() {
     LLVM_DEBUG(dbgs() << "(my merge func): Init!\n");
-    initializeMergeFunctionsLegacyPassPass(*PassRegistry::getPassRegistry());
   }
 
-  bool runOnModule(Module &M) override {
-    if (skipModule(M))
-      return false;
-
+  llvm::PreservedAnalyses run(Module &M, llvm::ModuleAnalysisManager &) {
     MergeFunctions MF;
-    return MF.runOnModule(M);
+    MF.runOnModule(M);
+    return llvm::PreservedAnalyses::none();
   }
+
+  static bool isRequired() { return true; }
 };
 
 } // end anonymous namespace
@@ -440,11 +441,11 @@ bool MergeFunctions::runOnModule(Module &M) {
 
   // All functions in the module, ordered by hash. Functions with a unique
   // hash value are easily eliminated.
-  std::vector<std::pair<FunctionComparator::FunctionHash, Function *>>
+  std::vector<std::pair<llvm::stable_hash, Function *>>
     HashedFuncs;
   for (Function &Func : M) {
     if (isEligibleForMerging(Func)) {
-      HashedFuncs.push_back({FunctionComparator::functionHash(Func), &Func});
+      HashedFuncs.push_back({llvm::StructuralHash(Func), &Func});
     }
   }
 
@@ -527,11 +528,11 @@ static Value *createCast(IRBuilder<> &Builder, Value *V, Type *DestTy) {
     Value *Result = UndefValue::get(DestTy);
     for (unsigned int I = 0, E = SrcTy->getStructNumElements(); I < E; ++I) {
       Value *Element = createCast(
-          Builder, Builder.CreateExtractValue(V, makeArrayRef(I)),
+          Builder, Builder.CreateExtractValue(V, {I}),
           DestTy->getStructElementType(I));
 
       Result =
-          Builder.CreateInsertValue(Result, Element, makeArrayRef(I));
+          Builder.CreateInsertValue(Result, Element, {I});
     }
     return Result;
   }
@@ -808,7 +809,7 @@ void MergeFunctions::writeAlias(Function *F, Function *G) {
   auto *GA = GlobalAlias::create(G->getValueType(), PtrType->getAddressSpace(),
                                  G->getLinkage(), "", BitcastF, G->getParent());
 
-  F->setAlignment(MaybeAlign(std::max(F->getAlignment(), G->getAlignment())));
+  F->setAlignment(std::max(F->getAlign().valueOrOne(), G->getAlign().valueOrOne()));
   GA->takeName(G);
   GA->setVisibility(G->getVisibility());
   GA->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
@@ -880,7 +881,7 @@ void MergeFunctions::mergeTwoFunctions(Function *F, Function *G) {
     removeUsers(F);
     F->replaceAllUsesWith(NewF);
 
-    MaybeAlign MaxAlignment(std::max(G->getAlignment(), NewF->getAlignment()));
+    MaybeAlign MaxAlignment(std::max(G->getAlign().valueOrOne(), NewF->getAlign().valueOrOne()));
 
     writeThunkOrAlias(F, G);
     writeThunkOrAlias(F, NewF);
@@ -1052,17 +1053,27 @@ void MergeFunctions::removeUsers(Value *V) {
 // }
 
 //-----------------------------------------------------------------------------
-// Legacy PM Registration
+// New PM Registration
 //-----------------------------------------------------------------------------
-// The address of this variable is used to uniquely identify the pass. The
-// actual value doesn't matter.
-char MergeFunctionsLegacyPass::ID = 0;
+// LLVM 17 dropped the legacy pass manager from opt, so the pass is exposed as a
+// New PM plugin.  Run it with:
+//   opt-17 --load-pass-plugin=<lib> -passes=mymergefunc ...
+llvm::PassPluginLibraryInfo getMyMergeFunctionsPluginInfo() {
+  return {LLVM_PLUGIN_API_VERSION, "mymergefunc", LLVM_VERSION_STRING,
+          [](llvm::PassBuilder &PB) {
+            PB.registerPipelineParsingCallback(
+                [](llvm::StringRef Name, llvm::ModulePassManager &MPM,
+                   llvm::ArrayRef<llvm::PassBuilder::PipelineElement>) {
+                  if (Name == "mymergefunc") {
+                    MPM.addPass(MyMergeFunctionsPass());
+                    return true;
+                  }
+                  return false;
+                });
+          }};
+}
 
-// This is the core interface for pass plugins. It guarantees that 'opt' will
-// recognize LegacyHelloWorld when added to the pass pipeline on the command
-// line, i.e.  via '--legacy-hello-world'
-static RegisterPass<MergeFunctionsLegacyPass>
-    X("mymergefunc", "My Merge Functions Pass",
-      false, // This pass doesn't modify the CFG => true
-      false // This pass is not a pure analysis pass => false
-    );
+extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
+llvmGetPassPluginInfo() {
+  return getMyMergeFunctionsPluginInfo();
+}

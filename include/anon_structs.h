@@ -6,7 +6,7 @@ std::string anonStructFieldNameSegment(const llvm::Type* ty,
     bool pointers_are_ptr);
 
   bool isUnion(const llvm::StructType* ty) {
-    return ty->getName().startswith("union.");
+    return ty->getName().starts_with("union.");
   }
 // For anonymous structs, we must build a name that's consistent 
 // between generated load/store, record declarations, and spoq internals

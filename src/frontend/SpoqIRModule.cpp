@@ -5,6 +5,7 @@
 #include "values.h"
 #include "shortcuts.h"
 #include "cmd.h"
+#include "llvm/IR/Operator.h"
 
 extern SpoqOption OPTS;
 namespace autov {
@@ -116,6 +117,30 @@ bool SpoqIRModule::validate_for_gen_low_spec(Project* proj, string fname, int la
 }
 
 
+/**
+ * @brief Recover the struct a pointer argument points at, or nullptr if it isn't one.
+ *
+ * Opaque pointers dropped the pointee from the pointer type itself, so fall back on
+ * what the IR still records: an explicit byval/sret type, or the element type of a
+ * GEP that walks the argument.  A pointer we cannot resolve is simply treated as not
+ * pointing at a struct, which drops an alignment assumption but never adds one.
+ */
+static llvm::Type *pointee_struct_type(llvm::Argument &arg) {
+    for (auto *ty : {arg.getParamByValType(), arg.getParamStructRetType()})
+        if (ty && ty->isStructTy())
+            return ty;
+
+    for (auto *user : arg.users()) {
+        auto *gep = llvm::dyn_cast<llvm::GEPOperator>(user);
+        if (!gep || gep->getPointerOperand() != &arg)
+            continue;
+        if (gep->getSourceElementType()->isStructTy())
+            return gep->getSourceElementType();
+    }
+
+    return nullptr;
+}
+
 bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
                                    std::vector<std::string> &low_specs,
                                    std::unordered_map<string, string> &name_map) {
@@ -149,9 +174,8 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
             // We make an assumption about LLVM IR.
             // IR compiled from C code will never pass a pointer to a struct as a parameter
             // that does not point at the beginning of the struct or 1 past the end of the struct
-            auto ty = arg.getType();
-            auto pointee_ty = ty->getPointerElementType();
-            if(pointee_ty->isStructTy()){
+            auto pointee_ty = pointee_struct_type(arg);
+            if(pointee_ty){
                 std::unique_ptr<SpecNode> mod_expr = sym->deep_copy();
                 auto record_get_elems = make_unique<std::vector<unique_ptr<SpecNode>>>();
                 record_get_elems->push_back(std::move(mod_expr));
@@ -254,7 +278,12 @@ void SpoqIRModule::preprocess_llvm_module() {
     // TODO: there is a chance that LowerSwitchPass use jump table instead of br.
     // If that is the case, we should use a manually written pass to convert switch to if-else.
     MPM.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::LowerSwitchPass()));
-    MPM.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::SROAPass()));
+    // LLVM 15's SROA only speculated phis/selects and never touched the CFG,
+    // which is what the loop/CFG reconstruction below is written against.
+    // PreserveCFG keeps that behaviour; the default (ModifyCFG) would let SROA
+    // unfold selects into new blocks and change the loop shapes we translate.
+    MPM.addPass(llvm::createModuleToFunctionPassAdaptor(
+        llvm::SROAPass(llvm::SROAOptions::PreserveCFG)));
     MPM.run((*llvm_module), MAM);
     LOG_DEBUG << "llvm module preprocessing ok" << std::endl;
 

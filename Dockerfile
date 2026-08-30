@@ -1,5 +1,5 @@
 ###################  builder  ###################
-FROM ubuntu:22.04 AS builder
+FROM ubuntu:24.04 AS builder
 ENV DEBIAN_FRONTEND=noninteractive
 
 # core tool-chain & libs 
@@ -12,10 +12,17 @@ RUN set -eux; \
     # 3) now signatures verify correctly
     apt-get update; \
     apt-get install -y --no-install-recommends \
-        build-essential cmake ninja-build git wget curl \
+        build-essential cmake ninja-build git wget curl gnupg \
         python3 python3-pip unzip pkg-config \
-        llvm-14 llvm-14-dev clang-14 lld-14 clang \
         libboost-all-dev; \
+    # LLVM 23 is not in the noble archive, so pull it from apt.llvm.org.
+    wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+        | gpg --dearmor -o /usr/share/keyrings/llvm-archive-keyring.gpg; \
+    echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-23 main" \
+        > /etc/apt/sources.list.d/llvm23.list; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        llvm-23 llvm-23-dev clang-23 lld-23; \
     rm -rf /var/lib/apt/lists/*
 
 # ARM64 cross-toolchain
@@ -53,17 +60,26 @@ RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DZ3_DIR=${Z3_DIR} && 
     cp build/spoq /opt/spoq3/bin/ && \
     find build -name '*.so' -exec cp {} /opt/spoq3/lib/ \;
 
+# The image installs LLVM 23 from apt, not the local source build the repo
+# defaults to, so point every component at the packaged prefix.
+ENV LLVM_ROOT=/usr/lib/llvm-23
 ENV PATH="/opt/spoq3/build:/opt/z3/bin/:$PATH" \
     Z3_PATH="/opt/z3-4.13.4/bin/z3" \
     Z3_DIR=/opt/z3/lib/cmake/z3 
 CMD ["bash"]
 
 ###################  runtime  ###################
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libstdc++6 llvm-14 libboost-program-options1.74.0 && \
+        wget gnupg ca-certificates && \
+    wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+        | gpg --dearmor -o /usr/share/keyrings/llvm-archive-keyring.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-23 main" \
+        > /etc/apt/sources.list.d/llvm23.list && \
+    apt-get update && apt-get install -y --no-install-recommends \
+        libstdc++6 llvm-23 libboost-program-options1.83.0 && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/z3            /opt/z3
@@ -71,6 +87,7 @@ COPY --from=builder /opt/z3-4.13.4           /opt/z3-4.13.4
 COPY --from=builder /opt/spoq3/lib     /opt/spoq3/lib
 COPY --from=builder /opt/spoq3/build/spoq      /opt/spoq3/build/spoq  
 
+ENV LLVM_ROOT=/usr/lib/llvm-23
 ENV PATH="/opt/spoq3/build:/opt/z3/bin/:$PATH" \
     Z3_DIR=/opt/z3/lib/cmake/z3
 

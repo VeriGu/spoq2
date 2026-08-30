@@ -9,6 +9,13 @@ fi
 container_dir="$(realpath "$1")" # container_dir is the dir for the container project
 root_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+# Which LLVM 23 to use.  Defaults to the local source build; override LLVM_ROOT.
+LLVM_ROOT="${LLVM_ROOT:-$HOME/workspace/llvm-project/build}"
+CLANG="${CLANG:-$LLVM_ROOT/bin/clang}";     command -v "$CLANG"    >/dev/null 2>&1 || CLANG=clang-23
+LLVM_AS="${LLVM_AS:-$LLVM_ROOT/bin/llvm-as}";  command -v "$LLVM_AS"  >/dev/null 2>&1 || LLVM_AS=llvm-as-23
+LLVM_DIS="${LLVM_DIS:-$LLVM_ROOT/bin/llvm-dis}"; command -v "$LLVM_DIS" >/dev/null 2>&1 || LLVM_DIS=llvm-dis-23
+
+
 echo "The container root:" $container_dir 
 
 if [ -e "$container_dir/build/rmm.linked.bc" ]; then
@@ -19,7 +26,7 @@ else
 fi
 
 # Convert BC file to IR file
-llvm-dis-14 "$container_dir/build/rmm.linked.bc" -o "$container_dir/verification/rmm.linked.ll"
+"$LLVM_DIS" "$container_dir/build/rmm.linked.bc" -o "$container_dir/verification/rmm.linked.ll"
 
 # Run preprocessing passes
 "$root_dir/opt.sh" "$container_dir/verification/rmm.linked.ll" "$container_dir/verification/rmm-opt.linked.ll"

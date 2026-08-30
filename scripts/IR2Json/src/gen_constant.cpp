@@ -20,11 +20,6 @@ namespace ir2json
             json::Object obj;
             obj["type"] = "expression";
             obj["op"] = std::string(ce->getOpcodeName());
-            if (ce->isCompare()) {
-                short pred = ce->getPredicate();
-                std::string pred_str = llvm::CmpInst::getPredicateName((llvm::CmpInst::Predicate)pred).str();
-                obj["predicate"] = pred_str;
-            }
             obj["operands"] = json::Array();
             for (int i = 0; i < ce->getNumOperands(); ++i)
             {

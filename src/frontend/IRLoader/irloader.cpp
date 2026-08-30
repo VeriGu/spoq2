@@ -57,6 +57,9 @@ static shared_ptr<IRType> parse_type(const ptree &typ) {
         {"i128", TInt::TI128},
         {"void", TVoid::TVOID},
         {"label", TLabel::TLABEL},
+        // An LLVM 17 opaque pointer has no pointee; model it as void* so that
+        // TPtr keeps a subtype and everything downstream keeps working.
+        {"opaque", TVoid::TVOID},
     };
     string type = typ.get<string>("type");
 

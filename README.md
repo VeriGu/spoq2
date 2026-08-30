@@ -39,7 +39,7 @@ cd spoq3-artifacts/rmm-pa/ && python3 run.py
 ### Dependencies
 
 - Z3 : 4.12.5 (Please use the cmake-version for our cmakefile to correctly find z3).
-- LLVM : 14.0.0
+- LLVM : 23 (`llvm-23`, `llvm-23-dev`, `clang-23`) — from apt.llvm.org; Ubuntu 24.04 (noble) or newer
 - Antlr4: Served as a submodule
 - Boost: (todo: specify version)
 
@@ -61,14 +61,22 @@ cmake -DCMAKE_BUILD_TYPE=Debug ..
 ### Build IR2Json
 This component is to be removed in the future.
 ```
-cd IR2Json
-wget https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.0/clang+llvm-14.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
-mkdir llvm
-tar xvf clang+llvm-14.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz --strip 1 -C llvm
-rm clang+llvm-14.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
+cd scripts/IR2Json
 make -j$(nproc)
-cd ..
+cd -
 ```
+It builds against `/usr/lib/llvm-23` by default; point it elsewhere with
+`make LLVM_ROOT=/path/to/llvm`.
+
+### Build the preprocessing passes
+The passes are New PM plugins.
+```
+scripts/preprocessing/build-passes.sh          # defaults to /usr/lib/llvm-23
+```
+Load one with `opt-23 --load-pass-plugin=<lib> -passes=<pass> ...`; the legacy
+`-load <lib> -<pass>` form no longer works because LLVM 17 removed the legacy
+pass manager from `opt`.  The wrapper scripts honour `OPT=<path-to-opt>` if your
+LLVM 23 is not on `PATH` as `opt-23`.
 
 ## Workflow
 

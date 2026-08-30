@@ -5,7 +5,6 @@ namespace ir2json
     json::Value gen_type(llvm::Type *type)
     {
         llvm::FunctionType *func_t;
-        llvm::PointerType *ptr_t;
         llvm::StructType *str_t;
         llvm::ArrayType *arr_t;
         llvm::FixedVectorType *fvec_t;
@@ -25,7 +24,6 @@ namespace ir2json
         case llvm::Type::VoidTyID:      ///< type with no size
         case llvm::Type::LabelTyID:     ///< Labels
         case llvm::Type::MetadataTyID:  ///< Metadata
-        case llvm::Type::X86_MMXTyID:   ///< MMX vectors (64 bits, X86 specific)
         case llvm::Type::X86_AMXTyID:   ///< AMX vectors (8192 bits, X86 specific)
         case llvm::Type::TokenTyID:     ///< Tokens
         case llvm::Type::IntegerTyID:   ///< Arbitrary bit width integers
@@ -43,9 +41,15 @@ namespace ir2json
             }
             break;
         case llvm::Type::PointerTyID: ///< Pointers
-            ptr_t = static_cast<llvm::PointerType *>(type);
             obj["type"] = "pointer";
-            obj["subtype"] = gen_type(ptr_t->getPointerElementType());
+            // LLVM 17 pointers are opaque: the pointee is no longer part of the
+            // pointer type, so there is nothing to recurse into.  Keep emitting a
+            // subtype so the shape of the JSON is unchanged for consumers.
+            {
+                json::Object sub;
+                sub["type"] = "opaque";
+                obj["subtype"] = obj2value(sub);
+            }
             break;
         case llvm::Type::StructTyID: ///< Structures
             str_t = static_cast<llvm::StructType *>(type);

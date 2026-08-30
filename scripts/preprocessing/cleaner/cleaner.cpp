@@ -1,5 +1,10 @@
 #include "llvm/IR/Type.h"
-#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/Passes/PassBuilder.h"
+// PassPlugin.h moved from llvm/Passes/ to llvm/Plugins/ in LLVM 23, and the
+// plugin API version went from 1 to 2.  Including the old path silently picks
+// up an older LLVM if one is installed under /usr/local.
+#include "llvm/Plugins/PassPlugin.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
@@ -28,9 +33,8 @@
 // mergefunc "
 //  "transformations are made."));
 
-class CleanerPass : public llvm::ModulePass {
+class CleanerPass : public llvm::PassInfoMixin<CleanerPass> {
  public:
-  static char ID;
   const llvm::DataLayout* dl;
   llvm::LLVMContext* context;
 
@@ -43,8 +47,14 @@ class CleanerPass : public llvm::ModulePass {
   bool is_debug_intrinsic(llvm::StringRef fname);
   void dfs(llvm::Function* F, int block);
   void clean(llvm::Module &M);
-  CleanerPass() : ModulePass(ID) { }
-  bool runOnModule(llvm::Module& M) override {
+  CleanerPass() { }
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+    runOnModule(M);
+    return llvm::PreservedAnalyses::none();
+  }
+  static bool isRequired() { return true; }
+
+  bool runOnModule(llvm::Module& M) {
     context = &M.getContext();
     dl = &M.getDataLayout();
     clean(M);
@@ -94,7 +104,7 @@ void CleanerPass::clean(llvm::Module& M) {
       F.setLinkage(llvm::GlobalValue::LinkageTypes::InternalLinkage);
       if (rty->isVoidTy() || rty->isIntegerTy() || rty->isPointerTy()) {
         F.dropAllReferences();
-        F.getBasicBlockList().clear();
+        while (!F.empty()) F.begin()->eraseFromParent();
         llvm::BasicBlock* BB =
             llvm::BasicBlock::Create(F.getContext(), "entry", &F);
         llvm::IRBuilder<> builder(BB);
@@ -107,8 +117,8 @@ void CleanerPass::clean(llvm::Module& M) {
       }
     }
     std::vector<llvm::Instruction*> insts_to_drop;
-    for( auto &bb : F.getBasicBlockList()) {
-      for( llvm::Instruction& inst_ref: bb.getInstList()){
+    for( auto &bb : F) {
+      for( llvm::Instruction& inst_ref: bb){
         auto inst = &inst_ref;
         if (inst && llvm::isa<llvm::CallInst>(inst)) {
           auto call_inst = llvm::dyn_cast<llvm::CallInst>(inst);
@@ -117,7 +127,7 @@ void CleanerPass::clean(llvm::Module& M) {
             continue;
           }
           auto name = target->getName();
-          if(name.startswith("llvm.lifetime")){
+          if(name.starts_with("llvm.lifetime")){
             insts_to_drop.push_back(inst);
           }
         }
@@ -131,15 +141,31 @@ void CleanerPass::clean(llvm::Module& M) {
 
 bool CleanerPass::is_debug_intrinsic(llvm::StringRef fname) {
   for (auto l : debug_intrinsics) {
-    if (fname.startswith(l) || fname.endswith(l)) return true;
+    if (fname.starts_with(l) || fname.ends_with(l)) return true;
   }
   return false;
 }
 
-char CleanerPass::ID = 0;
 
-static llvm::RegisterPass<CleanerPass> X(
-    "cleaner", "Clean up unnecessary functions",
-    false,  // This pass doesn't modify the CFG => true
-    false   // This pass is not a pure analysis pass => false
-);
+// LLVM 17 dropped the legacy pass manager from opt, so the pass is exposed as a
+// New PM plugin.  Run it with:
+//   opt-17 --load-pass-plugin=<lib> -passes=cleaner ...
+llvm::PassPluginLibraryInfo getCleanerPassPluginInfo() {
+  return {LLVM_PLUGIN_API_VERSION, "cleaner", LLVM_VERSION_STRING,
+          [](llvm::PassBuilder &PB) {
+            PB.registerPipelineParsingCallback(
+                [](llvm::StringRef Name, llvm::ModulePassManager &MPM,
+                   llvm::ArrayRef<llvm::PassBuilder::PipelineElement>) {
+                  if (Name == "cleaner") {
+                    MPM.addPass(CleanerPass());
+                    return true;
+                  }
+                  return false;
+                });
+          }};
+}
+
+extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
+llvmGetPassPluginInfo() {
+  return getCleanerPassPluginInfo();
+}

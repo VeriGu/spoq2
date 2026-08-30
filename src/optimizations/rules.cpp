@@ -3816,9 +3816,13 @@ rule_ret_t SpecRules::rule_move_if_out_expr(std::unique_ptr<SpecNode> spec, bool
                             elems2->push_back(std::move(e->elems->at(j)));
                         }
                     }
+                    // Copy the op before the move below: argument evaluation order is
+                    // unspecified, so reading e->op in the same call that moves out of
+                    // it would hand one branch a moved-from (empty) operator name.
+                    auto op_copy = e->deep_copy_op();
                     auto new_if = std::make_unique<If>(
                         std::move(elem->cond),
-                        std::make_unique<Expr>(e->deep_copy_op(), std::move(elems1), e->type),
+                        std::make_unique<Expr>(std::move(op_copy), std::move(elems1), e->type),
                         std::make_unique<Expr>(std::move(e->op), std::move(elems2), e->type)
                     );
                     changed = true;
