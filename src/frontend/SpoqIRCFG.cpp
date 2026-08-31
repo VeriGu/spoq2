@@ -130,7 +130,7 @@ namespace autov {
 // next one.  This is necessary because splitting a basic block invalidates
 // all iterators over the function's block list.
 
-bool SpoqIRModule::control_flow_elinminate_select(llvm::Function* func) {
+bool SpoqIRModule::control_flow_eliminate_select(llvm::Function* func) {
     assert(func && "func is nullptr for control_flow_eliniminate_select");
     for (auto &bb: *func) {
         for(auto &inst: bb) {
@@ -172,7 +172,7 @@ bool SpoqIRModule::control_flow_elinminate_select(llvm::Function* func) {
                 select->eraseFromParent();
 
                 // Restart the scan (iterators are invalid after splitting).
-                control_flow_elinminate_select(func);
+                control_flow_eliminate_select(func);
                 return true;
             }
         }
@@ -276,8 +276,8 @@ bool SpoqIRModule::control_flow_duplicate(llvm::BasicBlock *bb,
 
 static int repeats = 0;
 bool SpoqIRModule::control_flow_clone_and_split(llvm::BasicBlock *bb, SpoqLoopContext &context) {
-    // LOG_DEBUG << "clone and split " << (bb->hasName() ? bb->getName().str() : "no name"); 
-    // if (bb->getParent()->getBasicBlockList().size() > 200000) 
+    // LOG_DEBUG << "clone and split " << (bb->hasName() ? bb->getName().str() : "no name");
+    // if (bb->getParent()->getBasicBlockList().size() > 200000)
     //     throw std::runtime_error("block size too large in fn " + bb->getParent()->getName().str() + ": " + std::to_string(bb->getParent()->getBasicBlockList().size()));
     if (repeats > 10000000){
         throw std::runtime_error("block size too large in fn " + bb->getParent()->getName().str() + ".");
@@ -399,7 +399,7 @@ void SpoqIRModule::control_flow_merge_bridge(llvm::BasicBlock* bb, std::set<llvm
 // are replaced with their single value and removed.
 
 bool SpoqIRModule::control_flow_conversion_DAG(string fname, SpoqFunction &spoq_func, SpoqLoopContext& context) {
-    
+
 
     // --- Sub-pass 1: Clone-and-split + phi cleanup, per region ---
     context.init(spoq_func.llvm_func);
@@ -547,7 +547,7 @@ bool SpoqIRModule::control_flow_conversion_v2(string fname,
     PB.registerLoopAnalyses(LAM);
 
     // ── Phase 1: Eliminate select instructions ──
-    control_flow_elinminate_select(llvm_func);
+    control_flow_eliminate_select(llvm_func);
 
     // ── Phase 2: Normalize loops ──
     // Ask LLVM for loop info on the (post-Phase-1) CFG.

@@ -59,7 +59,7 @@ namespace autov {
 
         bool constant_assumption = false;
         std::string abs_wrapper_name;
-        unsigned long mem_start; 
+        unsigned long mem_start;
         unsigned long mem_size;
 
         std::set<std::string> in_any_map;
@@ -136,11 +136,11 @@ namespace autov {
         string origin;
         string objdump;
         string body;
-    
+
         SpoqAsmProcedure() = delete;
         SpoqAsmProcedure(string name, string origin, string objdump, string body)
             : name(name), origin(origin), objdump(objdump), body(body) {}
-    
+
         string to_coq() const { return body; }
     };
 
@@ -169,10 +169,10 @@ namespace autov {
 
         /**
          * @brief Return if this context is currently in a loop. We can use `context.init() while(context.step())` to iterate the top-layer program and all loops.
-         * The loops visited are NOT guarenteed to be in any order. 
+         * The loops visited are NOT guarenteed to be in any order.
          */
         inline bool context_in_loop() { return step_count >= 0; }
-        
+
 
         inline bool postheader_with_phi(llvm::BasicBlock* bb) {
             for(auto &pair: jump) {
@@ -200,10 +200,10 @@ namespace autov {
 
         /**
          * @brief Fix PHI nodes in loop headers and post headers. This must be called if a in-loop basic block is cloned.
-         * 
+         *
          * @param src The source block
-         * @param cloned 
-         * @param value_map 
+         * @param cloned
+         * @param value_map
          */
         void fix_headers(llvm::BasicBlock* src, llvm::BasicBlock* cloned, llvm::ValueToValueMapTy &value_map) {
             if(loopheader) {
@@ -230,11 +230,11 @@ namespace autov {
 
         /**
          * @brief Check whether this block may changes during control_flow_conversion
-         * 
-         * @param bb 
+         *
+         * @param bb
          * @param header The current loop (or the top-level function) under revising
          * @return true The basic block is in the current processing loop (or top-level function) and should be revised.
-         * @return false 
+         * @return false
          */
         inline bool require_fix(llvm::BasicBlock* bb, llvm::BasicBlock* header) {
             if (step_count == -1) return header_map[bb] == nullptr;
@@ -251,10 +251,10 @@ namespace autov {
 
         /**
          * @brief Check if a basicblock requires clone in the current step context. Note that preheader, loopheader and postheader should never be cloned. This helper function is used to determine whether a successor of a cloned basic block required clone as well.
-         * 
-         * @param bb 
-         * @return true 
-         * @return false 
+         *
+         * @param bb
+         * @return true
+         * @return false
          */
         inline bool require_clone(llvm::BasicBlock* bb) {
             if( bb == preheader || bb == postheader) return false;
@@ -266,10 +266,10 @@ namespace autov {
 
         /**
          * @brief Check if a basicblock requires to be spilt into two. Preheader, postheader and loopheader should never split. Any other basicblocks with at least two predesssors should be split into two blocks. And its direct and indirect successors should be cloned.
-         * 
-         * @param bb 
-         * @return true 
-         * @return false 
+         *
+         * @param bb
+         * @return true
+         * @return false
          */
         inline bool require_split(llvm::BasicBlock* bb) {
             if (bb == preheader || bb == postheader) return false;
@@ -280,9 +280,9 @@ namespace autov {
 
         /**
          * @brief Return the target basic block pointer if bb is a preheader, and bb is not the preheader of the visiting loop. This is only valid in a `while(context.step())` context. Use `require_jump_no_step` otehrwise.
-         * 
-         * @param bb 
-         * @return llvm::BasicBlock* 
+         *
+         * @param bb
+         * @return llvm::BasicBlock*
          */
         inline llvm::BasicBlock* require_jump(llvm::BasicBlock* bb) {
             if(step_count >= 0 && bb == preheader) return nullptr;
@@ -292,9 +292,9 @@ namespace autov {
 
         /**
          * @brief Check if this bb is a preheader for some loop.
-         * 
-         * @param bb 
-         * @return llvm::BasicBlock* 
+         *
+         * @param bb
+         * @return llvm::BasicBlock*
          */
         inline llvm::BasicBlock* require_jump_no_step(llvm::BasicBlock* bb) {
             if(jump.find(bb) != jump.end()) return jump[bb];
@@ -303,8 +303,8 @@ namespace autov {
 
         /**
          * @brief After a set of basic blocks are cloned, update the jump map in case any loop get cloned as well.
-         * 
-         * @param value_map 
+         *
+         * @param value_map
          */
         inline void update_jump(llvm::ValueToValueMapTy &value_map) {
             std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*>> records;
@@ -316,7 +316,7 @@ namespace autov {
                 assert(((!v1)== (!v2)) && "only one of the jump start and target is duplicated");
                 if (v1 && v2) {
                     records.push_back(std::make_pair(v1, v2));
-                } 
+                }
             }
             for (auto &pair: records) {
                 jump[pair.first] = pair.second;
@@ -330,9 +330,9 @@ namespace autov {
         /**
          * @brief Travel the function to update the header_map. A basic block is mapped to its inner loop. Preheaders, loopheaders and postheaders have their
          `header_map ` set to the loop's preheader. But some of their instructions may belong to the outter loop after translation.
-         * 
-         * @param pre 
-         * @param post 
+         *
+         * @param pre
+         * @param post
          */
         void travel(llvm::BasicBlock* pre, llvm::BasicBlock* post) {
             std::queue<llvm::BasicBlock*> q;
@@ -371,10 +371,10 @@ namespace autov {
 
         /**
          * @brief A preheader and postheader should not be removed by any control flow conversion.
-         * 
-         * @param bb 
-         * @return true 
-         * @return false 
+         *
+         * @param bb
+         * @return true
+         * @return false
          */
         inline bool can_remove(llvm::BasicBlock* bb) {
             for(auto &pair: jump) {
@@ -410,8 +410,8 @@ namespace autov {
 
         /**
          * @brief With `context.step()`, it provides a way to iterate all loops and the top-level program in a function.
-         * 
-         * @param func 
+         *
+         * @param func
          */
         void init(llvm::Function* func) {
             step_count = -2;
@@ -446,12 +446,12 @@ namespace autov {
         }
 
         /**
-         * @brief This versioned is used in a context.step() context. We are walking on the simple form of loop. (See LLVM documentation). We require a preheader and exists and it has a unique 
+         * @brief This versioned is used in a context.step() context. We are walking on the simple form of loop. (See LLVM documentation). We require a preheader and exists and it has a unique
          successor (the loopheader). Any predecessors of the loopheader is either the preheader or a latch block.
-         * 
-         * @param src 
-         * @param dst 
-         * @return We 
+         *
+         * @param src
+         * @param dst
+         * @return We
          */
         inline bool is_backward(llvm::BasicBlock* src, llvm::BasicBlock* dst) {
             if (step_count < 0) return false;
@@ -466,11 +466,11 @@ namespace autov {
 
         /**
          * @brief After exiting preprocessing, any exiting block must first jump to the postheader. Thus, a block is exiting if and only if it jumps to the postheader.
-         * 
-         * @param src 
-         * @param dst 
-         * @return true 
-         * @return false 
+         *
+         * @param src
+         * @param dst
+         * @return true
+         * @return false
          */
         inline bool is_exiting(llvm::BasicBlock* src, llvm::BasicBlock* dst) {
             if (step_count < 0) return false;
@@ -486,9 +486,9 @@ namespace autov {
 
         /**
          * @brief Different from the basicblock-level phi nodes, the real_header is instruction-level and reflects where the value can be accessed in Spec. All branch instructions are not translated. All instructions in preheader and postheader are treated as in the OUTTER loop.
-         * 
-         * @param v1 
-         * @return llvm::BasicBlock* 
+         *
+         * @param v1
+         * @return llvm::BasicBlock*
          */
         inline llvm::BasicBlock* real_header(llvm::Instruction* v1) {
             auto bb = v1->getParent();
@@ -505,9 +505,9 @@ namespace autov {
 
         /**
          * @brief update the `outter_loop_header` to maintain a loop order. This field is not updated until spec generation. We may need to advance this in the futrue.
-         * 
-         * @param in 
-         * @param out 
+         *
+         * @param in
+         * @param out
          */
         void update_parent(llvm::BasicBlock* in, llvm::BasicBlock* out) {
             if (out == nullptr) return;
@@ -515,11 +515,11 @@ namespace autov {
         }
 
         /**
-         * @brief Given the current (loop) stack, and a `val` used in block `def`, update the `pass_in` and `pass_out` for all related loops.  It finds the nearest common parent between the defintion and the current loop in the loop forest, then let `pass_in[parent....def] = val` and `pass_out[parent....currentloop] = val`. 
-         * 
-         * @param def 
-         * @param vec 
-         * @param val 
+         * @brief Given the current (loop) stack, and a `val` used in block `def`, update the `pass_in` and `pass_out` for all related loops.  It finds the nearest common parent between the defintion and the current loop in the loop forest, then let `pass_in[parent....def] = val` and `pass_out[parent....currentloop] = val`.
+         *
+         * @param def
+         * @param vec
+         * @param val
          */
         void recursive_update_pass(llvm::BasicBlock* def, std::vector<llvm::BasicBlock*>& vec, llvm::Value* val) {
             auto loop = def;
@@ -692,12 +692,12 @@ namespace autov {
                     return get_llvm_value_spec(value);
                 }
                 return nullptr;
-            } 
+            }
             else if (auto inst = llvm::dyn_cast<llvm::PtrToIntInst>(value)) {
                 auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
                 operands->push_back(get_llvm_value_spec(inst->getPointerOperand()));
                 return std::make_unique<Expr>(ptr2int_op_name, std::move(operands));
-            } 
+            }
             else if (auto inst = llvm::dyn_cast<llvm::CastInst>(value)) {
                 return is_ptr_to_int(inst->getOperand(0));
             }
@@ -737,27 +737,27 @@ namespace autov {
         }
 
         /**
-         * @brief Get the llvm value spec unique_ptr object. 
-         * 
-         * @param value 
-         * @return unique_ptr<SpecNode> 
+         * @brief Get the llvm value spec unique_ptr object.
+         *
+         * @param value
+         * @return unique_ptr<SpecNode>
          */
         unique_ptr<SpecNode> get_llvm_value_spec(llvm::Value* value, llvm::Type* force_sym_type = nullptr, bool abstraction = true);
 
         /**
          * @brief Get the llvm value type. TODO: use pointer abstraction here
-         * 
-         * @param value 
-         * @param context 
-         * @return shared_ptr<SpecType> 
+         *
+         * @param value
+         * @param context
+         * @return shared_ptr<SpecType>
         */
         shared_ptr<SpecType> get_llvm_value_type(llvm::Value* value);
 
         /**
          * @brief Compute the return type of the loop spec and the brea kinstruction. The abs_data is included. It should be type of Opton<Tuple<t1,t2,...,abs_data_type>> or Option<abs_data_type>
-         * 
-         * @param preheader 
-         * @return shared_ptr<SpecType> 
+         *
+         * @param preheader
+         * @return shared_ptr<SpecType>
          */
         shared_ptr<SpecType> compute_loop_return_type(llvm::BasicBlock* preheader) {
             std::shared_ptr<std::vector<std::shared_ptr<SpecType>>> ret = std::make_shared<std::vector<std::shared_ptr<SpecType>>>();
@@ -781,8 +781,8 @@ namespace autov {
         /**
          * @brief Update the return list as if encountering a break instruction. This function is used in the loop conversion.
          * Note we need a quick dominator tree check here. A value may only dominates some of the exiting blocks. After constructing the postheader, this may cause a conflicts where a non-dominating value is requried to be returned, but will never be used outside of the loop for the returning branch. An undefined value is returned to pass type check. It should be optimized out in the final spec generation.
-         * 
-         * @param exiting 
+         *
+         * @param exiting
          */
         void update_loop_break_return_list(llvm::BasicBlock* exiting) {
             assert(!pass_stack.empty() && "pass_stack is empty, break but not in loop");
@@ -804,7 +804,7 @@ namespace autov {
                         return_list.push_back(llvm::UndefValue::get(phi->getType()));
                         continue;
                     }
-                } 
+                }
                 return_list.push_back(phi);
             }
             for(auto &phi: spoq_func.loop_context.postheader_phi[preheader]) {
@@ -816,9 +816,9 @@ namespace autov {
 
         /**
          * @brief Compute the actual return SpecNode list of a loop break instruction
-         * 
-         * @param preheader 
-         * @return std::unique_ptr<std::vector<std::unique_ptr<SpecNode>>> 
+         *
+         * @param preheader
+         * @return std::unique_ptr<std::vector<std::unique_ptr<SpecNode>>>
          */
         std::unique_ptr<std::vector<std::unique_ptr<SpecNode>>> compute_loop_break_return_list(llvm::BasicBlock* preheader) {
             auto ret = std::make_unique<std::vector<std::unique_ptr<SpecNode>>>();
@@ -840,12 +840,12 @@ namespace autov {
 
         /**
          * @brief Compute the Arg used for in the continue-translated tail recursive call.
-         * 
-         * @param preheader 
-         * @return std::unique_ptr<std::vector<std::shared_ptr<Arg>>> 
+         *
+         * @param preheader
+         * @return std::unique_ptr<std::vector<std::shared_ptr<Arg>>>
          */
-        std::unique_ptr<std::vector<std::shared_ptr<Arg>>> 
-        compute_loop_spec_arg(llvm::BasicBlock* preheader) { 
+        std::unique_ptr<std::vector<std::shared_ptr<Arg>>>
+        compute_loop_spec_arg(llvm::BasicBlock* preheader) {
             auto arg_list = std::make_unique<std::vector<std::shared_ptr<Arg>>>();
             for (auto &val: spoq_func.loop_context.pass_in[preheader]) {
                 arg_list->push_back(std::make_shared<Arg>(get_llvm_value_name(val), get_llvm_value_type(val)));
@@ -868,10 +868,10 @@ namespace autov {
 
         /**
          * @brief Compute the continue return arg list for the loop. This function is used in the loop conversion.
-         * 
-         * @param latch 
-         * @param preheader 
-         * @return std::vector<llvm::Value*> 
+         *
+         * @param latch
+         * @param preheader
+         * @return std::vector<llvm::Value*>
          */
         std::vector<llvm::Value*> compute_loop_continue_arg_list(llvm::BasicBlock* latch, llvm::BasicBlock* preheader = nullptr, int *guard = nullptr) {
             std::vector<llvm::Value*> arg_list;
@@ -923,7 +923,7 @@ namespace autov {
 
         bool check_abstraction_pattern(unique_ptr<SpecNode>& value, unique_ptr<SpecNode>& raw, SpoqAbstractionContext& abs_context);
 
-        unique_ptr<SpecNode> construct_abstraction_pattern(unique_ptr<SpecNode> raw, SpoqAbstractionContext& abs_context); 
+        unique_ptr<SpecNode> construct_abstraction_pattern(unique_ptr<SpecNode> raw, SpoqAbstractionContext& abs_context);
 
         unique_ptr<SpecNode> apply_abstraction(unique_ptr<SpecNode> spec);
 
@@ -960,7 +960,7 @@ namespace autov {
 
 
 
-    class SpoqIRModule { 
+    class SpoqIRModule {
     public:
         int iasm_count = 0;
         llvm::LLVMContext llvm_context;
@@ -973,7 +973,7 @@ namespace autov {
         std::map<llvm::Value*, std::string> iasm2func;
         /**
          * @brief Contains the solved inline asm with a map objd -> function name
-         * 
+         *
          */
         std::map<std::string, std::string> iasm_objd_cache;
         /**
@@ -992,39 +992,39 @@ namespace autov {
 
         /**
          * @brief generate the low spec for function `fname` in layer `layer_id`
-         * 
-         * @param proj 
-         * @param fname 
-         * @param layer_id 
+         *
+         * @param proj
+         * @param fname
+         * @param layer_id
          * @param low_specs the name for the generated low_specs
          */
         static bool code_to_spec(Project* proj, string fname, int layer_id, std::vector<std::string> &low_specs, std::unordered_map<string, string> &name_map);
 
         /**
          * @brief Check if the SpoqFunction is ready for generating low spec.
-         * 
-         * @param proj 
+         *
+         * @param proj
          * @param fname The name of the function. Must has its definition in LLVM module.
          * @return true A converted SpoqFunc is in spoq_funcs[fname] with all its field set.
-         * @return false 
+         * @return false
          */
         static bool validate_for_gen_low_spec(Project* proj, string fname, int layer_id);
 
         /**
-         * @brief Similar to Rule 2 in Spoq 1/2, merge any bridges on LLVM IR. This function will breaks 
+         * @brief Similar to Rule 2 in Spoq 1/2, merge any bridges on LLVM IR. This function will breaks
          the header_map information and a context.travel_all() is required after this function.
-         * 
+         *
          * @param bb the entry basic block
          * @param skip the set of basic blocks that should be skipped
          */
         static void control_flow_merge_bridge(llvm::BasicBlock* bb, std::set<llvm::BasicBlock*>& skip, SpoqLoopContext& context);
 
         /**
-         * @brief Similar to Rule 4 and 4' in Spoq 1/2, clone and split the branches on LLVM IR by repeatedly 
-         * (1) cloneing the basic block with multiple predecessors, and (2) duplicating all its (in)direct 
+         * @brief Similar to Rule 4 and 4' in Spoq 1/2, clone and split the branches on LLVM IR by repeatedly
+         * (1) cloneing the basic block with multiple predecessors, and (2) duplicating all its (in)direct
          * successors. The current version in only valid on DAG.
-         * @return true 
-         * @return false 
+         * @return true
+         * @return false
          */
 
         static bool control_flow_clone_and_split(llvm::BasicBlock* bb, SpoqLoopContext& );
@@ -1033,47 +1033,47 @@ namespace autov {
 
         /**
          * @brief Eliminate select instruction in the function. Replace the original
-         basic block with [ inst_list :: br select_cond]  --> 
+         basic block with [ inst_list :: br select_cond]  -->
          [Block 0: v0 = s0]  [Block 1: v1 = s1] --> [ phi_node :: inst_list ]
-         * 
-         * @param func 
+         *
+         * @param func
          * @return true The func is changed
-         * @return false 
+         * @return false
          */
-        static bool control_flow_elinminate_select(llvm::Function* func);
+        static bool control_flow_eliminate_select(llvm::Function* func);
 
         /**
-         * @brief Convert DAG into a tree-like CFG on LLVM IR. 
-         * 
+         * @brief Convert DAG into a tree-like CFG on LLVM IR.
+         *
          * @return true success
-         * @return false 
+         * @return false
          */
         static bool control_flow_conversion_DAG(string fname,  SpoqFunction& spoq_func, SpoqLoopContext& );
 
         /**
          * @brief Convert any CFG into a form that ready for spoq_inst translation. Set the ``spoq_func.cfg_converted`` to true if success. TODO: support loop.
-         * 
+         *
          * @param fname function name
          * @param spoq_func The spoq_func to be converted. Its `llvm_func` should already be set.
-         * @return true 
-         * @return false 
+         * @return true
+         * @return false
          */
         static bool control_flow_conversion_v2(string fname, SpoqFunction& spoq_func);
 
         /**
          * @brief load all functions with definitions in the this->llvm_module and convert them into SpoqFunction.
-         * 
-         * @param proj 
-         * @return true 
-         * @return false 
+         *
+         * @param proj
+         * @return true
+         * @return false
          */
         bool load_function_and_convert_all(Project* proj);
 
         /**
-         * @brief convert llvm::Type into SpecType. This is a pure translation without 
+         * @brief convert llvm::Type into SpecType. This is a pure translation without
          * using any pointer abstraction.
          * @param type SpecTYpe
-         * @return shared_ptr<SpecType> 
+         * @return shared_ptr<SpecType>
          */
         static shared_ptr<SpecType> llvm_ir_type_to_spec_pure(llvm::Type* type);
 
@@ -1112,7 +1112,7 @@ namespace autov {
 
         /**
          * @brief Preprocess the llvm module to fix function and global variable names. It runs LowerSwitchPass and SROA pass to simplify the llvm module. (Should we run SROA here?)
-         * 
+         *
          */
         void preprocess_llvm_module();
 
