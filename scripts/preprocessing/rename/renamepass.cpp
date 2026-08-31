@@ -311,11 +311,16 @@ bool RenamePass::renameAll(llvm::Module &M) {
 
 
 
-  // std::string out_filename = "rename_changes" + M.getSourceFileName() + ".json";
-  // std::error_code ec;
-  // llvm::raw_fd_ostream outfile(out_filename, ec);
-  llvm::errs() << llvm::json::Value(std::move(changes)) << "\n";
-  // outfile.close();
+  // The rename report goes to stdout, not stderr.  opt writes its own
+  // diagnostics to stderr -- "warning: ignoring invalid debug info", the
+  // offending metadata lines, and the "No renaming plan entry for ..." notices
+  // above -- so a report emitted there arrives interleaved with them, and a
+  // caller redirecting stderr to a .json file gets a file that is not JSON.
+  //
+  // Nothing else is written to stdout: the renamed IR leaves through opt's -o,
+  // which rename_with_suffix.sh passes for exactly this reason.
+  llvm::outs() << llvm::json::Value(std::move(changes)) << "\n";
+  llvm::outs().flush();
   return true;
 }
 // bool RenamePass::isUnion(llvm::StructType* ty) {

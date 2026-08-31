@@ -60,17 +60,17 @@ namespace log {
 // }
 
 void set_logging_level() {
-#ifdef DEBUG
+// #ifdef DEBUG
     logging::core::get()->set_filter
     (
         logging::trivial::severity >= logging::trivial::debug
     );
-#else
-    logging::core::get()->set_filter
-    (
-        logging::trivial::severity >= logging::trivial::info
-    );
-#endif
+// #else
+//     logging::core::get()->set_filter
+//     (
+//         logging::trivial::severity >= logging::trivial::info
+//     );
+// #endif
 }
 
 void init() {
