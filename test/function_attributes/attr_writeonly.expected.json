@@ -1,0 +1,6 @@
+{
+  "verified": false,
+  "spec_has_ub": true,
+  "impl_eliminates_ub": false,
+  "impl_has_non_spec_ub": false
+}

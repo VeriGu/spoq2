@@ -854,13 +854,33 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 }
                 args->push_back(context.get_abs_data());
 
+                // LLVM function attributes tell us what the callee may do to memory.
+                // A call that provably never writes -- memory(none) or memory(read),
+                // i.e. the old readnone/readonly -- leaves the abstract state alone,
+                // so its output state *is* its input state.
+                //
+                // Encode that structurally: bind the callee's result state to a name
+                // nothing reads, leaving `st` in the continuation still referring to
+                // the pre-call state.  The alternative (bind st, then assume
+                // `st = st_before`) does not survive the pipeline -- let-inlining
+                // captures `st` and collapses the assumption to `st = st`.
+                //
+                // Attributes that still permit a write (writeonly, argmemonly, ...)
+                // say nothing about the state as a whole and are deliberately unused.
+                bool preserves_state = call->onlyReadsMemory();
+                auto result_state = [&]() -> unique_ptr<SpecNode> {
+                    if (!preserves_state) return context.get_abs_data();
+                    return std::make_unique<Symbol>(context.fresh_pre_state_name(),
+                                                    context.abs_data_type);
+                };
+
                 unique_ptr<SpecNode> ret = nullptr;
                 if(call->getType()->isVoidTy()) {
-                    ret = context.get_abs_data();
+                    ret = result_state();
                 } else {
                     auto children = std::make_unique<vector<unique_ptr<SpecNode>>>();
                     children->push_back(context.get_llvm_value_spec(call, nullptr, false));
-                    children->push_back(context.get_abs_data());
+                    children->push_back(result_state());
                     ret = Shortcut::_Tuple_u(std::move(children));
                 }
 

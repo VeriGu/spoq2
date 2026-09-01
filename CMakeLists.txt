@@ -70,7 +70,7 @@ include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
-llvm_map_components_to_libnames(LLVM_LIBRARIES support core irreader analysis passes)
+llvm_map_components_to_libnames(LLVM_LIBRARIES support core irreader analysis passes bitwriter)
 # set(NO_RTTI "-fno-rtti")
 # add_definitions(${NO_RTTI})
 
@@ -213,3 +213,35 @@ target_link_libraries(spoq ${Boost_LIBRARIES})
 
 set_target_properties(spoq PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build")
+
+# ------------------------------------------------------------------------------
+# SpoqTest -- GoogleTest driver for test/
+# ------------------------------------------------------------------------------
+# Built as part of `all` and made to depend on spoq, so running the tests always
+# exercises the executable that was just built.  The spoq path and the test tree
+# are baked in, so the driver never picks up a stale binary from $PATH.
+find_package(GTest REQUIRED)
+enable_testing()
+
+add_executable(SpoqTest test/SpoqTest.cpp)
+add_dependencies(SpoqTest spoq)
+target_compile_definitions(SpoqTest PRIVATE
+    SPOQ_BINARY="$<TARGET_FILE:spoq>"
+    SPOQ_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test")
+target_link_libraries(SpoqTest GTest::gtest ${LLVM_LIBRARIES} ${Boost_LIBRARIES})
+set_target_properties(SpoqTest PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build")
+
+# One ctest entry per case, so `ctest -R <name>` and parallel runs work.  The
+# glob only names the tests; the driver rediscovers them at run time, so adding
+# a triple of files needs no build-system change (just a re-configure to get its
+# own ctest entry).
+file(GLOB_RECURSE SPOQ_TEST_EXPECTED
+     RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}/test"
+     "${CMAKE_CURRENT_SOURCE_DIR}/test/*.expected.json")
+foreach(expected ${SPOQ_TEST_EXPECTED})
+    get_filename_component(case_name "${expected}" NAME)
+    string(REGEX REPLACE "\\.expected\\.json$" "" case_name "${case_name}")
+    add_test(NAME ${case_name}
+             COMMAND SpoqTest --gtest_filter=Spoq.${case_name})
+endforeach()
