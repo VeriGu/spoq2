@@ -46,6 +46,26 @@ namespace {
 /// Seconds any single spoq invocation is allowed to take.
 constexpr int kTimeoutSeconds = 300;
 
+/// Set SPOQ_TEST_KEEP=1 to keep every scratch directory, pass or fail.
+bool keepScratchDirs() {
+    static const bool keep = std::getenv("SPOQ_TEST_KEEP") != nullptr;
+    return keep;
+}
+
+/// Kept directories, in completion order, for the end-of-run summary.
+std::vector<std::pair<std::string, std::string>> &keptDirs() {
+    static std::vector<std::pair<std::string, std::string>> dirs;
+    return dirs;
+}
+
+/// Where the summary is also written, so the paths survive a harness that
+/// captures stdout -- ctest hides the output of a *passing* test unless run with
+/// -V, which is precisely when these paths are wanted.
+std::string keptListPath() {
+    const char *tmp = std::getenv("TMPDIR");
+    return std::string(tmp ? tmp : "/tmp") + "/spoq-test-kept.txt";
+}
+
 struct TestCase {
     std::string stem;
     fs::path ll;
@@ -150,12 +170,20 @@ void runCase(const TestCase &tc) {
 
     struct Cleanup {
         fs::path dir;
-        bool keep = std::getenv("SPOQ_TEST_KEEP") != nullptr;
+        std::string stem;
         ~Cleanup() {
-            if (keep) std::fprintf(stderr, "    kept %s\n", dir.c_str());
-            else fs::remove_all(dir);
+            if (!keepScratchDirs()) {
+                fs::remove_all(dir);
+                return;
+            }
+            // gtest-style tag, and on stdout with the rest of the run, so the
+            // line is unambiguously attributed rather than looking like it
+            // belongs to whichever test just finished.
+            std::printf("[ KEPT     ] Spoq.%s -> %s\n", stem.c_str(), dir.c_str());
+            std::fflush(stdout);
+            keptDirs().emplace_back(stem, dir.string());
         }
-    } cleanup{work};
+    } cleanup{work, tc.stem};
 
     fs::copy_file(tc.main_v, work / (tc.stem + ".main.v"),
                   fs::copy_options::overwrite_existing);
@@ -220,5 +248,21 @@ int main(int argc, char **argv) {
             });
     }
 
-    return RUN_ALL_TESTS();
+    const int status = RUN_ALL_TESTS();
+
+    if (keepScratchDirs() && !keptDirs().empty()) {
+        std::printf("\n[ KEPT     ] %zu scratch director%s (SPOQ_TEST_KEEP is set):\n",
+                    keptDirs().size(), keptDirs().size() == 1 ? "y" : "ies");
+        for (const auto &[stem, dir] : keptDirs())
+            std::printf("             %-28s %s\n", stem.c_str(), dir.c_str());
+
+        const std::string list = keptListPath();
+        if (std::ofstream out(list); out) {
+            for (const auto &[stem, dir] : keptDirs()) out << stem << ' ' << dir << '\n';
+            std::printf("             also listed in %s\n", list.c_str());
+        }
+        std::fflush(stdout);
+    }
+
+    return status;
 }

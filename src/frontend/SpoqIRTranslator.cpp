@@ -18,6 +18,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include "llvm/IR/InlineAsm.h"
+#include "llvm/Support/ModRef.h"
 #include <memory>
 #include <stdexcept>
 #include <unordered_map>
@@ -867,11 +868,40 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 //
                 // Attributes that still permit a write (writeonly, argmemonly, ...)
                 // say nothing about the state as a whole and are deliberately unused.
-                bool preserves_state = call->onlyReadsMemory();
+                //
+                // One narrowing is worth doing though: argument memory the callee
+                // cannot name is argument memory it cannot touch.  If no pointer is
+                // passed, a permission like memory(argmem: readwrite) licenses no
+                // write, so drop ArgMem before asking whether anything can be
+                // written.  An integer argument holding an address does not make
+                // that unsound -- accessing it is a write to "other" memory, which
+                // the remaining effects still have to allow.
+                auto effects = call->getMemoryEffects();
+                const bool passes_pointer =
+                    std::any_of(call->arg_begin(), call->arg_end(), [](const llvm::Use &arg) {
+                        return arg->getType()->isPointerTy();
+                    });
+                if (!passes_pointer)
+                    effects = effects.getWithoutLoc(llvm::IRMemLocation::ArgMem);
+                bool preserves_state = effects.onlyReadsMemory();
+
+                // If argument memory is the *only* thing the callee may write, then
+                // at most the one object its pointer argument designates changes;
+                // everything else in RData is framed to the pre-call state.  Only
+                // the single-pointer case is handled -- with several pointers the
+                // frame would have to allow all of them to change at once.
+                std::vector<llvm::Value *> ptr_args;
+                for (const llvm::Use &arg : call->args())
+                    if (arg->getType()->isPointerTy()) ptr_args.push_back(arg.get());
+                const bool frame_argmem =
+                    !preserves_state && ptr_args.size() == 1 &&
+                    effects.getWithoutLoc(llvm::IRMemLocation::ArgMem).onlyReadsMemory();
+                std::string callee_state;
+                if (preserves_state || frame_argmem)
+                    callee_state = context.fresh_pre_state_name();
                 auto result_state = [&]() -> unique_ptr<SpecNode> {
-                    if (!preserves_state) return context.get_abs_data();
-                    return std::make_unique<Symbol>(context.fresh_pre_state_name(),
-                                                    context.abs_data_type);
+                    if (callee_state.empty()) return context.get_abs_data();
+                    return std::make_unique<Symbol>(callee_state, context.abs_data_type);
                 };
 
                 unique_ptr<SpecNode> ret = nullptr;
@@ -913,6 +943,93 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                         remain = std::make_unique<Rely>(std::move(p), std::move(remain));
                     }
                 } 
+
+                if (frame_argmem) {
+                    auto get = [](unique_ptr<SpecNode> obj, const char *field) {
+                        auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                        v->push_back(std::move(obj));
+                        v->push_back(std::make_unique<Symbol>(field));
+                        return std::make_unique<Expr>(Expr::RecordGet, std::move(v));
+                    };
+                    auto bin = [](Expr::binops op, unique_ptr<SpecNode> a,
+                                  unique_ptr<SpecNode> b) {
+                        auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                        v->push_back(std::move(a));
+                        v->push_back(std::move(b));
+                        return std::make_unique<Expr>(op, std::move(v));
+                    };
+                    auto apply = [](const char *fn, unique_ptr<SpecNode> arg) {
+                        auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                        v->push_back(std::move(arg));
+                        return std::make_unique<Expr>(std::string(fn), std::move(v));
+                    };
+                    auto negate = [](unique_ptr<SpecNode> a) {
+                        auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                        v->push_back(std::move(a));
+                        return std::make_unique<Expr>(Expr::NOT, std::move(v));
+                    };
+                    auto pre = [&]() { return context.get_abs_data(); };
+                    auto post = [&]() -> unique_ptr<SpecNode> {
+                        return std::make_unique<Symbol>(callee_state, context.abs_data_type);
+                    };
+                    auto arg_ptr = [&]() { return context.get_llvm_value_spec(ptr_args.front()); };
+                    auto same = [&](const char *field) {
+                        return bin(Expr::EQUAL, get(post(), field), get(pre(), field));
+                    };
+
+                    // The heap arm: only the block the pointer names may differ, and
+                    // an argmem-only callee cannot allocate, so nextBlock is pinned.
+                    auto key = [&]() { return apply("spvn", get(arg_ptr(), "pbase")); };
+                    auto blocks_of = [&](unique_ptr<SpecNode> st) {
+                        return get(get(std::move(st), "heap"), "blocks");
+                    };
+                    auto changed = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                    changed->push_back(blocks_of(post()));
+                    changed->push_back(key());
+                    auto updated = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                    updated->push_back(blocks_of(pre()));
+                    updated->push_back(key());
+                    updated->push_back(std::make_unique<Expr>(Expr::GET, std::move(changed)));
+                    auto mem = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                    mem->push_back(std::make_unique<Expr>(Expr::SET, std::move(updated)));
+                    mem->push_back(get(get(pre(), "heap"), "nextBlock"));
+                    auto heap_framed =
+                        bin(Expr::EQUAL, get(post(), "heap"),
+                            std::make_unique<Expr>(std::string("mkMEM"), std::move(mem)));
+
+                    // One assumption rather than a conditional woven into the state:
+                    // Note this Rely survives the pipeline where a naive one does not.
+                    // Stating preservation as `let st_pre := st in ... rely (st = st_pre)`
+                    // is eliminated: the `when` rebinds st, let-inlining captures it and
+                    // the assumption collapses to `st = st`.  Here the pre-state (st) and
+                    // the callee's state (st_unused_N) are distinct names at the point the
+                    // Rely is written, so there is nothing to capture.  Do not "simplify"
+                    // this back into a binding of st.
+                    // whichever region the pointer names is the only one that may
+                    // differ, and the other two are pinned.  Stating it as a Rely
+                    // keeps st a plain symbol, so later loads and stores are not
+                    // forced to reason through an if-expression in the state itself.
+                    auto heap_arm =
+                        bin(Expr::AND,
+                            bin(Expr::AND, negate(apply("is_global_ptr", arg_ptr())),
+                                negate(apply("is_stack_ptr", arg_ptr()))),
+                            bin(Expr::AND, std::move(heap_framed),
+                                bin(Expr::AND, same("stack"), same("globals"))));
+                    auto stack_arm =
+                        bin(Expr::AND, apply("is_stack_ptr", arg_ptr()),
+                            bin(Expr::AND, same("heap"), same("globals")));
+                    auto global_arm =
+                        bin(Expr::AND, apply("is_global_ptr", arg_ptr()),
+                            bin(Expr::AND, same("heap"), same("stack")));
+
+                    auto frame = bin(Expr::OR, std::move(heap_arm),
+                                     bin(Expr::OR, std::move(stack_arm), std::move(global_arm)));
+
+                    remain = Shortcut::_Let_u(
+                        std::make_unique<Symbol>(context.abs_data_name, context.abs_data_type),
+                        post(), std::move(remain));
+                    remain = std::make_unique<Rely>(std::move(frame), std::move(remain));
+                }
 
                 return Shortcut::_When_u(std::move(ret), std::move(new_expr), std::move(remain));
             } else {
