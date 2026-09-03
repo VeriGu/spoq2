@@ -617,13 +617,6 @@ namespace autov {
         std::vector<unique_ptr<Expr>> abs_rely;
         std::map<unsigned int, bool> abs_const_checked;
         const std::string abs_data_name = "st";
-        // Serial number for the throwaway result-state bindings used when a
-        // callee's LLVM attributes say it cannot write memory (see call handling
-        // in SpoqIRTranslator).  Each call site needs its own unread name.
-        int unused_state_counter = 0;
-        std::string fresh_pre_state_name() {
-            return abs_data_name + "_unused_" + std::to_string(unused_state_counter++);
-        }
         shared_ptr<SpecType> abs_data_type = nullptr;
         std::string load_op_name = "load_RData";
         std::string store_op_name = "store_RData";
@@ -1075,6 +1068,20 @@ namespace autov {
          * @return false
          */
         bool load_function_and_convert_all(Project* proj);
+
+        /**
+         * @brief Turn the memory attributes on external declarations into spec bodies.
+         *
+         * A declaration has no body for the CFG pass to convert, so its spec
+         * reaches us as a `Parameter f_spec` from main.v -- an uninterpreted
+         * function about which nothing is known.  Where LLVM's memory attributes
+         * do say something (memory(none), memory(read), argmem-only), demote that
+         * Parameter to an oracle and define `f_spec` as a wrapper that calls the
+         * oracle under a Rely carrying the attribute.
+         *
+         * @param proj
+         */
+        void synthesize_attribute_specs(Project* proj);
 
         /**
          * @brief convert llvm::Type into SpecType. This is a pure translation without

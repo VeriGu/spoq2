@@ -1231,6 +1231,9 @@ bool Project::finalize_project_v2() {
         }
     }
 
+    // Before conversion, so that a callsite to an attributed declaration
+    // resolves to the synthesised wrapper rather than the bare Parameter.
+    spoq_code.synthesize_attribute_specs(this);
     spoq_code.load_function_and_convert_all(this);
     // spoq_code.store_llvm_module();
 

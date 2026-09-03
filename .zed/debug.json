@@ -111,6 +111,7 @@
     "cwd": "$ZED_WORKTREE_ROOT/build/"
   },
     "program": "$ZED_WORKTREE_ROOT/build/spoq", // Path to your CMake target executable
+    "env": {"SPOQ_CURRENT_QUERY": "/tmp/spoq_current_query.smt2"},
     "args": ["/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm049/build/ac3_parser.main.v",
     "--new-trans", "--llvm", "--check-pre-post", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "z3_queries/"], // Any command-line arguments
     "cwd": "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm049/build/",

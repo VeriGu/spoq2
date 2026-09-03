@@ -63,14 +63,39 @@ pointer reaches the callee, and they isolate the per-location narrowing: argumen
 memory the callee cannot name is argument memory it cannot touch, so with no
 pointer argument `argmem: readwrite` licenses no write at all.
 
-The generated specs show the mechanism directly:
+### Where the attribute lands
 
-    state reused (continuation keeps the incoming st):
-      attr_readonly:            when call, st_unused_0 == ((ext_pure_spec st));
-      attr_argmem_nopointers:   when call, st_unused_0 == ((ext_argmem_np_spec 1 st));
+A declaration has no body for the CFG pass to convert, so its spec reaches spoq
+as a `Parameter f_spec` from `main.v` — an uninterpreted function about which
+nothing is known. Where the attributes *do* say something, spoq demotes that
+Parameter to an oracle and defines `f_spec` as a wrapper that calls the oracle
+under a Rely carrying the attribute
+(`SpoqIRModule::synthesize_attribute_specs`). `main.v` needs no change: callers
+keep naming `f_spec` and now see the wrapper.
 
-    state re-bound (post-call state is unconstrained):
-      attr_argmem:              when call, st == ((ext_argmem_spec (mkPtr "g" 0) st));
+    Parameter ext_pure_oracle : RData -> (option (Z * RData)).
+
+    Definition ext_pure_spec (st: RData) : (option (Z * RData)) :=
+      when ret_value, st_callee == ((ext_pure_oracle st));
+      rely ((st_callee = (st)));
+      (Some (ret_value, st_callee)).
+
+The property is stated once, at the function, rather than re-derived at every
+callsite — which is both what the transformation phase can exploit and a fix for
+a duplication bug: the old per-callsite emission wrote the `attr_argmem_frame`
+frame three times, because `llvm.lifetime.start`/`end` also carry
+`memory(argmem: readwrite)`.
+
+A callee whose attributes say nothing usable is left exactly as `main.v` wrote
+it — `attr_writeonly` still gets a bare `Parameter ext_wo_spec`. A callee the
+user gave a real `Definition` is never rewritten either: a hand-written body
+already says more than an attribute can.
+
+This is narrower than the per-callsite version it replaces, deliberately. That
+version also fired on calls to functions *defined* in the module, where the
+attribute is redundant: spoq derives a spec from the body, which is strictly more
+precise than any attribute. Only declarations, where there is no body to derive
+from, get a synthesised one.
 
 ### What each test actually discriminates
 
@@ -103,14 +128,14 @@ unconstrained — at most the object that pointer designates changes. The frame
 mirrors `store_RData`'s own dispatch:
 
     rely (   ((~ (is_global_ptr p)) /\ (~ (is_stack_ptr p))
-              /\ (st_call.(heap) = (mkMEM ((st.(heap)).(blocks)
+              /\ (st_callee.(heap) = (mkMEM ((st.(heap)).(blocks)
                                            # (spvn (p.(pbase)))
-                                           == (((st_call.(heap)).(blocks)) @ (spvn (p.(pbase)))))
+                                           == (((st_callee.(heap)).(blocks)) @ (spvn (p.(pbase)))))
                                           ((st.(heap)).(nextBlock))))
-              /\ (st_call.(stack) = st.(stack)) /\ (st_call.(globals) = st.(globals)))
-          \/ ((is_stack_ptr p)  /\ (st_call.(heap) = st.(heap))  /\ (st_call.(globals) = st.(globals)))
-          \/ ((is_global_ptr p) /\ (st_call.(heap) = st.(heap))  /\ (st_call.(stack) = st.(stack))));
-    let st := st_call in
+              /\ (st_callee.(stack) = st.(stack)) /\ (st_callee.(globals) = st.(globals)))
+          \/ ((is_stack_ptr p)  /\ (st_callee.(heap) = st.(heap))  /\ (st_callee.(globals) = st.(globals)))
+          \/ ((is_global_ptr p) /\ (st_callee.(heap) = st.(heap))  /\ (st_callee.(stack) = st.(stack))));
+    (Some (ret_value, st_callee)).
 
 Whichever region the pointer names is the only one that may differ; the other
 two are pinned. The witness for "some block" is the callee's own block, so no
@@ -127,8 +152,10 @@ in `attr_argmem_frame`, the only case where the frame does real work.
 Note this Rely survives the pipeline where the obvious one does not. Writing
 preservation as `let st_pre := st in ... rely (st = st_pre)` is silently
 eliminated: the `when` rebinds `st`, let-inlining captures it and the assumption
-collapses to `st = st`. Here the pre-state and the callee's state are distinct
-names where the Rely is written, so there is nothing to capture.
+collapses to `st = st`. Here `st` is the wrapper's own parameter and `st_callee`
+is a `when` binder over an opaque oracle call, so the two are distinct names that
+nothing can inline together. Do not "simplify" the wrapper into returning
+`Some (ret_value, st)` — that would make the Rely redundant and then removable.
 
 Two limits worth knowing:
 
@@ -151,18 +178,21 @@ Every function attribute appearing in the reference corpus
 (`~/workspace/patchverification/examples`), and what spoq does with it:
 
 **Used.** `memory(none)` / `readnone`, `memory(read)` / `readonly` — the callee
-provably never writes, so the call's output state is its input state.  The
-per-location `memory(..., argmem: ...)` forms also qualify when the call passes
-no pointer argument, since the callee then has no argument memory to write.
+provably never writes, so its output state is its input state. The per-location
+`memory(..., argmem: ...)` forms also qualify when the function has no pointer
+parameter, since the callee then has no argument memory to write.
+
+**Used, framed rather than preserved.** The per-location argmem forms when the
+function has exactly one pointer parameter — at most the object that pointer
+designates changes, and the rest of `RData` is pinned. See the frame above.
 
 **Deliberately unused, unsound to exploit as-is:**
 
-- `memory(write)` / `writeonly`, and the per-location forms
-  (`memory(argmem: ...)` / `argmemonly`,
-  `memory(read, argmem: readwrite, ...)`) *when a pointer actually reaches the
-  callee* — these permit a write, so nothing follows about the state as a whole.
-  Going further would need alias reasoning about which locations the call may
-  touch. Covered by `attr_writeonly` and `attr_argmem`.
+- `memory(write)` / `writeonly` — permits a write anywhere, so nothing follows
+  about the state as a whole. Covered by `attr_writeonly`.
+- The per-location argmem forms with *several* pointer parameters — the frame
+  would have to permit all of the objects they name to change at once, which is
+  not implemented.
 - `inaccessiblememonly` — only touches memory the program cannot reach, so it
   arguably preserves the *observable* state, but spoq's `RData` does not draw
   that distinction. Two occurrences in the corpus; not worth the subtlety.

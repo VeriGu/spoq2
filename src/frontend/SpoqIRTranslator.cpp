@@ -41,7 +41,7 @@ namespace autov {
 
 /**
  * @brief This look up table is incomplete and only contains the most common binary ops in llvm.
- * 
+ *
  */
 const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> SpoqIRModule::binops_lut = {
     {llvm::Instruction::BinaryOps::Add, Expr::binops::ADD},
@@ -79,7 +79,7 @@ const std::unordered_map<llvm::CmpInst::Predicate, Expr::binops> SpoqIRModule::c
     // Signed Numbers
     {llvm::CmpInst::Predicate::ICMP_SGT, Expr::binops::BGT},
     {llvm::CmpInst::Predicate::ICMP_SGE, Expr::binops::BGE},
-    {llvm::CmpInst::Predicate::ICMP_SLT, Expr::binops::BLT}, 
+    {llvm::CmpInst::Predicate::ICMP_SLT, Expr::binops::BLT},
     {llvm::CmpInst::Predicate::ICMP_SLE, Expr::binops::BLE},
     // Unsigned Numbers
     {llvm::CmpInst::Predicate::ICMP_UGT, Expr::binops::BGT},
@@ -91,7 +91,7 @@ const std::unordered_map<llvm::CmpInst::Predicate, Expr::binops> SpoqIRModule::c
 };
 
 
-void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec (llvm::BasicBlock* block, llvm::BasicBlock* parent, spoq_inst_vec_t& vec, SpoqLoopContext& context) { 
+void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec (llvm::BasicBlock* block, llvm::BasicBlock* parent, spoq_inst_vec_t& vec, SpoqLoopContext& context) {
 
     if (context.is_backward(parent, block)) {
         vec.push_back(std::make_unique<SpoqContinueInst>(parent));
@@ -105,7 +105,7 @@ void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec (llvm::BasicBlock* block, llvm::
 
     assert (block != context.get_postheader() && "Postheader should not be visited. All exits blcoked before.");
 
-    // This block is a loop preheader. 
+    // This block is a loop preheader.
     // The preheader's all instructions excpet for the last unconditional branch are put in the current vec.
     // The postheader's all instructions except for PHIs should be put in the current vec
     if (auto target = context.require_jump(block)) {
@@ -116,14 +116,14 @@ void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec (llvm::BasicBlock* block, llvm::
             vec.push_back(std::make_unique<SpoqLLVMInst>(&inst));
         }
 
-        
+
         auto v = std::make_unique<SpoqLoopInst>(block);
         context.set_loop_inst_for_jump(block, v->body);
         vec.push_back(std::move(v));
 
         dfs_llvm_ir_to_spoq_inst_vec(target, nullptr, vec, context);
         return;
-    } 
+    }
 
 
     // Non preheader
@@ -137,7 +137,7 @@ void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec (llvm::BasicBlock* block, llvm::
             // This phi nodes of postheader belongs to the loop we jump.
             // It will be processed when we process that loop.
         }
-        
+
         if(auto br = llvm::dyn_cast<llvm::BranchInst>(&inst)) {
             if(br->isConditional()) {
                 auto cond = br->getCondition();
@@ -151,7 +151,7 @@ void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec (llvm::BasicBlock* block, llvm::
                 dfs_llvm_ir_to_spoq_inst_vec(br->getSuccessor(0), block, vec, context);
             }
             return; // A br is the last instruction in a block (for a valid llvm module)
-        }  
+        }
         else {
             // These functions are added before
             if (block == context.get_preheader()) continue;
@@ -165,11 +165,11 @@ bool SpoqIRModule::llvm_ir_to_spoq_ir(SpoqFunction &spoq_func) {
 
     spoq_func.loop_context.init(spoq_func.llvm_func);
     while(spoq_func.loop_context.step()) {
-        if ( !spoq_func.loop_context.context_in_loop() ) 
+        if ( !spoq_func.loop_context.context_in_loop() )
             dfs_llvm_ir_to_spoq_inst_vec(spoq_func.loop_context.get_start(), nullptr, spoq_func.spoq_insts, spoq_func.loop_context);
         else {
             dfs_llvm_ir_to_spoq_inst_vec(spoq_func.loop_context.get_start(), nullptr, spoq_func.loop_context.get_loop_inst_for_jump(), spoq_func.loop_context);
-            // Update the postheader_phi 
+            // Update the postheader_phi
             for (auto &inst: spoq_func.loop_context.get_postheader()->phis()) {
                 spoq_func.loop_context.add_postheader_phi(&inst);
             }
@@ -258,7 +258,7 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
                     expr->type = Struct::Ptr;
                     return expr;
                 }
-            } 
+            }
         } else if (auto expr = llvm::dyn_cast<llvm::ConstantExpr>(value)) {
             if (expr->getOpcode() == llvm::AddrSpaceCastInst::CastOps::PtrToInt) {
               auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
@@ -284,8 +284,8 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
             auto expr = std::make_unique<Expr>("mkPtr", std::move(vec));
             expr->type = Struct::Ptr;
             return expr;
-        } 
-        
+        }
+
         // Parameteric constant, need to be defined in the spec file
         if (value->getType()->isIntegerTy()) {
             auto name = get_llvm_value_name(value, &counter);
@@ -440,7 +440,7 @@ shared_ptr<SpecType> SpoqIRModule::llvm_ir_type_to_spec_pure(llvm::Type* type) {
             std::string name = anonStructName(static_cast<llvm::StructType*>(type));
             return make_shared<SpecType>(name);
         }
-        
+
     } else if (type->isArrayTy()) {
         auto elem_type = llvm_ir_type_to_spec_pure(type->getArrayElementType());
         assert(elem_type != SpecType::UNKNOWN_TYPE && "array element type is unknown");
@@ -506,7 +506,7 @@ unique_ptr<SpecNode> construct_return_spec(Project *proj,
         return Shortcut::_Some_u(context.get_abs_data());
     }
 }
-std::pair<unique_ptr<SpecNode>, unique_ptr<SpecNode>> 
+std::pair<unique_ptr<SpecNode>, unique_ptr<SpecNode>>
 SpoqIRModule::gep_inst_to_spec (llvm::Value* gep_inst_or_expr, SpoqIRContext& context) {
     auto gep_inst = llvm::dyn_cast<llvm::GetElementPtrInst>(gep_inst_or_expr);
     auto gep_expr = llvm::dyn_cast<llvm::ConstantExpr>(gep_inst_or_expr);
@@ -568,7 +568,7 @@ SpoqIRModule::gep_inst_to_spec (llvm::Value* gep_inst_or_expr, SpoqIRContext& co
     // return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
 }
 
-std::pair<unique_ptr<SpecNode>, unique_ptr<SpecNode>> 
+std::pair<unique_ptr<SpecNode>, unique_ptr<SpecNode>>
 SpoqIRModule::store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context) {
     if (auto load = llvm::dyn_cast<llvm::LoadInst>(inst)) {
         // TODO: pointer abstraction here
@@ -637,7 +637,7 @@ SpoqIRModule::store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context
 }
 
 unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_vec_t& vec, int num, SpoqIRContext& context) {
-    if(num >= vec.size()) { 
+    if(num >= vec.size()) {
         return construct_return_spec(proj, context);
     }
 
@@ -649,7 +649,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             assert(num == vec.size() - 1);
             if(auto rv = ret->getReturnValue()) context.return_list.push_back(rv);
             return spoq_inst_to_spec(proj, vec, num + 1, context);
-        } 
+        }
         if (auto ret = llvm::dyn_cast<llvm::UnreachableInst>(spoq_inst->inst)) {
             assert(num == vec.size() - 1 && "unreachable is not the last inst");
             context.return_none = true;
@@ -710,15 +710,15 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 assert(bool_binops_lut.find(bi->getOpcode()) != bool_binops_lut.end() && "Binary operation not supported");
                 expr = std::make_unique<Expr>(bool_binops_lut.at(bi->getOpcode()), std::move(operands));
             } else if(binops_lut.find(bi->getOpcode()) != binops_lut.end()) {
-                bool shift_to_div = (bi->getOpcode() == llvm::Instruction::BinaryOps::LShr || bi->getOpcode() == llvm::Instruction::BinaryOps::AShr) 
+                bool shift_to_div = (bi->getOpcode() == llvm::Instruction::BinaryOps::LShr || bi->getOpcode() == llvm::Instruction::BinaryOps::AShr)
                     && bi->getOperand(0)->getType()->isIntegerTy(64) && bi->getOperand(1)->getType()->isIntegerTy(64);
                 bool shift_to_mul = bi->getOpcode() == llvm::Instruction::BinaryOps::Shl && bi->getOperand(0)->getType()->isIntegerTy(64) && bi->getOperand(1)->getType()->isIntegerTy(64);
-                auto num = llvm::dyn_cast<llvm::ConstantInt>(bi->getOperand(1));        
+                auto num = llvm::dyn_cast<llvm::ConstantInt>(bi->getOperand(1));
                 if (num && (shift_to_div || shift_to_mul)) {
                     auto val = num->getZExtValue();
                     operands->pop_back();
                     operands->push_back(std::make_unique<IntConst>(1LL << val));
-                    if (shift_to_div) 
+                    if (shift_to_div)
                        expr = std::make_unique<Expr>(Expr::binops::DIV, std::move(operands));
                     else  if (shift_to_mul)
                        expr = std::make_unique<Expr>(Expr::binops::MULT, std::move(operands));
@@ -735,7 +735,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                         rely_expr = std::move(bexpr);
                     }
                 }
-            } 
+            }
             if (expr == nullptr) {
                 llvm::errs() << "Binary operation not supported: " << *bi << "\n";
                 assert(false && "Binary operation not supported");
@@ -773,7 +773,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             if (cmp->getOperand(0)->getType()->isPointerTy()) {
                 if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_EQ) {
                     expr = std::make_unique<Expr>(context.ptr_eqb_op_name, std::move(operands));
-                } 
+                }
                 else if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_ULT) {
                     expr = std::make_unique<Expr>(context.ptr_ltb_op_name, std::move(operands));
                 }
@@ -801,11 +801,11 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             context.add_cache(context.get_llvm_value_name(cmp), expr);
             auto new_expr = context.apply_abstraction(std::move(expr));
             return Shortcut::_Let_u(context.get_llvm_value_spec(cmp), std::move(new_expr), spoq_inst_to_spec(proj, vec, num + 1, context));
-        } 
+        }
 
         // function call
         if (auto call = llvm::dyn_cast<llvm::CallInst>(spoq_inst->inst)) {
-            
+
             if (call->isDebugOrPseudoInst()) {
                 return spoq_inst_to_spec(proj, vec, num + 1, context);
             }
@@ -835,7 +835,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
 
                     auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
                     return Shortcut::_When_u(std::move(ret), std::move(expr), std::move(remain));
-            } 
+            }
             else if (auto callee = call->getCalledOperand()) {
 
                 auto callee_func = call->getCalledFunction();
@@ -855,62 +855,19 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 }
                 args->push_back(context.get_abs_data());
 
-                // LLVM function attributes tell us what the callee may do to memory.
-                // A call that provably never writes -- memory(none) or memory(read),
-                // i.e. the old readnone/readonly -- leaves the abstract state alone,
-                // so its output state *is* its input state.
-                //
-                // Encode that structurally: bind the callee's result state to a name
-                // nothing reads, leaving `st` in the continuation still referring to
-                // the pre-call state.  The alternative (bind st, then assume
-                // `st = st_before`) does not survive the pipeline -- let-inlining
-                // captures `st` and collapses the assumption to `st = st`.
-                //
-                // Attributes that still permit a write (writeonly, argmemonly, ...)
-                // say nothing about the state as a whole and are deliberately unused.
-                //
-                // One narrowing is worth doing though: argument memory the callee
-                // cannot name is argument memory it cannot touch.  If no pointer is
-                // passed, a permission like memory(argmem: readwrite) licenses no
-                // write, so drop ArgMem before asking whether anything can be
-                // written.  An integer argument holding an address does not make
-                // that unsound -- accessing it is a write to "other" memory, which
-                // the remaining effects still have to allow.
-                auto effects = call->getMemoryEffects();
-                const bool passes_pointer =
-                    std::any_of(call->arg_begin(), call->arg_end(), [](const llvm::Use &arg) {
-                        return arg->getType()->isPointerTy();
-                    });
-                if (!passes_pointer)
-                    effects = effects.getWithoutLoc(llvm::IRMemLocation::ArgMem);
-                bool preserves_state = effects.onlyReadsMemory();
-
-                // If argument memory is the *only* thing the callee may write, then
-                // at most the one object its pointer argument designates changes;
-                // everything else in RData is framed to the pre-call state.  Only
-                // the single-pointer case is handled -- with several pointers the
-                // frame would have to allow all of them to change at once.
-                std::vector<llvm::Value *> ptr_args;
-                for (const llvm::Use &arg : call->args())
-                    if (arg->getType()->isPointerTy()) ptr_args.push_back(arg.get());
-                const bool frame_argmem =
-                    !preserves_state && ptr_args.size() == 1 &&
-                    effects.getWithoutLoc(llvm::IRMemLocation::ArgMem).onlyReadsMemory();
-                std::string callee_state;
-                if (preserves_state || frame_argmem)
-                    callee_state = context.fresh_pre_state_name();
-                auto result_state = [&]() -> unique_ptr<SpecNode> {
-                    if (callee_state.empty()) return context.get_abs_data();
-                    return std::make_unique<Symbol>(callee_state, context.abs_data_type);
-                };
+                // Note: what the callee's memory attributes imply about the state is
+                // no longer decided here.  For an external declaration it is baked
+                // into the synthesised body of <callee>_spec (see
+                // SpoqIRModule::synthesize_attribute_specs), so it arrives once, at
+                // unfold time, instead of being re-derived at every callsite.
 
                 unique_ptr<SpecNode> ret = nullptr;
                 if(call->getType()->isVoidTy()) {
-                    ret = result_state();
+                    ret = context.get_abs_data();
                 } else {
                     auto children = std::make_unique<vector<unique_ptr<SpecNode>>>();
                     children->push_back(context.get_llvm_value_spec(call, nullptr, false));
-                    children->push_back(result_state());
+                    children->push_back(context.get_abs_data());
                     ret = Shortcut::_Tuple_u(std::move(children));
                 }
 
@@ -942,93 +899,6 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                         }
                         remain = std::make_unique<Rely>(std::move(p), std::move(remain));
                     }
-                } 
-
-                if (frame_argmem) {
-                    auto get = [](unique_ptr<SpecNode> obj, const char *field) {
-                        auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
-                        v->push_back(std::move(obj));
-                        v->push_back(std::make_unique<Symbol>(field));
-                        return std::make_unique<Expr>(Expr::RecordGet, std::move(v));
-                    };
-                    auto bin = [](Expr::binops op, unique_ptr<SpecNode> a,
-                                  unique_ptr<SpecNode> b) {
-                        auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
-                        v->push_back(std::move(a));
-                        v->push_back(std::move(b));
-                        return std::make_unique<Expr>(op, std::move(v));
-                    };
-                    auto apply = [](const char *fn, unique_ptr<SpecNode> arg) {
-                        auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
-                        v->push_back(std::move(arg));
-                        return std::make_unique<Expr>(std::string(fn), std::move(v));
-                    };
-                    auto negate = [](unique_ptr<SpecNode> a) {
-                        auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
-                        v->push_back(std::move(a));
-                        return std::make_unique<Expr>(Expr::NOT, std::move(v));
-                    };
-                    auto pre = [&]() { return context.get_abs_data(); };
-                    auto post = [&]() -> unique_ptr<SpecNode> {
-                        return std::make_unique<Symbol>(callee_state, context.abs_data_type);
-                    };
-                    auto arg_ptr = [&]() { return context.get_llvm_value_spec(ptr_args.front()); };
-                    auto same = [&](const char *field) {
-                        return bin(Expr::EQUAL, get(post(), field), get(pre(), field));
-                    };
-
-                    // The heap arm: only the block the pointer names may differ, and
-                    // an argmem-only callee cannot allocate, so nextBlock is pinned.
-                    auto key = [&]() { return apply("spvn", get(arg_ptr(), "pbase")); };
-                    auto blocks_of = [&](unique_ptr<SpecNode> st) {
-                        return get(get(std::move(st), "heap"), "blocks");
-                    };
-                    auto changed = std::make_unique<vector<unique_ptr<SpecNode>>>();
-                    changed->push_back(blocks_of(post()));
-                    changed->push_back(key());
-                    auto updated = std::make_unique<vector<unique_ptr<SpecNode>>>();
-                    updated->push_back(blocks_of(pre()));
-                    updated->push_back(key());
-                    updated->push_back(std::make_unique<Expr>(Expr::GET, std::move(changed)));
-                    auto mem = std::make_unique<vector<unique_ptr<SpecNode>>>();
-                    mem->push_back(std::make_unique<Expr>(Expr::SET, std::move(updated)));
-                    mem->push_back(get(get(pre(), "heap"), "nextBlock"));
-                    auto heap_framed =
-                        bin(Expr::EQUAL, get(post(), "heap"),
-                            std::make_unique<Expr>(std::string("mkMEM"), std::move(mem)));
-
-                    // One assumption rather than a conditional woven into the state:
-                    // Note this Rely survives the pipeline where a naive one does not.
-                    // Stating preservation as `let st_pre := st in ... rely (st = st_pre)`
-                    // is eliminated: the `when` rebinds st, let-inlining captures it and
-                    // the assumption collapses to `st = st`.  Here the pre-state (st) and
-                    // the callee's state (st_unused_N) are distinct names at the point the
-                    // Rely is written, so there is nothing to capture.  Do not "simplify"
-                    // this back into a binding of st.
-                    // whichever region the pointer names is the only one that may
-                    // differ, and the other two are pinned.  Stating it as a Rely
-                    // keeps st a plain symbol, so later loads and stores are not
-                    // forced to reason through an if-expression in the state itself.
-                    auto heap_arm =
-                        bin(Expr::AND,
-                            bin(Expr::AND, negate(apply("is_global_ptr", arg_ptr())),
-                                negate(apply("is_stack_ptr", arg_ptr()))),
-                            bin(Expr::AND, std::move(heap_framed),
-                                bin(Expr::AND, same("stack"), same("globals"))));
-                    auto stack_arm =
-                        bin(Expr::AND, apply("is_stack_ptr", arg_ptr()),
-                            bin(Expr::AND, same("heap"), same("globals")));
-                    auto global_arm =
-                        bin(Expr::AND, apply("is_global_ptr", arg_ptr()),
-                            bin(Expr::AND, same("heap"), same("stack")));
-
-                    auto frame = bin(Expr::OR, std::move(heap_arm),
-                                     bin(Expr::OR, std::move(stack_arm), std::move(global_arm)));
-
-                    remain = Shortcut::_Let_u(
-                        std::make_unique<Symbol>(context.abs_data_name, context.abs_data_type),
-                        post(), std::move(remain));
-                    remain = std::make_unique<Rely>(std::move(frame), std::move(remain));
                 }
 
                 return Shortcut::_When_u(std::move(ret), std::move(new_expr), std::move(remain));
@@ -1038,12 +908,12 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             }
         }
 
-        
+
         if (auto load = llvm::dyn_cast<llvm::LoadInst>(spoq_inst->inst)) {
             auto rhs = store_load_to_spec(spoq_inst->inst, context);
             if (load->getType()->isPointerTy()) {
                 // TODO: pointer abstraction here
-                
+
                 auto children = std::make_unique<vector<unique_ptr<SpecNode>>>();
                 children->push_back(context.get_llvm_value_spec_ptr_in_Z(load));
                 auto i2p_v = std::make_unique<Expr>(context.int2ptr_op_name, std::move(children));
@@ -1086,7 +956,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             auto source_element_type = gep->getPointerOperandType();
             std::vector<llvm::Value*> indices;
             // llvm::errs() << "\n" << *gep << "\n";
-            
+
             // A getElementPtr command may have many indexes into a nested aggregate structure.
             // This constructs a (ptr_offset base_ptr (... result of indexing ...))
             // In the end, however, we should know that the resulting pointer's offset % size = result of indexing.
@@ -1138,7 +1008,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 // This rely clause should express that the resulting pointer is aligned with the proper field
                 // We want sym.(poffset) % size_of_aggregate = (calculated_offset).
                 std::unique_ptr<SpecNode> mod_expr = sym->deep_copy();
-                
+
                 auto record_get_elems = make_unique<std::vector<unique_ptr<SpecNode>>>();
                 record_get_elems->push_back(std::move(mod_expr));
                 record_get_elems->push_back(make_unique<Symbol>("poffset"));
@@ -1163,7 +1033,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             return result;
         }
         if (auto ins = llvm::dyn_cast<llvm::InsertElementInst>(spoq_inst->inst)) {
-            
+
             // operands are vector, value, index
             auto array = ins->getOperand(0);
             auto val = ins->getOperand(1);
@@ -1171,7 +1041,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             if (!idx){
                 assert(false && "InsertElement only supported with constant index.");
             }
-            
+
             auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
             operands->push_back(context.get_llvm_value_spec(array));
             operands->push_back(std::make_unique<IntConst>(idx->getZExtValue()));
@@ -1245,7 +1115,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                         context.get_llvm_value_spec(bc->getOperand(0)), std::make_unique<IntConst>(1), std::make_unique<IntConst>(0));
                     // context.add_cache(context.get_llvm_value_name(bc), expr);
                     return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
-                } 
+                }
                 // TODO: overflow / underflow check
                 // is this sext?
                 auto sym = context.get_llvm_value_spec(bc);
@@ -1330,8 +1200,8 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             if(proj->cmds.InitRely.find(name) != proj->cmds.InitRely.end()) {
                 for(auto & f : proj->cmds.InitRely[name])
                     spec = std::make_unique<Rely>(f->deep_copy(), std::move(spec));
-            }    
- 
+            }
+
             auto argtype = context.compute_loop_spec_arg(inst->preheader_block);
             auto rettype = context.compute_loop_return_type(inst->preheader_block);
             auto def = new Fixpoint(name, rettype, std::move(argtype), std::move(spec));

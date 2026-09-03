@@ -1,3 +1,4 @@
+#include <fstream>
 #include <nodes.h>
 #include <any>
 #include <shortcuts.h>
@@ -27,7 +28,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <signal.h>
-#include <thread>        
+#include <thread>
 #include <cstdlib>
 
 
@@ -58,10 +59,10 @@ inline z3::check_result cache_to_check_result(int l) {
     else if (l == 0) return z3::unsat;
     return z3::unknown;
 }
-z3::check_result z3_pcache_check() { 
+z3::check_result z3_pcache_check() {
     auto stmt = Z3Solver.to_smt2();
     auto p = pcache.get(stmt);
-    if(p.first != -1) return cache_to_check_result(p.first); 
+    if(p.first != -1) return cache_to_check_result(p.first);
     auto res = Z3Solver.check();
     pcache.put(stmt, res);
     return res;
@@ -128,7 +129,7 @@ static std::string try_getenv(const char* var, const char* def) {
 }
 
 /** We race Z3 checking using different versions and select the optimal result.
- * Now it works well on z3 4.13.4 and 4.12.5. 
+ * Now it works well on z3 4.13.4 and 4.12.5.
  * */
 Z3Result z3_race_check(QueryInfo* qinfo) {
     if (!qinfo || qinfo->query_id == 0)
@@ -256,7 +257,7 @@ Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo
     for (auto &ind : *state->inductions) {
         solve.add(ind);
     }
-    
+
     solve.add(!cond);
     auto not_res = solve.check();
     if (qinfo)
@@ -281,10 +282,10 @@ Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo
     }
 }
 
-/** 
+/**
  * z3_verify without cond:
- *  used for check the satisfiability of current symbolic path 
- * Usage: 
+ *  used for check the satisfiability of current symbolic path
+ * Usage:
  * 1. Check None-path for drf invariant
  * 2. Check deterministic path for simulation
  * */
@@ -360,7 +361,7 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, 
     if (Z3Cache.find(hash) != Z3Cache.end()) {
         z3_cache_hits++;
         return Z3Cache[hash];
-    }   
+    }
 
     Z3Params.set("timeout", (unsigned int)timeout);
     z3::solver solver(z3ctx);
@@ -373,8 +374,26 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, 
             solver.add(ind);
         }
     }
-    if (qinfo)
-        qinfo->dump(solver.to_smt2());
+    // cond is checked as an assumption, so it is not one of the solver's asserted
+    // formulas and to_smt2() would write the context without the goal.  Rebuild it
+    // on a throwaway solver, recording the goal behind a marker constant so a
+    // reader can reproduce the real call with check-sat-assuming -- asserting it
+    // instead routes through a different Z3 engine and can behave completely
+    // differently.  push()/pop() on the real solver would cause that same switch.
+    // SPOQ_CURRENT_QUERY, if set, names one file every query is overwritten into,
+    // so a hang leaves behind the query that caused it; most callers pass
+    // qinfo = nullptr, so otherwise nothing about that query is recorded at all.
+    static const char *current_query = std::getenv("SPOQ_CURRENT_QUERY");
+    auto record = [&](const z3::expr &goal) {
+        if (!qinfo && !current_query) return;
+        z3::solver dumper(z3ctx);
+        for (auto c : solver.assertions()) dumper.add(c);
+        dumper.add(z3ctx.bool_const("__spoq_goal") == goal);
+        auto query = dumper.to_smt2();
+        if (current_query)
+            std::ofstream(current_query) << "; timeout=" << timeout << "ms\n" << query;
+        if (qinfo) qinfo->dump(query);
+    };
 
 #ifdef Z3_PCACHE
     // solver.push();
@@ -385,9 +404,9 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, 
     // solver.add(cond);
     z3::expr_vector cond_vec(z3ctx);
     cond_vec.push_back(cond);
+    record(cond);
     auto res = solver.check(cond_vec);
     // auto res = solver.check();
-#endif
     // solver.reset();
     // maybe this is faster than push and pop
     //  for (auto &c : *state->conds) {
@@ -397,7 +416,8 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, 
     //     for (auto &ind : *prover->inductions) {
     //         solver.add(ind);
     //     }
-    // }   
+    // }
+    #endif
 
     //Z3Solver.add(!cond);
     z3::expr_vector not_cond_vec(z3ctx);
@@ -408,10 +428,8 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, 
     auto not_res = z3_pcache_check(not_cond_vec);
     // solver.pop();
 #else
-    // if (qinfo)
-    //     qinfo->dump(solver.to_smt2());
-
     // auto not_res = solver.check();
+    record(!cond);
     auto not_res = solver.check(not_cond_vec);
 #endif
 
@@ -456,9 +474,9 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, 
         return Z3Result::Unknown;
     } else if(res == z3::sat && not_res == z3::unknown){
         Z3Cache[hash] = Z3Result::Sat;
-        return Z3Result::Sat;        
+        return Z3Result::Sat;
     } else {
-        return Z3Result::Unknown;   
+        return Z3Result::Unknown;
     }
 }
 
@@ -486,7 +504,7 @@ Z3Result z3_check(shared_ptr<EvalState> state, int timeout) {
             solver.add(ind);
         }
     }
-    
+
 
 #ifdef Z3_PCACHE
     auto res = z3_pcache_check();
@@ -556,7 +574,7 @@ Z3Result z3_check_unsat(shared_ptr<ProveState> state, z3::expr cond, z3::model& 
     } else {
         not_res = solver.check();
     }
-    
+
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
@@ -694,17 +712,17 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
 //         make_shared<vector<z3::expr>>(*conds));
 //     //the state will be added loop conditions
 //     auto body_val = z3_eval(proj, equa, state, true);
-    
+
 //     // for(auto cond : *state->conds) {
 //     //     LOG_DEBUG << "cond" << cond;
 //     // }
 
 //     LOG_DEBUG << "Printing the Invariant: " << string(*inv);
 //     auto inv_before_val = z3_eval(proj, inv, make_shared<EvalState>(
-//         make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var), 
+//         make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var),
 //         make_shared<vector<z3::expr>>(*conds)));
 
-    
+
 //     //substitute the st to st' in inv.
 //     SpecNode* after_inv = inv;
 //     bool succ = false;
@@ -712,16 +730,16 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
 //     after_inv = subst(after_inv, "st", new Symbol("st'"), succ);
 //     delete new_st; //since new_st is caller freed.
 //     LOG_DEBUG << "Printing the Invariant After: " << string(*after_inv);
-    
+
 //     auto inv_after_val = z3_eval(proj, after_inv, make_shared<EvalState>(
-        
+
 //         make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var),
 //         make_shared<vector<z3::expr>>(*conds)));
-    
-    
+
+
 //     auto vc = z3::implies(body_val->get_z3_value() && inv_before_val->get_z3_value(), inv_after_val->get_z3_value());
 //     LOG_DEBUG << "Verification Condition: " << vc;
-    
+
 //     z3::model model(z3ctx);
 //     auto res = z3_check_unsat(state, vc, model, 20000);
 //     if(res == Z3Result::Unknown) {
@@ -758,7 +776,7 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     auto base_case = m->match_list->at(0)->body.get();
     auto induct_body = m->match_list->back()->body.get();
     auto m2 = instance_of(induct_body, Match);
-    
+
     auto loop_pattern = m2->match_list->at(0)->pattern.get();
     auto some_pat = instance_of(loop_pattern, Expr);
     auto tuple_pat = instance_of(some_pat->elems->at(0).get(), Expr);
@@ -778,7 +796,7 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     auto _N_ = Int::INT->declare(loop->args->at(0)->name, 0);
     //declare loop arguments
     auto known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
-    
+
     for (auto arg : *args) {
         if (arg->name != "_N_") {
             (*var)[arg->name] = arg->type->declare(arg->name, 0); //current
@@ -795,12 +813,12 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     auto inval_before = z3_eval(proj, inv.get(), make_shared<EvalState>(var, conds));
     //evaluate_loop_body
     auto loop_body_val = z3_eval(proj, loop_body.get(), make_shared<EvalState>(
-        make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var), 
+        make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var),
         std::make_shared<vector<z3::expr>>(*conds)));
 
     //evaluate base case
     auto base_case_val = z3_eval(proj, base_case, make_shared<EvalState>(
-        make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var), 
+        make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var),
         std::make_shared<vector<z3::expr>>(*conds)));
 
     auto rettype = loop->body->type;
@@ -816,19 +834,19 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     auto body_expr = new Expr(Expr::Tuple, std::move(tuple_elems), elems_type);
     auto option_elem = make_unique<vector<unique_ptr<SpecNode>>>();
     option_elem->push_back(unique_ptr<SpecNode>(body_expr));
-    auto full_expr = new Expr(Expr::Some, std::move(option_elem), rettype); 
+    auto full_expr = new Expr(Expr::Some, std::move(option_elem), rettype);
     // LOG_DEBUG << "expr:" << string(*full_expr);
 
     auto full_val_var = make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var);
-    
+
 
     for (auto arg : *args) {
         (*full_val_var)[arg->name + "'"] = arg->type->declare(arg->name + "'", 0);
     }
-    
-    auto full_val = z3_eval(proj, full_expr, 
+
+    auto full_val = z3_eval(proj, full_expr,
     make_shared<EvalState>(
-        full_val_var, 
+        full_val_var,
         make_shared<vector<z3::expr>>(*conds)));
 
     auto after_inv = inv->deep_copy();
@@ -837,9 +855,9 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     for (auto arg : *args) {
         if (arg->name != "_N_") {
             (*after_var)[arg->name + "'"] = arg->type->declare(arg->name + "'", 0); //initial
-        } 
+        }
         if(arg->name == "st") {
-            //(*after_var)[arg->name + "'"] = arg->type->declare(arg->name + "'", 0); 
+            //(*after_var)[arg->name + "'"] = arg->type->declare(arg->name + "'", 0);
             (*after_var)[arg->name + "_old"] = arg->type->declare(arg->name + "_old", 0);
         }
     }
@@ -851,9 +869,9 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     }
     //evaluate inv after
     auto inv_after = z3_eval(proj, after_inv.get(), make_shared<EvalState>(
-        after_var, 
+        after_var,
         make_shared<vector<z3::expr>>(*conds)));
-    
+
 
     //final expression, inv(a,b,c...) /\ spec(a,b,c) = a',b'c' => inv(a',b',c').
     //TODO: termination proof: ranking function(a,b,c) decreases every iteratiton.
@@ -866,7 +884,7 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     auto vc_induct = z3::implies(inval_before->get_z3_value() && full_val->get_z3_value() == loop_body_val->get_z3_value(), inv_after->get_z3_value());
     //LOG_DEBUG << "base_case query: " << vc_base;
     LOG_DEBUG << "inductive case query:" << vc_induct;
-    
+
     Z3Params.set("timeout", (unsigned int)500000);
     Z3Solver.set(Z3Params);
    //Z3Solver.push();
@@ -876,7 +894,7 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     // if(res == z3::sat || res == z3::unknown) {
     //     LOG_DEBUG << "base case not able to decide: " << res;
     //     return false;
-    // } 
+    // }
 
     Z3Solver.push();
     Z3Solver.add(!vc_induct);
@@ -943,7 +961,7 @@ void extract_patterns_field(SpecNode* spec, set<string>& fields, set<string>& qu
 }
 
 void pattern_matching(SpecNode* pattern, SpecNode* spec) {
-    
+
 }
 
 
@@ -1000,7 +1018,7 @@ unique_ptr<SpecNode> formulate_preserved_function(Project* proj, string fname) {
         auto tupletype = instance_of(proj->defs[fname]->rettype.get(), Option)->elem_type;
 
         auto tuple = new Expr(Expr::ops::Tuple, std::move(varelems), tupletype);
-        
+
         someelems->push_back(unique_ptr<SpecNode>(tuple));
     } else {
         someelems->push_back(make_unique<Symbol>("st'", st_after->type));
@@ -1094,7 +1112,7 @@ unique_ptr<SpecNode> formulate_post_condition(Project* proj, string fname, vecto
         type_inference::infer_type(*proj, aggrepost.get(), known, Bool::BOOL);
         nodes.push_back(make_unique<Symbol>(fname + "_st_new_", proj->layers[0]->abs_data));
         aggrepost = subst_v2(proj, std::move(aggrepost), &names, &nodes);
-    }                                                            
+    }
     return aggrepost;
 }
 
@@ -1110,7 +1128,7 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
     for(auto arg : *def->args) {
         vars->push_back(make_shared<Arg>(def->name + "_" + arg->name + "_new", arg->type));
     }
-    
+
 
     auto lhselems = make_unique<vector<unique_ptr<SpecNode>>>();
     for(auto &arg: *args) {
@@ -1133,8 +1151,8 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
         i++;
     }
 
-    auto rhstuple = new Expr(Expr::ops::Tuple, std::move(tupleelems), instance_of(def->body->type.get(), Option)->elem_type);      
-    rhselems->push_back(unique_ptr<SpecNode>(rhstuple));                                                            
+    auto rhstuple = new Expr(Expr::ops::Tuple, std::move(tupleelems), instance_of(def->body->type.get(), Option)->elem_type);
+    rhselems->push_back(unique_ptr<SpecNode>(rhstuple));
     auto rhsbody = new Expr(Expr::ops::Some, std::move(rhselems), def->body->type);
 
     auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
@@ -1180,7 +1198,7 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
     // bodyelems->push_back(unique_ptr<SpecNode>(eqbody));
     // bodyelems->push_back(std::move(aggreinv));
     // auto expr = new Expr(Expr::binops::IMPLIES, unique_ptr<vector<unique_ptr<SpecNode>>>(bodyelems), Bool::BOOL);
-    
+
 
     return aggreinv;
 }
@@ -1425,7 +1443,7 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
                                 (*var)[arg->name + "_old"] = arg->type->declare(loop->name + "_" + arg->name + "_old", 0); //initial
                             }
                         }
-                        
+
                         //ret_x == f(a,b,c,d)
                         //ret_x[0] = ret_x_0, ret_x[1] = ret_x_1....
                         //inv[a/ret_x_1,.....] = true
@@ -1434,12 +1452,12 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
 
                         //ret_x = f(a,b,c,d)
                         auto eqformula = ret->get_z3_value() == func_call->get_z3_value();
-            
+
                         // auto some = instance_of(ret.get(), IndValue);
 
                         //ret_tuple
                         // auto rettuple = instance_of(some->get("value").get(), StructValue);
-                        
+
                         // auto rettype = loop->rettype;
                         // auto rettypesome = instance_of(rettype.get(), Option);
                         // auto tupletype = instance_of(rettypesome->elem_type.get(), Tuple);
@@ -1448,7 +1466,7 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
                         //assume _N_ == 0 and I (postcond)
                         auto after_var = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
                         auto after_conds = std::make_shared<vector<z3::expr>>();
-                        
+
                         ///aggregate all the invs together into one conjunctives
                         SpecNode* aggreinv = new BoolConst(true);
                         for(auto &inv : invs) {
@@ -1482,7 +1500,7 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
                             LOG_ERROR << "Precondition can't infer loop invariant";
                             return;
                         }
-                    
+
                         states.push_back(std::make_pair(_cache(func_call), state));
                     } else {
                         LOG_ERROR << "no loop invariant specified";
@@ -1541,7 +1559,7 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
                     }
                 }
             }
-            for (auto v = vars.begin(); v != vars.end(); v++) {                
+            for (auto v = vars.begin(); v != vars.end(); v++) {
                 cond = z3::exists(v->second->get_z3_value(), cond);
             }
             auto z3_res = z3_check(state, cond);
@@ -1558,7 +1576,7 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
                 match_val = z3_eval(proj, (*pm)->body.get(), new_state);
             } else {
                 auto then_val = z3_eval(proj, (*pm)->body.get(), new_state);
-                /** Optimization: instantiate Exists: 
+                /** Optimization: instantiate Exists:
                  *      Original: (vars: v = src), if ((Exists v' (v' = src)) then Prop(v') else True)
                  *      --> v is the evidence of (Exists...)
                  *      --> (Exists v' (v' = src)) == True
@@ -1668,7 +1686,7 @@ void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<
             vars.push_back(var->get_z3_value());
         }
         vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>> retstates;
-        
+
         symbolic(proj, exsts->body.get(), state, retstates);
         for(auto retstate: retstates) {
             auto st = retstate.second;
@@ -1691,7 +1709,7 @@ z3::func_decl formulate_rec_function(Project* proj, Fixpoint* fixpoint) {
         sorts.push_back(arg->type->get_z3_type());
         args.push_back(arg->type->declare(arg->name, 0)->get_z3_value());
     }
-    
+
     auto rec_fun = z3ctx.recfun(fixpoint->name.c_str(), sorts, fixpoint->rettype->get_z3_type());
     auto body = instance_of(fixpoint->body.get(), Match);
     //auto basecase = body->match_list->at(0)->body.get();
@@ -1717,7 +1735,7 @@ z3::expr formulate_function(Project* proj, Definition* def) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
     auto body = def->body.get();
-    
+
     //add known variables
     auto state = make_shared<EvalState>(vars, conds);
     set<string> used_fix;
@@ -1798,7 +1816,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
             result = _cache(static_pointer_cast<Inductive>(val->get_type())->construct("None", {}));
         }
         else if (op_eq(expr->op, Expr::binops::ADD) ){
-            
+
             if (expr->type->name == "Z") {
                 result = _cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1])));
             } else if (expr->type->name == "ZMap_Z"){
@@ -2074,7 +2092,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
                 }
             } else {
                 auto then_val = z3_eval(proj, (*pm)->body.get(), new_state,  check_loop);
-                /** Optimization: instantiate Exists: 
+                /** Optimization: instantiate Exists:
                  *      Original: (vars: v = src), if ((Exists v' (v' = src)) then Prop(v') else True)
                  *      --> v is the evidence of (Exists...)
                  *      --> (Exists v' (v' = src)) == True
@@ -2132,7 +2150,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
         }
         // auto res = z3_check(state, c->get_z3_value());
         auto res = Z3Result::Unknown;
-        // LOG_DEBUG << "In z3_eval, checked if cond. "; 
+        // LOG_DEBUG << "In z3_eval, checked if cond. ";
         PROFILE_END(eval_check);
         PROFILE_END(if_eval_check);
         if (res == Z3Result::Unknown || res == Z3Result::Sat)
@@ -2433,7 +2451,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
                     //         z3_args.push_back(arg->get_z3_value());
                     //     }
                     //     auto app = func[z3_args];
-                        
+
                     //     return _cache(df->rettype->from_z3_value(app));
                     // }
                     return _cache(df->absf()->call(elems));
@@ -2518,7 +2536,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
                 match_val = z3_eval(proj, (*pm)->body.get(), new_state,  check_loop, unfold, used_fixpoint);
             } else {
                 auto then_val = z3_eval(proj, (*pm)->body.get(), new_state,  check_loop, unfold, used_fixpoint);
-                /** Optimization: instantiate Exists: 
+                /** Optimization: instantiate Exists:
                  *      Original: (vars: v = src), if ((Exists v' (v' = src)) then Prop(v') else True)
                  *      --> v is the evidence of (Exists...)
                  *      --> (Exists v' (v' = src)) == True
