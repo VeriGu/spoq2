@@ -232,7 +232,7 @@ public:
              shared_ptr<std::map<string, shared_ptr<CFunction>>> functions,
              shared_ptr<ptree> debug_info) :
         structs(structs), globalvars(globalvars), functions(functions), debug_info(debug_info) {
-            std::map<string, shared_ptr<AsmProcedure>> asmp;
+            std::map<string, shared_ptr<AsmProcedure>> const asmp;
             asm_procs = std::make_shared<std::map<string, shared_ptr<AsmProcedure>>>(asmp);
         }
 };

@@ -21,7 +21,7 @@ namespace autov {
             assert(last_pattern_match);
             auto current_free_vars = std::set<string>();
             free_vars(proj, accumulated_cond.get(), current_free_vars);
-            for (auto &arg : *(proj->defs[def_name]->args)){
+            for (auto  const&arg : *(proj->defs[def_name]->args)){
                 current_free_vars.insert(arg->name);
             }
             /* At this point, we have 1. a current condition in accumulated_cond
@@ -107,7 +107,7 @@ namespace autov {
             auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
             elems->push_back(std::move(cond));
             elems->push_back(std::move(temp_held_match_body));
-            auto new_predicate = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
+            auto const new_predicate = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
             // Using an If instead of an AND makes it easier to have a program that we can split into smaller z3 queries later.
             // auto new_predicate = make_unique<If>(std::move(cond), std::move(temp_held_match_body), make_unique<BoolConst>(false));
             bool success = false;
@@ -140,7 +140,7 @@ namespace autov {
                 }
                 assert(match_node);
                 new_accumulator.last_pattern_match = nullptr;
-                auto true_const = make_unique<BoolConst>(true);
+                auto const true_const = make_unique<BoolConst>(true);
                 for(auto &pm : *match_node->match_list){
                     if(pm->body.get()->deep_eq(true_const.get())){
                         new_accumulator.last_pattern_match = pm.get();

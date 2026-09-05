@@ -75,7 +75,7 @@ static string construct_ret_struct(vector<string> &rettype) {
 
 static string escape(const std::string& s) {
     std::string res;
-    for (char c : s) {
+    for (char const c : s) {
         switch (c) {
             case '\\': res += "\\\\"; break;
             case '\n': res += "\\n"; break;
@@ -97,7 +97,7 @@ SpoqIRIASM SpoqIRModule::parse_inline_asm(string fname, string asm_text, llvm::T
     if (asm_text == "") {
         std::cout << "asm_text is empty" << std::endl;
     }
-    auto parsed_rettype = llvm_ir_type_to_str(rettype, false);
+    auto const parsed_rettype = llvm_ir_type_to_str(rettype, false);
     auto args = make_unique<vector<std::string>>();
     string arg_str = "", ret_st = "";
     vector<string> vars;
@@ -199,7 +199,7 @@ SpoqIRIASM SpoqIRModule::parse_inline_asm(string fname, string asm_text, llvm::T
                 /* ut-constraint write to reg, does not consume args */
                 if (!x.empty()) {
                     std::string cc;
-                    for (char ch : c) {
+                    for (char const ch : c) {
                         if (std::string("{}=0123456789").find(ch) == std::string::npos) {
                             cc += ch;
                         }
@@ -236,7 +236,7 @@ SpoqIRIASM SpoqIRModule::parse_inline_asm(string fname, string asm_text, llvm::T
     if (in_cons_cnt + out_cons_as_arg_cnt != arglist.size()) {
         throw std::runtime_error("Inline asm constraints does not match arguments(maybe unsupported constraint?)");
     }
-    auto str_rettype = parsed_rettype;
+    auto const str_rettype = parsed_rettype;
 
     // Strip the last comma
     if (out_cons.size() > 0)

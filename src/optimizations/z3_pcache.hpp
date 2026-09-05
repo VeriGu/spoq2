@@ -15,7 +15,7 @@ class LiteralCacheEntry {
   std::map<std::string, std::string> symbol_table;
 
   // return if this has the same statement as e_statement.
-  bool compareEqual(std::string e_statement) {
+  bool compareEqual(std::string e_statement) const {
     return statement == e_statement;
   }
 
@@ -39,14 +39,14 @@ class SMTParser {
     p.first.erase(std::remove(p.first.begin(), p.first.end(), '\n'),
                   p.first.end());
 
-    boost::regex pattern("\\$x[0-9]*|\\?x[0-9]*");  // ?x123 or $x123
-    std::string replacement = "$x";  // Replacement string
+    boost::regex const pattern("\\$x[0-9]*|\\?x[0-9]*");  // ?x123 or $x123
+    std::string const replacement = "$x";  // Replacement string
 
     std::unordered_map<std::string, int> seen;  // Map to store seen patterns and their replacement index
     int counter = 1;
-    auto replace_with_counter = [&seen, &counter](const boost::smatch& match) {
-      std::string match_str = match.str();
-      auto id = match_str.substr(2);
+    auto const replace_with_counter = [&seen, &counter](const boost::smatch& match) {
+      std::string const match_str = match.str();
+      auto const id = match_str.substr(2);
       if (seen.find(id) == seen.end()) {  
         seen[id] = counter++; 
       }
@@ -153,7 +153,7 @@ class SMTHashMapCache {
   int pushToFile(LiteralCacheEntry* e) {
     // TODO: avoid repeatedly open/close the cache file.
     std::ofstream out(cache_file, std::ios::app | std::ios::out);
-    auto info = parser.generateLiteralRecord(e);
+    auto const info = parser.generateLiteralRecord(e);
     out << info;
     out.close();
     return 1;
@@ -185,7 +185,7 @@ class SMTHashMapCache {
     const char* ptr = file_content.c_str();
     while (1) {
       LiteralCacheEntry* e = new LiteralCacheEntry();
-      auto p = parser.parseFromTheFirstLiteralRecord(ptr, e);
+      auto const p = parser.parseFromTheFirstLiteralRecord(ptr, e);
       if (p.first < 0) {
         delete e;
         break;
@@ -205,8 +205,8 @@ class SMTHashMapCache {
                 << count_query << "(" << count_hit / (count_query + 0.001)
                 << ")\n";
     }
-    auto p = parser.parse(statement);
-    uint hv = computeHashU32(p.first);
+    auto const p = parser.parse(statement);
+    uint const hv = computeHashU32(p.first);
     for (auto entry : cache_map[hv]) {
       if (entry->compareEqual(p.first)) {
         last_hit = entry;
@@ -219,9 +219,9 @@ class SMTHashMapCache {
 
   std::pair<int, std::string> put(std::string statement, int result) {
     LiteralCacheEntry* e = new LiteralCacheEntry();
-    auto p = parser.parse(statement);
+    auto const p = parser.parse(statement);
     e->statement = p.first;
-    uint hv = computeHashU32(e->statement);
+    uint const hv = computeHashU32(e->statement);
     e->result = result;
     cache_map[hv].push_back(e);
     last_hit = e;

@@ -31,7 +31,7 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
     for(auto &func: *proj->spoq_code.llvm_module) {
         if(func.isDeclaration()) continue;
         ++func_def;
-        auto original_size = func.size();
+        auto const original_size = func.size();
         auto name = func.getName().str();
         if (name == "init_el2_data_page") continue;
         if (name == "zif_exif_read_data_vuln") continue; // would fail and abort anyway
@@ -71,7 +71,7 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
         }
     }
     double sum = 0;
-    for(auto p: func_stats) {
+    for(auto const p: func_stats) {
         sum += (double)p.second / p.first;
     }
     LOG_DEBUG << "[CFG]" << func_def << " functions, " << succ << " converted with increasing rate " << sum / func_stats.size() << "\n";
@@ -172,14 +172,14 @@ unique_ptr<SpecNode> argmem_property(const string &pre, const string &post,
     auto arg_ptr = [&]() -> unique_ptr<SpecNode> {
         return std::make_unique<Symbol>(ptr, Struct::Ptr);
     };
-    auto same = [&](const char *field) {
+    auto const same = [&](const char *field) {
         return attr_bin(Expr::EQUAL, attr_field(post_st(), field), attr_field(pre_st(), field));
     };
 
     // The heap arm: only the block the pointer names may differ, and an
     // argmem-only callee cannot allocate, so nextBlock is pinned too.
-    auto key = [&]() { return attr_apply("spvn", attr_field(arg_ptr(), "pbase")); };
-    auto blocks_of = [&](unique_ptr<SpecNode> st) {
+    auto const key = [&]() { return attr_apply("spvn", attr_field(arg_ptr(), "pbase")); };
+    auto const blocks_of = [&](unique_ptr<SpecNode> st) {
         return attr_field(attr_field(std::move(st), "heap"), "blocks");
     };
     auto changed = std::make_unique<vector<unique_ptr<SpecNode>>>();
@@ -213,7 +213,7 @@ unique_ptr<SpecNode> argmem_property(const string &pre, const string &post,
 }  // namespace
 
 void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
-    for (auto &func : *proj->spoq_code.llvm_module) {
+    for (auto  const&func : *proj->spoq_code.llvm_module) {
         if (!func.isDeclaration()) continue;
         if (func.isIntrinsic()) continue;
 
@@ -224,7 +224,7 @@ void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
         // Only a Parameter can be rewritten this way.  A user-written Definition
         // already says more than the attributes do, and a name we have already
         // rewritten must not be rewritten twice.
-        auto decl_it = proj->decls.find(spec_name);
+        auto const decl_it = proj->decls.find(spec_name);
         if (decl_it == proj->decls.end()) continue;
         if (proj->defs.find(spec_name) != proj->defs.end()) continue;
         if (proj->symbols.find(oracle_name) != proj->symbols.end()) {
@@ -240,13 +240,13 @@ void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
         // The declared type is curried and flattened: the LLVM parameters
         // followed by the state.  Anything else is a spec whose shape we do not
         // understand well enough to wrap.
-        auto fn_type = dynamic_pointer_cast<Function>(decl_it->second->type);
+        auto const fn_type = dynamic_pointer_cast<Function>(decl_it->second->type);
         if (!fn_type || fn_type->args->size() != func.arg_size() + 1) {
             LOG_WARNING << "[ATTR] " << spec_name << " has usable memory attributes but its "
                         << "declared type does not match the LLVM signature; skipping.";
             continue;
         }
-        auto ret_option = dynamic_pointer_cast<Option>(fn_type->rettype);
+        auto const ret_option = dynamic_pointer_cast<Option>(fn_type->rettype);
         if (!ret_option) {
             LOG_WARNING << "[ATTR] " << spec_name << " does not return an option; skipping.";
             continue;
@@ -279,7 +279,7 @@ void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
         auto oracle_call = std::make_unique<Expr>(oracle_name, std::move(call_args));
 
         // What the oracle's result is destructured into, and what we hand back.
-        auto result = [&]() -> unique_ptr<SpecNode> {
+        auto const result = [&]() -> unique_ptr<SpecNode> {
             if (!returns_value) return std::make_unique<Symbol>(post_state, state_type);
             auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
             v->push_back(std::make_unique<Symbol>(ret_value, (*ret_tuple->types)[0]));
@@ -314,7 +314,7 @@ void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
 
         // Demote the Parameter to the oracle it now is, and define the wrapper in
         // its place.  Callers keep referring to f_spec and see the wrapper.
-        auto loc = make_shared<loc_t>(proj->symbols[spec_name].loc);
+        auto const loc = make_shared<loc_t>(proj->symbols[spec_name].loc);
         auto oracle = make_unique<Declaration>(oracle_name, decl_it->second->type);
         proj->decls.erase(decl_it);
         proj->symbols.erase(spec_name);
@@ -342,13 +342,13 @@ bool SpoqIRModule::validate_for_gen_low_spec(Project* proj, string fname, int la
             return false;
         }
         proj->spoq_code.extract_inline_asm(spoq_func);
-        for(auto iasm: proj->spoq_code.iasm_defs) {
+        for(auto const iasm: proj->spoq_code.iasm_defs) {
             if (proj->defs.find(iasm.first + "_spec") == proj->defs.end()) {
                 // if (checked[iasm.first]) continue;
                 // checked[iasm.first] = true;
                 LOG_ERROR << "cannot find iasm definition, please provide it manually " << iasm.first + "_spec" << std::endl;
                 // std::cout << "# " << iasm.first + "_spec" << std::endl;
-                for(auto i2f : proj->spoq_code.iasm2func) {
+                for(auto const i2f : proj->spoq_code.iasm2func) {
                     if (i2f.second == iasm.first)
                         llvm::errs() << *(i2f.first) << " -> " << i2f.second << "\n";
                 }
@@ -435,7 +435,7 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
                 auto mod_elems = make_unique<std::vector<unique_ptr<SpecNode>>>();
                 mod_elems->push_back(std::move(mod_expr));
                 // calculate total aggregate size
-                auto aggregate_size = context.llvm_dl->getTypeAllocSize(pointee_ty);
+                auto const aggregate_size = context.llvm_dl->getTypeAllocSize(pointee_ty);
                 mod_elems->push_back(make_unique<IntConst>(aggregate_size));
                 mod_expr = make_unique<Expr>(Expr::binops::MOD, std::move(mod_elems));
                 auto rely_prop_elems = make_unique<std::vector<unique_ptr<SpecNode>>>();
@@ -459,15 +459,15 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
     if(spoq_func.llvm_func->getReturnType()->isVoidTy()) {
         rettype = std::make_shared<Option>(context.abs_data_type);
     } else {
-        auto children = std::make_shared<vector<shared_ptr<SpecType>>>();
+        auto const children = std::make_shared<vector<shared_ptr<SpecType>>>();
         children->push_back(context.rettype);
         children->push_back(context.abs_data_type);
         rettype = std::make_shared<Option>(make_shared<Tuple>(children));
     }
 
-    auto spec_name = fname + "_spec_low";
+    auto const spec_name = fname + "_spec_low";
     name_map[spec_name] = fname + "_spec";
-    for(auto &loop: context.loop_spec_name) {
+    for(auto  const&loop: context.loop_spec_name) {
         low_specs.push_back(loop.second);
         name_map[loop.second] = loop.second.substr(0, loop.second.size() - 4);
     }
@@ -475,7 +475,7 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
 
     auto def = new Definition(spec_name, rettype, std::move(args), std::move(spec));
 
-    auto loc = make_shared<loc_t>(proj->layers[layer_id]->name, fname, Project::LOC_LOWSPEC);
+    auto const loc = make_shared<loc_t>(proj->layers[layer_id]->name, fname, Project::LOC_LOWSPEC);
     proj->add_definition(std::unique_ptr<Definition>(def), loc);
 
     // TODO: introduce other dependencies
@@ -541,8 +541,8 @@ void SpoqIRModule::preprocess_llvm_module() {
     for (auto &func : *this->llvm_module) {
         // TODO: fix me, what to do with the intrinsic function.
         // if (func.isIntrinsic()) continue;
-        std::string oldName = func.getName().str();
-        std::string newName = Shortcut::replace_dot(oldName);
+        std::string const oldName = func.getName().str();
+        std::string const newName = Shortcut::replace_dot(oldName);
         if (oldName != newName) func.setName(newName);
         // unsigned count = 0;
         // for (auto &BB : func) {
@@ -559,8 +559,8 @@ void SpoqIRModule::preprocess_llvm_module() {
             assert(false && "global variable without name");
         }
         // Construct a new name for the global variable
-        std::string oldName = gv.getName().str();
-        std::string newName = Shortcut::replace_dot(oldName);
+        std::string const oldName = gv.getName().str();
+        std::string const newName = Shortcut::replace_dot(oldName);
         if (oldName != newName) gv.setName(newName);
     }
 }

@@ -44,18 +44,18 @@ void generate_proj(Project *p)
 
     files.push_back("./CommonDeps.v");
 
-    boost::filesystem::path dir(p->base);
-    boost::filesystem::path file("_CoqProject");
+    boost::filesystem::path const dir(p->base);
+    boost::filesystem::path const file("_CoqProject");
     std::ofstream mkfile((dir / file).string());
     mkfile << "-R . " << proj_name << "\n\n";
 
     sort(files.begin(), files.end());
 
-    for (auto f : files) {
+    for (auto const f : files) {
 #define HIGH_SPEC_ONLY
 #ifdef HIGH_SPEC_ONLY
-        static int low_spec_len = string("LowSpec.v").length();
-        static int code_proof_len = string("CodeProof.v").length();
+        static int const low_spec_len = string("LowSpec.v").length();
+        static int const code_proof_len = string("CodeProof.v").length();
         if (f.rfind("LowSpec.v", f.length() - low_spec_len) != std::string::npos ||
             f.rfind("CodeProof.v", f.length() - code_proof_len) != std::string::npos) {
             continue;

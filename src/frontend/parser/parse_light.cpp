@@ -55,7 +55,7 @@ antlrcpp::Any LightProgramVisitor::visitDef(SpecParser::DefContext* ctx) {
     string name = ctx->name()->getText();
     auto expr = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr(ctx->expr())));
     unique_ptr<vector<shared_ptr<Arg>>> var_anno = make_unique<vector<shared_ptr<Arg>>>();
-    auto rettype = any_cast<shared_ptr<SpecType>>(visitType(ctx->type()));
+    auto const rettype = any_cast<shared_ptr<SpecType>>(visitType(ctx->type()));
 
     for (auto arg : ctx->var_anno()) {
         var_anno->push_back((any_cast<shared_ptr<Arg>>(visitVar_anno(arg))));
@@ -66,7 +66,7 @@ antlrcpp::Any LightProgramVisitor::visitDef(SpecParser::DefContext* ctx) {
 
 antlrcpp::Any LightProgramVisitor::visitDecl(SpecParser::DeclContext* ctx) {
     string name = ctx->name()->getText();
-    auto type = any_cast<shared_ptr<SpecType>>(visitType(ctx->type()));
+    auto const type = any_cast<shared_ptr<SpecType>>(visitType(ctx->type()));
 
     return (Declaration *)(new Declaration(name, type));
 }
@@ -75,7 +75,7 @@ antlrcpp::Any LightProgramVisitor::visitFixpoint(SpecParser::FixpointContext* ct
     string name = ctx->name()->getText();
     auto expr = unique_ptr<SpecNode>(any_cast<SpecNode *>(visitExpr(ctx->expr())));
     unique_ptr<vector<shared_ptr<Arg>>> var_anno = make_unique<vector<shared_ptr<Arg>>>();
-    auto rettype = any_cast<shared_ptr<SpecType>>(visitType(ctx->type()));
+    auto const rettype = any_cast<shared_ptr<SpecType>>(visitType(ctx->type()));
 
     for (auto arg : ctx->var_anno()) {
         var_anno->push_back((any_cast<shared_ptr<Arg>>(visitVar_anno(arg))));
@@ -97,7 +97,7 @@ antlrcpp::Any LightProgramVisitor::visitInductive_decl(SpecParser::Inductive_dec
 
 antlrcpp::Any LightProgramVisitor::visitRecord_decl(SpecParser::Record_declContext* ctx) {
     string name = ctx->name(0)->getText();
-    auto fields = any_cast<shared_ptr<vector<shared_ptr<Arg>>>>(visitRecord_fields(ctx->record_fields()));
+    auto const fields = any_cast<shared_ptr<vector<shared_ptr<Arg>>>>(visitRecord_fields(ctx->record_fields()));
 
     return (Struct *)(new Struct(name, fields));
 }
@@ -244,20 +244,20 @@ antlrcpp::Any LightProgramVisitor::visitType(SpecParser::TypeContext* ctx) {
     } else if (ctx->list_type) {
         return static_pointer_cast<SpecType>(make_shared<List>(any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)))));
     } else if (ctx->option_type) {
-        auto type = any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)));
+        auto const type = any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)));
         return static_pointer_cast<SpecType>(make_shared<Option>(type));
     } else if (ctx->domain) {
-        auto domain = any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)));
-        auto curried_type = any_cast<shared_ptr<SpecType>>(visitType(ctx->type(1)));
-        auto args = make_shared<std::vector<shared_ptr<SpecType>>>();
+        auto const domain = any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)));
+        auto const curried_type = any_cast<shared_ptr<SpecType>>(visitType(ctx->type(1)));
+        auto const args = make_shared<std::vector<shared_ptr<SpecType>>>();
 
         args->push_back(shared_ptr<SpecType>(domain));
 
         if (curried_type && dynamic_cast<Function*>(curried_type.get()) != nullptr) {
-            shared_ptr<Function> curried_type_func = dynamic_pointer_cast<Function>(curried_type);
+            shared_ptr<Function> const curried_type_func = dynamic_pointer_cast<Function>(curried_type);
 
             // push back all the arguments of curried_type_func
-            for (auto arg : *curried_type_func->args) {
+            for (auto const arg : *curried_type_func->args) {
                 args->push_back(arg);
             }
 
@@ -266,7 +266,7 @@ antlrcpp::Any LightProgramVisitor::visitType(SpecParser::TypeContext* ctx) {
             return static_pointer_cast<SpecType>(make_shared<Function>(std::shared_ptr<SpecType>(curried_type), args));
         }
     } else if (ctx->tup) {
-        auto types = make_shared<vector<shared_ptr<SpecType>>>();
+        auto const types = make_shared<vector<shared_ptr<SpecType>>>();
 
         for (auto type : ctx->type()) {
             types->push_back(any_cast<shared_ptr<SpecType>>(visitType(type)));
@@ -278,12 +278,12 @@ antlrcpp::Any LightProgramVisitor::visitType(SpecParser::TypeContext* ctx) {
     } else if (ctx->smap_type) {
         return static_pointer_cast<SpecType>(make_shared<SMap>(any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)))));
     } else if (ctx->name()) {
-        std::string name = ctx->name()->getText();
+        std::string const name = ctx->name()->getText();
 
         // temp: don't use proj until finalize_project is ready
         // return make_shared<SpecType>(name);
 
-        autov::SymbolInfo &info = proj.symbols.at(name);
+        autov::SymbolInfo  const&info = proj.symbols.at(name);
 
         if (info.kind == autov::SymbolKind::Struct) {
             return static_pointer_cast<SpecType>(proj.structs.at(name));

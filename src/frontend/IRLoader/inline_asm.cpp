@@ -61,7 +61,7 @@ static type_str_t irtype_to_str(IRType *typ, bool input) {
     } else if (auto struct_type = dynamic_cast<TStruct *>(typ)) {
         auto ret = make_unique<vector<string>>();
 
-        for (auto e: *struct_type->elems) {
+        for (auto const e: *struct_type->elems) {
             // Struct should never be nested. Just let it throw an error.
             ret->push_back(std::get<string>(irtype_to_str(e->type.get(), false)));
         }
@@ -87,7 +87,7 @@ static string construct_ret_struct(vector<string> &rettype) {
 
 static string escape(const std::string& s) {
     std::string res;
-    for (char c : s) {
+    for (char const c : s) {
         switch (c) {
             case '\\': res += "\\\\"; break;
             case '\n': res += "\\n"; break;
@@ -216,7 +216,7 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
                 /* ut-constraint write to reg, does not consume args */
                 if (!x.empty()) {
                     std::string cc;
-                    for (char ch : c) {
+                    for (char const ch : c) {
                         if (std::string("{}=0123456789").find(ch) == std::string::npos) {
                             cc += ch;
                         }
@@ -259,7 +259,7 @@ IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
     if (!holds_alternative<string>(parsed_rettype)) {
         throw std::runtime_error("[parse_inline_asm] Unsupported return type: struct");
     }
-    auto str_rettype = std::get<string>(parsed_rettype);
+    auto const str_rettype = std::get<string>(parsed_rettype);
 
     // Strip the last comma
     if (out_cons.size() > 0)

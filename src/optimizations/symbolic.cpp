@@ -57,7 +57,7 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
     // if (val->cached_eval)
     //     return val->cached_eval;
 
-    auto _cache = [&](shared_ptr<SpecValue> return_val) {
+    auto const _cache = [&](shared_ptr<SpecValue> return_val) {
         val->set_z3_eval(return_val);
         return return_val;
     };
@@ -113,8 +113,8 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
             } else if (expr->type->name == "ZMap_Z"){
                 // find the definition of the zmap_z_add function
                 // use func->call to generate the right z3 expr
-                auto func = proj->defs.find("zmap_z_add");
-                auto absf = func->second->absf();
+                auto const func = proj->defs.find("zmap_z_add");
+                auto const absf = func->second->absf();
                 return _cache(absf->call(elems));
             }
 
@@ -215,15 +215,15 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
             return _cache(static_pointer_cast<BoolValue>(elems[0])->implies(
                 static_pointer_cast<BoolValue>(elems[1])));
         else if (op_eq(expr->op, Expr::GET)) {
-            if(auto zmv = dynamic_pointer_cast<ZMapValue>(elems[0])){
+            if(auto const zmv = dynamic_pointer_cast<ZMapValue>(elems[0])){
                 return _cache(zmv->get(static_pointer_cast<IntValue>(elems[1])));
-            } else if(auto smv = dynamic_pointer_cast<SMapValue>(elems[0])){
+            } else if(auto const smv = dynamic_pointer_cast<SMapValue>(elems[0])){
                 return _cache(smv->get(static_pointer_cast<StringValue>(elems[1])));
             } else { throw new std::runtime_error("Unknown map type."); }
         } else if (op_eq(expr->op, Expr::SET)) {
-            if(auto zmv = dynamic_pointer_cast<ZMapValue>(elems[0])){
+            if(auto const zmv = dynamic_pointer_cast<ZMapValue>(elems[0])){
                 return _cache(zmv->set(static_pointer_cast<IntValue>(elems[1]), elems[2]));
-            } else if(auto smv = dynamic_pointer_cast<SMapValue>(elems[0])){
+            } else if(auto const smv = dynamic_pointer_cast<SMapValue>(elems[0])){
                 return _cache(smv->set(static_pointer_cast<StringValue>(elems[1]), elems[2]));
             } else { throw new std::runtime_error("Unknown map type."); }
         } else if (op_eq(expr->op, Expr::RecordGet)) {
@@ -261,13 +261,13 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
 
             return _cache(elems[0]);
         } else if (op_eq(expr->op, Expr::binops::APPEND)) {
-            auto list = static_pointer_cast<ListValue>(elems[1]);
-            auto new_list = list->append(elems[0]);
+            auto const list = static_pointer_cast<ListValue>(elems[1]);
+            auto const new_list = list->append(elems[0]);
 
             return _cache(new_list);
         } else if (op_eq(expr->op, Expr::binops::CONCAT)) {
-            auto list1 = static_pointer_cast<ListValue>(elems[0]);
-            auto new_list = list1->concat(elems[1]);
+            auto const list1 = static_pointer_cast<ListValue>(elems[0]);
+            auto const new_list = list1->concat(elems[1]);
 
             return _cache(new_list);
         } else if (op_eq(expr->op, Expr::ops::Some))
@@ -291,8 +291,8 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
             return _cache(val->get_type()->from_z3_value(
                 z3::const_array(z3ctx.int_sort(), elems[0]->get_z3_value())));
         else if (std::holds_alternative<string>(expr->op)) {
-            auto sym = std::get<string>(expr->op);
-            auto info = proj->symbols[sym];
+            auto const sym = std::get<string>(expr->op);
+            auto const info = proj->symbols[sym];
             if (info.kind == SymbolKind::StructConstr) {
                 return _cache(static_pointer_cast<Struct>(val->get_type())
                                   ->construct(elems));
@@ -304,67 +304,67 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
                 return _cache(df->absf()->call(elems));
             } else if (info.kind == SymbolKind::Decl) {
                 auto df = proj->decls[sym].get();
-                auto absf = static_pointer_cast<FuncValue>(df->absf());
+                auto const absf = static_pointer_cast<FuncValue>(df->absf());
                 return _cache(absf->call(elems));
             } else {
                 std::cout << "[z3_expr] expr: " << string(*expr) << std::endl;
                 throw std::runtime_error("[z3_expr] Unknown symbol: " + sym);
             }
         } else if (std::holds_alternative<unique_ptr<SpecNode>>(expr->op)) {
-            auto op = z3_expr(
+            auto const op = z3_expr(
                 proj, std::get<unique_ptr<SpecNode>>(expr->op).get(), state);
-            if (auto func = dynamic_pointer_cast<FuncValue>(op))
+            if (auto const func = dynamic_pointer_cast<FuncValue>(op))
                 return _cache(func->call(elems));
         }
 
         throw std::runtime_error("[z3_expr] Unknown expression: " +
                                  string(*expr));
     } else if (auto match = instance_of(val, Match)) {
-        auto src = z3_expr(proj, match->src.get(), state);
+        auto const src = z3_expr(proj, match->src.get(), state);
         shared_ptr<SpecValue> match_val = nullptr;
         for (auto pm = match->match_list->rbegin();
              pm != match->match_list->rend(); pm++) {
             unordered_map<string, shared_ptr<SpecValue>> vars;
             unordered_map<string, shared_ptr<SpecValue>> assigns;
-            auto pat = resolve_pattern(proj, val, (*pm)->pattern.get(), src,
+            auto const pat = resolve_pattern(proj, val, (*pm)->pattern.get(), src,
                                        vars, assigns);
-            auto cond = pat->get_z3_value() == src->get_z3_value();
+            auto const cond = pat->get_z3_value() == src->get_z3_value();
             // for (auto v = vars.begin(); v != vars.end(); v++) {
             //     cond = z3::exists(v->second->get_z3_value(), cond);
             // }
-            auto new_state = state->copy();
+            auto const new_state = state->copy();
             for (auto v = assigns.begin(); v != assigns.end(); v++) {
                 new_state->vars->emplace(v->first, v->second);
             }
             if (match_val == nullptr) {
                 match_val = z3_expr(proj, (*pm)->body.get(), new_state);
             } else {
-                auto then_val = z3_expr(proj, (*pm)->body.get(), new_state);
+                auto const then_val = z3_expr(proj, (*pm)->body.get(), new_state);
                 match_val = match_val->get_type()->from_z3_value(z3::ite(
                     cond, then_val->get_z3_value(), match_val->get_z3_value()));
             }
         }
         if (match_val == nullptr) {
-            auto opt = static_pointer_cast<Option>(val->get_type());
+            auto const opt = static_pointer_cast<Option>(val->get_type());
             return _cache(opt->construct("None", {}));
         } else {
             return _cache(match_val);
         }
     } else if (auto rely = instance_of(val, Rely)) {
-        auto cond = z3_expr(proj, rely->prop.get(), state);
+        auto const cond = z3_expr(proj, rely->prop.get(), state);
         PROFILE_START(rely_eval_check);
         PROFILE_START(eval_check);
-        auto res = z3_check(state, cond->get_z3_value());
+        auto const res = z3_check(state, cond->get_z3_value());
         PROFILE_END(eval_check);
         PROFILE_END(rely_eval_check);
 
         if (res == Z3Result::Unknown) {
             profile_log_eval_rely_unsolved(string(*rely->prop.get()));
-            auto body = z3_expr(proj, rely->body.get(), state);
-            auto none = static_pointer_cast<Option>(val->get_type())
+            auto const body = z3_expr(proj, rely->body.get(), state);
+            auto const none = static_pointer_cast<Option>(val->get_type())
                             ->construct("None", {});
 
-            auto z3_val = z3::ite(cond->get_z3_value(), body->get_z3_value(),
+            auto const z3_val = z3::ite(cond->get_z3_value(), body->get_z3_value(),
                                   none->get_z3_value());
             return _cache(rely->get_type()->from_z3_value(z3_val.simplify()));
         } else if (res == Z3Result::True) {
@@ -376,21 +376,21 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
                               ->construct("None", {}));
         }
     } else if (auto iff = instance_of(val, If)) {
-        auto c = z3_expr(proj, iff->cond.get(), state);
+        auto const c = z3_expr(proj, iff->cond.get(), state);
         PROFILE_START(if_eval_check);
         PROFILE_START(eval_check);
-        auto res = z3_check(state, c->get_z3_value());
+        auto const res = z3_check(state, c->get_z3_value());
         PROFILE_END(eval_check);
         PROFILE_END(if_eval_check);
         if (res == Z3Result::Unknown) {
             // profile_log_eval_if_unsolved(string(*iff->cond.get()));
-            auto true_state = state->copy();
+            auto const true_state = state->copy();
             true_state->conds->push_back(c->get_z3_value());
-            auto True = z3_expr(proj, iff->then_body.get(), true_state);
-            auto false_state = state->copy();
+            auto const True = z3_expr(proj, iff->then_body.get(), true_state);
+            auto const false_state = state->copy();
             false_state->conds->push_back(!c->get_z3_value());
-            auto False = z3_expr(proj, iff->else_body.get(), false_state);
-            auto z3_val = z3::ite(c->get_z3_value(), True->get_z3_value(),
+            auto const False = z3_expr(proj, iff->else_body.get(), false_state);
+            auto const z3_val = z3::ite(c->get_z3_value(), True->get_z3_value(),
                                   False->get_z3_value());
             return _cache(iff->get_type()->from_z3_value(z3_val.simplify()));
         } else if (res == Z3Result::True) {
@@ -407,19 +407,19 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
         std::vector<z3::expr> hypos;
         for (auto v = forall->vars->begin(); v != forall->vars->end(); v++) {
             if ((*v)->type) {
-                auto var = (*v)->type->declare((*v)->name, val->nid);
+                auto const var = (*v)->type->declare((*v)->name, val->nid);
                 (*state->vars)[(*v)->name] = var;
                 vars.push_back(var->get_z3_value());
             } else {
                 // bounded variable v is prop, push into state
-                auto prop = z3_expr(proj, (*v)->expr.get(), state);
+                auto const prop = z3_expr(proj, (*v)->expr.get(), state);
                 hypos.push_back(prop->get_z3_value());
             }
         }
         /** bounded variables may have a newer nid over cached z3 values, so we
          * need to clear cached value first  */
         forall->clear_z3_eval();
-        auto body = z3_expr(proj, forall->body.get(), state);
+        auto const body = z3_expr(proj, forall->body.get(), state);
         auto p = body->get_z3_value();
 
         for (const auto &h : hypos) {
@@ -429,12 +429,12 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
     } else if (auto exsts = instance_of(val, Exists)) {
         z3::expr_vector vars(z3ctx);
         for (auto v = exsts->vars->begin(); v != exsts->vars->end(); v++) {
-            auto var = (*v)->type->declare((*v)->name, val->nid);
+            auto const var = (*v)->type->declare((*v)->name, val->nid);
             (*state->vars)[(*v)->name] = var;
             vars.push_back(var->get_z3_value());
         }
         exsts->clear_z3_eval();
-        auto body = z3_expr(proj, exsts->body.get(), state);
+        auto const body = z3_expr(proj, exsts->body.get(), state);
         return _cache(make_shared<BoolValue>(z3::exists(vars, body->value)));
     }
     throw std::runtime_error("[z3_expr] Unknown node type: " + string(*val));
@@ -458,8 +458,8 @@ SpecNode *extract_st_from_expr(Project *proj, SpecNode *expr) {
                 }
             }
         } else if (std::holds_alternative<string>(e->op)) {
-            auto sym = std::get<string>(e->op);
-            auto info = proj->symbols[sym];
+            auto const sym = std::get<string>(e->op);
+            auto const info = proj->symbols[sym];
             if (info.kind == SymbolKind::Def || info.kind == SymbolKind::Decl) {
                 auto last = e->elems->back().get();
                 return extract_st_from_expr(proj, last);
@@ -482,8 +482,8 @@ using abst_t = std::variant<Definition *, Declaration *, std::nullptr_t>;
 abst_t abst_transition(Project *proj, SpecNode *spec) {
     if (auto expr = instance_of(spec, Expr)) {
         if (std::holds_alternative<string>(expr->op)) {
-            auto sym = std::get<string>(expr->op);
-            auto info = proj->symbols[sym];
+            auto const sym = std::get<string>(expr->op);
+            auto const info = proj->symbols[sym];
             if (info.kind == SymbolKind::Def) {
                 return proj->defs[sym].get();
             } else if (info.kind == SymbolKind::Decl) {
@@ -500,7 +500,7 @@ bool check_drf_by_traverse(Project *proj, SpecNode *spec,
         if (s->text == "None") {
             std::cout << "[check_drf_by_traverse] Checking None path: "
                       << string(*spec) << std::endl;
-            auto res = z3_verify_state_sat(state, &proj->query_saver);
+            auto const res = z3_verify_state_sat(state, &proj->query_saver);
             if (res == Z3Result::True) {
                 LOG_ERROR << "[check_drf_by_traverse] A None path is proved to "
                              "be sat! DRF failed!"
@@ -514,11 +514,11 @@ bool check_drf_by_traverse(Project *proj, SpecNode *spec,
     } else if (auto e = instance_of(spec, Expr)) {
         // pass
     } else if (auto m = instance_of(spec, Match)) {
-        auto src = z3_expr(proj, m->src.get(), state);
+        auto const src = z3_expr(proj, m->src.get(), state);
         auto verify_fail = false;
         for (auto pm = m->match_list->begin(); pm != m->match_list->end();
              pm++) {
-            auto new_state = state->copy();
+            auto const new_state = state->copy();
             auto pat = (*pm)->pattern.get();
             resolve_pattern(proj, m, pat, src, new_state);
             verify_fail |=
@@ -527,12 +527,12 @@ bool check_drf_by_traverse(Project *proj, SpecNode *spec,
         return !verify_fail;
     } else if (auto i = instance_of(spec, If)) {
         // push cond
-        auto c = z3_expr(proj, i->cond.get(), state);
+        auto const c = z3_expr(proj, i->cond.get(), state);
         auto res = Z3Result::Unknown;
         res = z3_check(state, c->get_z3_value());
 
-        auto true_state = state->copy();
-        auto false_state = state->copy();
+        auto const true_state = state->copy();
+        auto const false_state = state->copy();
 
         true_state->conds->push_back(c->get_z3_value());
         false_state->conds->push_back(!c->get_z3_value());
@@ -550,8 +550,8 @@ bool check_drf_by_traverse(Project *proj, SpecNode *spec,
         }
     } else if (auto r = instance_of(spec, Rely)) {
         // push cond
-        auto c = z3_expr(proj, r->prop.get(), state);
-        auto res = z3_check(state, c->get_z3_value());
+        auto const c = z3_expr(proj, r->prop.get(), state);
+        auto const res = z3_check(state, c->get_z3_value());
         if (res == Z3Result::False || res == Z3Result::Unknown) {
             LOG_WARNING
                 << "[check_drf_by_traverse] Rely condition is violated: "
@@ -576,11 +576,11 @@ bool check_states_implies_pre_condition(Project *proj,
     Z3Cache.clear();
     auto &preconds = proj->cmds.PreCond[fname];
     auto def = proj->defs[fname].get();
-    auto var = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
-    auto conds = std::make_shared<vector<z3::expr>>();
-    auto known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
+    auto const var = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+    auto const conds = std::make_shared<vector<z3::expr>>();
+    auto const known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
     // Check Precondition
-    for (auto arg : *def->args) {
+    for (auto const arg : *def->args) {
         (*var)[def->name + "_" + arg->name] =
             arg->type->declare(def->name + "_" + arg->name, 0); // current
         (*known)[arg->name] = arg->type;
@@ -599,7 +599,7 @@ bool check_states_implies_pre_condition(Project *proj,
     vector<string> names;
     vector<unique_ptr<SpecNode>> selems;
     int i = 0;
-    for (auto arg : *def->args) {
+    for (auto const arg : *def->args) {
         names.push_back(arg->name);
         selems.push_back(elems->at(i)->deep_copy());
         i++;
@@ -622,9 +622,9 @@ bool check_states_implies_pre_condition(Project *proj,
     LOG_DEBUG << "Check Precondition: " << string(*before_inv);
     z3::model model(z3ctx);
     set<string> fix_string;
-    auto before_inv_z3 =
+    auto const before_inv_z3 =
         z3_eval(proj, before_inv.get(), state, false, true, fix_string);
-    auto res = z3_check_unsat(state, before_inv_z3->get_z3_value(), model,
+    auto const res = z3_check_unsat(state, before_inv_z3->get_z3_value(), model,
                               &proj->query_saver, Z3_VERIFY_TIMEOUT);
     if (res == Z3Result::False || res == Z3Result::Unknown ||
         res == Z3Result::Sat) {
@@ -648,10 +648,10 @@ z3::expr formulate_loop_invariant_z3(Project *proj, std::string fname,
                                      shared_ptr<ProveState> state) {
     auto expr = instance_of(fun_call, Expr);
     auto loop = proj->defs[fname].get();
-    auto loop_post_cond =
+    auto const loop_post_cond =
         formulate_loop_invariant(proj, fname, expr->elems.get());
     // LOG_DEBUG << "loop invariant post: " << string(*loop_post_cond);
-    for (auto arg : *loop->args) {
+    for (auto const arg : *loop->args) {
         (*state->vars)[loop->name + "_" + arg->name + "_new"] =
             arg->type->declare(loop->name + "_" + arg->name + "_new",
                                0); // current
@@ -659,10 +659,10 @@ z3::expr formulate_loop_invariant_z3(Project *proj, std::string fname,
     LOG_DEBUG << "[Checking Loop Invariant] Adding loop postcondition: "
               << string(*loop_post_cond);
     set<string> used_fix;
-    auto loop_post_val =
+    auto const loop_post_val =
         z3_eval(proj, loop_post_cond.get(), state, false, true, used_fix);
     auto post = loop_post_val->get_z3_value();
-    for (auto arg : *loop->args) {
+    for (auto const arg : *loop->args) {
         post = z3::forall((*state->vars)[loop->name + "_" + arg->name + "_new"]
                               ->get_z3_value(),
                           post);
@@ -675,12 +675,12 @@ z3::expr formulate_post_cond_z3(Project *proj, std::string fname,
                                 shared_ptr<ProveState> state) {
     auto def = proj->defs[fname].get();
     auto expr = instance_of(func_call, Expr);
-    auto post_cond = formulate_post_condition(proj, fname, expr->elems.get());
+    auto const post_cond = formulate_post_condition(proj, fname, expr->elems.get());
     string tmpname = "_ret_";
     int i = 0;
     auto rettype = instance_of(def->rettype.get(), Option);
     if (auto rettupletype = instance_of(rettype->elem_type.get(), Tuple)) {
-        for (auto elemtype : *rettupletype->types) {
+        for (auto const elemtype : *rettupletype->types) {
             if (i != rettupletype->types->size() - 1) {
                 (*state->vars)[def->name + tmpname + std::to_string(i)] =
                     elemtype->declare(def->name + tmpname + std::to_string(i),
@@ -696,12 +696,12 @@ z3::expr formulate_post_cond_z3(Project *proj, std::string fname,
             rettype->elem_type->declare(def->name + "_st_new_", 0);
     }
     set<string> used_fix;
-    auto post_val =
+    auto const post_val =
         z3_eval(proj, post_cond.get(), state, false, false, used_fix);
     auto post = post_val->get_z3_value();
     if (auto rettupletype = instance_of(rettype->elem_type.get(), Tuple)) {
         i = 0;
-        for (auto elemtype : *rettupletype->types) {
+        for (auto const elemtype : *rettupletype->types) {
             if (i != rettupletype->types->size() - 1) {
                 post = z3::forall(
                     (*state->vars)[def->name + tmpname + std::to_string(i)]
@@ -733,14 +733,14 @@ bool prove_by_traverse(
     if (auto sym = instance_of(spec, Symbol)) {
         if (sym->text == "None") {
             if (OPTS.check_none && mode != ProveMode::None) {
-                auto res = z3_check(state, Z3_VERIFY_TIMEOUT);
+                auto const res = z3_check(state, Z3_VERIFY_TIMEOUT);
                 if (res == Z3Result::Sat) {
                     LOG_ERROR << "Reached None Branch";
                     return false;
                 }
             }
             if (mode == ProveMode::None) {
-                auto res = z3_check(state, Z3_VERIFY_TIMEOUT);
+                auto const res = z3_check(state, Z3_VERIFY_TIMEOUT);
                 if (res == Z3Result::Sat) {
                     LOG_INFO << "Function condition return None is true!";
                     none_accumulator.visit_none();
@@ -847,13 +847,13 @@ bool prove_by_traverse(
                     prop = inv->deep_copy();
                 }
                 set<string> used_fix;
-                auto c =
+                auto const c =
                     z3_eval(proj, prop.get(), state, false, true, used_fix);
                 // for(auto &cond: *state->conds) {
                 // 	LOG_DEBUG << "Cond:" << cond;
                 // }
                 z3::model model(z3ctx);
-                auto z3_ret =
+                auto const z3_ret =
                     z3_check_unsat(state, c->get_z3_value(), model,
                                    &proj->query_saver, Z3_VERIFY_TIMEOUT);
                 // std::cout << "----------------------------------" <<
@@ -887,11 +887,11 @@ bool prove_by_traverse(
             }
         } else if (holds_alternative<string>(expr->op)) {
             auto op = std::get<string>(expr->op);
-            auto info = proj->symbols[op];
+            auto const info = proj->symbols[op];
             if (info.kind == SymbolKind::Def) {
                 // auto subst_definition = false;
                 unique_ptr<SpecNode> loop_post_cond;
-                unique_ptr<SpecNode> post_cond;
+                unique_ptr<SpecNode> const post_cond;
                 used_abs_funcs.insert(op);
                 vector<shared_ptr<SpecValue>> elems;
                 for (auto e = expr->elems->begin(); e != expr->elems->end();
@@ -948,13 +948,13 @@ bool prove_by_traverse(
                                   << string(*prop);
 
                         set<string> used_fix;
-                        auto post_cond = z3_eval(proj, loop_post_cond.get(),
+                        auto const post_cond = z3_eval(proj, loop_post_cond.get(),
                                                  state, false, true, used_fix);
                         state->conds->push_back(post_cond->get_z3_value());
-                        auto c = z3_eval(proj, prop.get(), state, false, true,
+                        auto const c = z3_eval(proj, prop.get(), state, false, true,
                                          used_fix);
                         z3::model model(z3ctx);
-                        auto z3_ret = z3_check_unsat(state, c->get_z3_value(),
+                        auto const z3_ret = z3_check_unsat(state, c->get_z3_value(),
                                                      model, &proj->query_saver,
                                                      Z3_VERIFY_TIMEOUT);
                         if (z3_ret == Z3Result::Sat) {
@@ -989,16 +989,16 @@ bool prove_by_traverse(
         }
     } else if (auto m = instance_of(spec, Match)) {
         set<string> used_fix;
-        auto src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
+        auto const src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
         auto subst_definition = false;
         unique_ptr<SpecNode> loop_post_cond;
         unique_ptr<SpecNode> post_cond;
-        bool resolve_to_none = false;
+        bool const resolve_to_none = false;
 
         if (auto expr = instance_of(m->src.get(), Expr)) {
             if (holds_alternative<string>(expr->op)) {
                 auto op = std::get<string>(expr->op);
-                auto info = proj->symbols[op];
+                auto const info = proj->symbols[op];
                 if (info.kind == SymbolKind::Def) {
                     used_abs_funcs.insert(op);
                     vector<shared_ptr<SpecValue>> elems;
@@ -1080,9 +1080,9 @@ bool prove_by_traverse(
                             // condition
                             if (proj->cmds.PreserveInv.find(op) !=
                                 proj->cmds.PreserveInv.end()) {
-                                unique_ptr<SpecNode> post_cond =
+                                unique_ptr<SpecNode> const post_cond =
                                     formulate_preserved_function(proj, op);
-                                auto post_val = z3_eval(proj, post_cond.get(),
+                                auto const post_val = z3_eval(proj, post_cond.get(),
                                                         state->copy(), false,
                                                         true, used_fix);
                                 // delete post_cond;
@@ -1095,13 +1095,13 @@ bool prove_by_traverse(
             }
         }
 
-        auto abst_spec = abst_transition(proj, m->src.get());
-        SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
+        auto const abst_spec = abst_transition(proj, m->src.get());
+        SpecNode  const*st_input = extract_st_from_expr(proj, m->src.get());
         auto verify_success = true;
 
         for (auto pm = m->match_list->begin(); pm != m->match_list->end();
              pm++) {
-            auto new_state = state->copy();
+            auto const new_state = state->copy();
             auto pat = (*pm)->pattern.get();
             if (resolve_to_none) {
                 if (auto expr = instance_of(pat, Expr)) {
@@ -1119,7 +1119,7 @@ bool prove_by_traverse(
                 // instantiate the loop postconditions here
                 if (auto expr = instance_of(m->src.get(), Expr)) {
                     if (holds_alternative<string>(expr->op)) {
-                        auto op = std::get<string>(expr->op);
+                        auto const op = std::get<string>(expr->op);
                         if (subst_definition) {
                             if (auto loop = instance_of(proj->defs[op].get(),
                                                         Fixpoint)) {
@@ -1154,7 +1154,7 @@ bool prove_by_traverse(
                                                                 sym->text, 0);
                                                     }
                                                 }
-                                                auto new_inv = subst_v2(
+                                                auto const new_inv = subst_v2(
                                                     proj,std::move(loop_post_cond),
                                                     &names, &elems);
                                                 LOG_DEBUG
@@ -1162,7 +1162,7 @@ bool prove_by_traverse(
                                                        "Invariant] Adding loop "
                                                        "postcondition: "
                                                     << string(*new_inv);
-                                                auto new_inv_z3 =
+                                                auto const new_inv_z3 =
                                                     z3_eval(proj, new_inv.get(),
                                                             new_state, true,
                                                             false, used_fix);
@@ -1178,7 +1178,7 @@ bool prove_by_traverse(
                                                     sym->type->declare(
                                                         sym->text, 0);
                                             }
-                                            auto new_inv = subst_v2(
+                                            auto const new_inv = subst_v2(
                                                 proj,std::move(loop_post_cond),
                                                 loop->name + "_" + "st_new",
                                                 p->elems->at(0)->deep_copy());
@@ -1186,7 +1186,7 @@ bool prove_by_traverse(
                                                 << "[Checking Loop Invariant] "
                                                    "Adding loop postcondition: "
                                                 << string(*new_inv);
-                                            auto new_inv_z3 = z3_eval(
+                                            auto const new_inv_z3 = z3_eval(
                                                 proj, new_inv.get(), new_state,
                                                 true, false, used_fix);
                                             new_state->conds->push_back(
@@ -1238,13 +1238,13 @@ bool prove_by_traverse(
                                                         }
                                                     }
                                                 }
-                                                auto new_inv = subst_v2(
+                                                auto const new_inv = subst_v2(
                                                     proj,std::move(post_cond),
                                                     &names, &elems);
                                                 LOG_DEBUG
                                                     << "Adding postcondition: "
                                                     << string(*new_inv);
-                                                auto new_inv_z3 =
+                                                auto const new_inv_z3 =
                                                     z3_eval(proj, new_inv.get(),
                                                             new_state, true,
                                                             false, used_fix);
@@ -1260,7 +1260,7 @@ bool prove_by_traverse(
                                                     sym->type->declare(
                                                         sym->text, 0);
                                             }
-                                            auto new_inv = subst_v2(
+                                            auto const new_inv = subst_v2(
                                                 proj,std::move(post_cond),
                                                 def->name + "_st_new_",
                                                 p->elems->at(0)->deep_copy());
@@ -1268,7 +1268,7 @@ bool prove_by_traverse(
                                             LOG_DEBUG
                                                 << "Adding postcondition: "
                                                 << string(*new_inv);
-                                            auto new_inv_z3 = z3_eval(
+                                            auto const new_inv_z3 = z3_eval(
                                                 proj, new_inv.get(), new_state,
                                                 true, false, used_fix);
                                             new_state->conds->push_back(
@@ -1281,13 +1281,13 @@ bool prove_by_traverse(
                     }
                 }
 
-                SpecNode *st_ret = extract_st_from_expr(proj, pat);
+                SpecNode  const*st_ret = extract_st_from_expr(proj, pat);
                 if (st_input && st_ret) {
                     if (mode == ProveMode::SYS) {
-                        auto p_input = proj->rules.instantiate_prop(
+                        auto const p_input = proj->rules.instantiate_prop(
                             inv->deep_copy(), st_input->deep_copy());
-                        auto precond = z3_expr(proj, p_input.get(), new_state);
-                        auto z3_ret =
+                        auto const precond = z3_expr(proj, p_input.get(), new_state);
+                        auto const z3_ret =
                             z3_verify(new_state, precond->get_z3_value(),
                                       &proj->query_saver);
                         if (z3_ret == Z3Result::Unknown ||
@@ -1300,10 +1300,10 @@ bool prove_by_traverse(
                             // inv
                         } else {
                         }
-                        auto p_ret = proj->rules.instantiate_prop(
+                        auto const p_ret = proj->rules.instantiate_prop(
                             inv->deep_copy(), st_ret->deep_copy());
 
-                        auto postcond = z3_expr(proj, p_ret.get(), new_state);
+                        auto const postcond = z3_expr(proj, p_ret.get(), new_state);
                         new_state->inductions->clear();
                         new_state->add_induction(postcond->get_z3_value());
                     } else {
@@ -1311,9 +1311,9 @@ bool prove_by_traverse(
                     }
                     for (auto const &l : proj->lemmas) {
                         auto lemma_body = proj->defs[l]->body.get();
-                        auto lemma = proj->rules.instantiate_prop(
+                        auto const lemma = proj->rules.instantiate_prop(
                             lemma_body->deep_copy(), st_ret->deep_copy());
-                        auto lemma_expr = z3_expr(proj, lemma.get(), new_state);
+                        auto const lemma_expr = z3_expr(proj, lemma.get(), new_state);
                         new_state->add_induction(lemma_expr->get_z3_value());
                     }
                 }
@@ -1330,9 +1330,9 @@ bool prove_by_traverse(
         return verify_success;
     } else if (auto i = instance_of(spec, If)) {
         // push cond
-        auto c = z3_eval(proj, i->cond.get(), state);
-        auto true_state = state->copy();
-        auto false_state = state->copy();
+        auto const c = z3_eval(proj, i->cond.get(), state);
+        auto const true_state = state->copy();
+        auto const false_state = state->copy();
         true_state->conds->push_back(c->get_z3_value());
         false_state->conds->push_back(!c->get_z3_value());
         auto verify_success = true;
@@ -1354,10 +1354,10 @@ bool prove_by_traverse(
         return verify_success;
     } else if (auto r = instance_of(spec, Rely)) {
         // push cond
-        auto c = z3_eval(proj, r->prop.get(), state);
+        auto const c = z3_eval(proj, r->prop.get(), state);
         if (OPTS.check_none) {
             z3::model model(z3ctx);
-            auto res = z3_check_unsat(state, c->get_z3_value(), model,
+            auto const res = z3_check_unsat(state, c->get_z3_value(), model,
                                       &proj->query_saver, Z3_VERIFY_TIMEOUT);
             if (res == Z3Result::Sat) {
                 LOG_ERROR
@@ -1412,14 +1412,14 @@ bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv,
     auto vars =
         std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
     auto conds = std::make_shared<vector<z3::expr>>();
-    for (auto arg : *def->args) {
+    for (auto const arg : *def->args) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
     auto induction = std::make_shared<vector<z3::expr>>();
-    auto state = std::make_shared<ProveState>(vars, conds, induction);
+    auto const state = std::make_shared<ProveState>(vars, conds, induction);
 
     set<string> used_fixpoint;
-    auto c = z3_eval(proj, inv, state, false, true, used_fixpoint);
+    auto const c = z3_eval(proj, inv, state, false, true, used_fixpoint);
     state->conds->push_back(c->get_z3_value());
 
     auto &preconds = proj->cmds.PreCond[def->name];
@@ -1433,31 +1433,31 @@ bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv,
             Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems),
             Bool::BOOL);
     }
-    auto prec = z3_eval(proj, precond.get(), state, false, true, used_fixpoint);
+    auto const prec = z3_eval(proj, precond.get(), state, false, true, used_fixpoint);
     state->conds->push_back(prec->get_z3_value());
 
     // instantiate parameter-related invariants
     for (auto const &l : proj->lemmas) {
         auto lemma_body = proj->defs[l]->body.get();
-        auto lemma_expr = z3_expr(proj, lemma_body, state);
+        auto const lemma_expr = z3_expr(proj, lemma_body, state);
         state->add_induction(lemma_expr->get_z3_value());
     }
 
     for (auto const &a : proj->axioms) {
         auto axiom_body = proj->defs[a]->body.get();
-        auto axiom_expr = z3_expr(proj, axiom_body, state);
+        auto const axiom_expr = z3_expr(proj, axiom_body, state);
         state->conds->push_back(axiom_expr->get_z3_value());
     }
 
     // also add proved invariant
-    for (auto proved : proj->verified_invariants) {
+    for (auto const proved : proj->verified_invariants) {
         auto pinv = proj->sys_invs[proved].get();
-        auto c = z3_eval(proj, pinv, state, false, true, used_fixpoint);
+        auto const c = z3_eval(proj, pinv, state, false, true, used_fixpoint);
         state->conds->push_back(c->get_z3_value());
     }
 
     def->body->clear_z3_eval();
-    bool ret = prove_by_traverse(proj, def->body.get(), inv, state,
+    bool const ret = prove_by_traverse(proj, def->body.get(), inv, state,
                                  used_abs_funcs, ProveMode::SYS, def->name);
     return ret;
 }
@@ -1501,25 +1501,25 @@ bool check_loop_inv_v2(Project *proj, Definition *loop,
                                 Bool::BOOL);
     }
 
-    for (auto arg : *loop->args) {
+    for (auto const arg : *loop->args) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
         //(*vars)[arg->name + "_old"] = arg->type->declare(arg->name + "_old",
         // 0);
     }
     auto induction = std::make_shared<vector<z3::expr>>();
-    auto state = make_shared<ProveState>(vars, conds, induction);
+    auto const state = make_shared<ProveState>(vars, conds, induction);
     set<string> used_fixpoint;
-    auto c = z3_eval(proj, precond.get(), state, false, true, used_fixpoint);
+    auto const c = z3_eval(proj, precond.get(), state, false, true, used_fixpoint);
     state->conds->push_back(c->get_z3_value());
     // instantiate parameter-related invariants
     for (auto const &l : proj->lemmas) {
         auto lemma_body = proj->defs[l]->body.get();
-        auto lemma_expr = z3_expr(proj, lemma_body, state);
+        auto const lemma_expr = z3_expr(proj, lemma_body, state);
         state->add_induction(lemma_expr->get_z3_value());
     }
 
     proj->query_saver = QueryInfo(query_saver_dir(loop->name, "loop_inv"));
-    bool res = prove_by_traverse(proj, loop->body.get(), inv.get(), state,
+    bool const res = prove_by_traverse(proj, loop->body.get(), inv.get(), state,
                                  used_abs, ProveMode::LOOP, loop->name);
 
     // must remove name of itself
@@ -1534,7 +1534,7 @@ bool check_none(Project *proj, Definition *def,
         std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
     auto conds = std::make_shared<vector<z3::expr>>();
 
-    for (auto arg : *def->args) {
+    for (auto const arg : *def->args) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
 
@@ -1550,7 +1550,7 @@ bool check_none(Project *proj, Definition *def,
     // }
 
     auto l_args = make_unique<vector<shared_ptr<Arg>>>();
-    for (auto arg : *def->args) {
+    for (auto const arg : *def->args) {
         l_args->push_back(arg);
     }
     auto spec_def = new Definition(def->name, def->rettype, std::move(l_args),
@@ -1559,11 +1559,11 @@ bool check_none(Project *proj, Definition *def,
     proj->query_saver = QueryInfo(query_saver_dir(def->name, "none_check"));
 
     auto induction = std::make_shared<vector<z3::expr>>();
-    auto state = make_shared<ProveState>(vars, conds, induction);
-    set<string> used_fixpoint;
+    auto const state = make_shared<ProveState>(vars, conds, induction);
+    set<string> const used_fixpoint;
     // auto c = z3_eval(proj, nonecond.get(), state, false, true,
     // used_fixpoint); state->conds->push_back(c->get_z3_value());
-    unique_ptr<SpecNode> postcond = make_unique<BoolConst>(true);
+    unique_ptr<SpecNode> const postcond = make_unique<BoolConst>(true);
 
     auto none_cond_accumulator = NoneConditionAccumulator(proj, def->name);
     none_cond_accumulator.discharge_none = [=](std::unique_ptr<SpecNode> n) {
@@ -1587,12 +1587,12 @@ bool check_none(Project *proj, Definition *def,
             def->sufficient_none_condition = std::move(n);
         }
     };
-    bool res = prove_by_traverse(proj, spec_def->body.get(), postcond.get(),
+    bool const res = prove_by_traverse(proj, spec_def->body.get(), postcond.get(),
                                  state, used_abs, ProveMode::None, def->name,
                                  std::move(none_cond_accumulator));
     std::set<string> vars_in_none_cond;
     free_vars(proj, def->sufficient_none_condition.get(), vars_in_none_cond);
-    for (auto &a: *def->args){
+    for (auto  const&a: *def->args){
         vars_in_none_cond.erase(a->name);
     }
     assert(vars_in_none_cond.empty());
@@ -1602,7 +1602,7 @@ bool check_none(Project *proj, Definition *def,
                   << ": " << string(*def->sufficient_none_condition);
         auto known = std::set<string>();
 
-        for (auto arg : *def->args) {
+        for (auto const arg : *def->args) {
             known.insert(arg->name);
         }
         auto new_spec = std::move(def->sufficient_none_condition);
@@ -1648,7 +1648,7 @@ bool check_pre_post(Project *proj, Definition *def,
         std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
     auto conds = std::make_shared<vector<z3::expr>>();
 
-    for (auto arg : *def->args) {
+    for (auto const arg : *def->args) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
 
@@ -1676,7 +1676,7 @@ bool check_pre_post(Project *proj, Definition *def,
     }
 
     auto l_args = make_unique<vector<shared_ptr<Arg>>>();
-    for (auto arg : *def->args) {
+    for (auto const arg : *def->args) {
         l_args->push_back(arg);
     }
     auto spec_def = new Definition(def->name, def->rettype, std::move(l_args),
@@ -1686,11 +1686,11 @@ bool check_pre_post(Project *proj, Definition *def,
     proj->query_saver = QueryInfo(query_saver_dir(def->name, "integrity"));
 
     auto induction = std::make_shared<vector<z3::expr>>();
-    auto state = make_shared<ProveState>(vars, conds, induction);
+    auto const state = make_shared<ProveState>(vars, conds, induction);
     set<string> used_fixpoint;
-    auto c = z3_eval(proj, precond.get(), state, false, true, used_fixpoint);
+    auto const c = z3_eval(proj, precond.get(), state, false, true, used_fixpoint);
     state->conds->push_back(c->get_z3_value());
-    bool res =
+    bool const res =
         prove_by_traverse(proj, spec_def->body.get(), postcond.get(), state,
                           used_abs, ProveMode::PREPOST, def->name);
     return res;
@@ -1700,12 +1700,12 @@ bool check_pre_post(Project *proj, Definition *def,
 /// demand-driven retry loop calls this more than once and only the settled
 /// verdict should reach stdout -- the harness reads the first line.
 bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
-                   Definition *rel_pre, Definition *rel_post, SpecNode *ret_rel,
-                   std::unordered_set<string> &used_abs, SimulateResult *out) {
+                   Definition *rel_pre, Definition *rel_post, SpecNode  const*ret_rel,
+                   std::unordered_set<string>  const&used_abs, SimulateResult *out) {
     Z3Cache.clear();
     extern std::chrono::duration<double> z3_accumulative_time;
-    auto start = std::chrono::high_resolution_clock::now();
-    auto z3_start = z3_accumulative_time;
+    auto const start = std::chrono::high_resolution_clock::now();
+    auto const z3_start = z3_accumulative_time;
 
     auto vars =
         std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
@@ -1714,21 +1714,21 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
 
     // Since the arguments are the same for the vuln and patched def,
     // we just need to iterate through one set.
-    for (auto arg : *vuln_def->args) {
+    for (auto const arg : *vuln_def->args) {
         auto mangled_name = arg->name;
         (*vars)[mangled_name] = arg->type->declare(mangled_name, 0);
     }
-    auto state = std::make_shared<ProveState>(vars, conds, induction);
+    auto const state = std::make_shared<ProveState>(vars, conds, induction);
 
     auto l_args = make_unique<vector<shared_ptr<Arg>>>();
 
-    for (auto arg : *vuln_def->args) {
+    for (auto const arg : *vuln_def->args) {
         l_args->push_back(arg);
     }
 
-    auto last_arg = vuln_def->args->back(); // Last arg of the vuln function is
+    auto const last_arg = vuln_def->args->back(); // Last arg of the vuln function is
                                             // the state.  Vuln is the spec.
-    auto st_sym_1 = make_shared<Symbol>(last_arg->name, last_arg->type);
+    auto const st_sym_1 = make_shared<Symbol>(last_arg->name, last_arg->type);
     // auto sim_state_name = rel_post->args->back()->name; // Last arg of the
     // relation name is used for the impl state
     // (*vars)[sim_state_name] =
@@ -1752,7 +1752,7 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     // predicate: (forall args... (vuln args...) = (patch args...)) start with
     // the args.
     auto args = std::make_unique<std::vector<std::shared_ptr<Arg>>>();
-    for (auto arg : *vuln_def->args) {
+    for (auto const arg : *vuln_def->args) {
         args->push_back(arg);
     }
     SpecNode *vuln_body = nullptr, *patched_body = nullptr;
@@ -1772,25 +1772,25 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     // Remove the arguments, functions, and definitions
     used_var_names.erase("None");
     LOG_DEBUG << "Used Var Names 1: ";
-    for (auto s: used_var_names){ std::cerr << s << ", ";}
+    for (auto const s: used_var_names){ std::cerr << s << ", ";}
      std::cerr << std::endl;
-    for (auto arg: *vuln_def->args) {
+    for (auto const arg: *vuln_def->args) {
         used_var_names.erase(arg->name);
     }
     LOG_DEBUG << "Used Var Names 2: ";
-    for (auto s: used_var_names){ std::cerr << s << ", ";}
+    for (auto const s: used_var_names){ std::cerr << s << ", ";}
      std::cerr << std::endl;
      for (auto &[def_name, def]: proj->defs){
         used_var_names.erase(def_name);
     }
     LOG_DEBUG << "Used Var Names 3: ";
-    for (auto s: used_var_names){ std::cerr << s << ", ";}
+    for (auto const s: used_var_names){ std::cerr << s << ", ";}
      std::cerr << std::endl;
           for (auto &[def_name, def]: proj->symbols){
         used_var_names.erase(def_name);
     }
         LOG_DEBUG << "Used Var Names 4: ";
-    for (auto s: used_var_names){ std::cerr << s << ", ";}
+    for (auto const s: used_var_names){ std::cerr << s << ", ";}
      std::cerr << std::endl;
 
     tmp_patched_body = proj->rules.eliminate_ambiguity(std::move(tmp_patched_body), used_var_names, unneeded);
@@ -1799,7 +1799,7 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     patched_def->body = tmp_patched_body->deep_copy();
 
     patched_body = tmp_patched_body.get();
-    field_t ret_rel_names;
+    field_t const ret_rel_names;
     unique_ptr<vector<shared_ptr<Arg>>> ret_rel_args =
         make_unique<vector<shared_ptr<Arg>>>();
     unique_ptr<SpecNode> ret_rel_uniq = make_unique<BoolConst>(true);
@@ -1810,12 +1810,12 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
         // No action necessary as there is no return value to relate.
         // ret_rel = make_unique<BoolConst>(true).release();
     } else {
-        auto option_ret = dynamic_pointer_cast<Option>(vuln_def->rettype);
-        auto tuple_ty = dynamic_pointer_cast<Struct>(option_ret->elem_type);
-        auto inner_val_ty = tuple_ty->elems->at(0)->type;
+        auto const option_ret = dynamic_pointer_cast<Option>(vuln_def->rettype);
+        auto const tuple_ty = dynamic_pointer_cast<Struct>(option_ret->elem_type);
+        auto const inner_val_ty = tuple_ty->elems->at(0)->type;
         // ret_rel_elems->push_back(ret_rel->deep_copy());
-        auto vuln_arg = make_shared<Arg>("vuln_ret", inner_val_ty);
-        auto patch_arg = make_shared<Arg>("patch_ret", inner_val_ty);
+        auto const vuln_arg = make_shared<Arg>("vuln_ret", inner_val_ty);
+        auto const patch_arg = make_shared<Arg>("patch_ret", inner_val_ty);
         ret_rel_args->push_back(vuln_arg);
         ret_rel_args->push_back(patch_arg);
 
@@ -1827,7 +1827,7 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
         // &ret_rel_names, &ret_rel_values);
         // ret_rel_elems->push_back(std::move(new_ret_rel));
     }
-    auto ret_rel_def = make_unique<Definition>(
+    auto const ret_rel_def = make_unique<Definition>(
         "_ret_rel_from_input_expr", Bool::BOOL, std::move(ret_rel_args),
         std::move(ret_rel_uniq));
 
@@ -1838,19 +1838,19 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     // make_unique<Definition>("_relate_RData_and_rets",rel_post->rettype,
     // make_unique<vector<shared_ptr<Arg>>>(*rel_post->args),
     // std::move(combined_rel));
-    auto rel_pre_expr = formulate_relation(proj, rel_pre, st_sym_1.get(),
+    auto const rel_pre_expr = formulate_relation(proj, rel_pre, st_sym_1.get(),
                                            st_sym_1.get(), state);
-    auto rel_post_expr = formulate_relation(proj, rel_post, st_sym_1.get(),
+    auto const rel_post_expr = formulate_relation(proj, rel_post, st_sym_1.get(),
                                             st_sym_1.get(), state);
     LOG_DEBUG << "Refines Precondition: " << rel_pre_expr->get_z3_value();
     LOG_DEBUG << "Refines Postcondition: " << rel_post_expr->get_z3_value();
     // The relation is true before the simulation begins
     state->conds->push_back(rel_pre_expr->get_z3_value());
-    set<string> used_fixpoint;
+    set<string> const used_fixpoint;
 
     for (auto const &a : proj->axioms) {
         auto axiom_body = proj->defs[a]->body.get();
-        auto axiom_expr = z3_eval(proj, axiom_body, state);
+        auto const axiom_expr = z3_eval(proj, axiom_body, state);
         state->conds->push_back(axiom_expr->get_z3_value());
     }
     // TODO:
@@ -1869,7 +1869,7 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     // z3_check(state);
     vuln_body->clear_z3_eval();
     patched_body->clear_z3_eval();
-    path_t p = {};
+    path_t const p = {};
     proj->query_saver = QueryInfo(query_saver_dir(vuln_def->name, "refines"));
     if(z3_accumulative_time.count() < 1){
         LOG_DEBUG << "Checking refinement between "
@@ -1880,7 +1880,7 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     // LOG_DEBUG << "Original state relation: " << string(*rel_post->body);
     auto result = simulate_by_traverse(proj, vuln_body, patched_body, rel_post,
                                        ret_rel_def.get(), state, p, false);
-    auto end = std::chrono::high_resolution_clock::now();
+    auto const end = std::chrono::high_resolution_clock::now();
     auto duration = (end - start);
     auto seconds_duration =
         std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count() /
@@ -1918,7 +1918,7 @@ static void collect_folded_callees(Project *proj, SpecNode *spec,
     }
     // No generic child traversal exists on SpecNode; mirror free_vars' cases.
     if (auto e = instance_of(spec, Expr)) {
-        for (auto &elem : *e->elems) collect_folded_callees(proj, elem.get(), out);
+        for (auto  const&elem : *e->elems) collect_folded_callees(proj, elem.get(), out);
     } else if (auto m = instance_of(spec, Match)) {
         collect_folded_callees(proj, m->src.get(), out);
         for (const auto &pm : *m->match_list)
@@ -1946,7 +1946,7 @@ static bool inline_callee(Project *proj, Definition *def, const string &fname) {
     auto [body, changed] = proj->rules.unfold_calls_to(std::move(def->body), fname);
     if (changed) {
         std::set<string> known;
-        for (auto arg : *def->args) known.insert(arg->name);
+        for (auto const arg : *def->args) known.insert(arg->name);
         bool amb = false;
         body = proj->rules.eliminate_ambiguity(std::move(body), known, amb);
     }
@@ -1998,7 +1998,7 @@ bool simulate(Project *proj, bool check_sec = true) {
             }
         }
         auto rel = proj->defs[*proj->relations.begin()].get();
-        auto rel_def = make_unique<Definition>(
+        auto const rel_def = make_unique<Definition>(
             "_relate_RData", rel->rettype,
             make_unique<vector<shared_ptr<Arg>>>(*rel->args),
             relation->deep_copy());
@@ -2009,7 +2009,7 @@ bool simulate(Project *proj, bool check_sec = true) {
                 make_unique<vector<shared_ptr<Arg>>>(*rel->args),
                 end_relation->deep_copy());
         }
-        for (auto prim : proj->cmds.invs) {
+        for (auto const prim : proj->cmds.invs) {
             auto def = proj->defs[prim].get();
             proj->query_saver =
                 QueryInfo(query_saver_dir(def->name, "relate_RData"));
@@ -2056,17 +2056,17 @@ bool simulate(Project *proj, bool check_sec = true) {
                 make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
         }
         auto rel = proj->defs[*proj->sec_relations.begin()].get();
-        auto rel_def = make_unique<Definition>(
+        auto const rel_def = make_unique<Definition>(
             "_relate_secret", rel->rettype,
             make_unique<vector<shared_ptr<Arg>>>(*rel->args),
             sec_relation->deep_copy());
-        for (auto prim : proj->cmds.invs) {
+        for (auto const prim : proj->cmds.invs) {
             auto def = proj->defs[prim].get();
             proj->query_saver =
                 QueryInfo(query_saver_dir(def->name, "relate_secure"));
             proj->query_saver.save_config("./test/rcsm-llvm/test_verify.v");
             PROFILE_START(relate_secure);
-            auto res = check_hprop_by_path(proj, rel_def.get(), def);
+            auto const res = check_hprop_by_path(proj, rel_def.get(), def);
             PROFILE_END(relate_secure);
             if (res) {
                 LOG_DEBUG << "Relate Secure" << def->name << " is valid :D";
@@ -2100,7 +2100,7 @@ void spec_prover(Project *proj) {
     if (OPTS.check_inv) {
         for (auto &[ord, name] : proj->sys_inv_order) {
             auto inv = proj->sys_invs[name].get();
-            auto begin = std::chrono::high_resolution_clock::now();
+            auto const begin = std::chrono::high_resolution_clock::now();
             bool valid = false;
             for (auto prim : proj->cmds.invs) {
                 // Prove invariants separately
@@ -2120,7 +2120,7 @@ void spec_prover(Project *proj) {
                 // std::deque<Definition *> q = {goal_def};
 
                 auto l_args = make_unique<vector<shared_ptr<Arg>>>();
-                for (auto arg : *goal_def->args) {
+                for (auto const arg : *goal_def->args) {
                     l_args->push_back(arg);
                 }
                 auto spec_def = new Definition(
@@ -2138,7 +2138,7 @@ void spec_prover(Project *proj) {
                               << prim;
                 }
             }
-            auto end = std::chrono::high_resolution_clock::now();
+            auto const end = std::chrono::high_resolution_clock::now();
             inv_costs[name] =
                 std::chrono::duration<double>(end - begin).count();
             if (valid)
@@ -2147,7 +2147,7 @@ void spec_prover(Project *proj) {
     }
 
     for (auto &ub_export_def : proj->cmds.PostCondWithNone) {
-        auto def_it = proj->defs.find(ub_export_def);
+        auto const def_it = proj->defs.find(ub_export_def);
         if(def_it == proj->defs.end()){
             LOG_WARNING << "PostCondWithNone def " << ub_export_def << " not found";
             continue;
@@ -2161,11 +2161,11 @@ void spec_prover(Project *proj) {
         // LOG_DEBUG << "Transformed sufficient_none_condition for " << def->name;
     }
 
-    auto begin = std::chrono::high_resolution_clock::now();
+    auto const begin = std::chrono::high_resolution_clock::now();
     // check loop_invariant, only check what's needed.
     if (OPTS.check_loop_inv || OPTS.check_pre_post) {
         // check all the loops that have invariants provided.
-        for (auto prim : proj->cmds.invs) {
+        for (auto const prim : proj->cmds.invs) {
             used_abstract_funcs.insert(prim);
         }
         while (used_abstract_funcs.size() > 0) {
@@ -2204,7 +2204,7 @@ void spec_prover(Project *proj) {
     // iterate through every other def in the project
     // Use wrap_call_with_cond to replace calls to the first def,
     // with an if that surfaces the condition.
-    for (auto &def_pair : proj->defs) {
+    for (auto  const&def_pair : proj->defs) {
         if (!def_pair.second){
             continue;
         }
@@ -2212,14 +2212,14 @@ void spec_prover(Project *proj) {
         if (!def->sufficient_none_condition) {
             continue;
         }
-        for (auto &other_def_pair : proj->defs) {
+        for (auto  const&other_def_pair : proj->defs) {
             auto other_def = other_def_pair.second.get();
             if (!other_def || other_def == def || !other_def->body || other_def->name.find("_vuln_spec") == std::string::npos || other_def->name.find("_patch_spec") != std::string::npos)
                 continue;
 
             auto current_free_vars = std::set<string>();
             free_vars(proj, other_def->body.get(), current_free_vars);
-            for (auto &arg : *(def->args)){
+            for (auto  const&arg : *(def->args)){
                 current_free_vars.insert(arg->name);
             }
             auto updated_free_vars = std::set<string>();
@@ -2240,17 +2240,17 @@ void spec_prover(Project *proj) {
             std::set_difference(updated_free_vars.begin(), updated_free_vars.end(), current_free_vars.begin(), current_free_vars.end(), inserter(new_free_vars, new_free_vars.begin()));
             assert(new_free_vars.empty());
 
-            bool did_wrap = new_body.second;
+            bool const did_wrap = new_body.second;
             if(!did_wrap){
                 continue;
             }
 
             auto known = std::set<string>();
-            for (auto arg : *def->args) {
+            for (auto const arg : *def->args) {
                 known.insert(arg->name);
             }
             bool any_changes = true;
-            int max_iter = 10;
+            int const max_iter = 10;
             int i = 0;
             while(i < max_iter && any_changes){
                 i++;
@@ -2351,11 +2351,11 @@ void spec_prover(Project *proj) {
         }
     }
 
-    auto end = std::chrono::high_resolution_clock::now();
-    auto loop_pre_post_cost =
+    auto const end = std::chrono::high_resolution_clock::now();
+    auto const loop_pre_post_cost =
         std::chrono::duration<double>(end - begin).count();
     if (OPTS.check_refinements) {
-        for (auto &refines_info : proj->cmds.Refines) {
+        for (auto  const&refines_info : proj->cmds.Refines) {
             auto vuln_name = refines_info.vuln_func.get()->text;
             auto patched_name = refines_info.patched_func.get()->text;
             auto refine_pre_name = refines_info.refine_rel_pre.get()->text;
@@ -2363,10 +2363,10 @@ void spec_prover(Project *proj) {
 
             LOG_DEBUG << "Checking refinement relationship " << vuln_name
                       << " -> " << patched_name << " by " << refine_post_name;
-            auto vuln_def = proj->defs.find(vuln_name);
-            auto patched_def = proj->defs.find(patched_name);
-            auto rel_pre_def = proj->defs.find(refine_pre_name);
-            auto rel_post_def = proj->defs.find(refine_post_name);
+            auto const vuln_def = proj->defs.find(vuln_name);
+            auto const patched_def = proj->defs.find(patched_name);
+            auto const rel_pre_def = proj->defs.find(refine_pre_name);
+            auto const rel_post_def = proj->defs.find(refine_post_name);
             if (vuln_def == proj->defs.end()) {
                 LOG_ERROR << "No definition named: " << vuln_name;
                 continue;
@@ -2447,7 +2447,7 @@ void spec_prover(Project *proj) {
     PROFILE_END(simulation_det);
 
     double inv_total = 0;
-    for (auto &inv : inv_costs) {
+    for (auto  const&inv : inv_costs) {
         LOG_INFO << "Invariant " << inv.first << " takes " << inv.second
                  << " (s)";
         inv_total += inv.second;

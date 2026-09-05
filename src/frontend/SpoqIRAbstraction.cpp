@@ -35,12 +35,12 @@ void SpoqAbstractionLayout::compute_and_mask() {
     abs.in_any_map.insert("any_mask");
 
     auto that = this;
-    auto name = abs.abs_core_name;
+    auto const name = abs.abs_core_name;
     abs.any_map = [that, name](std::map<std::string, unique_ptr<SpecNode>>& core_map) -> std::unique_ptr<SpecNode> {
         if (auto int_con = dynamic_cast<IntConst *>(core_map["any_mask"].get())) {
             std::vector<unique_ptr<SpecNode>> components;
-            for (auto &field : that->fields) {
-                auto flag = ((1LL << (field.second.second - field.second.first + 1)) - 1) << field.second.first;
+            for (auto  const&field : that->fields) {
+                auto const flag = ((1LL << (field.second.second - field.second.first + 1)) - 1) << field.second.first;
                 // std::cout << "flag: " << flag << " field: " << field.first
                         //   << " " << field.second.first << " "
                         //   << field.second.second << std::endl;
@@ -59,20 +59,20 @@ void SpoqAbstractionLayout::compute_and_mask() {
                 } else {
                     // Partial and
                     if ( field.second.first == 0 ) {
-                        auto ones = __builtin_popcount(int_con->get_value());
+                        auto const ones = __builtin_popcount(int_con->get_value());
                         if (ones < field.second.second && ((1LL << ones) - 1) == int_con->get_value()) {
                             auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
                             vec->push_back(std::move(elem));
                             vec->push_back(std::make_unique<IntConst>(1LL << ones));
                             return std::make_unique<Expr>(Expr::binops::MOD, std::move(vec));
                         } else {
-                            auto rev_val = ~(int_con->get_value());
-                            auto ones = __builtin_popcount(rev_val);
+                            auto const rev_val = ~(int_con->get_value());
+                            auto const ones = __builtin_popcount(rev_val);
                             if (ones < field.second.second && ((1LL << ones) - 1) == rev_val) {
                                 auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
                                 vec->push_back(std::move(elem));
                                 vec->push_back(std::make_unique<IntConst>(1LL << ones));
-                                auto expr = std::make_unique<Expr>(Expr::binops::DIV, std::move(vec));
+                                auto const expr = std::make_unique<Expr>(Expr::binops::DIV, std::move(vec));
                                 vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
                                 vec->push_back(std::move(elem));
                                 vec->push_back(std::make_unique<IntConst>(1LL << ones));
@@ -119,7 +119,7 @@ void SpoqAbstractionLayout::compute_and_mask_eq() {
     abs.in_any_map.insert("any_mask_result");
 
     auto that = this;
-    auto name = abs.abs_core_name;
+    auto const name = abs.abs_core_name;
     abs.any_map = [that, name](std::map<std::string, unique_ptr<SpecNode>>& core_map) -> std::unique_ptr<SpecNode> {
         if (!core_map["any_mask"] || !core_map["any_mask_result"]) {
             return nullptr;
@@ -128,8 +128,8 @@ void SpoqAbstractionLayout::compute_and_mask_eq() {
         auto mask_result = dynamic_cast<IntConst *>(core_map["any_mask_result"].get());
         std::vector<unique_ptr<SpecNode>> components;
         if (mask_result) {
-          for (auto &field : that->fields) {
-              auto flag = ((1LL << (field.second.second - field.second.first + 1)) - 1) << field.second.first;
+          for (auto  const&field : that->fields) {
+              auto const flag = ((1LL << (field.second.second - field.second.first + 1)) - 1) << field.second.first;
             //   std::cout << "flag: " << flag << " field: " << field.first << " " << field.second.first << " " << field.second.second << std::endl;
 
               auto [rich, elem] = that->get_elem_as_Z(std::make_unique<Symbol>(name), field.first);
@@ -145,8 +145,8 @@ void SpoqAbstractionLayout::compute_and_mask_eq() {
           }
         } else {
           // Go with an aggresive method
-          for (auto &field : that->fields) {
-              auto flag = ((1LL << (field.second.second - field.second.first + 1)) - 1) << field.second.first;
+          for (auto  const&field : that->fields) {
+              auto const flag = ((1LL << (field.second.second - field.second.first + 1)) - 1) << field.second.first;
             //   std::cout << "flag: " << flag << " field: " << field.first << " " << field.second.first << " " << field.second.second << std::endl;
 
               auto [rich, elem] = that->get_elem_as_Z(std::make_unique<Symbol>(name), field.first);
@@ -191,10 +191,10 @@ void SpoqAbstractionLayout::compute_and_mask_eq() {
 void SpoqAbstractionLayout::compute_upgrade_or() {
     // (PA_to_Z raw) |' MASK --> new_type
     assert(rich_fields.size() <= 1 && "multiple rich fields do not support for now");
-    for (auto rich: rich_fields) {
+    for (auto const rich: rich_fields) {
         // std::cout << "rich field: " << rich.first << " " << rich.second << std::endl;
-        auto elem_name = rich.first;
-        auto elem_ty_name = rich.second;
+        auto const elem_name = rich.first;
+        auto const elem_ty_name = rich.second;
 
         smart_configs.push_back(SpoqAbstraction());
         auto &abs = smart_configs.back();
@@ -210,18 +210,18 @@ void SpoqAbstractionLayout::compute_upgrade_or() {
         abs.in_any_map.insert("any_flag");
 
         auto that = this;
-        auto name = abs.abs_core_name;
+        auto const name = abs.abs_core_name;
         abs.any_map = [that, name, elem_name](std::map<std::string, unique_ptr<SpecNode>> &core_map) -> std::unique_ptr<SpecNode> {
             if (!core_map["any_flag"]) { return nullptr; }
 
             auto mask_flag = dynamic_cast<IntConst *>(core_map["any_flag"].get());
             std::unique_ptr<std::vector<unique_ptr<SpecNode>>> components = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
-            for (auto &field : that->fields) {
+            for (auto  const&field : that->fields) {
                 if (field.first == elem_name) {
                     components->push_back(std::make_unique<Symbol>(name));
                 } else {
                     if (mask_flag) {
-                        auto flag = ((1LL << (field.second.second - field.second.first + 1)) - 1) << field.second.first;
+                        auto const flag = ((1LL << (field.second.second - field.second.first + 1)) - 1) << field.second.first;
                         components->push_back(std::make_unique<IntConst>( (mask_flag->get_value() & flag) >> field.second.first));
                     } else
                         return nullptr;
@@ -252,7 +252,7 @@ void SpoqAbstractionLayout::compute_or() {
     abs.in_any_map.insert("any_flag");
 
     auto that = this;
-    auto name = abs.abs_core_name;
+    auto const name = abs.abs_core_name;
     abs.any_map = [that, name](std::map<std::string, unique_ptr<SpecNode>> &core_map) -> std::unique_ptr<SpecNode> {
         if (!core_map["any_flag"]) { return nullptr; }
 
@@ -260,10 +260,10 @@ void SpoqAbstractionLayout::compute_or() {
         std::unique_ptr<SpecNode> expr = std::make_unique<Symbol>(name);
         bool modified = false;
         if (mask_flag) {
-          std::unique_ptr<std::vector<unique_ptr<SpecNode>>> components = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
-          for (auto &field : that->fields) {
+          std::unique_ptr<std::vector<unique_ptr<SpecNode>>> const components = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
+          for (auto  const&field : that->fields) {
               auto [rich, elem] = that->get_elem_as_Z(std::make_unique<Symbol>(name), field.first);
-              auto flag = ((1LL << (field.second.second - field.second.first + 1)) - 1) << field.second.first;
+              auto const flag = ((1LL << (field.second.second - field.second.first + 1)) - 1) << field.second.first;
               if ((mask_flag->get_value() & flag)) {
                 // TODO: partial update 
                 auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
@@ -420,7 +420,7 @@ SpoqIRContext::apply_abstraction(unique_ptr<SpecNode> spec) {
         auto context = SpoqAbstractionContext(abstraction);
         // std::cout << "raw: " << string(*raw) << std::endl;
         // std::cout << "spec: " << string(*spec) << std::endl;
-        auto ret = check_abstraction_pattern(spec, raw, context);
+        auto const ret = check_abstraction_pattern(spec, raw, context);
         // std::cout << "ret: " << ret << std::endl;
         if (ret)
         return construct_abstraction_pattern(abstraction.get_abs_node(),
@@ -434,7 +434,7 @@ SpoqIRContext::apply_abstraction(unique_ptr<SpecNode> spec) {
             auto context = SpoqAbstractionContext(abstraction);
             // std::cout << "raw: " << string(*raw) << std::endl;
             // std::cout << "spec: " << string(*spec) << std::endl;
-            auto ret = check_abstraction_pattern(spec, raw, context);
+            auto const ret = check_abstraction_pattern(spec, raw, context);
             // std::cout << "ret: " << ret << std::endl;
             if (ret) {
                 auto expr = abstraction.any_map(context.core_map);

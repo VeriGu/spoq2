@@ -52,13 +52,13 @@ static void get_input_output(vector<Inst> &before, vector<unique_ptr<IRInst>> *i
                              std::set<string> &output);
 template <typename T>
 static void get_input_output(vector<unique_ptr<T>> *inst, std::set<string> &input, std::set<string> &output);
-static void get_input_output(CFunction *inst, std::set<string> &input, std::set<string> &output);
+static void get_input_output(CFunction *inst, std::set<string>  const&input, std::set<string> &output);
 static void get_input_output(IRInst *inst, std::set<string> &input, std::set<string> &output);
 static void get_input_output(IRValue *inst, std::set<string> &input, std::set<string> &output);
 
 long load_store_typ(IRType *typ);
 
-unique_ptr<vector<unique_ptr<SpecNode>>> check_fun_ptr(Layer *l, vector<unique_ptr<IRInst>> *insts);
+unique_ptr<vector<unique_ptr<SpecNode>>> check_fun_ptr(Layer *l, vector<unique_ptr<IRInst>>  const*insts);
 
 bool subst_expression(SpecNode *spec, string oldname, string newname) {
     if (auto s = instance_of(spec, Symbol)) {
@@ -68,7 +68,7 @@ bool subst_expression(SpecNode *spec, string oldname, string newname) {
         return true;
     } else if (auto e = instance_of(spec, Expr)) {
         bool find = false;
-        for (auto &elem : *e->elems) {
+        for (auto  const&elem : *e->elems) {
             if (subst_expression(elem.get(), oldname, newname)) {
                 find = true;
             }
@@ -91,9 +91,9 @@ shared_ptr<SpecType> ir_type_to_spec(IRType *typ)
     } else if (dynamic_cast<TVoid *>(typ)) {
         return make_shared<SpecType>("Void");
     } else if (auto func = dynamic_cast<TFunction *>(typ)) {
-        auto vec = make_shared<vector<shared_ptr<SpecType>>>();
+        auto const vec = make_shared<vector<shared_ptr<SpecType>>>();
 
-        for (auto t : *(func->arglist))
+        for (auto const t : *(func->arglist))
             vec->push_back(ir_type_to_spec(t.get()));
 
         return make_shared<Function>(ir_type_to_spec(func->rettype.get()), vec);
@@ -131,7 +131,7 @@ SpecNode *default_val(shared_ptr<SpecType> typ)
 
 using literal_t = std::variant<int, bool, string>;
 
-SpecNode *ir_value_to_spec(Layer* L, literal_t v, vector<unique_ptr<SpecNode>> *relies) {
+SpecNode *ir_value_to_spec(Layer const* L, literal_t v, vector<unique_ptr<SpecNode>>  const*relies) {
     if (std::holds_alternative<int>(v))
         return new IntConst(std::get<int>(v));
     else if (std::holds_alternative<bool>(v))
@@ -280,7 +280,7 @@ SpecNode* get_elem_ptr(Layer *l, IRValue *val, vector<unique_ptr<SpecNode>> *idx
             tv = f->subtype;
         } else if (auto f = dynamic_cast<IRLoader::TStruct *>(tv.get())) {
             if(auto index = dynamic_cast<IntConst*>(i.get())) {
-                unsigned long in = std::get<unsigned long>(index->value);
+                unsigned long const in = std::get<unsigned long>(index->value);
                 offs->push_back(unique_ptr<SpecNode>(new IntConst(f->elems->at(in)->offset)));
                 tv = f->elems->at(in)->type;
             } else {
@@ -293,7 +293,7 @@ SpecNode* get_elem_ptr(Layer *l, IRValue *val, vector<unique_ptr<SpecNode>> *idx
             tv = f->structs->at(name);
             if (auto sub = dynamic_cast<IRLoader::TStruct *>(tv.get())) {
                 if (auto index = dynamic_cast<IntConst*>(i.get())) {
-                    unsigned long in = std::get<unsigned long>(index->value);
+                    unsigned long const in = std::get<unsigned long>(index->value);
                     offs->push_back(unique_ptr<SpecNode>(new IntConst(sub->elems->at(in)->offset)));
                     tv = sub->elems->at(in)->type;
                 } else {
@@ -319,8 +319,8 @@ SpecNode* get_elem_ptr(Layer *l, IRValue *val, vector<unique_ptr<SpecNode>> *idx
 SpecNode *ir_expr_to_spec(Layer* l, IRLoader::Op op, vector<unique_ptr<IRValue>> *_args, vector<unique_ptr<SpecNode>> *relies)
 {
     auto args = unique_ptr<vector<unique_ptr<SpecNode>>>(new vector<unique_ptr<SpecNode>>());
-    auto extra_args = unique_ptr<vector<unique_ptr<SpecNode>>>(new vector<unique_ptr<SpecNode>>());
-    for(auto & arg : *_args) {
+    auto const extra_args = unique_ptr<vector<unique_ptr<SpecNode>>>(new vector<unique_ptr<SpecNode>>());
+    for(auto  const& arg : *_args) {
         args->push_back(unique_ptr<SpecNode>(ir_value_to_spec(l, arg.get(), relies)));
     }
 
@@ -476,9 +476,9 @@ SpecNode *ir_op_to_spec(Layer *l, IRLoader::IRInst *inst, SpecNode *remain_spec)
 SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<unique_ptr<IRInst>> *body,
                            vector<Definition *> *defs, vector<string> *args, bool in_loop,
                            bool final_return, string suffix, int start) {
-    auto abs_data = Layer->abs_data;
-    auto module = proj->code;
-    auto func = (*module->functions)[fname];
+    auto const abs_data = Layer->abs_data;
+    auto const module = proj->code;
+    auto const func = (*module->functions)[fname];
     auto &types = func->types;
     auto relies = new vector<unique_ptr<SpecNode>>();
     unique_ptr<SpecNode> returns;
@@ -486,7 +486,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
     if(args->size() > 0) {
         vector<unique_ptr<SpecNode>> *name_args = new vector<unique_ptr<SpecNode>>();
 
-        for(auto a : *args) {
+        for(auto const a : *args) {
             if (a == "")
                 continue;
             name_args->push_back(unique_ptr<SpecNode>(_name(a, types.get())));
@@ -563,7 +563,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
             auto func = v->name;
 
             auto args = new vector<unique_ptr<SpecNode>>();
-            for (auto & a : *f->args) {
+            for (auto  const& a : *f->args) {
                 args->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, a.get(), relies)));
             }
 
@@ -646,7 +646,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
             }
             auto args = new vector<unique_ptr<SpecNode>>();
             args->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, f->func.get(), relies)));
-            for(auto & a : *f->args) {
+            for(auto  const& a : *f->args) {
                 args->push_back(unique_ptr<SpecNode>(ir_value_to_spec(Layer, a.get(), relies)));
             }
 
@@ -784,7 +784,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
     } else if(auto f = dynamic_cast<IRLoader::IAlloc*>(inst.get())) {
         if(auto typ = dynamic_cast<IRLoader::TPtr*>(f->typ.get())) {
             SpecNode* stmt;
-            auto stack_var = proj->cmds.StackMap[fname][Shortcut::replace_dot(f->assign)]; // read stack from this
+            auto const stack_var = proj->cmds.StackMap[fname][Shortcut::replace_dot(f->assign)]; // read stack from this
             if ( stack_var.empty() ) { // no stack_var is found.
                 auto children = new vector<unique_ptr<SpecNode>>();
                 children->push_back(unique_ptr<SpecNode>(_name(f->assign, types.get())));
@@ -819,7 +819,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         auto else_body = ir_insts_to_spec(proj, Layer, fname, f->false_body.get(), defs, f->output.get(), in_loop, false, suffix, 0);
 
         SpecNode* val = new If(unique_ptr<SpecNode>(cond), unique_ptr<SpecNode>(then_body), unique_ptr<SpecNode>(else_body));
-        for(auto o : *f->need_init) {
+        for(auto const o : *f->need_init) {
             if (o == "")
                 continue;
             val = _Let(o, default_val((*types)[o]), val);
@@ -845,7 +845,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         SpecNode* out;
         if(f->output->size() > 0) {
             auto vec = new vector<unique_ptr<SpecNode>>();
-            for(auto o : *f->output) {
+            for(auto const o : *f->output) {
                 if (o == "")
                     continue;
                 vec->push_back(unique_ptr<SpecNode>(new Symbol(o)));
@@ -862,10 +862,10 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         }
         return stmt;
     } else if(auto f = dynamic_cast<IRLoader::ILoop*>(inst.get())) {
-        auto func_ptrs = check_fun_ptr(Layer, f->body.get());
+        auto const func_ptrs = check_fun_ptr(Layer, f->body.get());
 
         auto fptrs = vector<string>();
-        for (auto & f : *func_ptrs) {
+        for (auto  const& f : *func_ptrs) {
             if (auto symbol = dynamic_cast<Symbol*>(f.get())) {
                 fptrs.push_back(symbol->text);
                 (*types)[symbol->text] = Struct::Ptr;
@@ -897,7 +897,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         loop_args->push_back(unique_ptr<SpecNode>(new Symbol("_N_", Inductive::Nat)));
 
         auto elems = new vector<unique_ptr<SpecNode>>();
-        for(auto a : *f->input) {
+        for(auto const a : *f->input) {
             elems->push_back(unique_ptr<SpecNode>(_name(a, types.get())));
         }
         auto children = new Expr(fname + "_loop" + loop_hash + "_rank",
@@ -909,7 +909,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         loop_init->push_back(unique_ptr<SpecNode>(new Expr("z_to_nat",
         unique_ptr<vector<unique_ptr<SpecNode>>>(out_elems))));
 
-        for(auto a : *f->loop_args) {
+        for(auto const a : *f->loop_args) {
             loop_args->push_back(unique_ptr<SpecNode>(_name(a, types.get())));
 
             if(a == "__return__" || a == "__break__") {
@@ -930,7 +930,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
             } else {
                 auto iteration_body = ir_insts_to_spec(proj, Layer, fname, f->body.get(), defs, f->loop_args.get(), true, false, suffix, 0);
                 string low = "_low";
-                auto substring = loop_spec_name.substr(0, loop_spec_name.size() - low.size());
+                auto const substring = loop_spec_name.substr(0, loop_spec_name.size() - low.size());
 
                 if ((proj->cmds).InitRely.find(substring) != (proj->cmds).InitRely.end()){
                     for (auto &prop : proj->cmds.InitRely[substring]) {
@@ -976,7 +976,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
                                        iteration_body);
 
                 auto tupletypes = new vector<shared_ptr<SpecType>>();
-                for(auto a: *f->loop_args) {
+                for(auto const a: *f->loop_args) {
                     tupletypes->push_back((*types)[a]);
                 }
                 tupletypes->push_back((*types)["st"]);
@@ -984,7 +984,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
 
                 auto args = new vector<shared_ptr<Arg>>();
                 args->push_back(shared_ptr<Arg>(new Arg("_N_", Inductive::Nat)));
-                for(auto a :*f->loop_args) {
+                for(auto const a :*f->loop_args) {
                     args->push_back(shared_ptr<Arg>(new Arg(a, (*types)[a])));
                 }
                 args->push_back(shared_ptr<Arg>(new Arg("st", (*types)["st"])));
@@ -1009,7 +1009,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
         if (proj->defs.find(fname + "_loop" + loop_hash + "_rank") == proj->defs.end()) {
             auto args = new vector<shared_ptr<Arg>>();
 
-            for(auto a :*f->input)
+            for(auto const a :*f->input)
                 args->push_back(shared_ptr<Arg>(new Arg(a, (*types)[a])));
 
             defs->push_back(new Definition(fname + "_loop" + loop_hash + "_rank",
@@ -1030,7 +1030,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
 
         auto prop_elems = new vector<unique_ptr<SpecNode>>();
         auto args = new vector<unique_ptr<SpecNode>>();
-        for(auto a :*f->input) {
+        for(auto const a :*f->input) {
             args->push_back(unique_ptr<SpecNode>(_name(a, types.get())));
         }
 
@@ -1043,7 +1043,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
             loop_args_sub->push_back((*it)->deep_copy());
 
         string low = "_low";
-        auto substring = loop_spec_name.substr(0, loop_spec_name.size() - low.size());
+        auto const substring = loop_spec_name.substr(0, loop_spec_name.size() - low.size());
 
         if ((proj->cmds).InitRely.find(substring) != (proj->cmds).InitRely.end()){
             for (auto &prop : proj->cmds.InitRely[substring]) {
@@ -1068,11 +1068,11 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<uni
     throw std::runtime_error("Unreachable code");
   }
 
-unique_ptr<vector<unique_ptr<SpecNode>>> check_fun_ptr(Layer *l, vector<unique_ptr<IRInst>> *insts) {
+unique_ptr<vector<unique_ptr<SpecNode>>> check_fun_ptr(Layer *l, vector<unique_ptr<IRInst>>  const*insts) {
     auto ret = unique_ptr<vector<unique_ptr<SpecNode>>>(new vector<unique_ptr<SpecNode>>());
     vector<unique_ptr<SpecNode>> relies;
 
-    for (auto &f : *insts) {
+    for (auto  const&f : *insts) {
         if (auto i = dynamic_cast<IRLoader::ICall*>(f.get())) {
             if (dynamic_cast<IRLoader::VGlobal*>(i->func.get()) == nullptr && dynamic_cast<IRLoader::VInlineAsm*>(i->func.get()) == nullptr) {
                 ret->push_back(unique_ptr<SpecNode>(ir_value_to_spec(l, i->func.get(), &relies)));
@@ -1085,10 +1085,10 @@ unique_ptr<vector<unique_ptr<SpecNode>>> check_fun_ptr(Layer *l, vector<unique_p
 
   // suffix defaults to ""
 vector<Definition *>* ir_to_spec(Project *proj, string fname, Layer *layer, string suffix) {
-    auto abs_data = layer->abs_data;
-    auto module = proj->code;
-    auto func = (*module->functions)[fname];
-    auto spec_name = func->fname + "_spec" + suffix;
+    auto const abs_data = layer->abs_data;
+    auto const module = proj->code;
+    auto const func = (*module->functions)[fname];
+    auto const spec_name = func->fname + "_spec" + suffix;
 
     auto args = new vector<shared_ptr<Arg>>();
     for (auto &arg : *(func->args))
@@ -1103,7 +1103,7 @@ vector<Definition *>* ir_to_spec(Project *proj, string fname, Layer *layer, stri
     if(dynamic_cast<TVoid *>(func->rettype.get()))
         rettype = new Option(abs_data);
     else {
-        shared_ptr<SpecType> ret = ir_type_to_spec(func->rettype.get());
+        shared_ptr<SpecType> const ret = ir_type_to_spec(func->rettype.get());
         vector<shared_ptr<SpecType>> *vec = new vector<shared_ptr<SpecType>>();
         vec->push_back(ret);
         vec->push_back(abs_data);
@@ -1178,7 +1178,7 @@ static void _analyze_input_output(CFunction *func, vector<unique_ptr<IRInst>> &i
             get_input_output(before, &insts, i, before_input, before_output);
         get_input_output(insts[i].get(), input, output);
 
-        auto new_input = make_shared<vector<string>>();
+        auto const new_input = make_shared<vector<string>>();
 
         std::set_intersection(before_output.begin(), before_output.end(), input.begin(), input.end(), std::back_inserter(*new_input));
         insts[i]->input = new_input;
@@ -1189,7 +1189,7 @@ static void _analyze_input_output(CFunction *func, vector<unique_ptr<IRInst>> &i
 
                 get_input_output(&insts, i + 1, after, after_input, after_output);
 
-                auto new_output = make_shared<vector<string>>();
+                auto const new_output = make_shared<vector<string>>();
 
                 std::set_intersection(output.begin(), output.end(), after_input.begin(), after_input.end(), std::back_inserter(*new_output));
                 insts[i]->output = new_output;
@@ -1210,7 +1210,7 @@ static void _analyze_input_output(CFunction *func, vector<unique_ptr<IRInst>> &i
 
                 get_input_output(&insts, i + 1, after, after_input, after_output);
 
-                auto new_output = make_shared<vector<string>>();
+                auto const new_output = make_shared<vector<string>>();
                 std::set_intersection(output.begin(), output.end(), after_input.begin(), after_input.end(), std::back_inserter(*new_output));
                 insts[i]->output = new_output;
         }
@@ -1228,14 +1228,14 @@ static void _analyze_input_output(CFunction *func, vector<unique_ptr<IRInst>> &i
         if (auto inst_i = dynamic_cast<IRLoader::IIf *>(insts[i].get())) {
             vector<Inst> new_before, new_after;
 
-            for (auto &i : before)
+            for (auto  const&i : before)
                 new_before.push_back(i);
             for (int j = 0; j < i; j++)
                 new_before.push_back(insts[j].get());
 
             for (int j = i + 1; j < insts.size(); j++)
                 new_after.push_back(insts[j].get());
-            for (auto &i : after)
+            for (auto  const&i : after)
                 new_after.push_back(i);
 
             _analyze_input_output(nullptr, *inst_i->true_body, new_before, new_after, in_loop);
@@ -1248,14 +1248,14 @@ static void _analyze_input_output(CFunction *func, vector<unique_ptr<IRInst>> &i
             vector<Inst> new_before, new_after;
             std::set<string> loop_input, loop_output;
 
-            for (auto &i : before)
+            for (auto  const&i : before)
                 new_before.push_back(i);
             for (int j = 0; j < i; j++)
                 new_before.push_back(insts[j].get());
 
             for (int j = i + 1; j < insts.size(); j++)
                 new_after.push_back(insts[j].get());
-            for (auto &i : after)
+            for (auto  const&i : after)
                 new_after.push_back(i);
 
             _analyze_input_output(nullptr, *inst_i->body, new_before, new_after, true);
@@ -1288,7 +1288,7 @@ static void _analyze_input_output(CFunction *func, vector<unique_ptr<IRInst>> &i
 
             vector<Inst> before_var, after_var;
 
-            for (auto name: *inst_i->loop_args) {
+            for (auto const name: *inst_i->loop_args) {
                 before_var.push_back(new IRLoader::VLocal(TVoid::TVOID, name));
                 after_var.push_back(new IRLoader::VLocal(TBool::TBOOL, name));
             }
@@ -1342,7 +1342,7 @@ static void get_input_output(vector<Inst> &before, vector<unique_ptr<IRInst>> *i
 
 template <typename T>
 static void get_input_output(vector<unique_ptr<T>> *inst, std::set<string> &input, std::set<string> &output) {
-    for (auto &i : *inst)
+    for (auto  const&i : *inst)
         get_input_output(i.get(), input, output);
 }
 
@@ -1352,7 +1352,7 @@ static void get_input_output(vector<T> *inst, std::set<string> &input, std::set<
         get_input_output(i, input, output);
 }
 
-static void get_input_output(CFunction *inst, std::set<string> &input, std::set<string> &output) {
+static void get_input_output(CFunction *inst, std::set<string>  const&input, std::set<string> &output) {
     for (auto &arg : *inst->args) {
         output.insert(arg->name);
     }
@@ -1385,7 +1385,7 @@ static void get_input_output(IRInst *inst, std::set<string> &input, std::set<str
         get_input_output(i->false_val.get(), input, output);
         output.insert(i->assign);
     } else if (auto i = dynamic_cast<IRLoader::ICall *>(inst)) {
-        for (auto &a : *i->args) {
+        for (auto  const&a : *i->args) {
             get_input_output(a.get(), input, output);
         }
         output.insert(i->assign);
@@ -1423,14 +1423,14 @@ static void get_input_output(IRValue *inst, std::set<string> &input, std::set<st
         else if (output.find(i->name) == output.end())
                 input.insert(i->name);
     } else if (auto i = dynamic_cast<IRLoader::VExpr *>(inst)) {
-        for (auto &a : *i->operands)
+        for (auto  const&a : *i->operands)
             get_input_output(a.get(), input, output);
     }
 }
 
 template <typename T, template<typename...> class PtrType>
 void analyze_types(vector<PtrType<T>> *insts, unordered_map<string, shared_ptr<SpecType>> *types) {
-    for(auto &inst : *insts) {
+    for(auto  const&inst : *insts) {
         analyze_types(inst.get(), types);
     }
 }
@@ -1464,7 +1464,7 @@ void analyze_types(IRInst *inst, unordered_map<string, shared_ptr<SpecType>> *ty
         analyze_types(i->false_val.get(), types);
         (*types)[i->assign] = ir_type_to_spec(i->typ.get());
     } else if (auto i = dynamic_cast<IRLoader::ICall *>(inst)) {
-        for (auto& a : *i->args) {
+        for (auto const& a : *i->args) {
             analyze_types(a.get(), types);
         }
         (*types)[i->assign] = ir_type_to_spec(i->typ.get());
@@ -1498,7 +1498,7 @@ void analyze_types(IRValue *inst, unordered_map<string, shared_ptr<SpecType>> *t
     if (auto i = dynamic_cast<IRLoader::VLocal*>(inst)) {
         (*types)[i->name] = ir_type_to_spec(i->type.get());
     } else if (auto i = dynamic_cast<IRLoader::VExpr*>(inst)) {
-        for (auto& a : *i->operands) {
+        for (auto const& a : *i->operands) {
             analyze_types(a.get(), types);
         }
     }

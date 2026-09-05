@@ -46,8 +46,8 @@ namespace autov {
     class SpoqAbstractionLayout;
     class SpoqAbstraction {
     public:
-        unique_ptr<SpecNode> get_raw_node() { return raw_expr->deep_copy_down(); }
-        unique_ptr<SpecNode> get_abs_node() { return abs_expr->deep_copy_down(); }
+        unique_ptr<SpecNode> get_raw_node() const { return raw_expr->deep_copy_down(); }
+        unique_ptr<SpecNode> get_abs_node() const { return abs_expr->deep_copy_down(); }
 
         std::string raw_core_name = "raw";
         unique_ptr<Expr> raw_expr;
@@ -97,11 +97,11 @@ namespace autov {
 
         std::stack<unique_ptr<SpecNode>> stack;
 
-        bool is_raw_core(std::string name) {
+        bool is_raw_core(std::string name) const {
             return name == abs.raw_core_name;
         }
 
-        bool is_abs_core(std::string name) {
+        bool is_abs_core(std::string name) const {
             return name == abs.abs_core_name;
         }
 
@@ -154,7 +154,7 @@ namespace autov {
         inline llvm::BasicBlock* get_loopheader() { if (step_count < 0) return nullptr; return loopheader; }
 
         void debug_jump() {
-            for(auto &pair: jump) {
+            for(auto  const&pair: jump) {
                 llvm::errs() << "jump from: " << *pair.first << "\njump to: " << *pair.second << "\n";
                 llvm::errs() << "pass in: ";
                 for (auto &bb: pass_in[pair.first]) {
@@ -171,11 +171,11 @@ namespace autov {
          * @brief Return if this context is currently in a loop. We can use `context.init() while(context.step())` to iterate the top-layer program and all loops.
          * The loops visited are NOT guarenteed to be in any order.
          */
-        inline bool context_in_loop() { return step_count >= 0; }
+        inline bool context_in_loop() const { return step_count >= 0; }
 
 
         inline bool postheader_with_phi(llvm::BasicBlock* bb) {
-            for(auto &pair: jump) {
+            for(auto  const&pair: jump) {
                 if( bb == pair.second ) return true;
             }
             return false;
@@ -193,7 +193,7 @@ namespace autov {
          * @return The mapped value, or `val` itself when it is not mapped.
          */
         static llvm::Value* mapped_or_self(llvm::ValueToValueMapTy &value_map, llvm::Value* val) {
-            auto it = value_map.find(val);
+            auto const it = value_map.find(val);
             if (it == value_map.end() || !it->second) return val;
             return it->second;
         }
@@ -308,9 +308,9 @@ namespace autov {
          */
         inline void update_jump(llvm::ValueToValueMapTy &value_map) {
             std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*>> records;
-            for (auto &pair: jump) {
-                auto i1 = value_map.find(pair.first);
-                auto i2 = value_map.find(pair.second);
+            for (auto  const&pair: jump) {
+                auto const i1 = value_map.find(pair.first);
+                auto const i2 = value_map.find(pair.second);
                 auto v1 = i1 == value_map.end() ? nullptr : llvm::dyn_cast_or_null<llvm::BasicBlock>(i1->second);
                 auto v2 = i2 == value_map.end() ? nullptr : llvm::dyn_cast_or_null<llvm::BasicBlock>(i2->second);
                 assert(((!v1)== (!v2)) && "only one of the jump start and target is duplicated");
@@ -318,10 +318,10 @@ namespace autov {
                     records.push_back(std::make_pair(v1, v2));
                 }
             }
-            for (auto &pair: records) {
+            for (auto  const&pair: records) {
                 jump[pair.first] = pair.second;
             }
-            for (auto &pair: records) {
+            for (auto  const&pair: records) {
                 steps.push_back(pair.first);
             }
             travel_all();
@@ -363,7 +363,7 @@ namespace autov {
 
         void travel_all() {
             header_map.clear();
-            for(auto &pair: jump) {
+            for(auto  const&pair: jump) {
                 travel(pair.first, pair.second);
             }
         }
@@ -377,7 +377,7 @@ namespace autov {
          * @return false
          */
         inline bool can_remove(llvm::BasicBlock* bb) {
-            for(auto &pair: jump) {
+            for(auto  const&pair: jump) {
                 if(pair.first == bb) return false;
                 if(pair.second == bb) return false;
             }
@@ -640,7 +640,7 @@ namespace autov {
 
         const llvm::DataLayout* llvm_dl;
 
-        std::string fname() { return spoq_func.llvm_func->getName().str(); }
+        std::string fname() const { return spoq_func.llvm_func->getName().str(); }
 
 
         shared_ptr<SpecType> rettype = make_shared<SpecType>("Void");
@@ -653,11 +653,11 @@ namespace autov {
 
         std::string arg_require_abstraction(llvm::Function* func, int arg) {
             if (func == nullptr) return "";
-            auto arg_name = "arg_" + std::to_string(arg);
+            auto const arg_name = "arg_" + std::to_string(arg);
             auto metanode = func->getMetadata(arg_name);
             if (metanode == nullptr) return "";
             if (auto metastr = llvm::dyn_cast_or_null<llvm::MDString>(metanode->getOperand(0))) {
-                auto str = metastr->getString();
+                auto const str = metastr->getString();
                 return str.str();
             }
             return "";
@@ -665,11 +665,11 @@ namespace autov {
 
         std::string ret_require_abstraction(llvm::Function* func, int arg) {
             if (func == nullptr) return "";
-            auto arg_name = "ret_" + std::to_string(arg);
+            auto const arg_name = "ret_" + std::to_string(arg);
             auto metanode = func->getMetadata(arg_name);
             if (metanode == nullptr) return "";
             if (auto metastr = llvm::dyn_cast_or_null<llvm::MDString>(metanode->getOperand(0))) {
-                auto str = metastr->getString();
+                auto const str = metastr->getString();
                 return str.str();
             }
             return "";
@@ -680,7 +680,7 @@ namespace autov {
             auto metanode = func->getMetadata(name);
             if (metanode == nullptr) return "";
             if (auto metastr = llvm::dyn_cast_or_null<llvm::MDString>(metanode->getOperand(0))) {
-                auto str = metastr->getString();
+                auto const str = metastr->getString();
                 return str.str();
             }
             return "";
@@ -732,7 +732,7 @@ namespace autov {
 
         // This function gives a temporary name for the middle value in case a pointer is read from memory directly.
         inline unique_ptr<SpecNode> get_llvm_value_spec_ptr_in_Z(llvm::Value* value) {
-            auto name = get_llvm_value_name(value) + "_ptr_in_Z";
+            auto const name = get_llvm_value_name(value) + "_ptr_in_Z";
             return std::make_unique<Symbol>(name, Int::INT);
         }
 
@@ -760,7 +760,7 @@ namespace autov {
          * @return shared_ptr<SpecType>
          */
         shared_ptr<SpecType> compute_loop_return_type(llvm::BasicBlock* preheader) {
-            std::shared_ptr<std::vector<std::shared_ptr<SpecType>>> ret = std::make_shared<std::vector<std::shared_ptr<SpecType>>>();
+            std::shared_ptr<std::vector<std::shared_ptr<SpecType>>> const ret = std::make_shared<std::vector<std::shared_ptr<SpecType>>>();
             for(auto &val: spoq_func.loop_context.pass_in[preheader]) {
                 ret->push_back(get_llvm_value_type(val));
             }
@@ -791,7 +791,7 @@ namespace autov {
             llvm::FunctionAnalysisManager FAM;
             llvm::PassBuilder PB;
             PB.registerFunctionAnalyses(FAM);
-            llvm::DominatorTree& dt = FAM.getResult<llvm::DominatorTreeAnalysis>(*preheader->getParent());
+            llvm::DominatorTree const& dt = FAM.getResult<llvm::DominatorTreeAnalysis>(*preheader->getParent());
             for(auto &val: spoq_func.loop_context.pass_in[preheader]) {
                 return_list.push_back(val);
             }
@@ -904,7 +904,7 @@ namespace autov {
             if (loop_spec_name.find(bb) != loop_spec_name.end()) {
                 return loop_spec_name[bb];
             }
-            auto size = (loop_spec_name.size());
+            auto const size = (loop_spec_name.size());
             loop_spec_name[bb] = spoq_func.llvm_func->getName().str() + "_loop_" + std::to_string(size) + "_low";
             return loop_spec_name[bb];
         }
@@ -1131,7 +1131,7 @@ namespace autov {
         void preprocess_llvm_module();
 
         // Used for debug only.
-        bool store_llvm_module(std::string code_path = "converted.ll") {
+        bool store_llvm_module(std::string code_path = "converted.ll") const {
             std::error_code EC;
             llvm::raw_fd_ostream OS(code_path, EC, llvm::sys::fs::OF_Text);
             if (EC || !llvm_module) return false;

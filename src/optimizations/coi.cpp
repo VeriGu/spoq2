@@ -46,8 +46,8 @@ bool has_subfield(const std::set<field_t> &fields, const field_t &f) {
 /** Examine if update_field is any sub-field of coi_fields elements */
 bool is_subfield_of_anyone(const field_t &update_field, const std::set<field_t> &coi_fields, const std::set<std::pair<string, string>> &anc) {
     for (const auto &c : coi_fields) {
-        auto coi_f = c.front();
-        auto update_f = update_field.front();
+        auto const coi_f = c.front();
+        auto const update_f = update_field.front();
         if (coi_f == update_f || anc.find({update_f, coi_f}) != anc.end()) {
             return true;
         }
@@ -109,7 +109,7 @@ void rec_analyze_used_fields(Project* proj, SpecNode* node, std::set<field_t> &f
         } else if (holds_alternative<Expr::ops>(e->op)) {
             if (std::get<Expr::ops>(e->op) == Expr::GET) {
                 // (x)@(y):
-                auto f = get_access_field(proj, e, fields, empty_trace);
+                auto const f = get_access_field(proj, e, fields, empty_trace);
                 if (!f.empty()) {
                     fields.insert(f);
                 }
@@ -117,7 +117,7 @@ void rec_analyze_used_fields(Project* proj, SpecNode* node, std::set<field_t> &f
                 rec_analyze_used_fields(proj, e->elems->at(1).get(), fields);
                 // pass
             } else if (std::get<Expr::ops>(e->op) == Expr::RecordGet) {
-                auto f = get_access_field(proj, e, fields, empty_trace);
+                auto const f = get_access_field(proj, e, fields, empty_trace);
                 if (!f.empty()) {
                     fields.insert(f);
                 }
@@ -150,7 +150,7 @@ void rec_analyze_used_fields(Project* proj, SpecNode* node, std::set<field_t> &f
             // pass
         }
     } else if (auto s = instance_of(node, Symbol)) {
-        auto f = get_access_field(proj, s, fields, empty_trace);
+        auto const f = get_access_field(proj, s, fields, empty_trace);
         if (!f.empty()) {
             fields.insert(f);
         }
@@ -166,9 +166,9 @@ void extract_vars_from_expr(Project *proj, SpecNode *pattern, std::set<string> &
     if (auto s = instance_of(pattern, Symbol)) {
         vars.insert(s->text);
     } else if (auto e = instance_of(pattern, Expr)) {
-        if (auto *o = std::get_if<unique_ptr<SpecNode>>(&e->op))
+        if (auto  const*o = std::get_if<unique_ptr<SpecNode>>(&e->op))
             extract_vars_from_expr(proj, o->get(), vars);
-        for (auto &elem : *e->elems)
+        for (auto  const&elem : *e->elems)
             extract_vars_from_expr(proj, elem.get(), vars);
     }
 }
@@ -274,8 +274,8 @@ void backward_propagation_on_expr(Project *proj, SpecNode *node, std::set<field_
         } else {
             // recursive coi analysis first
             if (std::holds_alternative<string>(e->op)) {
-                auto sym = std::get<string>(e->op);
-                auto info = proj->symbols[sym];
+                auto const sym = std::get<string>(e->op);
+                auto const info = proj->symbols[sym];
                 if (info.kind == SymbolKind::Def) {
                     auto df = proj->defs[sym].get();
                     if (auto loop = instance_of(df, Fixpoint)) {
@@ -368,7 +368,7 @@ void analyze_invariant_fields(Project *proj, SpecNode *inv, std::set<field_t> &f
  * 
  *  Give an expression and a set of interested fields, backward propagate to all the dependent fields (its definition)
  */
-std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, std::variant<SpecNode *, std::set<field_t>> coi_src, std::set<string> whitelist, std::set<string> blacklist) {
+std::set<field_t> analyze_cone_of_influence(Project *proj, Definition  const*def, std::variant<SpecNode *, std::set<field_t>> coi_src, std::set<string> whitelist, std::set<string> blacklist) {
     auto args = def->args.get();
     auto spec = def->body.get();
     std::set<string> arg_symbols = {};
@@ -378,7 +378,7 @@ std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, std:
 
     // initial propagation set: return values
     std::set<path_node_t> nodes = {};
-    path_t p = {};
+    path_t const p = {};
     collect_init_nodes_in(spec, p, nodes);
 
     // initial propagation field: inv-related fields
@@ -420,7 +420,7 @@ std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, std:
     }
 
     std::set<field_t> coi_ret = {};
-    for (auto c : whitelist) {
+    for (auto const c : whitelist) {
         coi_ret.insert({c});
     }
     for (auto &c : coi_fields) {
@@ -437,7 +437,7 @@ std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, std:
 
 rule_ret_t SpecRules::hide_write(std::unique_ptr<SpecNode> spec, std::set<field_t> coi_fields, const std::set<std::pair<string, string>> &anc) {
     bool changed = false;
-    auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+    auto const f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         if (auto e = instance_of(node.get(), Expr)) {
             if (auto op = std::get_if<Expr::ops>(&e->op)) {
                 if (*op == Expr::ops::RecordSet) {
@@ -487,10 +487,10 @@ unique_ptr<SpecNode> try_get_return_state(SpecNode *spec) {
 
 rule_ret_t SpecRules::merge_branch(std::unique_ptr<SpecNode> spec) {
     bool changed = false;
-    auto f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+    auto const f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         if (auto out_if = instance_of(node.get(), If)) {
-            auto out_then_ret = try_get_return_state(out_if->then_body.get());
-            auto out_else_ret = try_get_return_state(out_if->else_body.get());
+            auto const out_then_ret = try_get_return_state(out_if->then_body.get());
+            auto const out_else_ret = try_get_return_state(out_if->else_body.get());
 
             if (out_then_ret) {
                 // if X then (Some st) else ...
@@ -502,9 +502,9 @@ rule_ret_t SpecRules::merge_branch(std::unique_ptr<SpecNode> spec) {
                     }
                 } else {
                     if (auto in_if = instance_of(out_if->else_body.get(), If)) {
-                        auto in_then_ret = try_get_return_state(in_if->then_body.get());
-                        auto in_else_ret = try_get_return_state(in_if->else_body.get());
-                        auto is_determ = out_if->cond->is_determ_branch && 
+                        auto const in_then_ret = try_get_return_state(in_if->then_body.get());
+                        auto const in_else_ret = try_get_return_state(in_if->else_body.get());
+                        auto const is_determ = out_if->cond->is_determ_branch && 
                                          in_if->cond->is_determ_branch;
                         /** if X then Some st
                          *       else (if Y then Some st / else ...) */
@@ -537,9 +537,9 @@ rule_ret_t SpecRules::merge_branch(std::unique_ptr<SpecNode> spec) {
             } else {
                 if (out_else_ret) {
                     if (auto in_if = instance_of(out_if->then_body.get(), If)) {
-                        auto in_then_ret = try_get_return_state(in_if->then_body.get());
-                        auto in_else_ret = try_get_return_state(in_if->else_body.get());
-                        auto is_determ = out_if->cond->is_determ_branch && 
+                        auto const in_then_ret = try_get_return_state(in_if->then_body.get());
+                        auto const in_else_ret = try_get_return_state(in_if->else_body.get());
+                        auto const is_determ = out_if->cond->is_determ_branch && 
                                          in_if->cond->is_determ_branch;
                         /** if X then (if Y then Some st / else ...) else Some st 
                          *  == if (X && !Y) then ... else Some st
@@ -583,12 +583,12 @@ void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
         return;
     // std::cout << "[COI] Raw (original) spec:\n" << string(*def) << std::endl;
     PROFILE_START(coi);
-    auto coi_fields = analyze_cone_of_influence(proj, def, inv, autov::coi_whitelist, autov::coi_blacklist);
+    auto const coi_fields = analyze_cone_of_influence(proj, def, inv, autov::coi_whitelist, autov::coi_blacklist);
     PROFILE_END(coi);
 
-    auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
-    auto conds = std::make_shared<vector<z3::expr>>();
-    for (auto arg : *def->args) {
+    auto const vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+    auto const conds = std::make_shared<vector<z3::expr>>();
+    for (auto const arg : *def->args) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
     auto spec = std::move(def->body);
@@ -643,7 +643,7 @@ std::pair<unsigned, unsigned> count_branch_conds(SpecNode *spec, bool determ = t
             }
         }
         for (auto &pm : *m->match_list) {
-            auto v = count_branch_conds(pm->body.get(), d);
+            auto const v = count_branch_conds(pm->body.get(), d);
             count += v.first;
             determ_count += v.second;
         }
@@ -657,16 +657,16 @@ std::pair<unsigned, unsigned> count_branch_conds(SpecNode *spec, bool determ = t
                 d = false; 
             }
         }
-        auto v_then = count_branch_conds(i->then_body.get(), d);
-        auto v_else = count_branch_conds(i->else_body.get(), d);
+        auto const v_then = count_branch_conds(i->then_body.get(), d);
+        auto const v_else = count_branch_conds(i->else_body.get(), d);
         count += v_then.first + v_else.first;
         determ_count += v_then.second + v_else.second;
     } else if (auto r = instance_of(spec, RelyAnno)) {
-        auto v = count_branch_conds(r->body.get(), d);
+        auto const v = count_branch_conds(r->body.get(), d);
         count += v.first;
         determ_count += v.second;
     } else if (auto f = instance_of(spec, ForallExists)) {
-        auto v = count_branch_conds(f->body.get(), d);
+        auto const v = count_branch_conds(f->body.get(), d);
         count += v.first;
         determ_count += v.second;
     }
@@ -695,7 +695,7 @@ void collect_branch_conds(SpecNode *spec, path_t p, std::set<path_node_t> &init_
     }
 }
 
-void mark_determ_branch(Project* proj, Definition* rel_def, Definition* spec_def) {
+void mark_determ_branch(Project* proj, Definition* rel_def, Definition const* spec_def) {
     // FIXME: move it to config file
     static std::set<string> rm_list_pub = { "g_norm", };
     static std::set<string> rm_list = {
@@ -724,7 +724,7 @@ void mark_determ_branch(Project* proj, Definition* rel_def, Definition* spec_def
 
     // find all branch conds as propagation nodes
     std::set<path_node_t> conds = {};
-    path_t p = {};
+    path_t const p = {};
     collect_branch_conds(spec_def->body.get(), p, conds);
 
     auto args = spec_def->args.get();
@@ -788,7 +788,7 @@ void mark_determ_branch(Project* proj, Definition* rel_def, Definition* spec_def
             }
         }
     }
-    auto v_pair = count_branch_conds(spec_def->body.get());
+    auto const v_pair = count_branch_conds(spec_def->body.get());
     LOG_DEBUG << "[mark_determ_branch] Total branch number: " << v_pair.first << " for " << rel_def->name;
     LOG_DEBUG << "[mark_determ_branch] Deterministic branch number: " << v_pair.second << " for " << rel_def->name;
 }

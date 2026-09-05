@@ -43,7 +43,7 @@ inline std::string ruleid_to_string(RuleID rule) {
 size_t leaves_in_spec_unfolded(Project* proj, const SpecNode *node) {
     // This measures the *fully unfolded* spec, so it must not honour the
     // demand-driven policy or it under-counts whatever was left folded.
-    UnfoldPolicy::EagerScope eager(UNFOLD_POLICY);
+    UnfoldPolicy::EagerScope const eager(UNFOLD_POLICY);
     if (proj->name == "struct_array_elem") return 0;  
     auto new_node = node->deep_copy();
     auto changed = false;
@@ -70,8 +70,8 @@ unique_ptr<SpecNode> spec_transformer_v2(Project *proj, unique_ptr<SpecNode> nod
     std::map<string, Symbol*> fvars;
     std::set<string> free;
     free_vars_map(proj, node.get(), free, fvars);
-    auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
-    auto conds = std::make_shared<vector<z3::expr>>();
+    auto const vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+    auto const conds = std::make_shared<vector<z3::expr>>();
     for (auto [name, sym] : fvars) {
         (*vars)[name] = sym->type->declare(name, 0);
     }
@@ -141,15 +141,15 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
     // LOG_INFO << "Transforming " << def->name << "def: " << string(*def);
     proj->query_saver = query_saver_dir(def->name, "transforms" + std::to_string(layer_id) + std::to_string(max_iter));
     auto fname = def->name;
-    auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
-    auto conds = std::make_shared<vector<z3::expr>>();
+    auto const vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+    auto const conds = std::make_shared<vector<z3::expr>>();
     auto &preconds = proj->cmds.PreCond[fname];
 
     if (OPTS.count_leaves){
         proj->leaves_in_unfolded_func_pre_transform[fname] = leaves_in_spec_unfolded(proj, def->body.get());
     }
 
-    for (auto arg : *def->args) {
+    for (auto const arg : *def->args) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
     unique_ptr<SpecNode> aggrepres = make_unique<BoolConst>(true);
@@ -163,9 +163,9 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
 
     auto llvm_func = proj->spoq_code.llvm_module->getFunction(fname);
     size_t idx = 0;
-    for (auto arg: *def->args) {
-        auto st = Struct::Ptr;
-        auto argt = arg->type;
+    for (auto const arg: *def->args) {
+        auto const st = Struct::Ptr;
+        auto const argt = arg->type;
         if(st.get() == argt.get()) {
             if(llvm_func) {
                 // auto larg = llvm_func->getArg(idx);
@@ -174,14 +174,14 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
         }    
         idx++;
     }
-    auto state = make_shared<EvalState>(vars, conds);
+    auto const state = make_shared<EvalState>(vars, conds);
     set<string> fix_string;
     for (auto const &a : proj->axioms) {
         auto axiom_body = proj->defs[a]->body.get();
-        auto axiom_expr = z3_eval(proj, axiom_body, state, false, true, fix_string);
+        auto const axiom_expr = z3_eval(proj, axiom_body, state, false, true, fix_string);
         state->conds->push_back(axiom_expr->get_z3_value());
     }
-    auto precond_z3 = z3_eval(proj, aggrepres.get(), state, false, true, fix_string);
+    auto const precond_z3 = z3_eval(proj, aggrepres.get(), state, false, true, fix_string);
     state->conds->push_back(precond_z3->get_z3_value());
     
     converged_spec.clear();
@@ -192,16 +192,16 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             cur_iter++;
             profile_clear_epoch();
             auto known = std::set<string>();
-            for (auto arg : *def->args) {
+            for (auto const arg : *def->args) {
                 known.insert(arg->name);
             }
 
             auto log_fn_name = "avpriv_ac3_parse_header_vuln_spec";
-            bool log_spec = false;
+            bool const log_spec = false;
             if(def->name == log_fn_name){
                 // auto s = string(*def->body);
                 LOG_DEBUG << "Starting transformation iteration " << cur_iter << ".";//  Current spec " << s << "";
-                auto dumpfile = def->name + "_transform_" + std::to_string(cur_iter);
+                auto const dumpfile = def->name + "_transform_" + std::to_string(cur_iter);
                 std::ofstream ofs(dumpfile);
                 ofs << def->body;
                 ofs.close();
@@ -213,7 +213,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             // Trying to figure out where we're getting a new unknown symbol from.
             auto current_free_vars = std::set<string>();
             free_vars(proj, spec.get(), current_free_vars);
-            for (auto &arg : *(def->args)){
+            for (auto  const&arg : *(def->args)){
                 current_free_vars.insert(arg->name);
             }
             auto updated_free_vars = std::set<string>();
@@ -268,7 +268,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             // LOG_DEBUG << "end unfold , start eliminate" << "\n";
             
             known = std::set<string>();
-            for (auto arg : *def->args) {
+            for (auto const arg : *def->args) {
                 known.insert(arg->name);
             }
             assert(spec);
@@ -429,13 +429,13 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             if(def->name == log_fn_name){
                 // auto s = string(*def->body);
                 LOG_DEBUG << "z3 simplification iteration " << cur_iter << ".";//  Current spec " << s << "";
-                auto dumpfile = def->name + "_transform_" + std::to_string(cur_iter) + "_pre_z3";
+                auto const dumpfile = def->name + "_transform_" + std::to_string(cur_iter) + "_pre_z3";
                 std::ofstream ofs(dumpfile);
                 ofs << spec;
                 ofs.close();
             }
             if (force_simpl || !__unfold) {
-                    auto start = std::chrono::high_resolution_clock::now();
+                    auto const start = std::chrono::high_resolution_clock::now();
                     // LOG_DEBUG << "start z3" << "\n";
                     force_simpl = true;
                 
@@ -460,8 +460,8 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 std::set_difference(updated_free_vars.begin(), updated_free_vars.end(), current_free_vars.begin(), current_free_vars.end(), inserter(new_free_vars, new_free_vars.begin()));
                 assert(new_free_vars.empty());
                     // LOG_DEBUG << "end z3" << "\n";
-                auto end = std::chrono::high_resolution_clock::now();
-                auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+                auto const end = std::chrono::high_resolution_clock::now();
+                auto const duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
                 LOG_DEBUG << "spec transformer for " << def->name << " Z3 time: " << duration.count() / 1000.0 << " seconds\n";
                 LOG_DEBUG << "z3_changed: " << z3_changed << ", me_changed: " << me_changed << ", we_changed: " << we_changed << ", le_changed: " << le_changed << ",um_changed: " << um_changed << ", hoist_changed: " << hoist_changed << ", cb_changed: " << cb_changed << ", unfolded: " << __unfold;
             }
@@ -496,7 +496,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
     auto known = std::set<string>();
     auto fname = def->name;
 
-    for (auto arg : *def->args) {
+    for (auto const arg : *def->args) {
         known.insert(arg->name);
     }
 
@@ -511,7 +511,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
             auto this_changed = false;
             // tmp spec should only be used in rule group loop
             auto tmp_spec = std::move(new_spec);
-            for (auto &r : proj->rules.rules_group1) {
+            for (auto  const&r : proj->rules.rules_group1) {
                 if (r.id == RuleID::rule_eliminate_let) {
                     auto prev_symbols = std::set<string>(known);
                     auto __changed = false;
@@ -555,7 +555,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
             auto this_changed = false;
             // tmp spec should only be used in rule group loop
             auto tmp_spec = std::move(new_spec);
-            for (auto &r : proj->rules.rules_group2) {
+            for (auto  const&r : proj->rules.rules_group2) {
                 if (r.id == RuleID::rule_eliminate_let) {
                     auto prev_symbols = std::set<string>(known);
                     auto __changed = false;
@@ -584,9 +584,9 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
         }
         // z3
         // if (unfold) {
-            auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
-            auto conds = std::make_shared<vector<z3::expr>>();
-            for (auto arg : *def->args) {
+            auto const vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+            auto const conds = std::make_shared<vector<z3::expr>>();
+            for (auto const arg : *def->args) {
                 (*vars)[arg->name] = arg->type->declare(arg->name, 0);
             }
             profile_clear_epoch();

@@ -111,8 +111,8 @@ unique_ptr<vector<string>> generate_code(Project *p)
     if(OPTS.use_llvm_frontend) {
         return std::make_unique<vector<string>>();
     }
-    boost::filesystem::path dir(p->base);
-    boost::filesystem::path file("Code.v");
+    boost::filesystem::path const dir(p->base);
+    boost::filesystem::path const file("Code.v");
     print_module(p->code.get(), (dir / file).string());
 
     auto vec = unique_ptr<vector<string>>(new vector<string>());

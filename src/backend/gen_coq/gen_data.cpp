@@ -21,7 +21,7 @@ void rec_update(std::ofstream &fout, Project *p, shared_ptr<autov::Struct> init,
                   ").[" + fields.at(fields.size() - 1) + "] :< _b).\n";
 
         vector<string> temp;
-        for (auto f : fields) {
+        for (auto const f : fields) {
             temp.push_back(".[" + f + "]");
         }
         string notation = "\"_a '" + join(temp, "") + "' ':<' _b\"";
@@ -33,7 +33,7 @@ void rec_update(std::ofstream &fout, Project *p, shared_ptr<autov::Struct> init,
     }
 
     if (auto f = dynamic_cast<autov::Struct *>(cur.get())) {
-        for (auto e : *f->elems) {
+        for (auto const e : *f->elems) {
             fields.push_back(e->name);
             rec_update(fout, p, init, fields, e->type);
 
@@ -47,8 +47,8 @@ unique_ptr<vector<string>> generate_data(Project *p)
 {
     string f = "DataTypes.v";
 
-    boost::filesystem::path dir(p->base);
-    boost::filesystem::path file(f);
+    boost::filesystem::path const dir(p->base);
+    boost::filesystem::path const file(f);
     std::ofstream fout((dir / file).string());
 
     fout << "Require Import CommonDeps.\n\n";
@@ -63,7 +63,7 @@ unique_ptr<vector<string>> generate_data(Project *p)
 
     sort(outputs.begin(), outputs.end(), [p](string x, string y) { return p->symbols[x].order < p->symbols[y].order; });
 
-    for (auto s : outputs) {
+    for (auto const s : outputs) {
         if (p->structs.find(s) != p->structs.end()) {
             fout << p->structs[s]->define();
             fout << "\n\n";
@@ -76,13 +76,13 @@ unique_ptr<vector<string>> generate_data(Project *p)
         }
     }
 
-    for (auto s : outputs) {
+    for (auto const s : outputs) {
         if (p->structs.find(s) != p->structs.end()) {
             vector<string> fields;
             for (auto const &elem : *p->structs[s]->elems) {
                 fields.push_back(elem->name);
             }
-            for (auto name : fields) {
+            for (auto const name : fields) {
                 string update = "Definition update_" + s + "_" + name + "(_a: " + s + ") _b :=\n  mk" + s;
                 for (auto i = 0; i < fields.size(); i++) {
                     if (fields[i] == name) {
@@ -102,7 +102,7 @@ unique_ptr<vector<string>> generate_data(Project *p)
         }
     }
 
-    for (auto s : outputs) {
+    for (auto const s : outputs) {
         if (p->structs.find(s) != p->structs.end()) {
             vector<string> fields;
             rec_update(fout, p, p->structs[s], fields, p->structs[s]);

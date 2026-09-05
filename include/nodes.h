@@ -226,7 +226,7 @@ public:
         if (this->type == SpecType::UNKNOWN_TYPE) {
             throw std::invalid_argument("Const must have a type");
         } else if (std::holds_alternative<unsigned long>(this->value)) {
-            long long v = std::get<unsigned long>(this->value);
+            long long const v = std::get<unsigned long>(this->value);
             if (v > -100 && v < 0) {
                 return out << "(-" << std::to_string(-v) << ")";
             } else
@@ -259,7 +259,7 @@ private:
             //         return std::to_string(std::get<bool>(this->value));
             //     }
             // }
-            long long v = std::get<unsigned long>(this->value);
+            long long const v = std::get<unsigned long>(this->value);
             if (v > -100 && v < 0) {
                 return "(-" + std::to_string(-v) + ")";
             } else
@@ -288,7 +288,7 @@ public:
         return std::get<unsigned long>(this->value);
     }
     ~IntConst() {}
-    bool is_signed() { return sign; }
+    bool is_signed() const { return sign; }
 
     // The function is used to set the integer sign **smartly**. Only if the argument is `true` and the value is `negative` under int64, will the sign be set to true.
     void smart_set_sign(bool sign) {
@@ -308,10 +308,10 @@ public:
 private:
     const string to_string() const {
         if (!sign) {
-            long long v = std::get<unsigned long>(this->value);
+            long long const v = std::get<unsigned long>(this->value);
             return std::to_string((unsigned long)v);
         } else {
-            long long v = std::get<unsigned long>(this->value);
+            long long const v = std::get<unsigned long>(this->value);
             return "(" + std::to_string(v) + ")";
         }
     }
@@ -339,7 +339,7 @@ public:
 
 private:
     const string to_string() const {
-        double v = std::get<double>(this->value);
+        double const v = std::get<double>(this->value);
         return "(" + std::to_string(v) + ")";
     }
 };
@@ -501,7 +501,7 @@ public:
         auto _ptr = dynamic_cast<Expr*>(ptr.get());
         if (!_ptr) return false;
         if (std::holds_alternative<string>(_ptr->op)) {
-            auto s = std::get<string>(_ptr->op);
+            auto const s = std::get<string>(_ptr->op);
             if (s == str) return true;
             return false;
         } else {
@@ -521,11 +521,11 @@ public:
         SpecNode(SpecType::UNKNOWN_TYPE), op(std::move(op)), elems(std::move(elems)) {
             // this->length = calc_length();
         if (std::holds_alternative<string>(this->op)) {
-            auto s = std::get<string>(this->op);
+            auto const s = std::get<string>(this->op);
 
             if (s == "lens") {
                 auto lens_id_node = static_cast<Const *>(this->elems->at(0).get());
-                auto lens_id = std::get<unsigned long>(lens_id_node->value);
+                auto const lens_id = std::get<unsigned long>(lens_id_node->value);
 
                 if (lens_id > mono_lens_id) {
                     mono_lens_id = lens_id + 1;
@@ -538,11 +538,11 @@ public:
         SpecNode(type), op(std::move(op)), elems(std::move(elems)) {
 
         if (std::holds_alternative<string>(this->op)) {
-            auto s = std::get<string>(this->op);
+            auto const s = std::get<string>(this->op);
 
             if (s == "lens") {
                 auto lens_id_node = static_cast<Const *>(this->elems->at(0).get());
-                auto lens_id = std::get<unsigned long>(lens_id_node->value);
+                auto const lens_id = std::get<unsigned long>(lens_id_node->value);
 
                 if (lens_id > mono_lens_id) {
                     mono_lens_id = lens_id + 1;
@@ -557,11 +557,11 @@ public:
             this->elems->push_back(std::move(node));
 
         if (std::holds_alternative<string>(this->op)) {
-            auto s = std::get<string>(this->op);
+            auto const s = std::get<string>(this->op);
 
             if (s == "lens") {
                 auto lens_id_node = static_cast<Const *>(this->elems->at(0).get());
-                auto lens_id = std::get<unsigned long>(lens_id_node->value);
+                auto const lens_id = std::get<unsigned long>(lens_id_node->value);
 
                 if (lens_id > mono_lens_id) {
                     mono_lens_id = lens_id + 1;
@@ -922,7 +922,7 @@ public:
             none_body = dynamic_cast<Symbol *>(none->body.get());
 
             // Should only be called after this point since we know the other arm is "Some"
-            auto pattern_is_none = [](SpecNode *pat) {
+            auto const pattern_is_none = [](SpecNode *pat) {
                 if (dynamic_cast<Expr *>(pat) != nullptr) {
                     auto e = dynamic_cast<Expr *>(pat);
 
@@ -944,7 +944,7 @@ public:
                 return false;
             }
 
-            bool is_none = pattern_is_none(none_pattern);
+            bool const is_none = pattern_is_none(none_pattern);
 
             if (!is_none || none_body->text != "None")
                 return false;
@@ -980,7 +980,7 @@ public:
         vec->push_back(std::move(pattern));
 
         unique_ptr<Expr> some = make_unique<Expr>(Expr::Some, std::move(vec), body->type);
-        auto body_type = body->get_type();
+        auto const body_type = body->get_type();
         unique_ptr<PatternMatch> some_arm = make_unique<PatternMatch>(std::move(some), std::move(body));
         unique_ptr<PatternMatch> none_arm = make_unique<PatternMatch>(make_unique<Expr>(Expr::None,  make_unique<vector<unique_ptr<SpecNode>>>(), body_type), make_unique<Symbol>("None", body_type));
         unique_ptr<vector<unique_ptr<PatternMatch>>> match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
@@ -1240,7 +1240,7 @@ public:
     }
     size_t count_leaves() const {
         size_t count = 0;
-        for (auto &v : *this->vars) {
+        for (auto  const&v : *this->vars) {
             if (v->expr) {
                 count += v->expr->count_leaves();
             }
@@ -1506,7 +1506,7 @@ public:
 
     shared_ptr<SpecType> get_type() const {
         if (args->size()) {
-            auto args = make_shared<vector<shared_ptr<SpecType>>>();
+            auto const args = make_shared<vector<shared_ptr<SpecType>>>();
 
             for (auto it = this->args->begin(); it != this->args->end(); it++) {
                 args->push_back((*it)->type);
@@ -1521,14 +1521,14 @@ public:
 
     shared_ptr<FuncValue> absf() const {
         if (this->_absf == nullptr) {
-            auto arg_list = make_shared<vector<shared_ptr<SpecType>>>();
+            auto const arg_list = make_shared<vector<shared_ptr<SpecType>>>();
 
             for (auto it = this->args->begin(); it != this->args->end(); it++) {
                 arg_list->push_back((*it)->type);
             }
 
             // func has to be wrapped in a shared_ptr because SpecType inherit from enable_shared_from_this
-            auto func = make_shared<Function>(this->rettype, arg_list);
+            auto const func = make_shared<Function>(this->rettype, arg_list);
 
             this->_absf = static_pointer_cast<FuncValue>(func->declare(name, 0));
         }
@@ -1601,7 +1601,7 @@ public:
         name(name), abs_data(std::move(abs_data)), ops(std::move(ops)), prims(prims), code(code), passthrough(passthrough) {}
     Layer(string name, bool dummy) : name(name), dummy(dummy) {}
 
-    shared_ptr<IRLoader::IRModule> load_module();
+    shared_ptr<IRLoader::IRModule> load_module() const;
 };
 
 class TypeInferenceException : public std::runtime_error {

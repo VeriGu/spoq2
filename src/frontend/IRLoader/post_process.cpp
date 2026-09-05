@@ -58,14 +58,14 @@ std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
                     string fname = "iasm_" + iasm_prefix + std::to_string(iasm_count);
                     string old_name = fname;
                     string constraints = asm_func->constraints;
-                    shared_ptr<IRType> rettype = call_inst->typ;
+                    shared_ptr<IRType> const rettype = call_inst->typ;
 
                     vector<unique_ptr<FuncArg>> args;
-                    shared_ptr<TPtr> func_type = dynamic_pointer_cast<TPtr>(call_inst->func->type);
+                    shared_ptr<TPtr> const func_type = dynamic_pointer_cast<TPtr>(call_inst->func->type);
                     if (func_type == nullptr) {
                         throw std::runtime_error("Unsupported type: " + call_inst->func->type->to_coq());
                     }
-                    shared_ptr<TFunction> func_subtype = dynamic_pointer_cast<TFunction>(func_type->subtype);
+                    shared_ptr<TFunction> const func_subtype = dynamic_pointer_cast<TFunction>(func_type->subtype);
                     if (func_subtype == nullptr) {
                         throw std::runtime_error("Unsupported subtype: " + func_type->subtype->to_coq());
                     }
@@ -170,13 +170,13 @@ std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
     }
     std::sort(funcs.begin(), funcs.end());
     for (const auto& f : funcs) {
-        shared_ptr<CFunction> func = mod->functions->at(f);
+        shared_ptr<CFunction> const func = mod->functions->at(f);
 
         if (func->body == nullptr) {
             continue;
         }
 
-        int failed = find_inline_asm(*func->body);
+        int const failed = find_inline_asm(*func->body);
         if (failed > 0) {
             std::cout << "[ERROR] Failed to process " << failed << " inline asm in function " << f << std::endl;
             failed_count += failed;
@@ -187,7 +187,7 @@ std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
 }
 
 shared_ptr<IRModule> post_process(shared_ptr<IRModule> mod) {
-    std::pair<int, int> result = extract_inline_asm(mod);
+    std::pair<int, int> const result = extract_inline_asm(mod);
     std::cout << result.first << " inline assembly found, " << result.second << " failed to process." << std::endl;
     return mod;
 }

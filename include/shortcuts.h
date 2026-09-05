@@ -83,7 +83,7 @@ namespace autov {
 			return true;
 		} else if (auto e = instance_of(spec, Expr)) {
 			bool find = false;
-			for (auto &elem : *e->elems) {
+			for (auto  const&elem : *e->elems) {
 				if (subst_expression(elem.get(), oldname, newname)) {
 					find = true;
 				}

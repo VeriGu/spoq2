@@ -454,8 +454,8 @@ public:
     SpecValue(shared_ptr<SpecType> typ, double value) : typ(typ), value(z3ctx.fpa_val(value)) {}
     SpecValue(shared_ptr<SpecType> typ, z3::expr value) : typ(typ), value(value) {}
 
-    shared_ptr<SpecType> get_type() { return typ; }
-    z3::expr get_z3_value() { return value; }
+    shared_ptr<SpecType> get_type() const { return typ; }
+    z3::expr get_z3_value() const { return value; }
 
     operator string() const {
         return "Value(" + string(*typ) + ", " + value.to_string() + ")";
@@ -635,11 +635,11 @@ public:
 
     FuncValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value), z3_func(z3ctx.function("unknown", 0, nullptr, z3ctx.bool_sort())) {
         vector<z3::sort> arg_types;
-        auto ftyp = static_pointer_cast<Function>(typ);
+        auto const ftyp = static_pointer_cast<Function>(typ);
         for (const auto &arg : *ftyp->args) {
             arg_types.push_back(arg->get_z3_type());
         }
-        auto __func_call_str =  this->value.to_string() + "_call";
+        auto const __func_call_str =  this->value.to_string() + "_call";
         auto func_call_str = __func_call_str.c_str();
         z3_func = z3ctx.function(z3ctx.str_symbol(func_call_str), arg_types.size(), arg_types.data(), ftyp->rettype->get_z3_type());
     }
@@ -683,7 +683,7 @@ public:
     z3::func_decl_vector accessors;
     IndValue(shared_ptr<SpecType> typ, z3::expr value) :
         SpecValue(typ, value), constructor(value.get_sort().constructors()[0]), accessors(z3ctx) {
-            auto css = value.get_sort().constructors();
+            auto const css = value.get_sort().constructors();
             for (auto cs :css) {
                 for (const auto &acc : cs.accessors()) {
                     accessors.push_back(acc);
@@ -719,7 +719,7 @@ public:
     /** Return the length of the list.
      */
     shared_ptr<SpecValue> list_len() {
-        auto len_val = z3::expr(z3ctx, Z3_mk_seq_length(z3ctx, value));
+        auto const len_val = z3::expr(z3ctx, Z3_mk_seq_length(z3ctx, value));
 
         return make_shared<IntValue>(len_val);
     }
@@ -730,8 +730,8 @@ public:
      * so we need to check if the length is 0.
      */
     shared_ptr<BoolValue> is_empty() {
-        auto len_val = z3::expr(z3ctx, Z3_mk_seq_length(z3ctx, value));
-        auto is_empty_val = z3::expr(z3ctx, Z3_mk_eq(z3ctx, len_val, z3ctx.int_val(0)));
+        auto const len_val = z3::expr(z3ctx, Z3_mk_seq_length(z3ctx, value));
+        auto const is_empty_val = z3::expr(z3ctx, Z3_mk_eq(z3ctx, len_val, z3ctx.int_val(0)));
 
         return make_shared<BoolValue>(is_empty_val);
     }
@@ -739,8 +739,8 @@ public:
     /** Create an empty list.
     */
     static shared_ptr<SpecValue> empty(shared_ptr<SpecType> typ) {
-        auto elem_sort = typ->get_z3_type();
-        auto empty_val = z3::expr(z3ctx, Z3_mk_seq_empty(z3ctx, elem_sort));
+        auto const elem_sort = typ->get_z3_type();
+        auto const empty_val = z3::expr(z3ctx, Z3_mk_seq_empty(z3ctx, elem_sort));
 
         return make_shared<ListValue>(typ, empty_val);
     }

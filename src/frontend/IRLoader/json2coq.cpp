@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
     try {
         boost::property_tree::ptree modified_subtree;
         read_json(input_file, pt);
-        boost::property_tree::ptree subtree = pt.get_child("struct_types");
+        boost::property_tree::ptree const subtree = pt.get_child("struct_types");
         process_tree(subtree, modified_subtree);
         pt.put_child("struct_types", modified_subtree);
         //write_json(std::cout, pt.get_child("struct_types"));
@@ -62,10 +62,10 @@ int main(int argc, char *argv[])
     }
 
     //write_json(std::cout, pt);
-    auto mod = parse_module(pt);
+    auto const mod = parse_module(pt);
 
     auto output = std::ofstream(output_file);
-    for (auto &f: *mod->functions) {
+    for (auto  const&f: *mod->functions) {
         // Append f.second->to_coq() to output_file
         output << f.second->to_coq() << std::endl;
     }

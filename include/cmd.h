@@ -48,7 +48,7 @@ public:
      * @brief report the command line options
      * 
      */
-    void report() {
+    void report() const {
         std::cerr << "Command-line options:\n";
         std::cerr << "  config_file: " << config_file << "\n";
         std::cerr << "  cone of influence reduction: " << std::boolalpha << coi << "\n";

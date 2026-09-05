@@ -40,7 +40,7 @@ bool decompose(Project* proj, Definition* def, string secret) {
     for (auto &r : target_relation) {
         auto rel = proj->defs[r].get();
         PROFILE_START(coi);
-        auto coi_fields = analyze_cone_of_influence(proj, def, rel->body.get());
+        auto const coi_fields = analyze_cone_of_influence(proj, def, rel->body.get());
         PROFILE_END(coi);
         std::set<string> coi = {};
         for (auto &c : coi_fields) {
@@ -60,7 +60,7 @@ bool decompose(Project* proj, Definition* def, string secret) {
                 continue;
             }
             auto contain = false;
-            for(auto public_field : public_ret) {
+            for(auto const public_field : public_ret) {
                 if(contains_field(coi_field, public_field)) {
                     // proj->unverified_relations.insert(r);
                     
@@ -94,8 +94,8 @@ bool decompose(Project* proj, Definition* def, string secret) {
 	}
     if(!instance_of(relation.get(), BoolConst)) {
         auto rel = proj->defs[*proj->relations.begin()].get();
-        auto rel_def = make_unique<Definition>("_relate",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), relation->deep_copy());
-        auto orin_rel_def = make_unique<Definition>("_relate",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), origin_relation->deep_copy());
+        auto const rel_def = make_unique<Definition>("_relate",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), relation->deep_copy());
+        auto const orin_rel_def = make_unique<Definition>("_relate",rel->rettype, make_unique<vector<shared_ptr<Arg>>>(*rel->args), origin_relation->deep_copy());
         proj->query_saver = QueryInfo(query_saver_dir(def->name, "relate_RData"));
 
         if(!check_hprop_by_path(proj, orin_rel_def.get(), def, nullptr, true, rel_def.get())) {

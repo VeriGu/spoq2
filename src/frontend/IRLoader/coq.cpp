@@ -20,7 +20,7 @@ string to_coq_name(const string name) {
     string result;
     result.reserve(name.size());
 
-    for (char c : name) {
+    for (char const c : name) {
         if (c == '%') {
             result += "v_";
         } else if (c == '@' || c == '.' || c == '-' || c == ':' || c == '!') {

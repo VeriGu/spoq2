@@ -23,7 +23,7 @@ std::ostream& operator<<(std::ostream& strm, severity_level level) {
         "???", "DBG", "INF", "WRN", "ERR"
     };
 
-    std::size_t level_index = static_cast<std::size_t>(level);
+    std::size_t const level_index = static_cast<std::size_t>(level);
 
     if (level_index < sizeof(strings) / sizeof(*strings)) {
         strm << strings[level_index];
@@ -81,7 +81,7 @@ void init() {
 
 
     // Console sink for non-error messages
-    auto console_sink = logging::add_console_log(
+    auto const console_sink = logging::add_console_log(
         std::clog,
         keywords::filter = expr::attr<logging::trivial::severity_level>("Severity") < logging::trivial::error,
         keywords::format = (
@@ -94,7 +94,7 @@ void init() {
 
     // Console sink for error messages
     typedef sinks::synchronous_sink<sinks::text_ostream_backend> text_sink;
-    boost::shared_ptr<text_sink> error_sink = boost::make_shared<text_sink>();
+    boost::shared_ptr<text_sink> const error_sink = boost::make_shared<text_sink>();
 
     error_sink->locked_backend()->add_stream(boost::make_shared<std::ostream>(std::cerr.rdbuf()));
     error_sink->set_filter(logging::trivial::severity >= logging::trivial::error);

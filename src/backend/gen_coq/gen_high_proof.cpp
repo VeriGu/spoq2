@@ -12,8 +12,8 @@ void gen_high_proof(Project *p, int i, string fname, string path, string cache_o
     string layer = p->layers[i]->name;
     string base_layer = p->layers[i - 1]->name;
 
-    auto loc = tuple<string, string, string>(layer, fname, "LowSpec");
-    auto loc_proof = tuple<string, string, string>(layer, fname, "RefProof");
+    auto const loc = tuple<string, string, string>(layer, fname, "LowSpec");
+    auto const loc_proof = tuple<string, string, string>(layer, fname, "RefProof");
 
     vector<string> syms;
     vector<string> mid_syms;
@@ -39,9 +39,9 @@ void gen_high_proof(Project *p, int i, string fname, string path, string cache_o
                              base_layer + ".Layer",
                              layer + ".RefineRel"};
 
-    for (auto s : syms) {
+    for (auto const s : syms) {
         if (p->deps.find(s) == p->deps.end()) continue;
-        for (auto d : p->deps[s]) {
+        for (auto const d : p->deps[s]) {
             if (p->symbols[d].loc == tuple<string, string, string>("", "", "") || p->symbols[d].loc == loc_proof)
                 continue;
 
@@ -50,9 +50,9 @@ void gen_high_proof(Project *p, int i, string fname, string path, string cache_o
         }
     }
 
-    for (auto s : mid_syms) {
+    for (auto const s : mid_syms) {
         if (p->deps.find(s) == p->deps.end()) continue;
-        for (auto d : p->deps[s]) {
+        for (auto const d : p->deps[s]) {
             if (p->symbols[d].loc == tuple<string, string, string>("", "", "") || p->symbols[d].loc == loc_proof)
                 continue;
 
@@ -83,7 +83,7 @@ void gen_high_proof(Project *p, int i, string fname, string path, string cache_o
 
     // mid_specs
 
-    for (auto s : mid_syms) {
+    for (auto const s : mid_syms) {
         if (p->symbols[s].kind == SymbolKind::Def) {
             out << add_indent(string(*p->defs[s]), 2) << "\n\n";
             cache_o << string(*p->defs[s]) << "\n\n";
@@ -108,7 +108,7 @@ void gen_high_proof(Project *p, int i, string fname, string path, string cache_o
     vars.push_back("hst");
     vars.push_back("hst'");
 
-    auto gen_loop = false && syms.size() > 1;
+    auto const gen_loop = false && syms.size() > 1;
     vector<string> loop_vars;
     vector<string> loop_call_param;
     vector<string> loop_ret_args;
@@ -280,8 +280,8 @@ void gen_high_proof(Project *p, int i, string fname, string path, string cache_o
 unique_ptr<vector<string>> generate_high_proof(Project *p)
 {
     auto files = unique_ptr<vector<string>>(new vector<string>());
-    boost::filesystem::path dir(p->base);
-    boost::filesystem::path file(".CachedSpec");
+    boost::filesystem::path const dir(p->base);
+    boost::filesystem::path const file(".CachedSpec");
 
     string cache_dir = (dir / file).string();
     if (!fs::exists(cache_dir)) {
@@ -292,23 +292,23 @@ unique_ptr<vector<string>> generate_high_proof(Project *p)
     for (auto const &L : p->layers) {
         if (i == 0 || L->dummy) continue;
 
-        boost::filesystem::path layer_name(L->name);
+        boost::filesystem::path const layer_name(L->name);
         if (!fs::exists((dir / layer_name).string())) {
             fs::create_directory((dir / layer_name).string());
         }
 
-        boost::filesystem::path cache_out = cache_dir / boost::filesystem::path(L->name + "SpecMid.v");
+        boost::filesystem::path const cache_out = cache_dir / boost::filesystem::path(L->name + "SpecMid.v");
         if (fs::exists(cache_out.string())) {
             fs::remove(cache_out.string());
         }
 
-        for (auto prim : L->prims) {
-            auto prim_path = dir / layer_name / boost::filesystem::path(prim);
+        for (auto const prim : L->prims) {
+            auto const prim_path = dir / layer_name / boost::filesystem::path(prim);
             if (!fs::exists(prim_path.string())) {
                 fs::create_directory(prim_path.string());
             }
 
-            boost::filesystem::path ref_proof = prim_path / boost::filesystem::path("RefProof.v");
+            boost::filesystem::path const ref_proof = prim_path / boost::filesystem::path("RefProof.v");
             gen_high_proof(p, i, prim, ref_proof.string(), cache_out.string());
             if (fs::exists(ref_proof.string())) {
                 files->push_back(

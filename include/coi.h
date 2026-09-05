@@ -29,12 +29,12 @@ namespace autov {
 
     void print_path(const path_t &p);
     /* Calculate cone of influence */
-    std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, 
+    std::set<field_t> analyze_cone_of_influence(Project *proj, Definition  const*def, 
                                                 std::variant<SpecNode *, std::set<field_t>> coi_src,
                                                 std::set<string> whitelist = {}, 
                                                 std::set<string> blacklist = {});
     void analyze_invariant_fields(Project *proj, SpecNode *inv, std::set<field_t> &fields);
     void coi_reduction(Project *proj, Definition *def, SpecNode *inv);
-    void mark_determ_branch(Project* proj, Definition* rel_def, Definition* spec_def);
+    void mark_determ_branch(Project* proj, Definition* rel_def, Definition const* spec_def);
     bool contains_field(const field_t &f_check, const field_t &f_interested);
 }

@@ -67,7 +67,7 @@ public:
 
     // Remove a key-value pair
     void erase(const KeyType& key) {
-        auto it = map.find(key);
+        auto const it = map.find(key);
         if (it != map.end()) {
             order.erase(it->second);
             map.erase(it);
@@ -90,13 +90,13 @@ public:
     }
     // 'operator[]' for non-const objects
     ValueType& operator[](const KeyType& key) {
-        auto it = map.find(key);
+        auto const it = map.find(key);
         if (it != map.end()) {
             return it->second->second;
         }
         // If key is not found, insert a new default-constructed value and return a reference to it
         order.push_back({key, ValueType()});
-        auto insertedElement = std::prev(order.end());
+        auto const insertedElement = std::prev(order.end());
         map[key] = insertedElement;
         return insertedElement->second;
     }
@@ -184,7 +184,7 @@ static void dfs1(const string &n, nodes_t &nodes, edges_t &edges,
     nodes[n]->scc = -1;
     vis[n] = true;
 
-    for (auto &e: *edges[n]) {
+    for (auto  const&e: *edges[n]) {
         if (e->next == "")
             continue;
         if (!vis[e->next]) {
@@ -199,7 +199,7 @@ static void dfs2(const string &n, nodes_t &nodes, edges_t &edges, backwards_t &b
                  vector<string> &seq, unordered_map<string, bool> &vis, int sccCnt) {
     nodes[n]->scc = sccCnt;
 
-    for (auto &e: *backwards[n]) {
+    for (auto  const&e: *backwards[n]) {
         if (nodes[e->from]->scc == -1) {
             dfs2(e->from, nodes, edges, backwards, seq, vis, sccCnt);
         }
@@ -210,15 +210,15 @@ static void update_scc(nodes_t &nodes, edges_t &edges, backwards_t &backwards, v
     int sccCnt = 0;
     unordered_map<string, bool> vis;
 
-    for (auto &node: nodes) {
-        auto n = node.first;
+    for (auto  const&node: nodes) {
+        auto const n = node.first;
 
         if (!vis[n])
             dfs1(n, nodes, edges, seq, vis);
     }
 
     for (auto it = seq.rbegin(); it != seq.rend(); ++it) {
-        auto n = *it;
+        auto const n = *it;
 
         if (nodes[n]->scc == -1) {
             sccCnt++;
@@ -242,7 +242,7 @@ using rule_ret_t = bool;
 static rule_ret_t rule_eliminate_leaf(const string &n, nodes_t &nodes, edges_t &edges, backwards_t &backwards) {
     if (edges[n]->size() == 0 && backwards[n]->size() == 1 && nodes[n]->loop_use.size() == 0) {
         //auto P = backwards[n]->at(0)->from;
-        auto e = backwards[n]->at(0)->edge;
+        auto const e = backwards[n]->at(0)->edge;
 
         e->insts.insert(e->insts.end(), nodes[n]->insts.begin(), nodes[n]->insts.end());
         e->next = "";
@@ -260,9 +260,9 @@ static rule_ret_t rule_eliminate_leaf(const string &n, nodes_t &nodes, edges_t &
 static rule_ret_t rule_eliminate_bridge(const string &n, nodes_t &nodes, edges_t &edges, backwards_t &backwards) {
     if (edges[n]->size() == 1 && backwards[n]->size() == 1 && nodes[n]->loop_use.size() == 0) {
         auto P = backwards[n]->at(0)->from;
-        auto e1 = backwards[n]->at(0)->edge;
+        auto const e1 = backwards[n]->at(0)->edge;
         auto S = edges[n]->at(0)->next;
-        auto e2 = edges[n]->at(0);
+        auto const e2 = edges[n]->at(0);
 
         e1->next = S;
         e1->insts.insert(e1->insts.end(), nodes[n]->insts.begin(), nodes[n]->insts.end());
@@ -289,7 +289,7 @@ static rule_ret_t rule_merge_branches(const string &n, nodes_t &nodes, edges_t &
 
     string S = "";
 
-    for (auto &e: *edges[n]) {
+    for (auto  const&e: *edges[n]) {
         if (e->next != "") {
             if (S == "") {
                 S = e->next;
@@ -303,7 +303,7 @@ static rule_ret_t rule_merge_branches(const string &n, nodes_t &nodes, edges_t &
         RULE_RETURN_FALSE(n);
 
     if (edges[n]->at(0)->cond == nullptr) {
-        auto t = edges[n]->at(0);
+        auto const t = edges[n]->at(0);
 
         edges[n]->at(0) = edges[n]->back();
         edges[n]->back() = t;
@@ -313,17 +313,17 @@ static rule_ret_t rule_merge_branches(const string &n, nodes_t &nodes, edges_t &
     unique_ptr<vector<shared_ptr<IRInst>>> old_inst = nullptr;
 
     for (auto it = std::next(edges[n]->rbegin()); it != edges[n]->rend(); ++it) {
-        auto e = *it;
+        auto const e = *it;
 
         assert(e->cond != nullptr);
         auto true_body = make_unique<vector<unique_ptr<IRInst>>>();
         auto false_body = make_unique<vector<unique_ptr<IRInst>>>();
 
-        for (auto &i: e->insts) {
+        for (auto  const&i: e->insts) {
             true_body->push_back(unique_ptr<IRInst>(i->clone()));
         }
 
-        for (auto &i: *inst) {
+        for (auto  const&i: *inst) {
             false_body->push_back(unique_ptr<IRInst>(i->clone()));
         }
 
@@ -350,12 +350,12 @@ static rule_ret_t rule_merge_branches(const string &n, nodes_t &nodes, edges_t &
     RULE_RETURN_TRUE(n);
 }
 
-static rule_ret_t rule_merge_branches_local(string &n, nodes_t &nodes, edges_t &edges, backwards_t &backwards) {
+static rule_ret_t rule_merge_branches_local(string &n, nodes_t  const&nodes, edges_t &edges, backwards_t &backwards) {
     if (edges[n]->size() == 0)
         RULE_RETURN_FALSE(n);
 
     for (int i = 0; i < edges[n]->size(); i++) {
-        auto e = edges[n]->at(i);
+        auto const e = edges[n]->at(i);
 
         for (int j = 0; j < edges[n]->size(); j++) {
             auto ee = edges[n]->at(j);
@@ -382,11 +382,11 @@ static rule_ret_t rule_merge_branches_local(string &n, nodes_t &nodes, edges_t &
                 auto true_body = make_unique<vector<unique_ptr<IRInst>>>();
                 auto false_body = make_unique<vector<unique_ptr<IRInst>>>();
 
-                for (auto &i: e->insts) {
+                for (auto  const&i: e->insts) {
                     true_body->push_back(unique_ptr<IRInst>(i->clone()));
                 }
 
-                for (auto &i: ee->insts) {
+                for (auto  const&i: ee->insts) {
                     false_body->push_back(unique_ptr<IRInst>(i->clone()));
                 }
 
@@ -427,7 +427,7 @@ static rule_ret_t rule_duplicate_node(string &n, nodes_t &nodes, edges_t &edges,
                             backwards[S]->end());
     }
 
-    for (auto &be: *backwards[n]) {
+    for (auto  const&be: *backwards[n]) {
         be->edge->insts.insert(be->edge->insts.end(), nodes[n]->insts.begin(), nodes[n]->insts.end());
 
         if (edges[n]->size() == 1)
@@ -466,13 +466,13 @@ static rule_ret_t rule_destruct_scc(int scc, nodes_t &nodes, edges_t &edges, bac
     string P, S;
     vector<string> scc_nodes;
 
-    for (auto &node: nodes) {
-        auto n = node.first;
-        auto n_scc = node.second->scc;
+    for (auto  const&node: nodes) {
+        auto const n = node.first;
+        auto const n_scc = node.second->scc;
 
         if (n_scc == scc) {
             bool ret = true;
-            auto collect_cb = [&](IRInst *inst) {
+            auto const collect_cb = [&](IRInst *inst) {
                 auto cont_break_inst = dynamic_cast<IContBreak *>(inst);
 
                 if (cont_break_inst) {
@@ -490,7 +490,7 @@ static rule_ret_t rule_destruct_scc(int scc, nodes_t &nodes, edges_t &edges, bac
 
             scc_nodes.push_back(n);
 
-            for (auto &be: *backwards[n]) {
+            for (auto  const&be: *backwards[n]) {
                 if (nodes[be->from]->scc != scc) {
                     if (P != "")
                         RULE_RETURN_FALSE(n);
@@ -503,7 +503,7 @@ static rule_ret_t rule_destruct_scc(int scc, nodes_t &nodes, edges_t &edges, bac
                 RULE_RETURN_FALSE(n);
 
 
-            for (auto &e: *edges[n]) {
+            for (auto  const&e: *edges[n]) {
                 collect_continue_break(e->insts, collect_cb);
                 if (!ret)
                     RULE_RETURN_FALSE(n);
@@ -523,7 +523,7 @@ static rule_ret_t rule_destruct_scc(int scc, nodes_t &nodes, edges_t &edges, bac
         string n = scc_nodes[0];
         bool self_loop = false;
 
-        for (auto &e: *edges[n]) {
+        for (auto  const&e: *edges[n]) {
             if (e->next == n) {
                 self_loop = true;
                 break;
@@ -538,13 +538,13 @@ static rule_ret_t rule_destruct_scc(int scc, nodes_t &nodes, edges_t &edges, bac
     nodes[P]->loop_use.insert(P);
 
     // break edges
-    for (auto &n: scc_nodes) {
+    for (auto  const&n: scc_nodes) {
         for (auto &e: *edges[n]) {
             if (e->next == P) {
                 backwards[P]->erase(std::remove_if(backwards[P]->begin(), backwards[P]->end(),
                                                    [&](const auto &be) { return be == e->backward; }),
                                     backwards[P]->end());
-                auto cont_inst = make_shared<IContinue>();
+                auto const cont_inst = make_shared<IContinue>();
 
                 e->backward = nullptr;
                 e->next = "";
@@ -552,7 +552,7 @@ static rule_ret_t rule_destruct_scc(int scc, nodes_t &nodes, edges_t &edges, bac
                 //cont_inst->Loop = P;
                 cont_inst->update_Loop(P);
             } else if (S != "" && e->next == S) {
-                auto brk_inst = make_shared<IBreak>();
+                auto const brk_inst = make_shared<IBreak>();
 
                 nodes[S]->loop_use.insert(P);
                 backwards[S]->erase(std::remove_if(backwards[S]->begin(), backwards[S]->end(),
@@ -577,9 +577,9 @@ static rule_ret_t rule_destruct_inner_scc(int scc, nodes_t &nodes, edges_t &edge
     vector<string> scc_nodes;
     bool is_inner = false;
 
-    for (auto &node: nodes) {
-        auto n = node.first;
-        auto collect_cb = [&](IRInst *inst) {
+    for (auto  const&node: nodes) {
+        auto const n = node.first;
+        auto const collect_cb = [&](IRInst *inst) {
                 auto cont_break_inst = dynamic_cast<IContBreak *>(inst);
 
                 if (cont_break_inst) {
@@ -606,7 +606,7 @@ static rule_ret_t rule_destruct_inner_scc(int scc, nodes_t &nodes, edges_t &edge
 
         scc_nodes.push_back(n);
 
-        for (auto &be: *backwards[n]) {
+        for (auto  const&be: *backwards[n]) {
             if (nodes[be->from]->scc != scc) {
                 if (P != "")
                     RULE_RETURN_FALSE(n);
@@ -616,7 +616,7 @@ static rule_ret_t rule_destruct_inner_scc(int scc, nodes_t &nodes, edges_t &edge
 
         collect_continue_break(nodes[n]->insts, collect_cb);
 
-        for (auto &e: *edges[n]) {
+        for (auto  const&e: *edges[n]) {
             collect_continue_break(e->insts, collect_cb);
 
             if (e->next == "" || nodes[e->next]->scc == scc)
@@ -636,7 +636,7 @@ static rule_ret_t rule_destruct_inner_scc(int scc, nodes_t &nodes, edges_t &edge
         string n = scc_nodes[0];
         bool self_loop = false;
 
-        for (auto &e: *edges[n]) {
+        for (auto  const&e: *edges[n]) {
             if (e->next == n) {
                 self_loop = true;
                 break;
@@ -650,16 +650,16 @@ static rule_ret_t rule_destruct_inner_scc(int scc, nodes_t &nodes, edges_t &edge
     assert(P != "");
     nodes[P]->loop_use.insert(P);
 
-    auto pre_blk = P + "..prep";
+    auto const pre_blk = P + "..prep";
     auto succ_blk = P + "..succ";
-    auto pre_node = make_shared<Node>();
+    auto const pre_node = make_shared<Node>();
 
     pre_node->insts.push_back(make_shared<IAssign>(TBool::TBOOL, P + "_cont", make_unique<VBool>(false)));
     pre_node->insts.push_back(make_shared<IAssign>(TBool::TBOOL, P + "_brk", make_unique<VBool>(false)));
 
     nodes[pre_blk] = pre_node;
 
-    auto pre_edge = make_shared<Edge>(P, nullptr, vector<shared_ptr<IRInst>>());
+    auto const pre_edge = make_shared<Edge>(P, nullptr, vector<shared_ptr<IRInst>>());
 
     edges[pre_blk] = make_shared<vector<shared_ptr<Edge>>>();
     edges[pre_blk]->push_back(pre_edge);
@@ -669,7 +669,7 @@ static rule_ret_t rule_destruct_inner_scc(int scc, nodes_t &nodes, edges_t &edge
             backwards[pre_blk]->push_back(be);
         }
     }
-    for (auto &be: *backwards[pre_blk]) {
+    for (auto  const&be: *backwards[pre_blk]) {
         be->edge->next = pre_blk;
     }
     backwards[P]->clear();
@@ -683,12 +683,12 @@ static rule_ret_t rule_destruct_inner_scc(int scc, nodes_t &nodes, edges_t &edge
         [&](vector<shared_ptr<IRInst>> &insts) {
         auto new_insts = make_unique<vector<shared_ptr<IRInst>>>();
 
-        for (auto &i: insts) {
+        for (auto  const&i: insts) {
             if (auto cont_break_inst = dynamic_cast<IContBreak *>(i.get())) {
                 if (*cont_break_inst->Loop != "" && nodes[*cont_break_inst->Loop]->scc != scc) {
-                    bool is_break = dynamic_cast<IBreak *>(cont_break_inst) != nullptr;
+                    bool const is_break = dynamic_cast<IBreak *>(cont_break_inst) != nullptr;
                     string assign = P + (is_break ? "_brk" : "_cont");
-                    auto break_inst = make_shared<IBreak>();
+                    auto const break_inst = make_shared<IBreak>();
 
                     new_insts->push_back(make_shared<IAssign>(TBool::TBOOL, assign, make_unique<VBool>(true)));
                     new_insts->push_back(break_inst);
@@ -717,7 +717,7 @@ static rule_ret_t rule_destruct_inner_scc(int scc, nodes_t &nodes, edges_t &edge
         for (auto &i: insts) {
             if (auto cont_break_inst = dynamic_cast<IContBreak *>(i.get())) {
                 if (*cont_break_inst->Loop != "" && nodes[*cont_break_inst->Loop]->scc != scc) {
-                    bool is_break = dynamic_cast<IBreak *>(cont_break_inst) != nullptr;
+                    bool const is_break = dynamic_cast<IBreak *>(cont_break_inst) != nullptr;
                     string assign = P + (is_break ? "_brk" : "_cont");
                     auto break_inst = make_unique<IBreak>();
 
@@ -740,12 +740,12 @@ static rule_ret_t rule_destruct_inner_scc(int scc, nodes_t &nodes, edges_t &edge
     };
 
     // break edges
-    for (auto &n: scc_nodes) {
+    for (auto  const&n: scc_nodes) {
         modify_continue_break_shared(nodes[n]->insts);
         for (auto &e: *edges[n]) {
             modify_continue_break_shared(e->insts);
             if (e->next == P) {
-                auto cont_inst = make_shared<IContinue>();
+                auto const cont_inst = make_shared<IContinue>();
 
                 backwards[e->next]->erase(std::remove_if(backwards[e->next]->begin(), backwards[e->next]->end(),
                                                         [&](const auto &be) { return be == e->backward; }),
@@ -756,7 +756,7 @@ static rule_ret_t rule_destruct_inner_scc(int scc, nodes_t &nodes, edges_t &edge
                 //cont_inst->Loop = P;
                 cont_inst->update_Loop(P);
             } else if (S != "" && e->next == S) {
-                auto brk_inst = make_shared<IBreak>();
+                auto const brk_inst = make_shared<IBreak>();
 
                 backwards[e->next]->erase(std::remove_if(backwards[e->next]->begin(), backwards[e->next]->end(),
                                                         [&](const auto &be) { return be == e->backward; }),
@@ -788,24 +788,24 @@ static rule_ret_t rule_destruct_inner_scc(int scc, nodes_t &nodes, edges_t &edge
     brk_list->push_back(std::move(brk));
 
     auto inner_if = make_unique<IIf>(make_unique<VLocal>(TBool::TBOOL, P + "_brk"), std::move(brk_list), make_unique<vector<unique_ptr<IRInst>>>());
-    auto outter_if = make_shared<IIf>(make_unique<VLocal>(TBool::TBOOL, P + "_cont"), std::move(cont_list), std::move(inner_if));
+    auto const outter_if = make_shared<IIf>(make_unique<VLocal>(TBool::TBOOL, P + "_cont"), std::move(cont_list), std::move(inner_if));
 
-    auto new_node = make_shared<Node>();
+    auto const new_node = make_shared<Node>();
 
     new_node->insts.push_back(outter_if);
     new_node->loop_use.insert(P);
     nodes[succ_blk] = new_node;
 
     if (S != "") {
-        auto new_edge = make_shared<Edge>(S, nullptr, vector<shared_ptr<IRInst>>());
-        auto new_edges = make_shared<vector<shared_ptr<Edge>>>();
+        auto const new_edge = make_shared<Edge>(S, nullptr, vector<shared_ptr<IRInst>>());
+        auto const new_edges = make_shared<vector<shared_ptr<Edge>>>();
 
         new_edges->push_back(new_edge);
         edges[succ_blk] = new_edges;
 
         backwards[succ_blk] = make_shared<vector<shared_ptr<Backward>>>();
 
-        auto new_backward = make_shared<Backward>(succ_blk, edges[succ_blk]->back());
+        auto const new_backward = make_shared<Backward>(succ_blk, edges[succ_blk]->back());
         backwards[S]->push_back(new_backward);
         edges[succ_blk]->back()->backward = new_backward;
     } else {
@@ -823,21 +823,21 @@ static rule_ret_t rule_duplicate_scc(int scc, nodes_t nodes, edges_t edges, back
     string S = "";
     vector<string> scc_nodes;
 
-    for (auto &p: nodes) {
-        auto n = p.first;
-        auto &node = p.second;
+    for (auto  const&p: nodes) {
+        auto const n = p.first;
+        auto  const&node = p.second;
 
         if (node->loop_use.size() != 0)
             RULE_RETURN_FALSE(n);
 
         if (node->scc == scc) {
             scc_nodes.push_back(n);
-            for (auto &be: *backwards[n]) {
+            for (auto  const&be: *backwards[n]) {
                 if (nodes[be->from]->scc != scc) {
                     P_set.insert(n);
                 }
             }
-            for (auto &e: *edges[n]) {
+            for (auto  const&e: *edges[n]) {
                 if (e->next == "" || nodes[e->next]->scc == scc)
                     continue;
                 if (S != "" && S != e->next)
@@ -850,7 +850,7 @@ static rule_ret_t rule_duplicate_scc(int scc, nodes_t nodes, edges_t edges, back
     if (P_set.size() <= 0)
         RULE_RETURN_FALSE(n);
 
-    auto P = vector<string>(P_set.begin(), P_set.end());
+    auto const P = vector<string>(P_set.begin(), P_set.end());
 #else
     throw std::runtime_error("rule_duplicate_scc is not implemented");
 #endif
@@ -915,7 +915,7 @@ static rule_ret_t rule_construct_loop(string &n, nodes_t &nodes, edges_t &edges,
 
     auto loop_body = make_unique<vector<unique_ptr<IRInst>>>();
 
-    for (auto &i: nodes[n]->insts) {
+    for (auto  const&i: nodes[n]->insts) {
         auto new_i = i->clone();
 
         if (auto cont_break_inst = dynamic_cast<IContBreak *>(i.get())) {
@@ -960,8 +960,8 @@ unique_ptr<vector<unique_ptr<IRInst>>> control_flow_conversion(ir_blocks_t *ir_b
     edges_t edges;
     backwards_t backwards;
 
-    for (auto &block: ir_blocks->second) {
-        auto node = block;
+    for (auto  const&block: ir_blocks->second) {
+        auto const node = block;
 
         nodes[node] = make_shared<Node>();
         edges[node] = make_shared<vector<shared_ptr<Edge>>>();
@@ -969,7 +969,7 @@ unique_ptr<vector<unique_ptr<IRInst>>> control_flow_conversion(ir_blocks_t *ir_b
     }
 
     // Calculate out edges
-    for (auto &block: ir_blocks->second) {
+    for (auto  const&block: ir_blocks->second) {
         string node = block;
         auto insts = ir_blocks->first.at(block).get();
         //auto insts = block.second.get();
@@ -1023,8 +1023,8 @@ unique_ptr<vector<unique_ptr<IRInst>>> control_flow_conversion(ir_blocks_t *ir_b
             throw std::runtime_error("Unknown terminator: " + term->to_coq());
         }
 
-        for (auto &edge: *edges[node]) {
-            auto be = make_shared<Backward>(node, edge);
+        for (auto  const&edge: *edges[node]) {
+            auto const be = make_shared<Backward>(node, edge);
 
             backwards[edge->next]->push_back(be);
             edge->backward = be;
@@ -1032,21 +1032,21 @@ unique_ptr<vector<unique_ptr<IRInst>>> control_flow_conversion(ir_blocks_t *ir_b
     }
 
     // Elinimate PHI nodes
-    for (auto &block: nodes) {
-        auto node = block.second;
-        auto blk = block.first;
+    for (auto  const&block: nodes) {
+        auto const node = block.second;
+        auto const blk = block.first;
 
-        for (auto &inst: node->insts) {
+        for (auto  const&inst: node->insts) {
             if (dynamic_cast<IPHI *>(inst.get())) {
                 auto phi_inst = dynamic_cast<IPHI *>(inst.get());
-                auto typ = phi_inst->get_type();
+                auto const typ = phi_inst->get_type();
                 auto assg = phi_inst->assign;
 
                 for (int i = 0; i < phi_inst->values->size(); i++) {
                     auto src = phi_inst->blocks->at(i).get();
                     auto val = phi_inst->values->at(i).get();
 
-                    for (auto &e: *edges[src->name]) {
+                    for (auto  const&e: *edges[src->name]) {
                         if (e->next == blk) {
                             e->insts.push_back(make_shared<IAssign>(typ, assg, unique_ptr<IRValue>(val->clone())));
                         }
@@ -1117,7 +1117,7 @@ unique_ptr<vector<unique_ptr<IRInst>>> control_flow_conversion(ir_blocks_t *ir_b
             file.close();
 #endif
         };
-        vector<std::function<rule_ret_t(string &)>> rules = {
+        vector<std::function<rule_ret_t(string &)>> const rules = {
             [&](string &n) { dbg_nodes_edges("eliminate_leaf"); return rule_eliminate_leaf(n, nodes, edges, backwards); },
             [&](string &n) { dbg_nodes_edges("eliminate_bridge"); return rule_eliminate_bridge(n, nodes, edges, backwards); },
             [&](string &n) {
@@ -1145,10 +1145,10 @@ unique_ptr<vector<unique_ptr<IRInst>>> control_flow_conversion(ir_blocks_t *ir_b
 
         update_scc(nodes, edges, backwards, seq);
 
-        for (auto &rule: rules) {
+        for (auto  const&rule: rules) {
             succ = false;
             for (auto &n : seq) {
-                auto r_out = rule(n);
+                auto const r_out = rule(n);
 
                 if (RULE_RESULT_NOT_NONE(r_out)) {
 #ifdef DEBUG
@@ -1170,7 +1170,7 @@ unique_ptr<vector<unique_ptr<IRInst>>> control_flow_conversion(ir_blocks_t *ir_b
 
     auto body = make_unique<vector<unique_ptr<IRInst>>>();
 
-    for (auto &inst: nodes.begin()->second->insts) {
+    for (auto  const&inst: nodes.begin()->second->insts) {
         body->push_back(unique_ptr<IRInst>(inst->clone()));
     }
 

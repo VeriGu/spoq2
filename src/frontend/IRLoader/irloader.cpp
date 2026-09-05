@@ -21,11 +21,11 @@ map<string, shared_ptr<IRType>> structs_info;
 
 static unsigned long size_of_unnamed_struct(const vector<shared_ptr<IRType>> &st) {
     unsigned long ofs = 0;
-    unsigned long default_align = 8;
+    unsigned long const default_align = 8;
     unsigned long sz = 0;
 
     for (const auto &elem : st) {
-        unsigned long padding = default_align - (ofs % default_align);
+        unsigned long const padding = default_align - (ofs % default_align);
 
         if (dynamic_cast<TInt *>(elem.get()) != nullptr ||
             dynamic_cast<TBool *>(elem.get()) != nullptr ||
@@ -66,7 +66,7 @@ static shared_ptr<IRType> parse_type(const ptree &typ) {
     if (irtype_map.find(type) != irtype_map.end()) {
         return irtype_map.at(type);
     } else if (type == "function") {
-        auto rettype = parse_type(typ.get_child("return"));
+        auto const rettype = parse_type(typ.get_child("return"));
         auto arglist = make_unique<vector<shared_ptr<IRType>>>();
 
         for (const auto &arg : typ.get_child("arguments")) {
@@ -75,7 +75,7 @@ static shared_ptr<IRType> parse_type(const ptree &typ) {
 
         return make_shared<TFunction>(std::move(arglist), rettype);
     } else if (type == "pointer") {
-        auto subtype = parse_type(typ.get_child("subtype"));
+        auto const subtype = parse_type(typ.get_child("subtype"));
 
         return make_shared<TPtr>(subtype);
     } else if (type == "named_struct") {
@@ -87,7 +87,7 @@ static shared_ptr<IRType> parse_type(const ptree &typ) {
         auto elem_types = vector<shared_ptr<IRType>>();
 
         for (const auto &elem : typ.get_child("struct")) {
-            auto elem_type = parse_type(elem.second);
+            auto const elem_type = parse_type(elem.second);
 
             elems->push_back(make_shared<TStructElem>(elem_type));
             elem_types.push_back(elem_type);
@@ -95,17 +95,17 @@ static shared_ptr<IRType> parse_type(const ptree &typ) {
 
         return make_shared<TStruct>(std::move(elems), size_of_unnamed_struct(elem_types));
     } else if (type == "array") {
-        auto subtype = parse_type(typ.get_child("subtype"));
-        auto size = typ.get<coq_sz_t>("length");
+        auto const subtype = parse_type(typ.get_child("subtype"));
+        auto const size = typ.get<coq_sz_t>("length");
 
         return make_shared<TArray>(subtype, size);
     } else if (type == "fixedvector") {
-        auto subtype = parse_type(typ.get_child("subtype"));
-        auto length = typ.get<coq_sz_t>("length");
+        auto const subtype = parse_type(typ.get_child("subtype"));
+        auto const length = typ.get<coq_sz_t>("length");
 
         return make_shared<TFixedVector>(subtype, length);
     } else if (type == "scalevector") {
-        auto subtype = parse_type(typ.get_child("subtype"));
+        auto const subtype = parse_type(typ.get_child("subtype"));
 
         return make_shared<TScaleVector>(subtype);
     } else {
@@ -178,7 +178,7 @@ static Ordering parse_ordering(const string &order) {
 }
 
 static unique_ptr<IRValue> parse_value(const ptree &val) {
-    auto typ = parse_type(val.get_child("type"));
+    auto const typ = parse_type(val.get_child("type"));
     string src = val.get<string>("source");
 
     if (src == "constant") {
@@ -186,7 +186,7 @@ static unique_ptr<IRValue> parse_value(const ptree &val) {
 
         if (value.empty()) {
             // If the value is a string, it is a literal
-            auto value = val.get<string>("value");
+            auto const value = val.get<string>("value");
 
             if (value == "UndefValue")
                 return make_unique<VUndef>(typ);
@@ -245,7 +245,7 @@ static unique_ptr<IRValue> parse_value(const ptree &val) {
     } else if (src == "basic_block") {
         return make_unique<VLabel>(val.get<string>("value"));
     } else if (src == "inline_asm") {
-       auto iasm_val = val.get_child("value");
+       auto const iasm_val = val.get_child("value");
 
          return make_unique<VInlineAsm>(typ, iasm_val.get<string>("asm"), iasm_val.get<string>("side_effect") == "true",
                                           iasm_val.get<string>("constraints"));
@@ -301,7 +301,7 @@ static unique_ptr<IRInst> parse_instruction(const ptree &inst, string fname) {
         return make_unique<IUnaryOp>(parse_type(inst_assign.get_child("type")), inst_assign.get<string>("value"),
                                      Op(Op::OBitCast), parse_value(inst.get_child("src")));
     } else if (inst_type == "BranchInst") {
-        bool conditional = inst.get<bool>("conditional");
+        bool const conditional = inst.get<bool>("conditional");
 
         if (conditional) {
             return make_unique<ICondBranch>(parse_value(inst.get_child("condition")),
@@ -395,7 +395,7 @@ static unique_ptr<IRInst> parse_instruction(const ptree &inst, string fname) {
         return make_unique<IGetElemPtr>(parse_type(inst_assign.get_child("type")), inst_assign.get<string>("value"),
                                         parse_value(inst.get_child("src")), parse_val_list(inst.get_child("indices")));
     } else if (inst_type == "ICmpInst") {
-        auto op = parse_op(inst.get<string>("predicate"));
+        auto const op = parse_op(inst.get<string>("predicate"));
         auto inst_op = inst.get_child("operands");
         auto op0 = parse_value(inst_op.begin()->second);
         auto op1 = parse_value(std::next(inst_op.begin())->second);
@@ -433,7 +433,7 @@ static unique_ptr<IRInst> parse_instruction(const ptree &inst, string fname) {
     } else if (inst_type == "PHINode") {
         auto values = make_unique<vector<unique_ptr<IRValue>>>();
         auto blocks = make_unique<vector<unique_ptr<IRValue>>>();
-        auto inst_incoming_list = inst.get_child("incoming_list");
+        auto const inst_incoming_list = inst.get_child("incoming_list");
         auto inst_assign = inst.get_child("assign");
 
         for (const auto &incoming : inst_incoming_list) {
@@ -449,7 +449,7 @@ static unique_ptr<IRInst> parse_instruction(const ptree &inst, string fname) {
         return make_unique<IUnaryOp>(parse_type(inst_assign.get_child("type")), inst_assign.get<string>("value"),
                                      Op(Op::OPtrToInt), parse_value(inst.get_child("src")));
     } else if (inst_type == "ReturnInst") {
-        auto opt_return_value = inst.get_child_optional("return_value");
+        auto const opt_return_value = inst.get_child_optional("return_value");
 
         if (opt_return_value) {
             return make_unique<IReturn>(parse_type(inst.get_child("return_type")), parse_value(opt_return_value.get()));
@@ -531,7 +531,7 @@ static unsigned long count_ir_loc(const ptree &func) {
     return loc;
 }
 
-static unsigned long count_cir_loc(vector<unique_ptr<IRInst>> *body) {
+static unsigned long count_cir_loc(vector<unique_ptr<IRInst>>  const*body) {
     unsigned long loc = 0;
 
     for (const auto &inst : *body) {
@@ -554,9 +554,9 @@ static unsigned long count_cir_loc(vector<unique_ptr<IRInst>> *body) {
 
 static shared_ptr<CFunction> parse_function(const ptree &func) {
     string fname = func.get<string>("fname");
-    auto rettype = parse_type(func.get_child("rettype"));
+    auto const rettype = parse_type(func.get_child("rettype"));
     auto args = make_unique<vector<unique_ptr<FuncArg>>>();
-    bool is_decl = func.get<bool>("is_declaration");
+    bool const is_decl = func.get<bool>("is_declaration");
     unique_ptr<IRFunction> irfunc;
     shared_ptr<CFunction> cfunc;
 
@@ -724,7 +724,7 @@ static shared_ptr<ptree> parse_debug_info(const ptree &module) {
 static bool parse_struct(string name, ptree &module, ptree &sinfo, ptree &debug_info) {
     auto module_sinfo = module.get_child("struct_types").get_child(name);
     auto stype = module_sinfo.get_child("elems");
-    bool is_union = sinfo.get<string>("name").compare(0, 6, "union!") == 0;
+    bool const is_union = sinfo.get<string>("name").compare(0, 6, "union!") == 0;
     coq_sz_t size = -1, npaddings = 0;
     auto elems = make_unique<vector<shared_ptr<TStructElem>>>();
 
@@ -734,7 +734,7 @@ static bool parse_struct(string name, ptree &module, ptree &sinfo, ptree &debug_
         size = sz.get();
 
     //assert(sinfo.get_child_optional("elements"));
-    auto selems_opt = sinfo.get_child_optional("elements");
+    auto const selems_opt = sinfo.get_child_optional("elements");
     if (!selems_opt) {
         structs_info.emplace(name, make_shared<TStruct>(std::move(elems), 0));
         return false;
@@ -745,16 +745,16 @@ static bool parse_struct(string name, ptree &module, ptree &sinfo, ptree &debug_
         int i = 0;
 
         for (auto it = stype.begin(); it != stype.end(); it++, i++) {
-            auto elem = make_shared<TStructElem>(name + "." + std::to_string(i), parse_type(it->second), i, true);
+            auto const elem = make_shared<TStructElem>(name + "." + std::to_string(i), parse_type(it->second), i, true);
 
             elems->push_back(elem);
 
-            auto typ = elem->type;
+            auto const typ = elem->type;
 
             if (auto typ_named_struct = dynamic_cast<TNamedStruct *>(typ.get())) {
                 auto selems_i = (*std::next(selems.begin(), i)).second;
 
-                if (auto type_elem_type = selems_i.get_child_optional("type")) {
+                if (auto const type_elem_type = selems_i.get_child_optional("type")) {
                     if (type_elem_type.get().empty())
                         continue;
                     auto typ_name = typ->get_name();
@@ -774,8 +774,8 @@ static bool parse_struct(string name, ptree &module, ptree &sinfo, ptree &debug_
         coq_sz_t type_ofs;
 
         for (auto it = selems.begin(); it != selems.end(); it++, i++) {
-            auto info_ofs = it->second.get<coq_sz_t>("offset");
-            auto &pad_type_elem = (*std::next(stype.begin(), i + npaddings)).second;
+            auto const info_ofs = it->second.get<coq_sz_t>("offset");
+            auto  const&pad_type_elem = (*std::next(stype.begin(), i + npaddings)).second;
 
             if (i + npaddings >= stype.size()) {
                 break;
@@ -800,12 +800,12 @@ static bool parse_struct(string name, ptree &module, ptree &sinfo, ptree &debug_
                 type_ofs = (*std::next(stype.begin(), i + npaddings)).second.get<coq_sz_t>("offset");
             }
 
-            auto new_elem =  make_shared<TStructElem>(it->second.get<string>("name"), parse_type(pad_type_elem), type_ofs, true);
+            auto const new_elem =  make_shared<TStructElem>(it->second.get<string>("name"), parse_type(pad_type_elem), type_ofs, true);
             elems->push_back(new_elem);
 
-            auto typ = new_elem->type;
+            auto const typ = new_elem->type;
             if (auto typ_named_struct = dynamic_cast<TNamedStruct *>(typ.get())) {
-                if (auto type_elem_type = it->second.get_child_optional("type")) {
+                if (auto const type_elem_type = it->second.get_child_optional("type")) {
                     if (type_elem_type.get().empty())
                         continue;
                     auto typ_name = typ->get_name();
@@ -829,18 +829,18 @@ static bool parse_struct(string name, ptree &module, ptree &sinfo, ptree &debug_
 // postprocess default value is true
 shared_ptr<IRModule> parse_module(ptree &module, bool postprocess) {
     auto debug_info = parse_debug_info(module);
-    auto globvars = make_shared<map<string, shared_ptr<GlobalVar>>>();
-    auto funcs = make_shared<map<string, shared_ptr<CFunction>>>();
+    auto const globvars = make_shared<map<string, shared_ptr<GlobalVar>>>();
+    auto const funcs = make_shared<map<string, shared_ptr<CFunction>>>();
 
     while (true) {
         bool parse_new_struct = false;
-        for (auto &struct_node : debug_info->get_child("structs")) {
-            auto struct_key = struct_node.first;
+        for (auto  const&struct_node : debug_info->get_child("structs")) {
+            auto const struct_key = struct_node.first;
 
             if (structs_info.find(struct_key) != structs_info.end())
                 continue;
 
-            if (auto s = module.get_child("struct_types").get_child_optional(struct_key)) {
+            if (auto const s = module.get_child("struct_types").get_child_optional(struct_key)) {
                 parse_struct(struct_key, module, debug_info->get_child("structs").get_child(struct_key), *debug_info);
                 parse_new_struct = true;
             }
@@ -850,7 +850,7 @@ shared_ptr<IRModule> parse_module(ptree &module, bool postprocess) {
             break;
     }
 
-    for (auto &st: module.get_child("struct_types")) {
+    for (auto  const&st: module.get_child("struct_types")) {
         auto name = st.first;
 
         if (structs_info.find(name) != structs_info.end())
@@ -858,7 +858,7 @@ shared_ptr<IRModule> parse_module(ptree &module, bool postprocess) {
 
         auto st_json = st.second;
         auto elems = make_unique<vector<shared_ptr<TStructElem>>>();
-        for (auto &elem: st_json.get_child("elems")) {
+        for (auto  const&elem: st_json.get_child("elems")) {
             elems->push_back(make_shared<TStructElem>("", parse_type(elem.second), 0, true));
         }
 
@@ -872,15 +872,15 @@ shared_ptr<IRModule> parse_module(ptree &module, bool postprocess) {
         structs_info.emplace(name, make_shared<TStruct>(std::move(elems), sz));
     }
 
-    for (auto gvar: module.get_child("global_variables")) {
+    for (auto const gvar: module.get_child("global_variables")) {
         auto vname = gvar.first;
         auto var = gvar.second;
-        auto vtype = parse_type(var.get_child("type"));
-        auto vconst = var.get<bool>("constant");
-        auto valign = var.get<coq_sz_t>("align");
+        auto const vtype = parse_type(var.get_child("type"));
+        auto const vconst = var.get<bool>("constant");
+        auto const valign = var.get<coq_sz_t>("align");
         unique_ptr<IRValue> vvalue;
 
-        if (auto val = var.get_child_optional("value")) {
+        if (auto const val = var.get_child_optional("value")) {
             vvalue = parse_value(val.get());
         } else {
             vvalue = nullptr;

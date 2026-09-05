@@ -35,21 +35,21 @@ void gen_specs(Project *proj, loc_t loc, string out_path, string cache_out = "")
 
     std::queue<string> q;
     std::map<string, int> checked;
-    for (auto s : syms) {
+    for (auto const s : syms) {
         q.push(s);
         checked[s] = 1;
     }
 
     while (!q.empty()) {
-        auto s = q.front();
+        auto const s = q.front();
         q.pop();
         if (proj->deps.find(s) == proj->deps.end()) {
-            auto def = proj->defs.find(s);
+            auto const def = proj->defs.find(s);
             if( def == proj->defs.end() || def->second == nullptr ) continue;
             proj->deps[s] = proj->calc_dependencies((def->second)->body.get());
         }
 
-        for (auto d : proj->deps[s]) {
+        for (auto const d : proj->deps[s]) {
             if (proj->symbols[d].loc == loc) continue;
             if (proj->symbols[d].loc == loc_t("", "", "")) continue;
 
@@ -67,7 +67,7 @@ void gen_specs(Project *proj, loc_t loc, string out_path, string cache_out = "")
         }
     }
 
-    for (auto d : deps)
+    for (auto const d : deps)
         out << "Require Import " + d + ".\n";
 
     out << "\n";
@@ -77,7 +77,7 @@ void gen_specs(Project *proj, loc_t loc, string out_path, string cache_out = "")
     out << "Local Open Scope Z_scope.\n";
     out << "\n";
 
-    for (auto s : syms) {
+    for (auto const s : syms) {
         if (proj->symbols[s].kind == SymbolKind::Decl) {
             out << string(*proj->decls[s]) + "\n\n";
             if (cache_out != "") cache_o << string(*proj->decls[s]) + "\n\n";
@@ -96,7 +96,7 @@ void gen_specs(Project *proj, loc_t loc, string out_path, string cache_out = "")
     out << "  Context `{int_ptr: IntPtrCast}.\n";
     out << "\n";
 
-    for (auto s : syms) {
+    for (auto const s : syms) {
         if (proj->symbols[s].kind == SymbolKind::Def) {
             out << add_indent(string(*proj->defs[s]), 2) + "\n\n";
             if (cache_out != "") cache_o << string(*proj->defs[s]) + "\n\n";
@@ -115,7 +115,7 @@ void gen_specs(Project *proj, loc_t loc, string out_path, string cache_out = "")
 
     out << ".\n\n";
 
-    for (auto s : syms) {
+    for (auto const s : syms) {
         if (proj->symbols[s].kind == SymbolKind::Def) {
             if (proj->cmds.NoUnfold.find(s) != proj->cmds.NoUnfold.end()) {
                 out << "Opaque " + s + ".\n";
@@ -131,12 +131,12 @@ void gen_specs(Project *proj, loc_t loc, string out_path, string cache_out = "")
 unique_ptr<vector<string>> generate_high_spec(Project *proj)
 {
     auto files = unique_ptr<vector<string>>(new vector<string>());
-    boost::filesystem::path dir(proj->base);
-    boost::filesystem::path file("GlobalDefs.v");
+    boost::filesystem::path const dir(proj->base);
+    boost::filesystem::path const file("GlobalDefs.v");
     files->push_back("GlobalDefs.v");
 
     gen_specs(proj, loc_t("GlobalDefs", "", ""), (dir / file).string());
-    auto cache_dir = dir / ".CachedSpec";
+    auto const cache_dir = dir / ".CachedSpec";
     if (!fs::exists(cache_dir.string())) {
         fs::create_directory(cache_dir.string());
     }
@@ -150,7 +150,7 @@ unique_ptr<vector<string>> generate_high_spec(Project *proj)
             fs::create_directory((dir / boost::filesystem::path(L->name)).string());
         }
 
-        auto cache_out = cache_dir / (L->name + "Spec.v");
+        auto const cache_out = cache_dir / (L->name + "Spec.v");
         gen_specs(proj, loc_t(L->name, "Spec", ""),
                   (dir / boost::filesystem::path(L->name) / boost::filesystem::path("Spec.v")).string(),
                   cache_out.string());

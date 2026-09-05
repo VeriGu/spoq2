@@ -55,8 +55,8 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
         auto &top = stack.back();
         //auto ln = std::get<0>(top);
         auto spec = std::get<1>(top);
-        auto n = std::get<2>(top);
-        auto known_types = std::get<3>(top);
+        auto const n = std::get<2>(top);
+        auto const known_types = std::get<3>(top);
 
         stack.pop_back();
 
@@ -66,13 +66,13 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
             if (known_types->find(sym->text) != known_types->end()) {
                 sym->type = (*known_types)[sym->text];
             } else if (proj.is_ind_constr(sym->text)) {
-                auto typ = proj.get_indtype_by_constr(sym->text);
+                auto const typ = proj.get_indtype_by_constr(sym->text);
 
                 if (typ) {
                     sym->type = typ;
                 }
             } else if (proj.symbols.find(sym->text) != proj.symbols.end()) {
-                auto info = proj.symbols[sym->text];
+                auto const info = proj.symbols[sym->text];
 
                 if (info.kind == SymbolKind::Def) {
                     sym->type = proj.defs.at(sym->text)->get_type();
@@ -87,7 +87,7 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
             auto expr = dynamic_cast<Expr *>(spec);
 
             if (holds_alternative<Expr::binops>(expr->op)) {
-                auto op = std::get<Expr::binops>(expr->op);
+                auto const op = std::get<Expr::binops>(expr->op);
 
                 switch (op) {
                 case Expr::ADD: case Expr::MINUS: case Expr::MULT: case Expr::DIV: case Expr::MOD:
@@ -100,8 +100,8 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                     } else if (expr->elems->size() != 2) {
                         expr->type = Int::INT;
                     } else {
-                        auto fst = expr->elems->at(0)->type;
-                        auto snd = expr->elems->at(1)->type;
+                        auto const fst = expr->elems->at(0)->type;
+                        auto const snd = expr->elems->at(1)->type;
                         if (fst->name == "Z" && snd->name == "Z") {
                             expr->type = Int::INT;
                         } else if (fst->name == snd->name){
@@ -140,22 +140,22 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                 }
                 case Expr::LIST_EQ: {
                     if (n == 0) {
-                        auto list_type = dynamic_pointer_cast<List>(expr->type);
+                        auto const list_type = dynamic_pointer_cast<List>(expr->type);
 
                         if (list_type)
                             expr->elems->at(0)->type = list_type->elem_type;
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
                     } else if (n == 1) {
-                        auto list_type = dynamic_pointer_cast<List>(expr->type);
+                        auto const list_type = dynamic_pointer_cast<List>(expr->type);
 
                         if (list_type)
                             expr->elems->at(1)->type = list_type->elem_type;
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(1).get(), 0, known_types));
                     } else if (n == 2) {
-                        auto elems0_type = expr->elems->at(0)->type;
-                        auto elems1_type = expr->elems->at(1)->type;
+                        auto const elems0_type = expr->elems->at(0)->type;
+                        auto const elems1_type = expr->elems->at(1)->type;
 
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         if (elems0_type != SpecType::UNKNOWN_TYPE && elems1_type == SpecType::UNKNOWN_TYPE) {
@@ -163,8 +163,8 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                             stack.push_back(std::make_tuple(__LINE__, expr->elems->at(1).get(), 0, known_types));
                         }
                     } else if (n == 3) {
-                        auto elems0_type = expr->elems->at(0)->type;
-                        auto elems1_type = expr->elems->at(1)->type;
+                        auto const elems0_type = expr->elems->at(0)->type;
+                        auto const elems1_type = expr->elems->at(1)->type;
 
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         if (elems1_type != SpecType::UNKNOWN_TYPE && elems0_type == SpecType::UNKNOWN_TYPE) {
@@ -233,22 +233,22 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                 }
                 case Expr::APPEND: {
                     if (n == 0) {
-                        auto list_type = dynamic_pointer_cast<List>(expr->type);
+                        auto const list_type = dynamic_pointer_cast<List>(expr->type);
 
                         if (list_type)
                             expr->elems->at(n)->type = list_type->elem_type;
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
                     } else if (n == 1) {
-                        auto list_type = dynamic_pointer_cast<List>(expr->type);
+                        auto const list_type = dynamic_pointer_cast<List>(expr->type);
 
                         if (list_type)
                             expr->elems->at(n)->type = list_type;
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(1).get(), 0, known_types));
                     } else if (n == 2) {
-                        auto elems0_type = expr->elems->at(0)->type;
-                        auto elems1_type = expr->elems->at(1)->type;
+                        auto const elems0_type = expr->elems->at(0)->type;
+                        auto const elems1_type = expr->elems->at(1)->type;
 
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         if (elems0_type != SpecType::UNKNOWN_TYPE && elems1_type == SpecType::UNKNOWN_TYPE) {
@@ -256,12 +256,12 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                             stack.push_back(std::make_tuple(__LINE__, expr->elems->at(1).get(), 0, known_types));
                         }
                     } else if (n == 3) {
-                        auto elems0_type = expr->elems->at(0)->type;
-                        auto elems1_type = expr->elems->at(1)->type;
+                        auto const elems0_type = expr->elems->at(0)->type;
+                        auto const elems1_type = expr->elems->at(1)->type;
 
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         if (elems1_type != SpecType::UNKNOWN_TYPE && elems0_type == SpecType::UNKNOWN_TYPE) {
-                            auto list_type = dynamic_pointer_cast<List>(elems1_type);
+                            auto const list_type = dynamic_pointer_cast<List>(elems1_type);
 
                             expr->elems->at(0)->type = list_type->elem_type;
                             stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
@@ -274,22 +274,22 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                 }
                 case Expr::CONCAT: {
                     if (n == 0) {
-                        auto list_type = dynamic_pointer_cast<List>(expr->type);
+                        auto const list_type = dynamic_pointer_cast<List>(expr->type);
 
                         if (list_type)
                             expr->elems->at(0)->type = list_type->elem_type;
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
                     } else if (n == 1) {
-                        auto list_type = dynamic_pointer_cast<List>(expr->type);
+                        auto const list_type = dynamic_pointer_cast<List>(expr->type);
 
                         if (list_type)
                             expr->elems->at(1)->type = list_type->elem_type;
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(1).get(), 0, known_types));
                     } else if (n == 2) {
-                        auto elems0_type = expr->elems->at(0)->type;
-                        auto elems1_type = expr->elems->at(1)->type;
+                        auto const elems0_type = expr->elems->at(0)->type;
+                        auto const elems1_type = expr->elems->at(1)->type;
 
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         if (elems0_type != SpecType::UNKNOWN_TYPE && elems1_type == SpecType::UNKNOWN_TYPE) {
@@ -297,8 +297,8 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                             stack.push_back(std::make_tuple(__LINE__, expr->elems->at(1).get(), 0, known_types));
                         }
                     } else if (n == 3) {
-                        auto elems0_type = expr->elems->at(0)->type;
-                        auto elems1_type = expr->elems->at(1)->type;
+                        auto const elems0_type = expr->elems->at(0)->type;
+                        auto const elems1_type = expr->elems->at(1)->type;
 
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         if (elems1_type != SpecType::UNKNOWN_TYPE && elems0_type == SpecType::UNKNOWN_TYPE) {
@@ -313,7 +313,7 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                 }
                 }
             } else if (holds_alternative<Expr::ops>(expr->op)) {
-                auto op = std::get<Expr::ops>(expr->op);
+                auto const op = std::get<Expr::ops>(expr->op);
 
                 switch(op) {
                 case Expr::Tuple: {
@@ -324,7 +324,7 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(n).get(), 0, known_types));
                     } else {
-                        auto tuple_type = make_shared<vector<shared_ptr<SpecType>>>();
+                        auto const tuple_type = make_shared<vector<shared_ptr<SpecType>>>();
 
                         for (const auto &elem : *expr->elems) {
                             tuple_type->push_back(elem->type);
@@ -352,16 +352,16 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
                     } else if (dynamic_pointer_cast<ZMap>(expr->elems->at(0)->type)){
-                        auto elem_type = dynamic_pointer_cast<ZMap>(expr->elems->at(0)->type);
+                        auto const elem_type = dynamic_pointer_cast<ZMap>(expr->elems->at(0)->type);
                         expr->type = elem_type->elem_type;
                     } else if (dynamic_pointer_cast<SMap>(expr->elems->at(0)->type)){
-                        auto elem_type = dynamic_pointer_cast<SMap>(expr->elems->at(0)->type);
+                        auto const elem_type = dynamic_pointer_cast<SMap>(expr->elems->at(0)->type);
                         expr->type = elem_type->elem_type;
                     } else if (dynamic_pointer_cast<Tuple>(expr->elems->at(0)->type)){
-                        auto elem_type = dynamic_pointer_cast<Tuple>(expr->elems->at(0)->type);
+                        auto const elem_type = dynamic_pointer_cast<Tuple>(expr->elems->at(0)->type);
                         if(elem_type->elems->size() == 2){
-                            auto elem_0_type = elem_type->elems->at(0)->type;
-                            auto elem_1_type = elem_type->elems->at(1)->type;
+                            auto const elem_0_type = elem_type->elems->at(0)->type;
+                            auto const elem_1_type = elem_type->elems->at(1)->type;
                             if (dynamic_pointer_cast<Int>(elem_1_type) && dynamic_pointer_cast<ZMap>(elem_0_type)) {
                                 // This is a tuple of form ((ZMap.t some_type) * Z)
                                 // This is the coq representation of an array.
@@ -386,47 +386,47 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(1).get(), 0, known_types));
                     } else if (n == 1) {
-                        auto zmap_type = dynamic_pointer_cast<ZMap>(expr->type);
+                        auto const zmap_type = dynamic_pointer_cast<ZMap>(expr->type);
 
                         if (zmap_type) {
                             expr->elems->at(0)->type = expr->type;
-                        } else if(auto smap_type = dynamic_pointer_cast<SMap>(expr->type)){
+                        } else if(auto const smap_type = dynamic_pointer_cast<SMap>(expr->type)){
                             expr->elems->at(0)->type = expr->type;
                         }
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
                     } else if (n == 2) {
-                        auto zmap_type = dynamic_pointer_cast<ZMap>(expr->elems->at(0)->type);
+                        auto const zmap_type = dynamic_pointer_cast<ZMap>(expr->elems->at(0)->type);
 
                         if (zmap_type) {
                             expr->elems->at(2)->type = zmap_type->elem_type;
-                        } else if(auto smap_type = dynamic_pointer_cast<SMap>(expr->elems->at(0)->type)){
+                        } else if(auto const smap_type = dynamic_pointer_cast<SMap>(expr->elems->at(0)->type)){
                             expr->elems->at(2)->type = smap_type->elem_type;
                         }
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(2).get(), 0, known_types));
                     } else if (n == 3) {
-                        auto elems0_type = expr->elems->at(0)->type;
-                        auto elems2_type = expr->elems->at(2)->type;
+                        auto const elems0_type = expr->elems->at(0)->type;
+                        auto const elems2_type = expr->elems->at(2)->type;
 
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         if (elems0_type != SpecType::UNKNOWN_TYPE && elems2_type == SpecType::UNKNOWN_TYPE) {
-                            if (auto zmap_type = dynamic_pointer_cast<ZMap>(elems0_type)) {
+                            if (auto const zmap_type = dynamic_pointer_cast<ZMap>(elems0_type)) {
                                 expr->elems->at(2)->type = zmap_type->elem_type;
-                            } else if(auto smap_type = dynamic_pointer_cast<SMap>(elems0_type)){
+                            } else if(auto const smap_type = dynamic_pointer_cast<SMap>(elems0_type)){
                                 expr->elems->at(2)->type = smap_type->elem_type;
                             }
                             stack.push_back(std::make_tuple(__LINE__, expr->elems->at(2).get(), 0, known_types));
                         }
                     } else if (n == 4) {
-                        auto elems0_type = expr->elems->at(0)->type;
-                        auto elems2_type = expr->elems->at(2)->type;
+                        auto const elems0_type = expr->elems->at(0)->type;
+                        auto const elems2_type = expr->elems->at(2)->type;
 
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         if (elems2_type != SpecType::UNKNOWN_TYPE && elems0_type == SpecType::UNKNOWN_TYPE) {
-                            if(auto zmap_type = make_shared<ZMap>(elems2_type)){
+                            if(auto const zmap_type = make_shared<ZMap>(elems2_type)){
                                 expr->elems->at(0)->type = zmap_type;
-                            } else if(auto smap_type = make_shared<SMap>(elems2_type)){
+                            } else if(auto const smap_type = make_shared<SMap>(elems2_type)){
                                 expr->elems->at(0)->type = smap_type;
                             }
                             stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
@@ -438,8 +438,8 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                 }
                 case Expr::RecordGet: {
                     auto field = dynamic_cast<Symbol *>(expr->elems->at(1).get())->text;
-                    auto &info = proj.symbols.at(field);
-                    auto rec = proj.structs.at(info.info);
+                    auto  const&info = proj.symbols.at(field);
+                    auto const rec = proj.structs.at(info.info);
 
                     assert(info.kind == SymbolKind::StructElem);
 
@@ -455,8 +455,8 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                 }
                 case Expr::RecordSet: {
                     auto field = dynamic_cast<Symbol *>(expr->elems->at(1).get())->text;
-                    auto &info = proj.symbols.at(field);
-                    auto rec = proj.structs.at(info.info);
+                    auto  const&info = proj.symbols.at(field);
+                    auto const rec = proj.structs.at(info.info);
 
                     assert(info.kind == SymbolKind::StructElem);
 
@@ -484,7 +484,7 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                 }
                 case Expr::Some: {
                     if (n == 0) {
-                        auto option_type = dynamic_pointer_cast<Option>(expr->type);
+                        auto const option_type = dynamic_pointer_cast<Option>(expr->type);
 
                         if (option_type)
                             expr->elems->at(0)->type = option_type->elem_type;
@@ -579,7 +579,7 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                     }
                 } else if (op == "ZMap.init" || op == "zmap_init") {
                     if (n == 0) {
-                        auto zmap_type = dynamic_pointer_cast<ZMap>(expr->type);
+                        auto const zmap_type = dynamic_pointer_cast<ZMap>(expr->type);
 
                         if (zmap_type)
                             expr->elems->at(0)->type = zmap_type->elem_type;
@@ -590,7 +590,7 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                     }
                 } else if (op == "List.is_empty") {
                     if (n == 0) {
-                        auto list_type = dynamic_pointer_cast<List>(expr->type);
+                        auto const list_type = dynamic_pointer_cast<List>(expr->type);
 
                         if (list_type)
                             expr->elems->at(0)->type = list_type->elem_type;
@@ -601,14 +601,14 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                     }
                 } else if (op == "List.eq") {
                     if (n == 0) {
-                        auto list_type = dynamic_pointer_cast<List>(expr->type);
+                        auto const list_type = dynamic_pointer_cast<List>(expr->type);
 
                         if (list_type)
                             expr->elems->at(0)->type = list_type->elem_type;
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
                     } else if (n == 1) {
-                        auto list_type = dynamic_pointer_cast<List>(expr->type);
+                        auto const list_type = dynamic_pointer_cast<List>(expr->type);
 
                         if (list_type)
                             expr->elems->at(1)->type = list_type->elem_type;
@@ -634,19 +634,19 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                     // }
 
                     auto type_symbol = string(*expr->elems->at(0));
-                    auto type_symbol_info = proj.symbols.find(type_symbol);
+                    auto const type_symbol_info = proj.symbols.find(type_symbol);
 
                     if (type_symbol_info != proj.symbols.end()) {
-                        auto type_kind = type_symbol_info->second.kind;
+                        auto const type_kind = type_symbol_info->second.kind;
                         shared_ptr<SpecType> type;
 
                         if (type_kind == SymbolKind::IndType) {
-                            auto indtype_it = proj.indtypes.find(type_symbol);
+                            auto const indtype_it = proj.indtypes.find(type_symbol);
                             assert(indtype_it != proj.indtypes.end());
 
                             type = indtype_it->second;
                         } else if (type_kind == SymbolKind::Struct) {
-                            auto struct_it = proj.structs.find(type_symbol);
+                            auto const struct_it = proj.structs.find(type_symbol);
                             assert(struct_it != proj.structs.end());
 
                             type = struct_it->second;
@@ -665,7 +665,7 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                     }
 
                     if (n == 0) {
-                        auto info = proj.symbols.at(op);
+                        auto const info = proj.symbols.at(op);
                         shared_ptr<SpecType> typ;
 
                         if (info.kind == SymbolKind::Def) {
@@ -673,8 +673,8 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                         } else if (info.kind == SymbolKind::Decl) {
                             typ = proj.decls.at(op)->get_type();
                         } else if (info.kind == SymbolKind::StructConstr) {
-                            auto st = proj.structs.at(info.info);
-                            auto args = make_shared<vector<shared_ptr<SpecType>>>();
+                            auto const st = proj.structs.at(info.info);
+                            auto const args = make_shared<vector<shared_ptr<SpecType>>>();
 
                             for (auto it = st->elems->begin(); it != st->elems->end(); it++) {
                                 args->push_back((*it)->type);
@@ -682,9 +682,9 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
 
                             typ = make_shared<Function>(st, args);
                         }  else if (info.kind == SymbolKind::IndConstructor) {
-                            auto ind = proj.indtypes.at(info.info);
-                            auto ind_args = ind->constr.at(op);
-                            auto args = make_shared<vector<shared_ptr<SpecType>>>();
+                            auto const ind = proj.indtypes.at(info.info);
+                            auto const ind_args = ind->constr.at(op);
+                            auto const args = make_shared<vector<shared_ptr<SpecType>>>();
 
                             for (auto it = ind_args->begin(); it != ind_args->end(); it++) {
                                 args->push_back((*it)->type);
@@ -699,7 +699,7 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                         spec->tmp = typ;
                     }
 
-                    auto typ = dynamic_pointer_cast<Function>(spec->tmp);
+                    auto const typ = dynamic_pointer_cast<Function>(spec->tmp);
                     // The expr and typ args may correctly have different sizes if the function is varargs
                     if (n < expr->elems->size() && typ->args->size() > n) {
                         expr->elems->at(n)->type = typ->args->at(n);
@@ -730,9 +730,9 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                     stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                     stack.push_back(std::make_tuple(__LINE__, op, 0, known_types));
                 } else {
-                    int n_elem = n - 1;
-                    auto typ = op->type;
-                    auto typ_func = dynamic_pointer_cast<Function>(typ);
+                    int const n_elem = n - 1;
+                    auto const typ = op->type;
+                    auto const typ_func = dynamic_pointer_cast<Function>(typ);
 
                     assert(typ_func != nullptr);
 
@@ -752,8 +752,8 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                 stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                 stack.push_back(std::make_tuple(__LINE__, match->src.get(), 0, known_types));
             } else if ((n - 1) / 3 < match->match_list->size()) {
-                int n_pm = (n - 1) / 3;
-                int n_step = (n - 1) % 3;
+                int const n_pm = (n - 1) / 3;
+                int const n_step = (n - 1) % 3;
                 auto pm = match->match_list->at(n_pm).get();
 
                 if (n_step == 0) {
@@ -762,7 +762,7 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
                     stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                     stack.push_back(std::make_tuple(__LINE__, pm->pattern.get(), 0, known_types));
                 } else if (n_step == 1) {
-                    shared_ptr<unordered_map<string, shared_ptr<SpecType>>> known(new unordered_map<string, shared_ptr<SpecType>>(*known_types));
+                    shared_ptr<unordered_map<string, shared_ptr<SpecType>>> const known(new unordered_map<string, shared_ptr<SpecType>>(*known_types));
 
                     infer_pattern(proj, pm->pattern.get(), known);
                     if (spec->type != nullptr)
@@ -828,7 +828,7 @@ void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, 
             auto fe = dynamic_cast<ForallExists *>(spec);
 
             if (n == 0) {
-                shared_ptr<unordered_map<string, shared_ptr<SpecType>>> known(new unordered_map<string, shared_ptr<SpecType>>(*known_types));
+                shared_ptr<unordered_map<string, shared_ptr<SpecType>>> const known(new unordered_map<string, shared_ptr<SpecType>>(*known_types));
 
                 for (const auto &var: *fe->vars) {
                     (*known)[var->name] = var->type;
@@ -891,7 +891,7 @@ bool check_well_typed(Project &proj, SpecNode *spec, std::set<string> &vars) {
 
         if (holds_alternative<unique_ptr<SpecNode>>(expr->op)) {
             auto expr_op = std::get<unique_ptr<SpecNode>>(expr->op).get();
-            bool well_typed = check_well_typed(proj, expr_op, vars);
+            bool const well_typed = check_well_typed(proj, expr_op, vars);
 
             assert(well_typed);
             return well_typed;

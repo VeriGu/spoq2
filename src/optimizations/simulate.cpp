@@ -9,7 +9,7 @@ namespace autov
 {
 	int Z3_SIM_TIMEOUT = 1000;
 
-	shared_ptr<SpecValue> formulate_relation(Project *proj, Definition *rel, SpecNode *st_spec, SpecNode *st_impl, shared_ptr<ProveState> state) {
+	shared_ptr<SpecValue> formulate_relation(Project *proj, Definition *rel, SpecNode  const*st_spec, SpecNode  const*st_impl, shared_ptr<ProveState> state) {
 		vector<string> names;
 		vector<unique_ptr<SpecNode>> elems;
 		if(rel->args->size() > 0){
@@ -19,14 +19,14 @@ namespace autov
 			names.push_back(rel->args->at(1)->name);
 			elems.push_back(st_impl->deep_copy());
 		}
-		auto p = subst_v2(proj, rel->body->deep_copy(), &names, &elems);
+		auto const p = subst_v2(proj, rel->body->deep_copy(), &names, &elems);
 		return z3_eval(proj, p.get(), state);
 	}
 
-	std::pair<bool, z3::expr> check_relation(Project *proj, Definition *rel, SpecNode *st_spec, SpecNode *st_impl, shared_ptr<ProveState> state) {
-		auto rel_expr = formulate_relation(proj, rel, st_spec, st_impl, state);
+	std::pair<bool, z3::expr> check_relation(Project *proj, Definition *rel, SpecNode  const*st_spec, SpecNode  const*st_impl, shared_ptr<ProveState> state) {
+		auto const rel_expr = formulate_relation(proj, rel, st_spec, st_impl, state);
 		z3::model model(z3ctx);
-		auto z3_ret = z3_check_unsat(state, rel_expr->get_z3_value(), model, &proj->query_saver, Z3_VERIFY_TIMEOUT);
+		auto const z3_ret = z3_check_unsat(state, rel_expr->get_z3_value(), model, &proj->query_saver, Z3_VERIFY_TIMEOUT);
 		return std::make_pair(z3_ret == Z3Result::True, rel_expr->get_z3_value());
 	}
 
@@ -80,7 +80,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
     if (!expr) return false;
     auto op = std::get_if<string>(&expr->op);
     if (!op || !UNFOLD_POLICY.deferred.count(*op)) return false;
-    auto it = proj->defs.find(*op);
+    auto const it = proj->defs.find(*op);
     if (it == proj->defs.end() || instance_of(it->second.get(), Fixpoint)) return false;
 
     LOG_DEBUG << "[demand-unfold] simulation failed below a call to " << *op
@@ -91,7 +91,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
     // Every name bound on the path so far: the inlined body must not capture
     // any of them.
     std::set<string> known;
-    for (auto &kv : *state->vars) known.insert(kv.first);
+    for (auto  const&kv : *state->vars) known.insert(kv.first);
     bool amb = false;
     inlined = proj->rules.eliminate_ambiguity(std::move(inlined), known, amb);
 
@@ -138,7 +138,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 
 	SimulateResult forward_simulation(Project *proj, SpecNode *st_check, SpecNode *spec_ret, SpecNode *impl, Definition *rel, Definition *ret_rel, shared_ptr<ProveState> state,
 			bool det, const path_t &path, int i, bool allow_none) {
-				int random_code = rand() % 10000;
+				int const random_code = rand() % 10000;
 			// bool det = false, const path_t &path = {}, int i = 0, bool allow_none = false) {
 		// LOG_DEBUG << "[forward_simulation " << random_code << "] start! checking " << string(*impl).substr(0,10000) << std::endl;
 		if (auto expr = instance_of(impl, Expr)) {
@@ -161,8 +161,8 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 						auto [is_relate, expr_relate]         = check_relation(proj, rel,     st_check, st_ret.get(), state);
 						auto [ret_is_relate, ret_expr_relate] = check_relation(proj, ret_rel, spec_ret, impl_ret, state);
 						if (is_relate && ret_is_relate) {
-							auto rel_expr = formulate_relation(proj, rel, st_check, st_ret.get(), state);
-							auto ret_expr = formulate_relation(proj, ret_rel, spec_ret, impl_ret, state);
+							auto const rel_expr = formulate_relation(proj, rel, st_check, st_ret.get(), state);
+							auto const ret_expr = formulate_relation(proj, ret_rel, spec_ret, impl_ret, state);
 							// LOG_INFO << "[forward_simulation] St Relation " << rel_expr->get_z3_value() << " is proved between\n"  << string(*st_check) << " and " << string(*st_ret.get()) << std::endl;
 							// if(!spec_ret) {
 							// 	LOG_INFO << "[forward_simulation] Spec SpecNode null." << std::endl;
@@ -183,9 +183,9 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 							// 	LOG_DEBUG << "Condition: " << cond;
 							//  	}
 						}
-						auto res = z3_verify_state_sat(state);
+						auto const res = z3_verify_state_sat(state);
 						if(!is_relate || !ret_is_relate)
-							int x = 5;
+							int const x = 5;
 						return SimulateResult{is_relate && ret_is_relate, false, false, false};
 					} else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
 						st_ret = expr->elems->at(0)->deep_copy();
@@ -211,15 +211,15 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 		} else if (auto m = instance_of(impl, Match)) {
 			set<string> used_fix;
 			bool add_post_condition = false;
-			bool resolve_to_none = false;
+			bool const resolve_to_none = false;
 			unique_ptr<SpecNode> post_cond;
 			unique_ptr<SpecNode> loop_post_cond;
-			auto src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
+			auto const src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
 			if (auto expr = instance_of(m->src.get(), Expr)) {
 				/** TODO: add post-conds and loop-invs */
 				if (holds_alternative<string>(expr->op)){
 					auto op = std::get<string>(expr->op);
-					auto info = proj->symbols[op];
+					auto const info = proj->symbols[op];
 					if (info.kind == SymbolKind::Def) {
 						if (proj->defs.find(op) != proj->defs.end()) {
                             auto def = proj->defs[op].get();
@@ -257,15 +257,15 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 					}
 				}
 			}
-			auto abst_spec = abst_transition(proj, m->src.get());
-			SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
+			auto const abst_spec = abst_transition(proj, m->src.get());
+			SpecNode  const*st_input = extract_st_from_expr(proj, m->src.get());
 
 			auto sim_result = SimulateResult{true, false, false, false};
 			// SpecNode *impl_rest = nullptr;
 
 			int cnt = 0;
 			for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
-				auto pm_state = state->copy();
+				auto const pm_state = state->copy();
 				auto pat = (*pm)->pattern.get();
 
 				resolve_pattern(proj, m, pat, src, pm_state);
@@ -274,7 +274,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 						if(!op_eq(expr->op, Expr::None)) {
 							continue;
 						} else {
-							auto this_branch_result = forward_simulation(proj, st_check, spec_ret, (*pm)->body.get(), rel, ret_rel, pm_state, det, path, i+1, allow_none);
+							auto const this_branch_result = forward_simulation(proj, st_check, spec_ret, (*pm)->body.get(), rel, ret_rel, pm_state, det, path, i+1, allow_none);
 							sim_result = sim_result + this_branch_result;
 							return sim_result;
 						}
@@ -282,7 +282,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 				}
 				if (add_post_condition) {
 					auto expr = instance_of(m->src.get(), Expr);
-					auto op = std::get<string>(expr->op);
+					auto const op = std::get<string>(expr->op);
 					if (auto loop = instance_of(proj->defs[op].get(), Fixpoint)){
 						if(auto p = instance_of(pat, Expr)) {
 							if(op_eq(p->op, Expr::Some)) {
@@ -299,18 +299,18 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 												(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 											}
 										}
-										auto new_inv = subst_v2(proj,std::move(loop_post_cond), &names, &elems);
+										auto const new_inv = subst_v2(proj,std::move(loop_post_cond), &names, &elems);
 										LOG_DEBUG << "[forward_simulation " << random_code << "] Checking loop invariant: Adding loop postcondition: " << string(*new_inv);
-										auto new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
+										auto const new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
 										pm_state->conds->push_back(new_inv_z3->get_z3_value());
 									}
 								} else if(p->elems->at(0)->type == proj->layers[0]->abs_data){
 									if(auto sym = instance_of(p->elems->at(0).get(), Symbol)) {
 										(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 									}
-									auto new_inv = subst_v2(proj,std::move(loop_post_cond), loop->name + "_" + "st_new", p->elems->at(0)->deep_copy());
+									auto const new_inv = subst_v2(proj,std::move(loop_post_cond), loop->name + "_" + "st_new", p->elems->at(0)->deep_copy());
 									LOG_DEBUG << "[forward_simulation " << random_code << "] Checking loop invariant: Adding loop postcondition: " << string(*new_inv);
-									auto new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
+									auto const new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
 									pm_state->conds->push_back(new_inv_z3->get_z3_value());
 								}
 							}
@@ -338,19 +338,19 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 												(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 											}
 										}
-										auto new_inv = subst_v2(proj,std::move(post_cond), &names, &elems);
+										auto const new_inv = subst_v2(proj,std::move(post_cond), &names, &elems);
 										LOG_DEBUG << "[forward_simulation " << random_code << "] Adding postcondition: " << string(*new_inv);
-										auto new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
+										auto const new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
 										pm_state->conds->push_back(new_inv_z3->get_z3_value());
 									}
 								} else if(p->elems->at(0)->type == proj->layers[0]->abs_data) {
 									if(auto sym = instance_of(p->elems->at(0).get(), Symbol)) {
 										(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 									}
-									auto new_inv = subst_v2(proj,std::move(post_cond), def->name + "_st_new_", p->elems->at(0)->deep_copy());
+									auto const new_inv = subst_v2(proj,std::move(post_cond), def->name + "_st_new_", p->elems->at(0)->deep_copy());
 
 									LOG_DEBUG << "[forward_simulation " << random_code << "] Adding postcondition: " << string(*new_inv);
-									auto new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
+									auto const new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
 									pm_state->conds->push_back(new_inv_z3->get_z3_value());
 								}
 							}
@@ -360,7 +360,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 
 
 				if (!std::holds_alternative<std::nullptr_t>(abst_spec)) {
-					SpecNode *st_ret = extract_st_from_expr(proj, pat);
+					SpecNode  const*st_ret = extract_st_from_expr(proj, pat);
 					if (st_input && st_ret) {
 						/** TODO: add lemmas and invariants here */
 						/** TODO: check weak induction pre-condition:
@@ -398,7 +398,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 			return sim_result;
 
 		} else if (auto iff = instance_of(impl, If)) {
-			auto cond = z3_eval(proj, iff->cond.get(), state);
+			auto const cond = z3_eval(proj, iff->cond.get(), state);
 			auto cond_val = cond->get_z3_value();
 			if (cond_val.is_int()){
 				cond_val = (cond_val != 0);
@@ -415,11 +415,11 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 			} else {
 				// LOG_DEBUG << "[forward_simulation " << random_code << "] If is determ branch False";
 				z3::model model(z3ctx);
-				auto t_race = OPTS.race_timeout;
+				auto const t_race = OPTS.race_timeout;
 				// OPTS.race_timeout = Z3_SIM_TIMEOUT;
 				// true_res = z3_check(state, cond->get_z3_value(), Z3_SIM_TIMEOUT);
 				// if z3_check_unsat returns True on !cond, then !cond cannot be false, meaning cond cannot be true.
-                std::pair<bool,bool> plausibility = check_branch_plausibility(proj, state, cond, model);
+                std::pair<bool,bool> const plausibility = check_branch_plausibility(proj, state, cond, model);
 				true_branch_plausible = plausibility.first;
 				false_branch_plausible = plausibility.second;
 				OPTS.race_timeout = t_race;
@@ -441,16 +441,16 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 				// if (!det || !iff->cond->is_determ_branch) {
 				// 	LOG_DEBUG << "Unsolved (try) If non-determ cond!" << string(*iff->cond.get());
 				// }
-				auto then_state = state->copy();
-				auto else_state = state->copy();
+				auto const then_state = state->copy();
+				auto const else_state = state->copy();
 				then_state->conds->push_back(cond_val);
 				else_state->conds->push_back(!cond_val);
-				auto then_sim_result = forward_simulation(proj, st_check, spec_ret, iff->then_body.get(), rel, ret_rel, then_state, false, path, i+1, allow_none);
+				auto const then_sim_result = forward_simulation(proj, st_check, spec_ret, iff->then_body.get(), rel, ret_rel, then_state, false, path, i+1, allow_none);
 				if (!then_sim_result.verified) {
 					LOG_DEBUG << "[forward_simulation " << random_code << "] Then branch of if not verified";
 					LOG_DEBUG << "[forward_simulation " << random_code << "] Guilty condition " << cond.get()->get_z3_value();
 				}
-				auto else_sim_result = forward_simulation(proj, st_check, spec_ret, iff->else_body.get(), rel, ret_rel, else_state, false, path, i+1, allow_none);
+				auto const else_sim_result = forward_simulation(proj, st_check, spec_ret, iff->else_body.get(), rel, ret_rel, else_state, false, path, i+1, allow_none);
 				if (!else_sim_result.verified) {
 					LOG_DEBUG << "[forward_simulation " << random_code << "] else branch of if not verified";
 					LOG_DEBUG << "[forward_simulation " << random_code << "] Guilty condition " << (!cond_val);
@@ -459,7 +459,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 			}
 
 		} else if (auto r = instance_of(impl, Rely)) {
-			auto c = z3_eval(proj, r->prop.get(), state);
+			auto const c = z3_eval(proj, r->prop.get(), state);
 			state->conds->push_back(c->get_z3_value());
 			return forward_simulation(proj, st_check, spec_ret, r->body.get(), rel, ret_rel, state, det, path, i, allow_none);
 		} else if (auto r = instance_of(impl, Symbol)){
@@ -470,7 +470,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 					// for(auto cond: *state->conds) {
 					// 	LOG_DEBUG << "Condition: " << cond;
 					// }
-					auto res = z3_verify_state_sat(state, &proj->query_saver);
+					auto const res = z3_verify_state_sat(state, &proj->query_saver);
 					LOG_DEBUG << "[forward_simulation " << random_code << "] allow_none violation state saved.";
 				}
 				return SimulateResult{allow_none, allow_none, false, !allow_none};
@@ -489,8 +489,8 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
     }
 
     std::pair<bool,bool> check_branch_plausibility(autov::Project *proj,
-                                   std::shared_ptr<autov::ProveState> &state,
-                                   std::shared_ptr<autov::SpecValue> &cond,
+                                   std::shared_ptr<autov::ProveState>  const&state,
+                                   std::shared_ptr<autov::SpecValue>  const&cond,
                                    z3::model &model) {
 		// LOG_DEBUG << "[check_branch_plausibility] checking if cond is unsat: "
         //     << cond->get_z3_value().to_string().substr(0,200);
@@ -498,13 +498,13 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 		if (cond_val.is_int()) {
 			cond_val = (cond_val != 0);
 		}
-        auto true_res = z3_check_unsat(state, !cond_val, model,
+        auto const true_res = z3_check_unsat(state, !cond_val, model,
                                   &proj->query_saver, 500);
         // LOG_DEBUG << "[check_branch_plausibility] checking if cond is unsat: "
         //           << cond_val.to_string().substr(0,200);
         // if z3_check_unsat returns True, then cond cannot be false.
 		// In that case, the false branch is not possible.
-        auto res = z3_check_unsat(state, cond_val, model,
+        auto const res = z3_check_unsat(state, cond_val, model,
                              &proj->query_saver, 500);
 		return std::make_pair(!(true_res == Z3Result::True),
 							  !(res == Z3Result::True));
@@ -538,13 +538,13 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 	 * @return false if the specification relation is not proved
 	 */
 	SimulateResult simulate_by_traverse(Project *proj, SpecNode *spec, SpecNode *impl, Definition *rel, Definition *ret_rel, shared_ptr<ProveState> state, path_t p, bool det) {
-		int random_code = rand() % 10000;
+		int const random_code = rand() % 10000;
 		LOG_DEBUG << "[simulate_by_traverse " << random_code << "] start!" << std::endl;
 		// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] start!" << std::endl << string(*spec) << std::endl;
 		// If the impl node is a Rely, discharge its prop into the state immediately
 		// and continue traversal on the Rely's body against the same spec.
 		if (auto impl_rely = instance_of(impl, Rely)) {
-			auto c = z3_eval(proj, impl_rely->prop.get(), state);
+			auto const c = z3_eval(proj, impl_rely->prop.get(), state);
 			state->conds->push_back(c->get_z3_value());
 			return simulate_by_traverse(proj, spec, impl_rely->body.get(), rel, ret_rel, state, p, det);
 		}
@@ -572,7 +572,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 						}
 						return result;
 					} else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
-					   auto st_ret = expr->elems->at(0)->deep_copy();
+					   auto const st_ret = expr->elems->at(0)->deep_copy();
 						return forward_simulation(proj, st_ret.get(), nullptr, impl, rel, ret_rel, state, det, p, 0, false);
 					}
 				} else if (*e_op == Expr::None) {
@@ -585,13 +585,13 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 		} else if (auto m = instance_of(spec, Match)) {
 			set<string> used_fix;
 			bool add_post_condition = false;
-			bool resolve_to_none = false;
+			bool const resolve_to_none = false;
 			unique_ptr<SpecNode> post_cond;
 			unique_ptr<SpecNode> loop_post_cond;
 			if (auto expr = instance_of(m->src.get(), Expr)) {
 				if (holds_alternative<string>(expr->op)){
 					auto op = std::get<string>(expr->op);
-					auto info = proj->symbols[op];
+					auto const info = proj->symbols[op];
 					if (info.kind == SymbolKind::Def) {
 						vector<shared_ptr<SpecValue>> elems;
 						for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {
@@ -637,7 +637,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 			// auto abst_spec = abst_transition(proj, m->src.get());
 			// SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
 
-			auto src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
+			auto const src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
 
 			// If the impl node is a `match` and src == impl_src by SMT check
 			// and has the same branch structure, advance the impl into
@@ -654,7 +654,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 					impl_src = z3_eval(proj, impl_m->src.get(), state, true, false, impl_used_fix);
 					// srcs are equivalent iff there is no model in which they differ.
 					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Comparing Match src values: " << "Spec: " << string(*src) << "\nImpl: " << string(*impl_src);
-					auto diff_res = z3_check(state, (src->get_z3_value() != impl_src->get_z3_value()), &proj->query_saver, Z3_SIM_TIMEOUT);
+					auto const diff_res = z3_check(state, (src->get_z3_value() != impl_src->get_z3_value()), &proj->query_saver, Z3_SIM_TIMEOUT);
 					if (diff_res == Z3Result::False) {
 						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Impl match src provably equivalent to spec, advancing impl.";
 						impl_match = impl_m;
@@ -666,10 +666,10 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 			auto sim_result = SimulateResult{true, false, false, false};
 			for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
 				path_t p_match = p;
-				int branch_idx = cnt;
+				int const branch_idx = cnt;
 				p_match.push_back(cnt++);
 
-				auto new_state = state->copy();
+				auto const new_state = state->copy();
 				auto pat = (*pm)->pattern.get();
 				resolve_pattern(proj, m, pat, src, new_state);
 
@@ -691,7 +691,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 						if(!op_eq(expr->op, Expr::None)) {
 							continue;
 						} else {
-							auto new_result = simulate_by_traverse(proj, (*pm)->body.get(), impl_branch, rel, ret_rel, new_state, p_match, det);
+							auto const new_result = simulate_by_traverse(proj, (*pm)->body.get(), impl_branch, rel, ret_rel, new_state, p_match, det);
 							sim_result = sim_result + new_result;
 							return sim_result;
 						}
@@ -699,7 +699,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 				}
 				if (add_post_condition) {
 					auto expr = instance_of(m->src.get(), Expr);
-					auto op = std::get<string>(expr->op);
+					auto const op = std::get<string>(expr->op);
 					if (auto loop = instance_of(proj->defs[op].get(), Fixpoint)){
 						if(auto p = instance_of(pat, Expr)) {
 							if(op_eq(p->op, Expr::Some)) {
@@ -716,18 +716,18 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 												(*new_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 											}
 										}
-										auto new_inv = subst_v2(proj,std::move(loop_post_cond), &names, &elems);
+										auto const new_inv = subst_v2(proj,std::move(loop_post_cond), &names, &elems);
 										LOG_DEBUG << "Adding loop postcondition: " << string(*new_inv);
-										auto new_inv_z3 = z3_eval(proj, new_inv.get(), new_state, true, false, used_fix);
+										auto const new_inv_z3 = z3_eval(proj, new_inv.get(), new_state, true, false, used_fix);
 										new_state->conds->push_back(new_inv_z3->get_z3_value());
 									}
 								} else if(p->elems->at(0)->type == proj->layers[0]->abs_data){
 									if(auto sym = instance_of(p->elems->at(0).get(), Symbol)) {
 										(*new_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 									}
-									auto new_inv = subst_v2(proj,std::move(loop_post_cond), loop->name + "_" + "st_new", p->elems->at(0)->deep_copy());
+									auto const new_inv = subst_v2(proj,std::move(loop_post_cond), loop->name + "_" + "st_new", p->elems->at(0)->deep_copy());
 									LOG_DEBUG << "Adding loop postcondition: " << string(*new_inv);
-									auto new_inv_z3 = z3_eval(proj, new_inv.get(), new_state, true, false, used_fix);
+									auto const new_inv_z3 = z3_eval(proj, new_inv.get(), new_state, true, false, used_fix);
 									new_state->conds->push_back(new_inv_z3->get_z3_value());
 								}
 							}
@@ -755,18 +755,18 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 												(*new_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 											}
 										}
-										auto new_inv = subst_v2(proj,std::move(post_cond), &names, &elems);
+										auto const new_inv = subst_v2(proj,std::move(post_cond), &names, &elems);
 										LOG_DEBUG << "Adding postcondition: " << string(*new_inv);
-										auto new_inv_z3 = z3_eval(proj, new_inv.get(), new_state, true, false, used_fix);
+										auto const new_inv_z3 = z3_eval(proj, new_inv.get(), new_state, true, false, used_fix);
 										new_state->conds->push_back(new_inv_z3->get_z3_value());
 									}
 								} else if(p->elems->at(0)->type == proj->layers[0]->abs_data) {
 									if(auto sym = instance_of(p->elems->at(0).get(), Symbol)) {
 										(*new_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 									}
-									auto new_inv = subst_v2(proj,std::move(post_cond), def->name + "_st_new_", p->elems->at(0)->deep_copy());
+									auto const new_inv = subst_v2(proj,std::move(post_cond), def->name + "_st_new_", p->elems->at(0)->deep_copy());
 									LOG_DEBUG << "Adding postcondition: " << string(*new_inv);
-									auto new_inv_z3 = z3_eval(proj, new_inv.get(), new_state, true, false, used_fix);
+									auto const new_inv_z3 = z3_eval(proj, new_inv.get(), new_state, true, false, used_fix);
 									new_state->conds->push_back(new_inv_z3->get_z3_value());
 								}
 							}
@@ -776,12 +776,12 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 					}
 				}
 
-				auto state_works = z3_verify_state_sat(new_state->copy(), &proj->query_saver);
+				auto const state_works = z3_verify_state_sat(new_state->copy(), &proj->query_saver);
 				if (state_works != Z3Result::False) {
 					// auto pat_str = string(*(*pm)->pattern.get());
 					// auto src_str = string(*m->src);
 					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] In Match: " << string(*m->src).substr(0,200) << ".\n Verifying pattern: " << string(*(*pm)->pattern.get()).substr(0,100) << ".";
-					auto new_result = simulate_by_traverse(proj, (*pm)->body.get(), impl_branch, rel, ret_rel, new_state, p_match, det);
+					auto const new_result = simulate_by_traverse(proj, (*pm)->body.get(), impl_branch, rel, ret_rel, new_state, p_match, det);
 					if (sim_result.verified && !new_result.verified) {
 						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] In Match body at " << (*pm)->body.get() << " not verified.";
 						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Match src: " << string(*m->src) << " not verified.";
@@ -804,16 +804,16 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 			return sim_result;
 		} else if (auto i = instance_of(spec, If)) {
 			// push cond
-			auto c = z3_eval(proj, i->cond.get(), state);
+			auto const c = z3_eval(proj, i->cond.get(), state);
 			z3::model model(z3ctx);
 			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Checking if: " << string(*c).substr(0,1000);
 
-			std::pair<bool,bool> plausibility = check_branch_plausibility(proj, state, c, model);
-			auto true_branch_plausible = plausibility.first;
-			auto false_branch_plausible = plausibility.second;
+			std::pair<bool,bool> const plausibility = check_branch_plausibility(proj, state, c, model);
+			auto const true_branch_plausible = plausibility.first;
+			auto const false_branch_plausible = plausibility.second;
 
-			auto true_state = state->copy();
-			auto false_state = state->copy();
+			auto const true_state = state->copy();
+			auto const false_state = state->copy();
 			auto cond_val = c->get_z3_value();
 			if(cond_val.is_int()){
 				cond_val = (cond_val != 0);
@@ -833,14 +833,14 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 			if (auto impl_if = instance_of(impl, If)) {
                 // Check the types are the same.
                 if (impl_if->cond.get()->get_type() == c->get_type()){
-    			    auto impl_c = z3_eval(proj, impl_if->cond.get(), state);
+    			    auto const impl_c = z3_eval(proj, impl_if->cond.get(), state);
     				auto impl_cond_val = impl_c->get_z3_value();
     				if (impl_cond_val.is_int()) {
     					impl_cond_val = (impl_cond_val != 0);
     				}
     				// Conditions are equivalent iff there is no model in which they differ.
    					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Comparing if conditions: " << "Spec: " << string(*c) << "\nImpl: " << string(*impl_c);
-    				auto diff_res = z3_check(state, (cond_val != impl_cond_val), &proj->query_saver, Z3_SIM_TIMEOUT);
+    				auto const diff_res = z3_check(state, (cond_val != impl_cond_val), &proj->query_saver, Z3_SIM_TIMEOUT);
     				if (diff_res == Z3Result::False) {
     					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Impl if-condition provably equivalent to spec, advancing impl.";
     					impl_then = impl_if->then_body.get();
@@ -871,7 +871,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 			return sim_result;
 		} else if (auto r = instance_of(spec, Rely)) {
 			// push cond
-			auto c = z3_eval(proj, r->prop.get(), state);
+			auto const c = z3_eval(proj, r->prop.get(), state);
 			state->conds->push_back(c->get_z3_value());
 			return simulate_by_traverse(proj, r->body.get(), impl, rel, ret_rel, state, p, det);
 		} else if (auto r = instance_of(spec, Symbol)) {
@@ -879,7 +879,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 			if(sym->text == "None") {
 				LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Detected None node in spec, checking if impl removes spec UB.";
 				// TODO: Something in forward_simulation is mutating impl.
-				auto impl_copy = impl->deep_copy();
+				auto const impl_copy = impl->deep_copy();
 				return forward_simulation(proj, sym, nullptr, impl_copy.get(), rel, ret_rel, state, det, p, 0, true);
 				// return SimulateResult{true, true, false, false};
 			} else {
@@ -922,22 +922,22 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 	 * @return true		If the relation is proved
 	 * @return false	If the relation is not proved
 	 */
-	bool check_hprop_by_path(Project *proj, Definition* rel, Definition *spec, Definition *impl, bool det, Definition* endrel) {
+	bool check_hprop_by_path(Project *proj, Definition* rel, Definition *spec, Definition  const*impl, bool det, Definition* endrel) {
 		LOG_DEBUG << "rel: " << string(*rel->body);
 		LOG_DEBUG << "end_rel: " << string(*rel->body);
 		auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
 		auto conds = std::make_shared<vector<z3::expr>>();
-		for (auto arg : *spec->args) {
+		for (auto const arg : *spec->args) {
 			(*vars)[arg->name] = arg->type->declare(arg->name, 0);
 		}
 		(*vars)[get_sim_name("st")] = proj->layers[0]->abs_data->declare(get_sim_name("st"), 0);
 		auto induction = std::make_shared<vector<z3::expr>>();
-		auto state = std::make_shared<ProveState>(vars, conds, induction);
+		auto const state = std::make_shared<ProveState>(vars, conds, induction);
 
 		SpecNode* impl_body = nullptr, *spec_body = nullptr;
 
 		auto l_args = make_unique<vector<shared_ptr<Arg>>>();
-		for (auto arg : *spec->args) {
+		for (auto const arg : *spec->args) {
 			l_args->push_back(arg);
 		}
 		auto spec_def = new Definition(spec->name, spec->rettype, std::move(l_args), spec->body->deep_copy());
@@ -957,13 +957,13 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 			impl_body = impl->body.get();
 		}
 
-		auto last_arg = spec->args->back();
-		auto st_sym_1 = make_shared<Symbol>(last_arg->name, last_arg->type);
-		auto st_sym_2 = make_shared<Symbol>(get_sim_name(last_arg->name), last_arg->type);
+		auto const last_arg = spec->args->back();
+		auto const st_sym_1 = make_shared<Symbol>(last_arg->name, last_arg->type);
+		auto const st_sym_2 = make_shared<Symbol>(get_sim_name(last_arg->name), last_arg->type);
 		if (!proj->is_state_type(last_arg->type)) {
 			LOG_ERROR << "[check_hprop_by_path] The last argument of the spec should be a state type!";
 		}
-		auto rel_expr = formulate_relation(proj, rel, st_sym_1.get(), st_sym_2.get(), state);
+		auto const rel_expr = formulate_relation(proj, rel, st_sym_1.get(), st_sym_2.get(), state);
 		state->conds->push_back(rel_expr->get_z3_value());
 		set<string> used_fixpoint;
 
@@ -975,40 +975,40 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 			elems->push_back(in->deep_copy());
 			precond = make_unique<Expr>(Expr::binops::AND, unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
 		}
-		auto prec = z3_eval(proj, precond.get(), state, false, true, used_fixpoint);
+		auto const prec = z3_eval(proj, precond.get(), state, false, true, used_fixpoint);
 		state->conds->push_back(prec->get_z3_value());
 		// add invariants for both
 
-		for (auto proved : proj->verified_invariants) {
+		for (auto const proved : proj->verified_invariants) {
 			auto inv_for_spec = proj->sys_invs[proved].get();
 			auto inv_for_impl = proj->rules.build_simulate_spec(proj->sys_invs[proved]->deep_copy()).release();
 			// std::cout << "[check_hprop_by_path] Proved invariant: " << string(*inv_for_spec) << std::endl;
 			// std::cout << "[check_hprop_by_path] Simulated invariant: " << string(*inv_for_impl) << std::endl;
-			auto e_spec = z3_eval(proj, inv_for_spec, state, false, true, used_fixpoint);
-			auto e_impl = z3_eval(proj, inv_for_impl, state, false, true, used_fixpoint);
+			auto const e_spec = z3_eval(proj, inv_for_spec, state, false, true, used_fixpoint);
+			auto const e_impl = z3_eval(proj, inv_for_impl, state, false, true, used_fixpoint);
 			state->conds->push_back(e_spec->get_z3_value());
 			state->conds->push_back(e_impl->get_z3_value());
 		}
 		for (auto const &l : proj->lemmas) {
 			auto lemma_body = proj->defs[l]->body.get();
-			auto lemma_expr = z3_eval(proj, lemma_body, state, false, true, used_fixpoint);
+			auto const lemma_expr = z3_eval(proj, lemma_body, state, false, true, used_fixpoint);
 			state->add_induction(lemma_expr->get_z3_value());
 		}
 		for (auto const &a : proj->axioms) {
 			auto axiom_body = proj->defs[a]->body.get();
-			auto axiom_expr = z3_eval(proj, axiom_body, state, false, true, used_fixpoint);
+			auto const axiom_expr = z3_eval(proj, axiom_body, state, false, true, used_fixpoint);
 			state->conds->push_back(axiom_expr->get_z3_value());
 		}
 
 		// add weak-step consistency relations
 		for (auto const &wsr : proj->weak_step_relations) {
 			auto wsr_def = proj->defs[wsr].get();
-			auto wsr_expr = formulate_relation(proj, wsr_def, st_sym_1.get(), st_sym_2.get(), state);
+			auto const wsr_expr = formulate_relation(proj, wsr_def, st_sym_1.get(), st_sym_2.get(), state);
 			state->conds->push_back(wsr_expr->get_z3_value());
 		}
 		spec_body->clear_z3_eval();
 		impl_body->clear_z3_eval();
-		path_t p = {};
+		path_t const p = {};
 		/** TODO: set check for deterministic simulation */
 		Definition* end_rel = nullptr;
 		if(!endrel) {
@@ -1016,7 +1016,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 		} else {
 			end_rel = endrel;
 		}
-        auto ret_rel = make_unique<Definition>("_always_true",Bool::BOOL, make_unique<vector<shared_ptr<Arg>>>(), make_unique<BoolConst>(true));
+        auto const ret_rel = make_unique<Definition>("_always_true",Bool::BOOL, make_unique<vector<shared_ptr<Arg>>>(), make_unique<BoolConst>(true));
 		return simulate_by_traverse(proj, spec_body, impl_body, end_rel, ret_rel.get(), state, p, det).verified;
 	}
 

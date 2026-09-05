@@ -207,7 +207,7 @@ public:
 
     void clear_loop_unroll() { current_unfold = ""; }
 
-    bool is_loop_unroll(std::string spec_name) { 
+    bool is_loop_unroll(std::string spec_name) const { 
         return current_unfold == spec_name;
     }
 
@@ -224,7 +224,7 @@ public:
 
         // if (spec_name.size() >= suffix.size() && spec_name.compare(spec_name.size() - suffix.size(), suffix.size(), suffix) == 0) {
             // auto fname = spec_name.substr(0, spec_name.size() - suffix.size());
-        auto fname = spec_name;
+        auto const fname = spec_name;
         if (lut.find(fname) == lut.end()) return false;
         if (lut.at(fname) <= loop_unroll_count[fname]) return false;
 

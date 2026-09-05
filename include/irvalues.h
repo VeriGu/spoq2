@@ -265,7 +265,7 @@ public:
     }
 
     string to_coq(void) const override {
-        std::string val_str = this->val_signed ? std::to_string((long long)this->val) : std::to_string(this->val);
+        std::string const val_str = this->val_signed ? std::to_string((long long)this->val) : std::to_string(this->val);
 
         return "(VInt (" + val_str + "))";
     }

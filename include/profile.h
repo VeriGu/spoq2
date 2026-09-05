@@ -134,7 +134,7 @@ PROFILE_VAR_INIT(simplify_built_in);
 #define PROFILE_START(label) \
     label##_cnt++; \
     label##_cnt_meta++; \
-    auto label##_start = std::chrono::high_resolution_clock::now()
+    auto const label##_start = std::chrono::high_resolution_clock::now()
 
 #define PROFILE_HIT(label) \
     label##_hit++; \
@@ -142,7 +142,7 @@ PROFILE_VAR_INIT(simplify_built_in);
     // LOG_INFO << "[PROFILE] " << #label << " hit"
 
 #define PROFILE_END(label) \
-    auto label##_end = std::chrono::high_resolution_clock::now(); \
+    auto const label##_end = std::chrono::high_resolution_clock::now(); \
     label##_accumulative_time += std::chrono::duration<double>(label##_end - label##_start); \
     label##_accumulative_time_meta += std::chrono::duration<double>(label##_end - label##_start)
 

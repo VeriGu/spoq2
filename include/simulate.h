@@ -18,8 +18,8 @@ namespace autov
 		return name + "_sim";
 	}
 	// verify the relational property by traversing the project
-	bool check_hprop_by_path(Project *proj, Definition* rel, Definition *spec, Definition *impl = nullptr, bool det = true, Definition* endrel = nullptr);
-	shared_ptr<SpecValue> formulate_relation(Project *proj, Definition *rel, SpecNode *st_spec, SpecNode *st_impl, shared_ptr<ProveState> state);
+	bool check_hprop_by_path(Project *proj, Definition* rel, Definition *spec, Definition  const*impl = nullptr, bool det = true, Definition* endrel = nullptr);
+	shared_ptr<SpecValue> formulate_relation(Project *proj, Definition *rel, SpecNode  const*st_spec, SpecNode  const*st_impl, shared_ptr<ProveState> state);
 	
 	class SimulateResult {
 	public:
@@ -34,7 +34,7 @@ namespace autov
 		optional<size_t> vuln_leaves_after_transform;
 		optional<size_t> patch_leaves_before_transform;
 		optional<size_t> patch_leaves_after_transform;
-		SimulateResult operator+(const SimulateResult& rhs)
+		SimulateResult operator+(const SimulateResult& rhs) const
 		{                           
 			return SimulateResult {
 				this->verified && rhs.verified,
@@ -52,7 +52,7 @@ namespace autov
                                         shared_ptr<ProveState> state, path_t p,
                                         bool det);
     std::pair<bool,bool> check_branch_plausibility(autov::Project *proj,
-                                   std::shared_ptr<autov::ProveState> &state,
-                                   std::shared_ptr<autov::SpecValue> &cond,
+                                   std::shared_ptr<autov::ProveState>  const&state,
+                                   std::shared_ptr<autov::SpecValue>  const&cond,
                                    z3::model &model);
 }

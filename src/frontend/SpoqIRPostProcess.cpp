@@ -35,7 +35,7 @@ int SpoqIRModule::find_inline_asm(spoq_inst_vec_t &insts) {
             string asm_text = asm_func->getAsmString().str();
             if (asm_text.find("smc") != string::npos)
                 iasm_prefix = "smc_";
-            auto norm_asm_id = std::regex_replace(asm_text, std::regex("[^a-zA-Z0-9]"), "_");
+            auto const norm_asm_id = std::regex_replace(asm_text, std::regex("[^a-zA-Z0-9]"), "_");
             string fname = "iasm_" + iasm_prefix + norm_asm_id;
             if (this->iasm_defs.find(fname) != this->iasm_defs.end()) {
                 this->iasm2func[call] = fname;
@@ -139,7 +139,7 @@ int SpoqIRModule::find_inline_asm(spoq_inst_vec_t &insts) {
 std::pair<int, int> SpoqIRModule::extract_inline_asm(SpoqFunction& func) {
     int failed_count = 0;
     if(!func.spoq_insts_converted) assert(false && "spoq_insts not converted");
-    int failed = find_inline_asm(func.spoq_insts);
+    int const failed = find_inline_asm(func.spoq_insts);
     if (failed > 0) {
         LOG_ERROR << "Failed to process " << failed << " inline asm in function " << func.llvm_func->getName().str();
         failed_count += failed;

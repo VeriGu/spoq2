@@ -50,12 +50,12 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
 {
     if (auto sym = instance_of(pat, Symbol)) {
         if (proj->is_ind_constr(sym->text)) {
-            auto t = dynamic_pointer_cast<Inductive>(src->get_type());
+            auto const t = dynamic_pointer_cast<Inductive>(src->get_type());
             state->conds->push_back(src->get_z3_value() == t->construct(sym->text, {})->get_z3_value());
         } else if(sym->text == "_" && dynamic_cast<Match*>(spec)){
-            auto option = dynamic_pointer_cast<Option>(src->get_type());
-            auto idx = option->get_constr_index("None_" + option->elem_type->name);
-            auto is_some = option->get_z3_type().recognizers()[idx];
+            auto const option = dynamic_pointer_cast<Option>(src->get_type());
+            auto const idx = option->get_constr_index("None_" + option->elem_type->name);
+            auto const is_some = option->get_z3_type().recognizers()[idx];
             state->conds->push_back(is_some(src->get_z3_value()));
 
         } else {
@@ -77,7 +77,7 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
         }
     } else if (auto con = instance_of(pat, Const)) {
         if (auto v = std::get_if<unsigned long>(&con->value)) {
-            auto icon = dynamic_pointer_cast<IntConst>(src);
+            auto const icon = dynamic_pointer_cast<IntConst>(src);
             if (icon && icon->is_signed())
                 state->conds->push_back(src->get_z3_value() == z3ctx.int_val((long)(int64_t)*v));
             else
@@ -102,50 +102,50 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<Sp
         state->conds->push_back(src->get_z3_value() == z3ctx.string_val(std::get<string>(con->value)));
     } else if (auto expr = instance_of(pat, Expr)) {
         if (op_eq(expr->op, Expr::Some)) {
-            auto value = dynamic_pointer_cast<IndValue>(src)->get("value");
-            auto t = dynamic_pointer_cast<Option>(src->get_type());
-            auto idx = t->get_constr_index("Some_" + t->elem_type->name);
-            auto is_some = t->get_z3_type().recognizers()[idx];
-            auto tester = is_some(src->get_z3_value());
+            auto const value = dynamic_pointer_cast<IndValue>(src)->get("value");
+            auto const t = dynamic_pointer_cast<Option>(src->get_type());
+            auto const idx = t->get_constr_index("Some_" + t->elem_type->name);
+            auto const is_some = t->get_z3_type().recognizers()[idx];
+            auto const tester = is_some(src->get_z3_value());
             state->conds->push_back(tester);
             resolve_pattern(proj, spec, expr->elems->at(0).get(), value, state);
         } else if (op_eq(expr->op, Expr::Tuple)) {
-            auto v = dynamic_pointer_cast<Tuple>(src->get_type());
-            auto recog = v->get_z3_type().recognizers()[0];
+            auto const v = dynamic_pointer_cast<Tuple>(src->get_type());
+            auto const recog = v->get_z3_type().recognizers()[0];
             state->conds->push_back(recog(src->get_z3_value()));
             for (int i = 0; i < expr->elems->size(); i++) {
                 resolve_pattern(proj, spec, expr->elems->at(i).get(), dynamic_pointer_cast<StructValue>(src)->get(i), state);
             }
         } else if (op_eq(expr->op, Expr::CONCAT)) {
-            auto t = dynamic_pointer_cast<List>(src->get_type());
-            auto hh = t->elem_type->declare("h", spec->nid);
-            auto tt = t->declare("t", spec->nid);
+            auto const t = dynamic_pointer_cast<List>(src->get_type());
+            auto const hh = t->elem_type->declare("h", spec->nid);
+            auto const tt = t->declare("t", spec->nid);
             resolve_pattern(proj, spec, expr->elems->at(0).get(), dynamic_pointer_cast<IndValue>(src)->get("head"), state);
             resolve_pattern(proj, spec, expr->elems->at(1).get(), dynamic_pointer_cast<IndValue>(src)->get("tail"), state);
         } else if (op_eq(expr->op, Expr::None)) {
-            auto value = dynamic_pointer_cast<IndValue>(src)->get("value");
-            auto t = dynamic_pointer_cast<Option>(src->get_type());
+            auto const value = dynamic_pointer_cast<IndValue>(src)->get("value");
+            auto const t = dynamic_pointer_cast<Option>(src->get_type());
             // auto t = dynamic_pointer_cast<Inductive>(src->get_type());
             // auto v = t->construct("None", {});
-            auto idx = t->get_constr_index("None_" + t->elem_type->name);
-            auto is_some = t->get_z3_type().recognizers()[idx];
-            auto tester = is_some(src->get_z3_value());
+            auto const idx = t->get_constr_index("None_" + t->elem_type->name);
+            auto const is_some = t->get_z3_type().recognizers()[idx];
+            auto const tester = is_some(src->get_z3_value());
             state->conds->push_back(tester);
 
             // state->conds->push_back(src->get_z3_value() == v->get_z3_value());
         } else if (std::holds_alternative<string>(expr->op)) {
-            auto op = std::get<string>(expr->op);
-            auto sym = proj->symbols.find(op);
+            auto const op = std::get<string>(expr->op);
+            auto const sym = proj->symbols.find(op);
             if (sym != proj->symbols.end() && sym->second.kind == SymbolKind::IndConstructor) {
-                auto t = dynamic_pointer_cast<Inductive>(src->get_type());
-                auto z3_type = src->get_type()->get_z3_type();
-                auto idx = t->get_constr_index(op);
-                auto tester = t->get_z3_type().recognizers()[idx];
+                auto const t = dynamic_pointer_cast<Inductive>(src->get_type());
+                auto const z3_type = src->get_type()->get_z3_type();
+                auto const idx = t->get_constr_index(op);
+                auto const tester = t->get_z3_type().recognizers()[idx];
                 state->conds->push_back(tester(src->get_z3_value()));
                 // auto res = z3_check(state);
-                std::vector<shared_ptr<SpecValue>> vars;
+                std::vector<shared_ptr<SpecValue>> const vars;
                 for (int i = 0; i < t->constr[op]->size(); i++) {
-                    auto arg = t->constr[op]->at(i); // Why are we resolving every Inductive for every pattern?
+                    auto const arg = t->constr[op]->at(i); // Why are we resolving every Inductive for every pattern?
                     resolve_pattern(proj, spec, expr->elems->at(i).get(), dynamic_pointer_cast<IndValue>(src)->get(arg->name), state);
                 }
             } else
@@ -163,7 +163,7 @@ void collect_exprs(SpecNode* expr, unordered_map<unsigned, std::pair<z3::expr, S
         }
     }
     if (expr->cached_eval) {
-        unsigned h = expr->cached_eval->get_z3_value().hash();
+        unsigned const h = expr->cached_eval->get_z3_value().hash();
         if (subexprs.find(h) == subexprs.end() ) {
             SpecNode *expr_copy = expr->deep_copy().release();
             expr_copy->cached_eval = expr->cached_eval;
@@ -246,7 +246,7 @@ static SpecNode* reconstruct_expr(z3::expr z3_val,
     if (z3_val.is_const() && z3_val.is_int() && z3_val.is_numeral()) {
         int64_t _v;
         if (z3_val.is_numeral_i64(_v)) {
-            long v = z3_val.get_numeral_int64();
+            long const v = z3_val.get_numeral_int64();
 
             if (v < 0) {
                 auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
@@ -266,7 +266,7 @@ static SpecNode* reconstruct_expr(z3::expr z3_val,
                 return nullptr;
             }
 
-            long v = z3_val.get_numeral_uint64();
+            long const v = z3_val.get_numeral_uint64();
             if (v > -100 && v < 0) {
                 auto new_elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
@@ -279,11 +279,11 @@ static SpecNode* reconstruct_expr(z3::expr z3_val,
         return new BoolConst(z3_val.is_true());
     } else {
         auto candidates = vector<SpecNode*>();
-        auto z3_val_hash = z3_val.hash();
+        auto const z3_val_hash = z3_val.hash();
         if (length_z3_map.find(z3_val_hash) == length_z3_map.end()) {
             length_z3_map.emplace(z3_val_hash, length_z3_val(z3_val));
         }
-        auto z3_val_length = length_z3_map[z3_val_hash];
+        auto const z3_val_length = length_z3_map[z3_val_hash];
 
         std::vector<std::pair<z3::expr, SpecNode*>> sorted_subexprs;
         for (auto s = subexprs.begin(); s != subexprs.end(); ++s) {
@@ -294,15 +294,15 @@ static SpecNode* reconstruct_expr(z3::expr z3_val,
         });
 
         for (auto e = sorted_subexprs.begin(); e != sorted_subexprs.end(); e++) {
-            auto e_val = e->first;
+            auto const e_val = e->first;
             auto e_node = e->second;
-            auto e_val_hash = e_val.hash();
+            auto const e_val_hash = e_val.hash();
 
             if (length_z3_map.find(e_val_hash) == length_z3_map.end()) {
                 length_z3_map.emplace(e_val_hash, length_z3_val(e_val));
             }
 
-            auto z3_e_val_length = length_z3_map[e_val_hash];
+            auto const z3_e_val_length = length_z3_map[e_val_hash];
 
             if (z3_e_val_length > z3_val_length)
                 continue;
@@ -311,7 +311,7 @@ static SpecNode* reconstruct_expr(z3::expr z3_val,
                     // LOG_INFO << "[PROFILE]" << "reconstruct: z3_check: equivalency check";
                     PROFILE_START(expr_rule_check);
                     PROFILE_START(z3_rule_check);
-                    auto equiv_check_ret = z3_check(state, e_val == z3_val);
+                    auto const equiv_check_ret = z3_check(state, e_val == z3_val);
                     PROFILE_END(z3_rule_check);
                     PROFILE_END(expr_rule_check);
 
@@ -338,7 +338,7 @@ static SpecNode* reconstruct_expr(z3::expr z3_val,
                     return nullptr;
             }
 
-            auto op = z3_val.decl().name().str();
+            auto const op = z3_val.decl().name().str();
             auto e = instance_of(elems[0], Expr);
             if (op == "+" || op == "-" || op == "*" || op == "/" || op == "mod") {
                 static const auto z3_op_to_expr_binop = unordered_map<string, Expr::binops>{
@@ -409,7 +409,7 @@ static SpecNode* reconstruct_expr(z3::expr z3_val,
     }
 }
 
-static SpecNode* __simplify_zmap_init(Project* proj, Expr* expr, shared_ptr<EvalState> state) {
+static SpecNode* __simplify_zmap_init(Project const* proj, Expr* expr, shared_ptr<EvalState> state) {
     auto elem0 = instance_of(expr->elems->at(0).get(), Expr); // ZMap
 
     if (!elem0)
@@ -436,7 +436,7 @@ static SpecNode* __simplify_zmap_init(Project* proj, Expr* expr, shared_ptr<Eval
  * 2. Expr::RecordSet: x.[f] :< y ==> (if (x.(f) = y)) ==> (x)
  */
 std::pair<unique_ptr<SpecNode>, bool> reduce_id_write(Project *proj, unique_ptr<Expr> spec, shared_ptr<EvalState> state) {
-    static int Z3_REDUCE_TIMEOUT = 300;
+    static int const Z3_REDUCE_TIMEOUT = 300;
     bool changed = false;
     if (OPTS.__OPT_ON_ARITH) {
         return { std::move(spec), changed }; // skip if arithmetic simplification is enabled
@@ -459,9 +459,9 @@ std::pair<unique_ptr<SpecNode>, bool> reduce_id_write(Project *proj, unique_ptr<
                     expr_elems->push_back(idx->deep_copy());
                     auto v1 = (SpecNode *)(new Expr(Expr::GET, std::move(expr_elems), val->get_type())); // construct (x @ y)
 
-                    auto v1_e = z3_eval(proj, v1, state);
-                    auto v2_e = z3_eval(proj, val, state);
-                    auto check = z3_check(state, v1_e->get_z3_value() == v2_e->get_z3_value(), nullptr, Z3_REDUCE_TIMEOUT);
+                    auto const v1_e = z3_eval(proj, v1, state);
+                    auto const v2_e = z3_eval(proj, val, state);
+                    auto const check = z3_check(state, v1_e->get_z3_value() == v2_e->get_z3_value(), nullptr, Z3_REDUCE_TIMEOUT);
 
                     if (check == Z3Result::True) {
                         // if (x @ y) = (x' @ y), then return x
@@ -484,9 +484,9 @@ std::pair<unique_ptr<SpecNode>, bool> reduce_id_write(Project *proj, unique_ptr<
                 old_value = make_unique<Expr>(Expr::RecordGet, std::move(get_elems));
             }
             auto val = spec->elems->back().get(); // y
-            auto v1_e = z3_eval(proj, old_value.get(), state);
-            auto v2_e = z3_eval(proj, val, state);
-            auto check = z3_check(state, v1_e->get_z3_value() == v2_e->get_z3_value(), nullptr, Z3_REDUCE_TIMEOUT);
+            auto const v1_e = z3_eval(proj, old_value.get(), state);
+            auto const v2_e = z3_eval(proj, val, state);
+            auto const check = z3_check(state, v1_e->get_z3_value() == v2_e->get_z3_value(), nullptr, Z3_REDUCE_TIMEOUT);
             if (check == Z3Result::True) {
                 // if (x.(f1).(...).(fn) = y), then return x
                 changed = true;
@@ -524,13 +524,13 @@ SpecNode* reconstruct_zmap(Project* proj, SpecNode* spec, shared_ptr<EvalState> 
         return nullptr;
 
     PROFILE_START(z3_eval);
-    auto idx = z3_eval(proj, elem1, state);
-    auto res = z3_eval(proj, elem0->elems->at(1).get(), state);
+    auto const idx = z3_eval(proj, elem1, state);
+    auto const res = z3_eval(proj, elem0->elems->at(1).get(), state);
     PROFILE_END(z3_eval);
 
     PROFILE_START(expr_rule_check);
     PROFILE_START(z3_rule_check);
-    auto z3_res = z3_check(state, res->get_z3_value() == idx->get_z3_value());
+    auto const z3_res = z3_check(state, res->get_z3_value() == idx->get_z3_value());
     PROFILE_END(z3_rule_check);
     PROFILE_END(expr_rule_check);
 
@@ -577,7 +577,7 @@ rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::sha
     bool changed = false;
     // auto orig_prop = std::string(*spec->prop);
     // LOG_DEBUG << "Simple Rely by Z3: " << string(*spec) << "\n";
-    bool is_rely = is_instance(spec.get(), Rely);
+    bool const is_rely = is_instance(spec.get(), Rely);
     auto ret = this->rule_simple_by_z3(std::move(spec->prop), state);
     changed |= ret.second;
 
@@ -587,7 +587,7 @@ rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::sha
     }
 
     PROFILE_START(z3_eval);
-    auto c = z3_eval(proj, cond.get(), state);
+    auto const c = z3_eval(proj, cond.get(), state);
     PROFILE_END(z3_eval);
 
 
@@ -611,7 +611,7 @@ rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::sha
     } else {
         PROFILE_START(rely_rule_check);
         PROFILE_START(z3_rule_check);
-        auto res = z3_check(state, c->get_z3_value(), nullptr);
+        auto const res = z3_check(state, c->get_z3_value(), nullptr);
         PROFILE_END(z3_rule_check);
         PROFILE_END(rely_rule_check);
 
@@ -676,7 +676,7 @@ rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::sha
 
 rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<EvalState> state) {
     if (!force_simpl) return { std::move(spec), false };
-    auto z3t_string = spec->get_type()->get_z3_type().to_string();
+    auto const z3t_string = spec->get_type()->get_z3_type().to_string();
 
     bool changed = false;
     // auto orig_cond = string(*spec->cond);
@@ -693,13 +693,13 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
     PROFILE_START(z3_eval);
     auto c = z3_eval(proj, cond_ret.first.get(), state);
 
-    auto cond_ty = c->get_type();
+    auto const cond_ty = c->get_type();
     if (!cond_ty->get_z3_type().is_bool()){
         // LOG_WARNING << "NON BOOL CONDITION in " << string(*cond_ret.first).substr(0,400);
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
         elems->push_back(cond_ret.first->deep_copy());
         elems->push_back(make_unique<IntConst>(0));
-        auto new_expr = make_unique<Expr>(Expr::NOT_EQUAL, std::move(elems));
+        auto const new_expr = make_unique<Expr>(Expr::NOT_EQUAL, std::move(elems));
         c = z3_eval(proj, new_expr.get(), state);
     }
     PROFILE_END(z3_eval);
@@ -711,7 +711,7 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
     // LOG_DEBUG << "else: " << string(*spec->else_body);
     // LOG_DEBUG << "cond: " << string(*spec->cond);
 
-    auto res = z3_check(state, c->get_z3_value(), &proj->query_saver, 200);
+    auto const res = z3_check(state, c->get_z3_value(), &proj->query_saver, 200);
     PROFILE_END(z3_rule_check);
     PROFILE_END(if_rule_check);
 
@@ -722,7 +722,7 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
         };
     } else if (res == Z3Result::Sat || res == Z3Result::Unknown) {
         // profile_log_rule_if_unsolved(string(orig_cond));
-        auto unknown_value = c->get_z3_value();
+        auto const unknown_value = c->get_z3_value();
 
         state->conds->push_back(unknown_value);
         auto then_ret = this->rule_simple_by_z3(std::move(spec->then_body), state);
@@ -822,7 +822,7 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
     Definition* func = nullptr;
 
     if(expr_src && std::holds_alternative<string>(expr_src->op)){
-        auto func_name = std::get<string>(expr_src->op);
+        auto const func_name = std::get<string>(expr_src->op);
         func = this->proj->defs[func_name].get();
         auto fixpoint = dynamic_cast<Fixpoint*>(func);
         if(fixpoint){
@@ -834,13 +834,13 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
     }
 
     PROFILE_START(z3_eval);
-    auto src_val = z3_eval(proj, spec->src->deep_copy().get(), state);
+    auto const src_val = z3_eval(proj, spec->src->deep_copy().get(), state);
     PROFILE_END(z3_eval);
     auto match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
 
     bool changed = src_changed;
     for (auto pm = spec->match_list->begin(); pm != spec->match_list->end(); pm++) {
-        auto new_state = state->copy();
+        auto const new_state = state->copy();
         resolve_pattern(proj, spec.get(), (*pm)->pattern.get(), src_val, new_state);
 
         auto sym_pat = dynamic_cast<Symbol*>((*pm)->pattern.get());
@@ -876,14 +876,14 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
 
             set<string> used_fix;
             // LOG_DEBUG << "Post subst loop inv " << string(*some_loop_inv);
-            auto some_z3_val = z3_eval(proj, some_loop_inv.get(), new_state, true, false, used_fix);
+            auto const some_z3_val = z3_eval(proj, some_loop_inv.get(), new_state, true, false, used_fix);
             new_state->conds->push_back(some_z3_val->get_z3_value());
             }
 
         }
         // auto true_const = make_shared<BoolValue>(true);
         // auto true_z3 = true_const->get_z3_value();
-        auto res = z3_verify_state_sat(new_state, nullptr, Z3_TIMEOUT);
+        auto const res = z3_verify_state_sat(new_state, nullptr, Z3_TIMEOUT);
         // auto res = z3_check(new_state, true_z3, nullptr, Z3_TIMEOUT);
         // if (res == Z3Result::Unknown){
         //     // Abort as everything from here will timeout
@@ -913,8 +913,8 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
     }
 
     // Ensure that an option match has both a Some and a None.  The branches could have been eliminated above.
-    if (auto src_opt = dynamic_pointer_cast<Option>(spec->src->get_type())) {
-        if (auto spec_opt = dynamic_pointer_cast<Option>(spec->get_type())) {
+    if (auto const src_opt = dynamic_pointer_cast<Option>(spec->src->get_type())) {
+        if (auto const spec_opt = dynamic_pointer_cast<Option>(spec->get_type())) {
             bool has_some = false;
             bool has_none = false;
 
@@ -957,7 +957,7 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
             }
         }
 
-        auto typ = spec->get_type();
+        auto const typ = spec->get_type();
         if (only_none) {
             return { std::make_unique<Symbol>("None", typ), changed };
         } else {
@@ -980,7 +980,7 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
 rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_ptr<EvalState> state) {
     auto elems = std::make_unique<std::vector<std::unique_ptr<SpecNode>>>();
     bool changed = false;
-    auto z3t_string = spec->get_type()->get_z3_type().to_string();
+    auto const z3t_string = spec->get_type()->get_z3_type().to_string();
     auto s = string(*spec);
     // auto logthis = true;//s.find("(Some (1, st") != std::string::npos;
     // if(logthis)
@@ -1004,7 +1004,7 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
 
     auto new_spec = std::make_unique<Expr>(std::move(spec->op), std::move(elems), spec->get_type());
     PROFILE_START(z3_eval);
-    auto exp_val = z3_eval(proj, new_spec.get(), state);
+    auto const exp_val = z3_eval(proj, new_spec.get(), state);
     PROFILE_END(z3_eval);
 
     // std::unordered_map<unsigned, std::pair<z3::expr, SpecNode*>> subexprs;
@@ -1039,7 +1039,7 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
     auto res = reduce_id_write(proj, std::move(new_spec), state);
     auto reduced_spec = std::move(res.first);
     changed |= res.second;
-    auto z3t_string2 = reduced_spec->get_type()->get_z3_type().to_string();
+    auto const z3t_string2 = reduced_spec->get_type()->get_z3_type().to_string();
     assert(z3t_string == z3t_string2);
     if (auto reduced_expr = instance_of(reduced_spec.get(), Expr)) {
         if (auto op = std::get_if<Expr::ops>(&reduced_expr->op)) {
@@ -1053,7 +1053,7 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
             }
         }
     }
-    auto z3t_string3 = reduced_spec->get_type()->get_z3_type().to_string();
+    auto const z3t_string3 = reduced_spec->get_type()->get_z3_type().to_string();
     assert(z3t_string == z3t_string3);
     // auto new_s = string(*reduced_spec);
     // if(logthis)
@@ -1062,7 +1062,7 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_
 }
 
 rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state) {
-    bool changed = false;
+    bool const changed = false;
     if (!spec) return {std::move(spec), false};
     if (!force_simpl) { return { std::move(spec), false } ; }
     // LOG_DEBUG << "Simplifying: " << string(*spec).substr(0,1000);
@@ -1092,9 +1092,9 @@ rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::sha
         result = simple_if_by_z3(std::unique_ptr<If>(static_cast<If*>(spec.release())), state);
     }
     else if (auto forall = instance_of(spec.get(), Forall)) {
-        for (auto& v : *forall->vars) {
+        for (auto const& v : *forall->vars) {
             if (v->type) {
-                auto var = v->type->declare(v->name, forall->nid);
+                auto const var = v->type->declare(v->name, forall->nid);
                 (*state->vars)[v->name] = var;
             } else {
                 assert(v->expr);
@@ -1105,7 +1105,7 @@ rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::sha
         result = { std::make_unique<Forall>(std::move(forall->vars), std::move(res.first)), res.second };
     }
     else if (auto exists = instance_of(spec.get(), Exists)) {
-        for (auto& v : *exists->vars) {
+        for (auto const& v : *exists->vars) {
             assert(v->type);
             (*state->vars)[v->name] = v->type->declare(v->name, exists->nid);
         }

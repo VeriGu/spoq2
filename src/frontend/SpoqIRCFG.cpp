@@ -317,7 +317,7 @@ bool SpoqIRModule::control_flow_clone_and_split(llvm::BasicBlock *bb, SpoqLoopCo
 
             // Recurse into the successor (now guaranteed to have 1 predecessor).
             if (bb == context.get_preheader() || context.require_clone(succ)) {
-                bool ret = control_flow_clone_and_split(succ, context);
+                bool const ret = control_flow_clone_and_split(succ, context);
                 if (!ret) return false;
             }
         }
@@ -551,12 +551,12 @@ bool SpoqIRModule::control_flow_conversion_v2(string fname,
 
     // ── Phase 2: Normalize loops ──
     // Ask LLVM for loop info on the (post-Phase-1) CFG.
-    llvm::LoopInfo &LI = FAM.getResult<llvm::LoopAnalysis>(*llvm_func);
+    llvm::LoopInfo  const&LI = FAM.getResult<llvm::LoopAnalysis>(*llvm_func);
     SpoqLoopContext& context = spoq_func.loop_context;
 
     if (!LI.empty()) {
         // Process loops outermost-first.
-        auto loops = LI.getLoopsInPreorder();
+        auto const loops = LI.getLoopsInPreorder();
         for(auto loop: loops) {
 
             // ── 2a: Clean up the preheader ──
@@ -564,7 +564,7 @@ bool SpoqIRModule::control_flow_conversion_v2(string fname,
             // If it has phi nodes (can happen when two loops share a
             // header), split it so we get a clean preheader with no phis.
             auto preheader = loop->getLoopPreheader();
-            llvm::BasicBlock* skip_preheader = nullptr;
+            llvm::BasicBlock const* skip_preheader = nullptr;
             if(!preheader) {
                 throw std::runtime_error("loop does not have a loop header");
             } else if (!preheader->getUniqueSuccessor()){
@@ -673,7 +673,7 @@ bool SpoqIRModule::control_flow_conversion_v2(string fname,
             context.set_jump(preheader, postheader);
 
             // Build the dispatch chain (icmp + br for each exit).
-            auto size = phi_map.size();
+            auto const size = phi_map.size();
             assert(size > 0 && "a post header should have at least one outcoming edge");
             for(int i = 1; i < size; i++) {
                 auto shadow_bb = llvm::BasicBlock::Create(builder.getContext(), "postprocess.shadow", llvm_func);

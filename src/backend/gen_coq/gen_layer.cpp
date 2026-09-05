@@ -15,8 +15,8 @@ void gen_layer_refine_rel(Project *proj, int i, string path)
     auto const &layer = proj->layers.at(i);
     auto const &base_layer = proj->layers.at(i - 1);
 
-    vector<string> deps = {"CommonDeps", "DataTypes"};
-    for (auto d : deps) {
+    vector<string> const deps = {"CommonDeps", "DataTypes"};
+    for (auto const d : deps) {
         out << "Require Import " + d + ".\n";
     }
 
@@ -38,8 +38,8 @@ void gen_layer(Project *proj, int i, string path)
     std::set<string> deps;
     deps = {"CommonDeps", "DataTypes"};
 
-    for (auto p : ps) {
-        auto spec = p + "_spec";
+    for (auto const p : ps) {
+        auto const spec = p + "_spec";
         auto loc = proj->symbols[spec].loc;
         string l = std::get<0>(loc);
         if (std::get<1>(loc) != "") {
@@ -67,7 +67,7 @@ void gen_layer(Project *proj, int i, string path)
         deps.insert(l);
     }
 
-    for (auto d : deps) {
+    for (auto const d : deps) {
         if (d == "") continue;
         out << "Require Import " + d + ".\n";
     }
@@ -239,7 +239,7 @@ void gen_layer(Project *proj, int i, string path)
 
     auto first = true;
 
-    for (auto p : ps) {
+    for (auto const p : ps) {
         if (first) {
             out << "          (\"" + p + "\", prim " + p + "_spec)\n";
             first = false;
@@ -261,7 +261,7 @@ void gen_layer(Project *proj, int i, string path)
 unique_ptr<vector<string>> generate_layer(Project *proj)
 {
     auto files = unique_ptr<vector<string>>(new vector<string>());
-    boost::filesystem::path dir(proj->base);
+    boost::filesystem::path const dir(proj->base);
 
     int i = 0;
     for (auto const &layer : proj->layers) {

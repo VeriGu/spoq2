@@ -12,7 +12,7 @@ void gen_low_proof_func(Project *p, int i, string fname, string path)
 {
     auto layer = p->layers[i]->name;
     auto base_layer = p->layers[i - 1]->name;
-    auto func = (*p->code->functions)[fname];
+    auto const func = (*p->code->functions)[fname];
     auto loc = loc_t(layer, fname, "LowSpec");
 
     vector<string> syms;
@@ -31,9 +31,9 @@ void gen_low_proof_func(Project *p, int i, string fname, string path)
     }
 
     std::set<string> dep_defs;
-    for (auto s : syms) {
+    for (auto const s : syms) {
         if (p->deps.find(s) == p->deps.end()) continue;
-        for (auto d : p->deps[s]) {
+        for (auto const d : p->deps[s]) {
             if (p->symbols[d].loc == loc_t("", "", "")) continue;
             dep_defs.insert(d);
             string l = "";
@@ -51,7 +51,7 @@ void gen_low_proof_func(Project *p, int i, string fname, string path)
     }
 
     std::ofstream out(path);
-    for (auto d : deps) {
+    for (auto const d : deps) {
         out << "Require Import " + d + ".\n";
     }
     out << "\n";
@@ -68,10 +68,10 @@ void gen_low_proof_func(Project *p, int i, string fname, string path)
     out << "  Context `{int_ptr: IntPtrCast}.\n";
     out << "\n";
 
-    for (auto d : dep_defs) {
+    for (auto const d : dep_defs) {
         // probaly need to escape fname
         string lit = R"(^)" + fname + R"(.*?_(loop\d+_rank|loop\d+_low|funptr_wrap\d+)$)";
-        std::regex pattern(lit);
+        std::regex const pattern(lit);
         if (std::regex_match(d, pattern)) {
             out << "  Hint Unfold " + d + ":spec.\n";
             continue;
@@ -165,7 +165,7 @@ void gen_low_proof_proc(Project *p, int i, string fname, string path)
     }
     auto layer = p->layers[i]->name;
     auto base_layer = p->layers[i - 1]->name;
-    auto proc = (*p->code->asm_procs)[fname];
+    auto const proc = (*p->code->asm_procs)[fname];
     auto loc = loc_t(layer, fname, "LowSpec");
 
     vector<string> syms;
@@ -185,9 +185,9 @@ void gen_low_proof_proc(Project *p, int i, string fname, string path)
     }
 
     std::set<string> dep_defs;
-    for (auto s : syms) {
+    for (auto const s : syms) {
         if (p->deps.find(s) != p->deps.end()) continue;
-        for (auto d : p->deps[s]) {
+        for (auto const d : p->deps[s]) {
             dep_defs.insert(d);
             if (p->symbols[d].loc == loc_t("", "", "")) continue;
             deps.insert(std::get<0>(p->symbols[d].loc));
@@ -201,7 +201,7 @@ void gen_low_proof_proc(Project *p, int i, string fname, string path)
         }
     }
 
-    for (auto d : deps) {
+    for (auto const d : deps) {
         out << "Require Import " + d + ".\n";
     }
     out << "\n";
@@ -282,13 +282,13 @@ unique_ptr<vector<string>> generate_low_proof(Project *p)
             continue;
         }
 
-        boost::filesystem::path layer_name(L->name);
-        boost::filesystem::path dir(p->base);
+        boost::filesystem::path const layer_name(L->name);
+        boost::filesystem::path const dir(p->base);
         if (!fs::exists((dir / layer_name).string())) {
             fs::create_directory((dir / layer_name).string());
         }
-        for (auto prim : L->prims) {
-            auto prim_path = dir / layer_name / boost::filesystem::path(prim);
+        for (auto const prim : L->prims) {
+            auto const prim_path = dir / layer_name / boost::filesystem::path(prim);
             if (!fs::exists(prim_path.string())) {
                 fs::create_directory(prim_path.string());
             }

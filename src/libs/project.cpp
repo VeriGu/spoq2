@@ -351,11 +351,11 @@ void Project::add_command(unique_ptr<Expr> cmd) {
             this->abs_layout.push_back(SpoqAbstractionLayout());
             auto &abs = this->abs_layout.back();
             abs.struct_name = parse_cmd_string(cmd, 0);
-            auto size = parse_cmd_int(cmd, 1);
+            auto const size = parse_cmd_int(cmd, 1);
             for(int i = 0; i < size; i++) {
-                auto field = parse_cmd_string(cmd, 2 + i * 3 + 0);
-                auto start = (unsigned long)parse_cmd_int(cmd, 2 + i * 3 + 1);
-                auto end = (unsigned long)parse_cmd_int(cmd, 2 + i * 3 + 2);
+                auto const field = parse_cmd_string(cmd, 2 + i * 3 + 0);
+                auto const start = (unsigned long)parse_cmd_int(cmd, 2 + i * 3 + 1);
+                auto const end = (unsigned long)parse_cmd_int(cmd, 2 + i * 3 + 2);
                 abs.fields.push_back(std::make_pair<>(field, std::make_pair<>(start, end)));
             }
             std::cout << "Abstract Layout: " << abs.struct_name << ", size: " << size << std::endl;
@@ -557,7 +557,7 @@ std::set<string> Project::calc_dependencies(SpecNode *expr) {
     } else if (auto wa = instance_of(expr, ForallExists)) {
         deps.merge(calc_dependencies(wa->body.get()));
     } else if (auto e = instance_of(expr, Expr)) {
-        for (auto &elem: *e->elems)
+        for (auto  const&elem: *e->elems)
             deps.merge(calc_dependencies(elem.get()));
         if (auto op = std::get_if<unique_ptr<SpecNode>>(&e->op))
             deps.merge(calc_dependencies(op->get()));
@@ -567,7 +567,7 @@ std::set<string> Project::calc_dependencies(SpecNode *expr) {
     } else if (auto s = instance_of(expr, Symbol)) {
         auto text = s->text;
         if (this->symbols.find(text) != this->symbols.end()) {
-            auto &info = this->symbols.at(text);
+            auto  const&info = this->symbols.at(text);
 
             if (info.kind == SymbolKind::Def || info.kind == SymbolKind::Decl)
                 deps.insert(text);
@@ -614,7 +614,7 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
             std::cout << string(*def) << std::endl;
             proj->deps[def->name] = proj->calc_dependencies(def->body.get());
 
-            auto loc = make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC);
+            auto const loc = make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC);
 
             if (is_instance(def, Fixpoint)) {
                 proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(def)), loc);
@@ -646,7 +646,7 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
                     proj->symbols[def->name].order = proj->symbols[sub_def->name].order + 1;
                     auto sub_name = sub_def->name;
                     LOG_DEBUG << "sub_name: " << sub_name;
-                    auto high_name = sub_name.substr(0, sub_name.size() - 4);
+                    auto const high_name = sub_name.substr(0, sub_name.size() - 4);
                     subs_defs_low->push_back(sub_def);
                     //proj->add_definition(unique_ptr<Definition>(sub_def), loc);
                     //proj->update_symbol_loc(sub_name, make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
@@ -656,7 +656,7 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
 
 
             if (def->name.rfind(suffix) == def->name.size() - suffix.size()) {
-                std::string high_name = def->name.substr(0, def->name.size() - suffix.size());
+                std::string const high_name = def->name.substr(0, def->name.size() - suffix.size());
                 name_map[def->name] = high_name;
             }
 
@@ -668,10 +668,10 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
         }
     } else {
         // Otherwise, the loop/sub/low spec is provided.
-        auto func = proj->code->functions->at(fname);
+        auto const func = proj->code->functions->at(fname);
         // The name of the low spec may have three forms: `fname_loop\d+_low`, `fname_\d+_low`, "fname_spec_low"
-        std::regex pattern1(fname + "_loop\\d+_low");
-        std::regex pattern2(fname + "_\\d+_low");
+        std::regex const pattern1(fname + "_loop\\d+_low");
+        std::regex const pattern2(fname + "_\\d+_low");
         string low_name = fname + "_spec_low";
 
         func->types = make_unique<unordered_map<string, shared_ptr<SpecType>>>();
@@ -683,8 +683,8 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
         // Since low spec might be provided and we don't know the name of the low spec, we cannot directly get the
         // spec Definition object from `proj->defs`. Instead, we need to iterate through all the definitions and
         // check if the name matches the pattern.
-        for (auto &spec_name : proj->def_order) {
-            auto &spec = proj->defs[spec_name];
+        for (auto  const&spec_name : proj->def_order) {
+            auto  const&spec = proj->defs[spec_name];
             bool is_loop = false, is_sub = false;
 
             if (std::regex_match(spec_name, pattern1)) {
@@ -696,7 +696,7 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
             }
 
             if (spec_name == low_name || is_loop || is_sub) {
-                auto high_name = spec_name.substr(0, spec_name.size() - 4);
+                auto const high_name = spec_name.substr(0, spec_name.size() - 4);
 
                 low_specs->push_back(spec.get());
                 proj->update_symbol_loc(spec_name, make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
@@ -713,7 +713,7 @@ static void merge_keep(Project *proj, std::set<string> &to_keep, string fname) {
     // if (proj->code->functions->find(fname) == proj->code->functions->end())
     //     throw std::runtime_error("Function " + fname + " not found");
 
-    auto it_bool_pair = to_keep.insert(fname);
+    auto const it_bool_pair = to_keep.insert(fname);
     if (it_bool_pair.second){
         to_keep.insert(proj->prim_deps[fname].begin(), proj->prim_deps[fname].end());
 
@@ -779,7 +779,7 @@ static string
 infer_spec_task(Project *proj, int layer_id, string fname) {
     auto &L = proj->layers[layer_id];
     vector<Definition *> *low_specs;
-    unsigned long symbol_order = proj->symbols.size();
+    unsigned long const symbol_order = proj->symbols.size();
 #ifdef MT_TRANSFORM
     vector<Definition *> high_specs;
 #endif
@@ -835,7 +835,7 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         }
 
         auto high_args = make_unique<vector<shared_ptr<Arg>>>();
-        for (auto &arg: *low_def->args)
+        for (auto  const&arg: *low_def->args)
             high_args->push_back(arg);
 
         Definition *high_def = nullptr;
@@ -855,7 +855,7 @@ infer_spec_task(Project *proj, int layer_id, string fname) {
         }
 
         // Transform the low spec to high spec
-        bool no_trans = proj->cmds.NoHighSpec || proj->cmds.NoTrans.find(name_map[low_name]) != proj->cmds.NoTrans.end();
+        bool const no_trans = proj->cmds.NoHighSpec || proj->cmds.NoTrans.find(name_map[low_name]) != proj->cmds.NoTrans.end();
 
         // LOG_DEBUG << "NO HIGH SPEC:" << proj->cmds.NoHighSpec;
 
@@ -927,7 +927,7 @@ static void collect_relations(Project *proj) {
 
         Definition *pure_rel = nullptr;
         auto l_args = make_unique<vector<shared_ptr<Arg>>>();
-        for (auto &arg: *rel_def->args)
+        for (auto  const&arg: *rel_def->args)
             l_args->push_back(arg);
         if (is_instance(rel_def, Fixpoint)) {
             throw std::runtime_error("[collect_relations] Fixpoint rel not supported for now\n");
@@ -964,7 +964,7 @@ static void collect_lemmas(Project *proj) {
 
         Definition *pure_lemma = nullptr;
         auto l_args = make_unique<vector<shared_ptr<Arg>>>();
-        for (auto &arg: *lemma_def->args)
+        for (auto  const&arg: *lemma_def->args)
             l_args->push_back(arg);
 
         if (is_instance(lemma_def, Fixpoint)) {
@@ -1001,8 +1001,8 @@ static void collect_field_ancestors(Project *proj)
     std::set<Pair> field_to_father_type; // child field -> father record type
     std::unordered_map<std::string, std::set<std::string>> fields_by_type; // type → { fields }
 
-    for (auto &s : proj->structs) {
-        auto father_type = s.first;
+    for (auto  const&s : proj->structs) {
+        auto const father_type = s.first;
 
         for (const auto &field : *(s.second->elems)) {
             auto child_field = field->name;
@@ -1018,8 +1018,8 @@ static void collect_field_ancestors(Project *proj)
         const std::string &child_field = edge.first;
         const std::string &father_type = edge.second;
 
-        auto it = fields_by_type.find(father_type);
-        auto it_zmap = fields_by_type.find("ZMap_" + father_type);
+        auto const it = fields_by_type.find(father_type);
+        auto const it_zmap = fields_by_type.find("ZMap_" + father_type);
 
         if (it != fields_by_type.end()) {
             for (const std::string &father_field : it->second) {
@@ -1042,7 +1042,7 @@ static void collect_field_ancestors(Project *proj)
             for (const Pair &p2 : proj->field_ancestor) {
                 if (p1.second != p2.first)
                     continue;
-                Pair np{p1.first, p2.second};
+                Pair const np{p1.first, p2.second};
                 if (!proj->field_ancestor.count(np)) {
                     to_add.insert(np);
                     changed = true;
@@ -1100,7 +1100,7 @@ void trans_inv(Project *proj) {
         }
     }
 
-    for(auto name : proj->axioms) {
+    for(auto const name : proj->axioms) {
        Definition *axiom_def = proj->defs[name].get();
        type_inference::infer_type(*proj, axiom_def->body.get(), known, Bool::BOOL);
        spec_transformer_v2(proj, axiom_def, 0, true, true);
@@ -1139,13 +1139,13 @@ void Project::finalize_project()
     for (auto it = this->layers.rbegin(); it != this->layers.rend() - 1; it++) {
         auto &L = *it;
 
-        for (auto &p: L->prims) {
+        for (auto  const&p: L->prims) {
             if (deps.find(p) != deps.end())
                 deps.erase(p);
         }
         L->passthrough = vector<string>(deps.begin(), deps.end());
 
-        for (auto &p: L->prims) {
+        for (auto  const&p: L->prims) {
             if (this->code->functions->find(p) == this->code->functions->end())
                 continue;
 
@@ -1180,9 +1180,9 @@ void Project::finalize_project()
         // Previously, if we manually gave high specs (and low specs) but delayed having their type inference done (due to low-level generated spec calls), they would never be inferred.
         // Now, before inferring the next layer, we check if there is a low/high spec in the previous layer that has not yet been inferred.
         // FIXME: Note that, if we define something other than 'prim_spec' and 'prim_spec_low', the mechanism here WOULD STILL FAIL.
-        for (auto &p : prev_L->prims) {
-            auto p_low = p + "_spec_low";
-            auto p_high = p + "_spec";
+        for (auto  const&p : prev_L->prims) {
+            auto const p_low = p + "_spec_low";
+            auto const p_high = p + "_spec";
             if (this->defs.find(p_low) != this->defs.end()) {
                 if (this->defs[p_low]->deleyed_type_inference) {
                     this->defs[p_low]->infer_type(*this);
@@ -1195,7 +1195,7 @@ void Project::finalize_project()
             }
         }
 
-        for (auto &p: L->prims) {
+        for (auto  const&p: L->prims) {
             if (this->code->functions->find(p) == this->code->functions->end() ||
                 this->code->functions->at(p)->body == nullptr)
                 continue;
@@ -1257,13 +1257,13 @@ bool Project::finalize_project_v2() {
     for (auto it = this->layers.rbegin(); it != this->layers.rend() - 1; it++) {
         auto &L = *it;
 
-        for (auto &p: L->prims) {
+        for (auto  const&p: L->prims) {
             if (deps.find(p) != deps.end())
                 deps.erase(p);
         }
         L->passthrough = vector<string>(deps.begin(), deps.end());
 
-        for (auto &p: L->prims) {
+        for (auto  const&p: L->prims) {
             auto func = this->spoq_code.llvm_module->getFunction(p);
             if (func == nullptr || func->isDeclaration())
                 continue;
@@ -1318,9 +1318,9 @@ bool Project::finalize_project_v2() {
         // Previously, if we manually gave high specs (and low specs) but delayed having their type inference done (due to low-level generated spec calls), they would never be inferred.
         // Now, before inferring the next layer, we check if there is a low/high spec in the previous layer that has not yet been inferred.
         // FIXME: Note that, if we define something other than 'prim_spec' and 'prim_spec_low', the mechanism here WOULD STILL FAIL.
-        for (auto &p : prev_L->prims) {
-            auto p_low = p + "_spec_low";
-            auto p_high = p + "_spec";
+        for (auto  const&p : prev_L->prims) {
+            auto const p_low = p + "_spec_low";
+            auto const p_high = p + "_spec";
             if (this->defs.find(p_low) != this->defs.end()) {
                 if (this->defs[p_low]->deleyed_type_inference) {
                     this->defs[p_low]->infer_type(*this);
@@ -1333,7 +1333,7 @@ bool Project::finalize_project_v2() {
             }
         }
 
-        for (auto &p: L->prims) {
+        for (auto  const&p: L->prims) {
             // LOG_DEBUG << "primitive: " << p << "\n";
             auto func = this->spoq_code.llvm_module->getFunction(p);
             // LOG_DEBUG << "primitive: " << p << "\n";
@@ -1350,11 +1350,11 @@ bool Project::finalize_project_v2() {
 
     LOG_DEBUG << "low spec ok" << "\n";
 
-    auto start = std::chrono::high_resolution_clock::now();
+    auto const start = std::chrono::high_resolution_clock::now();
     collect_field_ancestors(this);
     spec_prover(this);
-    auto end = std::chrono::high_resolution_clock::now();
-    auto proof_cost = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+    auto const end = std::chrono::high_resolution_clock::now();
+    auto const proof_cost = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
     extern unsigned long z3_unknowns, z3_checks, z3_cache_hits, z3_global_hash_hit, z3_global_hash_total;
     extern std::chrono::duration<double> z3_accumulative_time;
@@ -1376,7 +1376,7 @@ bool Project::finalize_project_v2() {
  */
 static string signature_string(const Definition *def) {
     string sig;
-    for (auto &arg : *def->args)
+    for (auto  const&arg : *def->args)
         sig += "(" + arg->name + ": " + string(*arg->type) + ") ";
     sig += ": " + string(*def->rettype);
     return sig;
@@ -1401,8 +1401,8 @@ static void check_provided_spec_signature(const Definition *provided, const Defi
                   low_def->name + " takes " + std::to_string(low_def->args->size());
     } else {
         for (size_t i = 0; i < provided->args->size(); i++) {
-            auto &given = provided->args->at(i)->type;
-            auto &expected = low_def->args->at(i)->type;
+            auto  const&given = provided->args->at(i)->type;
+            auto  const&expected = low_def->args->at(i)->type;
             if (!given || !expected || given->name == expected->name)
                 continue;
             problem = "declares argument " + std::to_string(i + 1) + " (" +
@@ -1430,7 +1430,7 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
     bool have_loop = false, have_sub = false;
 
     vector<std::string> low_specs_name;
-    bool ret = infer_low_spec_v2(proj, layer_id, fname, have_loop, have_sub, name_map, low_specs_name);
+    bool const ret = infer_low_spec_v2(proj, layer_id, fname, have_loop, have_sub, name_map, low_specs_name);
     if(!ret) {
         LOG_ERROR << "Failed to infer low spec for " << fname << std::endl;
         return std::make_tuple(fname, nullptr, nullptr);
@@ -1439,7 +1439,7 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
     }
 
     // auto &L = proj->layers[layer_id];
-    unsigned long symbol_order = proj->symbols.size();
+    unsigned long const symbol_order = proj->symbols.size();
 
     for (int i = 0; i < low_specs_name.size(); i++) {
         std::unique_ptr<Definition>& low_def = proj->defs[low_specs_name[i]];
@@ -1476,7 +1476,7 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
         }
 
         auto high_args = make_unique<vector<shared_ptr<Arg>>>();
-        for (auto &arg: *low_def->args)
+        for (auto  const&arg: *low_def->args)
             high_args->push_back(arg);
 
         bool no_trans = false;
@@ -1549,14 +1549,14 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
     auto low_name = fname + "_spec_low";
     if(proj->defs.find(low_name) == proj->defs.end()) {
         LOG_DEBUG << "low spec not found: " << low_name << "\n";
-        std::string suffix = "_low";
-        bool ret = proj->spoq_code.code_to_spec(proj, fname, layer_id, low_specs, name_map);
+        std::string const suffix = "_low";
+        bool const ret = proj->spoq_code.code_to_spec(proj, fname, layer_id, low_specs, name_map);
         if(!ret) {
             LOG_ERROR << "fail to generate low spec for: " << fname << "\n";
             return false;
         }
         auto subs_defs_low = new vector<Definition*>();
-        for(auto &def_name: low_specs) {
+        for(auto  const&def_name: low_specs) {
             auto def = proj->defs[def_name].get();
 
             // spec transformer
@@ -1581,7 +1581,7 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
                     proj->symbols[def->name].order = proj->symbols[sub_def->name].order + 1;
                     auto sub_name = sub_def->name;
                     LOG_DEBUG << "sub_name: " << sub_name;
-                    auto high_name = sub_name.substr(0, sub_name.size() - 4);
+                    auto const high_name = sub_name.substr(0, sub_name.size() - 4);
                     subs_defs_low->push_back(sub_def);
                     //proj->add_definition(unique_ptr<Definition>(sub_def), loc);
                     //proj->update_symbol_loc(sub_name, make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC));
@@ -1600,8 +1600,8 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
         LOG_DEBUG << "low spec provided: " << low_name << "\n";
         // The name of the low spec may have three forms: `fname_loop\d+_low`,
         // `fname_\d+_low`, "fname_spec_low"
-        std::regex pattern1(fname + "_loop_\\d+_low");
-        std::regex pattern2(fname + "_\\d+_low");
+        std::regex const pattern1(fname + "_loop_\\d+_low");
+        std::regex const pattern2(fname + "_\\d+_low");
         string low_name = fname + "_spec_low";
 
         unique_ptr<SpecNode> spec = std::move(proj->defs[low_name]->body);
@@ -1621,7 +1621,7 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
         // low spec, we cannot directly get the spec Definition object from
         // `proj->defs`. Instead, we need to iterate through all the definitions
         // and check if the name matches the pattern.
-        for (auto &spec_name : proj->def_order) {
+        for (auto  const&spec_name : proj->def_order) {
             bool is_loop = false, is_sub = false;
 
             if (std::regex_match(spec_name, pattern1)) {
@@ -1633,7 +1633,7 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
             }
 
             if (spec_name == low_name || is_loop || is_sub) {
-                auto high_name = spec_name.substr(0, spec_name.size() - 4);
+                auto const high_name = spec_name.substr(0, spec_name.size() - 4);
 
                 low_specs.push_back(spec_name);
                 proj->symbols[spec_name].loc = std::make_tuple(proj->layers[layer_id]->name, fname, Project::LOC_LOWSPEC);
@@ -1693,7 +1693,7 @@ void Project::prepare_abstraction() {
 
     for (auto &abs: this->abs_layout) {
         auto typ = dynamic_cast<Struct*>(this->structs.at(abs.struct_name).get());
-        for (auto &field: abs.fields) {
+        for (auto  const&field: abs.fields) {
             std::cout << "Field: " << field.first << " " << std::endl;
             auto sty = dynamic_cast<Struct*>(typ->elems_map[field.first].get());
             if (sty) {
@@ -1706,8 +1706,8 @@ void Project::prepare_abstraction() {
 
 
     auto& context = this->spoq_code.llvm_module->getContext();
-    std::regex arg_pattern(R"(arg_(\d+))");
-    std::regex ret_pattern(R"(ret_(\d+))");
+    std::regex const arg_pattern(R"(arg_(\d+))");
+    std::regex const ret_pattern(R"(ret_(\d+))");
     for  (auto &pair: this->abs_var) {
         std::cout << "Function: " << pair.first << std::endl;
         auto func = spoq_code.llvm_module->getFunction(pair.first);
@@ -1718,7 +1718,7 @@ void Project::prepare_abstraction() {
         for(auto &var: pair.second) {
             std::smatch match;
             if (std::regex_match(var.first, match, arg_pattern)) {
-                int number = std::stoi(match[1].str());
+                int const number = std::stoi(match[1].str());
                 if (func->arg_size() <= number) {
                     std::cout << "[arg number]Abstraction is not usedfor function: " << pair.first << " " << var.first << std::endl;
                     continue;

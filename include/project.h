@@ -82,8 +82,8 @@ public:
         query_id++;
     }
 
-    void save_config(const std::string &config_path) {
-        auto dumpfile = query_dir + "/config.v";
+    void save_config(const std::string &config_path) const {
+        auto const dumpfile = query_dir + "/config.v";
         std::cout << "Copying config from " << config_path << " to " << dumpfile << std::endl;
 
         try {

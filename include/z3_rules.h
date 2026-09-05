@@ -52,8 +52,8 @@ public:
     }
 
     shared_ptr<EvalState> copy() {
-        auto vars = make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*this->vars);
-        auto conds = make_shared<vector<z3::expr>>(*this->conds);
+        auto const vars = make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*this->vars);
+        auto const conds = make_shared<vector<z3::expr>>(*this->conds);
         return make_shared<EvalState>(vars, conds);
     }
 };
