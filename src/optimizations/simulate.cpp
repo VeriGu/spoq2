@@ -56,6 +56,86 @@ namespace autov
 	 * @return [result, its following spec body]
 	 * 		   We assume that abstract function will not occur in multiple branches. otherwise the return value should be std::pair<bool, std::set<SpecNode *>>
 	 */
+
+extern class UnfoldPolicy UNFOLD_POLICY;
+
+/// Demand-driven unfolding at the point of failure.
+///
+/// A callee spec the transformation stage left folded appears here as the
+/// scrutinee of a Match: `when st' == (f_spec args)`.  When the simulation
+/// beneath that Match fails, the failure may be an artefact of f being opaque
+/// rather than a real counterexample.  Instead of restarting the whole
+/// refinement with f unfolded everywhere, inline f into this one scrutinee,
+/// simplify the inlined body under the *live* state -- the path conditions and
+/// bindings the refinement has already accumulated on the way here -- and let
+/// the caller re-descend from this Match with that same state.  Parents and
+/// siblings keep their results; nothing above this node is revisited.  A
+/// rewritten scrutinee is no longer a folded call, so the re-descent cannot
+/// trigger this again: each site is inlined at most once.
+///
+/// Returns true if the scrutinee was rewritten and the Match must be
+/// re-simulated; false if it was not a folded callee (a real failure).
+static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveState> state) {
+    auto expr = instance_of(m->src.get(), Expr);
+    if (!expr) return false;
+    auto op = std::get_if<string>(&expr->op);
+    if (!op || !UNFOLD_POLICY.deferred.count(*op)) return false;
+    auto it = proj->defs.find(*op);
+    if (it == proj->defs.end() || instance_of(it->second.get(), Fixpoint)) return false;
+
+    LOG_DEBUG << "[demand-unfold] simulation failed below a call to " << *op
+              << "; inlining it at this site and re-simulating from here.";
+    auto [inlined, changed] = proj->rules.unfold_calls_to(std::move(m->src), *op);
+    if (!changed) { m->src = std::move(inlined); return false; }
+
+    // Every name bound on the path so far: the inlined body must not capture
+    // any of them.
+    std::set<string> known;
+    for (auto &kv : *state->vars) known.insert(kv.first);
+    bool amb = false;
+    inlined = proj->rules.eliminate_ambiguity(std::move(inlined), known, amb);
+
+    // Specialise the callee to this call site with what the refinement already
+    // knows here.  A copy of the state, so partial evaluation cannot leak
+    // conditions into the live one; unfolding off, so this stays one body at
+    // one site.
+    inlined = partial_eval(proj, std::move(inlined), 0, state->copy(), known, /*unfold=*/false);
+
+    // Partial evaluation decides the callee's conditions from the path but
+    // leaves the structure behind -- `let v := true in if v then Some st else
+    // None` where `Some st` is meant.  Fold that away with the same structural
+    // rules the transformation stage pairs with partial_eval, iterated to a
+    // fixpoint on this subtree alone.  The re-descent then reasons over the
+    // folded term, not the whole unfolded callee, which is where the cost of
+    // the retry actually sits.
+    for (int iter = 0, changed_any = true; changed_any && iter < 10; iter++) {
+        changed_any = false;
+        bool c = false;
+        std::tie(inlined, c) = proj->rules.rule_eliminate_let(std::move(inlined), true);          changed_any |= c;
+        std::tie(inlined, c) = proj->rules.rule_eliminate_if(std::move(inlined), true);           changed_any |= c;
+        std::tie(inlined, c) = proj->rules.rule_eliminate_match_simple(std::move(inlined), true); changed_any |= c;
+        std::tie(inlined, c) = proj->rules.rule_simplify_expr(std::move(inlined), true);          changed_any |= c;
+        // The structural rules fold what partial evaluation made syntactically
+        // obvious.  This decides what is obvious only *under the path*: with the
+        // conditions the refinement has accumulated on the way here, branches of
+        // the inlined callee that cannot be taken at this site are cut, and a
+        // Match whose scrutinee is now decided collapses.  Same pass the
+        // transformation stage runs, applied to this subtree alone.
+        std::tie(inlined, c) = proj->rules.rule_simple_by_z3(std::move(inlined), state->copy());  changed_any |= c;
+    }
+    m->src = std::move(inlined);
+    // z3_eval memoises a z3 term on every node it evaluates.  The arms beneath
+    // this Match were evaluated during the descent that just failed, against
+    // the *folded* binding of the scrutinee, and still hold those terms.  A
+    // re-descent that does not drop them re-proves against the opaque call --
+    // and fails identically -- however well the scrutinee was inlined.  This is
+    // the one thing a full restart did for us (check_refines clears both bodies
+    // up front) that continuing in place must do for itself, scoped to the
+    // subtree being re-simulated.
+    m->clear_z3_eval();
+    return true;
+}
+
 	SimulateResult forward_simulation(Project *proj, SpecNode *st_check, SpecNode *spec_ret, SpecNode *impl, Definition *rel, Definition *ret_rel, shared_ptr<ProveState> state,
 			bool det, const path_t &path, int i, bool allow_none) {
 				int random_code = rand() % 10000;
@@ -305,6 +385,10 @@ namespace autov
 					if(!this_branch_result.verified){
 						LOG_DEBUG << "[forward_simulation " << random_code << "] Match verification failed on branch: " << string(*pat).substr(0,200);
 						LOG_DEBUG << "Matched expr: " << string(*m->src->deep_copy());
+						// If the scrutinee was an opaque callee, unfold it here and redo
+						// just this Match with the state we entered it with.
+						if (inline_folded_scrutinee(proj, m, state))
+							return forward_simulation(proj, st_check, spec_ret, impl, rel, ret_rel, state, det, path, i, allow_none);
 						return this_branch_result;
 					}
 					sim_result = sim_result + this_branch_result;
@@ -712,6 +796,10 @@ namespace autov
 			}
 			if (!sim_result.verified) {
 				LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Completed Match: some branches not verified.";
+				// Same recovery on the spec side: unfold an opaque scrutinee in
+				// place and re-simulate only this Match.
+				if (inline_folded_scrutinee(proj, m, state))
+					return simulate_by_traverse(proj, spec, impl, rel, ret_rel, state, p, det);
 			}
 			return sim_result;
 		} else if (auto i = instance_of(spec, If)) {

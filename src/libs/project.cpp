@@ -1113,6 +1113,10 @@ void trans_inv(Project *proj) {
  */
 void Project::finalize_project()
 {
+    // Legacy path: no LLVM module is ever loaded here, so there is nothing to
+    // classify a "called function" against and demand-driven unfolding cannot
+    // apply.  Say so rather than degrade silently.
+    LOG_INFO << "[UNFOLD] callee unfolding: eager (legacy path loads no LLVM module)";
     std::set<string> loaded, deps;
     shared_ptr<IRModule> module;
 
@@ -1217,6 +1221,13 @@ void Project::finalize_project()
 bool Project::finalize_project_v2() {
 
     LOG_DEBUG << "Finalizing project" << std::endl;
+
+    // The unfolding policy is fixed at process start (UnfoldPolicy ctor); this
+    // only reports it.  Demand-driven: the transformation stage leaves calls to
+    // other functions' specs folded and the verification driver inlines one only
+    // when a proof fails without it.
+    LOG_INFO << "[UNFOLD] callee unfolding: "
+             << (UNFOLD_POLICY.lazy ? "demand-driven" : "eager (SPOQ_EAGER_UNFOLD)");
 
     if(!spoq_code.load_llvm_module(this->code_path)) return false;
 

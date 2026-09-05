@@ -41,6 +41,9 @@ inline std::string ruleid_to_string(RuleID rule) {
 
 
 size_t leaves_in_spec_unfolded(Project* proj, const SpecNode *node) {
+    // This measures the *fully unfolded* spec, so it must not honour the
+    // demand-driven policy or it under-counts whatever was left folded.
+    UnfoldPolicy::EagerScope eager(UNFOLD_POLICY);
     if (proj->name == "struct_array_elem") return 0;  
     auto new_node = node->deep_copy();
     auto changed = false;

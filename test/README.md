@@ -29,6 +29,16 @@ A test is three files sharing a stem:
 | `<test>.main.v` | the spoq configuration, self-contained |
 | `<test>.expected.json` | the fields of spoq's result JSON that are pinned |
 
+`.expected.json` may also carry structural assertions against the generated Coq,
+for properties the result JSON cannot express -- *how* a spec was produced, not
+just whether it proved:
+
+| key | meaning |
+|---|---|
+| `spec_v_definition` | the `Definition` whose body is inspected, in any generated `Spec.v` |
+| `spec_v_contains` | `;`-separated substrings that must appear in that body |
+| `spec_v_lacks` | `;`-separated substrings that must not |
+
 The driver assembles each case in its own scratch directory, assembles the `.ll`
 to the `.bc` that `PROJ_BC_PATH` names (in process, via the same LLVM spoq links
 against), runs spoq there, and compares only the keys present in the expected
@@ -171,6 +181,45 @@ Two limits worth knowing:
 `clang -S -emit-llvm -fno-discard-value-names -O1 -Xclang -disable-llvm-passes`
 (matching how `examples/synthetic` builds its IR). `attr_writeonly.ll` then has
 `memory(write)` substituted by hand, since C has no attribute that spells it.
+
+## demand_unfolding/
+
+Spoq leaves calls to other functions' specs folded during transformation and
+inlines one only when a proof fails without it (`UnfoldPolicy`, `unfold_calls_to`).
+`unfold_not_needed` pins the *point* of that: a callee the proof does not need
+must stay a call.
+
+Both `vuln` and `patch` call `helper()` **first**, from the same state, so with
+`helper_spec` uninterpreted its result is the same opaque term on both sides;
+the divergence (`return g` vs `return 5`) happens afterwards on that shared state
+and is decided by the store to `g` alone.  `helper` writes an unrelated global
+`g2`.  The fixture asserts the entry body still names `helper_spec` as a call and
+never mentions `g_g2`:
+
+    Definition vuln_spec (st: RData) : (option (Z * RData)) :=
+      when st_0 == ((helper_spec st));
+      (Some (5, (st_0.[globals].[g_g] :< 5))).
+
+The order of the call matters.  Had the call sat *between* the store and the
+load, the opaque post-call state would hide `g` and the retry would (correctly)
+unfold `helper` -- and the test could not pass.  The subroutine has to be
+irrelevant even while uninterpreted, not merely irrelevant once its body is seen.
+
+Discrimination: with `SPOQ_EAGER_UNFOLD=1` the proof still verifies but both
+structural assertions fail (`helper_spec ` gone, `g_g2` present), so the test
+distinguishes unfolding from provability rather than re-testing the verdict.
+
+One field is deliberately **not** pinned here: `spec_has_ub`. It reads `true`
+under demand-driven unfolding and `false` under eager, with `verified` and both
+`impl_*` fields identical. The cause is the folded call itself: `helper_spec st`
+is an uninterpreted `option`, so its `None` arm survives into the final spec and
+the UB analysis counts it as possible spec UB -- a conservative verdict that
+comes from not looking inside the callee, not from the program. It only appears
+when a callee is genuinely never needed; anything the retry inlines loses the
+artefact, which is why all 104 result fields across the 26 synthetic examples
+are identical between the two modes. Whether the UB report should treat an
+opaque callee's `None` as "unknown" rather than "UB" is an open design choice,
+and this fixture stays out of it.
 
 ## Attribute disposition
 

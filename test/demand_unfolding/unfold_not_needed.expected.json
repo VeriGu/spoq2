@@ -1,0 +1,8 @@
+{
+  "verified": true,
+  "impl_eliminates_ub": false,
+  "impl_has_non_spec_ub": false,
+  "spec_v_definition": "vuln_spec",
+  "spec_v_contains": "helper_spec ",
+  "spec_v_lacks": "g_g2"
+}

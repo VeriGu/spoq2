@@ -140,6 +140,8 @@ public:
     rule_ret_t merge_branch(std::unique_ptr<SpecNode> spec);
     rule_ret_t hide_write(std::unique_ptr<SpecNode> spec, std::set<field_t> coi_fields, const std::set<std::pair<string, string>> &anc);
     bool enforce_no_div_by_zero(Definition* def);
+    bool is_called_function_spec(const std::string &name) const;
+    rule_ret_t unfold_calls_to(std::unique_ptr<SpecNode> spec, const std::string &fname);
 };
 
 using rule_t = std::function<rule_ret_t(std::unique_ptr<SpecNode>)>;
@@ -151,6 +153,48 @@ public:
     std::unordered_map<string, int> loop_unroll_count;
 
     std::string current_unfold = "";
+
+    /* ---- demand-driven unfolding of called functions -----------------------
+     * Unfolding a callee's body costs the whole downstream analysis whether or
+     * not the verification needs to look inside it.  In lazy mode the
+     * transformation stage never unfolds a call to another function's spec, so
+     * z3_eval encodes it as an uninterpreted function.  Nothing is re-transformed
+     * later: when a proof fails, the verification driver inlines one specific
+     * callee into the already-transformed body and re-checks.
+     *
+     * Keeping unfolding out of the transformation stage entirely also keeps it
+     * from perturbing loop unrolling, which is driven by that stage's
+     * convergence schedule and a monotonic per-loop budget.
+     *
+     * `only`, when set, restricts unfolding to that single definition -- this is
+     * the targeted mechanism the driver uses during verification.
+     */
+    bool lazy = true;
+    std::string only;
+    std::set<string> deferred;
+    bool warned_no_module = false;
+
+    /// Initialised once for the process, so every entry point -- either
+    /// finalize_project path, the unit tests, any tool linking spoq_core --
+    /// sees the same policy.  SPOQ_EAGER_UNFOLD restores eager unfolding of
+    /// every callee for comparison and debugging; env-only, not an option.
+    UnfoldPolicy() : lazy(std::getenv("SPOQ_EAGER_UNFOLD") == nullptr) {}
+
+    /// Temporarily unfold eagerly inside a scope.  For the few callers whose
+    /// purpose is the fully unfolded spec (metrics), not a proof.
+    struct EagerScope {
+        UnfoldPolicy &p; bool saved;
+        explicit EagerScope(UnfoldPolicy &pol) : p(pol), saved(pol.lazy) { p.lazy = false; }
+        ~EagerScope() { p.lazy = saved; }
+    };
+
+    /// True if [fname] should be left folded.
+    bool defer(const std::string &fname) {
+        if (!only.empty()) return fname != only;
+        if (!lazy) return false;
+        deferred.insert(fname);
+        return true;
+    }
 
     void set_skip(bool s) { skip = s; }
     bool is_skip(std::string fname) {

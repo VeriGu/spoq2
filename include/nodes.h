@@ -41,7 +41,7 @@ public:
     bool is_interested_write = false;
     bool depends_on_state_read = false;
     bool is_determ_branch = true;
- 
+
     shared_ptr<SpecType> type;
     unsigned long nid;
     // int length;
@@ -283,7 +283,7 @@ public:
     IntConst() { throw std::invalid_argument("IntConst must have a value"); }
     IntConst(unsigned long value, bool sign = false) : Const(value, Int::INT) , sign(sign) {}
     //IntConst(unsigned long value, SpecType type) : Const(value, type) {}
-    
+
     unsigned long get_value() const {
         return std::get<unsigned long>(this->value);
     }
@@ -291,9 +291,9 @@ public:
     bool is_signed() { return sign; }
 
     // The function is used to set the integer sign **smartly**. Only if the argument is `true` and the value is `negative` under int64, will the sign be set to true.
-    void smart_set_sign(bool sign) { 
+    void smart_set_sign(bool sign) {
         if (sign && (long)get_value() < 0) {
-            this->sign = sign; 
+            this->sign = sign;
         }
     }
 
@@ -433,7 +433,7 @@ public:
         }
         return out << "|}\n";
     }
-    size_t count_leaves() const { 
+    size_t count_leaves() const {
         size_t count = 0;
         for(auto &f: *fields){
             count += f.second->count_leaves();
@@ -550,7 +550,7 @@ public:
             }
         }
     }
-    
+
     Expr(op_t op, unique_ptr<SpecNode> node, shared_ptr<SpecType> type) :
         SpecNode(type), op(std::move(op)) {
             this->elems = make_unique<vector<unique_ptr<SpecNode>>>();
@@ -568,7 +568,7 @@ public:
                 }
             }
         }
-            
+
         }
 
     bool operator==(const SpecNode& other) const {
@@ -1464,7 +1464,6 @@ public:
     mutable string _str;
     bool deleyed_type_inference = false;
 
-
     Definition() { throw std::invalid_argument("Definition must have a name, rettype, args, and body"); }
     Definition(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args, unique_ptr<SpecNode> body) :
         name(name), rettype(rettype), args(std::move(args)), body(std::move(body)) {
@@ -1563,11 +1562,11 @@ public:
     //      z3::sort_vector sorts(z3ctx);
     //      //z3::expr_vector args(z3ctx);
     //      auto arg_list = make_shared<vector<shared_ptr<SpecType>>>();
-    //      for(auto arg: *this->args) { 
+    //      for(auto arg: *this->args) {
     //         sorts.push_back(arg->type->get_z3_type());
     //         arg_list->push_back(arg->type);
     //      }
-        
+
     //     auto rec_fun = z3ctx.recfun(this->name.c_str(), sorts, this->rettype->get_z3_type());
     //     //auto func = make_shared<Function>(this->rettype, arg_list);
     //     // func has to be wrapped in a shared_ptr because SpecType inherit from enable_shared_from_this

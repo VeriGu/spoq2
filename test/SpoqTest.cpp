@@ -162,6 +162,38 @@ RunResult run(const std::string &command) {
     return ::testing::AssertionSuccess();
 }
 
+std::vector<std::string> splitSemi(const std::string &text) {
+    std::vector<std::string> out;
+    std::string item;
+    std::istringstream in(text);
+    while (std::getline(in, item, ';'))
+        if (!item.empty()) out.push_back(item);
+    return out;
+}
+
+/// The text of `Definition <name> ...` up to the next blank line, from whichever
+/// generated Spec.v under [work] defines it (cached copies are skipped).
+std::string findDefinitionBody(const fs::path &work, const std::string &name) {
+    const std::string head = "Definition " + name + " ";
+    for (const auto &entry : fs::recursive_directory_iterator(work)) {
+        if (!entry.is_regular_file() || entry.path().filename() != "Spec.v") continue;
+        if (entry.path().string().find(".CachedSpec") != std::string::npos) continue;
+        std::ifstream in(entry.path());
+        std::string line, body;
+        bool inside = false;
+        while (std::getline(in, line)) {
+            if (!inside) {
+                if (line.find(head) != std::string::npos) { inside = true; body = line + "\n"; }
+            } else {
+                if (line.find_first_not_of(" \t\r") == std::string::npos) return body;
+                body += line + "\n";
+            }
+        }
+        if (inside) return body;
+    }
+    return "";
+}
+
 void runCase(const TestCase &tc) {
     const fs::path work =
         fs::temp_directory_path() / ("spoq-test-" + tc.stem + "-" + std::to_string(::getpid()));
@@ -218,9 +250,28 @@ void runCase(const TestCase &tc) {
     ASSERT_TRUE(readJson(tc.expected, "", expected));
 
     for (const auto &[key, value] : expected) {
+        if (key.rfind("spec_v_", 0) == 0) continue;  // structural, checked below
         const auto found = actual.get_optional<std::string>(key);
         EXPECT_TRUE(found.has_value()) << "result has no key '" << key << "'";
         if (found) EXPECT_EQ(*found, value.get_value<std::string>()) << "for key '" << key << "'";
+    }
+
+    // Optional structural assertions against the generated Coq spec.  The result
+    // JSON says whether a proof went through; it cannot say *how* the spec was
+    // produced -- e.g. that a callee the proof did not need was left as a call
+    // rather than unfolded.  Keys in .expected.json:
+    //   spec_v_definition   the Definition whose body is inspected
+    //   spec_v_contains     ';'-separated substrings that must appear in it
+    //   spec_v_lacks        ';'-separated substrings that must not
+    if (const auto def = expected.get_optional<std::string>("spec_v_definition")) {
+        const std::string body = findDefinitionBody(work, *def);
+        ASSERT_FALSE(body.empty()) << "no 'Definition " << *def << "' found in any generated Spec.v";
+        for (const auto &s : splitSemi(expected.get<std::string>("spec_v_contains", "")))
+            EXPECT_NE(body.find(s), std::string::npos)
+                << "'" << s << "' missing from " << *def << ":\n" << body;
+        for (const auto &s : splitSemi(expected.get<std::string>("spec_v_lacks", "")))
+            EXPECT_EQ(body.find(s), std::string::npos)
+                << "'" << s << "' unexpectedly present in " << *def << ":\n" << body;
     }
 }
 

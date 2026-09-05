@@ -19,6 +19,8 @@
 
 namespace autov {
 
+extern class UnfoldPolicy UNFOLD_POLICY;
+
 bool is_invariant_defs(Project *proj, const string &name) {
     return proj->symbols[name].loc == autov::loc_t("Invariants", "Spec", "");
 }
@@ -1694,9 +1696,12 @@ bool check_pre_post(Project *proj, Definition *def,
     return res;
 }
 
+/// [out], when given, receives the result instead of it being printed.  The
+/// demand-driven retry loop calls this more than once and only the settled
+/// verdict should reach stdout -- the harness reads the first line.
 bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
                    Definition *rel_pre, Definition *rel_post, SpecNode *ret_rel,
-                   std::unordered_set<string> &used_abs) {
+                   std::unordered_set<string> &used_abs, SimulateResult *out) {
     Z3Cache.clear();
     extern std::chrono::duration<double> z3_accumulative_time;
     auto start = std::chrono::high_resolution_clock::now();
@@ -1894,9 +1899,81 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
         result.patch_leaves_after_transform = proj->leaves_in_unfolded_func_post_transform[patched_def->name];
     }
     result.z3_time = (z3_accumulative_time - z3_start).count();
-    std::cout << result;
+    if (out) *out = result;
+    else std::cout << result;
     return result.verified;
 }
+
+
+/// Names of callee specs still folded inside [spec], in a deterministic order.
+static void collect_folded_callees(Project *proj, SpecNode *spec,
+                                   std::vector<string> &out) {
+    if (!spec) return;
+    if (auto e = instance_of(spec, Expr)) {
+        if (auto op = std::get_if<string>(&e->op)) {
+            if (UNFOLD_POLICY.deferred.count(*op) &&
+                std::find(out.begin(), out.end(), *op) == out.end())
+                out.push_back(*op);
+        }
+    }
+    // No generic child traversal exists on SpecNode; mirror free_vars' cases.
+    if (auto e = instance_of(spec, Expr)) {
+        for (auto &elem : *e->elems) collect_folded_callees(proj, elem.get(), out);
+    } else if (auto m = instance_of(spec, Match)) {
+        collect_folded_callees(proj, m->src.get(), out);
+        for (const auto &pm : *m->match_list)
+            collect_folded_callees(proj, pm->body.get(), out);
+    } else if (auto r = instance_of(spec, RelyAnno)) {
+        collect_folded_callees(proj, r->prop.get(), out);
+        collect_folded_callees(proj, r->body.get(), out);
+    } else if (auto i = instance_of(spec, If)) {
+        collect_folded_callees(proj, i->cond.get(), out);
+        collect_folded_callees(proj, i->then_body.get(), out);
+        collect_folded_callees(proj, i->else_body.get(), out);
+    } else if (auto fe = instance_of(spec, ForallExists)) {
+        collect_folded_callees(proj, fe->body.get(), out);
+    }
+}
+
+/// Inline every call to [fname] into a definition's already-transformed body.
+/// Deliberately *not* a re-transformation: re-running the transformation stage
+/// cannot reproduce what it produced the first time, because that stage carries
+/// mutable global state (unfold counters, loop-unroll budgets) that unfolding
+/// perturbs.  Splicing the callee in leaves everything else exactly as the
+/// transformation left it.
+static bool inline_callee(Project *proj, Definition *def, const string &fname) {
+    if (!def || !def->body) return false;
+    auto [body, changed] = proj->rules.unfold_calls_to(std::move(def->body), fname);
+    if (changed) {
+        std::set<string> known;
+        for (auto arg : *def->args) known.insert(arg->name);
+        bool amb = false;
+        body = proj->rules.eliminate_ambiguity(std::move(body), known, amb);
+    }
+    def->body = std::move(body);
+    if (!changed) return false;
+    // The spliced-in body is the callee as the transformation left it, not as
+    // it would look specialised to this call site: its arguments are bound by a
+    // let but not propagated, so tests the caller already decides stay open and
+    // dead None branches survive -- which the simulation then reports as UB the
+    // spec does not have.  Eager unfolding got that specialisation for free by
+    // partially evaluating the callee together with the caller.  Do the same
+    // here, but with unfolding off: this is a simplification of one body in
+    // place, not a re-transformation.  rule_unfold_specs never runs, so neither
+    // callee unfolding nor the loop-unroll path inside it can fire.
+    //
+    // The iteration budget matters.  The default (10) is sized for helpers and
+    // low specs; a high spec with a freshly inlined callee needs the same room
+    // the high-spec transformation gives it (300, see infer_spec_task_v2).  With
+    // only 10 the pass is cut off mid-convergence -- at different points for the
+    // two sides -- and the half-simplified bodies both fail to verify and take
+    // far longer to check.  layer_id only names the query dump directory.
+    constexpr int kHighSpecMaxIter = 300;
+    spec_transformer_v2(proj, def, 0, /*unfold=*/false, /*low_spec=*/true,
+                        kHighSpecMaxIter);
+    return true;
+}
+
 
 bool simulate(Project *proj, bool check_sec = true) {
     Z3_SIM_TIMEOUT = Z3_SOLVE_RDATA_TIMEOUT;
@@ -1944,6 +2021,21 @@ bool simulate(Project *proj, bool check_sec = true) {
             } else {
                 res = check_hprop_by_path(proj, rel_def.get(), def, nullptr,
                                           true, end_rel_def.get());
+                // Same demand-driven retry as the refinement check: a failure
+                // with callees uninterpreted is provisional, so unfold what was
+                // withheld and re-simulate before believing it.
+                std::vector<string> candidates;
+                collect_folded_callees(proj, def->body.get(), candidates);
+                for (size_t i = 0; !res && i < candidates.size(); i++) {
+                    if (!inline_callee(proj, def, candidates[i])) continue;
+                    LOG_DEBUG << "Simulation of " << def->name << " failed; "
+                              << "inlining " << candidates[i] << " ("
+                              << (i + 1) << "/" << candidates.size()
+                              << ") and re-checking.";
+                    res = check_hprop_by_path(proj, rel_def.get(), def, nullptr,
+                                              true, end_rel_def.get());
+                    collect_folded_callees(proj, def->body.get(), candidates);
+                }
             }
             if (res) {
                 LOG_DEBUG << "Relate Other " << def->name << " is valid :D";
@@ -2289,10 +2381,48 @@ void spec_prover(Project *proj) {
                 // continue;
             }
 
-            if (!check_refines(
+            // Demand-driven unfolding: the specs were transformed with calls to
+            // other functions left folded, so this first attempt proves the
+            // refinement without ever looking inside them.  A failure at this
+            // point is only provisional -- it may be an artefact of a callee
+            // being uninterpreted rather than a real counterexample -- so we
+            // unfold the calls that were withheld, re-transform, and try again.
+            // Unfolding only ever adds information, so a proof that already
+            // succeeded cannot be lost, and the loop ends when there is nothing
+            // left to unfold.
+            SimulateResult result{};
+            bool refined = check_refines(
+                proj, vuln_def->second.get(), patched_def->second.get(),
+                rel_pre_def->second.get(), rel_post_def->second.get(),
+                refines_info.ret_val_rel.get(), used_abstract_funcs, &result);
+            // The proof was attempted with every callee uninterpreted.  If it
+            // failed, that may be an artefact of one particular callee being
+            // opaque rather than a real counterexample, so inline the callees
+            // one at a time -- cheapest first, in the order they appear -- and
+            // re-check after each.  Unfolding only adds information, so a proof
+            // that already succeeded cannot be lost, and no more of the program
+            // is exposed than the proof turned out to need.
+            std::vector<string> candidates;
+            collect_folded_callees(proj, vuln_def->second->body.get(), candidates);
+            collect_folded_callees(proj, patched_def->second->body.get(), candidates);
+            for (size_t i = 0; !refined && i < candidates.size(); i++) {
+                const auto &callee = candidates[i];
+                bool touched = inline_callee(proj, vuln_def->second.get(), callee);
+                touched |= inline_callee(proj, patched_def->second.get(), callee);
+                if (!touched) continue;
+                LOG_DEBUG << "Refinement of " << vuln_name << " failed; inlining "
+                          << callee << " (" << (i + 1) << "/" << candidates.size()
+                          << ") and re-checking.";
+                refined = check_refines(
                     proj, vuln_def->second.get(), patched_def->second.get(),
                     rel_pre_def->second.get(), rel_post_def->second.get(),
-                    refines_info.ret_val_rel.get(), used_abstract_funcs)) {
+                    refines_info.ret_val_rel.get(), used_abstract_funcs, &result);
+                // A newly inlined body can itself contain folded calls.
+                collect_folded_callees(proj, vuln_def->second->body.get(), candidates);
+                collect_folded_callees(proj, patched_def->second->body.get(), candidates);
+            }
+            std::cout << result;
+            if (!refined) {
                 LOG_ERROR << "Refinement relation " << refine_post_name
                           << " does not hold for functions " << vuln_name
                           << ", " << patched_name;

@@ -4045,6 +4045,46 @@ rule_ret_t SpecRules::rule_move_match_out_expr(std::unique_ptr<SpecNode> spec, b
     }
 }
 
+/// Is [name] the spec of a function that the module actually defines?  Those
+/// are the calls whose bodies are optional for a given proof; everything else
+/// (memory-model helpers, user lemmas, loop fixpoints) is structural and is
+/// always unfolded.
+bool SpecRules::is_called_function_spec(const std::string &name) const {
+    const std::string suffix = "_spec";
+    if (name.size() <= suffix.size() ||
+        name.compare(name.size() - suffix.size(), suffix.size(), suffix) != 0)
+        return false;
+    if (!proj->spoq_code.llvm_module) {
+        // Without a module nothing can be classified, so every callee unfolds
+        // eagerly.  In the v2 flow the module is loaded before any transform;
+        // if that order ever breaks, this is the only trace it leaves.
+        if (UNFOLD_POLICY.lazy && !UNFOLD_POLICY.warned_no_module) {
+            UNFOLD_POLICY.warned_no_module = true;
+            LOG_WARNING << "[UNFOLD] demand-driven unfolding inactive: no LLVM "
+                        << "module loaded when transformation ran; unfolding eagerly.";
+        }
+        return false;
+    }
+    auto *func = proj->spoq_code.llvm_module->getFunction(
+        name.substr(0, name.size() - suffix.size()));
+    return func && !func->isDeclaration();
+}
+
+/// Inline every call to [fname] in [spec], leaving all other calls alone.
+///
+/// This is the demand-driven half of lazy unfolding: the transformation stage
+/// leaves callee specs folded, and when a proof fails this splices one chosen
+/// callee into the already-transformed body.  Nothing is re-transformed, so the
+/// result cannot drift from what the transformation produced.
+rule_ret_t SpecRules::unfold_calls_to(std::unique_ptr<SpecNode> spec,
+                                      const std::string &fname) {
+    auto saved = UNFOLD_POLICY.only;
+    UNFOLD_POLICY.only = fname;
+    auto result = rule_unfold_specs(std::move(spec), true);
+    UNFOLD_POLICY.only = saved;
+    return result;
+}
+
 rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec) {
     bool unfolded = false;
     bool changed = false;
@@ -4081,6 +4121,21 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
                 }
 
                 if (UNFOLD_POLICY.is_skip(define->name)) return node;
+                // Targeted unfolding: the verification driver asks for exactly
+                // one definition to be inlined into an already-transformed body.
+                if (!UNFOLD_POLICY.only.empty()) {
+                    if (define->name != UNFOLD_POLICY.only) return node;
+                } else if (is_called_function_spec(define->name)) {
+                    // Left folded for the whole transformation stage, so it
+                    // cannot perturb the convergence schedule that drives loop
+                    // unrolling.  z3_eval will encode it as an uninterpreted
+                    // function; the driver inlines it later if a proof needs it.
+                    bool first = !UNFOLD_POLICY.deferred.count(define->name);
+                    if (UNFOLD_POLICY.defer(define->name)) {
+                        if (first) LOG_DEBUG << "[UNFOLD] deferring " << define->name;
+                        return node;
+                    }
+                }
                 if (define->name == "load_RData" || define->name == "store_RData") force_simpl = true;
                 if (define->name == "granule_map_spec") force_simpl = true;
                 if (define->name == "ns_buffer_read_spec" || define->name == "ns_buffer_write_spec") force_simpl = true;
