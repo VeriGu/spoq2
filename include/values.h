@@ -190,7 +190,7 @@ public:
 
     virtual z3::sort get_z3_type();
     virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
-    virtual shared_ptr<SpecValue> declare(string name, int nid);    
+    virtual shared_ptr<SpecValue> declare(string name, int nid);
 };
 class ZMap : public SpecType {
 public:
@@ -513,11 +513,11 @@ public:
 
 
     shared_ptr<IntValue> neg() { return make_shared<IntValue>((-value).simplify()); }
-    shared_ptr<IntValue> add(shared_ptr<IntValue> other) { 
-        return make_shared<IntValue>((value + other->value).simplify()); 
+    shared_ptr<IntValue> add(shared_ptr<IntValue> other) {
+        return make_shared<IntValue>((value + other->value).simplify());
     }
-    shared_ptr<IntValue> sub(shared_ptr<IntValue> other) { 
-        return make_shared<IntValue>((value - other->value).simplify()); 
+    shared_ptr<IntValue> sub(shared_ptr<IntValue> other) {
+        return make_shared<IntValue>((value - other->value).simplify());
     }
     shared_ptr<IntValue> mul(shared_ptr<IntValue> other) { return make_shared<IntValue>((value * other->value).simplify()); }
     shared_ptr<IntValue> div(shared_ptr<IntValue> other) { return make_shared<IntValue>((value / other->value).simplify()); }
@@ -579,7 +579,7 @@ public:
 
 class VectorValue : public SpecValue {
 public:
-    VectorValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) { 
+    VectorValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) {
         assert(value.get_sort().to_string() == typ->get_z3_type().to_string());
     }
 
@@ -597,7 +597,7 @@ public:
 };
 class ZMapValue : public SpecValue {
 public:
-    ZMapValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) { 
+    ZMapValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) {
         assert(value.get_sort().to_string() == typ->get_z3_type().to_string());
     }
 
@@ -647,7 +647,7 @@ public:
 
     shared_ptr<SpecValue> call(vector<shared_ptr<SpecValue>> args) {
         vector<z3::expr> z3_args;
-        
+
         for (const auto &arg : args) {
             z3_args.push_back(arg->get_z3_value());
             // A hack to not crash on unsupported varargs stubs
@@ -725,7 +725,7 @@ public:
     }
 
     /** Return whether the list is empty.
-     * 
+     *
      * Z3 does not have a built-in function to check if a sequence is empty,
      * so we need to check if the length is 0.
      */

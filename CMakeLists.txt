@@ -158,8 +158,10 @@ target_link_libraries(parser ${Boost_LIBRARIES})
 target_link_libraries(parser ${Z3_LIBRARIES})
 target_compile_options(parser PRIVATE -O3 -UDEBUG)
 
+# Everything except main.cpp, so unit tests can link the same objects the
+# executable is built from.  main.cpp is excluded because it defines both
+# main() and the global OPTS; a test provides its own OPTS.
 set(SOURCES
-    src/main.cpp
     src/libs/log.cpp
     src/libs/nodes.cpp
     src/libs/visitors.cpp
@@ -196,7 +198,12 @@ set(SOURCES
 )
 
 # Specify the executable target and its source files
-add_executable(spoq ${SOURCES})
+add_library(spoq_core OBJECT ${SOURCES})
+# Not just for linking: Boost.Log's imported target carries compile
+# definitions (BOOST_LOG_DYN_LINK) that its headers need, and an OBJECT
+# library only picks those up if it links the target itself.
+target_link_libraries(spoq_core PUBLIC ${Boost_LIBRARIES} ${Z3_LIBRARIES} ${LLVM_LIBRARIES})
+add_executable(spoq src/main.cpp $<TARGET_OBJECTS:spoq_core>)
 # target_link_options(spoq PUBLIC -fsanitize=address)
 # target_link_options(spoq PUBLIC -fsanitize=address -fno-pie -fno-PIE)
 # target_link_options(json2coq PUBLIC -fno-pie -fno-PIE)
@@ -229,6 +236,16 @@ target_compile_definitions(SpoqTest PRIVATE
     SPOQ_BINARY="$<TARGET_FILE:spoq>"
     SPOQ_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test")
 target_link_libraries(SpoqTest GTest::gtest ${LLVM_LIBRARIES} ${Boost_LIBRARIES})
+
+# ------------------------------------------------------------------------------
+# Z3UtilsTest -- unit tests for the Z3 wrappers in src/optimizations/z3_utils.cpp
+# ------------------------------------------------------------------------------
+# Links the same objects as spoq rather than shelling out, so z3_check is called
+# directly and its two underlying Z3 queries can be steered independently.
+add_executable(Z3UtilsTest test/unit/Z3UtilsTest.cpp $<TARGET_OBJECTS:spoq_core>)
+target_link_libraries(Z3UtilsTest GTest::gtest_main GTest::gtest irloader parser antlr4_shared
+    ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
+add_test(NAME Z3Utils COMMAND Z3UtilsTest)
 set_target_properties(SpoqTest PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build")
 

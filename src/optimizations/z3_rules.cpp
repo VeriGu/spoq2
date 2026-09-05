@@ -706,7 +706,7 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
 
     PROFILE_START(if_rule_check);
     PROFILE_START(z3_rule_check);
-    LOG_DEBUG << "if spec: " << string(*spec);
+    // LOG_DEBUG << "if spec: " << string(*spec);
     // LOG_DEBUG << "then: " << string(*spec->then_body);
     // LOG_DEBUG << "else: " << string(*spec->else_body);
     // LOG_DEBUG << "cond: " << string(*spec->cond);
@@ -715,7 +715,12 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
     PROFILE_END(z3_rule_check);
     PROFILE_END(if_rule_check);
 
-    if (res == Z3Result::Sat || res == Z3Result::Unknown) {
+    if (res == Z3Result::Unknown) {
+        return {
+            std::move(spec),
+            changed
+        };
+    } else if (res == Z3Result::Sat || res == Z3Result::Unknown) {
         // profile_log_rule_if_unsolved(string(orig_cond));
         auto unknown_value = c->get_z3_value();
 

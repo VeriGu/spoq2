@@ -1,4 +1,5 @@
 #include <fstream>
+#include <filesystem>
 #include <nodes.h>
 #include <any>
 #include <shortcuts.h>
@@ -128,21 +129,17 @@ static std::string try_getenv(const char* var, const char* def) {
     return p ? std::string(p) : std::string(def);
 }
 
-/** We race Z3 checking using different versions and select the optimal result.
+/** Race two Z3 builds on one query file and take the first definite answer.
+ *
+ * Out of process on purpose: a child that blows through its -t: budget can still
+ * be killed from here, which an in-process solver.check() on this thread cannot.
  * Now it works well on z3 4.13.4 and 4.12.5.
- * */
-Z3Result z3_race_check(QueryInfo* qinfo) {
-    if (!qinfo || qinfo->query_id == 0)
-        return Z3Result::Unknown;
-    std::string file = qinfo->query_dir
-                     + "/query_"
-                     + std::to_string(qinfo->query_id - 1)
-                     + ".smt2";
-
+ */
+static z3::check_result z3_race_file(const std::string &file, int timeout_ms) {
     // two z3 process to race (each with 120s CPU bound)
     std::string z3_cli = "z3";
     std::string z3_path = try_getenv("Z3_PATH", "z3/build/z3");
-    std::string z3_timeout = "-t:" + std::to_string(OPTS.race_timeout);
+    std::string z3_timeout = "-t:" + std::to_string(timeout_ms);
     std::array<std::string,2> cmds = {
         z3_cli + " " + z3_timeout + " " + file,
         z3_path + " " + z3_timeout + " " + file
@@ -153,7 +150,7 @@ Z3Result z3_race_check(QueryInfo* qinfo) {
     for (int i = 0; i < 2; ++i) {
         if (pipe(pipes[i].data()) == -1) {
             perror("pipe");
-            return Z3Result::Unknown;
+            return z3::unknown;
         }
         if ((pids[i] = fork()) == 0) {
             // child: redirect stdout+stderr -> pipe
@@ -207,7 +204,7 @@ Z3Result z3_race_check(QueryInfo* qinfo) {
                         kill(pids[other], SIGKILL);
                         close(pipes[other][0]);
                     }
-                    return Z3Result::True;
+                    return z3::unsat;
                 }
             }
         }
@@ -221,24 +218,50 @@ Z3Result z3_race_check(QueryInfo* qinfo) {
                     close(pipes[i][0]);
                 }
             }
-            ++z3_unknowns;
-            return Z3Result::Unknown;
+            return z3::unknown;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
 
-    // final decision
+    // final decision.  "unsat" first: it contains "sat" as a substring.
     for (auto &out : outputs) {
         if (out.find("unsat") != std::string::npos)
-            return Z3Result::True;
+            return z3::unsat;
     }
     for (auto &out : outputs) {
         if (out.find("sat") != std::string::npos)
-            return Z3Result::Sat;
+            return z3::sat;
     }
 
-    ++z3_unknowns;
-    return Z3Result::Unknown;
+    return z3::unknown;
+}
+
+/** Solve one query out of process, racing two Z3 builds.  The query text must
+ *  already end in a check-sat form; it is written to a scratch file because the
+ *  children take a path, not a string. */
+static z3::check_result z3_race_solve(const std::string &query, int timeout_ms) {
+    auto file = std::filesystem::temp_directory_path() /
+                ("spoq-race-" + std::to_string(::getpid()) + ".smt2");
+    { std::ofstream ofs(file); ofs << query; }
+    auto result = z3_race_file(file.string(), timeout_ms);
+    std::error_code ec;
+    std::filesystem::remove(file, ec);
+    return result;
+}
+
+/** Ask whether !cond is unsat, out of process. */
+Z3Result z3_race_check(QueryInfo* qinfo) {
+    if (!qinfo || qinfo->query_id == 0)
+        return Z3Result::Unknown;
+    std::string file = qinfo->query_dir
+                     + "/query_"
+                     + std::to_string(qinfo->query_id - 1)
+                     + ".smt2";
+    switch (z3_race_file(file, OPTS.race_timeout)) {
+        case z3::unsat: return Z3Result::True;
+        case z3::sat:   return Z3Result::Sat;
+        default:        ++z3_unknowns; return Z3Result::Unknown;
+    }
 }
 
 /** specialized z3 checker for automated proof
@@ -302,9 +325,15 @@ Z3Result z3_verify_state_sat(shared_ptr<ProveState> state, QueryInfo *qinfo, int
     for (auto &ind : *state->inductions) {
         solve.add(ind);
     }
-    if (qinfo)
-        qinfo->dump(solve.to_smt2());
-    auto res = solve.check();
+    // Under --race the query goes to external Z3 processes instead of running on
+    // this thread, so a solver that overruns its budget can still be killed.
+    // Unlike z3_check there is no assumption here -- the state is asserted and
+    // checked outright -- so the serialised query asks exactly the same question
+    // and the verdict below is unchanged by which path produced it.
+    std::string query;
+    if (qinfo || OPTS.race) query = solve.to_smt2();
+    if (qinfo) qinfo->dump(query);
+    auto res = OPTS.race ? z3_race_solve(query, timeout) : solve.check();
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
@@ -333,9 +362,15 @@ Z3Result z3_verify_state_sat(shared_ptr<EvalState> state, QueryInfo *qinfo, int 
         solve.add(c);
     }
 
-    if (qinfo)
-        qinfo->dump(solve.to_smt2());
-    auto res = solve.check();
+    // Under --race the query goes to external Z3 processes instead of running on
+    // this thread, so a solver that overruns its budget can still be killed.
+    // Unlike z3_check there is no assumption here -- the state is asserted and
+    // checked outright -- so the serialised query asks exactly the same question
+    // and the verdict below is unchanged by which path produced it.
+    std::string query;
+    if (qinfo || OPTS.race) query = solve.to_smt2();
+    if (qinfo) qinfo->dump(query);
+    auto res = OPTS.race ? z3_race_solve(query, timeout) : solve.check();
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
@@ -384,15 +419,25 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, 
     // so a hang leaves behind the query that caused it; most callers pass
     // qinfo = nullptr, so otherwise nothing about that query is recorded at all.
     static const char *current_query = std::getenv("SPOQ_CURRENT_QUERY");
-    auto record = [&](const z3::expr &goal) {
-        if (!qinfo && !current_query) return;
+    auto serialize = [&](const z3::expr &goal) {
         z3::solver dumper(z3ctx);
         for (auto c : solver.assertions()) dumper.add(c);
-        dumper.add(z3ctx.bool_const("__spoq_goal") == goal);
+        dumper.add(goal);
         auto query = dumper.to_smt2();
+        return query;
+    };
+    auto record = [&](const std::string &query) {
         if (current_query)
             std::ofstream(current_query) << "; timeout=" << timeout << "ms\n" << query;
         if (qinfo) qinfo->dump(query);
+    };
+    // Under --race the query is solved by external Z3 processes.
+    auto check = [&](const z3::expr &goal, z3::expr_vector &assumptions) {
+        if (!qinfo && !current_query && !OPTS.race) return solver.check(assumptions);
+        auto query = serialize(goal);
+        record(query);
+        if (!OPTS.race) return solver.check(assumptions);
+        return z3_race_solve(query, timeout);
     };
 
 #ifdef Z3_PCACHE
@@ -404,63 +449,24 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, 
     // solver.add(cond);
     z3::expr_vector cond_vec(z3ctx);
     cond_vec.push_back(cond);
-    record(cond);
-    auto res = solver.check(cond_vec);
-    // auto res = solver.check();
-    // solver.reset();
-    // maybe this is faster than push and pop
-    //  for (auto &c : *state->conds) {
-    //     solver.add(c);
-    // }
-    // if (auto prover = instance_of(state.get(), ProveState)) {
-    //     for (auto &ind : *prover->inductions) {
-    //         solver.add(ind);
-    //     }
-    // }
-    #endif
-
-    //Z3Solver.add(!cond);
+    auto res = check(cond, cond_vec);
+#endif
     z3::expr_vector not_cond_vec(z3ctx);
     not_cond_vec.push_back(!cond);
 #ifdef Z3_PCACHE
-    // solver.push();
-    // solver.add(not_cond_vec);
     auto not_res = z3_pcache_check(not_cond_vec);
-    // solver.pop();
 #else
-    // auto not_res = solver.check();
-    record(!cond);
-    auto not_res = solver.check(not_cond_vec);
+    auto not_res = check(!cond, not_cond_vec);
 #endif
 
     auto end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
-    // std::cout << "-----------------Z3-----------------" << std::endl;
-    // std::cout << "state hash: " << hash << std::endl;
-    // std::cout << "z3 check cond: " << cond << ", hash: " << cond.hash() << std::endl;
-    // std::cout << "z3 check res: " << res << std::endl;
-    // std::cout << "z3 check not_res: " << not_res << std::endl;
-    // std::cout << "-----------------Z3-----------------" << std::endl;
-
     if (not_res == z3::unsat) {
         if (res == z3::unsat) {
-            // string msg = "Both branches of cond are unsat.  Original state is infeasible.";
-            // LOG_WARNING << msg;
-            // string msg = "Pre-condition is False! Condition is:\n";
-            // for (auto &c : *state->conds) {
-            //     msg += c.to_string().substr(0,400) + "\n";
-            // }
-            // msg += "Condition is:\n";
-            // msg += cond.to_string().substr(0,400);
-            // LOG_WARNING << msg << std::endl;
-            // throw std::runtime_error(msg);
             Z3Cache[hash] = Z3Result::False;
             return Z3Result::False;
         }
-        // Z3Cache[hash] = Z3Result::True;
-
-        // return Z3Result::Unknown; // trying to have a way to avoid complex simplification of things that cannot be simplified.
         return Z3Result::True;
     } else if (res == z3::unsat) {
         Z3Cache[hash] = Z3Result::False;

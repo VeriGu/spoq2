@@ -185,7 +185,7 @@ shared_ptr<SpecValue> Vector::from_z3_value(z3::expr value) {
 shared_ptr<SpecValue> Vector::declare(string name, int nid) {
     auto sname = name + "." + std::to_string(nid);
     auto z3t = this->elem_type->get_z3_type();
-    
+
     return make_shared<VectorValue>(shared_from_this(), z3ctx.constant(name.c_str(), z3ctx.seq_sort(z3t)));
 }
 // ----------------------------------------------------------------------------
@@ -481,7 +481,7 @@ z3::sort Inductive::get_z3_type() {
         }
 
         auto recog_name = "is-" + constr->name;
-        
+
         cs.add(z3ctx.str_symbol(constr->name.c_str()), z3ctx.str_symbol(recog_name.c_str()),
                                 accs.size(), accs.data(), sorts.data());
     }
