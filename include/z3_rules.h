@@ -8,6 +8,8 @@
 #include <symbolic.h>
 #include <cmd.h>
 
+#include <utility>
+
 namespace autov {
 
 using autov::Bool;
@@ -37,18 +39,18 @@ public:
     }
 
     EvalState(shared_ptr<unordered_map<string, shared_ptr<SpecValue>>> vars) {
-        this->vars = vars;
+        this->vars = std::move(vars);
         conds = make_shared<vector<z3::expr>>();
     }
 
     EvalState(shared_ptr<vector<z3::expr>> conds) {
         vars = make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
-        this->conds = conds;
+        this->conds = std::move(conds);
     }
 
     EvalState(shared_ptr<unordered_map<string, shared_ptr<SpecValue>>> vars, shared_ptr<vector<z3::expr>> conds) {
-        this->vars = vars;
-        this->conds = conds;
+        this->vars = std::move(vars);
+        this->conds = std::move(conds);
     }
 
     shared_ptr<EvalState> copy() {
@@ -86,7 +88,7 @@ public:
         return make_shared<ProveState>(vars, conds, inductions);
     }
 
-    void add_induction(z3::expr cond) {
+    void add_induction(const z3::expr& cond) {
         if (OPTS.__OPT_ON_INDUCTION) {
             this->inductions->push_back(cond);
         } else {
@@ -94,7 +96,7 @@ public:
         }
     }
 
-    void add_branch_cond(z3::expr cond) {
+    void add_branch_cond(const z3::expr& cond) {
         this->conds->push_back(cond);
     } 
 
@@ -113,25 +115,25 @@ enum class Z3Result {
 #define Z3_SOLVE_RDATA_TIMEOUT 50
 #define Z3_SOLVE_SECURE_TIMEOUT 50
 extern unordered_map<size_t, Z3Result> Z3Cache;
-Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo = nullptr, int timeout = Z3_VERIFY_TIMEOUT);
-Z3Result z3_verify_state_sat(shared_ptr<ProveState> state, QueryInfo *qinfo = nullptr, int timeout = Z3_VERIFY_TIMEOUT);
-Z3Result z3_verify_state_sat(shared_ptr<EvalState> state, QueryInfo *qinfo = nullptr, int timeout = Z3_VERIFY_TIMEOUT);
-Z3Result z3_check(std::shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo = nullptr, int timeout=Z3_TIMEOUT);
-Z3Result z3_check(shared_ptr<EvalState> state, int timeout=Z3_TIMEOUT);
-Z3Result z3_check_unsat(std::shared_ptr<ProveState> state, z3::expr cond, z3::model& model, QueryInfo *qinfo = nullptr, int timeout=Z3_TIMEOUT);
-shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state, bool check_loop = false);
-shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state, bool check_loop, bool unfold, set<string>& used_fixpoint);
+Z3Result z3_verify(const shared_ptr<ProveState>& state, const z3::expr& cond, QueryInfo *qinfo = nullptr, int timeout = Z3_VERIFY_TIMEOUT);
+Z3Result z3_verify_state_sat(const shared_ptr<ProveState>& state, QueryInfo *qinfo = nullptr, int timeout = Z3_VERIFY_TIMEOUT);
+Z3Result z3_verify_state_sat(const shared_ptr<EvalState>& state, QueryInfo *qinfo = nullptr, int timeout = Z3_VERIFY_TIMEOUT);
+Z3Result z3_check(const std::shared_ptr<EvalState>& state, const z3::expr& cond, QueryInfo *qinfo = nullptr, int timeout=Z3_TIMEOUT);
+Z3Result z3_check(const shared_ptr<EvalState>& state, int timeout=Z3_TIMEOUT);
+Z3Result z3_check_unsat(const std::shared_ptr<ProveState>& state, const z3::expr& cond, z3::model& model, QueryInfo *qinfo = nullptr, int timeout=Z3_TIMEOUT);
+shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, bool check_loop = false);
+shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, bool check_loop, bool unfold, set<string>& used_fixpoint);
 rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState> state);
-void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<SpecValue> src, shared_ptr<EvalState> state);
-shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pat, shared_ptr<SpecValue> src,
+void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, const shared_ptr<SpecValue>& src, const shared_ptr<EvalState>& state);
+shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pat, const shared_ptr<SpecValue>& src,
                                       unordered_map<string, shared_ptr<SpecValue>> &vars,
                                       unordered_map<string, shared_ptr<SpecValue>> &assigns);
 bool check_loop_inv(Project* proj, Definition *loop);
 bool check_invariant(Project* proj, Definition* prim, SpecNode* inv);
 unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args);
 unique_ptr<SpecNode> formulate_preserved_function(Project* proj, string fname);
-unique_ptr<SpecNode> formulate_post_condition(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args);
-void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>>& states);
+unique_ptr<SpecNode> formulate_post_condition(Project* proj, const string& fname, vector<unique_ptr<SpecNode>>* args);
+void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>>& states);
 unsigned long length_of_exp(SpecNode* spec);
 static inline bool op_eq(const Expr::op_t& val,
                   const Expr::op_t op) {

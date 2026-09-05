@@ -23,9 +23,9 @@ std::unique_ptr<SpecNode> subst(std::unique_ptr<SpecNode> spec,const std::string
 bool spec_is_pure(Project *proj, SpecNode *spec, bool &has_if);
 bool spec_needs_state(Project *proj, SpecNode *spec);
 void spec_remove_state(Project *proj, SpecNode *spec);
-std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec, std::string name, unique_ptr<SpecNode> value);
+std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec, const std::string& name, unique_ptr<SpecNode> value);
 std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec, vector<std::string>* names, vector<unique_ptr<SpecNode>>* values);
-unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int level, shared_ptr<EvalState> state, std::set<string>& used_symbols, bool unfold = false);
+unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int level, const shared_ptr<EvalState>& state, std::set<string>& used_symbols, bool unfold = false);
 void free_vars(Project* proj, SpecNode* spec, std::set<std::string>& free);
 void free_vars_map(Project *proj, SpecNode *spec, std::set<string> &free, std::map<string, Symbol*> &map);
 inline void set_interest_list(const std::set<string> &coi) {
@@ -99,10 +99,10 @@ public:
             { RuleID::rule_eliminate_let,           [this](auto spec) { return rule_eliminate_let(std::move(spec), true); } },
         } {}
 
-    rule_ret_t simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::shared_ptr<EvalState> state);
-    rule_ret_t simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<EvalState> state);
-    rule_ret_t simple_match_by_z3(std::unique_ptr<Match> spec, std::shared_ptr<EvalState> state);
-    rule_ret_t simple_expr_by_z3(std::unique_ptr<Expr> expr, std::shared_ptr<EvalState> state);
+    rule_ret_t simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, const std::shared_ptr<EvalState>& state);
+    rule_ret_t simple_if_by_z3(std::unique_ptr<If> spec, const std::shared_ptr<EvalState>& state);
+    rule_ret_t simple_match_by_z3(std::unique_ptr<Match> spec, const std::shared_ptr<EvalState>& state);
+    rule_ret_t simple_expr_by_z3(std::unique_ptr<Expr> expr, const std::shared_ptr<EvalState>& state);
 
     // Rules as member functions
     rule_ret_t rule_eliminate_rely(std::unique_ptr<SpecNode> spec, bool rec);
@@ -197,7 +197,7 @@ public:
     }
 
     void set_skip(bool s) { skip = s; }
-    bool is_skip(std::string fname) {
+    bool is_skip(const std::string& fname) {
         if (!skip) return false;
         if (skip_list.find(fname) != skip_list.end()) {
             return true;
@@ -207,13 +207,13 @@ public:
 
     void clear_loop_unroll() { current_unfold = ""; }
 
-    bool is_loop_unroll(std::string spec_name) const { 
+    bool is_loop_unroll(const std::string& spec_name) const { 
         return current_unfold == spec_name;
     }
 
     // For now, only depth = 1 loop unroll is supported.
     // F () { F }
-    bool require_loop_unroll(std::string spec_name, std::unordered_map<string, int>& lut) {
+    bool require_loop_unroll(const std::string& spec_name, std::unordered_map<string, int>& lut) {
         if (current_unfold.size() > 1) {
             LOG_DEBUG << "we expect current_unfold to be empty, but it is " << current_unfold << "\n";
             LOG_DEBUG << "this means we are in the middle of loop unroll, but we don't actually need to unfold this much time\n";

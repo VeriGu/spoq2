@@ -1,5 +1,7 @@
 #include <nodes.h>
 #include <rules.h>
+
+#include <utility>
 static const std::string match_body_sym = "NoneConditionAccumulatorTemporaryMatchBody";
 
 namespace autov {
@@ -44,7 +46,7 @@ namespace autov {
         NoneConditionAccumulator(Project* proj, std::string def_name) {
             this->accumulated_cond = make_unique<BoolConst>(true);
             this->proj = proj;
-            this->def_name = def_name;
+            this->def_name = std::move(def_name);
             this->last_pattern_match = this->accumulated_cond.get();
         };
         // Default Constructor

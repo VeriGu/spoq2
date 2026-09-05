@@ -15,7 +15,7 @@ using std::shared_ptr;
 using std::make_shared;
 using std::unordered_map;
 
-static void infer_pattern(Project &proj, SpecNode *pattern, shared_ptr<unordered_map<string, shared_ptr<SpecType>>> known_types) {
+static void infer_pattern(Project &proj, SpecNode *pattern, const shared_ptr<unordered_map<string, shared_ptr<SpecType>>>& known_types) {
     if (dynamic_cast<Symbol *>(pattern)) {
         auto sym = dynamic_cast<Symbol *>(pattern);
 
@@ -41,8 +41,8 @@ static void infer_pattern(Project &proj, SpecNode *pattern, shared_ptr<unordered
     }
 }
 
-void infer_type(Project &proj, SpecNode *spec, shared_ptr<unordered_map<string, shared_ptr<SpecType>>> known_types,
-                shared_ptr<SpecType>final_type = nullptr) {
+void infer_type(Project &proj, SpecNode *spec, const shared_ptr<unordered_map<string, shared_ptr<SpecType>>>& known_types,
+                const shared_ptr<SpecType>&final_type = nullptr) {
     vector<tuple<int, SpecNode *, int, shared_ptr<unordered_map<string, shared_ptr<SpecType>>>>> stack;
 
     if (final_type) {

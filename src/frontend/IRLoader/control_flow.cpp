@@ -3,6 +3,7 @@
 #include <cassert>
 #include <log.h>
 #include <algorithm>
+#include <utility>
 
 namespace autov::IRLoader {
 
@@ -23,7 +24,7 @@ public:
     shared_ptr<Backward> backward;
 
     Edge() = default;
-    Edge(string next, shared_ptr<IRValue> cond, vector<shared_ptr<IRInst>> insts) : next(next), cond(cond), insts(insts) {}
+    Edge(string next, shared_ptr<IRValue> cond, vector<shared_ptr<IRInst>> insts) : next(std::move(next)), cond(std::move(cond)), insts(std::move(insts)) {}
 };
 
 class Backward {
@@ -32,7 +33,7 @@ public:
     shared_ptr<Edge> edge;
 
     Backward() = default;
-    Backward(string from, shared_ptr<Edge> edge) : from(from), edge(edge) {}
+    Backward(string from, shared_ptr<Edge> edge) : from(std::move(from)), edge(std::move(edge)) {}
 };
 
 template<typename KeyType, typename ValueType>
@@ -1065,7 +1066,7 @@ unique_ptr<vector<unique_ptr<IRInst>>> control_flow_conversion(ir_blocks_t *ir_b
     while (nodes.size() > 1 || (!edges.empty() && edges.begin()->second->size() > 0)) {
         vector<string> seq;
         bool succ = false;
-        std::function<void(string)> dbg_nodes_edges = [&](string rule) {
+        std::function<void(string)> dbg_nodes_edges = [&](const string& rule) {
 
             if (!debug)
                 return;

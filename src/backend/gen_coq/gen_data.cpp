@@ -5,8 +5,8 @@ namespace autov
 {
 using autov::join;
 
-void rec_update(std::ofstream &fout, Project *p, shared_ptr<autov::Struct> init, vector<string> &fields,
-                shared_ptr<autov::SpecType> cur)
+void rec_update(std::ofstream &fout, Project *p, const shared_ptr<autov::Struct>& init, vector<string> &fields,
+                const shared_ptr<autov::SpecType>& cur)
 {
     if (fields.size() >= 2) {
         string update =
@@ -61,7 +61,7 @@ unique_ptr<vector<string>> generate_data(Project *p)
         }
     }
 
-    sort(outputs.begin(), outputs.end(), [p](string x, string y) { return p->symbols[x].order < p->symbols[y].order; });
+    sort(outputs.begin(), outputs.end(), [p](const string& x, const string& y) { return p->symbols[x].order < p->symbols[y].order; });
 
     for (auto const s : outputs) {
         if (p->structs.find(s) != p->structs.end()) {

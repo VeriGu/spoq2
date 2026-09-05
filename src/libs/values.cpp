@@ -1,4 +1,5 @@
 #include <string>
+#include <utility>
 #include <vector>
 #include <map>
 #include <unordered_map>
@@ -310,7 +311,7 @@ shared_ptr<SpecValue> Struct::construct(vector<shared_ptr<SpecValue>> &elems) {
 // StructValue
 // ----------------------------------------------------------------------------
 std::shared_ptr<SpecValue> StructValue::get(string key) {
-    string field = key;
+    string field = std::move(key);
 
     if (auto s = dynamic_cast<Struct*>(typ.get())) {
         int i = 0;
@@ -351,8 +352,8 @@ shared_ptr<SpecValue> StructValue::get(int key) {
 
 }
 
-shared_ptr<StructValue> StructValue::set(string key, shared_ptr<SpecValue> value) {
-    string field = key;
+shared_ptr<StructValue> StructValue::set(string key, const shared_ptr<SpecValue>& value) {
+    string field = std::move(key);
     if(auto s = dynamic_cast<Struct*>(typ.get())) {
         auto const elem_typ = s->elems_map[field];
         z3::sort z3type = s->get_z3_type();
@@ -377,17 +378,17 @@ shared_ptr<StructValue> StructValue::set(string key, shared_ptr<SpecValue> value
     throw std::runtime_error("Not a struct type");
 }
 
-shared_ptr<StructValue> StructValue::set(int key, shared_ptr<SpecValue> value) {
+shared_ptr<StructValue> StructValue::set(int key, const shared_ptr<SpecValue>& value) {
     assert(is_instance(typ.get(), Tuple));
     string field = "elem_" + std::to_string(key);
-    return StructValue::set(field, value);
+    return StructValue::set(field, std::move(value));
 }
 
 // ----------------------------------------------------------------------------
 // IndValue
 // ----------------------------------------------------------------------------
 
-shared_ptr<SpecValue> IndValue::get(string key) {
+shared_ptr<SpecValue> IndValue::get(const string& key) {
     auto accessor = key;
     if(auto type = instance_of(typ.get(), Option)) {
         accessor = key + "_" + type->elem_type->name;
@@ -531,7 +532,7 @@ shared_ptr<SpecValue> Inductive::construct(string constr, vector<shared_ptr<Spec
 }
 
 
-int Inductive::get_constr_index(string constr) {
+int Inductive::get_constr_index(const string& constr) {
         auto const css = this->get_z3_type().constructors();
 
         for (int i = 0; i < css.size(); i++) {
@@ -543,7 +544,7 @@ int Inductive::get_constr_index(string constr) {
         throw std::runtime_error("Constructor not found");
     };
 
-    z3::func_decl Inductive::get_constr(string constr) {
+    z3::func_decl Inductive::get_constr(const string& constr) {
         auto const css = this->get_z3_type().constructors();
 
         for (int i = 0; i < css.size(); i++) {
@@ -555,7 +556,7 @@ int Inductive::get_constr_index(string constr) {
         throw std::runtime_error("Constructor not found");
     }
 
-    z3::func_decl Inductive::get_recognizer(string constr) {
+    z3::func_decl Inductive::get_recognizer(const string& constr) {
         auto const css = this->get_z3_type().constructors();
         for (int i = 0; i < css.size(); i++) {
             auto const cs = css[i];
@@ -566,7 +567,7 @@ int Inductive::get_constr_index(string constr) {
         throw std::runtime_error("Constructor not found");
     }
 
-    z3::func_decl_vector Inductive::get_accessors(string constr) {
+    z3::func_decl_vector Inductive::get_accessors(const string& constr) {
         auto const css = this->get_z3_type().constructors();
 
         for (int i = 0; i < css.size(); i++) {
@@ -581,7 +582,7 @@ int Inductive::get_constr_index(string constr) {
 // ----------------------------------------------------------------------------
 // Function
 // ----------------------------------------------------------------------------
-Function::Function(shared_ptr<SpecType> rettype, shared_ptr<vector<shared_ptr<SpecType>>> args) {
+Function::Function(const shared_ptr<SpecType>& rettype, const shared_ptr<vector<shared_ptr<SpecType>>>& args) {
     this->name = "Func_" + join_underline(*args) + "_" + rettype->name;
     this->rettype = rettype;
     this->args = args;
@@ -613,7 +614,7 @@ shared_ptr<SpecValue> Function::declare(string name, int nid) {
 // ----------------------------------------------------------------------------
 // Tuple
 // ----------------------------------------------------------------------------
-Tuple::Tuple(shared_ptr<vector<shared_ptr<SpecType>>> types) :
+Tuple::Tuple(const shared_ptr<vector<shared_ptr<SpecType>>>& types) :
     Struct("Tuple_" + join_underline(*types),
            make_shared<std::vector<shared_ptr<Arg>>>()),
     types(types) {
@@ -655,7 +656,7 @@ Tuple::operator string() const {
  *  Z3 sequence cannot be concatenated with a single element, so we need to
  *  create a new sequence with the element and then concatenate it.
  */
-shared_ptr<SpecValue> ListValue::append(shared_ptr<SpecValue> other) {
+shared_ptr<SpecValue> ListValue::append(const shared_ptr<SpecValue>& other) {
     auto const list_type = static_pointer_cast<List>(typ);
     auto const elem_type = list_type->elem_type;
     auto const other_type = other->get_type();
@@ -680,7 +681,7 @@ shared_ptr<SpecValue> ListValue::append(shared_ptr<SpecValue> other) {
 
 /** Concatenate two lists, returns the new list, i.e. `this ++ other`.
  */
-shared_ptr<SpecValue> ListValue::concat(shared_ptr<SpecValue> other) {
+shared_ptr<SpecValue> ListValue::concat(const shared_ptr<SpecValue>& other) {
     auto const list_type = static_pointer_cast<List>(typ);
     auto const other_type = other->get_type();
     auto other_list_type = dynamic_cast<List*>(other_type.get());

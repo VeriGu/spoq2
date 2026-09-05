@@ -1,10 +1,11 @@
 #include "nodes.h"
 #include <memory>
+#include <utility>
 #include <shortcuts.h>
 #include <values.h>
 
 namespace autov {
-SpecNode* _Let(string name, SpecNode* val, SpecNode* body) {
+SpecNode* _Let(const string& name, SpecNode* val, SpecNode* body) {
     auto vec = new vector<unique_ptr<PatternMatch>>();
     vec->push_back(make_unique<PatternMatch>(make_unique<Symbol>(name), unique_ptr<SpecNode>(body)));
     return new Match(unique_ptr<SpecNode>(val), unique_ptr<vector<unique_ptr<PatternMatch>>>(vec));
@@ -37,14 +38,14 @@ SpecNode* _List(vector<unique_ptr<SpecNode>> *vec) {
 }
 
 SpecNode* _st(shared_ptr<SpecType> abs_data) {
-    return new Symbol("st", abs_data);
+    return new Symbol("st", std::move(abs_data));
 }
 
 SpecNode* _init_st(shared_ptr<SpecType> abs_data) {
-    return new Symbol("init_st", abs_data);
+    return new Symbol("init_st", std::move(abs_data));
 }
 
-SpecNode* _name(string name, unordered_map<string, shared_ptr<SpecType>> *types) {
+SpecNode* _name(const string& name, unordered_map<string, shared_ptr<SpecType>> *types) {
     if (!types) {
         return new Symbol(name, autov::SpecType::UNKNOWN_TYPE);
     }

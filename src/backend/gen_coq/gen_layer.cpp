@@ -8,7 +8,7 @@ namespace fs = std::filesystem;
 namespace autov
 {
 
-void gen_layer_refine_rel(Project *proj, int i, string path)
+void gen_layer_refine_rel(Project *proj, int i, const string& path)
 {
     std::ofstream out(path);
 
@@ -26,7 +26,7 @@ void gen_layer_refine_rel(Project *proj, int i, string path)
     out.close();
 }
 
-void gen_layer(Project *proj, int i, string path)
+void gen_layer(Project *proj, int i, const string& path)
 {
     std::ofstream out(path);
     auto const &layer = proj->layers.at(i);

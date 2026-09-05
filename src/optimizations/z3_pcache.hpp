@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <utility>
 
 class LiteralCacheEntry {
  public:
@@ -15,11 +16,11 @@ class LiteralCacheEntry {
   std::map<std::string, std::string> symbol_table;
 
   // return if this has the same statement as e_statement.
-  bool compareEqual(std::string e_statement) const {
+  bool compareEqual(const std::string& e_statement) const {
     return statement == e_statement;
   }
 
-  friend std::ostream& operator<<(std::ostream& os, LiteralCacheEntry e) {
+  friend std::ostream& operator<<(std::ostream& os, const LiteralCacheEntry& e) {
     os << "statement:" << e.statement << "\n";
     os << "result:" << e.result << "\n";
     return os;
@@ -35,7 +36,7 @@ class SMTParser {
   std::pair<std::string, std::map<std::string, std::string>> parse(
       std::string statement) {
     std::pair<std::string, std::map<std::string, std::string>> p;
-    p.first = statement;
+    p.first = std::move(statement);
     p.first.erase(std::remove(p.first.begin(), p.first.end(), '\n'),
                   p.first.end());
 
@@ -146,7 +147,7 @@ class SMTHashMapCache {
   std::hash<std::string> hasher;
 
   // return the hash value (unsigned 32) of current literal cache entry.
-  uint computeHashU32(std::string statement) {
+  uint computeHashU32(const std::string& statement) {
     return hasher(statement) % MAP_SIZE;
   }
 
@@ -161,14 +162,14 @@ class SMTHashMapCache {
 
  public:
   SMTHashMapCache(std::string path) {
-    setCacheFile(path);
+    setCacheFile(std::move(path));
     loadFromFile();
   }
   ~SMTHashMapCache() {
     std::cout << "Z3 persistent cache hit: " << count_hit << "/" << count_query
               << "(" << count_hit / (count_query + 0.001) << ")\n";
   }
-  void setCacheFile(std::string filepath) { this->cache_file = filepath; }
+  void setCacheFile(std::string filepath) { this->cache_file = std::move(filepath); }
 
   int loadFromFile() {
     if (loaded) return -1;
@@ -205,7 +206,7 @@ class SMTHashMapCache {
                 << count_query << "(" << count_hit / (count_query + 0.001)
                 << ")\n";
     }
-    auto const p = parser.parse(statement);
+    auto const p = parser.parse(std::move(statement));
     uint const hv = computeHashU32(p.first);
     for (auto entry : cache_map[hv]) {
       if (entry->compareEqual(p.first)) {
@@ -219,7 +220,7 @@ class SMTHashMapCache {
 
   std::pair<int, std::string> put(std::string statement, int result) {
     LiteralCacheEntry* e = new LiteralCacheEntry();
-    auto const p = parser.parse(statement);
+    auto const p = parser.parse(std::move(statement));
     e->statement = p.first;
     uint const hv = computeHashU32(e->statement);
     e->result = result;

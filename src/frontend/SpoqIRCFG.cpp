@@ -398,7 +398,7 @@ void SpoqIRModule::control_flow_merge_bridge(llvm::BasicBlock* bb, std::set<llvm
 // (because their block now has only one predecessor).  These
 // are replaced with their single value and removed.
 
-bool SpoqIRModule::control_flow_conversion_DAG(string fname, SpoqFunction &spoq_func, SpoqLoopContext& context) {
+bool SpoqIRModule::control_flow_conversion_DAG(const string& fname, SpoqFunction &spoq_func, SpoqLoopContext& context) {
 
 
     // --- Sub-pass 1: Clone-and-split + phi cleanup, per region ---

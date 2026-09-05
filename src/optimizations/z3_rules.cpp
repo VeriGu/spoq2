@@ -46,7 +46,7 @@ std::unique_ptr<SpecNode> subst_expr(
     bool& succ
 );
 
-void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, shared_ptr<SpecValue> src, shared_ptr<EvalState> state)
+void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, const shared_ptr<SpecValue>& src, const shared_ptr<EvalState>& state)
 {
     if (auto sym = instance_of(pat, Symbol)) {
         if (proj->is_ind_constr(sym->text)) {
@@ -223,7 +223,7 @@ unsigned long length_of_exp(SpecNode* e) {
     else throw std::runtime_error("Unknown node type: " + std::string(typeid(e).name()));
 }
 
-unsigned length_z3_val(z3::expr z3_val) {
+unsigned length_z3_val(const z3::expr& z3_val) {
     if (z3_val.is_var() || z3_val.is_const()) return 1;
     else if (z3_val.is_app()) {
         unsigned l_s = 0;
@@ -239,9 +239,9 @@ unsigned length_z3_val(z3::expr z3_val) {
 }
 
 static z3::sort bv64 = z3ctx.bv_sort(64);
-static SpecNode* reconstruct_expr(z3::expr z3_val,
+static SpecNode* reconstruct_expr(const z3::expr& z3_val,
                            unordered_map<unsigned, std::pair<z3::expr, SpecNode*>>& subexprs,
-                           shared_ptr<EvalState> state) {
+                           const shared_ptr<EvalState>& state) {
     //std::cout << "reconstruct_expr: " << z3_val << std::endl;
     if (z3_val.is_const() && z3_val.is_int() && z3_val.is_numeral()) {
         int64_t _v;
@@ -289,7 +289,7 @@ static SpecNode* reconstruct_expr(z3::expr z3_val,
         for (auto s = subexprs.begin(); s != subexprs.end(); ++s) {
             sorted_subexprs.push_back(s->second);
         }
-        std::sort(sorted_subexprs.begin(), sorted_subexprs.end(), [](auto a, auto b) {
+        std::sort(sorted_subexprs.begin(), sorted_subexprs.end(), [](const auto& a, const auto& b) {
             return a.second < b.second;
         });
 
@@ -409,7 +409,7 @@ static SpecNode* reconstruct_expr(z3::expr z3_val,
     }
 }
 
-static SpecNode* __simplify_zmap_init(Project const* proj, Expr* expr, shared_ptr<EvalState> state) {
+static SpecNode* __simplify_zmap_init(Project const* proj, Expr* expr, const shared_ptr<EvalState>& state) {
     auto elem0 = instance_of(expr->elems->at(0).get(), Expr); // ZMap
 
     if (!elem0)
@@ -435,7 +435,7 @@ static SpecNode* __simplify_zmap_init(Project const* proj, Expr* expr, shared_pt
  * 1. Expr::Set:  x # y = (x' @ y) ==> (if (x @ y) = (x' @ y)) ==> (x)
  * 2. Expr::RecordSet: x.[f] :< y ==> (if (x.(f) = y)) ==> (x)
  */
-std::pair<unique_ptr<SpecNode>, bool> reduce_id_write(Project *proj, unique_ptr<Expr> spec, shared_ptr<EvalState> state) {
+std::pair<unique_ptr<SpecNode>, bool> reduce_id_write(Project *proj, unique_ptr<Expr> spec, const shared_ptr<EvalState>& state) {
     static int const Z3_REDUCE_TIMEOUT = 300;
     bool changed = false;
     if (OPTS.__OPT_ON_ARITH) {
@@ -497,7 +497,7 @@ std::pair<unique_ptr<SpecNode>, bool> reduce_id_write(Project *proj, unique_ptr<
     return { std::move(spec), changed };
 }
 
-SpecNode* reconstruct_zmap(Project* proj, SpecNode* spec, shared_ptr<EvalState> state) {
+SpecNode* reconstruct_zmap(Project* proj, SpecNode* spec, const shared_ptr<EvalState>& state) {
     auto expr = instance_of(spec, Expr);
     auto elem0 = instance_of(expr->elems->at(0).get(), Expr); // ZMap
     auto elem1 = expr->elems->at(1).get(); // index
@@ -573,7 +573,7 @@ SpecNode* reconstruct_zmap(Project* proj, SpecNode* spec, shared_ptr<EvalState> 
 // unsigned long z3_global_hash_total = 0;
 // #define Z3_OPT_CACHE
 
-rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::shared_ptr<EvalState> state) {
+rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, const std::shared_ptr<EvalState>& state) {
     bool changed = false;
     // auto orig_prop = std::string(*spec->prop);
     // LOG_DEBUG << "Simple Rely by Z3: " << string(*spec) << "\n";
@@ -674,7 +674,7 @@ rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, std::sha
     }
 }
 
-rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<EvalState> state) {
+rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, const std::shared_ptr<EvalState>& state) {
     if (!force_simpl) return { std::move(spec), false };
     auto const z3t_string = spec->get_type()->get_z3_type().to_string();
 
@@ -803,7 +803,7 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, std::shared_ptr<
 }
 
 
-rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::shared_ptr<EvalState> state) {
+rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, const std::shared_ptr<EvalState>& state) {
     // string orig_src = string(*spec);
     // auto logthis = orig_src.find("if ((call_dup - (call16_dup)) <>? (0))") != std::string::npos;
     // if(logthis)
@@ -977,7 +977,7 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, std::share
     }
 }
 
-rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, std::shared_ptr<EvalState> state) {
+rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, const std::shared_ptr<EvalState>& state) {
     auto elems = std::make_unique<std::vector<std::unique_ptr<SpecNode>>>();
     bool changed = false;
     auto const z3t_string = spec->get_type()->get_z3_type().to_string();

@@ -1,6 +1,8 @@
 #include <irvalues.h>
 #include <coq.h>
 
+#include <utility>
+
 namespace autov::IRLoader {
 using std::string;
 using std::vector;
@@ -58,8 +60,8 @@ const unordered_map<Op::_Op, std::string> Op::opToString = {
 };
 
 
-VLocal::VLocal(shared_ptr<IRType> type, string name) :
-    _VSymbol(type) {
-        this->name = to_coq_name(name);
+VLocal::VLocal(shared_ptr<IRType> type, const string& name) :
+    _VSymbol(std::move(type)) {
+        this->name = to_coq_name(std::move(name));
     }
 } // namespace autov::IRLoader

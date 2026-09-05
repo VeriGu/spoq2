@@ -34,7 +34,7 @@ static vector<string> split(const string &s, char delimiter) {
     return tokens;
 }
 
-static string add_indent(const string s, int indent) {
+static string add_indent(const string& s, int indent) {
     vector<string> ss = split(s, '\n');
     string result = "";
 

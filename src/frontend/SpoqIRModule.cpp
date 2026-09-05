@@ -149,7 +149,7 @@ AttrEffect classify_memory_attrs(const llvm::Function &func, unsigned &ptr_param
 
 /// `post = pre`: the callee wrote nothing.
 unique_ptr<SpecNode> pure_property(const string &pre, const string &post,
-                                   shared_ptr<SpecType> state_type) {
+                                   const shared_ptr<SpecType>& state_type) {
     return attr_bin(Expr::EQUAL, std::make_unique<Symbol>(post, state_type),
                     std::make_unique<Symbol>(pre, state_type));
 }
@@ -392,7 +392,7 @@ static llvm::Type *pointee_struct_type(llvm::Argument &arg) {
     return nullptr;
 }
 
-bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
+bool SpoqIRModule::code_to_spec(Project *proj, const string& fname, int layer_id,
                                    std::vector<std::string> &low_specs,
                                    std::unordered_map<string, string> &name_map) {
     if (proj == nullptr) return false;
@@ -491,7 +491,7 @@ bool SpoqIRModule::code_to_spec(Project *proj, string fname, int layer_id,
     return true;
 }
 
-bool SpoqIRModule::load_llvm_module(std::string code_path) {
+bool SpoqIRModule::load_llvm_module(const std::string& code_path) {
     auto buffer = llvm::MemoryBuffer::getFileOrSTDIN(code_path);
     if (!buffer) {
         llvm::errs() << "Error reading file: " << code_path << "\n";

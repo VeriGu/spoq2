@@ -9,7 +9,7 @@ namespace fs = std::filesystem;
 namespace autov
 {
 
-void gen_specs(Project *proj, loc_t loc, string out_path, string cache_out = "")
+void gen_specs(Project *proj, loc_t loc, const string& out_path, const string& cache_out = "")
 {
     std::ofstream cache_o;
 
@@ -26,7 +26,7 @@ void gen_specs(Project *proj, loc_t loc, string out_path, string cache_out = "")
     }
 
     sort(syms.begin(), syms.end(),
-         [&](string s1, string s2) { return proj->symbols[s1].order < proj->symbols[s2].order; });
+         [&](const string& s1, const string& s2) { return proj->symbols[s1].order < proj->symbols[s2].order; });
 
     // Require Import
     std::set<string> deps = {"CommonDeps", "DataTypes"};

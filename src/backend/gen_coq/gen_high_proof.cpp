@@ -6,7 +6,7 @@ namespace fs = std::filesystem;
 namespace autov
 {
 
-void gen_high_proof(Project *p, int i, string fname, string path, string cache_out)
+void gen_high_proof(Project *p, int i, const string& fname, const string& path, const string& cache_out)
 {
     std::fstream cache_o(cache_out);
     string layer = p->layers[i]->name;
@@ -132,7 +132,7 @@ void gen_high_proof(Project *p, int i, string fname, string path, string cache_o
         loop_vars.push_back("lst");
         loop_vars.push_back("hst");
         loop_vars.push_back("hst'");
-        loop_ret = [&loop_ret_args](string s) { return "Some (" + autov::join(loop_ret_args, ", ") + ", " + s + ")"; };
+        loop_ret = [&loop_ret_args](const string& s) { return "Some (" + autov::join(loop_ret_args, ", ") + ", " + s + ")"; };
     }
 
     std::function<string(string)> call_ret;
@@ -140,12 +140,12 @@ void gen_high_proof(Project *p, int i, string fname, string path, string cache_o
     if (auto ret = dynamic_cast<Option *>(spec->rettype.get())) {
         if (dynamic_cast<Tuple *>(ret->elem_type.get())) {
             vars.push_back("res");
-            call_ret = [](string s) { return "Some (res, " + s + ")"; };
+            call_ret = [](const string& s) { return "Some (res, " + s + ")"; };
         } else {
-            call_ret = [](string s) { return "Some " + s; };
+            call_ret = [](const string& s) { return "Some " + s; };
         }
     } else {
-        call_ret = [](string s) { return "Some " + s; };
+        call_ret = [](const string& s) { return "Some " + s; };
     }
 
     if (mid_syms.size() > 0) {

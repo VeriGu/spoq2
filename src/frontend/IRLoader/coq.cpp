@@ -16,7 +16,7 @@ using std::make_shared;
 using std::tuple;
 using std::replace;
 
-string to_coq_name(const string name) {
+string to_coq_name(const string& name) {
     string result;
     result.reserve(name.size());
 

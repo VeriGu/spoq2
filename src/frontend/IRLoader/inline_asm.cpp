@@ -99,8 +99,8 @@ static string escape(const std::string& s) {
     return res;
 }
 
-IASM parse_inline_asm(string fname, string asm_text, shared_ptr<IRType> rettype,
-                      vector<unique_ptr<FuncArg>> &arglist, string constraints) {
+IASM parse_inline_asm(const string& fname, string asm_text, const shared_ptr<IRType>& rettype,
+                      vector<unique_ptr<FuncArg>> &arglist, const string& constraints) {
     if (asm_text.find("pushsection") != string::npos) {
         throw std::runtime_error("pushsection is not supported");
     }

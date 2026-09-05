@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <utility>
 #include <SpecVisitor.h>
 #include <project.h>
 
@@ -11,11 +12,11 @@ public:
     std::string path;
     Layer *current_layer;
 
-    ProgramVisitor(Project &proj, std::string path) : proj(proj), path(path) {
+    ProgramVisitor(Project &proj, std::string path) : proj(proj), path(std::move(path)) {
         current_layer = nullptr;
     }
     ProgramVisitor(Project &proj, std::string path, Layer *layer) :
-                    proj(proj), path(path), current_layer(layer) {}
+                    proj(proj), path(std::move(path)), current_layer(layer) {}
 
     antlrcpp::Any visitProgram(SpecParser::ProgramContext* ctx) override;
 
@@ -110,7 +111,7 @@ protected:
 
 void parse(Project *proj, const std::string& path, Layer *current_layer);
 void parse(Project *proj, const std::string& path);
-SpecNode* parseExpr(Project* proj, string expr_str);
+SpecNode* parseExpr(Project* proj, const string& expr_str);
 
 class LightProgramVisitor : public ProgramVisitor {
 public:

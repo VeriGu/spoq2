@@ -40,7 +40,7 @@ static string to_coq_typ_list(const vector<shared_ptr<T>> *lst) {
     return "[[" + ret + "]]";
 }
 
-string to_coq_name(const string name);
+string to_coq_name(const string& name);
 
 static string to_coq_value_list(const vector<unique_ptr<IRValue>> *lst) {
     string ret = join_type_by_semi_colon(lst);

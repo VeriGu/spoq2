@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <utility>
 #include <vector>
 #include <tuple>
 #include <memory>
@@ -109,7 +110,7 @@ public:
 
     IRValue() : type(make_shared<IRType>()) {}
 
-    IRValue(shared_ptr<IRType> type) : type(type) {}
+    IRValue(shared_ptr<IRType> type) : type(std::move(type)) {}
 
     IRValue(const IRValue& other) {
         type = other.type;
@@ -127,7 +128,7 @@ class VNull : public IRValue {
 public:
     VNull() = delete;
 
-    VNull(shared_ptr<IRType> type) : IRValue(type) {}
+    VNull(shared_ptr<IRType> type) : IRValue(std::move(type)) {}
 
     VNull *clone(void) const override {
         return new VNull(*this);
@@ -142,7 +143,7 @@ class VUndef : public IRValue {
 public:
     VUndef() = delete;
 
-    VUndef(shared_ptr<IRType> type) : IRValue(type) {}
+    VUndef(shared_ptr<IRType> type) : IRValue(std::move(type)) {}
 
     VUndef *clone(void) const override {
         return new VUndef(*this);
@@ -165,7 +166,7 @@ class VAggZero : public IRValue {
 public:
     VAggZero() = delete;
 
-    VAggZero(shared_ptr<IRType> type) : IRValue(type) {}
+    VAggZero(shared_ptr<IRType> type) : IRValue(std::move(type)) {}
 
     VAggZero *clone(void) const override {
         return new VAggZero(*this);
@@ -182,7 +183,7 @@ public:
 
     _VSymbol() = delete;
 
-    _VSymbol(shared_ptr<IRType> type) : IRValue(type) {}
+    _VSymbol(shared_ptr<IRType> type) : IRValue(std::move(type)) {}
 
     virtual _VSymbol *clone(void) const override {
         return new _VSymbol(*this);
@@ -193,7 +194,7 @@ class VGlobal : public _VSymbol {
 public:
     VGlobal() = delete;
 
-    VGlobal(shared_ptr<IRType> type, string name) : _VSymbol(type) {
+    VGlobal(shared_ptr<IRType> type, string name) : _VSymbol(std::move(type)) {
         std::replace(name.begin(), name.end(), '.', '_');
         this->name = name;
     }
@@ -210,7 +211,7 @@ public:
 class VLocal : public _VSymbol {
 public:
     VLocal() = delete;
-    VLocal(shared_ptr<IRType> type, string name);
+    VLocal(shared_ptr<IRType> type, const string& name);
 
     VLocal *clone(void) const override {
         return new VLocal(*this);
@@ -228,7 +229,7 @@ public:
 
     VInt() = delete;
 
-    VInt(shared_ptr<IRType> type, unsigned long val) : IRValue(type) {
+    VInt(const shared_ptr<IRType>& type, unsigned long val) : IRValue(type) {
         unsigned long max;
 
         this->val_signed = 0;
@@ -277,7 +278,7 @@ public:
 
     VFloat() = delete;
 
-    VFloat(shared_ptr<IRType> type, int exp, int mant) : IRValue(type) {
+    VFloat(shared_ptr<IRType> type, int exp, int mant) : IRValue(std::move(type)) {
         this->exp = exp;
         this->mant = mant;
     }
@@ -314,7 +315,7 @@ public:
 
     VPtr() = delete;
 
-    VPtr(shared_ptr<IRType> type, unique_ptr<IRValue> val) : IRValue(type), val(std::move(val)) {}
+    VPtr(shared_ptr<IRType> type, unique_ptr<IRValue> val) : IRValue(std::move(type)), val(std::move(val)) {}
 
     VPtr(const VPtr& other) {
         type = other.type;
@@ -341,7 +342,7 @@ public:
 
     VExpr() = delete;
     VExpr(shared_ptr<IRType> type, Op op, unique_ptr<vector<unique_ptr<IRValue>>> operands) :
-        IRValue(type), op(op), operands(std::move(operands)) {}
+        IRValue(std::move(type)), op(op), operands(std::move(operands)) {}
 
     // Copy constructor
     VExpr(const VExpr& other) : op(other.op) {
@@ -371,7 +372,7 @@ public:
 
     VStruct() = delete;
     VStruct(shared_ptr<IRType> type, unique_ptr<vector<unique_ptr<IRValue>>> contents) :
-        IRValue(type), contents(std::move(contents)) {}
+        IRValue(std::move(type)), contents(std::move(contents)) {}
 
     // Copy constructor
     VStruct(const VStruct& other) {
@@ -399,7 +400,7 @@ public:
     string name;
 
     VLabel() = delete;
-    VLabel(string name) : IRValue(TLabel::TLABEL), name(name) {}
+    VLabel(string name) : IRValue(TLabel::TLABEL), name(std::move(name)) {}
 
     VLabel *clone(void) const override {
         return new VLabel(*this);
@@ -418,7 +419,7 @@ public:
 
     VInlineAsm() = delete;
     VInlineAsm(shared_ptr<IRType> type, string asm_string, bool side_effects, string constraints) :
-        IRValue(type), asm_string(asm_string), side_effects(side_effects), constraints(constraints) {}
+        IRValue(std::move(type)), asm_string(std::move(asm_string)), side_effects(side_effects), constraints(std::move(constraints)) {}
 
     VInlineAsm *clone(void) const override {
         return new VInlineAsm(*this);

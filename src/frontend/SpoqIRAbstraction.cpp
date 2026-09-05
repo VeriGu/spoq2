@@ -10,7 +10,7 @@
 namespace autov {
 
 
-std::pair<bool, unique_ptr<SpecNode>> SpoqAbstractionLayout::get_elem_as_Z(unique_ptr<SpecNode> record, std::string field) {
+std::pair<bool, unique_ptr<SpecNode>> SpoqAbstractionLayout::get_elem_as_Z(unique_ptr<SpecNode> record, const std::string& field) {
     if (rich_fields.find(field) != rich_fields.end()) {
         auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
         vec->push_back(Shortcut::_field_u(std::move(record), field));

@@ -97,7 +97,7 @@ static size_t hash_z3_expr(z3::expr  const&e) {
     return e.hash();
 }
 
-size_t hash_z3_state(std::shared_ptr<EvalState> state, int timeout) {
+size_t hash_z3_state(const std::shared_ptr<EvalState>& state, int timeout) {
     std::vector<unsigned> hashes;
     for (auto  const&c : *state->conds) {
         hashes.push_back(hash_z3_expr(c));
@@ -107,7 +107,7 @@ size_t hash_z3_state(std::shared_ptr<EvalState> state, int timeout) {
     return hash_unsigned_vector(hashes);
 }
 
-size_t hash_z3_state(std::shared_ptr<EvalState> state, z3::expr cond, int timeout) {
+size_t hash_z3_state(const std::shared_ptr<EvalState>& state, const z3::expr& cond, int timeout) {
     std::vector<unsigned> hashes;
     for (auto  const&c : *state->conds) {
         hashes.push_back(hash_z3_expr(c));
@@ -269,7 +269,7 @@ Z3Result z3_race_check(QueryInfo const* qinfo) {
  *  2. automatically dump queries
  *  3. use local solver, which significantly speedup path-by-path verification
   */
-Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo, int timeout) {
+Z3Result z3_verify(const shared_ptr<ProveState>& state, const z3::expr& cond, QueryInfo *qinfo, int timeout) {
     auto const start = std::chrono::high_resolution_clock::now();
     z3::solver solve(z3ctx);
     Z3Params.set("timeout", (unsigned int)timeout);
@@ -312,7 +312,7 @@ Z3Result z3_verify(shared_ptr<ProveState> state, z3::expr cond, QueryInfo *qinfo
  * 1. Check None-path for drf invariant
  * 2. Check deterministic path for simulation
  * */
-Z3Result z3_verify_state_sat(shared_ptr<ProveState> state, QueryInfo *qinfo, int timeout) {
+Z3Result z3_verify_state_sat(const shared_ptr<ProveState>& state, QueryInfo *qinfo, int timeout) {
     auto const start = std::chrono::high_resolution_clock::now();
     z3::solver solve(z3ctx);
 
@@ -351,7 +351,7 @@ Z3Result z3_verify_state_sat(shared_ptr<ProveState> state, QueryInfo *qinfo, int
         return Z3Result::Unknown;
     }
 }
-Z3Result z3_verify_state_sat(shared_ptr<EvalState> state, QueryInfo *qinfo, int timeout) {
+Z3Result z3_verify_state_sat(const shared_ptr<EvalState>& state, QueryInfo *qinfo, int timeout) {
     auto const start = std::chrono::high_resolution_clock::now();
     z3::solver solve(z3ctx);
 
@@ -389,7 +389,7 @@ Z3Result z3_verify_state_sat(shared_ptr<EvalState> state, QueryInfo *qinfo, int 
     }
 }
 // Defautl value of timeout is 50
-Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, int timeout) {
+Z3Result z3_check(const shared_ptr<EvalState>& state, const z3::expr& cond, QueryInfo *qinfo, int timeout) {
     auto const start = std::chrono::high_resolution_clock::now();
     auto const hash = hash_z3_state(state, cond, timeout);
     z3_checks++;
@@ -486,7 +486,7 @@ Z3Result z3_check(shared_ptr<EvalState> state, z3::expr cond, QueryInfo *qinfo, 
     }
 }
 
-Z3Result z3_check(shared_ptr<EvalState> state, int timeout) {
+Z3Result z3_check(const shared_ptr<EvalState>& state, int timeout) {
     auto const start = std::chrono::high_resolution_clock::now();
     auto const hash = hash_z3_state(state, timeout);
     z3_checks++;
@@ -545,7 +545,7 @@ Z3Result z3_check(shared_ptr<EvalState> state, int timeout) {
 //only check unsat for !@cond, return True if unsat, SAT if sat.
 //will not return False since will not check invalidity.
 //@model will get assigned to the return model.
-Z3Result z3_check_unsat(shared_ptr<ProveState> state, z3::expr cond, z3::model& ce, QueryInfo *qinfo, int timeout) {
+Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& cond, z3::model& ce, QueryInfo *qinfo, int timeout) {
     auto const start = std::chrono::high_resolution_clock::now();
     auto const hash = hash_z3_state(state, cond, timeout);
     if (Z3Cache.find(hash) != Z3Cache.end()) {
@@ -605,7 +605,7 @@ Z3Result z3_check_unsat(shared_ptr<ProveState> state, z3::expr cond, z3::model& 
 }
 
 
-shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pat, shared_ptr<SpecValue> src,
+shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pat, const shared_ptr<SpecValue>& src,
                                       unordered_map<string, shared_ptr<SpecValue>> &vars,
                                       unordered_map<string, shared_ptr<SpecValue>> &assigns)
 {
@@ -1049,7 +1049,7 @@ unique_ptr<SpecNode> formulate_preserved_function(Project* proj, string fname) {
 }
 
 //post(t1,t2,t3,t4,st')
-unique_ptr<SpecNode> formulate_post_condition(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args) {
+unique_ptr<SpecNode> formulate_post_condition(Project* proj, const string& fname, vector<unique_ptr<SpecNode>>* args) {
     auto def = proj->defs[fname].get();
     auto &postconds = proj->cmds.PostCond[fname];
     unique_ptr<SpecNode> aggrepost = make_unique<BoolConst>(true);
@@ -1212,7 +1212,7 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
 
 //state is path conditions relate to current value, state will be copied when going into if and rely
 //vcs is global conditions instantiated to assume post conditions of loops.
-void symbolic(Project* proj, SpecNode* val, shared_ptr<EvalState> state, vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>>& states) {
+void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>>& states) {
     //std::cout << "z3_eval: " << string(*val) << std::endl;
 
     auto const _cache = [&](shared_ptr<SpecValue> return_val) {
@@ -1751,7 +1751,7 @@ z3::expr formulate_function(Project* proj, Definition const* def) {
 //needs to find a way to distinguish when to split state using symbolic and when not by directly using ite node of z3.
 //ite is like a state merging.
 
-shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState> state, bool check_loop) {
+shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, bool check_loop) {
     shared_ptr<SpecValue> result;
 
     if (OPTS.z3_expr_cache && val->cached_eval) {
@@ -2236,7 +2236,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, shared_ptr<EvalState
     return result;
 }
 
-shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<EvalState> state, bool check_loop, bool unfold, set<string>& used_fixpoint) {
+shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, bool check_loop, bool unfold, set<string>& used_fixpoint) {
     // std::cout << "z3_eval: " << string(*val) << std::endl;
 
     if (OPTS.z3_expr_cache && val->cached_eval) return val->cached_eval;

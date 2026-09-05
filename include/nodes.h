@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <utility>
 #include <vector>
 #include <map>
 #include <unordered_map>
@@ -50,7 +51,7 @@ public:
     shared_ptr<SpecValue> cached_eval;
 
     SpecNode() : type(SpecType::UNKNOWN_TYPE), nid(id++) {}
-    SpecNode(shared_ptr<SpecType> type) : type(type), nid(id++) {}
+    SpecNode(shared_ptr<SpecType> type) : type(std::move(type)), nid(id++) {}
 
     virtual bool operator==(const SpecNode& other) const {
         if (typeid(other) != typeid(*this)) {
@@ -79,7 +80,7 @@ public:
         return this->type != SpecType::UNKNOWN_TYPE;
     }
 
-    void set_type(shared_ptr<SpecType> type) {
+    void set_type(const shared_ptr<SpecType>& type) {
         if (this->has_type() && this->type->name != type->name && type != SpecType::UNKNOWN_TYPE) {
             LOG_ERROR << "Overwriting type " << string(*this->type) << " with " << string(*type);
             throw std::invalid_argument("Overwriting type " + string(*this->type) + " with " + string(*type));
@@ -95,7 +96,7 @@ public:
     }
 
     void set_z3_eval(shared_ptr<SpecValue> value) {
-        this->cached_eval = value;
+        this->cached_eval = std::move(value);
     }
 
     virtual void clear_z3_eval() = 0;
@@ -117,8 +118,8 @@ public:
     string text;
 
     Symbol() { throw std::invalid_argument("Symbol must have a name"); }
-    Symbol(string text) : SpecNode(SpecType::UNKNOWN_TYPE), text(text) {}
-    Symbol(string text, shared_ptr<SpecType> type) : SpecNode(type), text(text) {}
+    Symbol(string text) : SpecNode(SpecType::UNKNOWN_TYPE), text(std::move(text)) {}
+    Symbol(string text, shared_ptr<SpecType> type) : SpecNode(std::move(type)), text(std::move(text)) {}
 
     bool operator==(const SpecNode& other) const {
         if (typeid(other) != typeid(Symbol)) {
@@ -176,7 +177,7 @@ public:
     Const() { throw std::invalid_argument("Const must have a value"); }
     Const(const std::variant<unsigned long, string, bool, double>& value) : SpecNode(SpecType::UNKNOWN_TYPE), value(value) {}
     Const(const std::variant<unsigned long, string, bool, double>& value, shared_ptr<SpecType> type)
-        : SpecNode(type), value(value) {
+        : SpecNode(std::move(type)), value(value) {
 #if 0
         if (!std::holds_alternative<unsigned long>(this->value))
             return;
@@ -380,7 +381,7 @@ public:
         SpecNode(SpecType::UNKNOWN_TYPE), fields(std::move(fields)){
     }
     RecordDef(unique_ptr<std::map<unique_ptr<Symbol>, unique_ptr<SpecNode>>> fields, shared_ptr<SpecType> type) :
-        SpecNode(type), fields(std::move(fields)) {
+        SpecNode(std::move(type)), fields(std::move(fields)) {
     }
 
     bool operator==(const SpecNode& other) const {
@@ -535,7 +536,7 @@ public:
     }
 
     Expr(op_t op, elems_t elems, shared_ptr<SpecType> type) :
-        SpecNode(type), op(std::move(op)), elems(std::move(elems)) {
+        SpecNode(std::move(type)), op(std::move(op)), elems(std::move(elems)) {
 
         if (std::holds_alternative<string>(this->op)) {
             auto const s = std::get<string>(this->op);
@@ -552,7 +553,7 @@ public:
     }
 
     Expr(op_t op, unique_ptr<SpecNode> node, shared_ptr<SpecType> type) :
-        SpecNode(type), op(std::move(op)) {
+        SpecNode(std::move(type)), op(std::move(op)) {
             this->elems = make_unique<vector<unique_ptr<SpecNode>>>();
             this->elems->push_back(std::move(node));
 
@@ -995,8 +996,8 @@ public:
         return unique_ptr<Match>(raw_when(std::move(pattern), std::move(value), std::move(body)));
     }
 
-    static Match* raw_let(string name, unique_ptr<SpecNode> value, unique_ptr<SpecNode> body,
-                          shared_ptr<SpecType>typ = SpecType::UNKNOWN_TYPE) {
+    static Match* raw_let(const string& name, unique_ptr<SpecNode> value, unique_ptr<SpecNode> body,
+                          const shared_ptr<SpecType>&typ = SpecType::UNKNOWN_TYPE) {
         unique_ptr<PatternMatch> pm = make_unique<PatternMatch>(make_unique<Symbol>(name, typ), std::move(body));
         unique_ptr<vector<unique_ptr<PatternMatch>>> match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
 
@@ -1005,8 +1006,8 @@ public:
         return new Match(std::move(value), std::move(match_list));
     }
 
-    static unique_ptr<Match> let(string name, unique_ptr<SpecNode> value, unique_ptr<SpecNode> body, shared_ptr<SpecType>typ = SpecType::UNKNOWN_TYPE) {
-        return unique_ptr<Match>(raw_let(name, std::move(value), std::move(body), typ));
+    static unique_ptr<Match> let(const string& name, unique_ptr<SpecNode> value, unique_ptr<SpecNode> body, const shared_ptr<SpecType>&typ = SpecType::UNKNOWN_TYPE) {
+        return unique_ptr<Match>(raw_let(std::move(name), std::move(value), std::move(body), std::move(typ)));
     }
 
     std::ostream &stream(std::ostream &out) const;
@@ -1417,7 +1418,7 @@ public:
 
     Declaration() { throw std::invalid_argument("Declaration must have a name and type"); }
     Declaration(string name, shared_ptr<SpecType> type) :
-        name(name), type(type), length(1) {}
+        name(std::move(name)), type(std::move(type)), length(1) {}
 
     bool operator==(const Declaration& other) const {
         return this->name == other.name && *this->type == *other.type;
@@ -1466,7 +1467,7 @@ public:
 
     Definition() { throw std::invalid_argument("Definition must have a name, rettype, args, and body"); }
     Definition(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args, unique_ptr<SpecNode> body) :
-        name(name), rettype(rettype), args(std::move(args)), body(std::move(body)) {
+        name(std::move(name)), rettype(std::move(rettype)), args(std::move(args)), body(std::move(body)) {
 
     }
 
@@ -1545,16 +1546,16 @@ private:
 protected:
     // Reserved for Fixpoint
     Definition(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args) :
-        name(name), rettype(rettype), args(std::move(args)), body(nullptr) {}
+        name(std::move(name)), rettype(std::move(rettype)), args(std::move(args)), body(nullptr) {}
 };
 
 class Fixpoint : public Definition {
 public:
     Fixpoint() { throw std::invalid_argument("Fixpoint must have a name, rettype, args, and body"); }
     Fixpoint(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args, unique_ptr<SpecNode> body) :
-        Definition(name, rettype, std::move(args), std::move(body)) {}
+        Definition(std::move(name), std::move(rettype), std::move(args), std::move(body)) {}
     Fixpoint(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args) :
-        Definition(name, rettype, std::move(args)) {}
+        Definition(std::move(name), std::move(rettype), std::move(args)) {}
     Fixpoint(Fixpoint &other) : Definition(other) {}
 
     // z3::func_decl absf() const {
@@ -1595,17 +1596,17 @@ public:
     bool dummy = false;
 
     Layer() { throw std::invalid_argument("Layer must have a name, abs_data, ops, prims, and code"); }
-    Layer(string name) : name(name) {}
+    Layer(string name) : name(std::move(name)) {}
     Layer(string name, unique_ptr<SpecType> abs_data, unordered_map<string, string> ops,
           vector<string> prims, string code, vector<string> passthrough) :
-        name(name), abs_data(std::move(abs_data)), ops(std::move(ops)), prims(prims), code(code), passthrough(passthrough) {}
-    Layer(string name, bool dummy) : name(name), dummy(dummy) {}
+        name(std::move(name)), abs_data(std::move(abs_data)), ops(std::move(ops)), prims(std::move(prims)), code(std::move(code)), passthrough(std::move(passthrough)) {}
+    Layer(string name, bool dummy) : name(std::move(name)), dummy(dummy) {}
 
     shared_ptr<IRLoader::IRModule> load_module() const;
 };
 
 class TypeInferenceException : public std::runtime_error {
     public:
-    TypeInferenceException(std::string s): std::runtime_error(s) {}
+    TypeInferenceException(const std::string& s): std::runtime_error(s) {}
 };
 }// namespace autov

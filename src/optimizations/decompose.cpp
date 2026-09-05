@@ -10,7 +10,7 @@ namespace autov
 
 //decompose_procedure: should decompose all the identity relation separated with
 //other relations. Group share's identity relations, local's identity relations.
-bool decompose(Project* proj, Definition* def, string secret) {
+bool decompose(Project* proj, Definition* def, const string& secret) {
     static set<string> public_fields_rm_list_sec = {
         "g_norm", "e_umem", "e_shadow_vcpu_ctxt"
     };

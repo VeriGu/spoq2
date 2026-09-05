@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <utility>
 #include <vector>
 #include <map>
 #include <unordered_map>
@@ -29,7 +30,7 @@ public:
     shared_ptr<IRType> type;
 
     FuncArg() = delete;
-    FuncArg(string name, shared_ptr<IRType> type) : name(to_coq_name(name)), type(type) {}
+    FuncArg(const string& name, shared_ptr<IRType> type) : name(to_coq_name(std::move(name))), type(std::move(type)) {}
 
     string to_coq() const {
         return "(\"" + name + "\", " + type->to_coq() + ")";
@@ -46,7 +47,7 @@ public:
 
     GlobalVar() = delete;
     GlobalVar(string vname, shared_ptr<IRType> vtype, bool vconst, unique_ptr<IRValue> vinitializer, int valign) :
-        vname(vname), vtype(vtype), vconst(vconst), vinitializer(std::move(vinitializer)), valign(valign) {}
+        vname(std::move(vname)), vtype(std::move(vtype)), vconst(vconst), vinitializer(std::move(vinitializer)), valign(valign) {}
 
     string to_coq() const {
         string vinitializer_str;
@@ -82,7 +83,7 @@ public:
     IRFunction() = default;
     IRFunction(string fname, shared_ptr<IRType> rettype, unique_ptr<vector<unique_ptr<FuncArg>>> args, bool is_decl,
                string entry = "", unique_ptr<ir_blocks_t> blocks = nullptr) :
-        fname(fname), rettype(rettype), args(std::move(args)), is_decl(is_decl), entry(entry), blocks(std::move(blocks)) {}
+        fname(std::move(fname)), rettype(std::move(rettype)), args(std::move(args)), is_decl(is_decl), entry(std::move(entry)), blocks(std::move(blocks)) {}
 };
 
 class CFunction : public Function {
@@ -98,7 +99,7 @@ public:
     CFunction() = delete;
     CFunction(string fname, shared_ptr<IRType> rettype, unique_ptr<vector<unique_ptr<FuncArg>>> args, bool is_decl,
               unique_ptr<vector<unique_ptr<IRInst>>> body = nullptr) :
-        fname(fname), rettype(rettype), args(std::move(args)), is_decl(is_decl) {
+        fname(std::move(fname)), rettype(std::move(rettype)), args(std::move(args)), is_decl(is_decl) {
             collect_alloca_vars(body.get());
             this->body = filter_icall(std::move(body));
     }
@@ -141,7 +142,7 @@ private:
     }
     unique_ptr<vector<unique_ptr<IRInst>>> filter_icall(unique_ptr<vector<unique_ptr<IRInst>>> body) {
         static std::vector<std::function<bool(std::string)>> debug_prims = {
-            [](std::string p) {
+            [](const std::string& p) {
                 static std::vector<std::string> valid_strings = {
                     "printhex_ul",
                     "print_string",
@@ -156,8 +157,8 @@ private:
 
                 return std::find(valid_strings.begin(), valid_strings.end(), p) != valid_strings.end();
             },
-            [](std::string p) { return p.find("llvm_dbg") == 0; },
-            [](std::string p) { return p.find("llvm_lifetime") == 0; },
+            [](const std::string& p) { return p.find("llvm_dbg") == 0; },
+            [](const std::string& p) { return p.find("llvm_lifetime") == 0; },
         };
 
         unique_ptr<vector<unique_ptr<IRInst>>> after_filter;
@@ -211,7 +212,7 @@ public:
 
     AsmProcedure() = delete;
     AsmProcedure(string name, string origin, string objdump, string body) :
-        name(name), origin(origin), objdump(objdump), body(body) {}
+        name(std::move(name)), origin(std::move(origin)), objdump(std::move(objdump)), body(std::move(body)) {}
 
     string to_coq() const {
         return body;
@@ -231,7 +232,7 @@ public:
              shared_ptr<std::map<string, shared_ptr<GlobalVar>>> globalvars,
              shared_ptr<std::map<string, shared_ptr<CFunction>>> functions,
              shared_ptr<ptree> debug_info) :
-        structs(structs), globalvars(globalvars), functions(functions), debug_info(debug_info) {
+        structs(structs), globalvars(std::move(globalvars)), functions(std::move(functions)), debug_info(std::move(debug_info)) {
             std::map<string, shared_ptr<AsmProcedure>> const asmp;
             asm_procs = std::make_shared<std::map<string, shared_ptr<AsmProcedure>>>(asmp);
         }

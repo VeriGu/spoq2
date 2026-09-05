@@ -15,7 +15,7 @@ extern int unfold_count;
 
 class UnfoldPolicy UNFOLD_POLICY;
 
-static string pick_new_name(string sym, std::set<string> &prev) {
+static string pick_new_name(const string& sym, std::set<string> &prev) {
     string new_sym = sym;
 
     while (prev.find(new_sym) != prev.end()) {
@@ -143,10 +143,10 @@ public:
     string name;
     shared_ptr<SpecType> type;
 
-    FieldPath(string name, shared_ptr<SpecType> type) : name(name), type(type) {}
+    FieldPath(string name, shared_ptr<SpecType> type) : name(std::move(name)), type(std::move(type)) {}
 };
 
-static void search_field_path(Project *proj, string name, string parent, vector<FieldPath> &path) {
+static void search_field_path(Project *proj, const string& name, const string& parent, vector<FieldPath> &path) {
     shared_ptr<Struct> const parent_t = proj->structs.at(parent);
 
     for (auto  const&f: *parent_t->elems) {
@@ -624,7 +624,7 @@ void add_lens_v_decl(Project* proj) {
 SpecNode* make_lens_v(shared_ptr<SpecType> type, unsigned long id) {
     auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
     elems->push_back(make_unique<IntConst>(id));
-    return new Expr("lens_v", std::move(elems), type);
+    return new Expr("lens_v", std::move(elems), std::move(type));
 }
 
 // rule_ret_t rule_simplify_dependent_value(Project *proj, SpecNode *spec, bool debug = false) {
@@ -1269,7 +1269,7 @@ unsigned long z3_global_hash_total = 0;
 //key step to avoid nontermination. Ensures every recursive call has substructured spec, meaning
 //that there is a partial order assigning on the F(node) and each recursive call has a order that is
 //less than spec argument
-unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int level, shared_ptr<EvalState> state, set<string>& used_symbols, bool unfold) {
+unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int level, const shared_ptr<EvalState>& state, set<string>& used_symbols, bool unfold) {
     // LOG_DEBUG << "Partial eval of: " << string(*spec);
     // auto s = string(*spec).substr(0,10000);
     // LOG_DEBUG << "Partial eval of: " << s.substr(0,1000);
@@ -2297,7 +2297,7 @@ std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec
 
 //all raw pointer is borrowed and should not be freed in side the function.
 //a simple wrap up for single substitution
-std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec, std::string name, unique_ptr<SpecNode> value) {
+std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec, const std::string& name, unique_ptr<SpecNode> value) {
     vector<string> names;
     vector<unique_ptr<SpecNode>> values;
     names.push_back(name);

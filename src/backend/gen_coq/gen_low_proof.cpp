@@ -8,7 +8,7 @@ namespace fs = std::filesystem;
 
 namespace autov
 {
-void gen_low_proof_func(Project *p, int i, string fname, string path)
+void gen_low_proof_func(Project *p, int i, const string& fname, const string& path)
 {
     auto layer = p->layers[i]->name;
     auto base_layer = p->layers[i - 1]->name;
@@ -156,7 +156,7 @@ void gen_low_proof_func(Project *p, int i, string fname, string path)
     out.close();
 }
 
-void gen_low_proof_proc(Project *p, int i, string fname, string path)
+void gen_low_proof_proc(Project *p, int i, const string& fname, const string& path)
 {
     // avoid segmentation fault
     if (p->defs.find(p->name + "spec_low") == p->defs.end()) { 

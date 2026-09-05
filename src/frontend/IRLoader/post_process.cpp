@@ -19,7 +19,7 @@ std::pair<int, int> extract_inline_asm(shared_ptr<IRModule> mod) {
     unordered_map<string, InlineAsm> inline_asms;
     int iasm_count = 0;
 
-    auto synthesize_coq_def = [](const string& fname, shared_ptr<IRType> rettype, vector<unique_ptr<FuncArg>> &args) {
+    auto synthesize_coq_def = [](const string& fname, const shared_ptr<IRType>& rettype, vector<unique_ptr<FuncArg>> &args) {
         return ""s;
 
         // if isinstance(rettype, TVoid):

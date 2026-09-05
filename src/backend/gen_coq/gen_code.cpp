@@ -10,7 +10,7 @@ using IRLoader::IRModule;
 using std::ofstream;
 using std::string;
 
-void print_module(IRModule *ir, string out_path)
+void print_module(IRModule *ir, const string& out_path)
 {
     ofstream fout(out_path);
 

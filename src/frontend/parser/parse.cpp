@@ -1114,7 +1114,7 @@ void parse(Project *proj, const std::string &path, Layer *current_layer) {
     visitor.visit(tree);
 }
 
-SpecNode *parseExpr(Project *proj, string expr_str) {
+SpecNode *parseExpr(Project *proj, const string& expr_str) {
     antlr4::ANTLRInputStream input(expr_str);
     SpecLexer lexer(&input);
     antlr4::CommonTokenStream tokens(&lexer);

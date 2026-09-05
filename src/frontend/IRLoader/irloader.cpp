@@ -266,7 +266,7 @@ static unique_ptr<vector<unique_ptr<IRValue>>> parse_val_list(const ptree &lst) 
     return values;
 }
 
-static unique_ptr<IRInst> parse_instruction(const ptree &inst, string fname) {
+static unique_ptr<IRInst> parse_instruction(const ptree &inst, const string& fname) {
     auto lineno_opt = inst.get_optional<long>("lineno");
     int lineno;
     string inst_type = inst.get<string>("type");

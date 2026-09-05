@@ -241,22 +241,22 @@ public:
     std::set<string> has_shadow;
 
     Project();
-    void add_sys_inv(string name, unique_ptr<SpecNode> inv);
-    void add_symbol(string symbol, SymbolKind kind, string info, shared_ptr<loc_t> loc);
-    void add_symbol(string symbol, SymbolKind kind, string info, shared_ptr<loc_t> loc, unsigned long order);
-    void update_symbol_loc(string symbol, shared_ptr<loc_t> loc);
-    void add_struct(shared_ptr<Struct> s, shared_ptr<loc_t> loc);
-    void add_struct(shared_ptr<Struct> s);
+    void add_sys_inv(const string& name, unique_ptr<SpecNode> inv);
+    void add_symbol(const string& symbol, SymbolKind kind, string info, const shared_ptr<loc_t>& loc);
+    void add_symbol(const string& symbol, SymbolKind kind, string info, const shared_ptr<loc_t>& loc, unsigned long order);
+    void update_symbol_loc(const string& symbol, const shared_ptr<loc_t>& loc);
+    void add_struct(const shared_ptr<Struct>& s, const shared_ptr<loc_t>& loc);
+    void add_struct(const shared_ptr<Struct>& s);
 
-    void add_indtype(shared_ptr<Inductive> ind, shared_ptr<loc_t> loc);
-    void add_indtype(shared_ptr<Inductive> ind);
+    void add_indtype(const shared_ptr<Inductive>& ind, const shared_ptr<loc_t>& loc);
+    void add_indtype(const shared_ptr<Inductive>& ind);
 
-    void add_typedef(string name, shared_ptr<SpecType> t);
+    void add_typedef(const string& name, shared_ptr<SpecType> t);
 
-    void add_declaration(unique_ptr<Declaration> decl, shared_ptr<loc_t> loc);
+    void add_declaration(unique_ptr<Declaration> decl, const shared_ptr<loc_t>& loc);
 
-    void add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc);
-    void add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc, unsigned long order);
+    void add_definition(unique_ptr<Definition> def, const shared_ptr<loc_t>& loc);
+    void add_definition(unique_ptr<Definition> def, const shared_ptr<loc_t>& loc, unsigned long order);
     void update_definition_body(Definition *def);
 
     void add_layer(unique_ptr<Layer> layer);
@@ -268,12 +268,12 @@ public:
 
     void add_options();
 
-    bool is_ind_constr(string name);
-    bool is_struct_constr(string name);
-    shared_ptr<SpecType> get_indtype_by_constr(string name);
+    bool is_ind_constr(const string& name);
+    bool is_struct_constr(const string& name);
+    shared_ptr<SpecType> get_indtype_by_constr(const string& name);
 
-    bool is_known_symbol(string name);
-    bool is_state_type(shared_ptr<SpecType> t);
+    bool is_known_symbol(const string& name);
+    bool is_state_type(const shared_ptr<SpecType>& t);
 
     std::set<string> calc_dependencies(SpecNode *expr);
 

@@ -60,7 +60,7 @@ long load_store_typ(IRType *typ);
 
 unique_ptr<vector<unique_ptr<SpecNode>>> check_fun_ptr(Layer *l, vector<unique_ptr<IRInst>>  const*insts);
 
-bool subst_expression(SpecNode *spec, string oldname, string newname) {
+bool subst_expression(SpecNode *spec, const string& oldname, const string& newname) {
     if (auto s = instance_of(spec, Symbol)) {
         if (s->text != oldname)
             return false;
@@ -110,7 +110,7 @@ shared_ptr<SpecType> ir_type_to_spec(IRType *typ)
 
   // return a raw pointer to give a flexibility of handler to deal with
   //  pointer, should be wrapped in a smart pointer
-SpecNode *default_val(shared_ptr<SpecType> typ)
+SpecNode *default_val(const shared_ptr<SpecType>& typ)
 {
     if (dynamic_cast<Int *>(typ.get())) {
         return new IntConst(0);
@@ -205,7 +205,7 @@ unique_ptr<SpecNode> reduce(vector<unique_ptr<SpecNode>> *offs, int start) {
 }
 
 
-SpecNode* sizeof_type(shared_ptr<IRType> typ) {
+SpecNode* sizeof_type(const shared_ptr<IRType>& typ) {
     auto sz = typ->szof_verbose();
 
     if (std::get<1>(sz) == (IRLoader::coq_sz_t)-1) {
@@ -473,9 +473,9 @@ SpecNode *ir_op_to_spec(Layer *l, IRLoader::IRInst *inst, SpecNode *remain_spec)
     return stmt;
 }
 
-SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, string fname, vector<unique_ptr<IRInst>> *body,
+SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, const string& fname, vector<unique_ptr<IRInst>> *body,
                            vector<Definition *> *defs, vector<string> *args, bool in_loop,
-                           bool final_return, string suffix, int start) {
+                           bool final_return, const string& suffix, int start) {
     auto const abs_data = Layer->abs_data;
     auto const module = proj->code;
     auto const func = (*module->functions)[fname];
@@ -1084,7 +1084,7 @@ unique_ptr<vector<unique_ptr<SpecNode>>> check_fun_ptr(Layer *l, vector<unique_p
 }
 
   // suffix defaults to ""
-vector<Definition *>* ir_to_spec(Project *proj, string fname, Layer *layer, string suffix) {
+vector<Definition *>* ir_to_spec(Project *proj, const string& fname, Layer *layer, const string& suffix) {
     auto const abs_data = layer->abs_data;
     auto const module = proj->code;
     auto const func = (*module->functions)[fname];

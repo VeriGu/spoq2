@@ -319,7 +319,7 @@ void backward_propagation_on_expr(Project *proj, SpecNode *node, std::set<field_
 /** collect_init_nodes_in:
  *      Find all essential values (return values & branch values), collect their Paths
  */
-void collect_init_nodes_in(SpecNode *spec, path_t p, std::set<path_node_t> &init_nodes) {
+void collect_init_nodes_in(SpecNode *spec, const path_t& p, std::set<path_node_t> &init_nodes) {
     if (auto e = instance_of(spec, Expr)) {
         if (auto op = std::get_if<Expr::ops>(&e->op)) {
             if (*op == Expr::Some) {
@@ -368,7 +368,7 @@ void analyze_invariant_fields(Project *proj, SpecNode *inv, std::set<field_t> &f
  * 
  *  Give an expression and a set of interested fields, backward propagate to all the dependent fields (its definition)
  */
-std::set<field_t> analyze_cone_of_influence(Project *proj, Definition  const*def, std::variant<SpecNode *, std::set<field_t>> coi_src, std::set<string> whitelist, std::set<string> blacklist) {
+std::set<field_t> analyze_cone_of_influence(Project *proj, Definition  const*def, std::variant<SpecNode *, std::set<field_t>> coi_src, const std::set<string>& whitelist, std::set<string> blacklist) {
     auto args = def->args.get();
     auto spec = def->body.get();
     std::set<string> arg_symbols = {};
@@ -673,7 +673,7 @@ std::pair<unsigned, unsigned> count_branch_conds(SpecNode *spec, bool determ = t
     return {count, determ_count};   
 }
 
-void collect_branch_conds(SpecNode *spec, path_t p, std::set<path_node_t> &init_nodes) {
+void collect_branch_conds(SpecNode *spec, const path_t& p, std::set<path_node_t> &init_nodes) {
     if (auto m = instance_of(spec, Match)) {
         if (!m->is_when()) {
             init_nodes.insert({m->src.get(), p});

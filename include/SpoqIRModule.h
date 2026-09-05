@@ -7,6 +7,7 @@
 #include <unordered_set>
 #include <stack>
 #include <queue>
+#include <utility>
 
 #include "SpoqIR.h"
 #include "inline_asm.h"
@@ -82,7 +83,7 @@ namespace autov {
         void compute_or();
 
         // Return is_rich, spec node pair
-        std::pair<bool, unique_ptr<SpecNode>> get_elem_as_Z(unique_ptr<SpecNode> record, std::string field);
+        std::pair<bool, unique_ptr<SpecNode>> get_elem_as_Z(unique_ptr<SpecNode> record, const std::string& field);
     };
 
 
@@ -97,11 +98,11 @@ namespace autov {
 
         std::stack<unique_ptr<SpecNode>> stack;
 
-        bool is_raw_core(std::string name) const {
+        bool is_raw_core(const std::string& name) const {
             return name == abs.raw_core_name;
         }
 
-        bool is_abs_core(std::string name) const {
+        bool is_abs_core(const std::string& name) const {
             return name == abs.abs_core_name;
         }
 
@@ -139,7 +140,7 @@ namespace autov {
 
         SpoqAsmProcedure() = delete;
         SpoqAsmProcedure(string name, string origin, string objdump, string body)
-            : name(name), origin(origin), objdump(objdump), body(body) {}
+            : name(std::move(name)), origin(std::move(origin)), objdump(std::move(objdump)), body(std::move(body)) {}
 
         string to_coq() const { return body; }
     };
@@ -675,7 +676,7 @@ namespace autov {
             return "";
         }
 
-        std::string symbol_require_abstraction(llvm::Function* func, std::string name) {
+        std::string symbol_require_abstraction(llvm::Function* func, const std::string& name) {
             if (func == nullptr) return "";
             auto metanode = func->getMetadata(name);
             if (metanode == nullptr) return "";
@@ -704,11 +705,11 @@ namespace autov {
             return nullptr;
         }
 
-        std::unique_ptr<SpecNode> ptr2int_to_field(unique_ptr<SpecNode>& ptr, std::string field) {
+        std::unique_ptr<SpecNode> ptr2int_to_field(unique_ptr<SpecNode>& ptr, const std::string& field) {
             auto ptr2int = dynamic_cast<Expr*>(ptr.get());
             assert(ptr2int && ptr2int->elems->size() == 1 && "ptr2int has <>1 element");
             auto record = ptr2int->elems->at(0)->deep_copy();
-            return Shortcut::_field_u(std::move(record), field);
+            return Shortcut::_field_u(std::move(record), std::move(field));
         }
 
         SpoqLoopContext& get_loop_context() {
@@ -929,26 +930,26 @@ namespace autov {
 
         std::map<std::string, unique_ptr<SpecNode>> let_cache;
 
-        bool try_add_cache(std::string value, unique_ptr<SpecNode>& spec) {
+        bool try_add_cache(const std::string& value, unique_ptr<SpecNode>& spec) {
             if (let_cache.find(value) != let_cache.end()) return false;
             let_cache[value] = spec->deep_copy();
             return true;
         }
 
-        void add_cache(std::string value, unique_ptr<SpecNode>& spec) {
+        void add_cache(const std::string& value, unique_ptr<SpecNode>& spec) {
             let_cache[value] = spec->deep_copy();
         }
 
-        void add_cache(std::string value, unique_ptr<Expr>& spec) {
+        void add_cache(const std::string& value, unique_ptr<Expr>& spec) {
             let_cache[value] = spec->deep_copy();
         }
 
-        unique_ptr<SpecNode> get_cache(std::string value) {
+        unique_ptr<SpecNode> get_cache(const std::string& value) {
             if (let_cache.find(value) == let_cache.end()) return nullptr;
             return let_cache[value]->deep_copy();
         }
 
-        unique_ptr<SpecNode> get_unique_cache(std::string value) {
+        unique_ptr<SpecNode> get_unique_cache(const std::string& value) {
             if (let_cache.find(value) == let_cache.end()) return nullptr;
             return std::move(let_cache[value]);
         }
@@ -985,7 +986,7 @@ namespace autov {
         /**
          * @brief load llvm module from llvm bitcode file, revise the function name if there is '.' in it.
          */
-        bool load_llvm_module(std::string code_path);
+        bool load_llvm_module(const std::string& code_path);
 
 
         static std::set<string> get_func_dependencies(llvm::Function* func);
@@ -998,7 +999,7 @@ namespace autov {
          * @param layer_id
          * @param low_specs the name for the generated low_specs
          */
-        static bool code_to_spec(Project* proj, string fname, int layer_id, std::vector<std::string> &low_specs, std::unordered_map<string, string> &name_map);
+        static bool code_to_spec(Project* proj, const string& fname, int layer_id, std::vector<std::string> &low_specs, std::unordered_map<string, string> &name_map);
 
         /**
          * @brief Check if the SpoqFunction is ready for generating low spec.
@@ -1048,7 +1049,7 @@ namespace autov {
          * @return true success
          * @return false
          */
-        static bool control_flow_conversion_DAG(string fname,  SpoqFunction& spoq_func, SpoqLoopContext& );
+        static bool control_flow_conversion_DAG(const string& fname,  SpoqFunction& spoq_func, SpoqLoopContext& );
 
         /**
          * @brief Convert any CFG into a form that ready for spoq_inst translation. Set the ``spoq_func.cfg_converted`` to true if success. TODO: support loop.
@@ -1121,8 +1122,8 @@ namespace autov {
          */
         static void pass_analysis(llvm::BasicBlock* block, std::vector<llvm::BasicBlock*>& stack,  SpoqLoopContext& context);
 
-        SpoqIRIASM parse_inline_asm(string fname, string asm_text, llvm::Type* rettype,
-            vector<llvm::Type*> &arglist, string constraints);
+        SpoqIRIASM parse_inline_asm(const string& fname, string asm_text, llvm::Type* rettype,
+            vector<llvm::Type*> &arglist, const string& constraints);
 
         /**
          * @brief Preprocess the llvm module to fix function and global variable names. It runs LowerSwitchPass and SROA pass to simplify the llvm module. (Should we run SROA here?)
@@ -1131,7 +1132,7 @@ namespace autov {
         void preprocess_llvm_module();
 
         // Used for debug only.
-        bool store_llvm_module(std::string code_path = "converted.ll") const {
+        bool store_llvm_module(const std::string& code_path = "converted.ll") const {
             std::error_code EC;
             llvm::raw_fd_ostream OS(code_path, EC, llvm::sys::fs::OF_Text);
             if (EC || !llvm_module) return false;

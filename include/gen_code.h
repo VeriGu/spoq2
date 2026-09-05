@@ -8,6 +8,6 @@ namespace autov {
 using IRLoader::IRModule;
 using autov::Project;
 
-void print_module(IRModule *ir, std::string out_path);
+void print_module(IRModule *ir, const std::string& out_path);
 unique_ptr<vector<string>> generate_code(Project *p);
 }

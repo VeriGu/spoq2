@@ -9,7 +9,7 @@ namespace autov
 {
 	int Z3_SIM_TIMEOUT = 1000;
 
-	shared_ptr<SpecValue> formulate_relation(Project *proj, Definition *rel, SpecNode  const*st_spec, SpecNode  const*st_impl, shared_ptr<ProveState> state) {
+	shared_ptr<SpecValue> formulate_relation(Project *proj, Definition *rel, SpecNode  const*st_spec, SpecNode  const*st_impl, const shared_ptr<ProveState>& state) {
 		vector<string> names;
 		vector<unique_ptr<SpecNode>> elems;
 		if(rel->args->size() > 0){
@@ -23,7 +23,7 @@ namespace autov
 		return z3_eval(proj, p.get(), state);
 	}
 
-	std::pair<bool, z3::expr> check_relation(Project *proj, Definition *rel, SpecNode  const*st_spec, SpecNode  const*st_impl, shared_ptr<ProveState> state) {
+	std::pair<bool, z3::expr> check_relation(Project *proj, Definition *rel, SpecNode  const*st_spec, SpecNode  const*st_impl, const shared_ptr<ProveState>& state) {
 		auto const rel_expr = formulate_relation(proj, rel, st_spec, st_impl, state);
 		z3::model model(z3ctx);
 		auto const z3_ret = z3_check_unsat(state, rel_expr->get_z3_value(), model, &proj->query_saver, Z3_VERIFY_TIMEOUT);
@@ -75,7 +75,7 @@ extern class UnfoldPolicy UNFOLD_POLICY;
 ///
 /// Returns true if the scrutinee was rewritten and the Match must be
 /// re-simulated; false if it was not a folded callee (a real failure).
-static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveState> state) {
+static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<ProveState>& state) {
     auto expr = instance_of(m->src.get(), Expr);
     if (!expr) return false;
     auto op = std::get_if<string>(&expr->op);
@@ -136,7 +136,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
     return true;
 }
 
-	SimulateResult forward_simulation(Project *proj, SpecNode *st_check, SpecNode *spec_ret, SpecNode *impl, Definition *rel, Definition *ret_rel, shared_ptr<ProveState> state,
+	SimulateResult forward_simulation(Project *proj, SpecNode *st_check, SpecNode *spec_ret, SpecNode *impl, Definition *rel, Definition *ret_rel, const shared_ptr<ProveState>& state,
 			bool det, const path_t &path, int i, bool allow_none) {
 				int const random_code = rand() % 10000;
 			// bool det = false, const path_t &path = {}, int i = 0, bool allow_none = false) {
@@ -537,7 +537,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, shared_ptr<ProveSta
 	 * @return true if the specification relation is proved
 	 * @return false if the specification relation is not proved
 	 */
-	SimulateResult simulate_by_traverse(Project *proj, SpecNode *spec, SpecNode *impl, Definition *rel, Definition *ret_rel, shared_ptr<ProveState> state, path_t p, bool det) {
+	SimulateResult simulate_by_traverse(Project *proj, SpecNode *spec, SpecNode *impl, Definition *rel, Definition *ret_rel, const shared_ptr<ProveState>& state, const path_t& p, bool det) {
 		int const random_code = rand() % 10000;
 		LOG_DEBUG << "[simulate_by_traverse " << random_code << "] start!" << std::endl;
 		// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] start!" << std::endl << string(*spec) << std::endl;

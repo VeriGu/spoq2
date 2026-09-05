@@ -6,7 +6,7 @@ namespace fs = std::filesystem;
 namespace autov
 {
 
-void gen_low_spec(Project *proj, int i, string fname, string path)
+void gen_low_spec(Project *proj, int i, const string& fname, const string& path)
 {
     std::ofstream out(path);
 
@@ -19,7 +19,7 @@ void gen_low_spec(Project *proj, int i, string fname, string path)
     }
 
     sort(syms.begin(), syms.end(),
-         [proj](string s1, string s2) { return proj->symbols[s1].order < proj->symbols[s2].order; });
+         [proj](const string& s1, const string& s2) { return proj->symbols[s1].order < proj->symbols[s2].order; });
     std::set<string> deps = {"CommonDeps", "Code", "DataTypes", "GlobalDefs"};
     for (auto const s : syms) {
         if (proj->deps.find(s) == proj->deps.end()) continue;

@@ -53,7 +53,7 @@ bool is_end_relation_defs(Project *proj, const string &name) {
 
 /** Separate prove-stage z3 translator from the specgen-stage one */
 shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
-                              shared_ptr<EvalState> state) {
+                              const shared_ptr<EvalState>& state) {
     // if (val->cached_eval)
     //     return val->cached_eval;
 
@@ -495,7 +495,7 @@ abst_t abst_transition(Project *proj, SpecNode *spec) {
 }
 
 bool check_drf_by_traverse(Project *proj, SpecNode *spec,
-                           shared_ptr<ProveState> state) {
+                           const shared_ptr<ProveState>& state) {
     if (auto s = instance_of(spec, Symbol)) {
         if (s->text == "None") {
             std::cout << "[check_drf_by_traverse] Checking None path: "
@@ -570,8 +570,8 @@ bool check_drf_by_traverse(Project *proj, SpecNode *spec,
 }
 
 bool check_states_implies_pre_condition(Project *proj,
-                                        shared_ptr<ProveState> state,
-                                        string fname,
+                                        const shared_ptr<ProveState>& state,
+                                        const string& fname,
                                         vector<unique_ptr<SpecNode>> *elems) {
     Z3Cache.clear();
     auto &preconds = proj->cmds.PreCond[fname];
@@ -643,9 +643,9 @@ bool check_states_implies_pre_condition(Project *proj,
     return true;
 }
 
-z3::expr formulate_loop_invariant_z3(Project *proj, std::string fname,
+z3::expr formulate_loop_invariant_z3(Project *proj, const std::string& fname,
                                      SpecNode *fun_call,
-                                     shared_ptr<ProveState> state) {
+                                     const shared_ptr<ProveState>& state) {
     auto expr = instance_of(fun_call, Expr);
     auto loop = proj->defs[fname].get();
     auto const loop_post_cond =
@@ -670,9 +670,9 @@ z3::expr formulate_loop_invariant_z3(Project *proj, std::string fname,
     return post;
 }
 
-z3::expr formulate_post_cond_z3(Project *proj, std::string fname,
+z3::expr formulate_post_cond_z3(Project *proj, const std::string& fname,
                                 SpecNode *func_call,
-                                shared_ptr<ProveState> state) {
+                                const shared_ptr<ProveState>& state) {
     auto def = proj->defs[fname].get();
     auto expr = instance_of(func_call, Expr);
     auto const post_cond = formulate_post_condition(proj, fname, expr->elems.get());
@@ -727,8 +727,8 @@ z3::expr formulate_post_cond_z3(Project *proj, std::string fname,
  * post condition or system invariant is preserved
  * */
 bool prove_by_traverse(
-    Project *proj, SpecNode *spec, SpecNode *inv, shared_ptr<ProveState> state,
-    std::unordered_set<string> &used_abs_funcs, ProveMode mode, string fname,
+    Project *proj, SpecNode *spec, SpecNode *inv, const shared_ptr<ProveState>& state,
+    std::unordered_set<string> &used_abs_funcs, ProveMode mode, const string& fname,
     NoneConditionAccumulator none_accumulator = NoneConditionAccumulator()) {
     if (auto sym = instance_of(spec, Symbol)) {
         if (sym->text == "None") {

@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <string>
+#include <utility>
 #include <vector>
 #include <map>
 #include <unordered_map>
@@ -32,10 +33,10 @@ public:
     bool record;
 
     SpecType() = default;
-    SpecType(string name) : name(name), record(false) {
+    SpecType(string name) : name(std::move(name)), record(false) {
 
     }
-    SpecType(string name, bool record) : name(name), record(record) {}
+    SpecType(string name, bool record) : name(std::move(name)), record(record) {}
 
     virtual z3::sort get_z3_type();
     virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
@@ -121,7 +122,7 @@ class Array : public SpecType {
 public:
     shared_ptr<SpecType> elem_type;
     Array() = default;
-    Array(shared_ptr<SpecType> elem_type) : SpecType("list_" + elem_type->name), elem_type(elem_type) {}
+    Array(const shared_ptr<SpecType>& elem_type) : SpecType("list_" + elem_type->name), elem_type(elem_type) {}
     //Array(const Array& other) : SpecType(other.name), elem_type(std::make_unique<SpecType>(*other.elem_type)) {}
 
     shared_ptr<Array> getptr() {
@@ -178,7 +179,7 @@ class Vector : public SpecType {
 public:
     shared_ptr<SpecType> elem_type;
     Vector() = default;
-    Vector(shared_ptr<SpecType> elem_type) : SpecType("Vec_" + elem_type->name), elem_type(elem_type) { }
+    Vector(const shared_ptr<SpecType>& elem_type) : SpecType("Vec_" + elem_type->name), elem_type(elem_type) { }
 
     shared_ptr<Vector> getptr() {
         return static_pointer_cast<Vector>(shared_from_this());
@@ -196,7 +197,7 @@ class ZMap : public SpecType {
 public:
     shared_ptr<SpecType> elem_type;
     ZMap() = default;
-    ZMap(shared_ptr<SpecType> elem_type) : SpecType("ZMap_" + elem_type->name), elem_type(elem_type) { }
+    ZMap(const shared_ptr<SpecType>& elem_type) : SpecType("ZMap_" + elem_type->name), elem_type(elem_type) { }
 
     shared_ptr<ZMap> getptr() {
         return static_pointer_cast<ZMap>(shared_from_this());
@@ -214,7 +215,7 @@ class SMap : public SpecType {
 public:
     shared_ptr<SpecType> elem_type;
     SMap() = default;
-    SMap(shared_ptr<SpecType> elem_type) : SpecType("SMap_" + elem_type->name), elem_type(elem_type) {}
+    SMap(const shared_ptr<SpecType>& elem_type) : SpecType("SMap_" + elem_type->name), elem_type(elem_type) {}
 
     shared_ptr<SMap> getptr() {
         return static_pointer_cast<SMap>(shared_from_this());
@@ -235,8 +236,8 @@ public:
     shared_ptr<SpecType> type = nullptr;
     unique_ptr<Expr> expr = nullptr;
     Arg() = default;
-    Arg(string name, shared_ptr<SpecType> type) : name(name), type(type) {}
-    Arg(string name, unique_ptr<Expr> expr) : name(name) {
+    Arg(string name, shared_ptr<SpecType> type) : name(std::move(name)), type(std::move(type)) {}
+    Arg(string name, unique_ptr<Expr> expr) : name(std::move(name)) {
         this->expr = std::move(expr);
     }
 
@@ -267,7 +268,7 @@ public:
     shared_ptr<vector<shared_ptr<Arg>>> elems;
     std::map<string, shared_ptr<SpecType>> elems_map;
     Struct() = default;
-    Struct(string name, shared_ptr<vector<shared_ptr<Arg>>> elems) : SpecType(name), elems(elems) {
+    Struct(string name, const shared_ptr<vector<shared_ptr<Arg>>>& elems) : SpecType(std::move(name)), elems(elems) {
         for (const auto &elem : *elems) { // Fix: Use emplace instead of assignment to insert elements into elems_map
             elems_map.emplace(elem->name, elem->type);
         }
@@ -290,7 +291,7 @@ public:
     string name;
     shared_ptr<vector<shared_ptr<Arg>>> args;
     IndConstr() = default;
-    IndConstr(string name, shared_ptr<vector<shared_ptr<Arg>>> args) : name(name), args(args) {}
+    IndConstr(string name, shared_ptr<vector<shared_ptr<Arg>>> args) : name(std::move(name)), args(std::move(args)) {}
 
     shared_ptr<IndConstr> getptr() {
         return shared_ptr<IndConstr>(this);
@@ -314,7 +315,7 @@ public:
     //shared_ptr<std::map<string, z3::func_decl>> z3_accessors;
 
     Inductive() = default;
-    Inductive(string name, shared_ptr<vector<shared_ptr<IndConstr>>> constrs) : SpecType(name), constrs(constrs) {
+    Inductive(string name, const shared_ptr<vector<shared_ptr<IndConstr>>>& constrs) : SpecType(std::move(name)), constrs(constrs) {
         for (const auto &c : *constrs) {
             constr[c->name] = c->args;
             for (const auto &arg : *c->args) {
@@ -331,13 +332,13 @@ public:
 
     shared_ptr<SpecValue> construct(string constr, vector<shared_ptr<SpecValue>> args);
 
-    int get_constr_index(string constr);
+    int get_constr_index(const string& constr);
 
-    z3::func_decl get_constr(string constr);
+    z3::func_decl get_constr(const string& constr);
 
-    z3::func_decl get_recognizer(string constr);
+    z3::func_decl get_recognizer(const string& constr);
 
-    z3::func_decl_vector get_accessors(string constr);
+    z3::func_decl_vector get_accessors(const string& constr);
 
     virtual z3::sort get_z3_type();
     virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
@@ -350,7 +351,7 @@ class Function : public SpecType {
 public:
     shared_ptr<SpecType> rettype;
     shared_ptr<vector<shared_ptr<SpecType>>> args;
-    Function(shared_ptr<SpecType> rettype, shared_ptr<vector<shared_ptr<SpecType>>> args);
+    Function(const shared_ptr<SpecType>& rettype, const shared_ptr<vector<shared_ptr<SpecType>>>& args);
 
     operator string() const;
 
@@ -366,7 +367,7 @@ public:
 class Tuple : public Struct {
 public:
     shared_ptr<vector<shared_ptr<SpecType>>> types;
-    Tuple(shared_ptr<vector<shared_ptr<SpecType>>> types);
+    Tuple(const shared_ptr<vector<shared_ptr<SpecType>>>& types);
 
     operator string() const;
 
@@ -380,7 +381,7 @@ public:
     shared_ptr<SpecType> elem_type;
     static unordered_map<string, z3::sort> created_z3_types;
 
-    List(shared_ptr<SpecType> elem_type) :
+    List(const shared_ptr<SpecType>& elem_type) :
         SpecType("list_" + elem_type->name),
         elem_type(elem_type) {
             auto elem_sort = elem_type->get_z3_type();
@@ -403,7 +404,7 @@ public:
 class Option : public Inductive {
 public:
     shared_ptr<SpecType> elem_type;
-    Option(shared_ptr<SpecType> elem_type) :
+    Option(const shared_ptr<SpecType>& elem_type) :
         Inductive(
             "Option_" + elem_type->name,
             make_shared<vector<shared_ptr<IndConstr>>>(
@@ -441,18 +442,18 @@ public:
     shared_ptr<SpecType> typ;
     z3::expr value;
 
-    SpecValue(shared_ptr<SpecType> typ, unsigned long value, bool sign = false) : typ(typ), value(z3ctx.bool_val(false)) {
+    SpecValue(shared_ptr<SpecType> typ, unsigned long value, bool sign = false) : typ(std::move(typ)), value(z3ctx.bool_val(false)) {
         if(sign) {
             this->value = z3ctx.int_val((long)value);
         } else {
             this->value = z3ctx.int_val(value);
         }
     }
-    SpecValue(shared_ptr<SpecType> typ, long value, bool sign = false) : typ(typ), value(z3ctx.int_val(value)) {}
-    SpecValue(shared_ptr<SpecType> typ, bool value) : typ(typ), value(z3ctx.bool_val(value)) {}
-    SpecValue(shared_ptr<SpecType> typ, string value) : typ(typ), value(z3ctx.string_val(value.c_str())) {}
-    SpecValue(shared_ptr<SpecType> typ, double value) : typ(typ), value(z3ctx.fpa_val(value)) {}
-    SpecValue(shared_ptr<SpecType> typ, z3::expr value) : typ(typ), value(value) {}
+    SpecValue(shared_ptr<SpecType> typ, long value, bool sign = false) : typ(std::move(typ)), value(z3ctx.int_val(value)) {}
+    SpecValue(shared_ptr<SpecType> typ, bool value) : typ(std::move(typ)), value(z3ctx.bool_val(value)) {}
+    SpecValue(shared_ptr<SpecType> typ, const string& value) : typ(std::move(typ)), value(z3ctx.string_val(value.c_str())) {}
+    SpecValue(shared_ptr<SpecType> typ, double value) : typ(std::move(typ)), value(z3ctx.fpa_val(value)) {}
+    SpecValue(shared_ptr<SpecType> typ, z3::expr value) : typ(std::move(typ)), value(std::move(value)) {}
 
     shared_ptr<SpecType> get_type() const { return typ; }
     z3::expr get_z3_value() const { return value; }
@@ -475,27 +476,27 @@ extern z3::func_decl clearbit_func;
 class BoolValue : public SpecValue {
 public:
     BoolValue(bool value) : SpecValue(Bool::BOOL, value) {}
-    BoolValue(z3::expr value) : SpecValue(Bool::BOOL, value) {}
+    BoolValue(z3::expr value) : SpecValue(Bool::BOOL, std::move(value)) {}
 
-    shared_ptr<BoolValue> eq(shared_ptr<BoolValue> other) {
+    shared_ptr<BoolValue> eq(const shared_ptr<BoolValue>& other) {
         return make_shared<BoolValue>((value == other->value).simplify());
     }
-    shared_ptr<BoolValue> ne(shared_ptr<BoolValue> other) {
+    shared_ptr<BoolValue> ne(const shared_ptr<BoolValue>& other) {
         return make_shared<BoolValue>((value != other->value).simplify());
     }
-    shared_ptr<BoolValue> andb(shared_ptr<BoolValue> other) {
+    shared_ptr<BoolValue> andb(const shared_ptr<BoolValue>& other) {
         return make_shared<BoolValue>((value && other->value).simplify());
     }
-    shared_ptr<BoolValue> orb(shared_ptr<BoolValue> other) {
+    shared_ptr<BoolValue> orb(const shared_ptr<BoolValue>& other) {
         return make_shared<BoolValue>((value || other->value).simplify());
     }
     shared_ptr<BoolValue> negb() {
         return make_shared<BoolValue>(!value);
     }
-    shared_ptr<BoolValue> implies(shared_ptr<BoolValue> other) {
+    shared_ptr<BoolValue> implies(const shared_ptr<BoolValue>& other) {
         return make_shared<BoolValue>(z3::implies(value, other->value).simplify());
     }
-    shared_ptr<BoolValue> xorb(shared_ptr<BoolValue> other) {
+    shared_ptr<BoolValue> xorb(const shared_ptr<BoolValue>& other) {
         return make_shared<BoolValue>((value ^ other->value).simplify());
     }
 };
@@ -507,42 +508,42 @@ public:
     }
     IntValue(long value, bool sign = false) : SpecValue(Int::INT, value, sign) {
     }
-    IntValue(z3::expr value) : SpecValue(Int::INT, value) {
+    IntValue(z3::expr value) : SpecValue(Int::INT, std::move(value)) {
 
     }
 
 
     shared_ptr<IntValue> neg() { return make_shared<IntValue>((-value).simplify()); }
-    shared_ptr<IntValue> add(shared_ptr<IntValue> other) {
+    shared_ptr<IntValue> add(const shared_ptr<IntValue>& other) {
         return make_shared<IntValue>((value + other->value).simplify());
     }
-    shared_ptr<IntValue> sub(shared_ptr<IntValue> other) {
+    shared_ptr<IntValue> sub(const shared_ptr<IntValue>& other) {
         return make_shared<IntValue>((value - other->value).simplify());
     }
-    shared_ptr<IntValue> mul(shared_ptr<IntValue> other) { return make_shared<IntValue>((value * other->value).simplify()); }
-    shared_ptr<IntValue> div(shared_ptr<IntValue> other) { return make_shared<IntValue>((value / other->value).simplify()); }
-    shared_ptr<IntValue> mod(shared_ptr<IntValue> other) {return make_shared<IntValue>((value % other->value).simplify()); }
-    shared_ptr<IntValue> shiftl(shared_ptr<IntValue> other) { return make_shared<IntValue>(( value * z3::pw(2, other->value)).simplify()); }
-    shared_ptr<IntValue> shiftr(shared_ptr<IntValue> other) { return make_shared<IntValue>(( value / z3::pw(2, other->value)).simplify()); }
-    shared_ptr<IntValue> xorb(shared_ptr<IntValue> other) { return make_shared<IntValue>((value ^ other->value).simplify()); }
-    shared_ptr<IntValue> land(shared_ptr<IntValue> other) { return make_shared<IntValue>(land_func(value, other->value)); }
-    shared_ptr<IntValue> lor(shared_ptr<IntValue> other) { return make_shared<IntValue>(lor_func(value, other->value)); }
-    shared_ptr<IntValue> lxor(shared_ptr<IntValue> other) { return make_shared<IntValue>(lxor_func(value, other->value)); }
+    shared_ptr<IntValue> mul(const shared_ptr<IntValue>& other) { return make_shared<IntValue>((value * other->value).simplify()); }
+    shared_ptr<IntValue> div(const shared_ptr<IntValue>& other) { return make_shared<IntValue>((value / other->value).simplify()); }
+    shared_ptr<IntValue> mod(const shared_ptr<IntValue>& other) {return make_shared<IntValue>((value % other->value).simplify()); }
+    shared_ptr<IntValue> shiftl(const shared_ptr<IntValue>& other) { return make_shared<IntValue>(( value * z3::pw(2, other->value)).simplify()); }
+    shared_ptr<IntValue> shiftr(const shared_ptr<IntValue>& other) { return make_shared<IntValue>(( value / z3::pw(2, other->value)).simplify()); }
+    shared_ptr<IntValue> xorb(const shared_ptr<IntValue>& other) { return make_shared<IntValue>((value ^ other->value).simplify()); }
+    shared_ptr<IntValue> land(const shared_ptr<IntValue>& other) { return make_shared<IntValue>(land_func(value, other->value)); }
+    shared_ptr<IntValue> lor(const shared_ptr<IntValue>& other) { return make_shared<IntValue>(lor_func(value, other->value)); }
+    shared_ptr<IntValue> lxor(const shared_ptr<IntValue>& other) { return make_shared<IntValue>(lxor_func(value, other->value)); }
     shared_ptr<IntValue> lnot() { return make_shared<IntValue>(lnot_func(value)); }
-    shared_ptr<IntValue> setbit(shared_ptr<IntValue> other) { return make_shared<IntValue>(setbit_func(value, other->value)); }
-    shared_ptr<IntValue> clearbit(shared_ptr<IntValue> other) { return make_shared<IntValue>(clearbit_func(value, other->value)); }
-    shared_ptr<BoolValue> testbit(shared_ptr<IntValue> other) { return make_shared<BoolValue>(testbit_func(value, other->value)); }
-    shared_ptr<BoolValue> eq(shared_ptr<IntValue> other) { return make_shared<BoolValue>((value == other->value).simplify()); }
-    shared_ptr<BoolValue> ne(shared_ptr<IntValue> other) { return make_shared<BoolValue>((value != other->value).simplify()); }
-    shared_ptr<BoolValue> lt(shared_ptr<IntValue> other) { return make_shared<BoolValue>((value < other->value).simplify()); }
-    shared_ptr<BoolValue> le(shared_ptr<IntValue> other) { return make_shared<BoolValue>((value <= other->value).simplify()); }
-    shared_ptr<BoolValue> gt(shared_ptr<IntValue> other) { return make_shared<BoolValue>((value > other->value).simplify()); }
-    shared_ptr<BoolValue> ge(shared_ptr<IntValue> other) { return make_shared<BoolValue>((value >= other->value).simplify()); }
+    shared_ptr<IntValue> setbit(const shared_ptr<IntValue>& other) { return make_shared<IntValue>(setbit_func(value, other->value)); }
+    shared_ptr<IntValue> clearbit(const shared_ptr<IntValue>& other) { return make_shared<IntValue>(clearbit_func(value, other->value)); }
+    shared_ptr<BoolValue> testbit(const shared_ptr<IntValue>& other) { return make_shared<BoolValue>(testbit_func(value, other->value)); }
+    shared_ptr<BoolValue> eq(const shared_ptr<IntValue>& other) { return make_shared<BoolValue>((value == other->value).simplify()); }
+    shared_ptr<BoolValue> ne(const shared_ptr<IntValue>& other) { return make_shared<BoolValue>((value != other->value).simplify()); }
+    shared_ptr<BoolValue> lt(const shared_ptr<IntValue>& other) { return make_shared<BoolValue>((value < other->value).simplify()); }
+    shared_ptr<BoolValue> le(const shared_ptr<IntValue>& other) { return make_shared<BoolValue>((value <= other->value).simplify()); }
+    shared_ptr<BoolValue> gt(const shared_ptr<IntValue>& other) { return make_shared<BoolValue>((value > other->value).simplify()); }
+    shared_ptr<BoolValue> ge(const shared_ptr<IntValue>& other) { return make_shared<BoolValue>((value >= other->value).simplify()); }
 };
 class FloatValue : public SpecValue {
 public:
     FloatValue(double value) : SpecValue(Float::FLOAT, value) {}
-    FloatValue(z3::expr value) : SpecValue(Float::FLOAT, value) {}
+    FloatValue(z3::expr value) : SpecValue(Float::FLOAT, std::move(value)) {}
 
 
     // shared_ptr<FloatValue> neg() { return make_shared<FloatValue>((-value).simplify()); }
@@ -570,62 +571,62 @@ public:
 };
 class StringValue : public SpecValue {
 public:
-    StringValue(string value) : SpecValue(String::STRING, value) {}
-    StringValue(z3::expr value) : SpecValue(String::STRING, value) {}
+    StringValue(const string& value) : SpecValue(String::STRING, std::move(value)) {}
+    StringValue(z3::expr value) : SpecValue(String::STRING, std::move(value)) {}
 
-    shared_ptr<BoolValue> eq(shared_ptr<StringValue> other) { return make_shared<BoolValue>((value == other->value).simplify()); }
-    shared_ptr<BoolValue> ne(shared_ptr<StringValue> other) { return make_shared<BoolValue>((value != other->value).simplify()); }
+    shared_ptr<BoolValue> eq(const shared_ptr<StringValue>& other) { return make_shared<BoolValue>((value == other->value).simplify()); }
+    shared_ptr<BoolValue> ne(const shared_ptr<StringValue>& other) { return make_shared<BoolValue>((value != other->value).simplify()); }
 };
 
 class VectorValue : public SpecValue {
 public:
-    VectorValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) {
+    VectorValue(const shared_ptr<SpecType>& typ, const z3::expr& value) : SpecValue(typ, value) {
         assert(value.get_sort().to_string() == typ->get_z3_type().to_string());
     }
 
-    shared_ptr<SpecValue> get(shared_ptr<IntValue> key) {
+    shared_ptr<SpecValue> get(const shared_ptr<IntValue>& key) {
         return dynamic_cast<Vector *>(typ.get())->elem_type->from_z3_value(value[key->value].simplify());
     }
 
-    shared_ptr<VectorValue> set(shared_ptr<IntValue> key, shared_ptr<SpecValue> value) {
+    shared_ptr<VectorValue> set(const shared_ptr<IntValue>& key, const shared_ptr<SpecValue>& value) {
         return make_shared<VectorValue>(typ, z3::store(this->value, key->value, value->value).simplify());
     }
 
-    shared_ptr<BoolValue> eq(shared_ptr<VectorValue> other) {
+    shared_ptr<BoolValue> eq(const shared_ptr<VectorValue>& other) {
         return make_shared<BoolValue>((value == other->value).simplify());
     }
 };
 class ZMapValue : public SpecValue {
 public:
-    ZMapValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) {
+    ZMapValue(const shared_ptr<SpecType>& typ, const z3::expr& value) : SpecValue(typ, value) {
         assert(value.get_sort().to_string() == typ->get_z3_type().to_string());
     }
 
-    shared_ptr<SpecValue> get(shared_ptr<IntValue> key) {
+    shared_ptr<SpecValue> get(const shared_ptr<IntValue>& key) {
         return dynamic_cast<ZMap *>(typ.get())->elem_type->from_z3_value(value[key->value].simplify());
     }
 
-    shared_ptr<ZMapValue> set(shared_ptr<IntValue> key, shared_ptr<SpecValue> value) {
+    shared_ptr<ZMapValue> set(const shared_ptr<IntValue>& key, const shared_ptr<SpecValue>& value) {
         return make_shared<ZMapValue>(typ, z3::store(this->value, key->value, value->value).simplify());
     }
 
-    shared_ptr<BoolValue> eq(shared_ptr<ZMapValue> other) {
+    shared_ptr<BoolValue> eq(const shared_ptr<ZMapValue>& other) {
         return make_shared<BoolValue>((value == other->value).simplify());
     }
 };
 class SMapValue : public SpecValue {
 public:
-    SMapValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) {}
+    SMapValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(std::move(typ), std::move(value)) {}
 
-    shared_ptr<SpecValue> get(shared_ptr<StringValue> key) {
+    shared_ptr<SpecValue> get(const shared_ptr<StringValue>& key) {
         return dynamic_cast<SMap *>(typ.get())->elem_type->from_z3_value(value[key->value].simplify());
     }
 
-    shared_ptr<SMapValue> set(shared_ptr<StringValue> key, shared_ptr<SpecValue> value) {
+    shared_ptr<SMapValue> set(const shared_ptr<StringValue>& key, const shared_ptr<SpecValue>& value) {
         return make_shared<SMapValue>(typ, z3::store(this->value, key->value, value->value).simplify());
     }
 
-    shared_ptr<BoolValue> eq(shared_ptr<SMapValue> other) {
+    shared_ptr<BoolValue> eq(const shared_ptr<SMapValue>& other) {
         return make_shared<BoolValue>((value == other->value).simplify());
     }
 };
@@ -633,7 +634,7 @@ class FuncValue : public SpecValue {
 public:
     z3::func_decl z3_func;
 
-    FuncValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value), z3_func(z3ctx.function("unknown", 0, nullptr, z3ctx.bool_sort())) {
+    FuncValue(const shared_ptr<SpecType>& typ, z3::expr value) : SpecValue(typ, std::move(value)), z3_func(z3ctx.function("unknown", 0, nullptr, z3ctx.bool_sort())) {
         vector<z3::sort> arg_types;
         auto const ftyp = static_pointer_cast<Function>(typ);
         for (const auto &arg : *ftyp->args) {
@@ -665,14 +666,14 @@ public:
 
 class StructValue : public SpecValue {
 public:
-    StructValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) {}
+    StructValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(std::move(typ), std::move(value)) {}
 
     shared_ptr<SpecValue> get(string key);
     shared_ptr<SpecValue> get(int key);
-    shared_ptr<StructValue> set(string key, shared_ptr<SpecValue> value);
-    shared_ptr<StructValue> set(int key, shared_ptr<SpecValue> value);
+    shared_ptr<StructValue> set(string key, const shared_ptr<SpecValue>& value);
+    shared_ptr<StructValue> set(int key, const shared_ptr<SpecValue>& value);
 
-    shared_ptr<BoolValue> eq(shared_ptr<StructValue> other) {
+    shared_ptr<BoolValue> eq(const shared_ptr<StructValue>& other) {
         return make_shared<BoolValue>((value == other->value).simplify());
     }
 };
@@ -681,8 +682,8 @@ class IndValue : public SpecValue {
 public:
     z3::func_decl constructor;
     z3::func_decl_vector accessors;
-    IndValue(shared_ptr<SpecType> typ, z3::expr value) :
-        SpecValue(typ, value), constructor(value.get_sort().constructors()[0]), accessors(z3ctx) {
+    IndValue(shared_ptr<SpecType> typ, const z3::expr& value) :
+        SpecValue(std::move(typ), value), constructor(value.get_sort().constructors()[0]), accessors(z3ctx) {
             auto const css = value.get_sort().constructors();
             for (auto cs :css) {
                 for (const auto &acc : cs.accessors()) {
@@ -691,18 +692,18 @@ public:
             }
     };
 
-    shared_ptr<SpecValue> get(string key);
+    shared_ptr<SpecValue> get(const string& key);
     // shared_ptr<IndValue> set(string key, shared_ptr<SpecValue> value);
     //shared_ptr<IndValue> concat(shared_ptr<IndValue> other);
 
-    shared_ptr<BoolValue> eq(shared_ptr<IndValue> other) {
+    shared_ptr<BoolValue> eq(const shared_ptr<IndValue>& other) {
         return make_shared<BoolValue>((value == other->value).simplify());
     }
 };
 
 class ListValue : public SpecValue {
 public:
-    ListValue(shared_ptr<SpecType> typ, z3::expr value) : SpecValue(typ, value) {
+    ListValue(const shared_ptr<SpecType>& typ, const z3::expr& value) : SpecValue(typ, value) {
         // `typ` should be a List type
         assert(dynamic_cast<List *>(typ.get()) != nullptr);
         // `value` should be a Z3 sequence
@@ -711,10 +712,10 @@ public:
     }
 
 
-    shared_ptr<SpecValue> append(shared_ptr<SpecValue> other);
+    shared_ptr<SpecValue> append(const shared_ptr<SpecValue>& other);
 
 
-    shared_ptr<SpecValue> concat(shared_ptr<SpecValue> other);
+    shared_ptr<SpecValue> concat(const shared_ptr<SpecValue>& other);
 
     /** Return the length of the list.
      */
@@ -738,7 +739,7 @@ public:
 
     /** Create an empty list.
     */
-    static shared_ptr<SpecValue> empty(shared_ptr<SpecType> typ) {
+    static shared_ptr<SpecValue> empty(const shared_ptr<SpecType>& typ) {
         auto const elem_sort = typ->get_z3_type();
         auto const empty_val = z3::expr(z3ctx, Z3_mk_seq_empty(z3ctx, elem_sort));
 
@@ -747,7 +748,7 @@ public:
 
     /** Check whether two lists are equal, returns a boolean value.
      */
-    shared_ptr<BoolValue> eq(shared_ptr<ListValue> other) {
+    shared_ptr<BoolValue> eq(const shared_ptr<ListValue>& other) {
         return make_shared<BoolValue>((value == other->value).simplify());
     }
 

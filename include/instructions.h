@@ -6,6 +6,7 @@
 #include <utils.h>
 #include <stdio.h>
 #include <unordered_set>
+#include <utility>
 
 namespace autov::IRLoader {
 using std::string;
@@ -43,7 +44,7 @@ public:
 
     IAlloc() = delete;
 
-    IAlloc(string fname, shared_ptr<IRType> typ, string assign, int align);
+    IAlloc(string fname, shared_ptr<IRType> typ, const string& assign, int align);
     IAlloc(const IAlloc &other) : fname(other.fname), typ(other.typ), assign(other.assign), align(other.align) {}
 
     IAlloc *clone() const override {
@@ -72,7 +73,7 @@ public:
 
     IAtomicRMW() = delete;
 
-    IAtomicRMW(shared_ptr<IRType> typ, string assign, Op op, unique_ptr<IRValue> ptr,
+    IAtomicRMW(shared_ptr<IRType> typ, const string& assign, Op op, unique_ptr<IRValue> ptr,
                unique_ptr<IRValue> val, Ordering order, int align);
 
     IAtomicRMW(const IAtomicRMW &other) :
@@ -102,7 +103,7 @@ public:
     unique_ptr<IRValue> b;
 
     IBinOp() = delete;
-    IBinOp(shared_ptr<IRType> typ, string assign, Op op, unique_ptr<IRValue> a, unique_ptr<IRValue> b);
+    IBinOp(shared_ptr<IRType> typ, const string& assign, Op op, unique_ptr<IRValue> a, unique_ptr<IRValue> b);
 
     IBinOp(const IBinOp &other) :
         typ(other.typ), assign(other.assign), op(other.op),
@@ -162,7 +163,7 @@ public:
     unique_ptr<vector<unique_ptr<IRValue>>> args;
 
     ICall() = delete;
-    ICall(shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> func,
+    ICall(shared_ptr<IRType> typ, const string& assign, unique_ptr<IRValue> func,
           unique_ptr<vector<unique_ptr<IRValue>>> args, long lineno);
 
     ICall(const ICall &other) :
@@ -197,7 +198,7 @@ public:
     int align;
 
     ICmpXchg() = delete;
-    ICmpXchg(shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> ptr, unique_ptr<IRValue> cmp,
+    ICmpXchg(shared_ptr<IRType> typ, const string& assign, unique_ptr<IRValue> ptr, unique_ptr<IRValue> cmp,
                    unique_ptr<IRValue> val, Ordering succ_order, Ordering fail_order, int align);
 
     ICmpXchg(const ICmpXchg &other) :
@@ -273,7 +274,7 @@ public:
     unique_ptr<IRValue> index;
 
     IExtractElem() = delete;
-    IExtractElem(shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> val, unique_ptr<IRValue> index);
+    IExtractElem(shared_ptr<IRType> typ, const string& assign, unique_ptr<IRValue> val, unique_ptr<IRValue> index);
 
     IExtractElem(const IExtractElem &other) :
         typ(other.typ), assign(other.assign), val(unique_ptr<IRValue>(other.val->clone())),
@@ -300,7 +301,7 @@ public:
     unique_ptr<vector<int>> index;
 
     IExtractValue() = delete;
-    IExtractValue(shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> val, unique_ptr<vector<int>> index);
+    IExtractValue(shared_ptr<IRType> typ, const string& assign, unique_ptr<IRValue> val, unique_ptr<vector<int>> index);
 
     IExtractValue(const IExtractValue &other) :
         typ(other.typ), assign(other.assign), val(unique_ptr<IRValue>(other.val->clone())),
@@ -323,7 +324,7 @@ public:
     Ordering order;
 
     IFence() = delete;
-    IFence(Ordering order) : order(order) {
+    IFence(Ordering order) : order(std::move(order)) {
     };
 
     IFence(const IFence &other) : order(other.order) {}
@@ -348,7 +349,7 @@ public:
     unique_ptr<IRValue> val;
 
     IFreeze() = delete;
-    IFreeze(shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> val);
+    IFreeze(shared_ptr<IRType> typ, const string& assign, unique_ptr<IRValue> val);
 
     IFreeze(const IFreeze &other) : typ(other.typ), assign(other.assign), val(unique_ptr<IRValue>(other.val->clone())) {}
 
@@ -374,7 +375,7 @@ public:
     unique_ptr<vector<unique_ptr<IRValue>>> index;
 
     IGetElemPtr() = delete;
-    IGetElemPtr(shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> val, unique_ptr<vector<unique_ptr<IRValue>>> index);
+    IGetElemPtr(shared_ptr<IRType> typ, const string& assign, unique_ptr<IRValue> val, unique_ptr<vector<unique_ptr<IRValue>>> index);
 
     IGetElemPtr(const IGetElemPtr &other) :
         typ(other.typ), assign(other.assign), val(unique_ptr<IRValue>(other.val->clone())),
@@ -404,7 +405,7 @@ public:
     unique_ptr<IRValue> idx;
 
     IInsertElem() = delete;
-    IInsertElem(shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> target, unique_ptr<IRValue> val, unique_ptr<IRValue> idx);
+    IInsertElem(shared_ptr<IRType> typ, const string& assign, unique_ptr<IRValue> target, unique_ptr<IRValue> val, unique_ptr<IRValue> idx);
 
     IInsertElem(const IInsertElem &other) :
         typ(other.typ), assign(other.assign), target(unique_ptr<IRValue>(other.target->clone())),
@@ -433,7 +434,7 @@ public:
     unique_ptr<vector<int>> idx;
 
     IInsertValue() = delete;
-    IInsertValue(shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> target, unique_ptr<IRValue> val, unique_ptr<vector<int>> idx);
+    IInsertValue(shared_ptr<IRType> typ, const string& assign, unique_ptr<IRValue> target, unique_ptr<IRValue> val, unique_ptr<vector<int>> idx);
 
     IInsertValue(const IInsertValue &other) :
         typ(other.typ), assign(other.assign), target(unique_ptr<IRValue>(other.target->clone())),
@@ -459,7 +460,7 @@ public:
     int align;
 
     ILoad() = delete;
-    ILoad(shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> ptr, int align);
+    ILoad(shared_ptr<IRType> typ, const string& assign, unique_ptr<IRValue> ptr, int align);
 
     ILoad(const ILoad &other) :
         typ(other.typ), assign(other.assign), ptr(unique_ptr<IRValue>(other.ptr->clone())), align(other.align) {}
@@ -487,7 +488,7 @@ public:
 
     IPHI() = delete;
     IPHI(shared_ptr<IRType> typ, string assign, unique_ptr<vector<unique_ptr<IRValue>>> values, unique_ptr<vector<unique_ptr<IRValue>>> blocks) :
-        typ(typ), assign(assign), values(std::move(values)) {
+        typ(std::move(typ)), assign(std::move(assign)), values(std::move(values)) {
         this->blocks = unique_ptr<vector<unique_ptr<VLabel>>>(new vector<unique_ptr<VLabel>>());
         for (auto &block : *blocks) {
             VLabel *vlabel_ptr = dynamic_cast<VLabel *>(block.get());
@@ -500,7 +501,7 @@ public:
         }
     };
     IPHI(shared_ptr<IRType> typ, string assign, unique_ptr<vector<unique_ptr<IRValue>>> values, unique_ptr<vector<unique_ptr<VLabel>>> blocks) :
-        typ(typ), assign(assign), values(std::move(values)), blocks(std::move(blocks)) {};
+        typ(std::move(typ)), assign(std::move(assign)), values(std::move(values)), blocks(std::move(blocks)) {};
 
 
     IPHI(const IPHI &other) : typ(other.typ), assign(other.assign),
@@ -533,7 +534,7 @@ public:
     unique_ptr<IRValue> a;
 
     IUnaryOp() = delete;
-    IUnaryOp(shared_ptr<IRType> typ, string assign, Op op, unique_ptr<IRValue> a);
+    IUnaryOp(shared_ptr<IRType> typ, const string& assign, Op op, unique_ptr<IRValue> a);
 
     IUnaryOp(const IUnaryOp &other) :
         typ(other.typ), assign(other.assign), op(other.op), a(unique_ptr<IRValue>(other.a->clone())) {}
@@ -557,8 +558,8 @@ public:
     unique_ptr<IRValue> val;
 
     IReturn() = delete;
-    IReturn(shared_ptr<IRType> typ) : typ(typ), val(nullptr) {};
-    IReturn(shared_ptr<IRType> typ, unique_ptr<IRValue> val) : typ(typ), val(std::move(val)) {};
+    IReturn(shared_ptr<IRType> typ) : typ(std::move(typ)), val(nullptr) {};
+    IReturn(shared_ptr<IRType> typ, unique_ptr<IRValue> val) : typ(std::move(typ)), val(std::move(val)) {};
 
     IReturn(const IReturn &other) : typ(other.typ) {
         if (other.val != nullptr)
@@ -592,7 +593,7 @@ public:
     unique_ptr<IRValue> false_val;
 
     ISelect() = delete;
-    ISelect(shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> cond, unique_ptr<IRValue> true_val, unique_ptr<IRValue> false_val);
+    ISelect(shared_ptr<IRType> typ, const string& assign, unique_ptr<IRValue> cond, unique_ptr<IRValue> true_val, unique_ptr<IRValue> false_val);
 
     ISelect(const ISelect &other) :
         typ(other.typ), assign(other.assign), cond(unique_ptr<IRValue>(other.cond->clone())),
@@ -619,7 +620,7 @@ public:
     unique_ptr<vector<unique_ptr<IRValue>>> operands;
 
     IShuffleVec() = delete;
-    IShuffleVec(shared_ptr<IRType> typ, string assign, unique_ptr<vector<unique_ptr<IRValue>>>  operands);
+    IShuffleVec(shared_ptr<IRType> typ, const string& assign, unique_ptr<vector<unique_ptr<IRValue>>>  operands);
 
     IShuffleVec(const IShuffleVec &other) :
         typ(other.typ), assign(other.assign), operands(unique_ptr<vector<unique_ptr<IRValue>>>(new vector<unique_ptr<IRValue>>())) {
@@ -738,7 +739,7 @@ public:
     unique_ptr<IRValue> val;
 
     IAssign() = delete;
-    IAssign (shared_ptr<IRType> typ, string assign, unique_ptr<IRValue> val);
+    IAssign (shared_ptr<IRType> typ, const string& assign, unique_ptr<IRValue> val);
 
     IAssign(const IAssign &other) :
         typ(other.typ), assign(other.assign), val(unique_ptr<IRValue>(other.val->clone())) {}

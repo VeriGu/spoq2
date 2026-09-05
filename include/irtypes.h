@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 #include <typeinfo>
 #include <stdexcept>
@@ -179,7 +180,7 @@ public:
 
     TInt() = delete;
 
-    TInt(IntType type) : type(type) {};
+    TInt(IntType type) : type(std::move(type)) {};
     TInt(IntType:: _IntType type) : type(type) {};
 
     string to_coq(void) const override {
@@ -199,7 +200,7 @@ public:
 
     TFloating() = delete;
 
-    TFloating(FloatType type) : type(type) {};
+    TFloating(FloatType type) : type(std::move(type)) {};
     TFloating(FloatType:: _FloatType type) : type(type) {};
 
     string to_coq(void) const override {
@@ -246,7 +247,7 @@ public:
     }
 
     TFunction(unique_ptr<vector<shared_ptr<IRType>>> arglist, shared_ptr<IRType> ret) :
-        arglist(std::move(arglist)), rettype(ret) {};
+        arglist(std::move(arglist)), rettype(std::move(ret)) {};
 
     string to_coq(void) const override;
 
@@ -263,7 +264,7 @@ public:
         throw std::runtime_error("TPtr must have a type.");
     }
 
-    TPtr(shared_ptr<IRType> type) : subtype(type) {};
+    TPtr(shared_ptr<IRType> type) : subtype(std::move(type)) {};
 
     string to_coq(void) const override {
         return "(TPtr " + subtype->to_coq() + ")";
@@ -284,7 +285,7 @@ public:
     }
 
     TNamedStruct(string name, std::map<string, shared_ptr<IRType>> *structs) :
-        name(name), structs(structs) {};
+        name(std::move(name)), structs(structs) {};
 
     string to_coq(void) const override {
         return "(TNamedStruct \"" + name + "\" " + std::to_string(this->szof()) + ")";
@@ -313,13 +314,13 @@ public:
         throw std::runtime_error("TStructElem must have a name, a type and an offset.");
     }
 
-    TStructElem(shared_ptr<IRType> type) : name(""), type(type), offset(0) {}
+    TStructElem(shared_ptr<IRType> type) : name(""), type(std::move(type)), offset(0) {}
 
     TStructElem(string name, shared_ptr<IRType> type, coq_sz_t offset) :
-        name(name), type(type), offset(offset) {}
+        name(std::move(name)), type(std::move(type)), offset(offset) {}
 
     TStructElem(string name, shared_ptr<IRType> type, coq_sz_t offset, bool is_decl) :
-        name(name), type(type), offset(offset), is_decl(is_decl) {}
+        name(std::move(name)), type(std::move(type)), offset(offset), is_decl(is_decl) {}
 
     string to_coq(void) const {
 
@@ -359,7 +360,7 @@ public:
     }
 
     TArray(shared_ptr<IRType> elem_type, coq_sz_t size) :
-        subtype(elem_type), length(size) {};
+        subtype(std::move(elem_type)), length(size) {};
 
     string to_coq(void) const override {
         return "(TArray " + subtype->to_coq() + " " + std::to_string(length) + ")";
@@ -381,7 +382,7 @@ public:
     }
 
     TFixedVector(shared_ptr<IRType> elem_type, coq_sz_t size) :
-        TArray(elem_type, size) {};
+        TArray(std::move(elem_type), size) {};
 
     string to_coq(void) const override {
         return "(TFixVector " + subtype->to_coq() + " " + std::to_string(length) + ")";
@@ -397,7 +398,7 @@ public:
     }
 
     TScaleVector(shared_ptr<IRType> elem_type) :
-        subtype(elem_type) {};
+        subtype(std::move(elem_type)) {};
 
     string to_coq(void) const override {
         return "(TScaleVector " + subtype->to_coq() + ")";

@@ -14,12 +14,12 @@
 namespace autov 
 {
 	extern int Z3_SIM_TIMEOUT;
-	inline string get_sim_name(string name) {
+	inline string get_sim_name(const string& name) {
 		return name + "_sim";
 	}
 	// verify the relational property by traversing the project
 	bool check_hprop_by_path(Project *proj, Definition* rel, Definition *spec, Definition  const*impl = nullptr, bool det = true, Definition* endrel = nullptr);
-	shared_ptr<SpecValue> formulate_relation(Project *proj, Definition *rel, SpecNode  const*st_spec, SpecNode  const*st_impl, shared_ptr<ProveState> state);
+	shared_ptr<SpecValue> formulate_relation(Project *proj, Definition *rel, SpecNode  const*st_spec, SpecNode  const*st_impl, const shared_ptr<ProveState>& state);
 	
 	class SimulateResult {
 	public:
@@ -49,7 +49,7 @@ namespace autov
 	std::ostream& operator<<(std::ostream& out, const SimulateResult& r);
     SimulateResult simulate_by_traverse(Project *proj, SpecNode *spec,
                                         SpecNode *impl, Definition *rel, Definition *ret_rel,
-                                        shared_ptr<ProveState> state, path_t p,
+                                        const shared_ptr<ProveState>& state, const path_t& p,
                                         bool det);
     std::pair<bool,bool> check_branch_plausibility(autov::Project *proj,
                                    std::shared_ptr<autov::ProveState>  const&state,

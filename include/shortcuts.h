@@ -5,14 +5,14 @@
 namespace autov {
 	using autov::SpecNode;
 
-	SpecNode* _Let(string name, SpecNode* val, SpecNode* body);
+	SpecNode* _Let(const string& name, SpecNode* val, SpecNode* body);
 	SpecNode* _When(SpecNode* pat, SpecNode* val, SpecNode* body);
 	SpecNode* _Some(SpecNode* val);
 	SpecNode* _Tuple(vector<unique_ptr<SpecNode>> *vec);
 	SpecNode* _List(vector<unique_ptr<SpecNode>> *vec);
 	SpecNode* _st(shared_ptr<SpecType> abs_data);
 	SpecNode* _init_st(shared_ptr<SpecType> abs_data);
-	SpecNode* _name(string name, unordered_map<string, shared_ptr<SpecType>> *types);
+	SpecNode* _name(const string& name, unordered_map<string, shared_ptr<SpecType>> *types);
 
 	class Shortcut {
 	public:
@@ -62,7 +62,7 @@ namespace autov {
 		return dynamic_cast<T*>(ptr.get());
 	  }
 
-	  static unique_ptr<SpecNode> _field_u(unique_ptr<SpecNode> val, string field) {
+	  static unique_ptr<SpecNode> _field_u(unique_ptr<SpecNode> val, const string& field) {
 		auto record = make_unique<vector<unique_ptr<SpecNode>>>();
 
 		record->push_back(std::move(val));
@@ -71,11 +71,11 @@ namespace autov {
 		return make_unique<Expr>(Expr::RecordGet, std::move(record));
 	  }
 
-	  static bool _type_eq(shared_ptr<SpecType> t1, shared_ptr<SpecType> t2) {
+	  static bool _type_eq(const shared_ptr<SpecType>& t1, const shared_ptr<SpecType>& t2) {
 		return t1 == t2 || *t1 == *t2;
 	  }
 
-	  static bool subst_expression(SpecNode *spec, string oldname, string newname) {
+	  static bool subst_expression(SpecNode *spec, const string& oldname, const string& newname) {
 		if (auto s = instance_of(spec, Symbol)) {
 			if (s->text != oldname)
 				return false;

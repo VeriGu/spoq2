@@ -11,6 +11,7 @@
 #include <symbolic.h>
 #include <z3_rules.h>
 #include <tuple>
+#include <utility>
 #include <cmd.h>
 #include "SpoqIR.h"
 #include "SpoqIRModule.h"
@@ -67,31 +68,31 @@ const string Project::LEMMA_LAYER = "Lemmas";
 const string Project::RELATE_LAYER = "Relations";
 
 
-void Project::add_sys_inv(string name, unique_ptr<SpecNode> inv) {
+void Project::add_sys_inv(const string& name, unique_ptr<SpecNode> inv) {
     //Expr* invexpr = instance_of(invelem, Expr);
     sys_invs[name] = std::move(inv);
     sys_inv_order[sys_inv_order.size()] = name;
 }
 
-void Project::add_symbol(string name, SymbolKind kind, string info, shared_ptr<loc_t> loc)
+void Project::add_symbol(const string& name, SymbolKind kind, string info, const shared_ptr<loc_t>& loc)
 {
     // std::cout << "Adding symbol " << name << ", loc: " << std::get<0>(*loc) << ", " << std::get<1>(*loc) << ", " << std::get<2>(*loc) << std::endl;
-    symbols[name] = SymbolInfo{kind, info, *loc, symbols.size()};
+    symbols[name] = SymbolInfo{kind, std::move(info), *loc, symbols.size()};
 }
 
-void Project::add_symbol(string name, SymbolKind kind, string info, shared_ptr<loc_t> loc, unsigned long order)
+void Project::add_symbol(const string& name, SymbolKind kind, string info, const shared_ptr<loc_t>& loc, unsigned long order)
 {
     // std::cout << "Adding symbol " << name << ", loc: " << std::get<0>(*loc) << ", " << std::get<1>(*loc) << ", " << std::get<2>(*loc) << std::endl;
-    symbols[name] = SymbolInfo{kind, info, *loc, order};
+    symbols[name] = SymbolInfo{kind, std::move(info), *loc, order};
 }
 
 // TODO: to remove
-void Project::update_symbol_loc(string name, shared_ptr<loc_t> loc)
+void Project::update_symbol_loc(const string& name, const shared_ptr<loc_t>& loc)
 {
     symbols[name].loc = *loc;
 }
 
-void Project::add_struct(shared_ptr<Struct> s, shared_ptr<loc_t> loc)
+void Project::add_struct(const shared_ptr<Struct>& s, const shared_ptr<loc_t>& loc)
 {
     string name = s->name;
 
@@ -103,12 +104,12 @@ void Project::add_struct(shared_ptr<Struct> s, shared_ptr<loc_t> loc)
     this->add_symbol(name, SymbolKind::Struct, "", loc);
 }
 
-void Project::add_struct(shared_ptr<Struct> s)
+void Project::add_struct(const shared_ptr<Struct>& s)
 {
-    this->add_struct(s, make_shared<loc_t>(Project::LOC_DATATYPES, "", ""));
+    this->add_struct(std::move(s), make_shared<loc_t>(Project::LOC_DATATYPES, "", ""));
 }
 
-void Project::add_indtype(shared_ptr<Inductive> ind, shared_ptr<loc_t> loc) {
+void Project::add_indtype(const shared_ptr<Inductive>& ind, const shared_ptr<loc_t>& loc) {
     string name = ind->name;
 
     indtypes[name] = ind;
@@ -118,23 +119,23 @@ void Project::add_indtype(shared_ptr<Inductive> ind, shared_ptr<loc_t> loc) {
     this->add_symbol(name, SymbolKind::IndType, "", loc);
 }
 
-void Project::add_indtype(shared_ptr<Inductive> ind) {
-    this->add_indtype(ind, make_shared<loc_t>(Project::LOC_DATATYPES, "", ""));
+void Project::add_indtype(const shared_ptr<Inductive>& ind) {
+    this->add_indtype(std::move(ind), make_shared<loc_t>(Project::LOC_DATATYPES, "", ""));
 }
 
-void Project::add_typedef(string name, shared_ptr<SpecType> t) {
-    typedefs[name] = t;
+void Project::add_typedef(const string& name, shared_ptr<SpecType> t) {
+    typedefs[name] = std::move(t);
     this->add_symbol(name, SymbolKind::TypeDef, "", make_shared<loc_t>(Project::LOC_DATATYPES, "", ""));
 }
 
-void Project::add_declaration(unique_ptr<Declaration> decl, shared_ptr<loc_t> loc) {
+void Project::add_declaration(unique_ptr<Declaration> decl, const shared_ptr<loc_t>& loc) {
     string &name = decl->name;
 
     decls[name] = std::move(decl);
-    this->add_symbol(decls[name]->name, SymbolKind::Decl, "", loc);
+    this->add_symbol(decls[name]->name, SymbolKind::Decl, "", std::move(loc));
 }
 
-void Project::add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc, unsigned long order) {
+void Project::add_definition(unique_ptr<Definition> def, const shared_ptr<loc_t>& loc, unsigned long order) {
     string &name = def->name;
     auto def_ = def.get();
 
@@ -142,7 +143,7 @@ void Project::add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc, 
         def_order.push_back(name);
 
     defs[name] = std::move(def);
-    this->add_symbol(defs[name]->name, SymbolKind::Def, "", loc, order);
+    this->add_symbol(defs[name]->name, SymbolKind::Def, "", std::move(loc), order);
 
     // LOG_DEBUG << "Adding definition " << name;
     try {
@@ -153,7 +154,7 @@ void Project::add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc, 
     }
 }
 
-void Project::add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc) {
+void Project::add_definition(unique_ptr<Definition> def, const shared_ptr<loc_t>& loc) {
     string &name = def->name;
     auto def_ = def.get();
 
@@ -163,7 +164,7 @@ void Project::add_definition(unique_ptr<Definition> def, shared_ptr<loc_t> loc) 
     defs[name] = std::move(def);
 
     // LOG_DEBUG << "name: " << defs[name]->name;
-    this->add_symbol(defs[name]->name, SymbolKind::Def, "", loc);
+    this->add_symbol(defs[name]->name, SymbolKind::Def, "", std::move(loc));
 
     // LOG_DEBUG << "Adding definition " << name;
     try {
@@ -430,7 +431,7 @@ void Project::add_command(unique_ptr<Expr> cmd) {
 void Project::add_command(unique_ptr<Expr> cmd, unique_ptr<Layer> layer) {
 }
 
-bool Project::is_ind_constr(string name) {
+bool Project::is_ind_constr(const string& name) {
     static const std::unordered_set<std::string> ind_constr_symbols = {"None", "Some", "nil", "cons"};
 
     if (symbols.find(name) != symbols.end() && symbols[name].kind == SymbolKind::IndConstructor) {
@@ -442,7 +443,7 @@ bool Project::is_ind_constr(string name) {
     }
 }
 
-bool Project::is_struct_constr(string name) {
+bool Project::is_struct_constr(const string& name) {
     if (name.find("mk") == 0 and structs.find(name.substr(2)) != structs.end()) {
         return true;
     } else if (name == "Tuple") {
@@ -452,7 +453,7 @@ bool Project::is_struct_constr(string name) {
     }
 }
 
-shared_ptr<SpecType> Project::get_indtype_by_constr(string name) {
+shared_ptr<SpecType> Project::get_indtype_by_constr(const string& name) {
     if (symbols.find(name) == symbols.end()) {
         return nullptr;
     }
@@ -464,11 +465,11 @@ shared_ptr<SpecType> Project::get_indtype_by_constr(string name) {
     return indtypes.at(symbols.at(name).info);
 }
 
-bool Project::is_known_symbol(string name) {
+bool Project::is_known_symbol(const string& name) {
     return (symbols.find(name) != symbols.end()) or is_ind_constr(name) or is_struct_constr(name);
 }
 
-bool Project::is_state_type(shared_ptr<SpecType> t) {
+bool Project::is_state_type(const shared_ptr<SpecType>& t) {
     return t == layers[0]->abs_data;
 }
 
@@ -595,7 +596,7 @@ static std::set<string> get_prim_dependencies(const vector<unique_ptr<IRLoader::
     return deps;
 }
 
-static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string fname, bool &have_loop, bool &have_sub,
+static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, const string& fname, bool &have_loop, bool &have_sub,
                                             std::unordered_map<string, string> &name_map) {
     vector<Definition *> *low_specs = nullptr;
     string low_name = fname + "_spec_low";
@@ -709,7 +710,7 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, string 
     return low_specs;
 }
 
-static void merge_keep(Project *proj, std::set<string> &to_keep, string fname) {
+static void merge_keep(Project *proj, std::set<string> &to_keep, const string& fname) {
     // if (proj->code->functions->find(fname) == proj->code->functions->end())
     //     throw std::runtime_error("Function " + fname + " not found");
 
@@ -776,7 +777,7 @@ static std::tuple<string, vector<Definition *> *, vector<unique_ptr<Definition>>
 #else
 static string
 #endif
-infer_spec_task(Project *proj, int layer_id, string fname) {
+infer_spec_task(Project *proj, int layer_id, const string& fname) {
     auto &L = proj->layers[layer_id];
     vector<Definition *> *low_specs;
     unsigned long const symbol_order = proj->symbols.size();

@@ -87,8 +87,8 @@ static string escape(const std::string& s) {
     return res;
 }
 
-SpoqIRIASM SpoqIRModule::parse_inline_asm(string fname, string asm_text, llvm::Type* rettype,
-                      vector<llvm::Type*> &arglist, string constraints) {
+SpoqIRIASM SpoqIRModule::parse_inline_asm(const string& fname, string asm_text, llvm::Type* rettype,
+                      vector<llvm::Type*> &arglist, const string& constraints) {
 
     if (asm_text.find("pushsection") != string::npos) {
         throw std::runtime_error("pushsection is not supported");
