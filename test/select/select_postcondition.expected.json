@@ -1,0 +1,7 @@
+{
+  "stderr_contains": "imply post condition :) : vuln_spec",
+  "stderr_lacks": "does not imply post condition;[ERR]",
+  "spec_v_definition": "vuln_spec",
+  "spec_v_contains": "if (x >? (0));(Some (1, st));(Some (0, st))",
+  "spec_v_lacks": "select"
+}

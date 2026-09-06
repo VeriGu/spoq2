@@ -240,20 +240,49 @@ void runCase(const TestCase &tc) {
                << (detail.empty() ? "" : "\n  " + detail);
     }
 
-    std::istringstream out(run_result.output);
-    std::string first_line;
-    std::getline(out, first_line);
-    ASSERT_FALSE(first_line.empty()) << "spoq produced no result JSON";
-
     boost::property_tree::ptree actual, expected;
-    ASSERT_TRUE(readJson(tc.ll, first_line, actual));
     ASSERT_TRUE(readJson(tc.expected, "", expected));
 
-    for (const auto &[key, value] : expected) {
-        if (key.rfind("spec_v_", 0) == 0) continue;  // structural, checked below
-        const auto found = actual.get_optional<std::string>(key);
-        EXPECT_TRUE(found.has_value()) << "result has no key '" << key << "'";
-        if (found) EXPECT_EQ(*found, value.get_value<std::string>()) << "for key '" << key << "'";
+    // A result JSON is only produced by the refinement check.  A fixture that
+    // asserts something else -- a postcondition, say -- need not declare a
+    // Refines hint at all, and then there is no JSON and nothing to compare.
+    // Require one only when the expected file actually pins a result field.
+    bool wants_result_json = false;
+    for (const auto &[key, value] : expected)
+        if (key.rfind("spec_v_", 0) != 0 && key.rfind("stderr_", 0) != 0) wants_result_json = true;
+
+    if (wants_result_json) {
+        std::istringstream out(run_result.output);
+        std::string first_line;
+        std::getline(out, first_line);
+        ASSERT_FALSE(first_line.empty()) << "spoq produced no result JSON";
+        ASSERT_TRUE(readJson(tc.ll, first_line, actual));
+
+        for (const auto &[key, value] : expected) {
+            if (key.rfind("spec_v_", 0) == 0 || key.rfind("stderr_", 0) == 0) continue;
+            const auto found = actual.get_optional<std::string>(key);
+            EXPECT_TRUE(found.has_value()) << "result has no key '" << key << "'";
+            if (found) EXPECT_EQ(*found, value.get_value<std::string>()) << "for key '" << key << "'";
+        }
+    }
+
+    // Optional assertions against spoq's stderr.  Some verdicts are only
+    // reported in the log -- check_pre_post logs whether a postcondition was
+    // proved and puts nothing in the result JSON -- so without this a fixture
+    // that asserts a postcondition could not tell success from silence.
+    //   stderr_contains   ';'-separated substrings that must appear
+    //   stderr_lacks      ';'-separated substrings that must not
+    const auto want = splitSemi(expected.get<std::string>("stderr_contains", ""));
+    const auto avoid = splitSemi(expected.get<std::string>("stderr_lacks", ""));
+    if (!want.empty() || !avoid.empty()) {
+        std::ifstream log_in(work / "stderr.log");
+        const std::string log((std::istreambuf_iterator<char>(log_in)),
+                              std::istreambuf_iterator<char>());
+        ASSERT_FALSE(log.empty()) << "stderr.log is empty";
+        for (const auto &t : want)
+            EXPECT_NE(log.find(t), std::string::npos) << "'" << t << "' missing from spoq's stderr";
+        for (const auto &t : avoid)
+            EXPECT_EQ(log.find(t), std::string::npos) << "'" << t << "' unexpectedly in spoq's stderr";
     }
 
     // Optional structural assertions against the generated Coq spec.  The result
