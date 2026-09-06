@@ -1527,6 +1527,8 @@ bool check_loop_inv_v2(Project *proj, Definition *loop,
     return res;
 }
 
+// Wrap a function body in `if P then None else <original_body>
+// by extracting P from the body.
 bool check_none(Project *proj, Definition *def,
                 std::unordered_set<string> &used_abs) {
     Z3Cache.clear();
@@ -1537,17 +1539,6 @@ bool check_none(Project *proj, Definition *def,
     for (auto const arg : *def->args) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
-
-    // auto &noneconds = proj->cmds.PostCondWithNone[def->name];
-
-    // unique_ptr<SpecNode> nonecond = make_unique<BoolConst>(false);
-    // for(auto &in : noneconds) {
-    //     auto elems = new vector<unique_ptr<SpecNode>>();
-    //     elems->push_back(std::move(nonecond));
-    //     elems->push_back(in->deep_copy());
-    //     nonecond = make_unique<Expr>(Expr::binops::OR,
-    //     unique_ptr<vector<unique_ptr<SpecNode>>>(elems), Bool::BOOL);
-    // }
 
     auto l_args = make_unique<vector<shared_ptr<Arg>>>();
     for (auto const arg : *def->args) {
@@ -1561,25 +1552,17 @@ bool check_none(Project *proj, Definition *def,
     auto induction = std::make_shared<vector<z3::expr>>();
     auto const state = make_shared<ProveState>(vars, conds, induction);
     set<string> const used_fixpoint;
-    // auto c = z3_eval(proj, nonecond.get(), state, false, true,
-    // used_fixpoint); state->conds->push_back(c->get_z3_value());
     unique_ptr<SpecNode> const postcond = make_unique<BoolConst>(true);
 
     auto none_cond_accumulator = NoneConditionAccumulator(proj, def->name);
     none_cond_accumulator.discharge_none = [=](std::unique_ptr<SpecNode> n) {
-        if(def->name == "luaG_getfuncline_spec"){
+        if(def->name == "ff_ac3_parse_header_spec"){
             LOG_DEBUG << "Discharging none condition to " << def->name << ": " << string(*n);
             LOG_DEBUG << ".";
 
         }
 
         if (def->sufficient_none_condition) {
-            // auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-            // elems->push_back(std::move(def->sufficient_none_condition));
-            // elems->push_back(std::move(n));
-            // def->sufficient_none_condition =
-            //     make_unique<Expr>(Expr::binops::OR, std::move(elems),
-            //     Bool::BOOL);
             def->sufficient_none_condition =
                 make_unique<If>(std::move(n), make_unique<BoolConst>(true),
                                 std::move(def->sufficient_none_condition));
@@ -1607,34 +1590,7 @@ bool check_none(Project *proj, Definition *def,
         }
         auto new_spec = std::move(def->sufficient_none_condition);
 
-        // // group 1
-        // while (true) {
-        //     auto this_changed = false;
-        //     // tmp spec should only be used in rule group loop
-        //     auto tmp_spec = std::move(new_spec);
-        //     for (auto &r : proj->rules.rules_group1) {
-        //         if (r.id == RuleID::rule_eliminate_let) {
-        //             auto prev_symbols = std::set<string>(known);
-        //             auto __changed = false;
-        //             tmp_spec = proj->rules.eliminate_ambiguity(
-        //                 std::move(tmp_spec), prev_symbols, __changed);
-
-        //             this_changed |= __changed;
-        //         }
-        //         auto orig_spec_str = string(*tmp_spec.get());
-        //         LOG_DEBUG << "Current spec: " << orig_spec_str;
-        //         auto [__spec, __changed] = r.call(std::move(tmp_spec));
-        //         tmp_spec = std::move(__spec);
-        //         this_changed |= __changed;
-        //         auto new_spec_str = string(*tmp_spec.get());
-        //     }
-        //     new_spec = std::move(tmp_spec);
-        //     if (!this_changed)
-        //         break;
-        // }
         def->sufficient_none_condition = std::move(new_spec);
-        // LOG_DEBUG << "Final sufficient_none_condition for " << def->name << ": "
-        //           << string(*def->sufficient_none_condition);
     }
 
     return res;
@@ -2149,7 +2105,7 @@ void spec_prover(Project *proj) {
     for (auto &ub_export_def : proj->cmds.PostCondWithNone) {
         auto const def_it = proj->defs.find(ub_export_def);
         if(def_it == proj->defs.end()){
-            LOG_WARNING << "PostCondWithNone def " << ub_export_def << " not found";
+            LOG_ERROR << "PostCondWithNone def " << ub_export_def << " not found";
             continue;
         }
         auto def = def_it->second.get();
@@ -2267,9 +2223,10 @@ void spec_prover(Project *proj) {
                 other_def->body = std::move(new_body.first);
                 any_changes = any_changes || new_body.second;
                 // old_body = other_def->body->deep_copy();
-                new_body = proj->rules.hoist_match_from_branch(
-                    std::move(other_def->body));
-                    next = std::chrono::high_resolution_clock::now();
+                // new_body = proj->rules.hoist_match_from_branch(
+                //     std::move(other_def->body));
+                    // next = std::chrono::high_resolution_clock::now();
+                new_body.first = std::move(other_def->body);
                 LOG_DEBUG << "Simplification B " << new_body.second << ", " << (next-start).count() * 1.0e-9;
                 start=next;
                 other_def->body = std::move(new_body.first);
@@ -2322,6 +2279,9 @@ void spec_prover(Project *proj) {
                 LOG_DEBUG << "Simplification G " << new_body.second << ", " << (next-start).count() * 1.0e-9;
             start=next;
             other_def->body = std::move(disamb);
+            if (!other_def->body){
+                LOG_ERROR << "eliminate_ambiguity failed!";
+            }
             any_changes = any_changes || changed;
             } while (new_body.second);
             old_body = other_def->body->deep_copy();

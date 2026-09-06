@@ -453,7 +453,11 @@ public:
     SpecValue(shared_ptr<SpecType> typ, bool value) : typ(std::move(typ)), value(z3ctx.bool_val(value)) {}
     SpecValue(shared_ptr<SpecType> typ, const string& value) : typ(std::move(typ)), value(z3ctx.string_val(value.c_str())) {}
     SpecValue(shared_ptr<SpecType> typ, double value) : typ(std::move(typ)), value(z3ctx.fpa_val(value)) {}
-    SpecValue(shared_ptr<SpecType> typ, z3::expr value) : typ(std::move(typ)), value(std::move(value)) {}
+    SpecValue(shared_ptr<SpecType> typ, z3::expr value) : typ(std::move(typ)), value(std::move(value)) {
+        if (typ == Bool::BOOL && value.is_int()){
+            value = (value != 0);
+        }
+    }
 
     shared_ptr<SpecType> get_type() const { return typ; }
     z3::expr get_z3_value() const { return value; }
@@ -539,6 +543,7 @@ public:
     shared_ptr<BoolValue> le(const shared_ptr<IntValue>& other) { return make_shared<BoolValue>((value <= other->value).simplify()); }
     shared_ptr<BoolValue> gt(const shared_ptr<IntValue>& other) { return make_shared<BoolValue>((value > other->value).simplify()); }
     shared_ptr<BoolValue> ge(const shared_ptr<IntValue>& other) { return make_shared<BoolValue>((value >= other->value).simplify()); }
+    shared_ptr<BoolValue> to_bool() { return make_shared<BoolValue>(value != 0); }
 };
 class FloatValue : public SpecValue {
 public:

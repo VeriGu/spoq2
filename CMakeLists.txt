@@ -246,6 +246,21 @@ add_executable(Z3UtilsTest test/unit/Z3UtilsTest.cpp $<TARGET_OBJECTS:spoq_core>
 target_link_libraries(Z3UtilsTest GTest::gtest_main GTest::gtest irloader parser antlr4_shared
     ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
 add_test(NAME Z3Utils COMMAND Z3UtilsTest)
+
+# ------------------------------------------------------------------------------
+# CfgConversionTest -- unit tests for the CFG conversion pass
+# ------------------------------------------------------------------------------
+# control_flow_conversion_v2 is a static function over one llvm::Function, so it
+# is driven straight from .ll files with no project or solver involved.  Each
+# case runs in a forked child with a deadline, because a traversal bug in this
+# pass manifests as non-termination.
+add_executable(CfgConversionTest test/unit/CfgConversionTest.cpp $<TARGET_OBJECTS:spoq_core>)
+target_link_libraries(CfgConversionTest GTest::gtest_main GTest::gtest irloader parser antlr4_shared
+    ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
+target_compile_definitions(CfgConversionTest PRIVATE
+    SPOQ_CFG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/cfg_bugs")
+add_test(NAME CfgConversion COMMAND CfgConversionTest)
+set_tests_properties(CfgConversion PROPERTIES TIMEOUT 1200)
 set_target_properties(SpoqTest PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build")
 
