@@ -258,9 +258,23 @@ add_executable(CfgConversionTest test/unit/CfgConversionTest.cpp $<TARGET_OBJECT
 target_link_libraries(CfgConversionTest GTest::gtest_main GTest::gtest irloader parser antlr4_shared
     ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
 target_compile_definitions(CfgConversionTest PRIVATE
-    SPOQ_CFG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/cfg_bugs")
+    SPOQ_LL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/ll_to_spoq")
 add_test(NAME CfgConversion COMMAND CfgConversionTest)
 set_tests_properties(CfgConversion PROPERTIES TIMEOUT 1200)
+
+# ------------------------------------------------------------------------------
+# IrTranslationTest -- unit tests for llvm_ir_to_spoq_ir
+# ------------------------------------------------------------------------------
+# Drives the LLVM-IR -> Spoq-IR translation directly, deliberately skipping
+# control_flow_conversion_v2 (it sets cfg_converted by hand).  Keeps translation
+# coverage independent of the CFG pass, which is both slow and currently broken.
+add_executable(IrTranslationTest test/unit/IrTranslationTest.cpp $<TARGET_OBJECTS:spoq_core>)
+target_link_libraries(IrTranslationTest GTest::gtest_main GTest::gtest irloader parser antlr4_shared
+    ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
+target_compile_definitions(IrTranslationTest PRIVATE
+    SPOQ_LL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/ll_to_spoq")
+add_test(NAME IrTranslation COMMAND IrTranslationTest)
+set_tests_properties(IrTranslation PROPERTIES TIMEOUT 300)
 set_target_properties(SpoqTest PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build")
 

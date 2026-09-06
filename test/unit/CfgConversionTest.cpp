@@ -105,7 +105,7 @@ Outcome convert_with_deadline(const std::string &path, const std::string &func_n
 }
 
 std::string data(const std::string &name) {
-    return std::string(SPOQ_CFG_DIR) + "/" + name;
+    return std::string(SPOQ_LL_DIR) + "/" + name;
 }
 
 /// Assert the pass terminates and converts [func_name] in [file].
