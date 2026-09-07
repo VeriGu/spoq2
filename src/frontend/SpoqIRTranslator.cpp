@@ -1097,6 +1097,19 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
         }
 
         // TODO: other conversion operations
+        if (auto sel = llvm::dyn_cast<llvm::SelectInst>(spoq_inst->inst)) {
+            //   %r = select i1 %c, T %a, T %b
+            // becomes
+            //   let r := (if c then a else b) in <rest>
+            auto sym = context.get_llvm_value_spec(sel);
+            auto expr = std::make_unique<If>(
+                context.get_llvm_value_spec(sel->getCondition()),
+                context.get_llvm_value_spec(sel->getTrueValue()),
+                context.get_llvm_value_spec(sel->getFalseValue()));
+            return Shortcut::_Let_u(std::move(sym), std::move(expr),
+                                    spoq_inst_to_spec(proj, vec, num + 1, context));
+        }
+
         if (auto bc = llvm::dyn_cast<llvm::CastInst>(spoq_inst->inst)) {
             auto src = bc->getSrcTy();
             auto dst = bc->getDestTy();

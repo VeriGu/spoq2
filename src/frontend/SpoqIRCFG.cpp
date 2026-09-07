@@ -546,10 +546,7 @@ bool SpoqIRModule::control_flow_conversion_v2(string fname,
     PB.registerFunctionAnalyses(FAM);
     PB.registerLoopAnalyses(LAM);
 
-    // ── Phase 1: Eliminate select instructions ──
-    control_flow_eliminate_select(llvm_func);
-
-    // ── Phase 2: Normalize loops ──
+    // ── Phase 1: Normalize loops ──
     // Ask LLVM for loop info on the (post-Phase-1) CFG.
     llvm::LoopInfo  const&LI = FAM.getResult<llvm::LoopAnalysis>(*llvm_func);
     SpoqLoopContext& context = spoq_func.loop_context;
@@ -559,7 +556,7 @@ bool SpoqIRModule::control_flow_conversion_v2(string fname,
         auto const loops = LI.getLoopsInPreorder();
         for(auto loop: loops) {
 
-            // ── 2a: Clean up the preheader ──
+            // ── 1a: Clean up the preheader ──
             // The preheader is the single block that enters the loop.
             // If it has phi nodes (can happen when two loops share a
             // header), split it so we get a clean preheader with no phis.
@@ -581,7 +578,7 @@ bool SpoqIRModule::control_flow_conversion_v2(string fname,
                 preheader = real;
             }
 
-            // ── 2b: Handle infinite loops ──
+            // ── 1b: Handle infinite loops ──
             // If the loop has no exit (infinite loop), we insert a fake
             // exit edge so the rest of the pipeline can process it.
             //
@@ -618,7 +615,7 @@ bool SpoqIRModule::control_flow_conversion_v2(string fname,
                 exits.push_back(header);
             }
 
-            // ── 2c: Create a unified postheader with exit dispatch ──
+            // ── 1c: Create a unified postheader with exit dispatch ──
             // All loop exits are redirected to a single "postheader" block.
             // A phi node records which exit was taken (as an integer id).
             // Then a chain of icmp+br dispatches to the correct target.
@@ -668,7 +665,7 @@ bool SpoqIRModule::control_flow_conversion_v2(string fname,
             }
 
             // Register this loop in the context: preheader → postheader.
-            // Phase 3 will treat this as a "jump" — skip from preheader
+            // Phase 2 will treat this as a "jump" — skip from preheader
             // to postheader, processing the loop body separately.
             context.set_jump(preheader, postheader);
 
@@ -691,17 +688,17 @@ bool SpoqIRModule::control_flow_conversion_v2(string fname,
         // Rebuild the mapping of "which block belongs to which loop".
         context.travel_all();
 
-        // ── Phase 3: DAG-to-tree ──
+        // ── Phase 2: DAG-to-tree ──
         spoq_func.cfg_converted = control_flow_conversion_DAG(fname, spoq_func, context);
 
-        // ── Phase 4: Pass analysis ──
+        // ── Phase 3: Pass analysis ──
         context.travel_all();
         std::vector<llvm::BasicBlock*> loop_stack;
         pass_analysis(&spoq_func.llvm_func->getEntryBlock(), loop_stack, context);
 
         return spoq_func.cfg_converted;
     } else {
-        // No loops — skip Phase 2 and 4, just do Phase 3.
+        // No loops — skip Phase 1 and 3, just do Phase 2.
         spoq_func.cfg_converted = control_flow_conversion_DAG(fname, spoq_func, context);
         return spoq_func.cfg_converted;
     }

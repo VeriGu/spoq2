@@ -377,26 +377,26 @@ TEST(IrTranslation, MemoryOpsProduceSpec) {
     EXPECT_NE(spec.find("stack_type_1"), std::string::npos) << spec;
 }
 
-/* -- select is unsupported at stage 2 ---------------------------------------- */
-// select has no arm in spoq_inst_to_spec's dyn_cast chain, so it reaches the
-// "Unsupported SpoqIR instruction [LLVM]" assert at SpoqIRTranslator.cpp:1173.
-// It never gets that far in a real run: control_flow_eliminate_select (Phase 1
-// of the CFG pass) rewrites every select into a diamond first.  These pin the
-// dependency -- if select ever gains a direct translation, they fail and say so.
-
-TEST(IrTranslation, SelectIsUnsupportedAtSpecStage) {
+/* -- select translates directly, no CFG expansion ---------------------------- */
+TEST(IrTranslation, SelectProducesSpec) {
     std::string spec;
-    const Outcome out = spec_with_deadline(data("translate_select.ll"), "vuln", {}, &spec);
-    EXPECT_TRUE(out.crashed || out.status != kTranslated)
-        << "select unexpectedly translated to a SpecNode; if that is now "
-           "supported, retire this test. spec=" << spec;
+    ASSERT_NO_FATAL_FAILURE(expect_spec("translate_select.ll", "vuln", {}, &spec));
+    // select %cmp, 100, 200  ->  let sel := (if cmp then 100 else 200)
+    EXPECT_NE(spec.find("let cmp := (x =? (50))"), std::string::npos) << spec;
+    EXPECT_NE(spec.find("if cmp"), std::string::npos) << spec;
+    EXPECT_NE(spec.find("then 100"), std::string::npos) << spec;
+    EXPECT_NE(spec.find("else 200"), std::string::npos) << spec;
 }
 
-TEST(IrTranslation, SelectChainIsUnsupportedAtSpecStage) {
+TEST(IrTranslation, SelectChainProducesSpec) {
     std::string spec;
-    const Outcome out = spec_with_deadline(data("translate_select_chain.ll"), "vuln", {}, &spec);
-    EXPECT_TRUE(out.crashed || out.status != kTranslated)
-        << "select chain unexpectedly translated to a SpecNode. spec=" << spec;
+    ASSERT_NO_FATAL_FAILURE(expect_spec("translate_select_chain.ll", "vuln", {}, &spec));
+    // One If per `||` term, and nothing cloned: four selects stay four Ifs.
+    size_t ifs = 0;
+    for (size_t i = spec.find("if "); i != std::string::npos; i = spec.find("if ", i + 1)) ifs++;
+    EXPECT_GE(ifs, 3u) << "expected one If per select term, got " << ifs << ":\n" << spec;
+    EXPECT_EQ(spec.find("select"), std::string::npos)
+        << "a select survived into the spec:\n" << spec;
 }
 
 /* -- the two documented limits of the bypass --------------------------------- */
