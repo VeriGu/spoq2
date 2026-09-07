@@ -2353,40 +2353,14 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
             return _cache(static_pointer_cast<IntValue>(elems[0])->lt(static_pointer_cast<IntValue>(elems[1])));
         if (op_eq(expr->op, Expr::binops::LTE) || op_eq(expr->op, Expr::binops::BLE))
             return _cache(static_pointer_cast<IntValue>(elems[0])->le(static_pointer_cast<IntValue>(elems[1])));
-        if (elems[0]->typ == Int::INT && (op_eq(expr->op, Expr::ops::NOT) || op_eq(expr->op, Expr::ops::BNOT)))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->to_bool()->negb());
         if (op_eq(expr->op, Expr::ops::NOT) || op_eq(expr->op, Expr::ops::BNOT))
             return _cache(static_pointer_cast<BoolValue>(elems[0])->negb());
-        if (op_eq(expr->op, Expr::binops::AND) || op_eq(expr->op, Expr::binops::BAND)){
-            shared_ptr<SpecValue> first = elems[0], second = elems[1];
-            if(first->typ == Int::INT){
-                first = static_pointer_cast<IntValue>(first)->to_bool();
-            }
-            if(second->typ == Int::INT){
-                second = static_pointer_cast<IntValue>(second)->to_bool();
-            }
-            return _cache(static_pointer_cast<BoolValue>(first)->andb(static_pointer_cast<BoolValue>(second)));
-        }
-        if (op_eq(expr->op, Expr::binops::OR) || op_eq(expr->op, Expr::binops::BOR)){
-            shared_ptr<SpecValue> first = elems[0], second = elems[1];
-            if(first->typ == Int::INT){
-                first = static_pointer_cast<IntValue>(first)->to_bool();
-            }
-            if(second->typ == Int::INT){
-                second = static_pointer_cast<IntValue>(second)->to_bool();
-            }
-            return _cache(static_pointer_cast<BoolValue>(first)->orb(static_pointer_cast<BoolValue>(second)));
-        }
-        if (op_eq(expr->op, "xorb")){
-            shared_ptr<SpecValue> first = elems[0], second = elems[1];
-            if(first->typ == Int::INT){
-                first = static_pointer_cast<IntValue>(first)->to_bool();
-            }
-            if(second->typ == Int::INT){
-                second = static_pointer_cast<IntValue>(second)->to_bool();
-            }
-            return _cache(static_pointer_cast<BoolValue>(first)->xorb(static_pointer_cast<BoolValue>(second)));
-        }
+        if (op_eq(expr->op, Expr::binops::AND) || op_eq(expr->op, Expr::binops::BAND))
+            return _cache(static_pointer_cast<BoolValue>(elems[0])->andb(static_pointer_cast<BoolValue>(elems[1])));
+        if (op_eq(expr->op, Expr::binops::OR) || op_eq(expr->op, Expr::binops::BOR))
+            return _cache(static_pointer_cast<BoolValue>(elems[0])->orb(static_pointer_cast<BoolValue>(elems[1])));
+        if (op_eq(expr->op, "xorb"))
+            return _cache(static_pointer_cast<BoolValue>(elems[0])->xorb(static_pointer_cast<BoolValue>(elems[1])));
         if (op_eq(expr->op, Expr::binops::IMPLIES))
             return _cache(static_pointer_cast<BoolValue>(elems[0])->implies(static_pointer_cast<BoolValue>(elems[1])));
         else if (op_eq(expr->op, Expr::GET)) {

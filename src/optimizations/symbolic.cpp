@@ -2222,11 +2222,11 @@ void spec_prover(Project *proj) {
                 start = next;
                 other_def->body = std::move(new_body.first);
                 any_changes = any_changes || new_body.second;
-                // old_body = other_def->body->deep_copy();
-                // new_body = proj->rules.hoist_match_from_branch(
-                //     std::move(other_def->body));
-                    // next = std::chrono::high_resolution_clock::now();
-                new_body.first = std::move(other_def->body);
+                old_body = other_def->body->deep_copy();
+                new_body = proj->rules.hoist_match_from_branch(
+                    std::move(other_def->body));
+                    next = std::chrono::high_resolution_clock::now();
+                // new_body.first = std::move(other_def->body);
                 LOG_DEBUG << "Simplification B " << new_body.second << ", " << (next-start).count() * 1.0e-9;
                 start=next;
                 other_def->body = std::move(new_body.first);
