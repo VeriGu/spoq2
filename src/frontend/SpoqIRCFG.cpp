@@ -98,6 +98,9 @@
 //
 // ============================================================================
 
+#include <cstdlib>
+#include <string>
+
 #include "SpoqIR.h"
 #include "SpoqIRModule.h"
 #include "log.h"
@@ -274,13 +277,32 @@ bool SpoqIRModule::control_flow_duplicate(llvm::BasicBlock *bb,
 //   everything downstream.  This produces 2^N blocks.
 //   A safety limit of 5000 blocks prevents runaway memory usage.
 
+// Iteration budget for the cloning below.  Exhausting it means the blowup above
+// is happening, but the default budget takes ~4 minutes and ~17GB to exhaust,
+// which is too slow to use as an llvm-reduce oracle.  SPOQ_CFG_REPEAT_LIMIT
+// lowers it so the same exception arrives in seconds; unset keeps the default.
+// A lowered budget only discriminates if it stays well above what a function
+// that genuinely converts needs, and that is more than it looks: the fixtures in
+// test/ll_to_spoq peak at 4 steps, but sws_setColorspaceDetails (48 blocks, from
+// the same ffmpeg module as the blowup) converts only after ~5*10^5.  Anything
+// reduced under a lowered budget must be re-checked against the default.
+static long clone_repeat_limit() {
+    if (const char *env = std::getenv("SPOQ_CFG_REPEAT_LIMIT")) {
+        if (const long parsed = std::atol(env); parsed > 0) return parsed;
+    }
+    return 10000000;
+}
+
 static int repeats = 0;
 bool SpoqIRModule::control_flow_clone_and_split(llvm::BasicBlock *bb, SpoqLoopContext &context) {
     // LOG_DEBUG << "clone and split " << (bb->hasName() ? bb->getName().str() : "no name");
     // if (bb->getParent()->getBasicBlockList().size() > 200000)
     //     throw std::runtime_error("block size too large in fn " + bb->getParent()->getName().str() + ": " + std::to_string(bb->getParent()->getBasicBlockList().size()));
-    if (repeats > 10000000){
-        throw std::runtime_error("block size too large in fn " + bb->getParent()->getName().str() + ".");
+    static const long limit = clone_repeat_limit();
+    if (repeats > limit){
+        throw std::runtime_error("block size too large in fn " + bb->getParent()->getName().str()
+                                 + ": " + std::to_string(bb->getParent()->size()) + " blocks after "
+                                 + std::to_string(repeats) + " clone steps.");
     }
     repeats++;
     if (bb == context.get_postheader()) return true;

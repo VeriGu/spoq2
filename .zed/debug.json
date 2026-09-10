@@ -117,4 +117,36 @@
     "cwd": "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm049/build/",
     "initCommands": ["breakpoint name configure --disable cpp_exception"]
 },
+{
+  "adapter": "CodeLLDB",
+  "label": "ffm054",
+  "request": "launch",
+  "build": {
+    "command": "make",
+    "args": ["-j16"],
+    "cwd": "$ZED_WORKTREE_ROOT/build/"
+  },
+    "program": "$ZED_WORKTREE_ROOT/build/spoq", // Path to your CMake target executable
+    "env": {"SPOQ_CURRENT_QUERY": "/tmp/spoq_current_query.smt2"},
+    "args": ["/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm054/build/scpr.main.v",
+    "--new-trans", "--llvm", "--check-pre-post", "--race", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "z3_queries/"], // Any command-line arguments
+    "cwd": "/home/rjs2247/workspace/patchverification/examples/ffmpeg/ffm054/build/",
+    "initCommands": ["breakpoint name configure --disable cpp_exception"]
+},
+{
+  "adapter": "CodeLLDB",
+  "label": "png001",
+  "request": "launch",
+  "build": {
+    "command": "make",
+    "args": ["-j16"],
+    "cwd": "$ZED_WORKTREE_ROOT/build/"
+  },
+    "program": "$ZED_WORKTREE_ROOT/build/spoq", // Path to your CMake target executable
+    "env": {"SPOQ_CURRENT_QUERY": "/tmp/spoq_current_query.smt2"},
+    "args": ["/home/rjs2247/workspace/patchverification/examples/libpng/png001/build/pngrutil.main.v",
+    "--new-trans", "--llvm", "--check-pre-post", "--race", "--no-coi", "--no-profile", "--check-patch-refinement", "--query-path", "z3_queries/"], // Any command-line arguments
+    "cwd": "/home/rjs2247/workspace/patchverification/examples/libpng/png001/build/",
+    "initCommands": ["breakpoint name configure --disable cpp_exception"]
+},
 ]

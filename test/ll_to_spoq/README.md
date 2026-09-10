@@ -34,10 +34,11 @@ is reported rather than taking the suite down, and both double as
 
 The two stages are coupled by a precondition worth stating once: the translator
 asserts that PHI nodes appear only in loop headers/postheaders
-(`SpoqIRTranslator.cpp:132`). Removing join phis is exactly what
-`control_flow_clone_and_split` does -- it clones the diamond until the phi is
-gone -- which is also why that pass blows up exponentially. So a fixture with a
-join phi is in scope for `CfgConversionTest` but not for `IrTranslationTest`.
+(`SpoqIRTranslator.cpp:132`). Getting rid of join phis is what
+`control_flow_clone_and_split` does, by cloning the join point until nothing
+merges there -- which is also why that pass blows up exponentially. So a fixture
+with a join phi is in scope for `CfgConversionTest` but not for
+`IrTranslationTest`.
 
 ## Translation fixtures
 
@@ -50,36 +51,86 @@ the PHI assert) and `nested_loop.ll` (needs the preheader/postheader rewrite).
 `nested_loop.ll` doubles as the `CfgConversionTest` sanity case, where it
 converts in ~100ms.
 
-`translate_select.ll` and `translate_select_chain.ll` cover `select`, and show
-the two stages apart cleanly: both *pack* fine at stage 1, then hit
+`translate_select.ll` and `translate_select_chain.ll` cover `select`, which
+`spoq_inst_to_spec` now translates directly to an `If`:
 
-    Unsupported SpoqIR instruction [LLVM]:   %sel = select i1 %cmp, i32 100, i32 200
+    let cmp := (x =? (50)) in
+    let sel := (
+        if cmp
+        then 100
+        else 200) in
+    (Some (sel, st))
 
-at stage 2 (`SpoqIRTranslator.cpp:1173`) -- `spoq_inst_to_spec` has no
-`SelectInst` arm. A real run never gets there, because
-`control_flow_eliminate_select` rewrites every select into a diamond first.
+It used to be removed earlier instead, by `control_flow_eliminate_select`
+(Phase 1), which rewrote each select into a diamond with a join phi. That is no
+longer called -- see "Exponential block cloning" below for why.
 
 ## Exponential block cloning
 
-`ffm001_sws_init_context.ll` and `ffm001_single_block_valuename.ll` both reach
-the `repeats > 10000000` guard in `control_flow_clone_and_split` and throw
-"block size too large", after ~228s and ~26s respectively. Neither is a hang,
-though both look like one under any ordinary timeout. Details in the file
-headers.
+`control_flow_clone_and_split` removes a join point -- any block with two or
+more predecessors -- by cloning it and everything downstream of it. Join points
+in sequence therefore compound. The cost is not merely "exponential" but exactly
 
-The trigger is `select`. `control_flow_eliminate_select` rewrites every select
-into a diamond with a join phi, and `control_flow_clone_and_split` clones
-diamonds to remove those phis -- its own comment gives the cost as 2^N for N
-sequential diamonds. The counts line up:
+    clone steps(N) = 2^(N+2) - 4        for N sequential join points
 
-| fixture | selects | time to the guard |
-|---|---|---|
-| `ffm001_sws_init_context.ll` | 197 | ~228s |
-| `ffm001_single_block_valuename.ll` | 51 (one block) | ~26s |
+measured by bisecting `SPOQ_CFG_REPEAT_LIMIT` for N = 1..18: 4, 12, 28, 60, 124,
+252, 508, 1020, ..., 1048572, a ratio of 2.000 from N = 12 up. The pass does not
+hang; it runs until the `repeats` budget is gone and throws "block size too
+large".
 
-Which is also why a *single-basic-block* function can blow up: the block holds
-51 `||` short-circuit selects. `translate_select_chain.ll` is the same shape at
-four terms, small enough to convert instantly.
+**What counts is join points, not phi nodes.** `require_split`
+(`SpoqIRModule.h:275`) ends in `pred_size(bb) >= 2` and never looks at phis, so
+a diamond costs the same whether or not a value is merged at the bottom of it.
+`CfgConversion.PhiNodesDoNotChangeTheCost` pins that at the budget boundary,
+where one clone step either way flips the verdict.
+
+With the default budget of 10^7 steps:
+
+| N join points | outcome | wall | peak RSS |
+|---|---|---|---|
+| 20 | converts | 13.0s | 2.1GB |
+| 21 | converts | 26.7s | 4.2GB |
+| 22 | **over budget** | 23.9s to give up | 4.4GB |
+
+`ffm001_sws_init_context.ll` has 254 blocks, of which **91 are join points** (40
+of them carrying a phi). At 2^93 clone steps no budget reaches it; it throws
+after ~255s. Its 197 `select`s used to contribute -- Phase 1 rewrote each into a
+diamond -- but selects are now translated directly, so what remains is the
+function's own control flow.
+
+`ffm001_single_block_valuename.ll` is the same story from the other side: one
+basic block, 51 `||` short-circuit selects, no join points of its own. It took
+~26s to reach the guard while Phase 1 was expanding selects, and **converts in
+~0.1s now**. It is kept as the regression test for that, since it has no source
+of join points other than selects.
+
+### Measuring it yourself
+
+    ./gen_join_chain.py 22 > chain22.ll        # N diamonds, no phis, no selects
+    ./gen_join_chain.py 22 phi > chain22.ll    # same with phis, same cost
+
+    ./join_scaling_sweep.sh 10000000 > join_scaling_10e6.csv   # production budget
+    ./join_scaling_sweep.sh 1000000  > join_scaling_1e6.csv    # ~10x cheaper
+    ./plot_join_scaling.py join_scaling.png \
+        "budget 10^7 (default)=join_scaling_10e6.csv" \
+        "budget 10^6=join_scaling_1e6.csv"
+
+![conversion time vs join points](join_scaling.png)
+
+The flat tails are the budget cap, not the input: past the cap the run reports
+the time to *give up*, and the dotted lines are what completing would have cost
+at the measured step rate (~314k steps/s). N = 30 would need ~3.8 hours.
+
+`SPOQ_CFG_REPEAT_LIMIT` lowers the budget so an oracle gets a verdict in seconds
+instead of ~256s; unset it keeps the 10^7 default. It is a sharp instrument and
+easy to misuse: `sws_setColorspaceDetails` (48 blocks, same ffmpeg module)
+genuinely converts and needs ~5x10^5 steps, so a budget below that would call a
+healthy function broken. Anything reduced under a lowered budget has to be
+re-checked against the default.
+
+The `CfgConversion.JoinScaling` cases run at a budget of 10^5 and assert the
+prediction two-sided -- small N must *fit* as well as large N must not. Only the
+lower half pins the base to 2; without it, 3^N or N! would pass just as well.
 
 ## tiffillstrip.ll
 
@@ -145,5 +196,6 @@ a result JSON; several fixtures here abort or run for minutes. Driving the two
 front-end entry points directly keeps them fast and attributes a failure to the
 stage that caused it.
 
-Note that the `CfgConversion` cases currently **fail** by design -- they assert
-the conversion should succeed, which is the fix target. `IrTranslation` passes.
+Note that `CfgConversion.Ffm001SwsInitContextConverts` currently **fails** by
+design -- it asserts the conversion should succeed, which is the fix target.
+Everything else here passes.

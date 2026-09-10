@@ -24,10 +24,12 @@
 
 #include <csignal>
 #include <cstdlib>
+#include <functional>
 #include <string>
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
@@ -45,7 +47,7 @@ using namespace autov;
 namespace {
 
 // Long enough to outlast the exponential-cloning guard: the ffm001 case needs
-// ~228s to reach it.  A shorter deadline reports a hang where there is none --
+// ~255s to reach it.  A shorter deadline reports a hang where there is none --
 // which is exactly how these two cases were first mis-diagnosed.
 constexpr int kDeadlineSeconds = 300;
 
@@ -80,11 +82,13 @@ struct Outcome {
     int status = 0;
 };
 
-/// Run the conversion in a child so a non-terminating traversal can be killed.
-Outcome convert_with_deadline(const std::string &path, const std::string &func_name) {
+/// Run [body] in a child so a non-terminating traversal can be killed, and so
+/// its assert()s and exceptions cannot take the suite with it.  The child's
+/// return value becomes the exit status, which is why ConvertStatus is small.
+Outcome run_with_deadline(const std::function<int()> &body) {
     pid_t pid = fork();
     if (pid == 0) {
-        _exit(run_conversion(path, func_name));
+        _exit(body());
     }
 
     for (int elapsed = 0; elapsed < kDeadlineSeconds * 10; elapsed++) {
@@ -102,6 +106,10 @@ Outcome convert_with_deadline(const std::string &path, const std::string &func_n
     kill(pid, SIGKILL);
     waitpid(pid, nullptr, 0);
     return Outcome{/*timed_out=*/true, /*crashed=*/false, /*status=*/0};
+}
+
+Outcome convert_with_deadline(const std::string &path, const std::string &func_name) {
+    return run_with_deadline([&] { return run_conversion(path, func_name); });
 }
 
 std::string data(const std::string &name) {
@@ -125,25 +133,183 @@ void expect_converts(const std::string &file, const std::string &func_name) {
 TEST(CfgConversion, NestedLoopConverts) { expect_converts("nested_loop.ll", "vuln"); }
 
 /* -- exponential block cloning in control_flow_clone_and_split --------------- */
-// Both cases below blow up the same way and die on the same guard
-//   ("block size too large in fn vuln", repeats > 10000000).
-// Neither actually hangs; they just take long enough (~228s and ~26s) that any
-// ordinary timeout makes them look like they do.  They are kept as two cases
-// because they cost very different amounts to run and stress different parts
-// of the blowup -- the large one the traversal, the small one value naming.
-
-// Real input: sws_init_context_vuln (254 blocks) from ffmpeg ffm001.
-// ~228s to the guard, dominated by SpoqLoopContext::travel, which update_jump
-// re-runs over the growing CFG after every clone.
+// control_flow_clone_and_split removes a join phi by cloning the diamond that
+// produced it, which duplicates everything downstream.  Its own comment gives
+// the cost: 2^N blocks for N diamonds in sequence.  It does not hang -- it runs
+// until the "block size too large in fn vuln" guard (repeats > 10000000) throws,
+// which takes long enough that any ordinary timeout makes it look like a hang.
+// That is how both cases below were first mis-diagnosed.
+//
+// STILL FAILING.  sws_init_context_vuln (254 blocks) from ffmpeg ffm001 reaches
+// the guard in ~255s, dominated by SpoqLoopContext::travel, which update_jump
+// re-runs over the growing CFG after every clone.  Its 197 selects no longer
+// contribute (see SingleBlockConverts below); what remains is 91 blocks with two
+// or more predecessors.  That is the quantity that matters -- require_split
+// (SpoqIRModule.h:275) ends in `pred_size(bb) >= 2` and never looks at phis, so
+// only 40 of those 91 carry one.  At 2^(N+2)-4 clone steps for N join points
+// (see JoinScaling below) 91 of them is ~2^93 steps: no budget reaches it, and
+// fixing it means splitting join points without duplicating what follows them.
 TEST(CfgConversion, Ffm001SwsInitContextConverts) {
     expect_converts("ffm001_sws_init_context.ll", "vuln");
 }
 
-// Reduced input: a single basic block, ~26s to the same guard.  Reaches it
-// ~9x faster, so it is the cheaper case to iterate against while fixing the
-// blowup.  Degenerate module (llvm-reduce nulled the call targets).
+/* -- regression: selects must not be expanded into diamonds ------------------ */
+// A single basic block, 51 selects, no phi nodes of its own -- so every diamond
+// it used to produce came from a select.  It took ~26s to hit the same guard
+// while control_flow_conversion_v2 still ran Phase 1
+// (control_flow_eliminate_select), which rewrote each select into a diamond with
+// a join phi.  Selects are now translated directly to an If node by
+// spoq_inst_to_spec (SpoqIRTranslator.cpp), Phase 1 is no longer called, and no
+// phi is introduced for anything to clone away: this converts in ~0.1s.
+//
+// It is kept as the cheap guard on that: a case with no phi sources other than
+// selects fails here if select expansion ever comes back.  Degenerate module
+// (llvm-reduce nulled the call targets), so it is only useful for the CFG pass.
 TEST(CfgConversion, SingleBlockConverts) {
     expect_converts("ffm001_single_block_valuename.ll", "vuln");
+}
+
+/* -- how the cost scales with the number of join points ---------------------- */
+//
+// control_flow_clone_and_split removes a join point by cloning it and
+// everything downstream of it, so join points in sequence compound.  The cost
+// is not merely "exponential" -- it is exactly
+//
+//     clone steps(N) = 2^(N+2) - 4
+//
+// for N sequential join points.  Measured, not derived: bisecting
+// SPOQ_CFG_REPEAT_LIMIT for N = 1..18 gives 4, 12, 28, 60, 124, 252, 508, 1020,
+// ... , 1048572, a ratio of 2.000 from N = 12 up.  See
+// test/ll_to_spoq/join_scaling_sweep.sh for the sweep and
+// test/ll_to_spoq/gen_join_chain.py for the input.
+//
+// Consequences worth keeping in front of anyone changing this pass:
+//   - The default budget (10^7 steps) is exhausted from N = 22 on.  N = 21 is
+//     the largest that converts, and it takes ~27s and 4.2GB to do it.
+//   - Ffm001SwsInitContextConverts has 91 join points, so it is over budget by
+//     a factor of ~2^71.  No budget increase reaches it.
+//   - What counts is join points, not phi nodes: require_split
+//     (SpoqIRModule.h:275) ends in `pred_size(bb) >= 2` and never looks at
+//     phis.  PhiNodesDoNotChangeTheCost below pins that.
+//
+// These cases run under a lowered budget, so the whole series costs a couple of
+// seconds regardless of N -- the budget, not N, caps the work.  That shortcut is
+// sound here only because the cost of this particular input is known
+// analytically.  A lowered budget is NOT a general test for the blowup:
+// sws_setColorspaceDetails (48 blocks) genuinely converts and needs ~5*10^5
+// steps, so a budget below that would call a healthy function broken.
+
+constexpr long kScalingBudget = 100000;
+
+/// Clone steps control_flow_clone_and_split needs for [joins] sequential join
+/// points.  Exact; see above.
+constexpr long clone_steps_for(int joins) { return (1L << (joins + 2)) - 4; }
+
+/// N diamonds in sequence, i.e. N join points.  Mirrors gen_join_chain.py.
+std::string join_chain_ir(int joins, bool with_phis = false) {
+    std::string ir = "define dso_local i32 @vuln(i32 %x) {\n"
+                     "entry:\n"
+                     "  %c0 = icmp eq i32 %x, 0\n"
+                     "  br i1 %c0, label %t0, label %f0\n";
+    for (int i = 0; i < joins; i++) {
+        const std::string n = std::to_string(i);
+        const std::string merge = (i + 1 < joins) ? "m" + std::to_string(i + 1) : "exit";
+        ir += "t" + n + ":\n  br label %" + merge + "\n";
+        ir += "f" + n + ":\n  br label %" + merge + "\n";
+        if (i + 1 < joins) {
+            const std::string m = std::to_string(i + 1);
+            ir += "m" + m + ":\n";
+            if (with_phis)
+                ir += "  %p" + m + " = phi i32 [ " + n + ", %t" + n + " ], [ 1" + n +
+                      ", %f" + n + " ]\n";
+            ir += "  %c" + m + " = icmp eq i32 %x, " + m + "\n";
+            ir += "  br i1 %c" + m + ", label %t" + m + ", label %f" + m + "\n";
+        }
+    }
+    return ir + "exit:\n  ret i32 0\n}\n";
+}
+
+/// Convert [ir] under a lowered clone budget.  The budget is set here rather
+/// than by the caller because clone_repeat_limit() caches it in a function-local
+/// static on first use -- it must be in the environment before any conversion
+/// runs in this process, which the fork guarantees.
+ConvertStatus run_conversion_of_ir(const std::string &ir, long budget) {
+    setenv("SPOQ_CFG_REPEAT_LIMIT", std::to_string(budget).c_str(), /*overwrite=*/1);
+
+    llvm::LLVMContext ctx;
+    llvm::SMDiagnostic err;
+    auto module = llvm::parseAssemblyString(ir, err, ctx);
+    if (!module) return kBadInput;
+
+    auto *func = module->getFunction("vuln");
+    if (!func || func->isDeclaration()) return kBadInput;
+
+    SpoqFunction spoq_func;
+    spoq_func.llvm_func = func;
+    try {
+        return SpoqIRModule::control_flow_conversion_v2("vuln", spoq_func) ? kConverted
+                                                                          : kReportedFailure;
+    } catch (const std::exception &e) {
+        llvm::errs() << "control_flow_conversion_v2 threw: " << e.what() << "\n";
+        return kThrew;
+    }
+}
+
+class JoinScaling : public testing::TestWithParam<int> {};
+
+TEST_P(JoinScaling, CostIsTwoToTheNPlusTwo) {
+    const int joins = GetParam();
+    const long steps = clone_steps_for(joins);
+    const bool should_fit = steps <= kScalingBudget;
+
+    const Outcome out = run_with_deadline(
+            [&] { return run_conversion_of_ir(join_chain_ir(joins), kScalingBudget); });
+
+    ASSERT_FALSE(out.timed_out) << joins << " join points: did not terminate";
+    ASSERT_FALSE(out.crashed) << joins << " join points: crashed";
+    ASSERT_NE(out.status, kBadInput) << joins << " join points: generated IR did not parse";
+
+    // The prediction is two-sided on purpose.  Asserting only that large N
+    // blows up would still pass if the cost were 3^N or N!; requiring the
+    // smaller cases to fit inside the budget is what pins the base to 2.
+    if (should_fit) {
+        EXPECT_EQ(out.status, kConverted)
+                << joins << " join points should need " << steps << " clone steps, which fits in "
+                << kScalingBudget << " -- exhausting the budget means the cost grew faster than "
+                                     "2^(N+2)";
+    } else {
+        EXPECT_EQ(out.status, kThrew)
+                << joins << " join points should need " << steps << " clone steps, over the "
+                << kScalingBudget << " budget -- converting means the cost grew slower than "
+                                     "2^(N+2), i.e. the blowup was fixed and this test is stale";
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(OneToThirty, JoinScaling, testing::Range(1, 31),
+                         [](const testing::TestParamInfo<int> &i) {
+                             return std::to_string(i.param) + "Joins";
+                         });
+
+// Phis are irrelevant to the cost: the pass clones on predecessor count alone.
+// Checked at the boundary, where a change of even one clone step in either
+// direction would flip the verdict.
+TEST(CfgConversion, PhiNodesDoNotChangeTheCost) {
+    const int last_fitting = 14;  // steps(14) = 65532 <= 100000 < 131068 = steps(15)
+    ASSERT_LE(clone_steps_for(last_fitting), kScalingBudget);
+    ASSERT_GT(clone_steps_for(last_fitting + 1), kScalingBudget);
+
+    for (const bool phis : {false, true}) {
+        const Outcome fits = run_with_deadline([&] {
+            return run_conversion_of_ir(join_chain_ir(last_fitting, phis), kScalingBudget);
+        });
+        const Outcome over = run_with_deadline([&] {
+            return run_conversion_of_ir(join_chain_ir(last_fitting + 1, phis), kScalingBudget);
+        });
+        EXPECT_EQ(fits.status, kConverted) << "phis=" << phis << " changed the cost at N="
+                                          << last_fitting;
+        EXPECT_EQ(over.status, kThrew) << "phis=" << phis << " changed the cost at N="
+                                       << last_fitting + 1;
+    }
 }
 
 }  // namespace

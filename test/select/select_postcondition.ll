@@ -1,10 +1,11 @@
 ; End-to-end: a function whose result comes from a `select`, with a
 ; postcondition that must be proved.
 ;
-; This is the full pipeline, so control_flow_eliminate_select runs and rewrites
-; the select into a diamond before translation ever sees it -- the opposite of
-; the unit tests in test/ll_to_spoq, where the CFG pass is skipped and a select
-; reaches spoq_inst_to_spec unhandled.
+; This is the full pipeline, and the select survives all of it: spoq_inst_to_spec
+; translates it straight to an If, so no diamond and no join phi is ever created.
+; control_flow_eliminate_select used to expand it here and is no longer called.
+; See test/join_phi/ifelse_postcondition.ll for the same two-armed spec reached
+; the other way, through a real CFG join.
 ;
 ;   vuln(x) = (x > 0) ? 1 : 0
 ;
