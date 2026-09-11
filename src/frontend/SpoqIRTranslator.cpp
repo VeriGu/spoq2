@@ -91,7 +91,60 @@ const std::unordered_map<llvm::CmpInst::Predicate, Expr::binops> SpoqIRModule::c
 };
 
 
-void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec (llvm::BasicBlock* block, llvm::BasicBlock* parent, spoq_inst_vec_t& vec, SpoqLoopContext& context) {
+/// The block both arms of a conditional branch reconverge at, or null.
+///
+/// Structural rather than a post-dominator query: it recognises the diamond
+///
+///        B                 t and f each have B as their only predecessor,
+///       / \                both branch straight to J, and J has exactly
+///      t   f               those two predecessors.
+///       \ /
+///        J
+///
+/// and the triangle below, and declines anything else -- for which the caller
+/// walks each arm to its own return, duplicating what follows.  The predecessor
+/// count is the load-bearing condition: a third edge into J would mean control
+/// can reach it without passing through this If, so the values bound after the
+/// If would not all be defined.
+static llvm::BasicBlock *reconvergence_point(llvm::BasicBlock *b, llvm::BasicBlock *t,
+                                             llvm::BasicBlock *f, SpoqLoopContext &context) {
+    if (t == f) return nullptr;                     // not a branch in any real sense
+
+    // Loop boundaries belong to the preheader/postheader/loopheader rewrite --
+    // their phis become Fixpoint arguments or the loop call's results -- so an
+    // arm must not be stopped at one.
+    const auto usable_join = [&context](llvm::BasicBlock *j) {
+        if (!j) return false;
+        if (j == context.get_postheader() || j == context.get_loopheader()) return false;
+        return context.require_jump_no_step(j) == nullptr;
+    };
+
+    // Triangle -- `if (c) { arm }` with no else, where one successor IS the
+    // join.  That successor needs no walking: it yields the phi values for the
+    // b->j edge directly.
+    for (auto *arm : {t, f}) {
+        auto *other = (arm == t) ? f : t;
+        if (arm->getUniquePredecessor() != b) continue;
+        if (arm->getUniqueSuccessor() != other) continue;
+        if (!other->hasNPredecessors(2)) continue;
+        if (context.require_jump_no_step(arm)) continue;
+        if (usable_join(other)) return other;
+    }
+
+    if (!t->getUniquePredecessor() || !f->getUniquePredecessor()) return nullptr;
+    if (t->getUniquePredecessor() != b || f->getUniquePredecessor() != b) return nullptr;
+
+    auto *j = t->getUniqueSuccessor();
+    if (!j || j != f->getUniqueSuccessor()) return nullptr;
+    if (!j->hasNPredecessors(2)) return nullptr;
+    if (j == t || j == f) return nullptr;
+
+    if (context.require_jump_no_step(t) || context.require_jump_no_step(f)) return nullptr;
+    return usable_join(j) ? j : nullptr;
+}
+
+void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec (llvm::BasicBlock* block, llvm::BasicBlock* parent, spoq_inst_vec_t& vec, SpoqLoopContext& context,
+        llvm::BasicBlock* stop, bool join_phis_bound) {
 
     if (context.is_backward(parent, block)) {
         vec.push_back(std::make_unique<SpoqContinueInst>(parent));
@@ -104,6 +157,18 @@ void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec (llvm::BasicBlock* block, llvm::
     }
 
     assert (block != context.get_postheader() && "Postheader should not be visited. All exits blcoked before.");
+
+    // This arm was told to stop at the join.  Yield what the join needs -- each
+    // of its phis on this edge, plus the state as this arm leaves it -- and let
+    // the caller emit everything after the join once.
+    if (block == stop) {
+        auto join_inst = std::make_unique<SpoqJoinInst>(block, parent);
+        assert(parent && "reached a join with no predecessor to select phi values from");
+        for (auto &phi : block->phis())
+            join_inst->incoming.push_back(phi.getIncomingValueForBlock(parent));
+        vec.push_back(std::move(join_inst));
+        return;
+    }
 
     // This block is a loop preheader.
     // The preheader's all instructions excpet for the last unconditional branch are put in the current vec.
@@ -121,7 +186,7 @@ void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec (llvm::BasicBlock* block, llvm::
         context.set_loop_inst_for_jump(block, v->body);
         vec.push_back(std::move(v));
 
-        dfs_llvm_ir_to_spoq_inst_vec(target, nullptr, vec, context);
+        dfs_llvm_ir_to_spoq_inst_vec(target, nullptr, vec, context, stop);
         return;
     }
 
@@ -129,13 +194,32 @@ void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec (llvm::BasicBlock* block, llvm::
     // Non preheader
     for(auto &inst: *block) {
         if(auto phi = llvm::dyn_cast<llvm::PHINode>(&inst)) {
-            assert( (block == context.get_loopheader() || context.postheader_with_phi(block)) && "PHI node is not in the loop header or postheader");
             if (block == context.get_loopheader()) {
+                // Becomes an argument of the loop's Fixpoint.
                 context.add_header_phi(phi);
+                continue;
             }
+            if (context.postheader_with_phi(block)) {
+                // Belongs to the loop we jump over; processed with that loop.
+                continue;
+            }
+            if (join_phis_bound) {
+                // Continuation of a reconverging If, which already bound them.
+                continue;
+            }
+
+            // A phi at an ordinary join.  We arrived along one edge, from
+            // `parent`, so on this path the phi is that edge's incoming value.
+            //
+            // getIncomingValueForBlock takes the first entry for `parent`, which
+            // is unambiguous even when an edge is duplicated
+            // (`br i1 c, label %J, label %J`): LLVM's verifier rejects a phi
+            // that gives one predecessor two different values.
+            assert(parent && "join phi reached without a predecessor to select from");
+            auto *incoming = phi->getIncomingValueForBlock(parent);
+            assert(incoming && "phi has no incoming value for the edge we arrived on");
+            vec.push_back(std::make_unique<SpoqPhiInst>(phi, incoming, parent));
             continue;
-            // This phi nodes of postheader belongs to the loop we jump.
-            // It will be processed when we process that loop.
         }
 
         if(auto br = llvm::dyn_cast<llvm::BranchInst>(&inst)) {
@@ -143,12 +227,25 @@ void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec (llvm::BasicBlock* block, llvm::
                 auto cond = br->getCondition();
                 auto true_block = br->getSuccessor(0);
                 auto false_block = br->getSuccessor(1);
+                auto *join = reconvergence_point(block, true_block, false_block, context);
+
                 SpoqIfInst spoq_inst(cond);
-                dfs_llvm_ir_to_spoq_inst_vec(true_block, block, spoq_inst.true_body, context);
-                dfs_llvm_ir_to_spoq_inst_vec(false_block, block, spoq_inst.false_body, context);
+                spoq_inst.join = join;
+                // With a join, each arm stops there; without one, each arm runs
+                // to its own return and inherits our own stop.
+                auto *arm_stop = join ? join : stop;
+                dfs_llvm_ir_to_spoq_inst_vec(true_block, block, spoq_inst.true_body, context, arm_stop);
+                dfs_llvm_ir_to_spoq_inst_vec(false_block, block, spoq_inst.false_body, context, arm_stop);
                 vec.push_back(std::make_unique<SpoqIfInst>(std::move(spoq_inst)));
+
+                if (join) {
+                    // Emitted once, after the If, rather than once per arm.  The
+                    // join's own phis are bound by the If, hence join_phis_bound.
+                    dfs_llvm_ir_to_spoq_inst_vec(join, block, vec, context, stop,
+                                                 /*join_phis_bound=*/true);
+                }
             } else {
-                dfs_llvm_ir_to_spoq_inst_vec(br->getSuccessor(0), block, vec, context);
+                dfs_llvm_ir_to_spoq_inst_vec(br->getSuccessor(0), block, vec, context, stop);
             }
             return; // A br is the last instruction in a block (for a valid llvm module)
         }
@@ -1184,19 +1281,71 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
 
         llvm::errs() << "Unsupported SpoqIR instruction [LLVM]: " << *spoq_inst->inst << "\n";
         assert(false && "Unsupported SpoqIR instruction [LLVM]");
+    } else if (auto inst = Shortcut::dyn_cast_u<SpoqPhiInst>(vec[num])) {
+        // let <phi> := <incoming value for the edge we arrived on> in <rest>
+        //
+        // Bound under the phi's own SSA name, so downstream uses resolve without
+        // a rename map.  That name is unique in the function and nothing is in
+        // scope under it yet, since SSA dominance puts every use after this
+        // point.
+        //
+        // One `let` per phi is sound even when a join carries several, for the
+        // same dominance reason: an incoming value must dominate its own edge,
+        // which nothing defined inside the join block does, so sibling phis
+        // cannot name each other and their order does not matter.
+        auto sym = context.get_llvm_value_spec(inst->phi);
+        auto value = context.get_llvm_value_spec(inst->incoming);
+        return Shortcut::_Let_u(std::move(sym), std::move(value),
+                                spoq_inst_to_spec(proj, vec, num + 1, context));
+    } else if (auto inst = Shortcut::dyn_cast_u<SpoqJoinInst>(vec[num])) {
+        // The tail of one arm of a reconverging If:
+        //
+        //   Some (v_1, ..., v_k, st)
+        //
+        // where v_i is what the join's i-th phi takes on this arm's edge and
+        // `st` is the state as this arm leaves it, so a store in the arm is
+        // carried out through the same tuple.  Wrapped in Some because the arm
+        // is option-typed: a `rely` anywhere inside it can yield None.
+        assert(num == vec.size() - 1 && "a join is not the last instruction in its arm");
+        auto values = std::make_unique<vector<unique_ptr<SpecNode>>>();
+        for (auto *incoming : inst->incoming)
+            values->push_back(context.get_llvm_value_spec(incoming));
+        values->push_back(context.get_abs_data());
+        auto yielded = values->size() == 1 ? std::move(values->at(0))
+                                           : Shortcut::_Tuple_u(std::move(values));
+        return Shortcut::_Some_u(std::move(yielded));
     } else if (auto inst = Shortcut::dyn_cast_u<SpoqIfInst>(vec[num])) {
-        if (num == vec.size() - 1) {
-            /// Final return.
-            auto cond = context.get_llvm_value_spec(inst->cond);
-            auto then_body = spoq_inst_to_spec(proj, inst->true_body, 0, context);
-            auto else_body = spoq_inst_to_spec(proj, inst->false_body, 0, context);
-            unique_ptr<If> if_inst = std::make_unique<If>(
-                std::move(cond), std::move(then_body), std::move(else_body));
+        auto cond = context.get_llvm_value_spec(inst->cond);
+        auto then_body = spoq_inst_to_spec(proj, inst->true_body, 0, context);
+        auto else_body = spoq_inst_to_spec(proj, inst->false_body, 0, context);
+        unique_ptr<If> if_inst = std::make_unique<If>(
+            std::move(cond), std::move(then_body), std::move(else_body));
+
+        if (!inst->join) {
+            // Each arm ran to its own return, so there is nothing after the If.
+            assert(num == vec.size() - 1 && "a non-reconverging if-else must be the final return");
             return std::move(if_inst);
-        } else {
-            assert(false && "A if-else should always a final return");
-            return nullptr;
         }
+
+        // The arms reconverge.  Bind what they yield and carry on once:
+        //
+        //   when (r_1, ..., r_k, st) == (if c then <arm> else <arm>); <rest>
+        //
+        // The names bound are the join's own phi names, plus `st`, which shadows
+        // the incoming state exactly as a store's `when st == ...` does -- that
+        // is what carries an arm's memory effects past the join.  A `when`
+        // rather than a plain `let` because the arms are option-typed and their
+        // None has to propagate.
+        auto pattern_parts = std::make_unique<vector<unique_ptr<SpecNode>>>();
+        for (auto &phi : inst->join->phis())
+            pattern_parts->push_back(context.get_llvm_value_spec(&phi));
+        pattern_parts->push_back(context.get_abs_data());
+        auto pattern = pattern_parts->size() == 1
+                               ? std::move(pattern_parts->at(0))
+                               : Shortcut::_Tuple_u(std::move(pattern_parts));
+
+        return Shortcut::_When_u(std::move(pattern), std::move(if_inst),
+                                 spoq_inst_to_spec(proj, vec, num + 1, context));
     } else if (auto inst = Shortcut::dyn_cast_u<SpoqLoopInst>(vec[num])) {
 
         // Generate the loop body spec

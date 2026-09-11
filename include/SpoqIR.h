@@ -36,11 +36,58 @@ public:
 typedef std::vector<unique_ptr<SpoqInst>> spoq_inst_vec_t;
 
 
+/// A phi at a CFG join, resolved to the edge the walk arrived on.
+///
+/// The walk reaches a join once per incoming path, and on any one path exactly
+/// one of a phi's incoming values is live: the one belonging to the predecessor
+/// it came from.  Holding that choice here reduces the phi to an ordinary
+/// binding, `let <phi> := <incoming> in <rest>`.
+class SpoqPhiInst : public SpoqInst {
+public:
+    llvm::PHINode* phi = nullptr;
+    llvm::Value* incoming = nullptr;    ///< value for the edge we arrived on
+    llvm::BasicBlock* from = nullptr;   ///< the predecessor that edge came from
+    SpoqPhiInst(llvm::PHINode* phi, llvm::Value* incoming, llvm::BasicBlock* from)
+        : phi(phi), incoming(incoming), from(from) {}
+    bool virtual is_spoq_control() override { return false; }
+    llvm::Instruction* get_llvm_inst() override { return phi; }
+    void print() override {
+        llvm::errs() << "SpoqPhiInst: " << *phi << "  <- " << *incoming << " from "
+                     << from->getName() << "\n";
+    }
+};
+
+
+/// Terminates one arm of a reconverging SpoqIfInst, yielding what the join
+/// needs: whatever its phis take on this arm's edge, plus the state as the arm
+/// left it.  The arm stops here rather than walking on into the join, so the
+/// code after the join is emitted once instead of once per arm.
+class SpoqJoinInst : public SpoqInst {
+public:
+    llvm::BasicBlock* join = nullptr;   ///< block the two arms reconverge at
+    llvm::BasicBlock* from = nullptr;   ///< the edge this arm reaches it on
+    std::vector<llvm::Value*> incoming; ///< value each of join's phis takes here
+    SpoqJoinInst(llvm::BasicBlock* join, llvm::BasicBlock* from) : join(join), from(from) {}
+    bool virtual is_spoq_control() override { return true; }
+    void print() override {
+        llvm::errs() << "SpoqJoinInst: -> " << join->getName() << " from " << from->getName()
+                     << " carrying " << incoming.size() << " phi value(s)\n";
+    }
+};
+
+
 class SpoqIfInst : public SpoqInst {
 public:
     llvm::Value* cond;
     spoq_inst_vec_t true_body;
     spoq_inst_vec_t false_body;
+
+    /// The block both arms reconverge at, if they do.  Set means this If is not
+    /// the last instruction in its vector: the arms stop at the join and the
+    /// rest of the program follows the If once.  Null means each arm runs to its
+    /// own return, and the If is terminal.
+    llvm::BasicBlock* join = nullptr;
+
     SpoqIfInst(llvm::Value* cond) : cond(cond) {}
     bool virtual is_spoq_control() override { return true; }
     void print() override { 

@@ -128,6 +128,10 @@ int SpoqIRModule::find_inline_asm(spoq_inst_vec_t &insts) {
             continue;
         } else if (auto b = dynamic_cast<SpoqBreakInst *>(in.get())) {
             continue;
+        } else if (auto p = dynamic_cast<SpoqPhiInst *>(in.get())) {
+            continue;  // a phi selection; carries no call, so no asm
+        } else if (auto j = dynamic_cast<SpoqJoinInst *>(in.get())) {
+            continue;  // an arm's join tuple; likewise
         } else {
             assert(false && "Unsupported SpoqIR instruction");
         }

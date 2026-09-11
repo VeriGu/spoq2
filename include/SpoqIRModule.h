@@ -1093,7 +1093,8 @@ namespace autov {
         static shared_ptr<SpecType> llvm_ir_type_to_spec_pure(llvm::Type* type);
 
 
-        static void dfs_llvm_ir_to_spoq_inst_vec(llvm::BasicBlock* block, llvm::BasicBlock* parent, spoq_inst_vec_t& vec, SpoqLoopContext& context);
+        static void dfs_llvm_ir_to_spoq_inst_vec(llvm::BasicBlock* block, llvm::BasicBlock* parent, spoq_inst_vec_t& vec, SpoqLoopContext& context,
+            llvm::BasicBlock* stop = nullptr, bool join_phis_bound = false);
 
         static bool llvm_ir_to_spoq_ir(SpoqFunction &spoq_func);
 
@@ -1120,7 +1121,7 @@ namespace autov {
         /**
          * @brief A pass in and out ananlysis for loop. This is required for generating reasoning loop spec. See details in `recursive_update_pass`.
          */
-        static void pass_analysis(llvm::BasicBlock* block, std::vector<llvm::BasicBlock*>& stack,  SpoqLoopContext& context);
+        static void pass_analysis(llvm::BasicBlock* block, std::vector<llvm::BasicBlock*>& stack,  SpoqLoopContext& context, std::set<llvm::BasicBlock*>& visited);
 
         SpoqIRIASM parse_inline_asm(const string& fname, string asm_text, llvm::Type* rettype,
             vector<llvm::Type*> &arglist, const string& constraints);

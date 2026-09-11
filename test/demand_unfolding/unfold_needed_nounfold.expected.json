@@ -1,0 +1,7 @@
+{
+  "verified": false,
+  "stderr_lacks": "[UNFOLD] deferring helper_spec;[demand-unfold] simulation failed below a call to helper_spec;inlining helper_spec",
+  "spec_v_definition": "vuln_spec",
+  "spec_v_contains": "helper_spec st",
+  "spec_v_lacks": "g_g] :< 5"
+}

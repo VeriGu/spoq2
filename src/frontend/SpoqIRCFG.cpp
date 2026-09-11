@@ -293,6 +293,17 @@ static long clone_repeat_limit() {
     return 10000000;
 }
 
+// Whether Phase 3b clones join points.  Off unless SPOQ_CFG_CLONE_JOINS is set.
+//
+// Cloning duplicates a join and everything downstream of it once per incoming
+// edge, which costs 2^(N+2)-4 clone steps for N joins in sequence.  Translation
+// resolves a join phi per incoming edge instead, so nothing here needs it; the
+// switch exists to compare the two on a given input.
+static bool clone_joins() {
+    static const bool on = std::getenv("SPOQ_CFG_CLONE_JOINS") != nullptr;
+    return on;
+}
+
 static int repeats = 0;
 bool SpoqIRModule::control_flow_clone_and_split(llvm::BasicBlock *bb, SpoqLoopContext &context) {
     // LOG_DEBUG << "clone and split " << (bb->hasName() ? bb->getName().str() : "no name");
@@ -423,17 +434,18 @@ void SpoqIRModule::control_flow_merge_bridge(llvm::BasicBlock* bb, std::set<llvm
 bool SpoqIRModule::control_flow_conversion_DAG(const string& fname, SpoqFunction &spoq_func, SpoqLoopContext& context) {
 
 
-    // --- Sub-pass 1: Clone-and-split + phi cleanup, per region ---
+    // --- Sub-pass 1: phi cleanup, per region ---
     context.init(spoq_func.llvm_func);
-    bool state = false;
     while (context.step()) {
-        repeats = 0;
-        state = control_flow_clone_and_split(context.get_start(), context);
-        if (!state) return false;
+        if (clone_joins()) {
+            repeats = 0;
+            if (!control_flow_clone_and_split(context.get_start(), context)) return false;
+        }
 
-        // Eliminate trivial phi nodes: if a block now has only one
-        // predecessor, its phi nodes each have exactly one incoming
-        // value and can be replaced directly.
+        // Eliminate trivial phi nodes: a block with only one predecessor has phi
+        // nodes with exactly one incoming value each, so they can be replaced
+        // directly.  Phis at real joins are left alone for
+        // dfs_llvm_ir_to_spoq_inst_vec, which resolves each per incoming edge.
         std::vector<llvm::Instruction *> to_erase;
         for (auto &bb : *spoq_func.llvm_func) {
             for (auto &inst : bb) {
@@ -445,12 +457,12 @@ bool SpoqIRModule::control_flow_conversion_DAG(const string& fname, SpoqFunction
                         auto block = phi->getIncomingValueForBlock(predecesor);
                         phi->replaceAllUsesWith(block);
                         to_erase.push_back(phi);
-                    } else {
+                    } else if (clone_joins()) {
+                        // Cloning should have left this block one predecessor.
                         context.debug_jump();
                         llvm::errs() << "phi: " << *phi << "\n";
                         llvm::errs() << "some PHI are not eliminated but required so" << "\n";
                         return false;
-                        continue;
                     }
                 }
             }
@@ -496,7 +508,14 @@ bool SpoqIRModule::control_flow_conversion_DAG(const string& fname, SpoqFunction
 //   %z = add %y, ...       ; uses %y → %y must be "passed out" of the loop
 
 void SpoqIRModule::pass_analysis(llvm::BasicBlock* block, std::vector<llvm::BasicBlock*>& stack,
-        SpoqLoopContext& context) {
+        SpoqLoopContext& context, std::set<llvm::BasicBlock*>& visited) {
+
+    // Visit each block once.  The work below is per-instruction and idempotent,
+    // and a block sits in exactly one innermost loop, so its loop stack is the
+    // same however it is reached -- re-walking it records nothing new.  The CFG
+    // here is a DAG, so without this walking every path would cost 2^N for N
+    // join points.
+    if (!visited.insert(block).second) return;
 
     // Is this block a loop preheader?  If so, enter the loop.
    if (auto target = context.require_jump_no_step(block)) {
@@ -507,9 +526,9 @@ void SpoqIRModule::pass_analysis(llvm::BasicBlock* block, std::vector<llvm::Basi
         // then pop and continue with the postheader.
         stack.push_back(block);
         assert(block->getUniqueSuccessor() && "preheader does not have a unique successor");
-        pass_analysis(block->getUniqueSuccessor(), stack, context);
+        pass_analysis(block->getUniqueSuccessor(), stack, context, visited);
         stack.pop_back();
-        pass_analysis(target, stack, context);
+        pass_analysis(target, stack, context, visited);
         return;
     }
 
@@ -539,7 +558,7 @@ void SpoqIRModule::pass_analysis(llvm::BasicBlock* block, std::vector<llvm::Basi
     // Skip backward edges (latch → loop header) to avoid infinite recursion.
     for (auto succ: llvm::successors(block)) {
         if (stack.size() && context.is_backward(block, succ, *stack.rbegin())) continue;
-        pass_analysis(succ, stack, context);
+        pass_analysis(succ, stack, context, visited);
     }
 }
 
@@ -550,9 +569,10 @@ void SpoqIRModule::pass_analysis(llvm::BasicBlock* block, std::vector<llvm::Basi
 // Orchestrates all four phases to convert an LLVM function's CFG into
 // a tree-shaped structured form for Coq generation.
 //
-//   Phase 1: select → branch diamonds
+//   Phase 1: select → branch diamonds (not run: selects translate to an If)
 //   Phase 2: normalize loops (preheader/postheader)
-//   Phase 3: clone join points → tree-shaped CFG
+//   Phase 3: eliminate phis whose block has a single predecessor.  Phis at real
+//            joins survive, and the CFG emitted here is a DAG, not a tree.
 //   Phase 4: compute cross-loop value flow
 //
 // If the function has no loops, Phase 2 and Phase 4 are skipped.
@@ -716,7 +736,8 @@ bool SpoqIRModule::control_flow_conversion_v2(string fname,
         // ── Phase 3: Pass analysis ──
         context.travel_all();
         std::vector<llvm::BasicBlock*> loop_stack;
-        pass_analysis(&spoq_func.llvm_func->getEntryBlock(), loop_stack, context);
+        std::set<llvm::BasicBlock*> visited;
+        pass_analysis(&spoq_func.llvm_func->getEntryBlock(), loop_stack, context, visited);
 
         return spoq_func.cfg_converted;
     } else {
