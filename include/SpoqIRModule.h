@@ -816,6 +816,39 @@ namespace autov {
         }
 
         /**
+         * @brief Rebind the loop's carried values to the results it returned.
+         *
+         * compute_loop_break_return_list names the pass-in and header-phi
+         * results `<v>_after`, because the loop may have changed them.  Code
+         * after the loop still refers to those values by their own names -- a
+         * phi at a join below the loop takes `%tmp.0` on its loop-exit edge, for
+         * instance -- so bind each one to the value the loop produced:
+         *
+         *     let tmp_0 := tmp_0_after in <rest>
+         *
+         * Shadowing the pre-loop name is what makes those references correct:
+         * for a value the loop carries, the post-loop value is the one meant,
+         * and for one it merely passes through the two are equal.  Bindings the
+         * continuation never reads are left for rule_eliminate_let to drop.
+         *
+         * @param preheader
+         * @param body the code following the loop
+         */
+        std::unique_ptr<SpecNode> bind_loop_results(llvm::BasicBlock* preheader,
+                                                    std::unique_ptr<SpecNode> body) {
+            auto const bind = [&](llvm::Value* val) {
+                auto const name = get_llvm_value_name(val);
+                auto const type = get_llvm_value_type(val);
+                body = Shortcut::_Let_u(std::make_unique<Symbol>(name, type),
+                                        std::make_unique<Symbol>(name + "_after", type),
+                                        std::move(body));
+            };
+            for (auto &phi: spoq_func.loop_context.header_phi[preheader]) bind(phi);
+            for (auto &val: spoq_func.loop_context.pass_in[preheader]) bind(val);
+            return body;
+        }
+
+        /**
          * @brief Compute the actual return SpecNode list of a loop break instruction
          *
          * @param preheader

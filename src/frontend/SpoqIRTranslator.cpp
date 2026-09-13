@@ -1385,7 +1385,9 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
         auto src_loop = std::make_unique<Expr>(name, std::move(v));
 
         auto pass_out_list = Shortcut::_Tuple_u(context.compute_loop_break_return_list(inst->preheader_block));
-        return Shortcut::_When_u(std::move(pass_out_list), std::move(src_loop), spoq_inst_to_spec(proj, vec, num + 1, context));
+        auto rest = context.bind_loop_results(inst->preheader_block,
+                                              spoq_inst_to_spec(proj, vec, num + 1, context));
+        return Shortcut::_When_u(std::move(pass_out_list), std::move(src_loop), std::move(rest));
     } else if (auto inst = Shortcut::dyn_cast_u<SpoqContinueInst>(vec[num])) {
         assert(num == vec.size() - 1 && "continue is not the last instruction");
         int guard = 0, i = 0;
