@@ -275,6 +275,18 @@ target_compile_definitions(IrTranslationTest PRIVATE
     SPOQ_LL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/ll_to_spoq")
 add_test(NAME IrTranslation COMMAND IrTranslationTest)
 set_tests_properties(IrTranslation PROPERTIES TIMEOUT 300)
+
+# ------------------------------------------------------------------------------
+# UnfoldAmbiguityTest -- rule_unfold_specs together with eliminate_ambiguity
+# ------------------------------------------------------------------------------
+# Pins which shadowing the repair pass is required to fix, which it must leave
+# alone, and what it costs -- the contract any change to binder naming during
+# unfolding has to preserve.
+add_executable(UnfoldAmbiguityTest test/unit/UnfoldAmbiguityTest.cpp $<TARGET_OBJECTS:spoq_core>)
+target_link_libraries(UnfoldAmbiguityTest GTest::gtest_main GTest::gtest irloader parser
+    antlr4_shared ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
+add_test(NAME UnfoldAmbiguity COMMAND UnfoldAmbiguityTest)
+set_tests_properties(UnfoldAmbiguity PROPERTIES TIMEOUT 120)
 set_target_properties(SpoqTest PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build")
 
@@ -290,4 +302,8 @@ foreach(expected ${SPOQ_TEST_EXPECTED})
     string(REGEX REPLACE "\\.expected\\.json$" "" case_name "${case_name}")
     add_test(NAME ${case_name}
              COMMAND SpoqTest --gtest_filter=Spoq.${case_name})
+    # Default ctest timeout is 1500s, long enough for a case that does not
+    # terminate to stall the whole suite.  These finish in seconds when they
+    # finish at all, so cut them off early and report a failure instead.
+    set_tests_properties(${case_name} PROPERTIES TIMEOUT 120)
 endforeach()

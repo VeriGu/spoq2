@@ -65,6 +65,13 @@ private:
     Project *proj;
     std::unique_ptr<SpecNode> rec_apply(std::unique_ptr<SpecNode> spec,
                                               const std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)>& f);
+    /// rec_apply, but maintaining the set of names bound at each point.  [scope]
+    /// gains a binder while descending into its scope and loses it on the way
+    /// out, so an `f` that captures it by reference sees what is live where it
+    /// is applied.  For the rules that move terms under binders.
+    std::unique_ptr<SpecNode> rec_apply_scoped(std::unique_ptr<SpecNode> spec,
+                                              const std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)>& f,
+                                              std::set<std::string>& scope);
 public: 
     using rule_t = std::function<rule_ret_t(std::unique_ptr<SpecNode>)>;
     struct SpecRule {
@@ -135,6 +142,10 @@ public:
     rule_ret_t replace_spec_name(std::unique_ptr<SpecNode> spec, std::unordered_map<std::string, std::string>& name_map);
 
     std::unique_ptr<SpecNode> eliminate_ambiguity(std::unique_ptr<SpecNode> spec, std::set<std::string>& prev_symbols, bool& changed);
+    /// The body of eliminate_ambiguity.  Split out so the wrapper can compare
+    /// the node's type across the call, which is a side effect callers depend
+    /// on: rebuilding an If re-derives its type from the then-branch.
+    std::unique_ptr<SpecNode> eliminate_ambiguity_impl(std::unique_ptr<SpecNode> spec, std::set<std::string>& prev_symbols, bool& changed);
     std::unique_ptr<SpecNode> instantiate_prop(std::unique_ptr<SpecNode> spec, std::unique_ptr<SpecNode> instance_st, const std::string& st = "st");
     std::unique_ptr<SpecNode> build_simulate_spec(std::unique_ptr<SpecNode> spec);
     rule_ret_t merge_branch(std::unique_ptr<SpecNode> spec);

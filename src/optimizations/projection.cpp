@@ -408,6 +408,10 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             }
             changed |= hoist_changed;
             if (hoist_changed) {
+                // hoist_match_from_branch renames as it moves terms under new
+                // binders, so this normally finds nothing to rename.  It is not
+                // redundant: rebuilding an If re-derives its type from the
+                // then-branch, and simple_if_by_z3 asserts on that.
                 spec = proj->rules.eliminate_ambiguity(std::move(spec), known, um_changed);
             }
             
