@@ -508,14 +508,17 @@ bool SpoqIRModule::control_flow_conversion_DAG(const string& fname, SpoqFunction
 //   %z = add %y, ...       ; uses %y → %y must be "passed out" of the loop
 
 void SpoqIRModule::pass_analysis(llvm::BasicBlock* block, std::vector<llvm::BasicBlock*>& stack,
-        SpoqLoopContext& context, std::set<llvm::BasicBlock*>& visited) {
+        SpoqLoopContext& context,
+        std::set<std::pair<llvm::BasicBlock*, std::vector<llvm::BasicBlock*>>>& visited) {
 
-    // Visit each block once.  The work below is per-instruction and idempotent,
-    // and a block sits in exactly one innermost loop, so its loop stack is the
-    // same however it is reached -- re-walking it records nothing new.  The CFG
-    // here is a DAG, so without this walking every path would cost 2^N for N
-    // join points.
-    if (!visited.insert(block).second) return;
+    // Visit each block once *per loop stack*.  What this pass records is
+    // relative to the stack -- recursive_update_pass compares where a value was
+    // defined against where it is used -- so a block reached with a different
+    // stack has different work to do, and memoising on the block alone drops
+    // it.  Keying on both still bounds the walk: the CFG here is a DAG, where
+    // visiting every path costs 2^N for N join points, and the number of
+    // distinct stacks is the loop nesting depth.
+    if (!visited.insert({block, stack}).second) return;
 
     // Is this block a loop preheader?  If so, enter the loop.
    if (auto target = context.require_jump_no_step(block)) {
@@ -736,7 +739,7 @@ bool SpoqIRModule::control_flow_conversion_v2(string fname,
         // ── Phase 3: Pass analysis ──
         context.travel_all();
         std::vector<llvm::BasicBlock*> loop_stack;
-        std::set<llvm::BasicBlock*> visited;
+        std::set<std::pair<llvm::BasicBlock*, std::vector<llvm::BasicBlock*>>> visited;
         pass_analysis(&spoq_func.llvm_func->getEntryBlock(), loop_stack, context, visited);
 
         return spoq_func.cfg_converted;

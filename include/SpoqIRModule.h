@@ -1121,7 +1121,7 @@ namespace autov {
         /**
          * @brief A pass in and out ananlysis for loop. This is required for generating reasoning loop spec. See details in `recursive_update_pass`.
          */
-        static void pass_analysis(llvm::BasicBlock* block, std::vector<llvm::BasicBlock*>& stack,  SpoqLoopContext& context, std::set<llvm::BasicBlock*>& visited);
+        static void pass_analysis(llvm::BasicBlock* block, std::vector<llvm::BasicBlock*>& stack,  SpoqLoopContext& context, std::set<std::pair<llvm::BasicBlock*, std::vector<llvm::BasicBlock*>>>& visited);
 
         SpoqIRIASM parse_inline_asm(const string& fname, string asm_text, llvm::Type* rettype,
             vector<llvm::Type*> &arglist, const string& constraints);

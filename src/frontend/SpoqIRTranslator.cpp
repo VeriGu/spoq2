@@ -116,7 +116,12 @@ static llvm::BasicBlock *reconvergence_point(llvm::BasicBlock *b, llvm::BasicBlo
     const auto usable_join = [&context](llvm::BasicBlock *j) {
         if (!j) return false;
         if (j == context.get_postheader() || j == context.get_loopheader()) return false;
-        return context.require_jump_no_step(j) == nullptr;
+        // can_remove is false for the preheader and the postheader of *any*
+        // loop, not just the one being walked.  A postheader in particular
+        // still looks like an ordinary two-predecessor join from outside the
+        // loop, and stopping an arm there would read its phis directly instead
+        // of through the loop's pass-out list.
+        return context.can_remove(j);
     };
 
     // Triangle -- `if (c) { arm }` with no else, where one successor IS the
