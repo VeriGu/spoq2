@@ -196,7 +196,10 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 known.insert(arg->name);
             }
 
-            auto log_fn_name = "avpriv_ac3_parse_header_vuln_spec";
+            // TEMPORARY: SPOQ_LOG_FN selects which definition dumps its body at
+            // the top of every transformation iteration, to <name>_transform_<n>.
+            static const char *const env_log_fn = std::getenv("SPOQ_LOG_FN");
+            auto log_fn_name = env_log_fn ? env_log_fn : "avpriv_ac3_parse_header_vuln_spec";
             bool const log_spec = false;
             if(def->name == log_fn_name){
                 // auto s = string(*def->body);
@@ -408,11 +411,9 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             }
             changed |= hoist_changed;
             if (hoist_changed) {
-                // hoist_match_from_branch renames as it moves terms under new
-                // binders, so this normally finds nothing to rename.  It is not
-                // redundant: rebuilding an If re-derives its type from the
-                // then-branch, and simple_if_by_z3 asserts on that.
-                spec = proj->rules.eliminate_ambiguity(std::move(spec), known, um_changed);
+                // The hoist moves subterms between parents, leaving the
+                // types those parents cached stale.
+                refresh_types(spec.get());
             }
             
             if(def->name == log_fn_name){

@@ -53,6 +53,10 @@ public:
     SpecNode() : type(SpecType::UNKNOWN_TYPE), nid(id++) {}
     SpecNode(shared_ptr<SpecType> type) : type(std::move(type)), nid(id++) {}
 
+    /// Re-derive this node's type from its children, as the constructor would.
+    /// Nodes whose type does not come from a child do not override it.
+    virtual void refresh_type() {}
+
     virtual bool operator==(const SpecNode& other) const {
         if (typeid(other) != typeid(*this)) {
             return false;
@@ -699,6 +703,10 @@ public:
         SpecNode(body->get_type()), pattern(std::move(pattern)), body(std::move(body)) {
         }
 
+    void refresh_type() override {
+        if (body) type = body->get_type();
+    }
+
     bool operator==(const SpecNode& other) const {
         if (typeid(other) != typeid(PatternMatch)) {
             return false;
@@ -775,6 +783,11 @@ public:
             //         assert(false);
             //     }
             // }
+    }
+
+    void refresh_type() override {
+        if (match_list && !match_list->empty() && (*match_list)[0]->body)
+            type = (*match_list)[0]->body->get_type();
     }
 
     bool operator==(const SpecNode& other) const {
@@ -888,6 +901,16 @@ public:
 
                 if (holds_alternative<Expr::ops>(e->op) && std::get<Expr::ops>(e->op) != Expr::Tuple) {
                     return false;
+                }
+
+                // A named constructor is irrefutable only when its type has
+                // no other constructor; otherwise a `let` would drop the
+                // remaining cases.
+                if (holds_alternative<string>(e->op)) {
+                    auto const ind = std::dynamic_pointer_cast<Inductive>(src->get_type());
+                    if (!ind || !ind->constrs || ind->constrs->size() != 1) {
+                        return false;
+                    }
                 }
 
                 for (auto it = patterns->elems->begin(); it != patterns->elems->end(); it++) {
@@ -1023,6 +1046,10 @@ public:
     RelyAnno() { throw std::invalid_argument("RelyAnno must have a prop and body"); }
     RelyAnno(unique_ptr<SpecNode>prop, unique_ptr<SpecNode>body) :
         SpecNode(body->get_type()), prop(std::move(prop)), body(std::move(body)) {}
+
+    void refresh_type() override {
+        if (body) type = body->get_type();
+    }
 
     virtual ~RelyAnno() = default;
     size_t count_leaves() const {
@@ -1163,6 +1190,10 @@ public:
         //     LOG_DEBUG << string(*this->else_body);
         //     assert(false);
         // }
+    }
+
+    void refresh_type() override {
+        type = then_body ? then_body->get_type() : SpecType::UNKNOWN_TYPE;
     }
 
     bool operator==(const SpecNode& other) const {
@@ -1609,4 +1640,7 @@ class TypeInferenceException : public std::runtime_error {
     public:
     TypeInferenceException(const std::string& s): std::runtime_error(s) {}
 };
+/// Re-derive the type of every node in [spec] from its children, bottom-up.
+void refresh_types(SpecNode *spec);
+
 }// namespace autov

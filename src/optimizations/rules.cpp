@@ -4,6 +4,7 @@
 #include <shortcuts.h>
 #include <project.h>
 #include <simulate.h>
+#include <chrono>
 #include <cassert>
 #include <utility>
 #include <rules.h>
@@ -1680,16 +1681,25 @@ static bool pattern_is_symbol(SpecNode *node) {
     return false;
 }
 
+// TEMPORARY: which exit each try_match call took, outermost last.
+std::vector<const char *> try_match_trace;
+namespace {
+bool tm_exit(const char *where, bool val) {
+    try_match_trace.push_back(where);
+    return val;
+}
+}  // namespace
+
 //try to match [pattern] with [src], return true if match success, and [assign] will be
 //filled with the matched variables, return [default] if not sure.
-static bool try_match(Project *proj, SpecNode *pattern, SpecNode *src,
-                      std::unordered_map<string, unique_ptr<SpecNode>> &assigns, bool def) {
+bool try_match(Project *proj, SpecNode *pattern, SpecNode *src,
+               std::unordered_map<string, unique_ptr<SpecNode>> &assigns, bool def) {
     // if (string(*pattern) == "(LOCK_PROT lk)")
     //     std::cout << "try_match " << string(*src) << " with " << string(*pattern) << std::endl;
 
     if (auto p = instance_of(pattern, Const)) {
         if(auto s = instance_of(src, Const)) {
-            return p->value == s->value;
+            return tm_exit("const-eq", p->value == s->value);
         }
     }
 
@@ -1702,10 +1712,10 @@ static bool try_match(Project *proj, SpecNode *pattern, SpecNode *src,
         (proj->is_ind_constr(patter_constr) || proj->is_struct_constr(patter_constr)) &&
         (proj->is_ind_constr(src_constr) || proj->is_struct_constr(src_constr))) {
         if (patter_constr != src_constr)
-            return false;
+            return tm_exit("constr-differ", false);
         else {
             if (pattern_is_symbol(pattern) && is_instance(src, Symbol))
-                return true;
+                return tm_exit("nullary-constr", true);
             else {
                 if (auto p = instance_of(pattern, Expr)) {
                     if (auto op = std::get_if<Expr::ops>(&p->op)) {
@@ -1719,18 +1729,18 @@ static bool try_match(Project *proj, SpecNode *pattern, SpecNode *src,
                                     if (!try_match(proj, p->elems->at(i).get(), s->elems->at(i).get(), assigns, def))
                                         return false;
                                 }
-                                return true;
+                                return tm_exit("ops-elems", true);
                             }
                         }
                     } else if (auto op = std::get_if<string>(&p->op)) {
                         if (auto s = instance_of(src, Expr)) {
                             if (p->elems->size() != s->elems->size())
-                                return false;
+                                return tm_exit("size-differ", false);
                             for (int i = 0; i < p->elems->size(); ++i) {
                                 if (!try_match(proj, p->elems->at(i).get(), s->elems->at(i).get(), assigns, def))
                                     return false;
                             }
-                            return true;
+                            return tm_exit("named-elems", true);
                         }
                     }
                 }
@@ -1741,11 +1751,11 @@ static bool try_match(Project *proj, SpecNode *pattern, SpecNode *src,
     if (auto p = instance_of(pattern, Symbol)) {
         if (!proj->is_known_symbol(p->text)) {
             assigns[p->text] = src->deep_copy();
-            return true;
+            return tm_exit("bind-symbol", true);
         }
     }
 
-    return def;
+    return tm_exit(def ? "default(true)" : "default(false)", def);
 }
 
 static vector<int> get_prime() {
@@ -2439,11 +2449,51 @@ static std::string type_name(SpecNode *n) {
     return t ? std::string(*t) : std::string("<no type>");
 }
 
+// TEMPORARY diagnostic: per-call-site accounting for eliminate_ambiguity.
+// Keyed on the return address so callers are separated; only outermost entries
+// are timed, since the pass recurses through this same wrapper.  Each call is
+// logged as it completes as well as summed at exit, so a killed run still
+// leaves usable data.
+namespace {
+struct EACallSite { unsigned long calls = 0; unsigned long long ns = 0; };
+// Leaked on purpose: the summary runs during static destruction.
+std::map<void *, EACallSite> &ea_sites() {
+    static auto *m = new std::map<void *, EACallSite>();
+    return *m;
+}
+int ea_depth = 0;
+bool ea_profile() {
+    static const bool on = std::getenv("SPOQ_PROFILE_EA") != nullptr;
+    return on;
+}
+struct EAReport {
+    ~EAReport() {
+        if (!ea_profile()) return;
+        for (auto const &[addr, s] : ea_sites())
+            fprintf(stderr, "[ea-site] %p calls=%lu ms=%.3f\n", addr, s.calls, s.ns / 1000000.0);
+    }
+} ea_report;
+}  // namespace
+
 std::unique_ptr<SpecNode> SpecRules::eliminate_ambiguity(
     std::unique_ptr<SpecNode> spec,
     std::set<std::string>& prev_symbols,
     bool& changed
 ) {
+    if (ea_profile() && ea_depth == 0) {
+        void *const site = __builtin_return_address(0);
+        auto const t0 = std::chrono::steady_clock::now();
+        ea_depth++;
+        auto out = eliminate_ambiguity_impl(std::move(spec), prev_symbols, changed);
+        ea_depth--;
+        auto const ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                            std::chrono::steady_clock::now() - t0).count();
+        auto &slot = ea_sites()[site];
+        slot.calls++;
+        slot.ns += ns;
+        fprintf(stderr, "[ea-call] %p ms=%.3f\n", site, ns / 1000000.0);
+        return out;
+    }
     if (!log_type_changes()) return eliminate_ambiguity_impl(std::move(spec), prev_symbols, changed);
 
     auto const kind = node_kind(spec.get());

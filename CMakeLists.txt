@@ -286,6 +286,14 @@ add_executable(UnfoldAmbiguityTest test/unit/UnfoldAmbiguityTest.cpp $<TARGET_OB
 target_link_libraries(UnfoldAmbiguityTest GTest::gtest_main GTest::gtest irloader parser
     antlr4_shared ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
 add_test(NAME UnfoldAmbiguity COMMAND UnfoldAmbiguityTest)
+
+add_executable(Z3SimplifyFixpointTest test/unit/Z3SimplifyFixpointTest.cpp $<TARGET_OBJECTS:spoq_core>)
+target_link_libraries(Z3SimplifyFixpointTest GTest::gtest_main GTest::gtest irloader parser
+    antlr4_shared ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
+target_compile_definitions(Z3SimplifyFixpointTest PRIVATE
+    SPOQ_DEMAND_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/demand_unfolding")
+add_test(NAME Z3SimplifyFixpoint COMMAND Z3SimplifyFixpointTest)
+set_tests_properties(Z3SimplifyFixpoint PROPERTIES TIMEOUT 120)
 set_tests_properties(UnfoldAmbiguity PROPERTIES TIMEOUT 120)
 set_target_properties(SpoqTest PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build")

@@ -1134,4 +1134,34 @@ std::ostream &operator<<(std::ostream &out,
 }
 
 
+void refresh_types(SpecNode *spec) {
+    if (!spec) return;
+
+    if (auto e = dynamic_cast<Expr *>(spec)) {
+        for (auto &elem : *e->elems) refresh_types(elem.get());
+        if (auto op = std::get_if<unique_ptr<SpecNode>>(&e->op)) refresh_types(op->get());
+    } else if (auto m = dynamic_cast<Match *>(spec)) {
+        refresh_types(m->src.get());
+        for (auto &pm : *m->match_list) refresh_types(pm.get());
+    } else if (auto pm = dynamic_cast<PatternMatch *>(spec)) {
+        refresh_types(pm->pattern.get());
+        refresh_types(pm->body.get());
+    } else if (auto r = dynamic_cast<RelyAnno *>(spec)) {
+        refresh_types(r->prop.get());
+        refresh_types(r->body.get());
+    } else if (auto i = dynamic_cast<If *>(spec)) {
+        refresh_types(i->cond.get());
+        refresh_types(i->then_body.get());
+        refresh_types(i->else_body.get());
+    } else if (auto fe = dynamic_cast<ForallExists *>(spec)) {
+        for (auto const &v : *fe->vars) refresh_types(v->expr.get());
+        refresh_types(fe->body.get());
+    } else if (auto rd = dynamic_cast<RecordDef *>(spec)) {
+        for (auto const &field : *rd->fields) refresh_types(field.second.get());
+    }
+
+    // Children first, so a parent derives from an already-updated child.
+    spec->refresh_type();
+}
+
 }; // namespace autov

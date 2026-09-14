@@ -41,9 +41,9 @@ both entry points pass 0, so the UB is never reachable. Deciding that needs the
 callee's body, so the retry fires.
 
 With `SPOQ_EAGER_UNFOLD=1` it takes ~9s and produces the values in
-`.expected.json`. By default it takes ~435s and then reports
+`.expected.json`. By default it takes ~198s and then reports
 `impl_eliminates_ub: true` where eager reports `false` -- so it fails on the
-verdict, not only on the clock. The ctest timeout is 120s, well under 435s, so
+verdict, not only on the clock. The ctest timeout is 120s, well under 198s, so
 in the suite it is reported as a timeout; run it directly to see the divergence.
 
 ### Where the time goes
