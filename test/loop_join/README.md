@@ -2,8 +2,6 @@
 
 ## `buf_local_string_loop`
 
-**This case currently fails.** Kept as the fix target.
-
     char vuln(unsigned int idx) {
         char string[] = "hello, world!";
         char tmp = -1;
@@ -16,19 +14,13 @@
 
 `cleanup` has `preds = {for.end, if.then}`: one edge comes out of the loop, the
 other skipped it entirely. A loop's pass-out values only exist on the first, so
-the two edges do not agree on what is in scope.
+the two edges do not agree on what is in scope. Resolving the join's phis per
+incoming edge has no notion of a value being live on only some of them, and the
+emitted spec referenced `tmp_0` where only `tmp_0_after` was bound.
 
-Cloning the join gives each path its own copy of everything downstream, which is
-why the case works under `SPOQ_CFG_CLONE_JOINS=1`. By default joins are left in
-place and their phis are resolved per incoming edge, and that has no notion of a
-value being live on only some edges: the emitted spec references `tmp_0` where
-only `tmp_0_after` is bound, and `check_well_typed` aborts with
+`bind_loop_results` (`include/SpoqIRModule.h`) closes that by binding each of a
+loop's header phis and pass-in values to its `_after` name around the loop body,
+so both edges of the join agree on the names in scope.
 
-    [ERR]: Unknown symbol: tmp_0
-
-`reconvergence_point` and `SpoqPhiInst` (`src/frontend/SpoqIRTranslator.cpp`) are
-where that would have to be decided -- neither currently looks at whether the
-predecessors of a join sit at different loop depths.
-
-Run it under `SPOQ_CFG_CLONE_JOINS=1` to see it pass, which is also the check
-that `.expected.json` holds the right values.
+`SPOQ_CFG_CLONE_JOINS=1` gives each path its own copy of everything downstream
+instead, which also passes and is the independent check on `.expected.json`.

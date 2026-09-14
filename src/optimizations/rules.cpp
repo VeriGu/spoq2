@@ -4,7 +4,6 @@
 #include <shortcuts.h>
 #include <project.h>
 #include <simulate.h>
-#include <chrono>
 #include <cassert>
 #include <utility>
 #include <rules.h>
@@ -1681,15 +1680,6 @@ static bool pattern_is_symbol(SpecNode *node) {
     return false;
 }
 
-// TEMPORARY: which exit each try_match call took, outermost last.
-std::vector<const char *> try_match_trace;
-namespace {
-bool tm_exit(const char *where, bool val) {
-    try_match_trace.push_back(where);
-    return val;
-}
-}  // namespace
-
 //try to match [pattern] with [src], return true if match success, and [assign] will be
 //filled with the matched variables, return [default] if not sure.
 bool try_match(Project *proj, SpecNode *pattern, SpecNode *src,
@@ -1699,7 +1689,7 @@ bool try_match(Project *proj, SpecNode *pattern, SpecNode *src,
 
     if (auto p = instance_of(pattern, Const)) {
         if(auto s = instance_of(src, Const)) {
-            return tm_exit("const-eq", p->value == s->value);
+            return p->value == s->value;
         }
     }
 
@@ -1712,10 +1702,10 @@ bool try_match(Project *proj, SpecNode *pattern, SpecNode *src,
         (proj->is_ind_constr(patter_constr) || proj->is_struct_constr(patter_constr)) &&
         (proj->is_ind_constr(src_constr) || proj->is_struct_constr(src_constr))) {
         if (patter_constr != src_constr)
-            return tm_exit("constr-differ", false);
+            return false;
         else {
             if (pattern_is_symbol(pattern) && is_instance(src, Symbol))
-                return tm_exit("nullary-constr", true);
+                return true;
             else {
                 if (auto p = instance_of(pattern, Expr)) {
                     if (auto op = std::get_if<Expr::ops>(&p->op)) {
@@ -1729,18 +1719,18 @@ bool try_match(Project *proj, SpecNode *pattern, SpecNode *src,
                                     if (!try_match(proj, p->elems->at(i).get(), s->elems->at(i).get(), assigns, def))
                                         return false;
                                 }
-                                return tm_exit("ops-elems", true);
+                                return true;
                             }
                         }
                     } else if (auto op = std::get_if<string>(&p->op)) {
                         if (auto s = instance_of(src, Expr)) {
                             if (p->elems->size() != s->elems->size())
-                                return tm_exit("size-differ", false);
+                                return false;
                             for (int i = 0; i < p->elems->size(); ++i) {
                                 if (!try_match(proj, p->elems->at(i).get(), s->elems->at(i).get(), assigns, def))
                                     return false;
                             }
-                            return tm_exit("named-elems", true);
+                            return true;
                         }
                     }
                 }
@@ -1751,11 +1741,11 @@ bool try_match(Project *proj, SpecNode *pattern, SpecNode *src,
     if (auto p = instance_of(pattern, Symbol)) {
         if (!proj->is_known_symbol(p->text)) {
             assigns[p->text] = src->deep_copy();
-            return tm_exit("bind-symbol", true);
+            return true;
         }
     }
 
-    return tm_exit(def ? "default(true)" : "default(false)", def);
+    return def;
 }
 
 static vector<int> get_prime() {
@@ -2422,98 +2412,7 @@ std::unique_ptr<SpecNode> subst_expr(
     return spec;
 }
 
-/// Whether to report nodes whose type changes across eliminate_ambiguity, which
-/// is how the pass's type re-derivation becomes visible.  Off unless
-/// SPOQ_LOG_TYPE_CHANGES is set.
-static bool log_type_changes() {
-    static const bool on = std::getenv("SPOQ_LOG_TYPE_CHANGES") != nullptr;
-    return on;
-}
-
-static const char *node_kind(SpecNode *n) {
-    if (!n) return "null";
-    if (instance_of(n, Symbol)) return "Symbol";
-    if (instance_of(n, Match)) return "Match";
-    if (instance_of(n, Rely)) return "Rely";
-    if (instance_of(n, Anno)) return "Anno";
-    if (instance_of(n, If)) return "If";
-    if (instance_of(n, Forall)) return "Forall";
-    if (instance_of(n, Exists)) return "Exists";
-    if (instance_of(n, Expr)) return "Expr";
-    return "other";
-}
-
-static std::string type_name(SpecNode *n) {
-    if (!n) return "<no node>";
-    auto const t = n->get_type();
-    return t ? std::string(*t) : std::string("<no type>");
-}
-
-// TEMPORARY diagnostic: per-call-site accounting for eliminate_ambiguity.
-// Keyed on the return address so callers are separated; only outermost entries
-// are timed, since the pass recurses through this same wrapper.  Each call is
-// logged as it completes as well as summed at exit, so a killed run still
-// leaves usable data.
-namespace {
-struct EACallSite { unsigned long calls = 0; unsigned long long ns = 0; };
-// Leaked on purpose: the summary runs during static destruction.
-std::map<void *, EACallSite> &ea_sites() {
-    static auto *m = new std::map<void *, EACallSite>();
-    return *m;
-}
-int ea_depth = 0;
-bool ea_profile() {
-    static const bool on = std::getenv("SPOQ_PROFILE_EA") != nullptr;
-    return on;
-}
-struct EAReport {
-    ~EAReport() {
-        if (!ea_profile()) return;
-        for (auto const &[addr, s] : ea_sites())
-            fprintf(stderr, "[ea-site] %p calls=%lu ms=%.3f\n", addr, s.calls, s.ns / 1000000.0);
-    }
-} ea_report;
-}  // namespace
-
 std::unique_ptr<SpecNode> SpecRules::eliminate_ambiguity(
-    std::unique_ptr<SpecNode> spec,
-    std::set<std::string>& prev_symbols,
-    bool& changed
-) {
-    if (ea_profile() && ea_depth == 0) {
-        void *const site = __builtin_return_address(0);
-        auto const t0 = std::chrono::steady_clock::now();
-        ea_depth++;
-        auto out = eliminate_ambiguity_impl(std::move(spec), prev_symbols, changed);
-        ea_depth--;
-        auto const ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                            std::chrono::steady_clock::now() - t0).count();
-        auto &slot = ea_sites()[site];
-        slot.calls++;
-        slot.ns += ns;
-        fprintf(stderr, "[ea-call] %p ms=%.3f\n", site, ns / 1000000.0);
-        return out;
-    }
-    if (!log_type_changes()) return eliminate_ambiguity_impl(std::move(spec), prev_symbols, changed);
-
-    auto const kind = node_kind(spec.get());
-    auto const before = type_name(spec.get());
-    // The condition identifies the node without printing the whole subtree,
-    // which for an If in a transformed low spec is the rest of the program.
-    std::string where;
-    if (auto i = instance_of(spec.get(), If); i && i->cond) {
-        where = std::string(*i->cond);
-        if (where.size() > 60) where = where.substr(0, 59) + "…";
-    }
-    auto out = eliminate_ambiguity_impl(std::move(spec), prev_symbols, changed);
-    auto const after = type_name(out.get());
-    if (before != after)
-        LOG_DEBUG << "[type-change] " << kind << " -> " << node_kind(out.get()) << " : " << before
-                  << " => " << after << (where.empty() ? "" : "  cond: " + where);
-    return out;
-}
-
-std::unique_ptr<SpecNode> SpecRules::eliminate_ambiguity_impl(
     std::unique_ptr<SpecNode> spec,
     std::set<std::string>& prev_symbols,
     bool& changed
@@ -3484,6 +3383,7 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bo
                 // LOG_DEBUG << "Found hoist if from match candidate:" << string(*node);
                 std::unique_ptr<If> new_node = std::unique_ptr<If>(static_cast<If*>(m1->src.release()));
                 assert(!m1->src);
+                // m1 == node so we have to copy it in order to have one copy for the 'then' and one for the 'else'
                 std::unique_ptr<Match> new_then = std::unique_ptr<Match>(static_cast<Match*>(m1->deep_copy().release()));
                 new_then->src = std::move(new_node->then_body);
                 auto simplified_then = rule_eliminate_match_simple(std::move(new_then), false);

@@ -36,27 +36,6 @@ using std::shared_ptr;
 using std::vector;
 
 bool force_simpl;
-
-// TEMPORARY diagnostics: which code path raised `changed`, and whether the
-// change is real.  All of it is inert unless SPOQ_TRACE_Z3RULE is set.
-namespace {
-bool z3trace() {
-    static const bool on = std::getenv("SPOQ_TRACE_Z3RULE") != nullptr;
-    return on;
-}
-std::set<std::string> &z3tags() {
-    static auto *t = new std::set<std::string>();
-    return *t;
-}
-void z3tag(const char *what) {
-    if (z3trace()) z3tags().insert(what);
-}
-// TEMPORARY: flip the single-arm collapse's try_match default without a rebuild.
-bool try_match_def() {
-    static const bool on = std::getenv("SPOQ_TRYMATCH_DEF") != nullptr;
-    return on;
-}
-}  // namespace
 int unfold_count;
 unordered_map<unsigned, unsigned> length_z3_map;
 std::unique_ptr<SpecNode> subst_expr(
@@ -695,7 +674,7 @@ rule_ret_t SpecRules::simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, const st
     }
 }
 
-rule_ret_t SpecRules::simple_if_by_z3_impl(std::unique_ptr<If> spec, const std::shared_ptr<EvalState>& state) {
+rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, const std::shared_ptr<EvalState>& state) {
     if (!force_simpl) return { std::move(spec), false };
     auto const z3t_string = spec->get_type()->get_z3_type().to_string();
 
@@ -824,7 +803,23 @@ rule_ret_t SpecRules::simple_if_by_z3_impl(std::unique_ptr<If> spec, const std::
 }
 
 
-rule_ret_t SpecRules::simple_match_by_z3_impl(std::unique_ptr<Match> spec, const std::shared_ptr<EvalState>& state) {
+/// Whether [pattern] introduces no names -- a wildcard, a constant, or a
+/// constructor applied only to those.  Such a pattern needs no substitution, so
+/// a match that reduces to its arm can be replaced by that arm's body as it
+/// stands.
+static bool pattern_binds_nothing(Project *proj, SpecNode *pattern) {
+    if (!pattern) return true;
+    if (auto s = instance_of(pattern, Symbol))
+        return s->text == "_" || proj->is_known_symbol(s->text);
+    if (auto e = instance_of(pattern, Expr)) {
+        for (auto const &elem : *e->elems)
+            if (!pattern_binds_nothing(proj, elem.get())) return false;
+        return true;
+    }
+    return true;
+}
+
+rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, const std::shared_ptr<EvalState>& state) {
     // string orig_src = string(*spec);
     // auto logthis = orig_src.find("if ((call_dup - (call16_dup)) <>? (0))") != std::string::npos;
     // if(logthis)
@@ -859,7 +854,6 @@ rule_ret_t SpecRules::simple_match_by_z3_impl(std::unique_ptr<Match> spec, const
     PROFILE_END(z3_eval);
     auto match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
 
-    if (src_changed) z3tag("match:src_changed");
     bool changed = src_changed;
     for (auto pm = spec->match_list->begin(); pm != spec->match_list->end(); pm++) {
         auto const new_state = state->copy();
@@ -920,12 +914,10 @@ rule_ret_t SpecRules::simple_match_by_z3_impl(std::unique_ptr<Match> spec, const
                                || (sym_pat && (sym_pat->text == "None" || sym_pat->text == "_"));
         auto const is_catchall_none = none_pattern && bod_sym && bod_sym->text == "None";
         if(res == Z3Result::False && spec && !is_catchall_none) {
-            z3tag("match:prune_infeasible_arm");
             continue;
         }
 
         auto body_ret = this->rule_simple_by_z3(std::move((*pm)->body), new_state);
-        if (body_ret.second) z3tag("match:arm_body");
         changed |= body_ret.second;
         if (body_ret.first) {
             match_list->push_back(make_unique<PatternMatch>(std::move((*pm)->pattern), std::move(body_ret.first)));
@@ -933,44 +925,25 @@ rule_ret_t SpecRules::simple_match_by_z3_impl(std::unique_ptr<Match> spec, const
 
     }
     if (match_list->size() == 1) {
-        // One arm left.  Taking the match down to it means substituting the
-        // pattern's bindings into the body, or those names are left free.
-        // try_match records them only where it can decompose the pattern
-        // against the source, so the default must be false: on any other path
-        // it reports a match having recorded nothing.
         auto &pm = match_list->front();
+        // One arm left, so it is the arm taken.  When its pattern binds no
+        // names the body needs nothing substituted into it and stands alone.
+        if (pattern_binds_nothing(proj, pm->pattern.get())) {
+            return { std::move(pm->body), true };
+        }
+        // Otherwise the bindings have to be substituted, or those names are
+        // left free.  try_match records them only where it can decompose the
+        // pattern against the source, so the default must be false: on any
+        // other path it reports a match having recorded nothing.
         std::unordered_map<std::string, std::unique_ptr<SpecNode>> assigns;
-        try_match_trace.clear();
-        if (try_match(proj, pm->pattern.get(), spec->src.get(), assigns, try_match_def())) {
+        if (try_match(proj, pm->pattern.get(), spec->src.get(), assigns, false)) {
             std::vector<std::string> names;
             std::vector<std::unique_ptr<SpecNode>> nodes;
             for (auto &[name, node] : assigns) {
                 names.push_back(name);
                 nodes.push_back(std::move(node));
             }
-            z3tag("match:single_arm_collapse");
-            // TEMPORARY: report any binder the pattern introduces that the
-            // substitution left free, with the exits try_match took.
-            std::set<std::string> pat_free, res_free;
-            free_vars(proj, pm->pattern.get(), pat_free);
-            auto result = subst_v2(proj, std::move(pm->body), &names, &nodes);
-            if (z3trace() && result) {
-                free_vars(proj, result.get(), res_free);
-                std::vector<std::string> dropped;
-                for (auto const &n : pat_free)
-                    if (res_free.count(n) && !assigns.count(n)) dropped.push_back(n);
-                if (!dropped.empty()) {
-                    fprintf(stderr, "[trymatch] DROPPED");
-                    for (auto const &n : dropped) fprintf(stderr, " %s", n.c_str());
-                    fprintf(stderr, "\n  pattern: %s\n  src:     %s\n  exits:  ",
-                            string(*pm->pattern).c_str(), string(*spec->src).substr(0, 160).c_str());
-                    for (auto const *e : try_match_trace) fprintf(stderr, " %s", e);
-                    fprintf(stderr, "\n  assigns:");
-                    for (auto const &n : names) fprintf(stderr, " %s", n.c_str());
-                    fprintf(stderr, "\n");
-                }
-            }
-            return { std::move(result), true };
+            return { subst_v2(proj, std::move(pm->body), &names, &nodes), true };
         }
         // No bindings available: keep the Match, which is what binds them.
     }
@@ -996,7 +969,6 @@ rule_ret_t SpecRules::simple_match_by_z3_impl(std::unique_ptr<Match> spec, const
                 }
             }
             if (!has_some || !has_none) {
-                z3tag("match:add_catchall_936");
                 changed = true;
                 match_list->push_back(make_unique<PatternMatch>(make_unique<Symbol>("_", src_opt), make_unique<Symbol>("None", spec->get_type())));
             }
@@ -1101,7 +1073,6 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, const std::s
 
     auto res = reduce_id_write(proj, std::move(new_spec), state);
     auto reduced_spec = std::move(res.first);
-    if (res.second) z3tag("expr:reduce_id_write");
     changed |= res.second;
     auto const z3t_string2 = reduced_spec->get_type()->get_z3_type().to_string();
     assert(z3t_string == z3t_string2);
@@ -1112,7 +1083,6 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, const std::s
                 auto new_zmap = reconstruct_zmap(proj, reduced_spec->deep_copy().release(), state);
 
                 if (new_zmap) {
-                    z3tag("expr:reconstruct_zmap");
                     return { std::unique_ptr<SpecNode>(new_zmap), true };
                 }
             }
@@ -1126,94 +1096,7 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, const std::s
     return { std::move(reduced_spec), changed };
 }
 
-// TEMPORARY: is the `changed` this rule returns real?  The wrapper compares the
-// printed term across the outermost call and names which sub-rule raised the
-// flag.  SPOQ_TRACE_Z3RULE only; printing the term is too expensive to leave on.
-namespace {
-int z3trace_depth = 0;
-std::map<std::string, long> &z3trace_fired() {
-    static auto *m = new std::map<std::string, long>();
-    return *m;
-}
-}  // namespace
-
-// TEMPORARY: collect the (input, output) pairs where these two rules report a
-// change but return the node unaltered.  SPOQ_TRACE_Z3RULE only, and printing
-// stops after kMaxExamples distinct shapes, so the cost is bounded.
-namespace {
-constexpr int kMaxExamples = 6;
-std::set<std::string> &z3seen() {
-    static auto *s = new std::set<std::string>();
-    return *s;
-}
-// Printing a node costs O(size) and these rules recurse over the whole term, so
-// comparing on every call is prohibitive.  SPOQ_TRACE_AFTER says how many
-// outermost calls to let past before starting to compare.
-long z3outer_calls = 0;
-bool z3examples_wanted() {
-    if (!z3trace() || (int)z3seen().size() >= kMaxExamples * 2) return false;
-    static const long after = std::getenv("SPOQ_TRACE_AFTER")
-                                  ? std::atol(std::getenv("SPOQ_TRACE_AFTER")) : 0;
-    return z3outer_calls > after;
-}
-
-void z3report_noop(const char *rule, const std::string &before) {
-    auto const key = std::string(rule) + "|" + before;
-    if (!z3seen().insert(key).second) return;                 // shape already recorded
-    if ((int)z3seen().size() > kMaxExamples * 2) return;
-    fprintf(stderr, "\n[z3noop] %s reported a change but returned this unaltered (%zu bytes):\n%s\n",
-            rule, before.size(), before.substr(0, 1200).c_str());
-}
-}  // namespace
-
-rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, const std::shared_ptr<EvalState>& state) {
-    if (!z3examples_wanted()) return simple_if_by_z3_impl(std::move(spec), state);
-    auto const before = std::string(*spec);
-    auto result = simple_if_by_z3_impl(std::move(spec), state);
-    if (result.second && result.first && std::string(*result.first) == before)
-        z3report_noop("simple_if_by_z3", before);
-    return result;
-}
-
-rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, const std::shared_ptr<EvalState>& state) {
-    if (!z3examples_wanted()) return simple_match_by_z3_impl(std::move(spec), state);
-    auto const before = std::string(*spec);
-    auto result = simple_match_by_z3_impl(std::move(spec), state);
-    if (result.second && result.first && std::string(*result.first) == before)
-        z3report_noop("simple_match_by_z3", before);
-    return result;
-}
-
 rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state) {
-    if (!z3trace() || z3trace_depth > 0 || !spec || !force_simpl)
-        return rule_simple_by_z3_impl(std::move(spec), std::move(state));
-
-    z3outer_calls++;
-    auto const before = std::string(*spec);
-    z3trace_fired().clear();
-    z3tags().clear();
-    z3trace_depth++;
-    auto result = rule_simple_by_z3_impl(std::move(spec), std::move(state));
-    z3trace_depth--;
-
-    auto const after = result.first ? std::string(*result.first) : std::string("<null>");
-    std::string who;
-    for (auto const &[name, n] : z3trace_fired()) who += " " + name + "=" + std::to_string(n);
-    std::string tags;
-    for (auto const &t : z3tags()) tags += " " + t;
-    if (result.second && before == after)
-        fprintf(stderr, "[z3rule] SPURIOUS (%zu bytes); fired:%s; tags:%s\n",
-                before.size(), who.c_str(), tags.c_str());
-    else if (result.second)
-        fprintf(stderr, "[z3rule] real change %zu -> %zu; fired:%s; tags:%s\n", before.size(),
-                after.size(), who.c_str(), tags.c_str());
-    else
-        fprintf(stderr, "[z3rule] no change reported (%zu bytes)%s\n", before.size(),
-                before == after ? "" : "  BUT THE TERM MOVED");
-    return result;
-}
-
-rule_ret_t SpecRules::rule_simple_by_z3_impl(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state) {
     bool const changed = false;
     if (!spec) return {std::move(spec), false};
     if (!force_simpl) { return { std::move(spec), false } ; }
@@ -1233,19 +1116,15 @@ rule_ret_t SpecRules::rule_simple_by_z3_impl(std::unique_ptr<SpecNode> spec, std
     }
     else if (auto expr = instance_of(spec.get(), Expr)) {
         result = simple_expr_by_z3(std::unique_ptr<Expr>(static_cast<Expr*>(spec.release())), state);
-        if (z3trace() && result.second) z3trace_fired()["expr"]++;
     }
     else if (auto match = instance_of(spec.get(), Match)) {
         result = simple_match_by_z3(std::unique_ptr<Match>(static_cast<Match*>(spec.release())), state);
-        if (z3trace() && result.second) z3trace_fired()["match"]++;
     }
     else if (auto rely = instance_of(spec.get(), RelyAnno)) {
         result = simple_rely_by_z3(std::unique_ptr<RelyAnno>(static_cast<RelyAnno*>(spec.release())), state);
-        if (z3trace() && result.second) z3trace_fired()["rely"]++;
     }
     else if (auto if_ = instance_of(spec.get(), If)) {
         result = simple_if_by_z3(std::unique_ptr<If>(static_cast<If*>(spec.release())), state);
-        if (z3trace() && result.second) z3trace_fired()["if"]++;
     }
     else if (auto forall = instance_of(spec.get(), Forall)) {
         for (auto const& v : *forall->vars) {
@@ -1257,7 +1136,7 @@ rule_ret_t SpecRules::rule_simple_by_z3_impl(std::unique_ptr<SpecNode> spec, std
             }
         }
         forall->clear_z3_eval();
-        auto res = this->rule_simple_by_z3_impl(std::move(forall->body), state);
+        auto res = this->rule_simple_by_z3(std::move(forall->body), state);
         result = { std::make_unique<Forall>(std::move(forall->vars), std::move(res.first)), res.second };
     }
     else if (auto exists = instance_of(spec.get(), Exists)) {
@@ -1266,7 +1145,7 @@ rule_ret_t SpecRules::rule_simple_by_z3_impl(std::unique_ptr<SpecNode> spec, std
             (*state->vars)[v->name] = v->type->declare(v->name, exists->nid);
         }
         exists->clear_z3_eval();
-        auto res = this->rule_simple_by_z3_impl(std::move(exists->body), state);
+        auto res = this->rule_simple_by_z3(std::move(exists->body), state);
         result = { std::make_unique<Exists>(std::move(exists->vars), std::move(res.first)), res.second };
     }
     else {

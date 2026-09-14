@@ -32,24 +32,18 @@ Both run each case in a forked child with a deadline, so a hang or an `assert()`
 is reported rather than taking the suite down, and both double as
 `llvm-reduce` oracles (`--convert` / `--translate`).
 
-The two stages are coupled by a precondition worth stating once: the translator
-asserts that PHI nodes appear only in loop headers/postheaders
-(`SpoqIRTranslator.cpp:132`). Getting rid of join phis is what
-`control_flow_clone_and_split` does, by cloning the join point until nothing
-merges there -- which is also why that pass blows up exponentially. So a fixture
-with a join phi is in scope for `CfgConversionTest` but not for
-`IrTranslationTest`.
-
 ## Translation fixtures
 
-In scope for the CFG-pass bypass (no natural loops, no join phis):
-`translate_straightline.ll`, `translate_ifelse.ll` (arms return),
-`translate_memory.ll` (alloca/store/load/GEP/global).
+Straight-line and branching cases: `translate_straightline.ll`,
+`translate_ifelse.ll` (arms return), `translate_memory.ll`
+(alloca/store/load/GEP/global).
 
-Out of scope, kept to pin the boundaries: `translate_ifelse_joinphi.ll` (hits
-the PHI assert) and `nested_loop.ll` (needs the preheader/postheader rewrite).
-`nested_loop.ll` doubles as the `CfgConversionTest` sanity case, where it
-converts in ~100ms.
+Join phis, resolved per incoming edge: `translate_ifelse_joinphi.ll`,
+`translate_multi_phi.ll` (several phis at the top of one block, taken
+simultaneously), `translate_multi_phi_three_preds.ll`.
+
+Out of scope: `nested_loop.ll`, which needs the preheader/postheader rewrite the
+CFG pass performs. It doubles as the `CfgConversionTest` sanity case.
 
 `translate_select.ll` and `translate_select_chain.ll` cover `select`, which
 `spoq_inst_to_spec` now translates directly to an `If`:
@@ -82,8 +76,7 @@ reconverge the arms stop at the join and the code after it is emitted once:
 See `SpoqPhiInst` and `SpoqJoinInst` (`include/SpoqIR.h`), `reconvergence_point`
 and the `SpoqIfInst` arm of `spoq_inst_to_spec`.
 
-A chain of N diamonds therefore costs O(N): 10 joins produce a 1.0KB spec, 20
-produce 2.1KB, 40 produce 4.3KB, 200 produce 22KB.
+A chain of N diamonds therefore costs O(N) in both time and spec size.
 
 ### What `SPOQ_CFG_CLONE_JOINS=1` restores
 
@@ -94,11 +87,8 @@ the cost is not merely "exponential" but exactly
 
     clone steps(N) = 2^(N+2) - 4        for N sequential join points
 
-measured by bisecting `SPOQ_CFG_REPEAT_LIMIT` for N = 1..18: 4, 12, 28, 60, 124,
-252, 508, 1020, ..., 1048572, a ratio of 2.000 from N = 12 up. It does not hang;
-it runs until the `repeats` budget is gone and throws "block size too large".
-The default budget of 10^7 runs out from N = 22 on, and N = 21 takes ~27s and
-4.2GB.
+measured by bisecting `SPOQ_CFG_REPEAT_LIMIT`. It does not hang; it runs until
+the `repeats` budget is gone and throws "block size too large".
 
 Nothing in the pipeline needs the switch; it exists so that cost stays
 measurable, and `CfgConversion.JoinScaling.CloningCostIsTwoToTheNPlusTwo`
@@ -111,16 +101,14 @@ a diamond costs the same whether or not a value is merged at the bottom of it.
 
 | | cloning on | default |
 |---|---|---|
-| 21 join points | 26.7s, 4.2GB | 0.01s |
-| 22 join points | over budget, 23.9s to give up | 0.01s |
-| 30 join points | ~3.8 hours to complete | 0.01s |
-| `ffm001_sws_init_context.ll` | throws after ~255s, 17GB | **converts, 0.02s** |
+| a chain of ~20 join points | exhausts the budget | converts |
+| `ffm001_sws_init_context.ll` | throws, having consumed the budget | **converts** |
 | `tiffillstrip.ll` | returns false, phi not eliminated | **converts** |
 | `tiffillstrip_dup_phi_pred.ll` | returns false, phi not eliminated | **converts** |
 
 `ffm001_single_block_valuename.ll` is a third case: one basic block, 51 `||`
 short-circuit selects, no join points of its own. Selects translate directly to
-an `If`, so it converts in ~0.1s.
+an `If`, so it converts.
 
 ### Which branches reconverge
 
@@ -132,34 +120,10 @@ declined, and the walk runs each arm to its own return, duplicating whatever
 follows. `translate_multi_phi_three_preds.ll` is an example of the fallback.
 
 That fallback is still exponential in the number of declined branches, which is
-why `sws_init_context_vuln` converts in 0.02s and then does not finish
-translating: 35s to exhaust an 8GB cap. Widening the detector -- multi-block
+why `sws_init_context_vuln` converts and then does not finish translating,
+exhausting its memory cap. Widening the detector -- multi-block
 arms via post-dominators, and joins with more than two predecessors -- is what
 that case needs.
-
-### Measuring it yourself
-
-    ./gen_join_chain.py 22 > chain22.ll        # N diamonds, no phis, no selects
-    ./gen_join_chain.py 22 phi > chain22.ll    # same with phis, same cost
-
-    ./join_scaling_sweep.sh 10000000 > join_scaling_10e6.csv   # production budget
-    ./join_scaling_sweep.sh 1000000  > join_scaling_1e6.csv    # ~10x cheaper
-    ./plot_join_scaling.py join_scaling.png \
-        "budget 10^7 (default)=join_scaling_10e6.csv" \
-        "budget 10^6=join_scaling_1e6.csv"
-
-![conversion time vs join points](join_scaling.png)
-
-The graph is of the cloning path, i.e. what `SPOQ_CFG_CLONE_JOINS=1` restores.
-The flat tails are the budget cap, not the input: past the cap the run reports
-the time to *give up*, and the dotted lines are what completing would have cost
-at the measured step rate (~314k steps/s).
-
-`SPOQ_CFG_REPEAT_LIMIT` lowers the budget so an oracle gets a verdict in seconds
-instead of ~256s; unset keeps the 10^7 default. It is a sharp instrument and
-easy to misuse: `sws_setColorspaceDetails` (48 blocks, same ffmpeg module)
-genuinely converted and needed ~5x10^5 steps, so a budget below that would call
-a healthy function broken.
 
 ## tiffillstrip.ll
 
@@ -168,8 +132,8 @@ a healthy function broken.
 
     llvm-extract --func=TIFFFillStrip --recursive
 
-909 lines, 7 functions, runs in ~2s where the full module is very slow. It
-converts; kept as the real-world case for a five-way join, which under
+Seven functions, small enough to run quickly where the full module is very slow.
+It converts; kept as the real-world case for a five-way join, which under
 `SPOQ_CFG_CLONE_JOINS=1` makes `control_flow_conversion_v2` return false (it
 does not throw, so there is no `error:` line -- only
 `[CFG] TIFFFillStrip not converted.`):
@@ -192,7 +156,7 @@ sufficient.
 
 ## tiffillstrip_dup_phi_pred.ll
 
-14 lines, produced by `llvm-reduce` from the above. It provoked the same error
+Produced by `llvm-reduce` from the above. It provoked the same error
 message, but **by a different mechanism**, so it is kept separate rather than
 treated as a minimisation of the first. It also converts now:
 
@@ -224,5 +188,4 @@ a result JSON; several fixtures here abort or run for minutes. Driving the two
 front-end entry points directly keeps them fast and attributes a failure to the
 stage that caused it.
 
-All of these pass; `CfgConversion.Ffm001SwsInitContextConverts` converts in
-~0.1s.
+All of these pass.

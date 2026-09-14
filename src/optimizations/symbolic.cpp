@@ -1,3 +1,4 @@
+#include <fstream>
 #include "log.h"
 #include <cassert>
 #include <cmd.h>
@@ -1834,6 +1835,13 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     }
     // LOG_DEBUG << "Using relation: " << string(*rel_with_rets_def->body);
     // LOG_DEBUG << "Original state relation: " << string(*rel_post->body);
+    if (std::getenv("SPOQ_DUMP_REFINES")) {
+        static int seq = 0;
+        auto const stem = "refines_" + vuln_def->name + "_" + std::to_string(seq++);
+        std::ofstream(stem + "_vuln") << string(*vuln_body);
+        std::ofstream(stem + "_patch") << string(*patched_body);
+        fprintf(stderr, "[refines] wrote %s_{vuln,patch}\n", stem.c_str());
+    }
     auto result = simulate_by_traverse(proj, vuln_body, patched_body, rel_post,
                                        ret_rel_def.get(), state, p, false);
     auto const end = std::chrono::high_resolution_clock::now();

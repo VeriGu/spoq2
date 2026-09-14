@@ -91,43 +91,26 @@ keep naming `f_spec` and now see the wrapper.
       (Some (ret_value, st_callee)).
 
 The property is stated once, at the function, rather than re-derived at every
-callsite — which is both what the transformation phase can exploit and a fix for
-a duplication bug: the old per-callsite emission wrote the `attr_argmem_frame`
-frame three times, because `llvm.lifetime.start`/`end` also carry
-`memory(argmem: readwrite)`.
+callsite, which is what the transformation phase can exploit.
 
 A callee whose attributes say nothing usable is left exactly as `main.v` wrote
 it — `attr_writeonly` still gets a bare `Parameter ext_wo_spec`. A callee the
 user gave a real `Definition` is never rewritten either: a hand-written body
 already says more than an attribute can.
 
-This is narrower than the per-callsite version it replaces, deliberately. That
-version also fired on calls to functions *defined* in the module, where the
-attribute is redundant: spoq derives a spec from the body, which is strictly more
-precise than any attribute. Only declarations, where there is no body to derive
-from, get a synthesised one.
+Only declarations get a synthesised spec. Where a function is defined in the
+module, spoq derives a spec from the body, which is strictly more precise than
+any attribute.
 
 ### What each test actually discriminates
 
-Measured by re-running each case against earlier builds. `no attr` has no
-attribute support; `coarse` has only the "never writes anything" rule.
+`attr_readnone` and `attr_readonly` pin the coarse memory rule,
+`attr_argmem_nopointers` the empty-argmem narrowing, and `attr_argmem_frame` the
+three-way argmem frame. Each fails without the code it exercises.
 
-| test | no attr | coarse | current | pins |
-|---|---|---|---|---|
-| `attr_readnone` | false | **true** | true | the coarse memory rule |
-| `attr_readonly` | false | **true** | true | the coarse memory rule |
-| `attr_argmem_nopointers` | false | false | **true** | the empty-argmem narrowing |
-| `attr_argmem_frame` | — | false | **true** | the three-way argmem frame |
-| `attr_writeonly` | false | false | false | negative control only |
-| `attr_argmem` | false | false | false | negative control only |
-
-The bolded transitions are the point: those four tests fail against a build
-lacking the code they exercise, so every part of the attribute handling has a
-test that earns its keep.
-
-The last two do not, and it is worth being explicit about that: `verified: false`
-is also what an implementation with *no* attribute support produces, so they
-cannot show the feature works. They only catch a future change that becomes
+`attr_writeonly` and `attr_argmem` are negative controls and cannot show the
+feature works: `verified: false` is also what no attribute support produces.
+They catch a future change that becomes
 *unsoundly* aggressive — the plausible mistake being to read
 `memory(read, argmem: readwrite, ...)` as read-only by taking the leading `read`
 and missing the per-location override, which would flip them to `true`.
@@ -154,17 +137,11 @@ cannot allocate.
 
 Stating this as an assumption rather than building the conditional into the
 state keeps `st` a plain symbol, so later loads and stores are not forced to
-reason through an if-expression in the state itself. Both encodings were
-implemented and pass all six tests; the Rely form is measurably cheaper —
-10.1s/10.2s versus 11.1s/11.1s for the suite, with the difference concentrated
-in `attr_argmem_frame`, the only case where the frame does real work.
+reason through an if-expression in the state itself.
 
-Note this Rely survives the pipeline where the obvious one does not. Writing
-preservation as `let st_pre := st in ... rely (st = st_pre)` is silently
-eliminated: the `when` rebinds `st`, let-inlining captures it and the assumption
-collapses to `st = st`. Here `st` is the wrapper's own parameter and `st_callee`
-is a `when` binder over an opaque oracle call, so the two are distinct names that
-nothing can inline together. Do not "simplify" the wrapper into returning
+The two names matter: `st` is the wrapper's own parameter and `st_callee` is a
+`when` binder over an opaque oracle call, so nothing can inline them together and
+the Rely survives the pipeline. Do not "simplify" the wrapper into returning
 `Some (ret_value, st)` — that would make the Rely redundant and then removable.
 
 Two limits worth knowing:
@@ -208,18 +185,6 @@ irrelevant even while uninterpreted, not merely irrelevant once its body is seen
 Discrimination: with `SPOQ_EAGER_UNFOLD=1` the proof still verifies but both
 structural assertions fail (`helper_spec ` gone, `g_g2` present), so the test
 distinguishes unfolding from provability rather than re-testing the verdict.
-
-One field is deliberately **not** pinned here: `spec_has_ub`. It reads `true`
-under demand-driven unfolding and `false` under eager, with `verified` and both
-`impl_*` fields identical. The cause is the folded call itself: `helper_spec st`
-is an uninterpreted `option`, so its `None` arm survives into the final spec and
-the UB analysis counts it as possible spec UB -- a conservative verdict that
-comes from not looking inside the callee, not from the program. It only appears
-when a callee is genuinely never needed; anything the retry inlines loses the
-artefact, which is why all 104 result fields across the 26 synthetic examples
-are identical between the two modes. Whether the UB report should treat an
-opaque callee's `None` as "unknown" rather than "UB" is an open design choice,
-and this fixture stays out of it.
 
 ## Attribute disposition
 

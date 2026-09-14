@@ -29,9 +29,6 @@ void spec_remove_state(Project *proj, SpecNode *spec);
 /// must pass false.
 bool try_match(Project *proj, SpecNode *pattern, SpecNode *src,
                std::unordered_map<std::string, std::unique_ptr<SpecNode>> &assigns, bool def);
-// TEMPORARY: the exits the last try_match call took, outermost last.  Clear it
-// before a call to read back how that call decided.
-extern std::vector<const char *> try_match_trace;
 
 std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec, const std::string& name, unique_ptr<SpecNode> value);
 std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec, vector<std::string>* names, vector<unique_ptr<SpecNode>>* values);
@@ -119,9 +116,6 @@ public:
     rule_ret_t simple_rely_by_z3(std::unique_ptr<RelyAnno> spec, const std::shared_ptr<EvalState>& state);
     rule_ret_t simple_if_by_z3(std::unique_ptr<If> spec, const std::shared_ptr<EvalState>& state);
     rule_ret_t simple_match_by_z3(std::unique_ptr<Match> spec, const std::shared_ptr<EvalState>& state);
-    /// Bodies of the two rules above; the wrappers are diagnostic shims.
-    rule_ret_t simple_if_by_z3_impl(std::unique_ptr<If> spec, const std::shared_ptr<EvalState>& state);
-    rule_ret_t simple_match_by_z3_impl(std::unique_ptr<Match> spec, const std::shared_ptr<EvalState>& state);
     rule_ret_t simple_expr_by_z3(std::unique_ptr<Expr> expr, const std::shared_ptr<EvalState>& state);
 
     // Rules as member functions
@@ -142,8 +136,6 @@ public:
     rule_ret_t rule_simplify_map_get_set(std::unique_ptr<SpecNode> spec, bool rec);
     rule_ret_t rule_simplify_expr(std::unique_ptr<SpecNode> spec, bool rec);
     rule_ret_t rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state);
-    /// The body of rule_simple_by_z3; the wrapper is a diagnostic shim.
-    rule_ret_t rule_simple_by_z3_impl(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state);
     rule_ret_t rule_keep_fields_of_interest(std::unique_ptr<SpecNode> spec);
     rule_ret_t rule_simplify_lens(std::unique_ptr<SpecNode> spec);
     rule_ret_t hoist_branch_out_of_when(std::unique_ptr<SpecNode> spec);
@@ -157,10 +149,6 @@ public:
     rule_ret_t replace_spec_name(std::unique_ptr<SpecNode> spec, std::unordered_map<std::string, std::string>& name_map);
 
     std::unique_ptr<SpecNode> eliminate_ambiguity(std::unique_ptr<SpecNode> spec, std::set<std::string>& prev_symbols, bool& changed);
-    /// The body of eliminate_ambiguity.  Split out so the wrapper can compare
-    /// the node's type across the call, which is a side effect callers depend
-    /// on: rebuilding an If re-derives its type from the then-branch.
-    std::unique_ptr<SpecNode> eliminate_ambiguity_impl(std::unique_ptr<SpecNode> spec, std::set<std::string>& prev_symbols, bool& changed);
     std::unique_ptr<SpecNode> instantiate_prop(std::unique_ptr<SpecNode> spec, std::unique_ptr<SpecNode> instance_st, const std::string& st = "st");
     std::unique_ptr<SpecNode> build_simulate_spec(std::unique_ptr<SpecNode> spec);
     rule_ret_t merge_branch(std::unique_ptr<SpecNode> spec);

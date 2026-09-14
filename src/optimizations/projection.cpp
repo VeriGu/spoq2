@@ -196,10 +196,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 known.insert(arg->name);
             }
 
-            // TEMPORARY: SPOQ_LOG_FN selects which definition dumps its body at
-            // the top of every transformation iteration, to <name>_transform_<n>.
-            static const char *const env_log_fn = std::getenv("SPOQ_LOG_FN");
-            auto log_fn_name = env_log_fn ? env_log_fn : "avpriv_ac3_parse_header_vuln_spec";
+            auto log_fn_name = "avpriv_ac3_parse_header_vuln_spec";
             bool const log_spec = false;
             if(def->name == log_fn_name){
                 // auto s = string(*def->body);
@@ -398,23 +395,6 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             changed |= cb_changed;
             // } 
             
-            std::tie(spec, hoist_changed) = proj->rules.hoist_match_from_branch(std::move(spec));
-            if(def->name == log_fn_name){
-                if(string(*spec.get()) == "None"){
-                    assert(false);
-                }
-                if(log_spec){
-                    LOG_DEBUG << "spec after hoist: " << spec << "\n";
-                } else {
-                    LOG_DEBUG << "Completed hoist.\n";
-                }
-            }
-            changed |= hoist_changed;
-            if (hoist_changed) {
-                // The hoist moves subterms between parents, leaving the
-                // types those parents cached stale.
-                refresh_types(spec.get());
-            }
             
             if(def->name == log_fn_name){
                 if(string(*spec.get()) == "None"){
@@ -468,9 +448,32 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 auto const end = std::chrono::high_resolution_clock::now();
                 auto const duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
                 LOG_DEBUG << "spec transformer for " << def->name << " Z3 time: " << duration.count() / 1000.0 << " seconds\n";
-                LOG_DEBUG << "z3_changed: " << z3_changed << ", me_changed: " << me_changed << ", we_changed: " << we_changed << ", le_changed: " << le_changed << ",um_changed: " << um_changed << ", hoist_changed: " << hoist_changed << ", cb_changed: " << cb_changed << ", unfolded: " << __unfold;
+                LOG_DEBUG << "z3_changed: " << z3_changed << ", me_changed: " << me_changed << ", we_changed: " << we_changed << ", le_changed: " << le_changed << ",um_changed: " << um_changed << ", cb_changed: " << cb_changed << ", unfolded: " << __unfold;
             }
             changed |= z3_changed;
+
+            // After the z3 pass, not before: the hoist copies the outer match
+            // into every arm of an inner one, so a scrutinee that appears twice
+            // is duplicated instead of decided.  Simplifying first settles those
+            // and keeps the copy proportional to what is left.
+            std::tie(spec, hoist_changed) = proj->rules.hoist_match_from_branch(std::move(spec));
+            if(def->name == log_fn_name){
+                if(string(*spec.get()) == "None"){
+                    assert(false);
+                }
+                if(log_spec){
+                    LOG_DEBUG << "spec after hoist: " << spec << "\n";
+                } else {
+                    LOG_DEBUG << "Completed hoist.\n";
+                }
+            }
+            changed |= hoist_changed;
+            if (hoist_changed) {
+                // The hoist moves subterms between parents, leaving the
+                // types those parents cached stale.
+                refresh_types(spec.get());
+            }
+
             profile_update_epoch();
             assert(spec);
             def->body = std::move(spec);
