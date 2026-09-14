@@ -692,7 +692,8 @@ void infer_type(Project &proj, SpecNode *spec, const shared_ptr<unordered_map<st
 
                             typ = make_shared<Function>(ind, args);
                         } else {
-                            throw std::runtime_error("Unknown symbol kind");
+                            throw std::runtime_error("Unknown symbol kind for " + op + " (kind " +
+                                                     std::to_string((int)info.kind) + ")");
                         }
 
                         assert(dynamic_pointer_cast<Function>(typ));

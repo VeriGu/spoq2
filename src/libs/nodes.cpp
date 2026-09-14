@@ -93,6 +93,12 @@ const unordered_map<Expr::binops, string> Expr::binops_to_str_map = {
     {LTE, "<="},
     {GT, ">"},
     {GTE, ">="},
+    {FMUL, "fmul"},
+    {FDIV, "fdiv"},
+    {FADD, "fadd"},
+    {FSUB, "fsub"},
+    {FREM, "frem"},
+    {FOEQ, "=?"},
     {IFONLYIF, "<->"},
     {OR, "\\/"},
     {AND, "/\\"},
@@ -154,7 +160,7 @@ std::ostream& Expr::stream(std::ostream& out) const{
     } else {
         string op_str = holds_alternative<string>(op) ? std::get<string>(op) : string(*std::get<unique_ptr<SpecNode>>(op));
         if (op_str == "lens_v") {
-            return out << "(lens_v " << string(*type) << " " << elems->at(0) << ")"; 
+            return out << "(lens_v " << string(*type) << " " << elems->at(0) << ")";
         }
         out << "(" + op_str << " ";
 
@@ -250,7 +256,7 @@ const string Expr::to_string() const {
     } else {
         string op_str = holds_alternative<string>(op) ? std::get<string>(op) : string(*std::get<unique_ptr<SpecNode>>(op));
         if (op_str == "lens_v") {
-            return "(lens_v " + string(*type) + " " + string(*elems->at(0)) + ")"; 
+            return "(lens_v " + string(*type) + " " + string(*elems->at(0)) + ")";
         }
         string str = "(" + op_str;
 
@@ -634,7 +640,8 @@ void Expr::infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>>
 
                 typ = make_shared<Function>(ind, args);
             } else {
-                throw std::runtime_error("Unknown symbol kind");
+                throw std::runtime_error("Unknown symbol kind for " + op + " (kind " +
+                                         std::to_string((int)info.kind) + ")");
             }
 
             assert(dynamic_pointer_cast<Function>(typ));

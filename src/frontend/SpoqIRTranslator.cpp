@@ -529,7 +529,12 @@ shared_ptr<SpecType> SpoqIRModule::llvm_ir_type_to_spec_pure(llvm::Type* type) {
     } else if(type->isIntegerTy()) {
         return Int::INT;
     } else if(type->isFloatingPointTy()){
-        return Float::FLOAT;
+        // FLOAT MODEL: `Float := Z` in the prelude, so every floating point
+        // value is an integer on the spec side.  Fractional values, NaN, the
+        // infinities and rounding are all outside the model.  Float::FLOAT
+        // would map these to a 64-bit IEEE sort in z3, which the emitted Coq
+        // does not agree with.
+        return Int::INT;
     } else if (type->isPointerTy()) {
         return Struct::Ptr;
     } else if (type->isVoidTy()) {
@@ -1237,11 +1242,26 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 auto expr = context.get_llvm_value_spec(bc->getOperand(0));
                 context.add_cache(context.get_llvm_value_name(bc), expr);
                 return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
-            } else if (src->isIntegerTy() && dst->isFloatTy()) {
-                llvm::errs() << "Unsupported SpoqIR instruction [LLVM]: " << *spoq_inst->inst << "\n";
-                throw std::runtime_error("Int-> float cast unsupported.");
+            } else if (src->isIntegerTy() && dst->isFloatingPointTy()) {
+                // isFloatingPointTy, not isFloatTy: the latter is a 32-bit float
+                // specifically, and a double has to take this path too.  Width is
+                // otherwise ignored -- Float is one type here, a 64-bit FPA.
+                // FLOAT MODEL: `Float := Z` makes this a no-op, as the
+                // float-to-float case below already is.  Neither the rounding
+                // sitofp performs nor the truncation fptosi performs is
+                // represented.
+                auto sym = context.get_llvm_value_spec(bc);
+                auto expr = context.get_llvm_value_spec(bc->getOperand(0));
+                context.add_cache(context.get_llvm_value_name(bc), expr);
+                return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
+            } else if (src->isFloatingPointTy() && dst->isIntegerTy()) {
+                auto sym = context.get_llvm_value_spec(bc);
+                auto expr = context.get_llvm_value_spec(bc->getOperand(0));
+                context.add_cache(context.get_llvm_value_name(bc), expr);
+                return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
             } else if (src->isFloatingPointTy() && dst->isFloatingPointTy()) {
-                // For now ignore precision limits, double -> float will be a no-op.
+                // FLOAT MODEL: precision limits ignored, double -> float is a
+                // no-op.
                 auto sym = context.get_llvm_value_spec(bc);
                 auto expr = context.get_llvm_value_spec(bc->getOperand(0));
                 context.add_cache(context.get_llvm_value_name(bc), expr);

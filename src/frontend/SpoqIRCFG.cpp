@@ -528,8 +528,23 @@ void SpoqIRModule::pass_analysis(llvm::BasicBlock* block, std::vector<llvm::Basi
         // Push this loop onto the stack, process the loop body,
         // then pop and continue with the postheader.
         stack.push_back(block);
-        assert(block->getUniqueSuccessor() && "preheader does not have a unique successor");
-        pass_analysis(block->getUniqueSuccessor(), stack, context, visited);
+        auto *const header = block->getUniqueSuccessor();
+        assert(header && "preheader does not have a unique successor");
+        pass_analysis(header, stack, context, visited);
+
+        // A header phi's backedge operand may be defined in a loop nested
+        // inside this one, and placing it needs that loop's parent link, which
+        // is only recorded once the walk reaches its preheader.  So resolve
+        // these after the body rather than when the header was visited.
+        for (auto &inst: *header) {
+            auto phi = llvm::dyn_cast<llvm::PHINode>(&inst);
+            if (!phi) break;  // phis are contiguous at the top of a block
+            for (unsigned i = 0; i < phi->getNumIncomingValues(); i++) {
+                if (phi->getIncomingBlock(i) == block) continue;  // preheader edge
+                if (auto op = llvm::dyn_cast<llvm::Instruction>(phi->getIncomingValue(i)))
+                    context.recursive_update_pass(context.real_header(op), stack, op);
+            }
+        }
         stack.pop_back();
         pass_analysis(target, stack, context, visited);
         return;
@@ -544,7 +559,30 @@ void SpoqIRModule::pass_analysis(llvm::BasicBlock* block, std::vector<llvm::Basi
     // For each non-phi instruction, check if any operand crosses a loop
     // boundary (defined in a different loop than where it's used).
     for (auto& inst: *block) {
-        if (llvm::dyn_cast<llvm::PHINode>(&inst)) continue;
+        // A phi's operands are evaluated on their incoming edges, not in the
+        // phi's own block, and for a loop header the preheader edge is taken
+        // before the loop is entered -- so that operand has to be available in
+        // the enclosing scope, not this one.  Every other operand is needed
+        // where the phi is, which for a join below a loop is outside it.
+        if (auto phi = llvm::dyn_cast<llvm::PHINode>(&inst)) {
+            bool const is_header =
+                stack.size() && (*stack.rbegin())->getUniqueSuccessor() == block;
+            for (unsigned i = 0; i < phi->getNumIncomingValues(); i++) {
+                auto scope = stack;
+                if (is_header) {
+                    // Backedge operands are resolved after the body has been
+                    // walked; see the preheader branch above.
+                    if (phi->getIncomingBlock(i) != *stack.rbegin()) continue;
+                    scope.pop_back();
+                }
+                auto *val = phi->getIncomingValue(i);
+                if (auto op = llvm::dyn_cast<llvm::Instruction>(val))
+                    context.recursive_update_pass(context.real_header(op), scope, op);
+                else if (auto op = llvm::dyn_cast<llvm::Argument>(val))
+                    context.recursive_update_pass(nullptr, scope, op);
+            }
+            continue;
+        }
         for (auto& ops: inst.operands()) {
             if (auto op = llvm::dyn_cast<llvm::Instruction>(ops)) {
                 auto op_header = context.real_header(op);
@@ -741,6 +779,24 @@ bool SpoqIRModule::control_flow_conversion_v2(string fname,
         std::vector<llvm::BasicBlock*> loop_stack;
         std::set<std::pair<llvm::BasicBlock*, std::vector<llvm::BasicBlock*>>> visited;
         pass_analysis(&spoq_func.llvm_func->getEntryBlock(), loop_stack, context, visited);
+
+        // pass_analysis discovers values in traversal order, which is not a
+        // property of the program: two structurally identical functions can end
+        // up with their lists in different orders, and a loop spec written by
+        // hand to forward positionally then pairs the wrong values together.
+        // Order by where each value is defined instead.
+        {
+            std::map<llvm::Value*, size_t> pos;
+            size_t n = 0;
+            for (auto &arg: spoq_func.llvm_func->args()) pos[&arg] = n++;
+            for (auto &bb: *spoq_func.llvm_func)
+                for (auto &inst: bb) pos[&inst] = n++;
+            auto const by_definition = [&pos](llvm::Value *a, llvm::Value *b) {
+                return pos[a] < pos[b];
+            };
+            for (auto &[bb, vals]: context.pass_out)
+                std::sort(vals.begin(), vals.end(), by_definition);
+        }
 
         return spoq_func.cfg_converted;
     } else {

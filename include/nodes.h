@@ -326,7 +326,10 @@ private:
 class FloatConst : public Const {
 public:
     FloatConst() { throw std::invalid_argument("FloatConst must have a value"); }
-    FloatConst(double value) : Const(value, Float::FLOAT){}
+    // FLOAT MODEL: `Float := Z` in the prelude, so a float constant carries an
+    // integer type while holding a double.  Anything fractional is outside the
+    // model.
+    FloatConst(double value) : Const(value, Int::INT){}
     //FloatConst(unsigned long value, SpecType type) : Const(value, type) {}
 
     double get_value() const {
@@ -344,6 +347,10 @@ public:
 
 private:
     const string to_string() const {
+        // FLOAT MODEL: printed in full, so the value is not silently rounded
+        // here.  It does not agree with what the solver is given: z3_eval
+        // truncates the same constant to `IntValue((long) *doublec)`.  Nor is a
+        // decimal a term the spec language has, `Float` being `Z`.
         double const v = std::get<double>(this->value);
         return "(" + std::to_string(v) + ")";
     }
@@ -1495,6 +1502,10 @@ public:
     std::unique_ptr<SpecNode> sufficient_none_condition=nullptr;
     mutable string _str;
     bool deleyed_type_inference = false;
+    /// Generated, but not transformed yet, because its body named a spec that
+    /// did not exist at the time.  The retry pass finishes it rather than
+    /// treating it as a spec the user provided.
+    bool pending_transform = false;
 
     Definition() { throw std::invalid_argument("Definition must have a name, rettype, args, and body"); }
     Definition(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args, unique_ptr<SpecNode> body) :
@@ -1639,6 +1650,17 @@ public:
 class TypeInferenceException : public std::runtime_error {
     public:
     TypeInferenceException(const std::string& s): std::runtime_error(s) {}
+};
+
+/// A spec was named before it was defined.  Distinct from the other failures so
+/// a caller can retry once the definition exists, rather than give up: layers
+/// are inferred bottom-up, and a callee may be assigned to a layer above the
+/// one that calls it.  [symbol] is the name that was missing.
+class UndefinedSpecException : public std::runtime_error {
+    public:
+    std::string symbol;
+    UndefinedSpecException(const std::string& sym)
+        : std::runtime_error("spec not yet defined: " + sym), symbol(sym) {}
 };
 /// Re-derive the type of every node in [spec] from its children, bottom-up.
 void refresh_types(SpecNode *spec);

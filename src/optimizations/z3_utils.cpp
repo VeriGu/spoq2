@@ -1751,6 +1751,21 @@ z3::expr formulate_function(Project* proj, Definition const* def) {
 //needs to find a way to distinguish when to split state using symbolic and when not by directly using ite node of z3.
 //ite is like a state merging.
 
+/// A stable z3 name for a floating point literal.
+///
+/// FLOAT MODEL: the value itself is not represented -- see below -- but two
+/// occurrences of the same literal have to be the same constant, so the name is
+/// derived from its exact bits.  hexfloat is used because it round-trips: 0.1
+/// and the double nearest 0.1 must not collide with anything else.
+static std::string float_literal_symbol(double v) {
+    std::ostringstream os;
+    os << std::hexfloat << v;
+    std::string name = "float_lit_" + os.str();
+    for (auto &c : name)
+        if (!std::isalnum(static_cast<unsigned char>(c))) c = '_';
+    return name;
+}
+
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, bool check_loop) {
     shared_ptr<SpecValue> result;
 
@@ -1800,10 +1815,12 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         } else if (auto strc = std::get_if<string>(&con->value)) {
             result = make_shared<StringValue>(*strc);
         } else if (auto doublec = std::get_if<double>(&con->value)) {
-            //return make_shared<FloatValue>(*doublec);
-            // Bit casting will do for now until we handle
-            // making store_RData work for floats
-            result = make_shared<IntValue>((long) (*doublec), true);
+            // FLOAT MODEL: an uninterpreted integer, not the value.  Floats
+            // are `Z` here and there is no integer that 0.5 is, so rather than
+            // truncate -- which asserted 0.5 = 0 -- the literal stands for an
+            // unknown one.  Nothing false is assumed; anything that depends on
+            // the magnitude simply cannot be decided until floats are modelled.
+            result = Int::INT->declare(float_literal_symbol(*doublec), 0);
         }
     } else if (auto expr = instance_of(val, Expr)) {
         vector<shared_ptr<SpecValue>> elems;
@@ -2015,7 +2032,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
                 std::cerr << "expr: " << string(*expr) << std::endl;
                 // auto typ = elems[0].get()->typ;
                 // auto typc = dynamic_cast<Struct*>(typ.get());
-                throw std::runtime_error("(z3_eval) Unknown symbol: " + sym);
+                throw UndefinedSpecException(sym);
             }
         } else if (std::holds_alternative<unique_ptr<SpecNode>>(expr->op)) {
             auto const op = z3_eval(proj, std::get<unique_ptr<SpecNode>>(expr->op).get(), state,  check_loop);
@@ -2479,7 +2496,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
                 }
             } else {
                 std::cout << "expr: " << string(*expr) << std::endl;
-                throw std::runtime_error("(z3_eval) Unknown symbol: " + sym);
+                throw UndefinedSpecException(sym);
             }
         } else if (std::holds_alternative<unique_ptr<SpecNode>>(expr->op)) {
             auto const op = z3_eval(proj, std::get<unique_ptr<SpecNode>>(expr->op).get(), state,  check_loop, unfold, used_fixpoint);

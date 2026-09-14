@@ -75,6 +75,10 @@ public:
     virtual shared_ptr<SpecValue> from_z3_value(z3::expr value) override;
     virtual shared_ptr<SpecValue> declare(string name, int nid) override;
 };
+/// FLOAT MODEL: not produced by the front end any more -- LLVM floating point
+/// types map to Int::INT, matching the prelude's `Float := Z`.  This maps to a
+/// 64-bit IEEE sort in z3, which that prelude does not agree with, so reaching
+/// for it will silently put the solver and the emitted Coq on different models.
 class Float : public SpecType {
 public:
     static shared_ptr<Float> FLOAT;

@@ -42,8 +42,65 @@ Join phis, resolved per incoming edge: `translate_ifelse_joinphi.ll`,
 `translate_multi_phi.ll` (several phis at the top of one block, taken
 simultaneously), `translate_multi_phi_three_preds.ll`.
 
-Out of scope: `nested_loop.ll`, which needs the preheader/postheader rewrite the
-CFG pass performs. It doubles as the `CfgConversionTest` sanity case.
+Out of scope for the bypass: `nested_loop.ll`, which needs the
+preheader/postheader rewrite the CFG pass performs. It doubles as the
+`CfgConversionTest` sanity case.
+
+### Joins below a loop exit
+
+Four fixtures, all run with the CFG pass for real (`run_cfg`) since they contain
+loops. Two fail and are the fix target; two pass and guard the fix.
+
+| fixture | |
+|---|---|
+| `loop_exit_join_body_value.ll` | **fails** -- one exit, `%add` left free |
+| `loop_two_exits_body_value.ll` | **fails** -- two exits, `%sum` left free |
+| `loop_two_exits_distinct_values.ll` | **fails** -- one value per exit, `%a` and `%b` left free |
+| `nested_loop_inner_value_escapes.ll` | **fails** -- inner-loop value escaping two levels, `%prod` |
+| `nested_loop_inner_value_via_outer_backedge.ll` | **fails** -- inner value escaping only via the outer backedge |
+| `sibling_loops_value_via_header_phi.ll` | **fails** -- one loop's value as a sibling's header-phi initial value |
+| `loop_exit_join_header_phi.ll` | passes -- pins the loop's call-site arity |
+| `loop_exit_value_partial_dominance.ll` | passes -- value live on one exit path |
+| `loop_header_phi_used_after_loop.ll` | passes -- pins the duplicate carry-out |
+| `sibling_loops_value_used_directly.ll` | passes -- pins pass_out into a sibling's pass_in |
+
+`nested_loop_inner_value_escapes.ll` is the closest reproduction of lua002: it
+does not merely leave a free name in the spec but aborts in `check_well_typed`
+with `Unknown symbol: prod`, the same assert lua002 hits. Nesting is what makes
+the difference -- a Definition is built for the inner loop and type-checked
+there and then.
+
+The two nested fixtures pin opposite halves of a header phi. A header phi's
+backedge operand is normally the loop's own carried value and needs nothing, but
+in `nested_loop_inner_value_via_outer_backedge.ll` it is defined one level
+deeper and has to be carried out of the inner loop first.
+
+`sibling_loops_value_via_header_phi.ll` is why a fix cannot simply skip header
+phis. A header phi's backedge operand is the loop's carried value and needs
+nothing, but its preheader-edge operand is evaluated outside the loop and has to
+be available there -- which, for a value defined in a sibling loop, means being
+passed out of that one.
+
+`loop_two_exits_distinct_values.ll` is the one that reaches the UndefValue
+substitution in `update_loop_break_return_list`: `%a` is defined in the header
+and dominates both exiting blocks, `%b` is defined in the latch and dominates
+only itself, so the return list built for the early exit has to stand something
+in for `%b`.
+
+The failure: a join below the loop takes a value defined *inside* the body, and
+nothing carries it out.
+
+    let baseline_08 := baseline_08_after in
+    let baseline_0_lcssa := add in
+
+`pass_analysis` (`SpoqIRCFG.cpp:546`) skips PHI nodes when collecting operands,
+so a value used only by a phi at a join below the loop is never recorded as a
+`pass_out`, and the loop never returns it. `bind_loop_results` binds what the
+loop returns, so it cannot help. Reduced from `luaG_getfuncline` in lua002, where
+this aborts the run in `check_well_typed` with `Unknown symbol: add`.
+
+Every case checks that the spec it emits closes over nothing but the function's
+arguments and `st`, which is what makes this one fail here rather than much later.
 
 `translate_select.ll` and `translate_select_chain.ll` cover `select`, which
 `spoq_inst_to_spec` now translates directly to an `If`:
@@ -57,6 +114,53 @@ CFG pass performs. It doubles as the `CfgConversionTest` sanity case.
 
 `control_flow_eliminate_select` (Phase 1), which rewrites a select into a
 diamond with a join phi, is not called.
+
+## Integer to floating point
+
+`translate_sitofp_double.ll` and `translate_sitofp_float.ll` round trip an
+integer through a float and back. Both pass. The prelude every project shares
+defines `Float := Z`, so the casts are no-ops on the spec side, as float-to-float
+already was:
+
+    let conv := n in
+    let back := conv in
+
+The pair exists because the widths used to diverge -- the branch reporting the
+cast tested `isFloatTy`, a 32-bit float specifically, so a double fell through
+to a catch-all and asserted. Float is one type in the spec language, so both
+must now translate identically.
+
+`translate_float_arithmetic.ll` puts an `fmul` between the two casts, which
+under `Float := Z` is integer multiplication and prints as one. Reduced from
+`fill_xyztables` in ffm001.
+
+`translate_float_literal_local.ll` and `translate_float_literal_global.ll` cover
+where the literals come from. The **local** one **fails**:
+`FloatConst::to_string` prints the value in full, so an operand comes out as
+`(4095.000000)`, which is not a term the spec language has under `Float := Z`.
+That is as far as ffm001 gets. The **global** one passes and shows the other
+case needs nothing: a load from a global yields an opaque Z, and the initialiser
+belongs to the project's globals model rather than the function body.
+
+## Where the float model gives out
+
+`Float := Z` comes from the prelude every project shares, and the front end now
+matches it. What that costs is marked in the source with `FLOAT MODEL`:
+
+    git grep -n "FLOAT MODEL"
+
+The points are: the type mapping (fractions, NaN, the infinities and rounding
+are all outside the model), float arithmetic typed and printed as integer
+arithmetic, both casts and the float-to-float cast as no-ops, and the constant
+path, where z3_eval truncates toward zero while `FloatConst::to_string` prints
+in full -- so the emitted spec and the solved one disagree on any literal that
+is not already an integer. Rendering literals as integers would settle that
+disagreement and make the local fixture pass, at the cost of silently turning
+ffm001's 0.5 and 0.6 into 0. It is left visible instead.
+
+`Float::FLOAT` still exists in C++ and maps to a 64-bit IEEE sort in z3, which
+the prelude does not agree with. Nothing produces it now, but it is there to be
+picked up by mistake.
 
 ## Join points
 

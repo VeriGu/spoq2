@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <string>
 #include <irtypes.h>
 #include <irvalues.h>
@@ -439,6 +440,13 @@ namespace autov {
         inline void add_header_phi(llvm::PHINode* phi) {
             assert(step_count >= 0 && preheader && "A in-loop phi node does not have a header");
             header_phi[preheader].push_back(phi);
+            // The loop already returns this as `<v>_after`.  pass_analysis runs
+            // before any header phi is registered, so a value that escapes
+            // through a phi may have been recorded as pass_out as well; drop
+            // that copy rather than carry the same value out twice.
+            auto &out = pass_out[preheader];
+            out.erase(std::remove(out.begin(), out.end(), static_cast<llvm::Value*>(phi)),
+                      out.end());
         }
 
         inline void add_postheader_phi(llvm::PHINode* phi) {
@@ -552,8 +560,13 @@ namespace autov {
             pass_in[bb].push_back(v);
         }
 
-        // Add pass out value and handle duplicated cases.
+        // Add pass out value and handle duplicated cases.  A value already
+        // passed in or carried by a header phi comes back as `<v>_after`, so a
+        // pass_out copy would only widen the loop's signature.
         void add_pass_out(llvm::BasicBlock* bb, llvm::Value* v) {
+            for (auto &val: pass_in[bb]) {
+                if (val == v) return;
+            }
             for (auto &val: pass_out[bb]) {
                 if (val == v) return;
             }
@@ -856,6 +869,17 @@ namespace autov {
          */
         std::unique_ptr<std::vector<std::unique_ptr<SpecNode>>> compute_loop_break_return_list(llvm::BasicBlock* preheader) {
             auto ret = std::make_unique<std::vector<std::unique_ptr<SpecNode>>>();
+            if (std::getenv("SPOQ_DUMP_LOOPCTX")) {
+                auto const show = [&](const char *what, auto &vs) {
+                    fprintf(stderr, "[loopctx] %-16s:", what);
+                    for (auto *v : vs) fprintf(stderr, " %s", get_llvm_value_name(v).c_str());
+                    fprintf(stderr, "\n");
+                };
+                show("pass_in", spoq_func.loop_context.pass_in[preheader]);
+                show("header_phi", spoq_func.loop_context.header_phi[preheader]);
+                show("pass_out", spoq_func.loop_context.pass_out[preheader]);
+                show("postheader_phi", spoq_func.loop_context.postheader_phi[preheader]);
+            }
             for(auto &val: spoq_func.loop_context.pass_in[preheader]) {
                 ret->push_back(std::make_unique<Symbol>(get_llvm_value_name(val) + "_after", get_llvm_value_type(val)));
             }

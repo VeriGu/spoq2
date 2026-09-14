@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <memory>
 #include <project.h>
 #include <iostream>
@@ -174,6 +175,25 @@ void Project::add_definition(unique_ptr<Definition> def, const shared_ptr<loc_t>
         def_->deleyed_type_inference = true;
     }
 }
+
+void Project::erase_definition(const string& name) {
+    // The symbol entry stays: other definitions may already refer to this name,
+    // and symbols is read through operator[], so removing it would leave them
+    // looking at a default-constructed entry.  Retrying overwrites it anyway.
+    defs.erase(name);
+    def_order.erase(std::remove(def_order.begin(), def_order.end(), name), def_order.end());
+}
+
+/// Discard what an abandoned spec task left behind, so its retry starts clean.
+/// Besides the half-built definition, the missing name itself has to go: it was
+/// looked up through symbols' operator[] during the failed pass, which inserts a
+/// default-constructed entry that later reads as a symbol of an unknown kind.
+static void discard_partial_spec(Project *proj, const string &prim, const string &missing) {
+    if (proj->defs.find(missing) == proj->defs.end() &&
+        proj->decls.find(missing) == proj->decls.end())
+        proj->symbols.erase(missing);
+}
+
 
 void Project::update_definition_body(Definition *def) {
     if (defs.find(def->name) == defs.end())
@@ -621,6 +641,14 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, const s
                 proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(def)), loc);
             } else
                 proj->add_definition(unique_ptr<Definition>(def), loc);
+
+            // The body names a spec that has not been defined yet -- a callee
+            // assigned to a layer above this one.  Transforming it would reach
+            // z3_eval and throw; abandon the task instead, so the retry pass can
+            // take it once that layer has been inferred.
+            if (def->deleyed_type_inference) {
+                throw UndefinedSpecException(def->name);
+            }
 
             profile_clear();
             if(OPTS.new_trans) {
@@ -1184,14 +1212,16 @@ void Project::finalize_project()
         for (auto  const&p : prev_L->prims) {
             auto const p_low = p + "_spec_low";
             auto const p_high = p + "_spec";
-            if (this->defs.find(p_low) != this->defs.end()) {
-                if (this->defs[p_low]->deleyed_type_inference) {
-                    this->defs[p_low]->infer_type(*this);
-                }
-            }
-            if (this->defs.find(p_high) != this->defs.end()) {
-                if (this->defs[p_high]->deleyed_type_inference) {
-                    this->defs[p_high]->infer_type(*this);
+            // Still unresolvable is not fatal here: the callee may be defined in
+            // a layer further up, and the retry pass after the loop tries again
+            // once it is.
+            for (auto const &n : {p_low, p_high}) {
+                auto const it = this->defs.find(n);
+                if (it == this->defs.end() || !it->second->deleyed_type_inference) continue;
+                try {
+                    it->second->infer_type(*this);
+                } catch (const TypeInferenceException &) {
+                } catch (const UndefinedSpecException &) {
                 }
             }
         }
@@ -1312,6 +1342,7 @@ bool Project::finalize_project_v2() {
     LOG_DEBUG << "filter and lemma ok" << "\n";
     LOG_DEBUG << "layer: " << this->layers.size() << "\n";
 
+    std::vector<std::pair<int, string>> deferred;
     for (int i = 1; i < this->layers.size(); i++) {
         auto &L = this->layers[i];
         auto &prev_L = this->layers[i - 1];
@@ -1322,14 +1353,16 @@ bool Project::finalize_project_v2() {
         for (auto  const&p : prev_L->prims) {
             auto const p_low = p + "_spec_low";
             auto const p_high = p + "_spec";
-            if (this->defs.find(p_low) != this->defs.end()) {
-                if (this->defs[p_low]->deleyed_type_inference) {
-                    this->defs[p_low]->infer_type(*this);
-                }
-            }
-            if (this->defs.find(p_high) != this->defs.end()) {
-                if (this->defs[p_high]->deleyed_type_inference) {
-                    this->defs[p_high]->infer_type(*this);
+            // Still unresolvable is not fatal here: the callee may be defined in
+            // a layer further up, and the retry pass after the loop tries again
+            // once it is.
+            for (auto const &n : {p_low, p_high}) {
+                auto const it = this->defs.find(n);
+                if (it == this->defs.end() || !it->second->deleyed_type_inference) continue;
+                try {
+                    it->second->infer_type(*this);
+                } catch (const TypeInferenceException &) {
+                } catch (const UndefinedSpecException &) {
                 }
             }
         }
@@ -1342,11 +1375,40 @@ bool Project::finalize_project_v2() {
                 continue;
             // LOG_DEBUG << "primitive infer: " << p << "\n";
 
-            // auto start = std::chrono::high_resolution_clock::now();
-            auto [fname, low_specs, high_specs] = infer_spec_task_v2(this, i, p);
-            // auto end = std::chrono::high_resolution_clock::now();
-            // LOG_DEBUG << "####[" << p << "]" << "infer spec task cost" << std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count() << "" << std::endl;
+            try {
+                auto [fname, low_specs, high_specs] = infer_spec_task_v2(this, i, p);
+            } catch (const UndefinedSpecException &e) {
+                LOG_DEBUG << "Deferring " << p << ": " << e.what() << std::endl;
+                deferred.push_back({i, p});
+                discard_partial_spec(this, p, e.symbol);
+            }
         }
+    }
+
+    // Layers are inferred bottom-up, so a prim whose callee was assigned to a
+    // layer above it could not be built the first time round.  Retry those now
+    // that every layer has been seen, until a pass resolves nothing more.
+    for (bool progress = true; progress && !deferred.empty(); ) {
+        progress = false;
+        for (auto it = deferred.begin(); it != deferred.end(); ) {
+            try {
+                auto [fname, low_specs, high_specs] = infer_spec_task_v2(this, it->first, it->second);
+                LOG_DEBUG << "Deferred prim " << it->second << " resolved." << std::endl;
+                it = deferred.erase(it);
+                progress = true;
+                (void)low_specs; (void)high_specs;
+            } catch (const UndefinedSpecException &e) {
+                discard_partial_spec(this, it->second, e.symbol);
+                ++it;
+            }
+        }
+    }
+    if (!deferred.empty()) {
+        string names;
+        for (auto const &[l, p] : deferred) names += " " + p;
+        throw std::runtime_error(
+            "specs still name definitions that do not exist after every layer was inferred:" +
+            names + " -- check that each callee is in a layer below its callers");
     }
 
     LOG_DEBUG << "low spec ok" << "\n";
@@ -1560,6 +1622,15 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
         for(auto  const&def_name: low_specs) {
             auto def = proj->defs[def_name].get();
 
+            // The body names a spec that does not exist yet -- a callee in a
+            // layer above this one.  Transforming it would reach z3_eval and
+            // throw, so leave it for the retry pass.  The definition stays:
+            // code_to_spec will not produce it a second time.
+            if (def->deleyed_type_inference) {
+                def->pending_transform = true;
+                throw UndefinedSpecException(def_name);
+            }
+
             // spec transformer
             profile_clear();
             if(OPTS.new_trans) {
@@ -1598,7 +1669,20 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
         }
         return true;
     } else {
-        LOG_DEBUG << "low spec provided: " << low_name << "\n";
+        auto *const generated = proj->defs[low_name].get();
+        bool const was_generated_here = generated->pending_transform;
+        if (generated->pending_transform) {
+            LOG_DEBUG << "low spec deferred earlier, finishing: " << low_name << "\n";
+            generated->infer_type(*proj);
+            generated->deleyed_type_inference = false;
+            generated->pending_transform = false;
+            profile_clear();
+            if (OPTS.new_trans) spec_transformer_v2(proj, generated, layer_id, false, true);
+            else                spec_transformer(proj, generated, layer_id, false, true);
+            profile_finalize();
+        } else {
+            LOG_DEBUG << "low spec provided: " << low_name << "\n";
+        }
         // The name of the low spec may have three forms: `fname_loop\d+_low`,
         // `fname_\d+_low`, "fname_spec_low"
         std::regex const pattern1(fname + "_loop_\\d+_low");
@@ -1606,7 +1690,7 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
         string low_name = fname + "_spec_low";
 
         unique_ptr<SpecNode> spec = std::move(proj->defs[low_name]->body);
-        if(proj->cmds.InitRely.find(fname) != proj->cmds.InitRely.end()) {
+        if(!was_generated_here && proj->cmds.InitRely.find(fname) != proj->cmds.InitRely.end()) {
             for(auto & f : proj->cmds.InitRely[fname])
                 spec = std::make_unique<Rely>(f->deep_copy(), std::move(spec));
         }

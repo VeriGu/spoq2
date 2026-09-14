@@ -256,6 +256,11 @@ public:
     void add_declaration(unique_ptr<Declaration> decl, const shared_ptr<loc_t>& loc);
 
     void add_definition(unique_ptr<Definition> def, const shared_ptr<loc_t>& loc);
+    /// Undo add_definition.  A spec task that names a spec defined in a later
+    /// layer is abandoned and retried once that layer has been inferred; the
+    /// definitions it managed to add first have to go, or the retry sees them
+    /// as already provided and skips the work.
+    void erase_definition(const string& name);
     void add_definition(unique_ptr<Definition> def, const shared_ptr<loc_t>& loc, unsigned long order);
     void update_definition_body(Definition *def);
 
