@@ -55,6 +55,7 @@
  *
  *     IrTranslationTest --translate <file.ll> <function>   (stage 1)
  *     IrTranslationTest --spec      <file.ll> <function>   (stages 1+2)
+ *     IrTranslationTest --spec-cfg  <file.ll> <function>   (the CFG pass first)
  *       exit 0  succeeded
  *       exit 2  returned false / produced no SpecNode
  *       exit 3  threw
@@ -605,9 +606,11 @@ TEST(IrTranslation, LoopWithoutCfgPass) {
 
 int main(int argc, char **argv) {
     // Oracle mode for llvm-reduce.  Before InitGoogleTest so flags do not clash.
-    if (argc >= 4 && std::string(argv[1]) == "--spec") {
+    if (argc >= 4 && (std::string(argv[1]) == "--spec" ||
+                      std::string(argv[1]) == "--spec-cfg")) {
         std::string spec;
-        const TranslateStatus st = run_to_spec(argv[2], argv[3], {}, &spec);
+        const bool run_cfg = std::string(argv[1]) == "--spec-cfg";
+        const TranslateStatus st = run_to_spec(argv[2], argv[3], {}, &spec, run_cfg);
         llvm::errs() << spec << "\n";
         return st;
     }
@@ -921,33 +924,118 @@ TEST(IrTranslationSpec, UnrolledLadderBeforeLoop) {
 }
 
 /* -- switch ----------------------------------------------------------------- */
+/*
+ * A switch is lowered to a chain of equality tests before anything else runs,
+ * so these all go through control_flow_conversion_v2 rather than the bypass the
+ * rest of the file uses.  Without the pass the walk meets the SwitchInst itself,
+ * which no arm of spoq_inst_to_spec handles.
+ */
 
-/// A switch reconverging at one join.
+/// A switch reconverging at one join: three cases plus a default, four edges in.
 ///
-/// **This case currently fails.** Kept as the fix target: `spoq_inst_to_spec` has
-/// no SwitchInst arm at all, so the instruction reaches the catch-all --
-///
-///     Unsupported SpoqIR instruction [LLVM]:   switch i32 %n, label %sw.default
-///
-/// reconvergence_point is consulted only for two-way conditional branches, so a
-/// switch never asks where its arms rejoin however wide the join.
+/// The lowered chain is a ladder, the shape UnrolledLadderBeforeLoop pins, so
+/// the outer test reconverges at the join and every inner one inherits that
+/// stop -- each arm yields the join's phi values on its own edge, and the code
+/// below the join is emitted once.
 TEST(IrTranslationSpec, Switch) {
-    expect_spec("translate_switch.ll", "vuln");
+    std::string spec;
+    ASSERT_NO_FATAL_FAILURE(expect_spec("translate_switch.ll", "vuln", {}, &spec,
+                                        /*run_cfg=*/true));
+    EXPECT_EQ(spec.find("switch"), std::string::npos) << "a switch survived:\n" << spec;
+    size_t uses = 0;
+    for (size_t i = spec.find("let s :="); i != std::string::npos; i = spec.find("let s :=", i + 1))
+        uses++;
+    EXPECT_EQ(uses, 1u) << "the continuation was emitted once per arm:\n" << spec;
 }
 
 /// The same switch with a loop below the join, which is the shape `decode_str`
-/// has in ffm015.
-///
-/// **This case currently fails**, and not the same way: the walk never reaches
-/// the preheader through the switch, so the loop is never registered and the
-/// later lookup finds nothing --
-///
-///     Assertion `loop_insts.find(jump_start) != loop_insts.end()\' failed.
-///
-/// The mirror image of the duplication assert: there a loop was emitted twice,
-/// here not at all.
+/// has in ffm015.  The join is the loop's preheader once its phis are split
+/// off, so the walk has to reach the preheader through the lowered chain and
+/// register the loop exactly once.
 TEST(IrTranslationSpec, SwitchBeforeLoop) {
     expect_spec("switch_before_loop.ll", "vuln", {}, nullptr, /*run_cfg=*/true);
+}
+
+/// Two cases sharing a target, so the switch block reaches it along two edges
+/// and a phi there names that block twice.  Lowering gives the two edges
+/// different test blocks, and the two phi entries have to follow them apart.
+TEST(IrTranslationSpec, SwitchSharedCaseTargets) {
+    std::string spec;
+    ASSERT_NO_FATAL_FAILURE(expect_spec("switch_shared_case_targets.ll", "vuln", {}, &spec,
+                                        /*run_cfg=*/true));
+    // Both edges reach the shared arm, so its body appears twice -- but the
+    // join below it is still reconverged at, so the code after is emitted once.
+    size_t uses = 0;
+    for (size_t i = spec.find("let s :="); i != std::string::npos; i = spec.find("let s :=", i + 1))
+        uses++;
+    EXPECT_EQ(uses, 1u) << "the continuation was duplicated:\n" << spec;
+}
+
+/// One case and a default: a single test, and no intermediate block to create.
+TEST(IrTranslationSpec, SwitchSingleCase) {
+    expect_spec("switch_degenerate.ll", "one_case", {}, nullptr, /*run_cfg=*/true);
+}
+
+/// An empty case list, which is an unconditional branch to the default.
+TEST(IrTranslationSpec, SwitchNoCases) {
+    expect_spec("switch_degenerate.ll", "no_cases", {}, nullptr, /*run_cfg=*/true);
+}
+
+/// A case whose target is the default's.  Its test cannot change where control
+/// goes, so the case is dropped -- and the default then has one incoming edge
+/// where it had two, which its phi has to be trimmed to match.
+TEST(IrTranslationSpec, SwitchCaseTargetIsDefault) {
+    expect_spec("switch_degenerate.ll", "case_is_default", {}, nullptr, /*run_cfg=*/true);
+}
+
+/// A switch inside a loop whose cases leave by two different exits.  Loop
+/// normalisation redirects every exit edge to a single postheader, and asserts
+/// both that an exiting block ends in a branch and that it has one outgoing
+/// edge; an unlowered switch with two escaping cases fails both.
+TEST(IrTranslationSpec, SwitchInLoopWithMultipleExits) {
+    expect_spec("switch_in_loop_multi_exit.ll", "vuln", {}, nullptr, /*run_cfg=*/true);
+}
+
+/// An exhaustive switch, whose default clang makes `unreachable`.  Nothing
+/// post-dominates the switch block, so there is no reconvergence point and each
+/// arm walks the code below the join for itself.
+TEST(IrTranslationSpec, SwitchDefaultUnreachable) {
+    std::string spec;
+    ASSERT_NO_FATAL_FAILURE(expect_spec("switch_default_unreachable.ll", "vuln", {}, &spec,
+                                        /*run_cfg=*/true));
+    // Pinned rather than desired: one copy of the continuation per reaching
+    // arm.  Two cases is two copies, and an exhaustive switch over a wide enum
+    // would be that many.
+    size_t uses = 0;
+    for (size_t i = spec.find("let s :="); i != std::string::npos; i = spec.find("let s :=", i + 1))
+        uses++;
+    EXPECT_EQ(uses, 2u) << spec;
+}
+
+/// Every arm returns, so there is no join at any level of the lowered chain and
+/// each If is the last instruction in its arm.
+TEST(IrTranslationSpec, SwitchArmsReturn) {
+    expect_spec("switch_arms_return.ll", "vuln", {}, nullptr, /*run_cfg=*/true);
+}
+
+/* -- a loop entered on two paths -------------------------------------------- */
+
+/// A loop preheader reached along two paths that no branch reconverges at.
+///
+/// **This case currently fails.** Kept as the fix target:
+///
+///     Assertion `!context.has_loop_inst_for_jump(block)' failed.
+///
+/// The walk enters the loop once per path, and a loop is registered by its
+/// preheader, so the second entry finds the first already there.  More than an
+/// over-strict assert: llvm_ir_to_spoq_ir fills one body vector per preheader,
+/// so of the SpoqLoopInsts emitted only the last registered would have a body.
+///
+/// Reached through switches in ffm015 -- one case of an outer switch and two of
+/// an inner one converge on the block above the preheader -- but nothing here
+/// is switch-specific: plain branches reproduce it in seventeen lines.
+TEST(IrTranslationSpec, LoopPreheaderOnTwoPaths) {
+    expect_spec("loop_preheader_on_two_paths.ll", "vuln", {}, nullptr, /*run_cfg=*/true);
 }
 
 /* -- calls through a function pointer --------------------------------------- */

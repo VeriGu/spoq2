@@ -48,21 +48,21 @@ preheader/postheader rewrite the CFG pass performs. It doubles as the
 
 ### Joins below a loop exit
 
-Four fixtures, all run with the CFG pass for real (`run_cfg`) since they contain
-loops. Two fail and are the fix target; two pass and guard the fix.
+All run with the CFG pass for real (`run_cfg`) since they contain loops. All
+pass. The first six were the fix target; the rest guard against overshooting it.
 
 | fixture | |
 |---|---|
-| `loop_exit_join_body_value.ll` | **fails** -- one exit, `%add` left free |
-| `loop_two_exits_body_value.ll` | **fails** -- two exits, `%sum` left free |
-| `loop_two_exits_distinct_values.ll` | **fails** -- one value per exit, `%a` and `%b` left free |
-| `nested_loop_inner_value_escapes.ll` | **fails** -- inner-loop value escaping two levels, `%prod` |
-| `nested_loop_inner_value_via_outer_backedge.ll` | **fails** -- inner value escaping only via the outer backedge |
-| `sibling_loops_value_via_header_phi.ll` | **fails** -- one loop's value as a sibling's header-phi initial value |
-| `loop_exit_join_header_phi.ll` | passes -- pins the loop's call-site arity |
-| `loop_exit_value_partial_dominance.ll` | passes -- value live on one exit path |
-| `loop_header_phi_used_after_loop.ll` | passes -- pins the duplicate carry-out |
-| `sibling_loops_value_used_directly.ll` | passes -- pins pass_out into a sibling's pass_in |
+| `loop_exit_join_body_value.ll` | one exit, `%add` used below it |
+| `loop_two_exits_body_value.ll` | two exits, `%sum` used below them |
+| `loop_two_exits_distinct_values.ll` | one value per exit, `%a` and `%b` |
+| `nested_loop_inner_value_escapes.ll` | inner-loop value escaping two levels, `%prod` |
+| `nested_loop_inner_value_via_outer_backedge.ll` | inner value escaping only via the outer backedge |
+| `sibling_loops_value_via_header_phi.ll` | one loop's value as a sibling's header-phi initial value |
+| `loop_exit_join_header_phi.ll` | pins the loop's call-site arity |
+| `loop_exit_value_partial_dominance.ll` | value live on one exit path |
+| `loop_header_phi_used_after_loop.ll` | pins the duplicate carry-out |
+| `sibling_loops_value_used_directly.ll` | pins pass_out into a sibling's pass_in |
 
 `nested_loop_inner_value_escapes.ll` is the closest reproduction of lua002: it
 does not merely leave a free name in the spec but aborts in `check_well_typed`
@@ -87,20 +87,21 @@ and dominates both exiting blocks, `%b` is defined in the latch and dominates
 only itself, so the return list built for the early exit has to stand something
 in for `%b`.
 
-The failure: a join below the loop takes a value defined *inside* the body, and
-nothing carries it out.
+What they were reduced from: a join below the loop takes a value defined
+*inside* the body, and nothing carried it out, leaving a name nothing binds.
 
     let baseline_08 := baseline_08_after in
     let baseline_0_lcssa := add in
 
-`pass_analysis` (`SpoqIRCFG.cpp:546`) skips PHI nodes when collecting operands,
-so a value used only by a phi at a join below the loop is never recorded as a
-`pass_out`, and the loop never returns it. `bind_loop_results` binds what the
-loop returns, so it cannot help. Reduced from `luaG_getfuncline` in lua002, where
-this aborts the run in `check_well_typed` with `Unknown symbol: add`.
+`pass_analysis` skipped PHI nodes when collecting operands, so a value used only
+by a phi at a join below the loop was never recorded as a `pass_out` and the
+loop never returned it; `bind_loop_results` binds what the loop returns, so it
+could not help. Reduced from `luaG_getfuncline` in lua002, where this aborted
+the run in `check_well_typed` with `Unknown symbol: add`.
 
 Every case checks that the spec it emits closes over nothing but the function's
-arguments and `st`, which is what makes this one fail here rather than much later.
+arguments and `st`, which is what makes a regression here fail at translation
+rather than much later.
 
 `translate_select.ll` and `translate_select_chain.ll` cover `select`, which
 `spoq_inst_to_spec` now translates directly to an `If`:
@@ -179,29 +180,62 @@ hand-written function pointer spec with no error until z3_eval.
 
 ## switch
 
-`translate_switch.ll` and `switch_before_loop.ll`. **Both fail**, differently.
+A switch is lowered to a chain of `icmp eq` + conditional branch before any
+other phase runs (`lower_switches`, Phase 0), because nothing downstream reads a
+`SwitchInst`: the traversals follow `BranchInst` successors, loop normalisation
+asserts that an exiting block ends in a branch, and `spoq_inst_to_spec` has no
+arm for one. The cases are mutually exclusive and nothing falls through, so
+testing them one at a time is equivalent. All of these run with the CFG pass for
+real (`run_cfg`), since without it the walk meets the switch itself.
 
-`spoq_inst_to_spec` has no `SwitchInst` arm, so a plain switch reaches the
-catch-all and asserts on an unsupported instruction. `reconvergence_point` is
-consulted only for two-way conditional branches, so a switch never asks where
-its arms rejoin however wide the join.
+| fixture | |
+|---|---|
+| `translate_switch.ll` | three cases and a default reconverging at one join |
+| `switch_before_loop.ll` | the same with a loop below the join, as `decode_str` has |
+| `switch_shared_case_targets.ll` | two cases sharing a target, so a phi there names the switch block twice |
+| `switch_degenerate.ll` | `one_case`, `no_cases`, `case_is_default` -- the boundaries of the case list |
+| `switch_in_loop_multi_exit.ll` | a switch inside a loop leaving by two different exits |
+| `switch_default_unreachable.ll` | an exhaustive switch, whose default clang makes `unreachable` |
+| `switch_arms_return.ll` | every arm returns, so there is no join at any level |
 
-With a loop below the join the failure inverts: the walk never reaches the
-preheader through the switch, so the loop is never registered and the later
-lookup finds nothing -- `loop_insts does not contain the jump start`, the mirror
-image of emitting a loop twice.
+The lowered chain is a ladder, the shape `unrolled_ladder_before_loop.ll` pins:
+the outermost test reconverges at the join and every inner one is declined for
+not dominating the join's other predecessors, so each inherits the outer stop
+and yields the join's phi values on its own edge. The code below the join is
+emitted once.
 
-ffm015's `decode_str` has three switches. Its own abort is neither of these: it
-duplicates `while.body39.lr.ph`, reached twice from `sw.bb32`, a
-three-predecessor join whose predecessors include a switch case.
+    let sw_eq := (n =? (0)) in
+    when r, st == (
+        if sw_eq
+        then (let a0 := (n + (10)) in (Some (a0, st)))
+        else (
+          let sw_eq1 := (n =? (1)) in
+          if sw_eq1
+          then (let a1 := (n + (20)) in (Some (a1, st)))
+          else (Some (0, st))));
+    let s := (r + (1)) in
+    (Some (s, st))
+
+Every edge out of the switch block becomes one edge out of one test block, so no
+block gains or loses a predecessor: lowering creates no join and removes none.
+The phi bookkeeping is what keeps that true. A target reached on two edges holds
+two entries naming the switch block -- the verifier requires them to agree, so
+there is one value to carry -- and after lowering those entries belong to
+different test blocks. A case whose target is already the default's is dropped
+instead of tested, which is the one place an edge does disappear.
+
+`switch_default_unreachable.ll` pins a cost rather than a guarantee: the default
+is on no path to the return, so nothing post-dominates the switch block, there is
+no reconvergence point, and each arm walks the code below the join for itself.
+Two cases is two copies.
 
 ## A branch reconverging at a loop preheader
 
 | fixture | |
 |---|---|
 | `join_two_preds_before_loop.ll` | passes -- two arms meeting at the preheader |
-| `join_three_preds_before_loop.ll` | **fails** -- three arms, as ffm021 has |
-| `unrolled_ladder_before_loop.ll` | **fails** -- a ladder of early exits, as ffm054 has |
+| `join_three_preds_before_loop.ll` | passes -- three arms, as ffm021 has |
+| `unrolled_ladder_before_loop.ll` | passes -- a ladder of early exits, as ffm054 has |
 | `join_then_loop_preheader.ll` | passes -- a block between the join and the loop |
 
 `usable_join` refuses a postheader, which from outside the loop looks like an
@@ -215,20 +249,39 @@ loop and emit it again, asserting on the second:
     Assertion `!context.has_loop_inst_for_jump(block)' failed.
 
 Arity is not what decides it -- the two-arm case was declined for the join being
-a preheader, the three-arm case for being neither a diamond nor a triangle, so
-the three-arm one still fails.
+a preheader, the three-arm case for being neither a diamond nor a triangle.
 
 `unrolled_ladder_before_loop.ll` separates the two causes. Its join has two
 successors, so it is not a preheader, and only its shape is in the way: a chain
 of early exits where each rung's taken edge goes to the next rung rather than to
 the join, so no arm is a single block reaching it. ffm054 has this seventeen
 rungs deep, from a fully unrolled search, with three seventeen-way phis at the
-join. No enumeration of shapes will catch that; it wants the reconvergence point
-computed rather than matched. `join_then_loop_preheader.ll` separates the join
-from the loop header, and passed throughout.
+join. No enumeration of shapes catches that, which is why the reconvergence
+point is now computed -- as the immediate post-dominator, accepted only when
+every edge into it comes from a block the branch dominates -- rather than
+matched. `join_then_loop_preheader.ll` separates the join from the loop header,
+and passed throughout.
 
-This is what ffm015 (`decode_str`) and ffm021 (`nsv_parse_NSVs_header`) hit.
-Both bisect to `6abe8e6`.
+## A loop entered on two paths
+
+`loop_preheader_on_two_paths.ll`. **Fails**, and is the fix target:
+
+    Assertion `!context.has_loop_inst_for_jump(block)' failed.
+
+Nothing makes the walk pass through the preheader once. `entry` reconverges
+below the loop, not at the preheader, because one arm skips the loop entirely;
+and the arm that can reach the preheader does not dominate its other
+predecessor. So the walk enters the loop once per path, and a loop is registered
+by its preheader.
+
+More than an over-strict assert: `llvm_ir_to_spoq_ir` fills one body vector per
+preheader, so of the `SpoqLoopInst`s emitted only the last registered would have
+a body.
+
+This is what ffm015 (`decode_str`) still hits. There the block above the
+preheader, `sw.bb32`, is reached from two different switches -- one case of the
+outer one and two of the inner one -- so it looked switch-shaped, but the
+fixture reproduces it in seventeen lines of plain branches.
 
 ## Join points
 

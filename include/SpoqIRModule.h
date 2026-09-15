@@ -1159,6 +1159,14 @@ namespace autov {
         static bool control_flow_conversion_DAG(const string& fname,  SpoqFunction& spoq_func, SpoqLoopContext& );
 
         /**
+         * @brief Rewrite every switch in [func] as a chain of equality tests.
+         * Nothing downstream reads a SwitchInst, so this runs before any of it.
+         *
+         * @param func the function to rewrite in place
+         */
+        static void lower_switches(llvm::Function* func);
+
+        /**
          * @brief Convert any CFG into a form that ready for spoq_inst translation. Set the ``spoq_func.cfg_converted`` to true if success. TODO: support loop.
          *
          * @param fname function name

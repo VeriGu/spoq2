@@ -41,9 +41,13 @@
 //    ret     ret'
 //
 //
-// THE FOUR PHASES
-// ---------------
-// The conversion happens in four phases, applied to each function:
+// THE PHASES
+// ----------
+// The conversion happens in phases, applied to each function:
+//
+//   Phase 0 — Lower switch instructions
+//     Every switch becomes a chain of `icmp eq` + conditional branch,
+//     because nothing after this point reads a SwitchInst.
 //
 //   Phase 1 — Eliminate select instructions
 //     LLVM `select` is a ternary operator: %x = select i1 %c, %a, %b
@@ -107,6 +111,96 @@
 #include "project.h"
 
 namespace autov {
+
+// ============================================================================
+// Phase 0: Lower switch instructions to chains of equality tests
+// ============================================================================
+//
+// Nothing downstream reads a SwitchInst.  The traversals in this file follow
+// BranchInst successors and stop at any other terminator, loop normalisation
+// asserts that an exiting block ends in a branch, and spoq_inst_to_spec has no
+// arm for one.  So a switch is rewritten into the branches all of them already
+// handle -- the same construction the postheader's exit dispatch is built from
+// further down.
+//
+//   Before:                            After:
+//     bb:                                bb:
+//       switch i32 %v, label %d [          %sw.eq = icmp eq i32 %v, 0
+//         i32 0, label %t0                 br i1 %sw.eq, label %t0, label %sw.test
+//         i32 1, label %t1               sw.test:
+//       ]                                  %sw.eq1 = icmp eq i32 %v, 1
+//                                          br i1 %sw.eq1, label %t1, label %d
+//
+// The cases of an LLVM switch are mutually exclusive and nothing falls through,
+// so testing them one at a time, in any order, goes to the same place.
+//
+// Each edge out of `bb` becomes one edge out of one test block, so every block
+// keeps the predecessor count it had: this creates no join and removes none.
+// Keeping that true is what the phi handling below is for -- two cases sharing
+// a target leave it two entries naming `bb`, and after lowering those entries
+// belong to different test blocks.
+
+void SpoqIRModule::lower_switches(llvm::Function *func) {
+    std::vector<llvm::SwitchInst *> switches;
+    for (auto &bb : *func)
+        if (auto sw = llvm::dyn_cast<llvm::SwitchInst>(bb.getTerminator()))
+            switches.push_back(sw);
+
+    for (auto sw : switches) {
+        auto *bb = sw->getParent();
+        auto *cond = sw->getCondition();
+        auto *deflt = sw->getDefaultDest();
+
+        // A case whose target is already the default's cannot change where
+        // control goes, so testing for it would only add a branch whose arms
+        // are the same block -- which the translator walks twice.
+        std::vector<std::pair<llvm::ConstantInt *, llvm::BasicBlock *>> cases;
+        for (auto c : sw->cases())
+            if (c.getCaseSuccessor() != deflt)
+                cases.emplace_back(c.getCaseValue(), c.getCaseSuccessor());
+
+        // A phi in a target names `bb` once per edge it is reached on, and
+        // every one of those entries holds the same value: the verifier rejects
+        // a phi that gives one predecessor two.  So there is a single value per
+        // phi to carry over.  Take the entries out now and put one back per new
+        // edge below, which also trims the default's if a case was dropped.
+        std::set<llvm::BasicBlock *> targets;
+        for (unsigned i = 0; i < sw->getNumSuccessors(); i++)
+            targets.insert(sw->getSuccessor(i));
+        std::map<llvm::PHINode *, llvm::Value *> carried;
+        for (auto *t : targets)
+            for (auto &phi : t->phis()) {
+                carried[&phi] = phi.getIncomingValueForBlock(bb);
+                while (phi.getBasicBlockIndex(bb) >= 0)
+                    phi.removeIncomingValue(bb, /*DeletePHIIfEmpty=*/false);
+            }
+
+        sw->eraseFromParent();
+
+        // Which block each target is reached from once the chain is built.
+        std::vector<std::pair<llvm::BasicBlock *, llvm::BasicBlock *>> edges;
+        auto *cur = bb;
+        for (size_t i = 0; i < cases.size(); i++) {
+            llvm::IRBuilder<> builder(cur);
+            auto *eq = builder.CreateICmpEQ(cond, cases[i].first, "sw.eq");
+            // The last case falls through to the default rather than to a test
+            // that has nothing left to compare.
+            auto *otherwise = i + 1 < cases.size()
+                    ? llvm::BasicBlock::Create(func->getContext(), "sw.test", func,
+                                               cur->getNextNode())
+                    : deflt;
+            builder.CreateCondBr(eq, cases[i].second, otherwise);
+            edges.emplace_back(cur, cases[i].second);
+            if (i + 1 < cases.size()) cur = otherwise;
+        }
+        if (cases.empty()) llvm::IRBuilder<>(cur).CreateBr(deflt);
+        edges.emplace_back(cur, deflt);
+
+        for (auto const &[pred, target] : edges)
+            for (auto &phi : target->phis())
+                phi.addIncoming(carried.at(&phi), pred);
+    }
+}
 
 // ============================================================================
 // Phase 1: Eliminate select instructions
@@ -607,9 +701,10 @@ void SpoqIRModule::pass_analysis(llvm::BasicBlock* block, std::vector<llvm::Basi
 // Entry point: control_flow_conversion_v2
 // ============================================================================
 //
-// Orchestrates all four phases to convert an LLVM function's CFG into
+// Orchestrates the phases that convert an LLVM function's CFG into
 // a tree-shaped structured form for Coq generation.
 //
+//   Phase 0: switch → chains of equality tests
 //   Phase 1: select → branch diamonds (not run: selects translate to an If)
 //   Phase 2: normalize loops (preheader/postheader)
 //   Phase 3: eliminate phis whose block has a single predecessor.  Phis at real
@@ -621,6 +716,10 @@ void SpoqIRModule::pass_analysis(llvm::BasicBlock* block, std::vector<llvm::Basi
 bool SpoqIRModule::control_flow_conversion_v2(string fname,
                                               SpoqFunction &spoq_func) {
     auto llvm_func = spoq_func.llvm_func;
+
+    // ── Phase 0: switch → chains of equality tests ──
+    // Ahead of every analysis below, which all have to see the blocks it adds.
+    lower_switches(llvm_func);
 
     // Set up LLVM's analysis infrastructure so we can query LoopInfo.
     llvm::FunctionAnalysisManager FAM;
