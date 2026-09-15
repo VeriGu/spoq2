@@ -521,36 +521,28 @@ TEST(IrTranslation, MultiplePhisAtAReconvergingJoin) {
     EXPECT_EQ(uses, 1u) << "the continuation was duplicated:\n" << spec;
 }
 
-// Three predecessors: not a reconvergence of one If, so each phi is resolved
-// against the edge the walk arrived on and emitted as its own `let`.  This is
-// the path where sequential bindings really are sequential.
+// Three predecessors, reached as nested Ifs.  The inner If reconverges at the
+// same join as the outer one, so each path yields all three phis as a tuple and
+// the continuation is emitted once -- the same contract as the two-way case,
+// which is what computing the reconvergence point rather than matching a shape
+// buys.  Each path's triple pins which edge every phi was resolved against.
 TEST(IrTranslation, MultiplePhisAtAThreeWayJoin) {
     std::string spec;
     ASSERT_NO_FATAL_FAILURE(
         expect_spec("translate_multi_phi_three_preds.ll", "vuln", {}, &spec));
 
-    // The spec is pretty-printed with per-depth indentation, and these three
-    // bindings sit at three different depths, so compare with whitespace
-    // collapsed rather than pinning the layout.
-    std::string flat;
-    for (char ch : spec) {
-        if (std::isspace(static_cast<unsigned char>(ch))) {
-            if (!flat.empty() && flat.back() != ' ') flat += ' ';
-        } else {
-            flat += ch;
-        }
-    }
-
-    struct Edge { const char *u, *v, *w; };
     // %w crosses over: a1's second value, a2's first, a3's second.
-    for (const Edge e : {Edge{"p", "q", "q"}, Edge{"r2", "s2", "r2"}, Edge{"r3", "s3", "s3"}}) {
-        const std::string want = std::string("let u := ") + e.u + " in let v := " + e.v +
-                                 " in let w := " + e.w + " in";
-        EXPECT_NE(flat.find(want), std::string::npos)
-            << "no path binds u/v/w as " << e.u << "/" << e.v << "/" << e.w
-            << ", so a phi was resolved against the wrong edge:\n" << spec;
-    }
+    EXPECT_NE(spec.find("(Some (p, q, q, st))"), std::string::npos) << spec;
+    EXPECT_NE(spec.find("(Some (r2, s2, r2, st))"), std::string::npos) << spec;
+    EXPECT_NE(spec.find("(Some (r3, s3, s3, st))"), std::string::npos) << spec;
+    EXPECT_NE(spec.find("(Some (u, v, w, st))"), std::string::npos)
+        << "the three phis are not bound together:\n" << spec;
     EXPECT_EQ(spec.find("phi"), std::string::npos) << "a phi survived:\n" << spec;
+
+    size_t uses = 0;
+    for (size_t i = spec.find("let t :="); i != std::string::npos; i = spec.find("let t :=", i + 1))
+        uses++;
+    EXPECT_EQ(uses, 1u) << "the continuation was duplicated:\n" << spec;
 }
 
 // N reconverging diamonds in sequence must cost O(N), not O(2^N).  Asserted on
@@ -867,4 +859,115 @@ TEST(IrTranslationSpec, FloatLiteralGlobal) {
         << spec;
     EXPECT_EQ(spec.find("2.500000"), std::string::npos)
         << "the initialiser leaked into the body:\n" << spec;
+}
+
+/* -- a branch reconverging at a loop preheader ------------------------------ */
+
+/// Two arms reconverging at a block that is the loop\'s preheader.
+///
+/// `usable_join` refuses a postheader, whose phis carry the loop\'s results, but
+/// admits a preheader, whose phis are ordinary. Refusing both left each arm to
+/// walk into the loop and emit it again, which asserted on the second arm --
+/// what ffm015 (`decode_str`) and ffm021 (`nsv_parse_NSVs_header`) hit.
+///
+/// The loop appearing once, after the If, is the whole point of the fixture.
+TEST(IrTranslationSpec, JoinAtLoopPreheader) {
+    std::string spec;
+    ASSERT_NO_FATAL_FAILURE(
+        expect_spec("join_two_preds_before_loop.ll", "vuln", {}, &spec, /*run_cfg=*/true));
+    auto const first = spec.find("vuln_loop_0_low");
+    ASSERT_NE(first, std::string::npos) << "the loop is gone entirely:\n" << spec;
+    EXPECT_EQ(spec.find("vuln_loop_0_low", first + 1), std::string::npos)
+        << "the loop is emitted more than once:\n" << spec;
+}
+
+/// The same with three arms, as ffm021 has.
+///
+/// **This case currently fails too**, identically. Arity is not what decides it:
+/// a three-way join is declined for being neither a diamond nor a triangle, and
+/// a two-way join at a preheader is declined for being a preheader. Pinned
+/// separately because the two reach the same assert by different routes, and a
+/// fix for one need not fix the other.
+TEST(IrTranslationSpec, JoinThreePredsAtLoopPreheader) {
+    expect_spec("join_three_preds_before_loop.ll", "vuln", {}, nullptr, /*run_cfg=*/true);
+}
+
+/// The control: one block between the join and the loop header, so the join is
+/// an ordinary join and the preheader is somewhere the arms never stop.
+///
+/// Passes, which is what places the defect on the join being a preheader rather
+/// than on there being a loop below it at all.
+TEST(IrTranslationSpec, JoinAboveLoopPreheaderTranslates) {
+    expect_spec("join_then_loop_preheader.ll", "vuln", {}, nullptr, /*run_cfg=*/true);
+}
+
+/// A chain of early exits converging on one join, with a loop below it.
+///
+/// **This case currently fails.** Kept as the fix target.
+///
+/// Reduced from `decode_unit_vuln` in ffm054, where a fully unrolled 16-way
+/// search gives `while.end` seventeen predecessors and three seventeen-way phis.
+/// A ladder is neither a diamond nor a triangle -- each rung\'s taken edge goes to
+/// the next rung rather than to the join -- so no structural enumeration
+/// recognises it, and no arm is a single block reaching the join.
+///
+/// Distinct from JoinAtLoopPreheader in what declines it: there the join *was*
+/// the preheader, and admitting preheaders fixed it. Here the join has two
+/// successors and is not a preheader, so only its shape is in the way. That is
+/// also what separates it from JoinThreePredsAtLoopPreheader, which has both
+/// problems at once.
+TEST(IrTranslationSpec, UnrolledLadderBeforeLoop) {
+    expect_spec("unrolled_ladder_before_loop.ll", "vuln", {}, nullptr, /*run_cfg=*/true);
+}
+
+/* -- switch ----------------------------------------------------------------- */
+
+/// A switch reconverging at one join.
+///
+/// **This case currently fails.** Kept as the fix target: `spoq_inst_to_spec` has
+/// no SwitchInst arm at all, so the instruction reaches the catch-all --
+///
+///     Unsupported SpoqIR instruction [LLVM]:   switch i32 %n, label %sw.default
+///
+/// reconvergence_point is consulted only for two-way conditional branches, so a
+/// switch never asks where its arms rejoin however wide the join.
+TEST(IrTranslationSpec, Switch) {
+    expect_spec("translate_switch.ll", "vuln");
+}
+
+/// The same switch with a loop below the join, which is the shape `decode_str`
+/// has in ffm015.
+///
+/// **This case currently fails**, and not the same way: the walk never reaches
+/// the preheader through the switch, so the loop is never registered and the
+/// later lookup finds nothing --
+///
+///     Assertion `loop_insts.find(jump_start) != loop_insts.end()\' failed.
+///
+/// The mirror image of the duplication assert: there a loop was emitted twice,
+/// here not at all.
+TEST(IrTranslationSpec, SwitchBeforeLoop) {
+    expect_spec("switch_before_loop.ll", "vuln", {}, nullptr, /*run_cfg=*/true);
+}
+
+/* -- calls through a function pointer --------------------------------------- */
+
+/// An indirect call becomes a call to a spec named after the pointer, its
+/// argument count and the calling function: `<ptr>_<argc>_fptr_<caller>_spec`,
+/// applied to the pointer itself followed by the arguments and the state.
+///
+/// Translation succeeds. Nothing defines that spec, though -- it is a name the
+/// project is expected to supply, as `ext_spec` is for an external declaration
+/// -- so a full run stops at `unknown expr op`, which is where ffm054 now ends:
+///
+///     unknown expr op (v_37_5_fptr_decode_unit_vuln_spec v_37 gb1 rc2 ...)
+///
+/// The convention is pinned here because it is the interface a project has to
+/// write against: change the shape of this name and every hand-written function
+/// pointer spec stops matching, with no error until z3_eval.
+TEST(IrTranslationSpec, FptrCallNamesThePointer) {
+    std::string spec;
+    ASSERT_NO_FATAL_FAILURE(expect_spec("translate_fptr_call.ll", "vuln", {}, &spec));
+    EXPECT_NE(spec.find("(fp_1_fptr_vuln_spec fp n st)"), std::string::npos)
+        << "the synthesised name or its arguments changed:\n" << spec;
 }

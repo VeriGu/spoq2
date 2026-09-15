@@ -162,6 +162,74 @@ ffm001's 0.5 and 0.6 into 0. It is left visible instead.
 the prelude does not agree with. Nothing produces it now, but it is there to be
 picked up by mistake.
 
+## Calls through a function pointer
+
+`translate_fptr_call.ll`. An indirect call becomes a call to
+`<ptr>_<argc>_fptr_<caller>_spec`, applied to the pointer itself, then the
+arguments, then the state:
+
+    when call, st == ((fp_1_fptr_vuln_spec fp n st));
+
+Translation succeeds and the fixture passes. Nothing defines that spec -- it is a
+name the project supplies, as `ext_spec` is for an external declaration -- so a
+full run stops at `unknown expr op`, which is where ffm054 ends once its
+reconvergence problem is out of the way. The convention is pinned because it is
+the interface a project writes against, and changing it would break every
+hand-written function pointer spec with no error until z3_eval.
+
+## switch
+
+`translate_switch.ll` and `switch_before_loop.ll`. **Both fail**, differently.
+
+`spoq_inst_to_spec` has no `SwitchInst` arm, so a plain switch reaches the
+catch-all and asserts on an unsupported instruction. `reconvergence_point` is
+consulted only for two-way conditional branches, so a switch never asks where
+its arms rejoin however wide the join.
+
+With a loop below the join the failure inverts: the walk never reaches the
+preheader through the switch, so the loop is never registered and the later
+lookup finds nothing -- `loop_insts does not contain the jump start`, the mirror
+image of emitting a loop twice.
+
+ffm015's `decode_str` has three switches. Its own abort is neither of these: it
+duplicates `while.body39.lr.ph`, reached twice from `sw.bb32`, a
+three-predecessor join whose predecessors include a switch case.
+
+## A branch reconverging at a loop preheader
+
+| fixture | |
+|---|---|
+| `join_two_preds_before_loop.ll` | passes -- two arms meeting at the preheader |
+| `join_three_preds_before_loop.ll` | **fails** -- three arms, as ffm021 has |
+| `unrolled_ladder_before_loop.ll` | **fails** -- a ladder of early exits, as ffm054 has |
+| `join_then_loop_preheader.ll` | passes -- a block between the join and the loop |
+
+`usable_join` refuses a postheader, which from outside the loop looks like an
+ordinary two-predecessor join but whose phis carry the loop's results and have to
+be read through the pass-out list. It used to refuse preheaders as well, via
+`can_remove`, which is false for both ends of the jump. A preheader is not like
+that: its phis are ordinary ones merging the arms that reach the loop, and the
+loop's own phis are in the header. Refusing them left each arm to walk into the
+loop and emit it again, asserting on the second:
+
+    Assertion `!context.has_loop_inst_for_jump(block)' failed.
+
+Arity is not what decides it -- the two-arm case was declined for the join being
+a preheader, the three-arm case for being neither a diamond nor a triangle, so
+the three-arm one still fails.
+
+`unrolled_ladder_before_loop.ll` separates the two causes. Its join has two
+successors, so it is not a preheader, and only its shape is in the way: a chain
+of early exits where each rung's taken edge goes to the next rung rather than to
+the join, so no arm is a single block reaching it. ffm054 has this seventeen
+rungs deep, from a fully unrolled search, with three seventeen-way phis at the
+join. No enumeration of shapes will catch that; it wants the reconvergence point
+computed rather than matched. `join_then_loop_preheader.ll` separates the join
+from the loop header, and passed throughout.
+
+This is what ffm015 (`decode_str`) and ffm021 (`nsv_parse_NSVs_header`) hit.
+Both bisect to `6abe8e6`.
+
 ## Join points
 
 `control_flow_clone_and_split` does not run. A join phi is resolved during

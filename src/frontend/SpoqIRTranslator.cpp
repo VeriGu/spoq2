@@ -110,18 +110,16 @@ static llvm::BasicBlock *reconvergence_point(llvm::BasicBlock *b, llvm::BasicBlo
                                              llvm::BasicBlock *f, SpoqLoopContext &context) {
     if (t == f) return nullptr;                     // not a branch in any real sense
 
-    // Loop boundaries belong to the preheader/postheader/loopheader rewrite --
-    // their phis become Fixpoint arguments or the loop call's results -- so an
-    // arm must not be stopped at one.
+    // A postheader still looks like an ordinary two-predecessor join from
+    // outside the loop, and stopping an arm there would read its phis directly
+    // instead of through the loop's pass-out list.  A preheader is not like
+    // that: its phis are ordinary ones, merging the arms that reach the loop,
+    // and the loop's own phis are in the header.  Refusing preheaders too left
+    // each arm to walk into the loop and emit it again.
     const auto usable_join = [&context](llvm::BasicBlock *j) {
         if (!j) return false;
         if (j == context.get_postheader() || j == context.get_loopheader()) return false;
-        // can_remove is false for the preheader and the postheader of *any*
-        // loop, not just the one being walked.  A postheader in particular
-        // still looks like an ordinary two-predecessor join from outside the
-        // loop, and stopping an arm there would read its phis directly instead
-        // of through the loop's pass-out list.
-        return context.can_remove(j);
+        return !context.is_postheader(j);
     };
 
     // Triangle -- `if (c) { arm }` with no else, where one successor IS the
@@ -136,15 +134,43 @@ static llvm::BasicBlock *reconvergence_point(llvm::BasicBlock *b, llvm::BasicBlo
         if (usable_join(other)) return other;
     }
 
-    if (!t->getUniquePredecessor() || !f->getUniquePredecessor()) return nullptr;
-    if (t->getUniquePredecessor() != b || f->getUniquePredecessor() != b) return nullptr;
+    // Diamond.
+    const auto diamond = [&]() -> llvm::BasicBlock * {
+        if (!t->getUniquePredecessor() || !f->getUniquePredecessor()) return nullptr;
+        if (t->getUniquePredecessor() != b || f->getUniquePredecessor() != b) return nullptr;
 
-    auto *j = t->getUniqueSuccessor();
-    if (!j || j != f->getUniqueSuccessor()) return nullptr;
-    if (!j->hasNPredecessors(2)) return nullptr;
-    if (j == t || j == f) return nullptr;
+        auto *j = t->getUniqueSuccessor();
+        if (!j || j != f->getUniqueSuccessor()) return nullptr;
+        if (!j->hasNPredecessors(2)) return nullptr;
+        if (j == t || j == f) return nullptr;
 
-    if (context.require_jump_no_step(t) || context.require_jump_no_step(f)) return nullptr;
+        if (context.require_jump_no_step(t) || context.require_jump_no_step(f)) return nullptr;
+        return usable_join(j) ? j : nullptr;
+    };
+    if (auto *j = diamond()) return j;
+
+    // Neither shape matched, so compute the reconvergence point rather than
+    // recognising it.  The immediate post-dominator is where the arms rejoin by
+    // definition: every path out of b reaches it.  That gives the region one
+    // exit; requiring every edge into it to come from inside gives it one
+    // entry, which is what the predecessor counts above were approximating --
+    // control must not reach the continuation except through this If, or the
+    // values bound after it would not all be defined.
+    //
+    // A ladder of early exits has this property and matches no fixed shape,
+    // however many rungs it has.
+    auto *j = context.ipdom(b);
+    if (!j || j == b) return nullptr;
+
+    // A loop is emitted as a recursive call, so it is a boundary a single If
+    // cannot span: leaving one is a break, not a branch to a continuation.  And
+    // a header's phis are that call's parameters, not a merge.
+    if (context.loop_of(j) != context.loop_of(b)) return nullptr;
+    if (context.is_any_loop_header(j)) return nullptr;
+
+    for (auto *p : llvm::predecessors(j))
+        if (!context.dominates(b, p)) return nullptr;
+
     return usable_join(j) ? j : nullptr;
 }
 
@@ -183,6 +209,10 @@ void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec (llvm::BasicBlock* block, llvm::
 
         for (auto &inst: *block) {
             if (inst.isTerminator()) continue;
+            // Reached as the continuation of a reconverging If, which bound
+            // this block's phis already -- the same exemption the non-preheader
+            // path below makes.
+            if (join_phis_bound && llvm::dyn_cast<llvm::PHINode>(&inst)) continue;
             vec.push_back(std::make_unique<SpoqLLVMInst>(&inst));
         }
 

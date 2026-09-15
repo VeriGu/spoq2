@@ -17,6 +17,7 @@
 #include "shortcuts.h"
 
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/Analysis/PostDominators.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -378,6 +379,18 @@ namespace autov {
          * @return true
          * @return false
          */
+        /// Whether [bb] is the postheader of any loop.  Distinct from
+        /// can_remove, which is false for both ends of the jump: an arm must
+        /// not stop at a postheader, whose phis carry the loop's results and
+        /// have to be read through the pass-out list, but a preheader's phis
+        /// are ordinary ones and stopping there is fine.
+        inline bool is_postheader(llvm::BasicBlock* bb) {
+            for(auto  const&pair: jump) {
+                if(pair.second == bb) return true;
+            }
+            return false;
+        }
+
         inline bool can_remove(llvm::BasicBlock* bb) {
             for(auto  const&pair: jump) {
                 if(pair.first == bb) return false;
@@ -419,6 +432,39 @@ namespace autov {
             step_count = -2;
             preheader = &func->getEntryBlock();
             postheader = nullptr;
+            // Deciding where a branch's arms rejoin needs dominance in both
+            // directions and the loop nest.  The CFG pass has finished by the
+            // time translation starts, so build these once here rather than per
+            // branch -- reconvergence_point asks on every conditional.
+            dom_tree = std::make_unique<llvm::DominatorTree>(*func);
+            post_dom_tree = std::make_unique<llvm::PostDominatorTree>(*func);
+            loop_info = std::make_unique<llvm::LoopInfo>(*dom_tree);
+        }
+
+        /// The immediate post-dominator of [bb]: the first block every path out
+        /// of [bb] reaches.  Null where there is none -- a block that cannot
+        /// reach the return post-dominates nothing but the virtual exit.
+        llvm::BasicBlock* ipdom(llvm::BasicBlock* bb) {
+            if (!post_dom_tree) return nullptr;
+            auto const node = post_dom_tree->getNode(bb);
+            if (!node || !node->getIDom()) return nullptr;
+            return node->getIDom()->getBlock();  // null at the virtual exit
+        }
+
+        bool dominates(llvm::BasicBlock* a, llvm::BasicBlock* b) {
+            return dom_tree && dom_tree->dominates(a, b);
+        }
+
+        /// The innermost loop containing [bb], or null at the top level.  Two
+        /// blocks in different loops are on opposite sides of a boundary that a
+        /// single If cannot span: a loop becomes a recursive call, so leaving
+        /// one is a break rather than a branch to a continuation.
+        llvm::Loop* loop_of(llvm::BasicBlock* bb) {
+            return loop_info ? loop_info->getLoopFor(bb) : nullptr;
+        }
+
+        bool is_any_loop_header(llvm::BasicBlock* bb) {
+            return loop_info && loop_info->isLoopHeader(bb);
         }
 
         /**
@@ -572,6 +618,10 @@ namespace autov {
             }
             pass_out[bb].push_back(v);
         }
+
+        std::unique_ptr<llvm::DominatorTree> dom_tree;
+        std::unique_ptr<llvm::PostDominatorTree> post_dom_tree;
+        std::unique_ptr<llvm::LoopInfo> loop_info;
 
         std::map<llvm::BasicBlock*, std::vector<llvm::Value*>> pass_in;
         std::map<llvm::BasicBlock*, std::vector<llvm::Value*>> pass_out;
