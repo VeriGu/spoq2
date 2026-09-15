@@ -1245,6 +1245,37 @@ TEST(IrTranslationSpec, LoopPreheaderOnTwoPathsTwoLoops) {
         << "the second Fixpoint has no recursive call:\n" << defs;
 }
 
+/* -- agreement with the preprocessing passes --------------------------------- */
+
+/// spoq and the preprocessing passes must name a type the same way, because a
+/// `Parameter <fn>_spec` the passes emit is checked against a body spoq
+/// translates.  They disagreed about vectors -- the passes said `UnknownType`,
+/// which nothing defines -- and snd001 and snd014 died on it.
+///
+/// Both now go through the one traversal in include/llvm_coq_type.h, but they
+/// build different things from it (a SpecType here, Coq text there), so the
+/// agreement is a property to check rather than one the types enforce.  The
+/// other half is ExtractBasics.VectorTypesMapToAZMap.
+TEST(IrTranslationSpec, VectorTypeMatchesTheGeneratedSignature) {
+    llvm::LLVMContext ctx;
+    llvm::SMDiagnostic err;
+    auto module = llvm::parseAssemblyString(
+        "define <2 x double> @vuln(<2 x double> %v, <4 x float> %w, [4 x i32] %a) {\n"
+        "entry:\n  ret <2 x double> %v\n}\n", err, ctx);
+    ASSERT_TRUE(module) << "fixture did not parse";
+    auto *f = module->getFunction("vuln");
+    ASSERT_NE(f, nullptr);
+
+    const auto coq = [](llvm::Type *t) {
+        return std::string(*SpoqIRModule::llvm_ir_type_to_spec_pure(t));
+    };
+    EXPECT_EQ(coq(f->getArg(0)->getType()), "(ZMap.t Z)");
+    EXPECT_EQ(coq(f->getArg(1)->getType()), "(ZMap.t Z)");
+    // An array is the same shape: spoq drops the length that ExtractBasics
+    // keeps in a record field, and the signature side agrees with spoq.
+    EXPECT_EQ(coq(f->getArg(2)->getType()), "(ZMap.t Z)");
+}
+
 /* -- calls through a function pointer --------------------------------------- */
 
 /// An indirect call becomes a call to a spec named after the pointer, its

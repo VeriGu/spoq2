@@ -1,3 +1,4 @@
+#include "llvm_coq_type.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/PassManager.h"
@@ -245,55 +246,50 @@ std::string ExtractPointersPass::getTypeIdentifier(llvm::Type* ty) {
   return unique_type_name[ty];
 }
 
-std::string ExtractPointersPass::generateField(llvm::Type* ty) {
-  switch(ty->getTypeID()) {
-    case llvm::Type::TypeID::IntegerTyID: {
-      return "Z";
-    }
-    case llvm::Type::TypeID::StructTyID: {
-      auto sty = llvm::dyn_cast<llvm::StructType>(ty);
-      return getStructTypeIdentifier(sty); // remove struct.
-    }
-    case llvm::Type::TypeID::PointerTyID: {
-      return "Z";
-    }
-    case llvm::Type::TypeID::ArrayTyID: {
-      auto aty = llvm::dyn_cast<llvm::ArrayType>(ty);
-      auto ety = aty->getElementType();
-      if( ety->isIntegerTy() || ety->isPointerTy() ) {
-      // TODO: assert Array is [constant x iXXX]
-        return "(ZMap.t Z)";
-      } else if(ety->isDoubleTy() || ety->isFloatTy() || ety->isFloatingPointTy()){
-        return "(ZMap.t Float)";
-      } else if(ety->isStructTy()) {
-        return "(ZMap.t " + getStructTypeIdentifier(llvm::dyn_cast<llvm::StructType>(ety)) + ")";
-      } else if(ety->isArrayTy()){
-        auto aty2 = llvm::dyn_cast<llvm::ArrayType>(ety);
-        auto ety2 = aty2->getElementType();
-        if(ety2->isIntegerTy()){
-          return "(ZMap.t (ZMap.t Z))";
+namespace {
+/// Renders a type as the payload of a StackVal constructor.  Differs from
+/// ExtractBasics deliberately -- a pointer on the stack is a Z, and an array
+/// does not carry its length -- which is why the shared part in
+/// include/llvm_coq_type.h is the traversal and not the rendering.
+struct CoqStackVal {
+  using result_t = std::string;
+  ExtractPointersPass *pass;
 
-        } else {
-          return "None (* FIXME: nd array *)";
+  std::string boolean() { return "Z"; }
+  std::string integer(unsigned) { return "Z"; }
+  std::string pointer() { return "Z"; }
+  std::string floating(llvm::Type *ty) { return ty->isFloatTy() ? "Float" : "Double"; }
+  std::string structure(llvm::StructType *sty) { return pass->getStructTypeIdentifier(sty); }
+  std::string metadata() { return "Metadata"; }
+  // Unreachable: a void return is special-cased by the caller, and LLVM has
+  // no void parameter or field.  `unit` rather than the "UnknownType" the
+  // old default gave it, so that if it ever does arrive the result is a
+  // type Coq rejects rather than a name spoq's parser dies on.
+  std::string voidty() { return "unit"; }
 
-        }
-      } else {
-        return "None (* FIXME: unknown subtype *)";
-      }
-    } 
-    case llvm::Type::TypeID::MetadataTyID: {
-      return "Metadata";
+  std::string array(llvm::Type *ety, uint64_t) {
+    if (ety->isIntegerTy() || ety->isPointerTy()) return "(ZMap.t Z)";
+    if (ety->isFloatingPointTy()) return "(ZMap.t Float)";
+    if (ety->isStructTy())
+      return "(ZMap.t " + pass->getStructTypeIdentifier(llvm::dyn_cast<llvm::StructType>(ety)) + ")";
+    if (auto *inner = llvm::dyn_cast<llvm::ArrayType>(ety)) {
+      if (inner->getElementType()->isIntegerTy()) return "(ZMap.t (ZMap.t Z))";
+      return "None (* FIXME: nd array *)";
     }
-    case llvm::Type::TypeID::FloatTyID: {
-      return "Float";
-    }
-    case llvm::Type::TypeID::DoubleTyID: {
-      return "Double";
-    }
-    default: {
-      return "UnknownType";
-    }
+    return "None (* FIXME: unknown subtype *)";
   }
+
+  // Same text spoq's llvm_ir_type_to_spec_pure produces, and the same as
+  // ExtractBasics now emits in a signature.  It used to be "UnknownType".
+  std::string vector(llvm::Type *, uint64_t) { return "(ZMap.t Z)"; }
+
+  std::string unsupported(llvm::Type *) { return "UnknownType"; }
+};
+}  // namespace
+
+std::string ExtractPointersPass::generateField(llvm::Type* ty) {
+  CoqStackVal builder{this};
+  return autov::coqty::of_type(ty, builder);
 }
 
 bool ExtractPointersPass::is_debug_intrinsic(llvm::StringRef fname) {

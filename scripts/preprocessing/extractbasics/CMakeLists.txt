@@ -118,6 +118,12 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib")
 
 add_library(extractbasics SHARED extractbasics.cpp)
 
+# include/llvm_coq_type.h -- the LLVM-type -> Coq-type traversal this pass
+# shares with spoq.  Header-only and LLVM-only on purpose: this is a plugin
+# built against LLVM alone and cannot link against spoq.
+target_include_directories(extractbasics PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/../../../include")
+
 # Allow undefined symbols in shared objects on Darwin (this is the default
 # behaviour on Linux)
 target_link_libraries(extractbasics

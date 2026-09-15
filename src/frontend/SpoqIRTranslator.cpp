@@ -1,3 +1,4 @@
+#include "llvm_coq_type.h"
 #include "SpoqIR.h"
 #include "SpoqIRModule.h"
 #include "log.h"
@@ -661,49 +662,58 @@ shared_ptr<SpecType> SpoqIRContext::get_llvm_value_type(llvm::Value* value) {
 }
 
 
-shared_ptr<SpecType> SpoqIRModule::llvm_ir_type_to_spec_pure(llvm::Type* type) {
-    if (type->isIntegerTy(1)) {
-        return Bool::BOOL;
-    } else if(type->isIntegerTy()) {
-        return Int::INT;
-    } else if(type->isFloatingPointTy()){
-        // A float is a Z of unknown magnitude: `Float := Z` in every prelude,
-        // and nothing is claimed about the value.  Float::FLOAT would map it to
-        // a 64-bit IEEE sort in z3, which the emitted Coq does not agree with.
-        return Int::INT;
-    } else if (type->isPointerTy()) {
-        return Struct::Ptr;
-    } else if (type->isVoidTy()) {
-        return make_shared<SpecType>("Void");
-    } else if (type->isStructTy()) {
-        // assert(type->getStructName().str() != "" && "struct name is empty, fix me with a pass to assign name for each struct"); // struct.setName isn't supposed to be called on a literal so this is complicated.
-        if(type->getStructName().empty()){
-            return make_shared<SpecType>(type->getStructName().str());
-        } else {
-            std::string const name = anonStructName(static_cast<llvm::StructType*>(type));
-            return make_shared<SpecType>(name);
-        }
+namespace {
+/// Builds the spec-side type.  The preprocessing passes build a Coq string from
+/// the same traversal (include/llvm_coq_type.h); this one builds the SpecType
+/// those strings have to agree with, since a spec signature emitted there is
+/// checked against a body translated here.
+struct SpecTypeOf {
+    using result_t = shared_ptr<SpecType>;
 
-    } else if (type->isArrayTy()) {
-        auto const elem_type = llvm_ir_type_to_spec_pure(type->getArrayElementType());
-        assert(elem_type != SpecType::UNKNOWN_TYPE && "array element type is unknown");
-        return make_shared<ZMap>(elem_type);
-    } else if (type->isVectorTy()) {
-        if(auto fvty = llvm::dyn_cast<llvm::FixedVectorType>(type)){
-            auto const elem_type = llvm_ir_type_to_spec_pure(fvty->getElementType());
-            assert(elem_type != SpecType::UNKNOWN_TYPE && "vector element type is unknown");
-            return make_shared<ZMap>(elem_type);
-        } else if(auto vty = llvm::dyn_cast<llvm::VectorType>(type)){
-            auto const elem_type = llvm_ir_type_to_spec_pure(vty->getElementType());
-            assert(elem_type != SpecType::UNKNOWN_TYPE && "vector element type is unknown");
-            return make_shared<ZMap>(elem_type);
-        } else {
-            assert(false);
-        }
-    } else {
-        throw std::invalid_argument("invalid types: " + type->getStructName().str());
-        return SpecType::UNKNOWN_TYPE;
+    shared_ptr<SpecType> boolean() { return Bool::BOOL; }
+    shared_ptr<SpecType> integer(unsigned) { return Int::INT; }
+    shared_ptr<SpecType> pointer() { return Struct::Ptr; }
+
+    /// A Z of unknown magnitude: `Float := Z` in every prelude, and nothing is
+    /// claimed about the value.  Float::FLOAT would map it to a 64-bit IEEE
+    /// sort in z3, which the emitted Coq does not agree with.
+    shared_ptr<SpecType> floating(llvm::Type *) { return Int::INT; }
+
+    shared_ptr<SpecType> voidty() { return make_shared<SpecType>("Void"); }
+
+    /// Metadata is not a value type: it reaches an operand only through a debug
+    /// intrinsic, which is stripped before translation.  Rejected rather than
+    /// named, as it was before the traversal was shared.
+    shared_ptr<SpecType> metadata() {
+        throw std::invalid_argument("metadata is not a spec type");
     }
+
+    shared_ptr<SpecType> structure(llvm::StructType *sty) {
+        if (sty->getName().empty()) return make_shared<SpecType>(std::string());
+        return make_shared<SpecType>(anonStructName(sty));
+    }
+
+    /// Both aggregates are a map from index to element, with the length left
+    /// out -- prints as `(ZMap.t Z)`, which is what the passes emit too.
+    shared_ptr<SpecType> array(llvm::Type *elem, uint64_t) { return mapped(elem); }
+    shared_ptr<SpecType> vector(llvm::Type *elem, uint64_t) { return mapped(elem); }
+
+    shared_ptr<SpecType> unsupported(llvm::Type *ty) {
+        throw std::invalid_argument("invalid types: " + ty->getStructName().str());
+    }
+
+  private:
+    shared_ptr<SpecType> mapped(llvm::Type *elem) {
+        auto const elem_type = SpoqIRModule::llvm_ir_type_to_spec_pure(elem);
+        assert(elem_type != SpecType::UNKNOWN_TYPE && "aggregate element type is unknown");
+        return make_shared<ZMap>(elem_type);
+    }
+};
+}  // namespace
+
+shared_ptr<SpecType> SpoqIRModule::llvm_ir_type_to_spec_pure(llvm::Type* type) {
+    SpecTypeOf builder;
+    return autov::coqty::of_type(type, builder);
 }
 
 unique_ptr<SpecNode> construct_return_spec(Project  const*proj,

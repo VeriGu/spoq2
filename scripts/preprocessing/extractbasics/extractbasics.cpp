@@ -1,3 +1,4 @@
+#include "llvm_coq_type.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Passes/PassBuilder.h"
@@ -260,52 +261,58 @@ std::string ExtractBasicsPass::getStructTypeIdentifier(llvm::StructType* sty, bo
   return name;
 }
 
-std::string ExtractBasicsPass::generateField(llvm::Type* ty, bool pointers_are_ptr, bool ints_are_Z=true) {
-  auto tid = ty->getTypeID();
-  switch(tid) {
-    case llvm::Type::TypeID::IntegerTyID: {
-      if (ints_are_Z){
-        return "Z";
-      } else {
-        return std::to_string(ty->getIntegerBitWidth()) + "Z";
-      }
-    }
-    case llvm::Type::TypeID::StructTyID: {
-      auto sty = llvm::dyn_cast<llvm::StructType>(ty);
-      return getStructTypeIdentifier(sty, pointers_are_ptr); // remove struct.
-    }
-    case llvm::Type::TypeID::PointerTyID: {
-      if(pointers_are_ptr){
-        return "Ptr";
-      } else {
-        return "Z";
-      }
-    }
-    case llvm::Type::TypeID::ArrayTyID: {
-      auto aty = llvm::dyn_cast<llvm::ArrayType>(ty);
-      auto ety = aty->getElementType();
-      if( ety->isIntegerTy() || ety->isPointerTy() ) {
-      // TODO: assert Array is [constant x iXXX]
-        return "((ZMap.t Z) * Z)";
-      } else if(ety->isStructTy()) {
-        return "((ZMap.t " + getStructTypeIdentifier(llvm::dyn_cast<llvm::StructType>(ety), pointers_are_ptr) + ") * Z)";
-      } else {
-        return "((ZMap.t Z) * Z) (* FIXME: complex array *)";
-      }
-    }
-    case llvm::Type::TypeID::MetadataTyID: {
-      return "Metadata";
-    }
-    case llvm::Type::TypeID::FloatTyID: {
-      return "Float";
-    }
-    case llvm::Type::TypeID::DoubleTyID: {
-      return "Double";
-    }
-    default: {
-      return "UnknownType";
-    }
+namespace {
+/// Renders a type the way this pass wants it: a record field or a spec
+/// signature.  See include/llvm_coq_type.h for why the traversal is shared.
+struct CoqField {
+  using result_t = std::string;
+  ExtractBasicsPass *pass;
+  bool pointers_are_ptr;
+  bool ints_are_Z;
+
+  // i1 is a Z like every other width -- spoq's own mapping makes it Bool, which
+  // is a difference worth knowing about but not one to change here.
+  std::string boolean() { return integer(1); }
+  std::string integer(unsigned bits) {
+    return ints_are_Z ? "Z" : std::to_string(bits) + "Z";
   }
+  std::string pointer() { return pointers_are_ptr ? "Ptr" : "Z"; }
+  // Float and Double are distinct names, both `:= Z` in the prelude.
+  std::string floating(llvm::Type *ty) { return ty->isFloatTy() ? "Float" : "Double"; }
+  std::string structure(llvm::StructType *sty) {
+    return pass->getStructTypeIdentifier(sty, pointers_are_ptr);
+  }
+  std::string metadata() { return "Metadata"; }
+  // Unreachable: a void return is special-cased by the caller, and LLVM has
+  // no void parameter or field.  `unit` rather than the "UnknownType" the
+  // old default gave it, so that if it ever does arrive the result is a
+  // type Coq rejects rather than a name spoq's parser dies on.
+  std::string voidty() { return "unit"; }
+
+  // (contents, length).  Only one level, and only these element types.
+  std::string array(llvm::Type *ety, uint64_t) {
+    if (ety->isIntegerTy() || ety->isPointerTy()) return "((ZMap.t Z) * Z)";
+    if (ety->isStructTy())
+      return "((ZMap.t " +
+             pass->getStructTypeIdentifier(llvm::dyn_cast<llvm::StructType>(ety),
+                                           pointers_are_ptr) +
+             ") * Z)";
+    return "((ZMap.t Z) * Z) (* FIXME: complex array *)";
+  }
+
+  // A map of its elements, and without a length: this has to be the same text
+  // spoq's llvm_ir_type_to_spec_pure produces, because a spec signature written
+  // here is checked against a body translated there.  It used to be
+  // "UnknownType", which nothing defines.
+  std::string vector(llvm::Type *, uint64_t) { return "(ZMap.t Z)"; }
+
+  std::string unsupported(llvm::Type *) { return "UnknownType"; }
+};
+}  // namespace
+
+std::string ExtractBasicsPass::generateField(llvm::Type* ty, bool pointers_are_ptr, bool ints_are_Z=true) {
+  CoqField builder{this, pointers_are_ptr, ints_are_Z};
+  return autov::coqty::of_type(ty, builder);
 }
 
 bool ExtractBasicsPass::expandType(llvm::Type* ty, std::vector<llvm::Type*>& vec) {

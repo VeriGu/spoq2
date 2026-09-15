@@ -277,6 +277,22 @@ add_test(NAME IrTranslation COMMAND IrTranslationTest)
 set_tests_properties(IrTranslation PROPERTIES TIMEOUT 300)
 
 # ------------------------------------------------------------------------------
+# PreprocessingTest -- the passes that generate a project's Coq skeleton
+# ------------------------------------------------------------------------------
+# ExtractBasics and ExtractPointers are `opt` plugins built separately (see
+# scripts/preprocessing/build-passes.sh), so they cannot be linked in here.  The
+# tests shell out to `opt` exactly as extract-info.sh does and read what the
+# passes wrote; they skip when opt or the plugins are absent, since a spoq build
+# does not build them.
+add_executable(PreprocessingTest test/unit/PreprocessingTest.cpp)
+target_link_libraries(PreprocessingTest GTest::gtest_main GTest::gtest)
+target_compile_definitions(PreprocessingTest PRIVATE
+    SPOQ_PASS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/scripts/preprocessing"
+    SPOQ_PASS_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/preprocessing")
+add_test(NAME Preprocessing COMMAND PreprocessingTest)
+set_tests_properties(Preprocessing PROPERTIES TIMEOUT 120)
+
+# ------------------------------------------------------------------------------
 # UnfoldAmbiguityTest -- rule_unfold_specs together with eliminate_ambiguity
 # ------------------------------------------------------------------------------
 # Pins which shadowing the repair pass is required to fix, which it must leave
