@@ -264,7 +264,16 @@ and passed throughout.
 
 ## A loop entered on two paths
 
-`loop_preheader_on_two_paths.ll`. **Fails**, and is the fix target:
+| fixture | |
+|---|---|
+| `loop_preheader_on_two_paths.ll` | the minimal reproduction |
+| `loop_preheader_on_two_paths_value_out.ll` | a value carried out of the loop and read below it |
+| `loop_preheader_on_two_paths_multi_exit.ll` | two exits, so a selector to dispatch on at each call site |
+| `loop_preheader_on_three_paths.ll` | three paths in, the arity ffm015 has |
+| `loop_preheader_on_two_paths_nested.ll` | the duplicated preheader one level down, inside another loop |
+| `loop_preheader_on_two_paths_two_loops.ll` | two loops each entered twice, so loop numbering is exercised |
+
+All **fail**, and all are the fix target:
 
     Assertion `!context.has_loop_inst_for_jump(block)' failed.
 
@@ -282,6 +291,24 @@ This is what ffm015 (`decode_str`) still hits. There the block above the
 preheader, `sw.bb32`, is reached from two different switches -- one case of the
 outer one and two of the inner one -- so it looked switch-shaped, but the
 fixture reproduces it in seventeen lines of plain branches.
+
+The second fixture exists because the first cannot tell a correct fix from a
+plausible one. Its loop returns nothing anyone reads, so simply deleting the
+assert yields a closed, free-variable-clean spec whose top-level text is
+byte-identical to the correct one -- only the definition differs:
+
+    Fixpoint vuln_loop_0_low (m: Z) (i: Z) (sum: Z) ... :=
+      (Some st).
+
+Body dropped, no recursive call, ill-typed against its own return type. So
+every case after the first reads the emitted definition rather than only the
+spec: `expect_spec` takes an `out_defs` for that, and `--spec-cfg` prints the
+definitions too. Deleting the assert alone satisfies the first fixture and fails
+the other five, which is what they are for.
+
+The nested case needs `out_defs` most: its duplication is entirely inside the
+outer loop's `Fixpoint`, so the top-level spec -- which enters the outer loop
+once -- shows none of it.
 
 ## Join points
 
