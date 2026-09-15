@@ -173,6 +173,22 @@ std::vector<std::string> splitSemi(const std::string &text) {
 
 /// The text of `Definition <name> ...` up to the next blank line, from whichever
 /// generated Spec.v under [work] defines it (cached copies are skipped).
+/// Every generated Coq file, concatenated.  findDefinitionBody below reads one
+/// Definition's body, which cannot see anything outside it -- a Parameter the
+/// spec references but never declares sits above every Definition, and made
+/// files that do not compile look correct.
+std::string allGeneratedCoq(const fs::path &work) {
+    std::string all;
+    for (const auto &entry : fs::recursive_directory_iterator(work)) {
+        if (!entry.is_regular_file() || entry.path().extension() != ".v") continue;
+        if (entry.path().string().find(".CachedSpec") != std::string::npos) continue;
+        std::ifstream in(entry.path());
+        all.append((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        all += "\n";
+    }
+    return all;
+}
+
 std::string findDefinitionBody(const fs::path &work, const std::string &name) {
     const std::string head = "Definition " + name + " ";
     for (const auto &entry : fs::recursive_directory_iterator(work)) {
@@ -249,7 +265,9 @@ void runCase(const TestCase &tc) {
     // Require one only when the expected file actually pins a result field.
     bool wants_result_json = false;
     for (const auto &[key, value] : expected)
-        if (key.rfind("spec_v_", 0) != 0 && key.rfind("stderr_", 0) != 0) wants_result_json = true;
+        if (key.rfind("spec_v_", 0) != 0 && key.rfind("stderr_", 0) != 0 &&
+            key.rfind("coq_", 0) != 0)
+            wants_result_json = true;
 
     if (wants_result_json) {
         std::istringstream out(run_result.output);
@@ -259,7 +277,9 @@ void runCase(const TestCase &tc) {
         ASSERT_TRUE(readJson(tc.ll, first_line, actual));
 
         for (const auto &[key, value] : expected) {
-            if (key.rfind("spec_v_", 0) == 0 || key.rfind("stderr_", 0) == 0) continue;
+            if (key.rfind("spec_v_", 0) == 0 || key.rfind("stderr_", 0) == 0 ||
+                key.rfind("coq_", 0) == 0)
+                continue;
             const auto found = actual.get_optional<std::string>(key);
             EXPECT_TRUE(found.has_value()) << "result has no key '" << key << "'";
             if (found) EXPECT_EQ(*found, value.get_value<std::string>()) << "for key '" << key << "'";
@@ -292,6 +312,16 @@ void runCase(const TestCase &tc) {
     //   spec_v_definition   the Definition whose body is inspected
     //   spec_v_contains     ';'-separated substrings that must appear in it
     //   spec_v_lacks        ';'-separated substrings that must not
+    //   coq_contains        ';'-separated substrings that must appear in some
+    //                       generated .v file -- for what no single Definition
+    //                       body contains, such as a Parameter declaration
+    if (const auto want_coq = expected.get_optional<std::string>("coq_contains")) {
+        const std::string all = allGeneratedCoq(work);
+        ASSERT_FALSE(all.empty()) << "no Coq was generated";
+        for (const auto &s : splitSemi(*want_coq))
+            EXPECT_NE(all.find(s), std::string::npos) << "'" << s << "' missing from the generated Coq";
+    }
+
     if (const auto def = expected.get_optional<std::string>("spec_v_definition")) {
         const std::string body = findDefinitionBody(work, *def);
         ASSERT_FALSE(body.empty()) << "no 'Definition " << *def << "' found in any generated Spec.v";

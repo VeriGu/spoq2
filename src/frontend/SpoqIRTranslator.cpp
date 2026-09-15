@@ -22,6 +22,9 @@
 #include <memory>
 #include <stdexcept>
 #include <unordered_map>
+#include <cstring>
+#include <cctype>
+#include <sstream>
 #include <values.h>
 
 #include "llvm/Analysis/LoopInfo.h"
@@ -57,20 +60,11 @@ const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> SpoqIRModul
     {llvm::Instruction::BinaryOps::And, Expr::binops::BITAND},
     {llvm::Instruction::BinaryOps::Or, Expr::binops::BITOR},
     // FIXME: {llvm::Instruction::BinaryOps::Xor, Expr::binops::BITOR},
-    {llvm::Instruction::BinaryOps::FMul, Expr::binops::FMUL},
-    {llvm::Instruction::BinaryOps::FAdd, Expr::binops::FADD},
-    {llvm::Instruction::BinaryOps::FSub, Expr::binops::FSUB},
-    {llvm::Instruction::BinaryOps::FDiv, Expr::binops::FDIV},
-    {llvm::Instruction::BinaryOps::FRem, Expr::binops::FREM},
 };
 
 const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> SpoqIRModule::bool_binops_lut = {
     {llvm::Instruction::BinaryOps::And, Expr::binops::BAND},
     {llvm::Instruction::BinaryOps::Or, Expr::binops::BOR},
-};
-
-const std::unordered_map<llvm::Instruction::UnaryOps, Expr::unops> SpoqIRModule::unops_lut = {
-    {llvm::Instruction::UnaryOps::FNeg, Expr::unops::FNEG},
 };
 
 const std::unordered_map<llvm::CmpInst::Predicate, Expr::binops> SpoqIRModule::cmpops_lut = {
@@ -86,10 +80,108 @@ const std::unordered_map<llvm::CmpInst::Predicate, Expr::binops> SpoqIRModule::c
     {llvm::CmpInst::Predicate::ICMP_UGE, Expr::binops::BGE},
     {llvm::CmpInst::Predicate::ICMP_ULT, Expr::binops::BLT},
     {llvm::CmpInst::Predicate::ICMP_ULE, Expr::binops::BLE},
-    // Floating Point
-    {llvm::CmpInst::Predicate::FCMP_OEQ, Expr::binops::FOEQ},
 };
 
+
+/* -- floating point: present, uninterpreted ---------------------------------
+ *
+ * Floats are not modelled.  Every floating point computation becomes an
+ * application of a declared, uninterpreted function, so a function containing
+ * one still translates, prints as valid Coq, and reaches the solver -- which is
+ * all that is wanted: verifying behaviour *next to* float instructions, not
+ * behaviour that depends on them.  An uninterpreted function is consistent with
+ * every real semantics, so nothing that goes through is wrong because of
+ * floats; anything needing float reasoning simply does not go through.
+ *
+ * `Float := Z` in every prelude, and is the field type of records the
+ * abstraction layer reads, so the type stays Z.  What changes is that nothing
+ * is claimed about the values.
+ */
+
+/// Whether [inst] is a floating point computation -- something to make opaque
+/// rather than translate.
+///
+/// Restricted to the four instruction classes that compute: a load of a float,
+/// a store, a GEP into a float array, a phi or a select over floats are all
+/// ordinary operations on an opaque value and must keep their normal treatment.
+/// Within those classes the test is on the types, so it catches every float
+/// opcode -- the six arithmetic, the six casts, and fcmp -- without listing
+/// them, and leaves integer and pointer work alone.
+static bool is_float_computation(llvm::Instruction *inst) {
+    if (!llvm::isa<llvm::BinaryOperator>(inst) && !llvm::isa<llvm::UnaryOperator>(inst) &&
+        !llvm::isa<llvm::CastInst>(inst) && !llvm::isa<llvm::CmpInst>(inst))
+        return false;
+    if (inst->getType()->isFPOrFPVectorTy()) return true;
+    for (auto const &op : inst->operands())
+        if (op->getType()->isFPOrFPVectorTy()) return true;
+    return false;
+}
+
+/// The name a float computation is given.
+///
+/// Derived from the opcode alone -- never from the containing function, unlike
+/// the function pointer convention.  vuln and patch must call the *same*
+/// uninterpreted function or no refinement proof could relate them.  Width is
+/// left out for the same reason it is left out of the type: `Float` is one type
+/// here, so `fmul` on a float and on a double are one symbol.
+static std::string float_op_name(llvm::Instruction *inst) {
+    if (auto cmp = llvm::dyn_cast<llvm::CmpInst>(inst))
+        return "fcmp_" + llvm::CmpInst::getPredicateName(cmp->getPredicate()).str();
+    return inst->getOpcodeName();
+}
+
+/// `llvm.fabs.f64` -> `llvm_fabs`, dropping the overload suffix so one symbol
+/// serves every width.
+static std::string float_intrinsic_name(llvm::StringRef llvm_name) {
+    std::string name = llvm_name.str();
+    for (auto const suffix : {".f32", ".f64", ".f80", ".f128"}) {
+        auto const at = name.rfind(suffix);
+        if (at != std::string::npos && at + std::strlen(suffix) == name.size()) {
+            name.resize(at);
+            break;
+        }
+    }
+    for (auto &c : name)
+        if (!std::isalnum(static_cast<unsigned char>(c))) c = '_';
+    return name;
+}
+
+/// Declare [name] as an uninterpreted function over [arg_types] -> [rettype],
+/// unless the project already has it.
+///
+/// GlobalDefs because these are shared: the same `fmul` is used by every
+/// function in every layer, and GlobalDefs is the one location every generated
+/// spec imports.  A declaration whose loc matches no section is registered and
+/// never emitted, which leaves the Coq referencing a name it never declares.
+static void declare_uninterpreted(Project *proj, const std::string &name,
+                                  shared_ptr<vector<shared_ptr<SpecType>>> arg_types,
+                                  shared_ptr<SpecType> rettype) {
+    if (proj->defs.find(name) != proj->defs.end()) return;
+    if (proj->decls.find(name) != proj->decls.end()) return;
+    // A constant is declared at its own type, not as a nullary function: z3_eval
+    // reaches a bare symbol through a path that asserts the declaration is not
+    // a Function, and a float literal arrives there as a Symbol.
+    shared_ptr<SpecType> type =
+        arg_types->empty() ? std::move(rettype)
+                           : make_shared<Function>(std::move(rettype), std::move(arg_types));
+    proj->add_declaration(make_unique<Declaration>(name, std::move(type)),
+                          make_shared<loc_t>(Project::LOC_GLOBALDEFS, "", ""));
+}
+
+/// A stable name for a float literal, from its exact bits.
+///
+/// hexfloat because it round-trips: 0.1 and the double nearest it must not
+/// collide, and two occurrences of one literal must be one constant.  The same
+/// scheme z3_eval already used for these, so the spec and the solver now agree
+/// on a single symbol rather than each inventing its own.
+static std::string float_literal_name(double v) {
+    std::ostringstream os;
+    os << std::hexfloat << v;
+    std::string name = "float_lit_" + os.str();
+    for (auto &c : name)
+        if (!std::isalnum(static_cast<unsigned char>(c))) c = '_';
+    return name;
+}
 
 /// The block both arms of a conditional branch reconverge at, or null.
 ///
@@ -361,9 +453,16 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
                     return spec;
                 }
             } else if(auto  const*float_val = llvm::dyn_cast<llvm::ConstantFP>(data)){
+                // A declared constant, not the decimal FloatConst prints: a
+                // decimal is not a term the spec language has under
+                // `Float := Z`, and it is the one thing here the solver used to
+                // read differently from the emitted Coq.
                 auto const apfloat = float_val->getValue();
-                auto spec = std::make_unique<FloatConst>(apfloat.convertToDouble());
-                return spec;
+                auto const name = float_literal_name(apfloat.convertToDouble());
+                assert(proj && "a float literal needs a project to declare it in");
+                declare_uninterpreted(proj, name,
+                                      make_shared<vector<shared_ptr<SpecType>>>(), Int::INT);
+                return std::make_unique<Symbol>(name, Int::INT);
             } else if(auto ptr_null = llvm::dyn_cast<llvm::ConstantPointerNull>(data)) {
                 auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
                 vec->push_back(std::make_unique<StringConst>("null"));
@@ -568,11 +667,9 @@ shared_ptr<SpecType> SpoqIRModule::llvm_ir_type_to_spec_pure(llvm::Type* type) {
     } else if(type->isIntegerTy()) {
         return Int::INT;
     } else if(type->isFloatingPointTy()){
-        // FLOAT MODEL: `Float := Z` in the prelude, so every floating point
-        // value is an integer on the spec side.  Fractional values, NaN, the
-        // infinities and rounding are all outside the model.  Float::FLOAT
-        // would map these to a 64-bit IEEE sort in z3, which the emitted Coq
-        // does not agree with.
+        // A float is a Z of unknown magnitude: `Float := Z` in every prelude,
+        // and nothing is claimed about the value.  Float::FLOAT would map it to
+        // a 64-bit IEEE sort in z3, which the emitted Coq does not agree with.
         return Int::INT;
     } else if (type->isPointerTy()) {
         return Struct::Ptr;
@@ -802,6 +899,27 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             return spoq_inst_to_spec(proj, vec, num + 1, context);
         }
 
+        // Floating point, before the arms below get a chance at it: every
+        // float computation is one uninterpreted application, whatever its
+        // opcode.  Ahead of them because fmul is a BinaryOperator and sitofp a
+        // CastInst, and those arms would otherwise claim them.
+        if (is_float_computation(spoq_inst->inst)) {
+            auto *inst = spoq_inst->inst;
+            auto const name = float_op_name(inst);
+            auto arg_types = make_shared<vector<shared_ptr<SpecType>>>();
+            auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
+            for (auto const &op : inst->operands()) {
+                arg_types->push_back(context.get_llvm_value_type(op));
+                operands->push_back(context.get_llvm_value_spec(op));
+            }
+            declare_uninterpreted(proj, name, arg_types,
+                                  SpoqIRModule::llvm_ir_type_to_spec_pure(inst->getType()));
+            auto expr = std::make_unique<Expr>(name, std::move(operands));
+            expr->type = SpoqIRModule::llvm_ir_type_to_spec_pure(inst->getType());
+            return Shortcut::_Let_u(context.get_llvm_value_spec(inst), std::move(expr),
+                                    spoq_inst_to_spec(proj, vec, num + 1, context));
+        }
+
         // Binary Operation
         if (auto bi = llvm::dyn_cast<llvm::BinaryOperator>(spoq_inst->inst)) {
             unique_ptr<vector<unique_ptr<SpecNode>>> operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
@@ -986,6 +1104,30 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
 
                 auto callee_func = call->getCalledFunction();
                 if (callee_func && callee_func->isIntrinsic()) {
+                    // A floating point intrinsic is uninterpreted, like every
+                    // other float computation.  This is the one genuinely
+                    // open-ended part -- llvm.fabs, fmuladd, round, floor,
+                    // is.fpclass, pow, lrint, sqrt and more appear in the
+                    // corpus -- so it is a rule about the types rather than a
+                    // list of names.  Anything else keeps the assert.
+                    bool touches_float = call->getType()->isFPOrFPVectorTy();
+                    for (auto const &a : call->args())
+                        if (a->getType()->isFPOrFPVectorTy()) touches_float = true;
+                    if (touches_float) {
+                        auto const name = float_intrinsic_name(callee_func->getName());
+                        auto arg_types = make_shared<vector<shared_ptr<SpecType>>>();
+                        auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                        for (auto const &a : call->args()) {
+                            arg_types->push_back(context.get_llvm_value_type(a));
+                            operands->push_back(context.get_llvm_value_spec(a));
+                        }
+                        auto const rettype = llvm_ir_type_to_spec_pure(call->getType());
+                        declare_uninterpreted(proj, name, arg_types, rettype);
+                        auto expr = std::make_unique<Expr>(name, std::move(operands));
+                        expr->type = rettype;
+                        return Shortcut::_Let_u(context.get_llvm_value_spec(call), std::move(expr),
+                                                spoq_inst_to_spec(proj, vec, num + 1, context));
+                    }
                     llvm::errs() << "Intrinsic function call: " << *call << "\n";
                     assert(false && "Not impl: intrinsic function call");
                 } else if (callee_func && callee->getName().starts_with("llvm_dbg_")) {
@@ -1048,10 +1190,17 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
 
                         LOG_INFO << "[FPTR] declaring " << callee_name
                                  << " for an indirect call with no spec" << std::endl;
+                        // The LowSpec of the function that calls through the
+                        // pointer, which is where the reference to this name
+                        // will be.  loc_t("", "", "") would register the
+                        // declaration and never emit it: gen_low_spec writes
+                        // the Decls whose loc is the section it is generating,
+                        // and treats the empty loc as "nowhere".
                         proj->add_declaration(
                             make_unique<Declaration>(callee_name,
                                                      make_shared<Function>(rettype, fn_args)),
-                            make_shared<loc_t>("", "", ""));
+                            make_shared<loc_t>(proj->layers[context.layer_id]->name,
+                                               context.fname(), Project::LOC_LOWSPEC));
                     }
                 }
 
@@ -1307,30 +1456,6 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 auto expr = context.get_llvm_value_spec(bc->getOperand(0));
                 context.add_cache(context.get_llvm_value_name(bc), expr);
                 return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
-            } else if (src->isIntegerTy() && dst->isFloatingPointTy()) {
-                // isFloatingPointTy, not isFloatTy: the latter is a 32-bit float
-                // specifically, and a double has to take this path too.  Width is
-                // otherwise ignored -- Float is one type here, a 64-bit FPA.
-                // FLOAT MODEL: `Float := Z` makes this a no-op, as the
-                // float-to-float case below already is.  Neither the rounding
-                // sitofp performs nor the truncation fptosi performs is
-                // represented.
-                auto sym = context.get_llvm_value_spec(bc);
-                auto expr = context.get_llvm_value_spec(bc->getOperand(0));
-                context.add_cache(context.get_llvm_value_name(bc), expr);
-                return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
-            } else if (src->isFloatingPointTy() && dst->isIntegerTy()) {
-                auto sym = context.get_llvm_value_spec(bc);
-                auto expr = context.get_llvm_value_spec(bc->getOperand(0));
-                context.add_cache(context.get_llvm_value_name(bc), expr);
-                return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
-            } else if (src->isFloatingPointTy() && dst->isFloatingPointTy()) {
-                // FLOAT MODEL: precision limits ignored, double -> float is a
-                // no-op.
-                auto sym = context.get_llvm_value_spec(bc);
-                auto expr = context.get_llvm_value_spec(bc->getOperand(0));
-                context.add_cache(context.get_llvm_value_name(bc), expr);
-                return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
             } else if (src->isVectorTy() && dst->isVectorTy()) {
                 auto src_vec_ty = llvm::dyn_cast<llvm::VectorType>(src);
                 auto dst_vec_ty = llvm::dyn_cast<llvm::VectorType>(dst);
@@ -1359,14 +1484,6 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             // PHI nodes are not in any other blocks.
             // TODO: sanity check
             return spoq_inst_to_spec(proj, vec, num + 1, context);
-        }
-        if (auto un = llvm::dyn_cast<llvm::UnaryOperator>(spoq_inst->inst)) {
-            auto operand = context.get_llvm_value_spec(un->getOperand(0));
-            auto args = std::make_unique<vector<unique_ptr<SpecNode>>>();
-            args->push_back(std::move(operand));
-            auto op = unops_lut.at(un->getOpcode());
-            auto spec = std::make_unique<Expr>(op, std::move(args));
-            return spec;
         }
 
         llvm::errs() << "Unsupported SpoqIR instruction [LLVM]: " << *spoq_inst->inst << "\n";

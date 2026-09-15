@@ -671,7 +671,8 @@ namespace autov {
     public:
 
         SpoqIRContext(SpoqFunction& spoq_func_, unique_ptr<Layer>& layer, int id, std::vector<SpoqAbstraction>& abs_config,
-            std::vector<SpoqAbstractionLayout>& abs_layout) :  abs_config(abs_config), abs_layout(abs_layout), spoq_func(spoq_func_) {
+            std::vector<SpoqAbstractionLayout>& abs_layout, Project* proj_ = nullptr)
+            :  abs_config(abs_config), abs_layout(abs_layout), spoq_func(spoq_func_), proj(proj_) {
             if(layer->ops["load"] != "") load_op_name = layer->ops["load"];
             if(layer->ops["store"] != "") store_op_name = layer->ops["store"];
             if(layer->ops["ptr2int"] != "") ptr2int_op_name = layer->ops["ptr2int"];
@@ -686,6 +687,11 @@ namespace autov {
             layer_id = id;
         }
         int counter = 0;
+
+        /// Needed where a value is turned into a spec node and the result has
+        /// to be declared -- a float literal becomes a Parameter.  Null in
+        /// callers that never meet one.
+        Project* proj = nullptr;
 
         std::vector<SpoqAbstraction>& abs_config;
         std::vector<SpoqAbstractionLayout>& abs_layout;
@@ -1232,7 +1238,6 @@ namespace autov {
         static std::pair<unique_ptr<SpecNode>, unique_ptr<SpecNode>> gep_inst_to_spec(llvm::Value* gep_inst_or_expr, SpoqIRContext& context);
 
         static const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> binops_lut;
-        static const std::unordered_map<llvm::Instruction::UnaryOps, Expr::unops> unops_lut;
 
         static const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> bool_binops_lut;
 

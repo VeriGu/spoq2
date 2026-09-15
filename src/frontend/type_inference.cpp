@@ -111,11 +111,6 @@ void infer_type(Project &proj, SpecNode *spec, const shared_ptr<unordered_map<st
                     }
                     break;
                 }
-                case Expr::FOEQ: case Expr::FMUL: case Expr::FADD:
-                case Expr::FDIV: case Expr::FSUB: case Expr::FREM: {
-                    expr->type = Float::FLOAT;
-                    break;
-                }
                 case Expr::BEQ: case Expr::BNE: case Expr::BGT:
                 case Expr::BGE: case Expr::BLT: case Expr::BLE: {
                     // TODO: Z.testbit

@@ -401,7 +401,7 @@ bool SpoqIRModule::code_to_spec(Project *proj, const string& fname, int layer_id
     if (OPTS.dry_run_asm) return false;
 
     SpoqFunction& spoq_func = proj->spoq_code.spoq_funcs.at(fname);
-    SpoqIRContext context(spoq_func, proj->layers[layer_id], layer_id, proj->abs_config, proj->abs_layout);
+    SpoqIRContext context(spoq_func, proj->layers[layer_id], layer_id, proj->abs_config, proj->abs_layout, proj);
 
     unique_ptr<SpecNode> spec;
     if (!spoq_func.stub) {

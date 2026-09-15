@@ -194,7 +194,8 @@ TranslateStatus run_to_spec_of_module(std::unique_ptr<llvm::Module> module,
         if (!SpoqIRModule::llvm_ir_to_spoq_ir(spoq_func)) return kReturnedFalse;
         if (spoq_func.spoq_insts.empty()) return kNoInstructions;
 
-        SpoqIRContext context(spoq_func, proj->layers[0], 0, proj->abs_config, proj->abs_layout);
+        SpoqIRContext context(spoq_func, proj->layers[0], 0, proj->abs_config, proj->abs_layout,
+                              proj.get());
         auto spec = proj->spoq_code.spoq_inst_to_spec(proj.get(), spoq_func.spoq_insts, 0, context);
         if (!spec) return kReturnedFalse;
         if (out_spec) *out_spec = std::string(*spec);
@@ -837,31 +838,90 @@ TEST(IrTranslationSpec, DiagProbe) {
 
 /* -- integer to floating point --------------------------------------------- */
 
-/// `sitofp i32 -> double` and back. The prelude defines `Float := Z`, so both
-/// casts are no-ops on the spec side.
+/// `sitofp i32 -> double` and back.  Both casts are uninterpreted: a cast is
+/// not the identity, and saying `conv = n` would be a claim about rounding --
+/// false for any n a double cannot represent exactly.
 TEST(IrTranslationSpec, SitofpToDouble) {
     std::string spec;
     ASSERT_NO_FATAL_FAILURE(expect_spec("translate_sitofp_double.ll", "vuln", {}, &spec));
-    EXPECT_NE(spec.find("let conv := n in"), std::string::npos) << spec;
-    EXPECT_NE(spec.find("let back := conv in"), std::string::npos) << spec;
+    EXPECT_NE(spec.find("let conv := (sitofp n) in"), std::string::npos) << spec;
+    EXPECT_NE(spec.find("let back := (fptosi conv) in"), std::string::npos) << spec;
 }
 
-/// The same round trip through a 32-bit float. Float is one type in the spec
-/// language -- a 64-bit FPA -- so the width does not reach the translation, and
-/// this must come out identical to the double.
+/// The same round trip through a 32-bit float.  Float is one type in the spec
+/// language, so the width does not reach the translation and this must come out
+/// character for character identical to the double -- which is also what lets
+/// vuln and patch relate when one was compiled with a different width.
 TEST(IrTranslationSpec, SitofpToFloat) {
-    std::string spec;
+    std::string spec, double_spec;
     ASSERT_NO_FATAL_FAILURE(expect_spec("translate_sitofp_float.ll", "vuln", {}, &spec));
-    EXPECT_NE(spec.find("let conv := n in"), std::string::npos) << spec;
-    EXPECT_NE(spec.find("let back := conv in"), std::string::npos) << spec;
+    ASSERT_NO_FATAL_FAILURE(
+        expect_spec("translate_sitofp_double.ll", "vuln", {}, &double_spec));
+    EXPECT_EQ(spec, double_spec) << "width reached the spec:\n" << spec;
 }
 
-/// Arithmetic between the two casts, with a floating point literal.  Under
-/// `Float := Z` this is integer arithmetic, and prints as such.
+/// Arithmetic between the two casts, with a floating point literal.
 TEST(IrTranslationSpec, FloatArithmetic) {
     std::string spec;
     ASSERT_NO_FATAL_FAILURE(expect_spec("translate_float_arithmetic.ll", "vuln", {}, &spec));
-    EXPECT_NE(spec.find("let mul := (conv * ("), std::string::npos) << spec;
+    EXPECT_NE(spec.find("let mul := (fmul conv float_lit_"), std::string::npos) << spec;
+    // Not integer multiplication, which is what it used to print as.
+    EXPECT_EQ(spec.find("conv * ("), std::string::npos) << spec;
+}
+
+/// Every arithmetic opcode, including `fneg`.
+///
+/// `fneg` is the one that could not be printed at all: it is an `Expr::unops`,
+/// which is in the op variant but has no branch in `Expr::stream`, so printing
+/// one fell through to `std::get<unique_ptr<SpecNode>>` on a variant holding a
+/// `unops` and threw `bad_variant_access`.
+TEST(IrTranslationSpec, FloatOpsAreUninterpreted) {
+    std::string spec;
+    ASSERT_NO_FATAL_FAILURE(expect_spec("translate_float_ops.ll", "vuln", {}, &spec));
+    for (const char *op : {"(fadd a b)", "(fsub add b)", "(fmul sub a)", "(fdiv mul b)",
+                           "(frem div a)", "(fneg rem)"})
+        EXPECT_NE(spec.find(op), std::string::npos) << op << " missing from:\n" << spec;
+}
+
+/// Eight fcmp predicates.  Only `oeq` was mapped before -- 48 of the corpus's
+/// 5686 float comparisons -- and the rest asserted.
+///
+/// Ordered and unordered differ only over NaN, so `olt` and `ult` must stay
+/// different symbols; collapsing them would be the same claim the file already
+/// makes for signed and unsigned integer comparison, and there is no reason to
+/// repeat it where nothing is being modelled anyway.
+TEST(IrTranslationSpec, FloatComparisonsAreUninterpreted) {
+    std::string spec;
+    ASSERT_NO_FATAL_FAILURE(expect_spec("translate_float_cmp.ll", "vuln", {}, &spec));
+    for (const char *p : {"fcmp_oeq", "fcmp_olt", "fcmp_ole", "fcmp_ogt", "fcmp_oge",
+                          "fcmp_one", "fcmp_ult", "fcmp_uno"})
+        EXPECT_NE(spec.find(p), std::string::npos) << p << " missing from:\n" << spec;
+}
+
+/// Floating point intrinsics, which are the open-ended part: a dozen distinct
+/// ones appear in the corpus, so they are recognised by their types rather than
+/// by name.  The overload suffix is dropped, so `llvm.fabs.f64` and a
+/// hypothetical `.f32` are one symbol.
+TEST(IrTranslationSpec, FloatIntrinsicsAreUninterpreted) {
+    std::string spec;
+    ASSERT_NO_FATAL_FAILURE(expect_spec("translate_float_intrinsic.ll", "vuln", {}, &spec));
+    EXPECT_NE(spec.find("let abs := (llvm_fabs a) in"), std::string::npos) << spec;
+    // Three arguments, and the callee is not one of them.
+    EXPECT_NE(spec.find("let fma := (llvm_fmuladd abs b a) in"), std::string::npos) << spec;
+}
+
+/// One literal used twice is one constant; a neighbouring double is not.
+///
+/// The name comes from the exact bits, so nothing rounds two distinct values
+/// together -- which a printed decimal would do at the seventeenth digit.
+TEST(IrTranslationSpec, FloatLiteralsShareOneConstant) {
+    std::string spec;
+    ASSERT_NO_FATAL_FAILURE(
+        expect_spec("translate_float_literal_shared.ll", "vuln", {}, &spec));
+    EXPECT_EQ(count_of(spec, "float_lit_0x1p_1"), 2u)
+        << "2.0 is not one constant across its uses:\n" << spec;
+    EXPECT_NE(spec.find("float_lit_0x1_0000000000001p_1"), std::string::npos)
+        << "the neighbouring double collided with 2.0:\n" << spec;
 }
 
 /// A floating point literal as an inline operand.

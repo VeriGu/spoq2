@@ -326,9 +326,9 @@ private:
 class FloatConst : public Const {
 public:
     FloatConst() { throw std::invalid_argument("FloatConst must have a value"); }
-    // FLOAT MODEL: `Float := Z` in the prelude, so a float constant carries an
-    // integer type while holding a double.  Anything fractional is outside the
-    // model.
+    // Nothing builds one of these: a floating point literal becomes a Symbol
+    // naming a declared constant, so that the spec and the solver refer to the
+    // same thing.  Kept because a double is still a value a Const can hold.
     FloatConst(double value) : Const(value, Int::INT){}
     //FloatConst(unsigned long value, SpecType type) : Const(value, type) {}
 
@@ -347,10 +347,9 @@ public:
 
 private:
     const string to_string() const {
-        // FLOAT MODEL: printed in full, so the value is not silently rounded
-        // here.  It does not agree with what the solver is given: z3_eval
-        // truncates the same constant to `IntValue((long) *doublec)`.  Nor is a
-        // decimal a term the spec language has, `Float` being `Z`.
+        // A decimal, which is not a term the spec language has under
+        // `Float := Z`.  This is why the front end emits a declared constant
+        // instead; see float_literal_name in SpoqIRTranslator.cpp.
         double const v = std::get<double>(this->value);
         return "(" + std::to_string(v) + ")";
     }
@@ -496,15 +495,10 @@ public:
         BEQ, BNE, BGT, BGE, BLT, BLE, BAND, BOR, LSHIFT, RSHIFT, SEQ, SNE, LIST_EQ,
         APPEND, CONCAT,
         EQUAL, NOT_EQUAL, LT, LTE, GT, GTE, IFONLYIF, OR, AND, IMPLIES,
-        FOEQ, FMUL, FADD, FSUB, FDIV, FREM,
         // Zlnot, Zlxor, Ztestbit,
         // xorb
     };
-    enum unops {
-        FNEG,
-    };
-
-    using op_t = std::variant<unique_ptr<SpecNode>, ops, binops, unops, string>;
+    using op_t = std::variant<unique_ptr<SpecNode>, ops, binops, string>;
     using elems_t = unique_ptr<vector<unique_ptr<SpecNode>>>;
     op_t op;
     unique_ptr<vector<unique_ptr<SpecNode>>> elems;
@@ -657,8 +651,6 @@ public:
             ret = make_unique<Expr>(std::get<ops>(this->op), std::move(new_elems), this->type);
         } else if (std::holds_alternative<binops>(this->op)) {
             ret = make_unique<Expr>(std::get<binops>(this->op), std::move(new_elems), this->type);
-        } else if (std::holds_alternative<unops>(this->op)) {
-            ret = make_unique<Expr>(std::get<unops>(this->op), std::move(new_elems), this->type);
         } else {
             ret = make_unique<Expr>(std::get<unique_ptr<SpecNode>>(this->op)->deep_copy(),
                                           std::move(new_elems), this->type);

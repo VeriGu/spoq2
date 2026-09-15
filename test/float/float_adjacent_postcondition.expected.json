@@ -1,0 +1,7 @@
+{
+  "stderr_contains": "imply post condition :) : vuln_spec",
+  "stderr_lacks": "does not imply post condition;[ERR];Unknown expression;unknown expr op (fmul;unknown expr op (sitofp;unknown expr op (fcmp_",
+  "coq_contains": "Parameter fmul :;Parameter sitofp :;Parameter fcmp_ogt :;Parameter float_lit_",
+  "spec_v_definition": "vuln_spec",
+  "spec_v_contains": "fcmp_ogt"
+}

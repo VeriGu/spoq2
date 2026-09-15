@@ -1751,21 +1751,6 @@ z3::expr formulate_function(Project* proj, Definition const* def) {
 //needs to find a way to distinguish when to split state using symbolic and when not by directly using ite node of z3.
 //ite is like a state merging.
 
-/// A stable z3 name for a floating point literal.
-///
-/// FLOAT MODEL: the value itself is not represented -- see below -- but two
-/// occurrences of the same literal have to be the same constant, so the name is
-/// derived from its exact bits.  hexfloat is used because it round-trips: 0.1
-/// and the double nearest 0.1 must not collide with anything else.
-static std::string float_literal_symbol(double v) {
-    std::ostringstream os;
-    os << std::hexfloat << v;
-    std::string name = "float_lit_" + os.str();
-    for (auto &c : name)
-        if (!std::isalnum(static_cast<unsigned char>(c))) c = '_';
-    return name;
-}
-
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, bool check_loop) {
     shared_ptr<SpecValue> result;
 
@@ -1814,13 +1799,15 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
             result = make_shared<BoolValue>(*boolc);
         } else if (auto strc = std::get_if<string>(&con->value)) {
             result = make_shared<StringValue>(*strc);
-        } else if (auto doublec = std::get_if<double>(&con->value)) {
-            // FLOAT MODEL: an uninterpreted integer, not the value.  Floats
-            // are `Z` here and there is no integer that 0.5 is, so rather than
-            // truncate -- which asserted 0.5 = 0 -- the literal stands for an
-            // unknown one.  Nothing false is assumed; anything that depends on
-            // the magnitude simply cannot be decided until floats are modelled.
-            result = Int::INT->declare(float_literal_symbol(*doublec), 0);
+        } else if (std::get_if<double>(&con->value)) {
+            // Unreachable: the front end turns a floating point literal into a
+            // Symbol naming a declared constant, and the .main.v parser builds
+            // no double Const at all.  It used to be given an uninterpreted
+            // integer here while the emitted Coq printed the decimal, so the
+            // spec and the solver disagreed about the same literal.  Loud
+            // rather than silent if one ever arrives again.
+            throw std::runtime_error("a floating point Const reached z3_eval: "
+                                     "float literals should be declared constants");
         }
     } else if (auto expr = instance_of(val, Expr)) {
         vector<shared_ptr<SpecValue>> elems;

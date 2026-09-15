@@ -116,52 +116,81 @@ rather than much later.
 `control_flow_eliminate_select` (Phase 1), which rewrites a select into a
 diamond with a join phi, is not called.
 
-## Integer to floating point
+## Floating point
 
-`translate_sitofp_double.ll` and `translate_sitofp_float.ll` round trip an
-integer through a float and back. Both pass. The prelude every project shares
-defines `Float := Z`, so the casts are no-ops on the spec side, as float-to-float
-already was:
+Floats are not modelled.  Every floating point computation is an application of
+a declared, uninterpreted function, so a function containing one translates,
+prints as valid Coq and reaches the solver -- which is the whole requirement:
+verify behaviour *next to* float instructions, not behaviour that depends on
+them.  An uninterpreted function is consistent with every real semantics, so
+nothing that goes through is wrong because of floats; anything needing float
+reasoning does not go through.
 
-    let conv := n in
-    let back := conv in
+`Float := Z` stays, and not only because the preludes say so: it is the field
+type of records the abstraction layer reads (ffm049's datatypes have twenty of
+them).  What changed is that nothing is claimed about the values.
 
-The pair exists because the widths used to diverge -- the branch reporting the
-cast tested `isFloatTy`, a 32-bit float specifically, so a double fell through
-to a catch-all and asserted. Float is one type in the spec language, so both
-must now translate identically.
+    let conv := (sitofp n) in
+    let mul := (fmul conv float_lit_0x1p_1) in
+    let back := (fptosi mul) in
 
-`translate_float_arithmetic.ll` puts an `fmul` between the two casts, which
-under `Float := Z` is integer multiplication and prints as one. Reduced from
-`fill_xyztables` in ffm001.
+| fixture | |
+|---|---|
+| `translate_sitofp_double.ll`, `translate_sitofp_float.ll` | the casts, and that width does not reach the spec -- the two must be character-identical |
+| `translate_float_arithmetic.ll` | `fmul` between two casts, reduced from `fill_xyztables` in ffm001 |
+| `translate_float_ops.ll` | every arithmetic opcode including `fneg` |
+| `translate_float_cmp.ll` | eight `fcmp` predicates, ordered and unordered |
+| `translate_float_intrinsic.ll` | `llvm.fabs` and `llvm.fmuladd` |
+| `translate_float_literal_local.ll`, `translate_float_literal_shared.ll` | literals: one constant per value, no collisions |
+| `translate_float_literal_global.ll` | a global initialiser, which does not reach the function's spec |
 
-`translate_float_literal_local.ll` and `translate_float_literal_global.ll` cover
-where the literals come from. The **local** one **fails**:
-`FloatConst::to_string` prints the value in full, so an operand comes out as
-`(4095.000000)`, which is not a term the spec language has under `Float := Z`.
-That is as far as ffm001 gets. The **global** one passes and shows the other
-case needs nothing: a load from a global yields an opaque Z, and the initialiser
-belongs to the project's globals model rather than the function body.
+`test/float/float_adjacent_postcondition` is the acceptance case: a function
+whose branch turns on a float comparison, with bounds on the return value that
+hold whatever the floats do.  The branch cannot be decided, so both arms are
+explored and the property has to hold on both.
 
-## Where the float model gives out
+### How it is decided
 
-`Float := Z` comes from the prelude every project shares, and the front end now
-matches it. What that costs is marked in the source with `FLOAT MODEL`:
+Not by listing opcodes.  The corpus has ~43,000 float instructions and a dozen
+distinct intrinsics -- `fabs`, `fmuladd`, `round`, `floor`, `is.fpclass`, `pow`,
+`lrint`, `sqrt`, `sin`, `exp`, `cos`, `ceil` -- and every gap in a list is a
+fresh assert.  So `is_float_computation` asks whether the instruction is one of
+the four computing classes (binary, unary, cast, compare) *and* touches a
+floating point type.  That catches the six arithmetic opcodes, the six casts and
+`fcmp` without naming them, and leaves a load, a store, a GEP, a phi or a select
+over floats to their ordinary treatment -- those are operations on an opaque
+value, not float computations.  Intrinsics get the same test on their argument
+and result types.
 
-    git grep -n "FLOAT MODEL"
+The gate matters in both directions: without "touches a float" the catch-all
+would swallow unhandled *integer* instructions and hide real gaps.
 
-The points are: the type mapping (fractions, NaN, the infinities and rounding
-are all outside the model), float arithmetic typed and printed as integer
-arithmetic, both casts and the float-to-float cast as no-ops, and the constant
-path, where z3_eval truncates toward zero while `FloatConst::to_string` prints
-in full -- so the emitted spec and the solved one disagree on any literal that
-is not already an integer. Rendering literals as integers would settle that
-disagreement and make the local fixture pass, at the cost of silently turning
-ffm001's 0.5 and 0.6 into 0. It is left visible instead.
+Names come from the opcode alone -- `fmul`, `fcmp_olt`, `llvm_fabs` -- never
+from the containing function, which is the opposite of the function pointer
+convention next door.  vuln and patch must call the *same* uninterpreted
+function or no refinement proof could relate them.  Widths collapse for the same
+reason `Float` is one type.
 
-`Float::FLOAT` still exists in C++ and maps to a 64-bit IEEE sort in z3, which
-the prelude does not agree with. Nothing produces it now, but it is there to be
-picked up by mistake.
+Literal names come from the exact bits (`float_lit_0x1p_1`), so one value is one
+constant everywhere and neighbouring doubles do not merge -- which a printed
+decimal does at the seventeenth digit.  Declarations go to `GlobalDefs`, the one
+location every generated spec imports.
+
+### What this does not do
+
+No proof involving float magnitude, comparison or rounding.  Since `Float` *is*
+`Z`, nothing stops a spec adding a float to an integer either; only an opaque
+`Float` would, and that breaks every prelude record.
+
+Every `fcmp` is an unresolvable branch, so both arms survive -- 93% of the
+corpus's 5686 float comparisons are ordered relationals that can never be
+decided.  That is no worse than any unknown integer condition, but there are a
+lot of them.
+
+Float *vectors* work through the same rule: `<4 x float>` maps to `ZMap Z` and
+vector arithmetic is uninterpreted like the scalar kind.  Element access
+(`extractelement` and friends) is still unsupported, but that gap is shared with
+integer vectors and is not a float question.
 
 ## Calls through a function pointer
 

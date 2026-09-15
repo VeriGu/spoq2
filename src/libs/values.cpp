@@ -589,14 +589,17 @@ Function::Function(const shared_ptr<SpecType>& rettype, const shared_ptr<vector<
 }
 
 Function::operator string() const {
-    std::string res = "";
+    if (args->empty()) return std::string(*rettype);
 
-    for (const auto &arg : *args) {
-        res += string(*arg) + " -> ";
-        if (arg != args->back()) {
-            res += "(";
-        }
-    }
+    // Right-associated: a -> (b -> (c -> r)).  Indexed rather than comparing
+    // each arg against args->back(), which compares shared_ptr values: two
+    // arguments of the same type are the *same* pointer -- every `Z -> Z -> Z`
+    // is -- so the comparison said "this is the last one" for both and opened
+    // no parenthesis while still closing one.
+    std::string res;
+    for (size_t i = 0; i + 1 < args->size(); i++)
+        res += std::string(*args->at(i)) + " -> (";
+    res += std::string(*args->back()) + " -> ";
 
     return res + std::string(*rettype) + string(args->size() - 1, ')');
 }
