@@ -273,26 +273,29 @@ and passed throughout.
 | `loop_preheader_on_two_paths_nested.ll` | the duplicated preheader one level down, inside another loop |
 | `loop_preheader_on_two_paths_two_loops.ll` | two loops each entered twice, so loop numbering is exercised |
 
-All **fail**, and all are the fix target:
+All pass. They used to abort in the walk:
 
     Assertion `!context.has_loop_inst_for_jump(block)' failed.
 
 Nothing makes the walk pass through the preheader once. `entry` reconverges
 below the loop, not at the preheader, because one arm skips the loop entirely;
 and the arm that can reach the preheader does not dominate its other
-predecessor. So the walk enters the loop once per path, and a loop is registered
-by its preheader.
+predecessor. So the walk enters the loop once per path.
 
-More than an over-strict assert: `llvm_ir_to_spoq_ir` fills one body vector per
-preheader, so of the `SpoqLoopInst`s emitted only the last registered would have
-a body.
+That is correct in itself -- the loop runs on both paths, so the call belongs on
+both. What could not be duplicated was the body: `loop_insts` maps a preheader
+to one `spoq_inst_vec_t`, and `llvm_ir_to_spoq_ir` fills exactly one of them,
+while `spoq_inst_to_spec` read each `SpoqLoopInst`'s own `body`. Registration
+now keeps the first rather than the last, and the definition is built from the
+body the context holds, so which instruction the walk reaches first no longer
+decides anything.
 
-This is what ffm015 (`decode_str`) still hits. There the block above the
-preheader, `sw.bb32`, is reached from two different switches -- one case of the
-outer one and two of the inner one -- so it looked switch-shaped, but the
-fixture reproduces it in seventeen lines of plain branches.
+Reached through switches in ffm015 (`decode_str`), where the block above the
+preheader is reached from one case of an outer switch and two of an inner one,
+and in ffm001's `sws_init_context`. Nothing about it is switch-specific: the
+first fixture reproduces it in seventeen lines of plain branches.
 
-The second fixture exists because the first cannot tell a correct fix from a
+The other five exist because the first cannot tell a correct fix from a
 plausible one. Its loop returns nothing anyone reads, so simply deleting the
 assert yields a closed, free-variable-clean spec whose top-level text is
 byte-identical to the correct one -- only the definition differs:
@@ -300,9 +303,10 @@ byte-identical to the correct one -- only the definition differs:
     Fixpoint vuln_loop_0_low (m: Z) (i: Z) (sum: Z) ... :=
       (Some st).
 
-Body dropped, no recursive call, ill-typed against its own return type. So
-every case after the first reads the emitted definition rather than only the
-spec: `expect_spec` takes an `out_defs` for that, and `--spec-cfg` prints the
+Body dropped, no recursive call, ill-typed against its own return type. In a
+build with `NDEBUG` that is what the assert was holding back. So every case
+after the first reads the emitted definition rather than only the spec:
+`expect_spec` takes an `out_defs` for that, and `--spec-cfg` prints the
 definitions too. Deleting the assert alone satisfies the first fixture and fails
 the other five, which is what they are for.
 

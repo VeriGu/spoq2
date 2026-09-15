@@ -100,9 +100,17 @@ public:
     }
 };
 
+/// A call to the loop starting at [preheader_block].
+///
+/// One per path that reaches the preheader, since the loop runs on each of
+/// them, but a loop has a single body: llvm_ir_to_spoq_ir fills [body] for
+/// whichever of them registered it with the loop context and leaves the others
+/// empty.  So [body] is not the way to reach a loop's body -- ask the context,
+/// via get_loop_inst_for_jump(preheader_block).
 class SpoqLoopInst : public SpoqInst {
 public:
     SpoqLoopInst(llvm::BasicBlock* source_block) : preheader_block(source_block) {}
+    /// Populated for at most one of the instructions sharing a preheader.
     spoq_inst_vec_t body;
     llvm::BasicBlock* preheader_block;
     bool virtual is_spoq_control() override { return true; }

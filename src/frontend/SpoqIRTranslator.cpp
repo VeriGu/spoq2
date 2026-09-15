@@ -205,8 +205,12 @@ void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec (llvm::BasicBlock* block, llvm::
     // The preheader's all instructions excpet for the last unconditional branch are put in the current vec.
     // The postheader's all instructions except for PHIs should be put in the current vec
     if (auto target = context.require_jump(block)) {
-        assert(!context.has_loop_inst_for_jump(block));
-
+        // Reached once per path, like any other block the walk does not stop
+        // at.  A preheader with two predecessors and no If reconverging at it
+        // is entered twice, and each entry emits its own SpoqLoopInst -- the
+        // call belongs on both paths, since the loop runs on both.  What there
+        // is only one of is the body, which llvm_ir_to_spoq_ir fills later
+        // through the map below rather than into this instruction.
         for (auto &inst: *block) {
             if (inst.isTerminator()) continue;
             // Reached as the continuation of a reconverging If, which bound
@@ -217,6 +221,11 @@ void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec (llvm::BasicBlock* block, llvm::
         }
 
 
+        // Only the first of these registrations takes, so for a loop entered on
+        // several paths exactly one of the instructions ends up holding the
+        // body and the rest keep an empty vector.  find_inline_asm walks all of
+        // them and depends on that: two populated copies would report the same
+        // asm twice.
         auto v = std::make_unique<SpoqLoopInst>(block);
         context.set_loop_inst_for_jump(block, v->body);
         vec.push_back(std::move(v));
@@ -1436,8 +1445,15 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
         if (proj->defs.find(name) != proj->defs.end()) {
             LOG_DEBUG << "skip loop spec: " << name << " already exists\n";
         } else {
+            // Through the loop context, not `inst->body`: a loop entered on
+            // several paths has a SpoqLoopInst per path, and the body was
+            // filled into whichever of them registered it.  Taking it from the
+            // map is what makes the definition the same whichever one the walk
+            // reaches first -- reading `inst->body` builds it from an empty
+            // vector whenever that is not the one holding the body.
             context.pass_stack.push(inst->preheader_block);
-            auto spec = spoq_inst_to_spec(proj, inst->body, 0, context);
+            auto &body = context.spoq_func.loop_context.get_loop_inst_for_jump(inst->preheader_block);
+            auto spec = spoq_inst_to_spec(proj, body, 0, context);
             context.pass_stack.pop();
 
             if(proj->cmds.InitRely.find(name) != proj->cmds.InitRely.end()) {

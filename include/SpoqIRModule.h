@@ -406,6 +406,9 @@ namespace autov {
             travel(pre, post);
         }
 
+        /// The loop's body, which is per-loop rather than per-instruction: the
+        /// walk can emit a SpoqLoopInst for the same preheader on every path
+        /// that reaches it, and llvm_ir_to_spoq_ir fills exactly one of them.
         spoq_inst_vec_t& get_loop_inst_for_jump(llvm::BasicBlock* jump_start) {
             assert(loop_insts.find(jump_start) != loop_insts.end() && "loop_insts does not contain the jump start");
             return *loop_insts[jump_start];
@@ -419,7 +422,15 @@ namespace autov {
             return loop_insts.find(jump_start) != loop_insts.end();
         }
 
+        /// Register [loop_inst_vec] as the body for [jump_start], unless one is
+        /// already registered.  Keeping the first is what makes the map a
+        /// stable answer to "where does this loop's body live" when several
+        /// SpoqLoopInsts exist for it: the body is filled through this map
+        /// afterwards, so the registration and the fill have to agree, and
+        /// letting a later path overwrite it would leave the filled vector
+        /// belonging to whichever path the walk happened to take last.
         void set_loop_inst_for_jump(llvm::BasicBlock* jump_start, spoq_inst_vec_t& loop_inst_vec) {
+            if (loop_insts.find(jump_start) != loop_insts.end()) return;
             loop_insts[jump_start] = &loop_inst_vec;
         }
 
