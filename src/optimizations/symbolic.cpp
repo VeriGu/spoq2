@@ -730,7 +730,7 @@ z3::expr formulate_post_cond_z3(Project *proj, const std::string& fname,
 bool prove_by_traverse(
     Project *proj, SpecNode *spec, SpecNode *inv, const shared_ptr<ProveState>& state,
     std::unordered_set<string> &used_abs_funcs, ProveMode mode, const string& fname,
-    NoneConditionAccumulator none_accumulator = NoneConditionAccumulator()) {
+    NoneConditionAccumulator none_accumulator) {
     if (auto sym = instance_of(spec, Symbol)) {
         if (sym->text == "None") {
             if (OPTS.check_none && mode != ProveMode::None) {
@@ -1459,7 +1459,8 @@ bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv,
 
     def->body->clear_z3_eval();
     bool const ret = prove_by_traverse(proj, def->body.get(), inv, state,
-                                 used_abs_funcs, ProveMode::SYS, def->name);
+                                 used_abs_funcs, ProveMode::SYS, def->name,
+                                 NoneConditionAccumulator(proj, def->name));
     return ret;
 }
 
@@ -1521,7 +1522,8 @@ bool check_loop_inv_v2(Project *proj, Definition *loop,
 
     proj->query_saver = QueryInfo(query_saver_dir(loop->name, "loop_inv"));
     bool const res = prove_by_traverse(proj, loop->body.get(), inv.get(), state,
-                                 used_abs, ProveMode::LOOP, loop->name);
+                                 used_abs, ProveMode::LOOP, loop->name,
+                                 NoneConditionAccumulator(proj, loop->name));
 
     // must remove name of itself
     used_abs.erase(loop->name);
@@ -1649,7 +1651,8 @@ bool check_pre_post(Project *proj, Definition *def,
     state->conds->push_back(c->get_z3_value());
     bool const res =
         prove_by_traverse(proj, spec_def->body.get(), postcond.get(), state,
-                          used_abs, ProveMode::PREPOST, def->name);
+                          used_abs, ProveMode::PREPOST, def->name,
+                          NoneConditionAccumulator(proj, def->name));
     return res;
 }
 

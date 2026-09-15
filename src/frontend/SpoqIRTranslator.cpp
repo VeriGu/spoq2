@@ -1011,13 +1011,39 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 auto callee_name = callee->getName().str() + "_spec";
                 if (!callee_func) {
                     callee_name = context.get_llvm_value_name(callee) + "_" + std::to_string(call->arg_size()) + "_fptr_";
-                    // if (SpoqIRContext::func_ptr_map[callee_name]) {
                     callee_name = callee_name + context.spoq_func.llvm_func->getName().str() + "_spec";
-                    // }
-                    llvm::errs() << *call << "\n";
-                    llvm::errs() << "function pointer *callee:" << *callee << "\n";
-                    llvm::errs() << "callee_name:"  << callee_name << "\n";
-                    llvm::errs() << "----------\n";
+
+                    // Nothing says what the pointer refers to.  Declare the spec
+                    // rather than leaving the name dangling: an uninterpreted
+                    // function of the pointer, the arguments and the state, which
+                    // is how an external declaration's spec is treated.  A project
+                    // that knows better can still define or declare it itself --
+                    // this only fills the gap.
+                    if (proj->defs.find(callee_name) == proj->defs.end() &&
+                        proj->decls.find(callee_name) == proj->decls.end()) {
+                        auto fn_args = make_shared<vector<shared_ptr<SpecType>>>();
+                        fn_args->push_back(context.get_llvm_value_type(callee));
+                        for (unsigned i = 0; i < call->arg_size(); i++)
+                            fn_args->push_back(context.get_llvm_value_type(call->getArgOperand(i)));
+                        fn_args->push_back(context.abs_data_type);
+
+                        shared_ptr<SpecType> rettype;
+                        if (call->getType()->isVoidTy()) {
+                            rettype = make_shared<Option>(context.abs_data_type);
+                        } else {
+                            auto elems = make_shared<vector<shared_ptr<SpecType>>>();
+                            elems->push_back(context.get_llvm_value_type(call));
+                            elems->push_back(context.abs_data_type);
+                            rettype = make_shared<Option>(make_shared<Tuple>(elems));
+                        }
+
+                        LOG_INFO << "[FPTR] declaring " << callee_name
+                                 << " for an indirect call with no spec" << std::endl;
+                        proj->add_declaration(
+                            make_unique<Declaration>(callee_name,
+                                                     make_shared<Function>(rettype, fn_args)),
+                            make_shared<loc_t>("", "", ""));
+                    }
                 }
 
                 auto expr = std::make_unique<Expr>(callee_name, std::move(args));

@@ -115,13 +115,6 @@ End Layer1.
    the 359-line project template by deleting whatever could go without changing
    the result.  The memory model survives only because RData is built from
    STACK / MEM / GLOBALS. *)
-(* The call `fp(x)` becomes a call to a spec named after the pointer, its
-   argument count and the caller: <ptr>_<argc>_fptr_<caller>_spec, applied to the
-   pointer, then the arguments, then the state.  Nothing here says what it does;
-   a Parameter is the same treatment an external declaration gets, and the
-   postconditions below hold whatever it is. *)
-Parameter fp_1_fptr_vuln_spec : Ptr -> Z -> RData -> (option (Z * RData)).
-
 Hint CheckInv vuln_spec.
 Hint Postcondition vuln_spec ((_ret_0 = (0)) \/ (_ret_0 = (1))).
 Hint Postcondition vuln_spec (_ret_0 >=? (0)).

@@ -1,6 +1,6 @@
 {
-  "stderr_contains": "imply post condition :) : vuln_spec",
-  "stderr_lacks": "does not imply post condition;[ERR];unknown expr op",
+  "stderr_contains": "[FPTR] declaring fp_1_fptr_vuln_spec;imply post condition :) : vuln_spec",
+  "stderr_lacks": "does not imply post condition;[ERR];unknown expr op (fp_1_fptr",
   "spec_v_definition": "vuln_spec",
   "spec_v_contains": "fp_1_fptr_vuln_spec"
 }

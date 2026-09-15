@@ -49,11 +49,10 @@ namespace autov {
             this->def_name = std::move(def_name);
             this->last_pattern_match = this->accumulated_cond.get();
         };
-        // Default Constructor
-        NoneConditionAccumulator() {
-            this->accumulated_cond = make_unique<BoolConst>(true);
-            this->last_pattern_match = this->accumulated_cond.get();
-        };
+        // No default constructor: add_condition reads proj->defs[def_name] to
+        // find the definition's arguments, so an accumulator without them is
+        // a null dereference waiting for a spec that binds a None.
+        NoneConditionAccumulator() = delete;
 
         // Conversion to bool:
         operator bool() const {
