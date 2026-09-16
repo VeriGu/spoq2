@@ -199,14 +199,19 @@ TranslateStatus run_to_spec_of_module(std::unique_ptr<llvm::Module> module,
         auto spec = proj->spoq_code.spoq_inst_to_spec(proj.get(), spoq_func.spoq_insts, 0, context);
         if (!spec) return kReturnedFalse;
         if (out_spec) *out_spec = std::string(*spec);
-        // Definitions translating this function created -- the loop Fixpoints.
-        // They are not reachable from the returned SpecNode, which names them
-        // but does not contain them, so a test that only reads the spec cannot
-        // tell a loop built from its body from one built from an empty vector.
-        if (out_defs)
+        // What translating this function added to the project: the loop
+        // Fixpoints, and every declaration it synthesised.  Neither is reachable
+        // from the returned SpecNode, which names them but does not contain
+        // them -- so a test reading only the spec cannot tell a loop built from
+        // its body from one built from an empty vector, nor a name that was
+        // declared from one that was merely used.
+        if (out_defs) {
             for (auto const &[dn, d] : proj->defs)
                 if (dn.rfind(func_name + "_", 0) == 0)
                     *out_defs += std::string(*d) + "\n";
+            for (auto const &[dn, d] : proj->decls)
+                *out_defs += std::string(*d) + "\n";
+        }
 
         // The spec may name its own arguments and the state, and nothing else.
         // This is what check_well_typed asserts once a Definition exists; here
@@ -1243,6 +1248,41 @@ TEST(IrTranslationSpec, LoopPreheaderOnTwoPathsTwoLoops) {
         << "the first Fixpoint has no recursive call:\n" << defs;
     EXPECT_NE(defs.find("(vuln_loop_1_low m j_next"), std::string::npos)
         << "the second Fixpoint has no recursive call:\n" << defs;
+}
+
+/* -- poison and undef vectors ------------------------------------------------ */
+
+/// A vector built up from `poison`, which is what clang emits for `_mm_load_sd`
+/// and its relatives.
+///
+/// **This case currently fails.** The poison operand becomes a symbol named
+/// after the vector's width and nothing declares it, so the spec closes over a
+/// name that does not exist:
+///
+///     let v0 := (poison_vector_2 # 0 == v_0) in
+///
+/// That is where snd014 now stops, after the vector type mapping was fixed:
+///
+///     [ERR]: Unknown symbol: poison_vector_2
+///     Assertion `well_typed' failed.
+///
+/// A poison vector is an arbitrary value of its type, so the declaration spoq
+/// should be making is the honest one -- the same treatment an indirect call's
+/// spec and a float literal already get, rather than something a project has to
+/// write out. `undef` takes the same path under `undef_vector_<n>`.
+TEST(IrTranslationSpec, PoisonAndUndefVectorsAreDeclared) {
+    std::string spec, defs;
+    ASSERT_NO_FATAL_FAILURE(
+        expect_spec("translate_poison_vector.ll", "vuln", {}, &spec, /*run_cfg=*/false, &defs));
+
+    // The naming convention is what a declaration has to match.
+    EXPECT_NE(spec.find("poison_vector_2"), std::string::npos) << spec;
+    EXPECT_NE(spec.find("undef_vector_4"), std::string::npos) << spec;
+
+    EXPECT_NE(defs.find("Parameter poison_vector_2 :"), std::string::npos)
+        << "nothing declares the poison vector:\n" << defs;
+    EXPECT_NE(defs.find("Parameter undef_vector_4 :"), std::string::npos)
+        << "nothing declares the undef vector:\n" << defs;
 }
 
 /* -- agreement with the preprocessing passes --------------------------------- */

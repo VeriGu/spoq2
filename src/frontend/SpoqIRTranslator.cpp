@@ -169,6 +169,31 @@ static void declare_uninterpreted(Project *proj, const std::string &name,
                           make_shared<loc_t>(Project::LOC_GLOBALDEFS, "", ""));
 }
 
+/// The symbol standing for a `poison` or `undef` vector, declared.
+///
+/// Clang builds a vector out of poison -- `insertelement <2 x double> poison,
+/// ...` is what `_mm_load_sd` compiles to -- and an undeclared symbol is not
+/// treated as unconstrained downstream: check_well_typed aborts on
+/// "Unknown symbol", which is where snd014 stopped.  Declaring it says the only
+/// honest thing, that it is some value of its type.
+///
+/// Named after the element count, which is the pre-existing convention: two of
+/// different widths are not even the same type.  Two of the *same* width
+/// therefore share a constant, which says they are equal -- more than poison
+/// promises, though in practice these are placeholders overwritten lane by lane
+/// before anything reads them.
+static unique_ptr<SpecNode> undefined_vector_symbol(Project *proj, const char *kind,
+                                                    llvm::Type *ty) {
+    std::string name = std::string(kind) + "_vector";
+    if (auto fvty = llvm::dyn_cast<llvm::FixedVectorType>(ty))
+        name += "_" + std::to_string(fvty->getNumElements());
+
+    auto const type = SpoqIRModule::llvm_ir_type_to_spec_pure(ty);
+    assert(proj && "an undefined vector needs a project to declare it in");
+    declare_uninterpreted(proj, name, make_shared<vector<shared_ptr<SpecType>>>(), type);
+    return std::make_unique<Symbol>(name, type);
+}
+
 /// A stable name for a float literal, from its exact bits.
 ///
 /// hexfloat because it round-trips: 0.1 and the double nearest it must not
@@ -538,33 +563,13 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
 
         if (auto poison = llvm::dyn_cast<llvm::PoisonValue>(value)) {
             auto ty = poison->getType();
-            if (ty->isVectorTy()) {
-                if(auto fvty = llvm::dyn_cast<llvm::FixedVectorType>(ty)){
-                    auto node = std::make_unique<Symbol>("poison_vector_" + std::to_string(fvty->getNumElements()));
-                    node->type = SpoqIRModule::llvm_ir_type_to_spec_pure(ty);
-                    return node;
-                } else {
-                    auto node = std::make_unique<Symbol>("poison_vector");
-                    node->type = SpoqIRModule::llvm_ir_type_to_spec_pure(ty);
-                    return node;
-                }
-            }
+            if (ty->isVectorTy()) return undefined_vector_symbol(proj, "poison", ty);
             llvm::errs() << "poison value encountered: " << *poison << "\n";
             assert(false && "poison value encountered");
         }
         if (auto undef = llvm::dyn_cast<llvm::UndefValue>(value)) {
             auto ty = undef->getType();
-            if (ty->isVectorTy()) {
-                if(auto fvty = llvm::dyn_cast<llvm::FixedVectorType>(ty)){
-                    auto node = std::make_unique<Symbol>("undef_vector_" + std::to_string(fvty->getNumElements()));
-                    node->type = SpoqIRModule::llvm_ir_type_to_spec_pure(ty);
-                    return node;
-                } else {
-                    auto node = std::make_unique<Symbol>("undef_vector");
-                    node->type = SpoqIRModule::llvm_ir_type_to_spec_pure(ty);
-                    return node;
-                }
-            }
+            if (ty->isVectorTy()) return undefined_vector_symbol(proj, "undef", ty);
             llvm::errs() << "unsupported undef value encountered: " << *undef << "\n";
             assert(false && "unsupported undef value encountered");
         }
