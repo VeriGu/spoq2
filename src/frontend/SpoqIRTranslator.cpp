@@ -169,6 +169,20 @@ static void declare_uninterpreted(Project *proj, const std::string &name,
                           make_shared<loc_t>(Project::LOC_GLOBALDEFS, "", ""));
 }
 
+/// [cond] in a boolean position, coerced if it is not already a Bool.
+///
+/// C tests an int against zero, and a spec whose result is an i1 rendered as Z
+/// hands one back -- `llvm.is.fpclass` in snd014, whose generated spec returns
+/// `option (Z * RData)` and whose result the caller branches on.  Without this
+/// the If carries an Int where z3 wants a Bool and z3::operator! asserts.
+static unique_ptr<SpecNode> as_condition(unique_ptr<SpecNode> cond) {
+    if (cond->get_type() && cond->get_type()->name == Bool::BOOL->name) return cond;
+    auto elems = std::make_unique<vector<unique_ptr<SpecNode>>>();
+    elems->push_back(std::move(cond));
+    elems->push_back(std::make_unique<IntConst>(0));
+    return std::make_unique<Expr>(Expr::binops::BNE, std::move(elems), Bool::BOOL);
+}
+
 /// The symbol standing for a `poison` or `undef` vector, declared.
 ///
 /// Clang builds a vector out of poison -- `insertelement <2 x double> poison,
@@ -657,12 +671,43 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
     }
 }
 
+/// The value element of `<callee>_spec`'s result -- the `T` in
+/// `option (T * RData)` -- or null when the project has no such spec.
+static shared_ptr<SpecType> spec_result_type(Project *proj, llvm::CallInst *call) {
+    auto const *callee = call->getCalledFunction();
+    if (!proj || !callee) return nullptr;
+    auto const name = callee->getName().str() + "_spec";
+
+    shared_ptr<SpecType> fn_type;
+    if (auto it = proj->decls.find(name); it != proj->decls.end()) fn_type = it->second->type;
+    else if (auto it2 = proj->defs.find(name); it2 != proj->defs.end()) fn_type = it2->second->get_type();
+    auto const fn = dynamic_pointer_cast<Function>(fn_type);
+    if (!fn) return nullptr;
+
+    auto const opt = dynamic_pointer_cast<Option>(fn->rettype);
+    if (!opt) return nullptr;
+    auto const tup = dynamic_pointer_cast<Tuple>(opt->elem_type);
+    if (!tup || tup->types->empty()) return nullptr;
+    return tup->types->front();
+}
+
 shared_ptr<SpecType> SpoqIRContext::get_llvm_value_type(llvm::Value* value) {
     // TODO: pointer abstraction here
     if(value->getType() == nullptr) {
         llvm::errs() << "value type: " << *value << "\n";
         assert(false && "llvm value type is nullptr");
     }
+
+    // i1 is the one type spoq and the preprocessing passes render differently:
+    // Bool here, Z there.  So a call to a spec ExtractBasics generated for an
+    // i1-returning function hands back a Z, and saying Bool would make the
+    // binding and its uses disagree -- z3 then aborts negating an Int for the
+    // else branch of `if <that value>`.  Ask the spec rather than the LLVM
+    // type.  Only for i1: everywhere else the two mappings agree.
+    if (value->getType()->isIntegerTy(1))
+        if (auto call = llvm::dyn_cast<llvm::CallInst>(value))
+            if (auto const t = spec_result_type(proj, call)) return t;
+
     return SpoqIRModule::llvm_ir_type_to_spec_pure(value->getType());
 }
 
@@ -1439,7 +1484,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             //   let r := (if c then a else b) in <rest>
             auto sym = context.get_llvm_value_spec(sel);
             auto expr = std::make_unique<If>(
-                context.get_llvm_value_spec(sel->getCondition()),
+                as_condition(context.get_llvm_value_spec(sel->getCondition())),
                 context.get_llvm_value_spec(sel->getTrueValue()),
                 context.get_llvm_value_spec(sel->getFalseValue()));
             return Shortcut::_Let_u(std::move(sym), std::move(expr),
@@ -1461,7 +1506,8 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     args->push_back(context.get_llvm_value_spec(bc->getOperand(0)));
                     // auto expr = std::make_unique<Expr>("spoq_zext_spec", std::move(args));
                     auto expr = std::make_unique<If>(
-                        context.get_llvm_value_spec(bc->getOperand(0)), std::make_unique<IntConst>(1), std::make_unique<IntConst>(0));
+                        as_condition(context.get_llvm_value_spec(bc->getOperand(0))),
+                        std::make_unique<IntConst>(1), std::make_unique<IntConst>(0));
                     // context.add_cache(context.get_llvm_value_name(bc), expr);
                     return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
                 }
@@ -1537,7 +1583,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                                            : Shortcut::_Tuple_u(std::move(values));
         return Shortcut::_Some_u(std::move(yielded));
     } else if (auto inst = Shortcut::dyn_cast_u<SpoqIfInst>(vec[num])) {
-        auto cond = context.get_llvm_value_spec(inst->cond);
+        auto cond = as_condition(context.get_llvm_value_spec(inst->cond));
         auto then_body = spoq_inst_to_spec(proj, inst->true_body, 0, context);
         auto else_body = spoq_inst_to_spec(proj, inst->false_body, 0, context);
         unique_ptr<If> if_inst = std::make_unique<If>(
