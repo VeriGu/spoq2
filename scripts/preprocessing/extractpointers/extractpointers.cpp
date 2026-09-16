@@ -21,6 +21,7 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include <algorithm>
 #include <utility>
 #include <string>
 #include <vector>
@@ -119,6 +120,24 @@ class ExtractPointersPass : public llvm::PassInfoMixin<ExtractPointersPass> {
       return name;
     }
   }
+
+  /// Whether [v] is one of the globals the generated memory model talks about.
+  /// The size pre-pass and the emission loop must agree on this exactly, or a
+  /// global gets an arm in load_global with no size to bound it by.
+  bool isModelledGlobal(llvm::GlobalVariable* v) {
+    if (v->getName().starts_with("llvm.")) return false;
+    if (v->isDeclaration()) return false;
+    auto ty = v->getValueType();
+    if (llvm::dyn_cast<llvm::FunctionType>(ty)) return false;
+    return ty->isSized();
+  }
+
+  /// The Coq name holding [v]'s extent in bytes.  Keyed on the pbase rather
+  /// than the LLVM name so it cannot drift from the string load_global tests.
+  std::string getGVSizeName(llvm::GlobalVariable* v) {
+    return "SZ_" + getGVIdentifier(v).substr(2);
+  }
+
   std::string getGVLoadStr(llvm::GlobalVariable* v) {
     if(v->isConstant()){
       return getGVIdentifier(v);
@@ -137,6 +156,44 @@ class ExtractPointersPass : public llvm::PassInfoMixin<ExtractPointersPass> {
 
   bool isUnion(llvm::StructType* ty) {
     return ty->getName().starts_with("union.");
+  }
+
+  /// The extent of every modelled global, in bytes, for load_global to bound
+  /// accesses by.
+  ///
+  /// A global whose whole extent is known gets that number.  One whose extent
+  /// is not gets a Parameter floored at what is known -- the object exists, so
+  /// *some* bound does, and saying only that leaves an access z3 cannot place
+  /// inside it undecided rather than silently in range.  Two globals reach
+  /// that case: several merged under one identifier, where the members differ
+  /// in length, and a zero-length array, which is a flexible member whose real
+  /// length is in the allocation rather than the type.
+  std::string generateGlobalSizeDefinitions(llvm::Module &M) {
+    struct Extent { long floor = 0; int members = 0; };
+    std::map<std::string, Extent> extents;
+    std::vector<std::string> order;
+    for (llvm::GlobalVariable& g : M.globals()) {
+      if (!isModelledGlobal(&g)) continue;
+      auto const name = getGVSizeName(&g);
+      if (extents.find(name) == extents.end()) order.push_back(name);
+      auto &e = extents[name];
+      e.floor = std::max(e.floor, (long)dl->getTypeAllocSize(g.getValueType()));
+      e.members++;
+    }
+
+    std::string result;
+    for (auto const &name : order) {
+      auto const &e = extents[name];
+      auto const floor = std::to_string(e.floor);
+      if (e.members == 1 && e.floor > 0) {
+        result += "Definition " + name + " : Z := " + floor + ".\n";
+      } else {
+        result += "Parameter " + name + "_unknown : Z.\n" \
+                  "Definition " + name + " : Z := if (" + name + "_unknown >? " + floor +
+                  ") then " + name + "_unknown else " + floor + ".\n";
+      }
+    }
+    return result;
   }
 
   std::string generateGlobalBaseDefinition() {
@@ -782,17 +839,21 @@ void ExtractPointersPass::generate(llvm::Module& M) {
   std::string g_load_result = "";
   std::string g_store_result = "";
   std::string is_global_ptr = "Definition is_global_ptr (p: Ptr): bool := (false = true)";
+  // An arm of load_global/store_global: [body] runs only where the access lies
+  // inside the global's extent.  Outside it the access is undefined, and None
+  // is how this memory model spells that.
+  auto const guarded = [&](llvm::GlobalVariable* g, const std::string& body) {
+    return "  if (p.(pbase) =s \"" + getGVIdentifier(g).substr(2) + "\") then (\n" \
+           "    if (global_in_bounds sz p " + getGVSizeName(g) + ") then (\n" \
+           + body + "    ) else None) else\n";
+  };
   std::string g_result = "Record GLOBALS :=\n" \
                          "  mkGLOBALS {\n";
   std::set<std::string> done_ids;
   
   for (llvm::GlobalVariable& globalVar : M.globals()) {
-    if (globalVar.getName().starts_with("llvm.")) continue;
-    // if (globalVar.isConstant()) continue;
+    if (!isModelledGlobal(&globalVar)) continue;
     auto gv_type = globalVar.getValueType();
-    if (globalVar.isDeclaration()) continue;
-    if (llvm::dyn_cast<llvm::FunctionType>(gv_type)) continue;
-    if (!gv_type->isSized()) continue;
     std::string id = getGVIdentifier(&globalVar);
     if(done_ids.count(id) > 0){
       continue;
@@ -816,86 +877,73 @@ void ExtractPointersPass::generate(llvm::Module& M) {
     // Constant items don't need to be in RData, keep them out of the globals Record.
     if(globalVar.isConstant()){
       std::string new_decl = "Parameter " + getGVIdentifier(&globalVar) + ": " + generateField(globalVar.getValueType()) + ".\n";
-      // auto arr_type = llvm::dyn_cast<llvm::ArrayType>(globalVar.getType());
-      // if(arr_type){
-      //   auto len = arr_type->getNumElements();
-      // TODO: Use the length of a constant array to implement semantics for out of bounds access.
-      // }
       g_result = new_decl + g_result;
     } else {
       g_result += "      " + getGVIdentifier(&globalVar) + ": " + generateField(globalVar.getValueType()) + ";\n";
     }
 
     if (vty->isIntegerTy() || vty->isPointerTy()) {
-      g_load_result += 
-      "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
-      "      Some(" + getGVLoadStr(&globalVar) + ")) else\n";
+      g_load_result += guarded(&globalVar,
+      "      Some(" + getGVLoadStr(&globalVar) + ")\n");
       if(globalVar.isConstant()){
         // g_store_result += 
         // "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
       } else {
-        g_store_result += 
-        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
-        "      Some(" + getGVStoreStr(&globalVar) + " :< v)) else\n";
+        g_store_result += guarded(&globalVar,
+        "      Some(" + getGVStoreStr(&globalVar) + " :< v)\n");
       }
       
     }
     else if (auto sty = llvm::dyn_cast<llvm::StructType>(vty)) {
-      g_load_result += 
-      "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
+      g_load_result += guarded(&globalVar,
       "      when ret == load_" + getStructTypeIdentifier(sty) + " sz p.(poffset) " + \
         getGVLoadStr(&globalVar) + ";\n" \
-      "      Some(ret)) else\n";
+      "      Some(ret)\n");
       
       if(globalVar.isConstant()){
         // g_store_result += 
         // "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
       } else {
-        g_store_result += 
-        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
+        g_store_result += guarded(&globalVar,
         "      when ret == store_" + getStructTypeIdentifier(sty) + " sz p.(poffset) v st.(globals).(" \
         + getGVIdentifier(&globalVar) + ");\n" \
-        "      Some(" + getGVStoreStr(&globalVar) + " :< ret)) else\n";
+        "      Some(" + getGVStoreStr(&globalVar) + " :< ret)\n");
       }
     }
     else if (auto aty = llvm::dyn_cast<llvm::ArrayType>(vty)) {
       auto ety = aty->getElementType();
       int element_size = dl->getTypeAllocSize(ety);
       if (ety->isIntegerTy() || ety->isPointerTy()) {
-        g_load_result += 
-        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
+        g_load_result += guarded(&globalVar,
         "      let idx := p.(poffset) / " + std::to_string(element_size) + " in \n"\
         "      let ptr := " + getGVLoadStr(&globalVar) + " @ idx in\n"\
-        "      Some(ptr)) else\n";
+        "      Some(ptr)\n");
         if (globalVar.isConstant()){
           // g_store_result += 
           // "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
         } else {
-          g_store_result += 
-          "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
+          g_store_result += guarded(&globalVar,
           "      let idx := p.(poffset) / " + std::to_string(element_size) + " in \n"\
           "      let ptr := (" + getGVLoadStr(&globalVar) + " # idx == v) in\n"\
-          "      Some(" + getGVStoreStr(&globalVar) + " :< ptr)) else\n";
+          "      Some(" + getGVStoreStr(&globalVar) + " :< ptr)\n");
         }
       } else if (auto sty = llvm::dyn_cast<llvm::StructType>(ety)) {
         // An array of structs, so we need to get the element, then use the struct load function
-        g_load_result += 
-        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
+        g_load_result += guarded(&globalVar,
         "       let idx := p.(poffset) / " + std::to_string(element_size) + " in\n" \
         "       let elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
         "       when ret == load_"+ getStructTypeIdentifier(sty) +" sz elem_ofs (" + getGVLoadStr(&globalVar) +\
         " @ idx);\n " \
-        "       Some(ret)) else\n";
+        "       Some(ret)\n");
         if (globalVar.isConstant()){
         // g_store_result += 
         // "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then None else\n";
         } else {
-        g_store_result += 
-        "  if (p.(pbase) =s \"" + getGVIdentifier(&globalVar).substr(2) + "\") then (\n" \
+        g_store_result += guarded(&globalVar,
         "       let idx := p.(poffset) / " + std::to_string(element_size) + " in\n" \
         "       let elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
         "       when ret == (store_"+ getStructTypeIdentifier(sty) +" sz elem_ofs v " + getGVLoadStr(&globalVar) + " @ idx);\n " \
-        "       Some(" + getGVStoreStr(&globalVar) + ":< " + "(st.(globals).(" + getGVIdentifier(&globalVar) + ") # idx == ret) )) else\n";
+        "       Some(" + getGVStoreStr(&globalVar) + ":< " + "(st.(globals).(" + getGVIdentifier(&globalVar) + ") # idx == ret) )\n");
         }
       }
     } else {
@@ -913,7 +961,10 @@ void ExtractPointersPass::generate(llvm::Module& M) {
     "\theap: MEM;" \
     "\tglobals: GLOBALS" \
     "}.\n"
-    << is_global_ptr << ".\n"
+    << is_global_ptr << ".\n\n"
+    << generateGlobalSizeDefinitions(M)
+    << "\nDefinition global_in_bounds (sz: Z) (p: Ptr) (limit: Z) : bool :=\n"
+       "  (0 <=? p.(poffset)) && (p.(poffset) + sz <=? limit).\n"
     << "\nDefinition load_global (sz: Z) (p: Ptr) (st: RData) : (option Z) :=\n"
     << g_load_result 
     << "  None. (* load_global *)\n";

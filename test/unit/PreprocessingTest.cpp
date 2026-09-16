@@ -230,4 +230,57 @@ TEST(ExtractPointers, StackValConstructorNamesCollide) {
         << "[2 x [3 x i32]] and [4 x double] share one:\n" << inductive;
 }
 
+/* -- ExtractPointers: the extent of a global --------------------------------- */
+
+/// Every shape load_global emits an arm for is gated on the access lying
+/// inside the global's extent.  Without the gate a read off the end of a
+/// global has a defined value, so an out-of-bounds read is not UB and a patch
+/// that adds a bounds check is not a refinement -- which is SND014.
+TEST(ExtractPointers, GlobalAccessIsBoundedByItsExtent) {
+    RUN_OR_SKIP(e, "globals.ll");
+    // Sizes are bytes: [2049 x i8], i32, ptr, {i32,i32}, [8 x {i32,i32}].
+    for (const char *d : {"Definition SZ_table : Z := 2049.",
+                          "Definition SZ_counter : Z := 4.",
+                          "Definition SZ_handle : Z := 8.",
+                          "Definition SZ_pair : Z := 8.",
+                          "Definition SZ_pairs : Z := 64."})
+        EXPECT_NE(e.machine.find(d), std::string::npos) << d << " missing from:\n" << e.machine;
+
+    // One gate per arm: seven loads and six stores -- the string constant is
+    // read-only, so it contributes a load and no store.
+    const auto count = [&e](const std::string &needle) {
+        size_t n = 0;
+        for (size_t i = e.machine.find(needle); i != std::string::npos;
+             i = e.machine.find(needle, i + needle.size()))
+            n++;
+        return n;
+    };
+    EXPECT_EQ(count("if (global_in_bounds sz p SZ_"), 13u) << e.machine;
+    EXPECT_NE(e.machine.find("Definition global_in_bounds (sz: Z) (p: Ptr) (limit: Z) : bool :=\n"
+                             "  (0 <=? p.(poffset)) && (p.(poffset) + sz <=? limit)."),
+              std::string::npos) << e.machine;
+}
+
+/// A global whose extent the static type does not give gets a Parameter
+/// floored at what is known, so the bound exists without being pinned to a
+/// number that would be wrong.
+///
+/// Two reach that case.  A zero-length array is a flexible member whose real
+/// length lives in the allocation.  Several globals merged under one
+/// identifier -- every `.str.N` becomes g_merged_constant_global_string --
+/// have no single length, so the floor is the longest of them.
+TEST(ExtractPointers, UnknownExtentsAreParameters) {
+    RUN_OR_SKIP(e, "globals.ll");
+    EXPECT_NE(e.machine.find("Parameter SZ_flex_unknown : Z.\n"
+                             "Definition SZ_flex : Z := "
+                             "if (SZ_flex_unknown >? 0) then SZ_flex_unknown else 0."),
+              std::string::npos) << e.machine;
+    // [4 x i8] and [16 x i8] merge; the floor is the longer.
+    EXPECT_NE(e.machine.find("Parameter SZ_merged_constant_global_string_unknown : Z.\n"
+                             "Definition SZ_merged_constant_global_string : Z := "
+                             "if (SZ_merged_constant_global_string_unknown >? 16) "
+                             "then SZ_merged_constant_global_string_unknown else 16."),
+              std::string::npos) << e.machine;
+}
+
 }  // namespace
