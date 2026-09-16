@@ -13,6 +13,10 @@ namespace autov {
 extern bool force_simpl;
 extern int unfold_count;
 
+// SPOQ_TRACE_TRANSFORM: how many times each definition was inlined since the
+// tally was last read.
+std::map<std::string, int> unfold_tally;
+
 class UnfoldPolicy UNFOLD_POLICY;
 
 /// A name like [sym] that nothing in [prev] uses.  [sym] itself if it is free,
@@ -3317,6 +3321,33 @@ rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> sp
         Some x => true
         None => false
 */
+namespace {
+/// Leaves a hoist may duplicate when it cannot show the copies will be decided.
+/// SPOQ_HOIST_BUDGET overrides; 0 removes the cap.
+size_t hoist_budget() {
+    static size_t const b = [] {
+        if (const char *e = std::getenv("SPOQ_HOIST_BUDGET")) return (size_t)std::atol(e);
+        return (size_t)400;
+    }();
+    return b == 0 ? SIZE_MAX : b;
+}
+
+/// Whether a copy of [outer] over any of [bodies] could be decided.
+///
+/// A hoist copies [outer] into every arm, with that arm's body as the new
+/// scrutinee.  [outer]'s own arm bodies cannot mention what those arms bind, so
+/// the copies differ only in the scrutinee: the rewrite pays off exactly when
+/// one of them is concrete enough for a pattern to match.
+bool any_arm_decidable(Project *proj, Match *outer, const std::vector<SpecNode *> &bodies) {
+    for (auto *body : bodies)
+        for (auto &pm : *outer->match_list) {
+            std::unordered_map<string, unique_ptr<SpecNode>> assigns;
+            if (try_match(proj, pm->pattern.get(), body, assigns, false)) return true;
+        }
+    return false;
+}
+}  // namespace
+
 rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
 
@@ -3339,6 +3370,29 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bo
         // auto z3t_string = node->get_type()->get_z3_type().to_string();
         if (auto m1 = instance_of(node.get(), Match)) {
             if (auto m2 = instance_of(m1->src.get(), Match)) {
+                // One copy of m1 per arm of m2.  Decline only when no copy can
+                // be decided *and* the copying is expensive: a hoist can pay
+                // off after later simplification, so undecidable alone is not
+                // reason to refuse a cheap one.
+                std::vector<SpecNode *> bodies;
+                for (auto &pm : *m2->match_list) bodies.push_back(pm->body.get());
+                if (!any_arm_decidable(proj, m1, bodies)) {
+                    // A single-arm match copies nothing.  Otherwise compare
+                    // leaves against the budget divided by the copies rather
+                    // than multiplying out: the product overflows an unbounded
+                    // budget, the division cannot.  Counting stops at that
+                    // limit, since only whether it is cleared matters and an
+                    // exact count walks the whole term at every candidate.
+                    size_t const copies = m2->match_list->size() - 1;
+                    size_t const per_copy = copies ? hoist_budget() / copies : SIZE_MAX;
+                    size_t const leaves = copies ? m1->count_leaves(per_copy) : 0;
+                    if (std::getenv("SPOQ_TRACE_TRANSFORM"))
+                        LOG_DEBUG << "[HOIST] undecidable match-of-match, arms "
+                                  << m2->match_list->size() << " copies " << copies
+                                  << " leaves " << leaves << " per-copy budget " << per_copy;
+                    if (leaves > per_copy) return node;
+                }
+
                 auto const orig_type = m1->get_type();
                 // LOG_DEBUG << "Found hoist match from match candidate:" << string(*node);
                 // LOG_DEBUG << "Hoisting match from match:" << string(*m1);
@@ -3380,6 +3434,17 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bo
                 return std::move(simplified.first);
             }
             if (auto iff = instance_of(m1->src.get(), If)){
+                if (!any_arm_decidable(proj, m1,
+                                       {iff->then_body.get(), iff->else_body.get()})) {
+                    // Two branches, so one extra copy: the budget bounds it
+                    // directly.
+                    size_t const budget = hoist_budget();
+                    size_t const leaves = m1->count_leaves(budget);
+                    if (std::getenv("SPOQ_TRACE_TRANSFORM"))
+                        LOG_DEBUG << "[HOIST] undecidable match-of-if, leaves " << leaves
+                                  << " budget " << budget;
+                    if (leaves > budget) return node;
+                }
                 // LOG_DEBUG << "Found hoist if from match candidate:" << string(*node);
                 std::unique_ptr<If> new_node = std::unique_ptr<If>(static_cast<If*>(m1->src.release()));
                 assert(!m1->src);
@@ -4439,6 +4504,7 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
                 if (define->name.compare(0, 5, "load_") == 0 ||
                     define->name.compare(0, 6, "store_") == 0) force_simpl = true;
                 ++unfold_count;
+                unfold_tally[define->name]++;
                 if (unfold_count % 50 == 0) force_simpl = true;
                 // LOG_DEBUG << "Unfold definition (smart): " << define->name << " " << unfold_count << std::endl;
                     // (s.compare(0, 3, "xxx") == 0

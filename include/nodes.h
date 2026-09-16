@@ -108,7 +108,13 @@ public:
     virtual unique_ptr<SpecNode> deep_copy() const = 0;
     virtual bool deep_eq(SpecNode* n) const = 0;
     virtual void deep_copy(unique_ptr<SpecNode> &p) const = 0;
-    virtual size_t count_leaves() const = 0;
+    /// Leaves under this node, stopping once [max] is passed; the result is
+    /// then some value above [max] rather than the true count, which is all a
+    /// caller comparing against a budget needs.  Exact by default.
+    ///
+    /// The default is repeated on every override deliberately: a default
+    /// argument on a virtual is resolved from the static type.
+    virtual size_t count_leaves(size_t max = SIZE_MAX) const = 0;
     virtual std::ostream& stream(std::ostream& out) const = 0;
     virtual ~SpecNode() {}
 private:
@@ -159,7 +165,7 @@ public:
             return false;
         }
     }
-    size_t count_leaves() const { return 1; };
+    size_t count_leaves(size_t = SIZE_MAX) const { return 1; };
 
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
                     optional<shared_ptr<SpecType>> &result_type);
@@ -248,7 +254,7 @@ public:
             throw std::invalid_argument("Const must have invalid type: " + string(*this->type));
         }
     }
-    size_t count_leaves() const { return 1; };
+    size_t count_leaves(size_t = SIZE_MAX) const { return 1; };
 
 private:
     virtual const string to_string() const {
@@ -444,10 +450,11 @@ public:
         }
         return out << "|}\n";
     }
-    size_t count_leaves() const {
+    size_t count_leaves(size_t max = SIZE_MAX) const {
         size_t count = 0;
         for(auto &f: *fields){
-            count += f.second->count_leaves();
+            if (count > max) return count;
+            count += f.second->count_leaves(max - count);
         }
         return count;
      };
@@ -610,10 +617,11 @@ public:
         }
         return false;
     }
-    size_t count_leaves() const {
+    size_t count_leaves(size_t max = SIZE_MAX) const {
         size_t count = 0;
         for (auto &e : *this->elems) {
-            count += e->count_leaves();
+            if (count > max) return count;
+            count += e->count_leaves(max - count);
         }
         return count;
     }
@@ -757,8 +765,10 @@ public:
 
         p = make_unique<PatternMatch>(std::move(new_pattern), std::move(new_body));
     }
-    size_t count_leaves() const {
-        return this->pattern->count_leaves() + this->body->count_leaves();
+    size_t count_leaves(size_t max = SIZE_MAX) const {
+        size_t const count = this->pattern->count_leaves(max);
+        if (count > max) return count;
+        return count + this->body->count_leaves(max - count);
     }
     ~PatternMatch() {}
 
@@ -880,13 +890,14 @@ public:
         }
         return false;
     }
-    size_t count_leaves() const {
+    size_t count_leaves(size_t max = SIZE_MAX) const {
         size_t count = 0;
         if (this->src) {
-            count += this->src->count_leaves();
+            count += this->src->count_leaves(max);
         }
         for (auto &pm : *this->match_list) {
-            count += pm->count_leaves();
+            if (count > max) return count;
+            count += pm->count_leaves(max - count);
         }
         return count;
     }
@@ -1051,8 +1062,10 @@ public:
     }
 
     virtual ~RelyAnno() = default;
-    size_t count_leaves() const {
-        return this->prop->count_leaves() + this->body->count_leaves();
+    size_t count_leaves(size_t max = SIZE_MAX) const {
+        size_t const count = this->prop->count_leaves(max);
+        if (count > max) return count;
+        return count + this->body->count_leaves(max - count);
      };
 };
 
@@ -1232,8 +1245,12 @@ public:
         }
         return false;
     }
-    size_t count_leaves() const {
-        return this->cond->count_leaves() + this->then_body->count_leaves() + this->else_body->count_leaves();
+    size_t count_leaves(size_t max = SIZE_MAX) const {
+        size_t count = this->cond->count_leaves(max);
+        if (count > max) return count;
+        count += this->then_body->count_leaves(max - count);
+        if (count > max) return count;
+        return count + this->else_body->count_leaves(max - count);
     }
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
                 optional<shared_ptr<SpecType>> &result_type);
@@ -1269,15 +1286,16 @@ public:
     ForallExists(unique_ptr<vector<shared_ptr<Arg>>> vars, unique_ptr<SpecNode>body) :
         SpecNode(Prop::PROP), vars(std::move(vars)), body(std::move(body)) {
     }
-    size_t count_leaves() const {
+    size_t count_leaves(size_t max = SIZE_MAX) const {
         size_t count = 0;
         for (auto  const&v : *this->vars) {
             if (v->expr) {
-                count += v->expr->count_leaves();
+                if (count > max) return count;
+                count += v->expr->count_leaves(max - count);
             }
         }
-        count += this->body->count_leaves();
-        return count;
+        if (count > max) return count;
+        return count + this->body->count_leaves(max - count);
      };
     virtual ~ForallExists() = default;
 };

@@ -12,6 +12,13 @@
 namespace autov {
 
 extern unordered_map<unsigned long, bool> converged_spec;
+extern std::map<std::string, int> unfold_tally;
+
+/// Whether SPOQ_TRACE_TRANSFORM asked for the per-pass size trace below.
+static bool trace_on() {
+    static bool const on = std::getenv("SPOQ_TRACE_TRANSFORM") != nullptr;
+    return on;
+}
 extern unordered_map<size_t, Z3Result> Z3Cache;
 
 unsigned long mono_lens_id = 0;
@@ -209,7 +216,19 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 LOG_DEBUG << def->name << " transformation iteration " << cur_iter << ".";//  Current spec " << s << "";
             }
             auto spec = std::move(def->body);
-            
+
+            // SPOQ_TRACE_TRANSFORM: size at each pass boundary, attributing a
+            // growing iteration to the pass that grows it.
+            size_t last_size = trace_on() ? string(*spec).size() : 0;
+            auto const trace_pass = [&](const char *pass) {
+                if (!trace_on()) return;
+                auto const now = string(*spec).size();
+                if (now != last_size)
+                    LOG_DEBUG << "[PASS] " << def->name << " iter " << cur_iter << " " << pass
+                              << " " << last_size << " -> " << now;
+                last_size = now;
+            };
+
             // Trying to figure out where we're getting a new unknown symbol from.
             auto current_free_vars = std::set<string>();
             free_vars(proj, spec.get(), current_free_vars);
@@ -222,6 +241,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             
             // LOG_DEBUG << "start partial eval" << " " << force_simpl << "\n";
             spec = partial_eval(proj, std::move(spec), 0, make_shared<EvalState>(vars, conds), known, unfold);
+            trace_pass("partial_eval");
             if(def->name == log_fn_name){
                 if(string(*spec.get()) == "None"){
                     assert(false);
@@ -257,12 +277,21 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             if(unfold && !proj->cmds.NoUnfoldAll) {
                 assert(spec);
                 auto [_spec, unfolded] = proj->rules.rule_unfold_specs(std::move(spec), true);
+                if (trace_on() && !unfold_tally.empty()) {
+                    std::string what;
+                    for (auto const &[name, n] : unfold_tally)
+                        what += " " + name + "x" + std::to_string(n);
+                    LOG_DEBUG << "[TRACE] " << def->name << " iter " << cur_iter
+                              << " unfolded" << what;
+                }
+                unfold_tally.clear();
                 __unfold = unfolded;
                 // if(def->name == log_fn_name)
                     LOG_DEBUG << "Unfolded within " << def->name <<  ".  Changed: " << unfolded;
                 changed |= unfolded;
                 still_unfolding |= unfolded;
                 spec = std::move(_spec);
+                trace_pass("unfold");
                 // type_inference::check_well_typed(*proj, spec.get(), known);
             }
             // LOG_DEBUG << "end unfold , start eliminate" << "\n";
@@ -275,6 +304,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             um_changed = false;
             if (still_unfolding){
                 spec = proj->rules.eliminate_ambiguity(std::move(spec), known, um_changed);
+                trace_pass("eliminate_ambiguity");
             }
             changed |= um_changed;
             still_unfolding |= um_changed;
@@ -302,6 +332,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             le_changed = _le_changed;
             changed |= le_changed;
             spec = std::move(__tmp_spec1);
+            trace_pass("eliminate_let");
             if(def->name == log_fn_name){
                 if(string(*spec.get()) == "None"){
                     assert(false);
@@ -328,6 +359,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             auto [__tmp_spec2, _we_changed] = proj->rules.rule_eliminate_when(std::move(spec), true);
             we_changed = _we_changed;
             spec = std::move(__tmp_spec2);
+            trace_pass("eliminate_when");
             assert(spec);
             if(def->name == log_fn_name){
                 if(string(*spec.get()) == "None"){
@@ -343,6 +375,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             auto [__tmp_spec3, _me_changed] = proj->rules.rule_eliminate_match_simple(std::move(spec), true);
             me_changed = _me_changed;
             spec = std::move(__tmp_spec3);
+            trace_pass("eliminate_match_simple");
             assert(spec);
             // free var check
             // updated_free_vars = std::set<string>();
@@ -425,6 +458,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                     force_simpl = true;
                 
                     std::tie(spec, z3_changed) = proj->rules.rule_simple_by_z3(std::move(spec), state->copy());
+                    trace_pass("rule_simple_by_z3");
                     if(!spec){
                         LOG_ERROR << "No reachable leaf nodes in spec!";
                     }
@@ -456,7 +490,19 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             // into every arm of an inner one, so a scrutinee that appears twice
             // is duplicated instead of decided.  Simplifying first settles those
             // and keeps the copy proportional to what is left.
+            //
+            // SPOQ_DUMP_HOIST=<def name>: the whole term either side of it.
+            const char *dump_hoist = std::getenv("SPOQ_DUMP_HOIST");
+            if (dump_hoist && def->name == dump_hoist) {
+                std::ofstream ofs(def->name + "_iter" + std::to_string(cur_iter) + "_pre_hoist.txt");
+                ofs << spec;
+            }
             std::tie(spec, hoist_changed) = proj->rules.hoist_match_from_branch(std::move(spec));
+            trace_pass("hoist_match_from_branch");
+            if (dump_hoist && def->name == dump_hoist) {
+                std::ofstream ofs(def->name + "_iter" + std::to_string(cur_iter) + "_post_hoist.txt");
+                ofs << spec;
+            }
             if(def->name == log_fn_name){
                 if(string(*spec.get()) == "None"){
                     assert(false);
@@ -477,6 +523,17 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             profile_update_epoch();
             assert(spec);
             def->body = std::move(spec);
+
+            // SPOQ_TRACE_TRANSFORM: size and identity per iteration, which
+            // separates a spec that is growing from one cycling between forms
+            // and one already at a fixpoint.
+            if (trace_on()) {
+                auto const text = string(*def->body);
+                LOG_DEBUG << "[TRACE] " << def->name << " iter " << cur_iter
+                          << " bytes " << text.size()
+                          << " hash " << std::hash<std::string>{}(text)
+                          << " changed " << changed;
+            }
             if(!changed) {
                 if (UNFOLD_POLICY.skip) {
                     // Dealy some branch-irrelevant spec to the last
