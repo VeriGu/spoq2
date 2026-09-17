@@ -3332,6 +3332,20 @@ size_t hoist_budget() {
     return b == 0 ? SIZE_MAX : b;
 }
 
+/// SPOQ_HOIST_NOOP: report any rewrite below that leaves the term it was given
+/// unchanged, which is what a `changed` flag the fixpoint loop never clears
+/// looks like from inside.  Off by default; the comparison renders the subtree
+/// twice at every candidate.
+bool hoist_noop_trace() {
+    static bool const on = std::getenv("SPOQ_HOIST_NOOP") != nullptr;
+    return on;
+}
+
+/// What fired during one pass, for the report at the end of it.
+struct HoistTally {
+    size_t match_of_match = 0, single_arm = 0, match_of_if = 0, if_of_match = 0, if_of_if = 0;
+};
+
 /// Whether a copy of [outer] over any of [bodies] could be decided.
 ///
 /// A hoist copies [outer] into every arm, with that arm's body as the new
@@ -3348,13 +3362,16 @@ bool any_arm_decidable(Project *proj, Match *outer, const std::vector<SpecNode *
 }
 }  // namespace
 
-rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bool rec) {
+rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bool rec,
+                                              const std::set<string> *scope_seed) {
     bool changed = false;
+    HoistTally tally;
 
     // Hoisting moves terms under binders they were not under before, which is
     // how it introduces shadowing.  Track what is live so the rewrites below can
     // rename as they go, rather than leaving a whole-tree repair pass to find it.
     std::set<std::string> hoist_scope;
+    if (scope_seed) hoist_scope = *scope_seed;
     free_vars(proj, spec.get(), hoist_scope);
 
     /// Names [pattern] binds, on top of what is already live.
@@ -3393,6 +3410,10 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bo
                     if (leaves > per_copy) return node;
                 }
 
+                tally.match_of_match++;
+                size_t const arms = m2->match_list->size();
+                if (arms == 1) tally.single_arm++;
+                auto const before = hoist_noop_trace() ? string(*node) : std::string();
                 auto const orig_type = m1->get_type();
                 // LOG_DEBUG << "Found hoist match from match candidate:" << string(*node);
                 // LOG_DEBUG << "Hoisting match from match:" << string(*m1);
@@ -3426,8 +3447,18 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bo
                 new_node->type = orig_type;
                 // LOG_DEBUG << "Simplifying match from match result:" << string(*new_node);
 
-                auto simplified = hoist_match_from_branch(std::move(new_node),false);
+                // The arms just built may themselves be a match over a match
+                // or an if.  Hoist through them now: left for the next pass,
+                // each level of a nested branch costs a whole iteration and
+                // copies the continuation once more.
+                auto simplified = hoist_match_from_branch(std::move(new_node), true, &hoist_scope);
                 // new_node = std::move(simplified.first);
+                if (hoist_noop_trace()) {
+                    auto const after = string(*simplified.first);
+                    LOG_DEBUG << "[HOIST] m-of-m arms " << arms << " " << before.size()
+                              << " -> " << after.size()
+                              << (after == before ? " IDENTICAL" : "");
+                }
                 changed = true;
                 // LOG_DEBUG << "Hoisted match from match:" << string(*simplified.first);
                 // assert(simplified.first->get_type()->get_z3_type().to_string() == z3t_string);
@@ -3445,6 +3476,8 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bo
                                   << " budget " << budget;
                     if (leaves > budget) return node;
                 }
+                tally.match_of_if++;
+                auto const before = hoist_noop_trace() ? string(*node) : std::string();
                 // LOG_DEBUG << "Found hoist if from match candidate:" << string(*node);
                 std::unique_ptr<If> new_node = std::unique_ptr<If>(static_cast<If*>(m1->src.release()));
                 assert(!m1->src);
@@ -3463,9 +3496,16 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bo
                 // new_node->type = new_node->then_body->get_type();
                 // assert(new_node->then_body->get_type()->get_z3_type().to_string() == z3t_string);
                 // assert(new_node->else_body->get_type()->get_z3_type().to_string() == z3t_string);
-                auto simplified = hoist_match_from_branch(std::move(new_node),false);
+                // Through the new arms too: an if-chain in the scrutinee
+                // leaves its tail as a match over an if in the else arm.
+                auto simplified = hoist_match_from_branch(std::move(new_node), true, &hoist_scope);
                 auto final_node = std::move(simplified.first);
                 // LOG_DEBUG << "Hoisted if from match, new node: " << string(*simplified.first);
+                if (hoist_noop_trace()) {
+                    auto const after = string(*final_node);
+                    LOG_DEBUG << "[HOIST] m-of-if " << before.size() << " -> " << after.size()
+                              << (after == before ? " IDENTICAL" : "");
+                }
                 changed = true;
                 // assert(simplified.first->get_type()->get_z3_type().to_string() == z3t_string);
                 // return std::move(simplified.first);
@@ -3475,6 +3515,8 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bo
         }
         if (auto iff = instance_of(node.get(), If)){
             if(auto m = instance_of(iff->cond.get(), Match)){
+                tally.if_of_match++;
+                auto const before = hoist_noop_trace() ? string(*node) : std::string();
                 auto const orig_type = iff->get_type();
                 // LOG_DEBUG << "Found hoist match from branch candidate:" << string(*node);
                 auto new_node = std::move(iff->cond);
@@ -3506,10 +3548,13 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bo
                     pm->body = std::move(simplified.first);
                 }
                 changed = true;
-                auto simplified = hoist_match_from_branch(std::move(new_node),false);
+                // Through the new arms too, which now hold the branches.
+                auto simplified = hoist_match_from_branch(std::move(new_node), true, &hoist_scope);
                 // assert(simplified.first->get_type()->get_z3_type().to_string() == z3t_string);
                 new_node = std::move(simplified.first);
                 new_node->type = orig_type;
+                if (hoist_noop_trace() && string(*new_node) == before)
+                    LOG_DEBUG << "[HOIST] if-of-match left the term unchanged: " << before;
                 // LOG_DEBUG << "Hoisted match from if, new node: " << string(*new_node);
                 return new_node;
             }
@@ -3542,6 +3587,7 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bo
                 inner_then_if->cond = std::move(node_a);
                 new_node_if->else_body = std::move(node);
                 iff->cond = std::move(node_b);
+                tally.if_of_if++;
                 changed = true;
                 return new_node;
             }
@@ -3549,7 +3595,16 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bo
         return node;
     };
     if (rec){
+        auto const before = hoist_noop_trace() ? string(*spec) : std::string();
         auto new_root = rec_apply_scoped(std::move(spec), f, hoist_scope);
+        if (hoist_noop_trace() && changed) {
+            auto const after = string(*new_root);
+            LOG_DEBUG << "[HOIST] pass " << before.size() << " -> " << after.size()
+                      << (after == before ? " IDENTICAL" : "") << " m-of-m "
+                      << tally.match_of_match << " (single-arm " << tally.single_arm
+                      << ") m-of-if " << tally.match_of_if << " if-of-m "
+                      << tally.if_of_match << " if-of-if " << tally.if_of_if;
+        }
         return { std::move(new_root), changed };
     } else {
         auto new_root = f(std::move(spec));
@@ -4439,15 +4494,20 @@ rule_ret_t SpecRules::unfold_calls_to(std::unique_ptr<SpecNode> spec,
     return result;
 }
 
-rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec) {
+rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec,
+                                        const std::set<string> *restrict_to,
+                                        const std::set<string> *scope_seed) {
     bool unfolded = false;
     bool changed = false;
 
     // Names live where the rewrite below is applied.  Seeded with what is free
     // in the whole term -- one walk -- and extended by rec_apply_scoped with
     // each binder it descends under.  A name bound only in a sibling scope is
-    // in neither, which is why sibling scopes keep their names.
+    // in neither, which is why sibling scopes keep their names.  A closure
+    // expansion starts from the scope at its splice point instead: the spliced
+    // subtree's free variables do not name what is bound above it.
     std::set<std::string> unfold_scope;
+    if (scope_seed) unfold_scope = *scope_seed;
     free_vars(proj, spec.get(), unfold_scope);
 
     auto const f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
@@ -4481,10 +4541,14 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
                     else return node;
                 }
 
-                if (UNFOLD_POLICY.is_skip(define->name)) return node;
+                if (restrict_to) {
+                    // Expanding a closure.  Membership is the whole test: the
+                    // skip and defer decisions were made for the root.
+                    if (!restrict_to->count(define->name)) return node;
+                } else if (UNFOLD_POLICY.is_skip(define->name)) return node;
                 // Targeted unfolding: the verification driver asks for exactly
                 // one definition to be inlined into an already-transformed body.
-                if (!UNFOLD_POLICY.only.empty()) {
+                else if (!UNFOLD_POLICY.only.empty()) {
                     if (define->name != UNFOLD_POLICY.only) return node;
                 } else if (is_called_function_spec(define->name)) {
                     // Left folded for the whole transformation stage, so it
@@ -4567,11 +4631,12 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
                     unfolded = true;
                 }
                 changed = true;
+                unique_ptr<SpecNode> result;
                 if (e->elems->size() == 0) {
-                    return body;
+                    result = std::move(body);
                 } else if (e->elems->size() == 1) {
                     //used_symbols.insert(define->args->at(0)->name);
-                    return std::unique_ptr<SpecNode>(Match::raw_let(formal(0),
+                    result = std::unique_ptr<SpecNode>(Match::raw_let(formal(0),
                                                         std::move(e->elems->at(0)),
                                                         std::move(body),
                                                         define->args->at(0)->type));
@@ -4596,8 +4661,32 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
 
                     pm_list->push_back(std::make_unique<PatternMatch>(std::move(pattern), std::move(body)));
 
-                    return std::make_unique<Match>(std::move(src), std::move(pm_list));
+                    result = std::make_unique<Match>(std::move(src), std::move(pm_list));
                 }
+
+                // A layer's load or store opens a dispatch: the region tests,
+                // then the accessor for that region, then the byte-level
+                // loader.  None of it can be decided until all of it is
+                // visible, and the passes between one level and the next
+                // duplicate the tests they cannot decide -- so expand the whole
+                // closure here rather than a level per pass.
+                auto const closure = restrict_to ? proj->mem_op_closure.end()
+                                                 : proj->mem_op_closure.find(define->name);
+                if (closure != proj->mem_op_closure.end()) {
+                    // One round per level, bounded by the closure's size: it is
+                    // acyclic in every spec seen so far, and a cycle would
+                    // otherwise spin here rather than be reported.
+                    bool more = true;
+                    for (size_t round = 0; more && round <= closure->second.size(); round++) {
+                        std::tie(result, more) = rule_unfold_specs(
+                            std::move(result), true, &closure->second, &unfold_scope);
+                        if (more && round == closure->second.size())
+                            LOG_WARNING << "[UNFOLD] closure of " << define->name
+                                        << " did not close in " << round
+                                        << " rounds; it is probably recursive.";
+                    }
+                }
+                return result;
             }
         }
 

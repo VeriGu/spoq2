@@ -1,0 +1,8 @@
+{
+  "verified": true,
+  "spec_has_ub": true,
+  "impl_eliminates_ub": true,
+  "impl_has_non_spec_ub": false,
+  "spec_v_definition": "vuln_spec",
+  "spec_v_contains": "if (c =? (0));then (Some (7"
+}

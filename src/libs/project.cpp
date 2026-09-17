@@ -1249,6 +1249,70 @@ void Project::finalize_project()
 }
 
 
+namespace {
+/// Definitions [spec] calls, added to [out].
+void collect_called_defs(Project *proj, SpecNode *spec, std::set<string> &out) {
+    if (!spec) return;
+    if (auto e = instance_of(spec, Expr)) {
+        if (auto op = std::get_if<string>(&e->op)) {
+            if (proj->defs.find(*op) != proj->defs.end()) out.insert(*op);
+        } else if (auto sub = std::get_if<unique_ptr<SpecNode>>(&e->op)) {
+            collect_called_defs(proj, sub->get(), out);
+        }
+        if (e->elems)
+            for (auto const &elem : *e->elems) collect_called_defs(proj, elem.get(), out);
+    } else if (auto m = instance_of(spec, Match)) {
+        collect_called_defs(proj, m->src.get(), out);
+        if (m->match_list)
+            for (auto const &pm : *m->match_list) collect_called_defs(proj, pm->body.get(), out);
+    } else if (auto r = instance_of(spec, Rely)) {
+        collect_called_defs(proj, r->prop.get(), out);
+        collect_called_defs(proj, r->body.get(), out);
+    } else if (auto a = instance_of(spec, Anno)) {
+        collect_called_defs(proj, a->prop.get(), out);
+        collect_called_defs(proj, a->body.get(), out);
+    } else if (auto i = instance_of(spec, If)) {
+        collect_called_defs(proj, i->cond.get(), out);
+        collect_called_defs(proj, i->then_body.get(), out);
+        collect_called_defs(proj, i->else_body.get(), out);
+    } else if (auto fa = instance_of(spec, Forall)) {
+        if (fa->vars)
+            for (auto const &v : *fa->vars) collect_called_defs(proj, v->expr.get(), out);
+    } else if (auto ex = instance_of(spec, Exists)) {
+        collect_called_defs(proj, ex->body.get(), out);
+    }
+}
+}  // namespace
+
+void Project::compute_mem_op_closures() {
+    mem_op_closure.clear();
+    std::set<string> roots;
+    for (auto const &L : layers)
+        for (auto const &key : {"load", "store"}) {
+            auto const it = L->ops.find(key);
+            if (it != L->ops.end() && defs.find(it->second) != defs.end())
+                roots.insert(it->second);
+        }
+
+    for (auto const &root : roots) {
+        std::set<string> reached;
+        std::vector<string> work{root};
+        while (!work.empty()) {
+            auto const name = work.back();
+            work.pop_back();
+            auto const def = defs.find(name);
+            if (def == defs.end() || !def->second->body) continue;
+            std::set<string> callees;
+            collect_called_defs(this, def->second->body.get(), callees);
+            for (auto const &callee : callees)
+                if (callee != root && reached.insert(callee).second) work.push_back(callee);
+        }
+        LOG_DEBUG << "[UNFOLD] " << root << " reaches " << reached.size()
+                  << " definition(s); they unfold with it.";
+        mem_op_closure[root] = std::move(reached);
+    }
+}
+
 bool Project::finalize_project_v2() {
 
     LOG_DEBUG << "Finalizing project" << std::endl;
@@ -1272,6 +1336,8 @@ bool Project::finalize_project_v2() {
             abs_data_type = L->abs_data;
         }
     }
+
+    compute_mem_op_closures();
 
     // Before conversion, so that a callsite to an attributed declaration
     // resolves to the synthesised wrapper rather than the bare Parameter.

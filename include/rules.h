@@ -132,14 +132,25 @@ public:
     rule_ret_t rule_move_if_out_match(std::unique_ptr<SpecNode> spec, bool rec);
     rule_ret_t rule_move_if_out_expr(std::unique_ptr<SpecNode> spec, bool rec);
     rule_ret_t rule_move_match_out_expr(std::unique_ptr<SpecNode> spec, bool rec);
-    rule_ret_t rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec);
+    /// Inline calls to definitions.
+    ///
+    /// [restrict_to], when given, limits unfolding to those names and waives the
+    /// defer and skip tests for them -- the decision was made when the closure's
+    /// root was unfolded.  [scope_seed] is the live scope at that splice point,
+    /// which a subtree's own free variables do not contain.
+    rule_ret_t rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec,
+                                 const std::set<string> *restrict_to = nullptr,
+                                 const std::set<string> *scope_seed = nullptr);
     rule_ret_t rule_simplify_map_get_set(std::unique_ptr<SpecNode> spec, bool rec);
     rule_ret_t rule_simplify_expr(std::unique_ptr<SpecNode> spec, bool rec);
     rule_ret_t rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state);
     rule_ret_t rule_keep_fields_of_interest(std::unique_ptr<SpecNode> spec);
     rule_ret_t rule_simplify_lens(std::unique_ptr<SpecNode> spec);
     rule_ret_t hoist_branch_out_of_when(std::unique_ptr<SpecNode> spec);
-    rule_ret_t hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bool rec=true);
+    /// [scope_seed], when given, is the live scope at the point [spec] sits in a
+    /// larger term, which its own free variables do not name.
+    rule_ret_t hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bool rec=true,
+                                       const std::set<string> *scope_seed = nullptr);
     rule_ret_t collect_all_vars(std::unique_ptr<SpecNode> spec, std::set<string> &vars);
     rule_ret_t wrap_none_call_with_cond(Project *proj,
                                         std::unique_ptr<SpecNode> spec,

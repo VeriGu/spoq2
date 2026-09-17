@@ -193,6 +193,11 @@ public:
     std::set<string> unverified_relations;
     QueryInfo query_saver;
 
+    /// Everything a layer's load or store operation reaches, keyed by that
+    /// operation's name.  Unfolding the operation unfolds all of it in the same
+    /// pass; see rule_unfold_specs.
+    unordered_map<string, std::set<string>> mem_op_closure;
+
     unordered_map<string, vector<unique_ptr<SpecNode>>> loop_invs;
     unordered_map<string, unique_ptr<SpecNode>> sys_invs;
     std::map<unsigned, string> sys_inv_order; // order of system invariants
@@ -283,6 +288,10 @@ public:
     std::set<string> calc_dependencies(SpecNode *expr);
 
     void finalize_project();
+
+    /// Fill mem_op_closure by walking the call graph out of each layer's load
+    /// and store operation.
+    void compute_mem_op_closures();
 
     // finalize project with llvm module and SpoqInst
     bool finalize_project_v2();
