@@ -114,10 +114,10 @@ unique_ptr<SpecNode> attr_not(unique_ptr<SpecNode> a) {
 enum class AttrEffect {
     Unknown,   ///< the attributes permit an arbitrary write; say nothing
     Pure,      ///< no write at all: the output state is the input state
-    ArgMem,    ///< only the object named by the one pointer argument may change
+    ArgMem,    ///< only the objects named by the pointer arguments may change
 };
 
-/// Classify [func] and, for ArgMem, report which parameter carries the pointer.
+/// Classify [func] and, for ArgMem, report which parameters carry the pointers.
 ///
 /// This mirrors the reasoning that used to run per callsite.  One narrowing is
 /// worth keeping: argument memory the callee cannot name is argument memory it
@@ -125,10 +125,11 @@ enum class AttrEffect {
 /// memory(argmem: readwrite) licenses no write at all.  An integer parameter
 /// holding an address does not make that unsound -- accessing it is a write to
 /// "other" memory, which the remaining effects still have to allow.
-AttrEffect classify_memory_attrs(const llvm::Function &func, unsigned &ptr_param) {
+AttrEffect classify_memory_attrs(const llvm::Function &func,
+                                 std::vector<unsigned> &ptr_params) {
     auto effects = func.getMemoryEffects();
 
-    std::vector<unsigned> ptr_params;
+    ptr_params.clear();
     for (unsigned i = 0; i < func.arg_size(); i++)
         if (func.getArg(i)->getType()->isPointerTy()) ptr_params.push_back(i);
 
@@ -137,13 +138,9 @@ AttrEffect classify_memory_attrs(const llvm::Function &func, unsigned &ptr_param
 
     if (effects.onlyReadsMemory()) return AttrEffect::Pure;
 
-    // Only the single-pointer case is handled: with several pointers the frame
-    // would have to allow all of the objects they name to change at once.
-    if (ptr_params.size() == 1 &&
-        effects.getWithoutLoc(llvm::IRMemLocation::ArgMem).onlyReadsMemory()) {
-        ptr_param = ptr_params.front();
+    if (!ptr_params.empty() &&
+        effects.getWithoutLoc(llvm::IRMemLocation::ArgMem).onlyReadsMemory())
         return AttrEffect::ArgMem;
-    }
 
     return AttrEffect::Unknown;
 }
@@ -155,60 +152,93 @@ unique_ptr<SpecNode> pure_property(const string &pre, const string &post,
                     std::make_unique<Symbol>(pre, state_type));
 }
 
-/// Everything in RData except the object [ptr] names is pinned to the pre-state.
+/// Everything in RData except the objects [ptrs] name is pinned to the pre-state.
 ///
-/// Which region that object lives in is not known statically, so the property is
-/// a three-way disjunction over the same regions store_RData dispatches on: in
-/// each arm the other two regions are equal to the pre-state.  Written as one
-/// Rely rather than woven into the state so that the state stays a plain symbol
-/// and later loads and stores are not forced to reason through an if-expression.
+/// Which region each of those objects lives in is not known statically, so the
+/// property is stated per region rather than per pointer: each region is pinned
+/// unless some argument could name it, and the heap additionally block by
+/// block.  One clause per region rather than one arm per assignment of pointers
+/// to regions, which would be 3^n.
+///
+/// Written as one Rely rather than woven into the state so that the state stays
+/// a plain symbol and later loads and stores are not forced to reason through an
+/// if-expression.
 unique_ptr<SpecNode> argmem_property(const string &pre, const string &post,
-                                     const string &ptr, shared_ptr<SpecType> state_type) {
+                                     const std::vector<string> &ptrs,
+                                     shared_ptr<SpecType> state_type) {
     auto pre_st = [&]() -> unique_ptr<SpecNode> {
         return std::make_unique<Symbol>(pre, state_type);
     };
     auto post_st = [&]() -> unique_ptr<SpecNode> {
         return std::make_unique<Symbol>(post, state_type);
     };
-    auto arg_ptr = [&]() -> unique_ptr<SpecNode> {
-        return std::make_unique<Symbol>(ptr, Struct::Ptr);
+    auto arg_ptr = [&](const string &p) -> unique_ptr<SpecNode> {
+        return std::make_unique<Symbol>(p, Struct::Ptr);
     };
     auto const same = [&](const char *field) {
         return attr_bin(Expr::EQUAL, attr_field(post_st(), field), attr_field(pre_st(), field));
     };
-
-    // The heap arm: only the block the pointer names may differ, and an
-    // argmem-only callee cannot allocate, so nextBlock is pinned too.
-    auto const key = [&]() { return attr_apply("spvn", attr_field(arg_ptr(), "pbase")); };
     auto const blocks_of = [&](unique_ptr<SpecNode> st) {
         return attr_field(attr_field(std::move(st), "heap"), "blocks");
     };
-    auto changed = std::make_unique<vector<unique_ptr<SpecNode>>>();
-    changed->push_back(blocks_of(post_st()));
-    changed->push_back(key());
-    auto updated = std::make_unique<vector<unique_ptr<SpecNode>>>();
-    updated->push_back(blocks_of(pre_st()));
-    updated->push_back(key());
-    updated->push_back(std::make_unique<Expr>(Expr::GET, std::move(changed)));
+    /// `some(f)` = f holds of at least one argument; false when there are none.
+    auto const some = [&](const char *pred) {
+        unique_ptr<SpecNode> acc = nullptr;
+        for (auto const &p : ptrs) {
+            auto here = attr_apply(pred, arg_ptr(p));
+            acc = acc ? attr_bin(Expr::OR, std::move(acc), std::move(here)) : std::move(here);
+        }
+        return acc ? std::move(acc) : std::make_unique<BoolConst>(false);
+    };
+
+    // The heap, block by block: every block except the ones the arguments name
+    // is pinned.  Updating a key to the post-state value unconditionally is
+    // what makes this linear in the number of arguments -- a conditional
+    // "leave it alone" branch has to name the map built so far, which doubles
+    // the term per argument.  The cost is that an argument naming the stack or
+    // a global leaves one heap key unpinned; the clause below recovers that
+    // whenever no argument names the heap at all.
+    //
+    // An argmem-only callee cannot allocate, so nextBlock is pinned too.
+    unique_ptr<SpecNode> blocks = blocks_of(pre_st());
+    for (auto const &p : ptrs) {
+        auto const key = [&]() { return attr_apply("spvn", attr_field(arg_ptr(p), "pbase")); };
+        auto post_at = std::make_unique<vector<unique_ptr<SpecNode>>>();
+        post_at->push_back(blocks_of(post_st()));
+        post_at->push_back(key());
+        auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
+        v->push_back(std::move(blocks));
+        v->push_back(key());
+        v->push_back(std::make_unique<Expr>(Expr::GET, std::move(post_at)));
+        blocks = std::make_unique<Expr>(Expr::SET, std::move(v));
+    }
     auto mem = std::make_unique<vector<unique_ptr<SpecNode>>>();
-    mem->push_back(std::make_unique<Expr>(Expr::SET, std::move(updated)));
+    mem->push_back(std::move(blocks));
     mem->push_back(attr_field(attr_field(pre_st(), "heap"), "nextBlock"));
     auto heap_framed = attr_bin(Expr::EQUAL, attr_field(post_st(), "heap"),
                                 std::make_unique<Expr>(std::string("mkMEM"), std::move(mem)));
 
-    auto heap_arm =
-        attr_bin(Expr::AND,
-                 attr_bin(Expr::AND, attr_not(attr_apply("is_global_ptr", arg_ptr())),
-                          attr_not(attr_apply("is_stack_ptr", arg_ptr()))),
-                 attr_bin(Expr::AND, std::move(heap_framed),
-                          attr_bin(Expr::AND, same("stack"), same("globals"))));
-    auto stack_arm = attr_bin(Expr::AND, attr_apply("is_stack_ptr", arg_ptr()),
-                              attr_bin(Expr::AND, same("heap"), same("globals")));
-    auto global_arm = attr_bin(Expr::AND, attr_apply("is_global_ptr", arg_ptr()),
-                               attr_bin(Expr::AND, same("heap"), same("stack")));
+    // A region no argument can name is pinned whole.  For the heap that is the
+    // stronger statement -- it pins the key an argument in another region would
+    // otherwise have left open -- so it is kept alongside the block-wise clause
+    // rather than instead of it.
+    unique_ptr<SpecNode> some_heap = nullptr;
+    for (auto const &p : ptrs) {
+        auto here = attr_bin(Expr::AND, attr_not(attr_apply("is_stack_ptr", arg_ptr(p))),
+                             attr_not(attr_apply("is_global_ptr", arg_ptr(p))));
+        some_heap = some_heap ? attr_bin(Expr::OR, std::move(some_heap), std::move(here))
+                              : std::move(here);
+    }
+    if (!some_heap) some_heap = std::make_unique<BoolConst>(false);
 
-    return attr_bin(Expr::OR, std::move(heap_arm),
-                    attr_bin(Expr::OR, std::move(stack_arm), std::move(global_arm)));
+    auto heap_whole = attr_bin(Expr::OR, std::move(some_heap), same("heap"));
+    auto stack_framed = attr_bin(Expr::OR, some("is_stack_ptr"), same("stack"));
+    auto globals_framed = attr_bin(Expr::OR, some("is_global_ptr"), same("globals"));
+
+    return attr_bin(Expr::AND, std::move(heap_framed),
+                    attr_bin(Expr::AND, std::move(heap_whole),
+                             attr_bin(Expr::AND, std::move(stack_framed),
+                                      std::move(globals_framed))));
 }
 
 }  // namespace
@@ -234,8 +264,8 @@ void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
             continue;
         }
 
-        unsigned ptr_param = 0;
-        const AttrEffect effect = classify_memory_attrs(func, ptr_param);
+        std::vector<unsigned> ptr_params;
+        const AttrEffect effect = classify_memory_attrs(func, ptr_params);
         if (effect == AttrEffect::Unknown) continue;
 
         // The declared type is curried and flattened: the LLVM parameters
@@ -288,23 +318,29 @@ void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
             return Shortcut::_Tuple_u(std::move(v));
         };
 
-        // The frame talks about the pointer's pbase, so the *declared* type of
-        // that parameter has to actually be Ptr.  A spec that models the pointer
-        // as an integer would give an ill-typed property, so fall back to saying
-        // nothing rather than emitting Coq that will not typecheck.
-        if (effect == AttrEffect::ArgMem &&
-            (*fn_type->args)[ptr_param] != static_pointer_cast<SpecType>(Struct::Ptr)) {
-            LOG_WARNING << "[ATTR] " << spec_name << " is argmem-only but parameter "
-                        << ptr_param << " is declared as "
-                        << (*fn_type->args)[ptr_param]->name
-                        << " rather than Ptr; leaving it uninterpreted.";
-            continue;
-        }
+        // The frame talks about each pointer's pbase, so the *declared* type of
+        // every one of those parameters has to actually be Ptr.  A spec that
+        // models a pointer as an integer would give an ill-typed property, so
+        // fall back to saying nothing rather than emitting Coq that will not
+        // typecheck.
+        std::vector<string> ptr_names;
+        bool all_ptr_typed = true;
+        if (effect == AttrEffect::ArgMem)
+            for (auto const i : ptr_params) {
+                if ((*fn_type->args)[i] != static_pointer_cast<SpecType>(Struct::Ptr)) {
+                    LOG_WARNING << "[ATTR] " << spec_name << " is argmem-only but parameter "
+                                << i << " is declared as " << (*fn_type->args)[i]->name
+                                << " rather than Ptr; leaving it uninterpreted.";
+                    all_ptr_typed = false;
+                    break;
+                }
+                ptr_names.push_back(arg_names[i]);
+            }
+        if (!all_ptr_typed) continue;
 
         auto property = effect == AttrEffect::Pure
                             ? pure_property(pre_state, post_state, state_type)
-                            : argmem_property(pre_state, post_state, arg_names[ptr_param],
-                                              state_type);
+                            : argmem_property(pre_state, post_state, ptr_names, state_type);
 
         // rely (<attribute>); Some <result> -- the Rely is the top of the body
         // proper, so unfolding f_spec at any callsite brings the attribute with
@@ -325,7 +361,9 @@ void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
             loc);
 
         LOG_INFO << "[ATTR] " << name << ": "
-                 << (effect == AttrEffect::Pure ? "state-preserving" : "argmem-framed")
+                 << (effect == AttrEffect::Pure
+                         ? "state-preserving"
+                         : "argmem-framed over " + std::to_string(ptr_names.size()) + " pointer(s)")
                  << " by attribute; " << spec_name << " defined over " << oracle_name << ".";
     }
 }

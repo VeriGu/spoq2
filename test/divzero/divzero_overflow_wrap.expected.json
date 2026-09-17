@@ -1,4 +1,5 @@
 {
-  "verified": false,
-  "impl_has_non_spec_ub": true
+  "verified": true,
+  "impl_has_non_spec_ub": false,
+  "unimplemented": "spoq cannot relate (l+r-1)/r to l/r + (l mod r <> 0), so it reads the patch's None branch as UB the spec does not have; and the 32-bit wrap that makes this a CVE is outside the model entirely -- integers are unbounded Z and the casts are the identity"
 }

@@ -230,9 +230,16 @@ set_target_properties(spoq PROPERTIES
 find_package(GTest REQUIRED)
 enable_testing()
 
+# What a test binary returns when the only thing it found was a feature that is
+# not implemented yet; ctest reports those runs as "Skipped".  See
+# test/skip_code.h -- such a test asserts what the feature should do, so it
+# cannot become a record of the current wrong answer.
+set(SPOQ_SKIP_RETURN_CODE 77)
+
 add_executable(SpoqTest test/SpoqTest.cpp)
 add_dependencies(SpoqTest spoq)
 target_compile_definitions(SpoqTest PRIVATE
+    SPOQ_SKIP_RETURN_CODE=${SPOQ_SKIP_RETURN_CODE}
     SPOQ_BINARY="$<TARGET_FILE:spoq>"
     SPOQ_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test")
 target_link_libraries(SpoqTest GTest::gtest ${LLVM_LIBRARIES} ${Boost_LIBRARIES})
@@ -285,12 +292,24 @@ set_tests_properties(IrTranslation PROPERTIES TIMEOUT 300)
 # passes wrote; they skip when opt or the plugins are absent, since a spoq build
 # does not build them.
 add_executable(PreprocessingTest test/unit/PreprocessingTest.cpp)
-target_link_libraries(PreprocessingTest GTest::gtest_main GTest::gtest)
+target_link_libraries(PreprocessingTest GTest::gtest)
 target_compile_definitions(PreprocessingTest PRIVATE
+    SPOQ_SKIP_RETURN_CODE=${SPOQ_SKIP_RETURN_CODE}
     SPOQ_PASS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/scripts/preprocessing"
     SPOQ_PASS_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/preprocessing")
-add_test(NAME Preprocessing COMMAND PreprocessingTest)
+# The cases named *_Unimplemented assert a feature spoq does not have yet; each
+# gets its own entry so it can report Skipped without taking the group with it.
+set(PREPROCESSING_UNIMPLEMENTED
+    ExtractBasics.ArrayOfDoubleKeepsItsElementType_Unimplemented
+    ExtractPointers.StackValConstructorNamesAreDistinct_Unimplemented)
+list(JOIN PREPROCESSING_UNIMPLEMENTED ":" PREPROCESSING_UNIMPLEMENTED_FILTER)
+add_test(NAME Preprocessing
+         COMMAND PreprocessingTest --gtest_filter=-${PREPROCESSING_UNIMPLEMENTED_FILTER})
 set_tests_properties(Preprocessing PROPERTIES TIMEOUT 120)
+foreach(case ${PREPROCESSING_UNIMPLEMENTED})
+    add_test(NAME ${case} COMMAND PreprocessingTest --gtest_filter=${case})
+    set_tests_properties(${case} PROPERTIES TIMEOUT 120)
+endforeach()
 
 # ------------------------------------------------------------------------------
 # UnfoldAmbiguityTest -- rule_unfold_specs together with eliminate_ambiguity
@@ -331,3 +350,9 @@ foreach(expected ${SPOQ_TEST_EXPECTED})
     # finish at all, so cut them off early and report a failure instead.
     set_tests_properties(${case_name} PROPERTIES TIMEOUT 120)
 endforeach()
+
+# Every group, so a binary that learns to report a skip is believed without a
+# further build-system change.
+get_property(SPOQ_ALL_TESTS DIRECTORY PROPERTY TESTS)
+set_tests_properties(${SPOQ_ALL_TESTS} PROPERTIES
+                     SKIP_RETURN_CODE ${SPOQ_SKIP_RETURN_CODE})

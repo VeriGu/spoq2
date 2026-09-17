@@ -1,0 +1,5 @@
+{
+  "verified": true,
+  "impl_has_non_spec_ub": false,
+  "stderr_contains": "[ATTR] ext_argmem_two_pointers: argmem-framed over 2 pointer(s)"
+}

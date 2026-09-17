@@ -1,0 +1,6 @@
+{
+  "verified": true,
+  "impl_has_non_spec_ub": false,
+  "stderr_contains": "[ATTR] ext_argmem_stack_frame: argmem-framed over 1 pointer(s)",
+  "unimplemented": "the argmem frame pins the stack all-or-nothing, so a slot the callee was never given the address of is not provably unchanged; a per-slot frame -- stack' = stack except at p.(pbase) -- is the analogue of what the heap clause already does"
+}

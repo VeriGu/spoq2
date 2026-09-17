@@ -1,21 +1,20 @@
-; TIF003's shape, and a limitation.  **Pinned as wrong.**
+; TIF003's shape.  **Not implemented**: this asserts the right answer and
+; reports a skip until spoq gives it.
 ;
 ;   vuln  n = (len + rps - 1) / rps        patch  n = len/rps + (len%rps != 0)
 ;   both  return strip % n
 ;
-; The CVE is that the 32-bit add wraps: len = rps = 0xFFFFFFFF gives n == 0 in
-; the vuln and n == 1 in the patch, so the vuln divides by zero.  spoq's
-; integers are unbounded Z and its casts are the identity (SpoqIRTranslator.cpp,
-; "TODO: overflow / underflow check"), so the wrap cannot happen and the real
-; bug is not expressible here at all.
-;
 ; Over Z the two are the same function -- both are ceil(len/rps) -- so the
-; honest answer is verified: true.  What is pinned below is what spoq actually
-; reports: it cannot relate (l+r-1)/r to l/r + (l mod r <> 0), so it reads the
-; patch's None branch as undefined behaviour the spec does not have.
+; refinement holds and verified: true is what the expected file asks for.  spoq
+; cannot relate the two forms, so it reads the patch's None branch as undefined
+; behaviour the spec does not have.
 ;
-; Two separate gaps, then: the identity is beyond the integer reasoning applied
-; here, and the overflow that makes this a CVE is outside the model.
+; The CVE is a second, separate gap.  It exists only because the 32-bit add
+; wraps: len = rps = 0xFFFFFFFF gives n == 0 in the vuln and n == 1 in the
+; patch, so the vuln divides by zero.  spoq's integers are unbounded Z and its
+; casts are the identity (SpoqIRTranslator.cpp, "TODO: overflow / underflow
+; check"), so the wrap cannot happen and the real bug is not expressible here at
+; all.  Bounded arithmetic would turn this fixture into a test of that too.
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
 declare dso_local i32 @len()
 declare dso_local i32 @rps()

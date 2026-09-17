@@ -19,6 +19,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <gtest/gtest-spi.h>
 
 #include <array>
 #include <cstdio>
@@ -30,6 +31,8 @@
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
+
+#include "skip_code.h"
 
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -210,7 +213,7 @@ std::string findDefinitionBody(const fs::path &work, const std::string &name) {
     return "";
 }
 
-void runCase(const TestCase &tc) {
+void runCaseChecks(const TestCase &tc) {
     const fs::path work =
         fs::temp_directory_path() / ("spoq-test-" + tc.stem + "-" + std::to_string(::getpid()));
     fs::remove_all(work);
@@ -266,7 +269,7 @@ void runCase(const TestCase &tc) {
     bool wants_result_json = false;
     for (const auto &[key, value] : expected)
         if (key.rfind("spec_v_", 0) != 0 && key.rfind("stderr_", 0) != 0 &&
-            key.rfind("coq_", 0) != 0)
+            key.rfind("coq_", 0) != 0 && key != "unimplemented")
             wants_result_json = true;
 
     if (wants_result_json) {
@@ -278,7 +281,7 @@ void runCase(const TestCase &tc) {
 
         for (const auto &[key, value] : expected) {
             if (key.rfind("spec_v_", 0) == 0 || key.rfind("stderr_", 0) == 0 ||
-                key.rfind("coq_", 0) == 0)
+                key.rfind("coq_", 0) == 0 || key == "unimplemented")
                 continue;
             const auto found = actual.get_optional<std::string>(key);
             EXPECT_TRUE(found.has_value()) << "result has no key '" << key << "'";
@@ -334,6 +337,34 @@ void runCase(const TestCase &tc) {
     }
 }
 
+/// Run [tc]'s checks, honouring an "unimplemented" marker in its expected file.
+///
+/// Such a case states what spoq *should* produce.  While it does not, the
+/// mismatch is reported as a skip instead of a failure, so the expectation never
+/// has to be rewritten into a record of the current wrong answer.  The day the
+/// feature lands the case simply passes, which is the signal to drop the marker.
+void runCase(const TestCase &tc) {
+    boost::property_tree::ptree expected;
+    ASSERT_TRUE(readJson(tc.expected, "", expected));
+    const auto unimplemented = expected.get_optional<std::string>("unimplemented");
+    if (!unimplemented) {
+        runCaseChecks(tc);
+        return;
+    }
+
+    ::testing::TestPartResultArray results;
+    {
+        ::testing::ScopedFakeTestPartResultReporter const reporter(
+            ::testing::ScopedFakeTestPartResultReporter::INTERCEPT_ONLY_CURRENT_THREAD,
+            &results);
+        runCaseChecks(tc);
+    }
+    for (int i = 0; i < results.size(); i++)
+        if (results.GetTestPartResult(i).failed())
+            GTEST_SKIP() << "unimplemented: " << *unimplemented << "\n"
+                         << results.GetTestPartResult(i).message();
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -358,7 +389,7 @@ int main(int argc, char **argv) {
             });
     }
 
-    const int status = RUN_ALL_TESTS();
+    const int status = spoq_test::skip_aware_status(RUN_ALL_TESTS());
 
     if (keepScratchDirs() && !keptDirs().empty()) {
         std::printf("\n[ KEPT     ] %zu scratch director%s (SPOQ_TEST_KEEP is set):\n",

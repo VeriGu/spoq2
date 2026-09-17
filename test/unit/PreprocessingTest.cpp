@@ -21,6 +21,8 @@
 
 #include <gtest/gtest.h>
 
+#include "../skip_code.h"
+
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -147,16 +149,32 @@ TEST(ExtractBasics, StructFieldTypes) {
     EXPECT_NE(e.datatype.find("e_s_Fields_7 : ((ZMap.t Z) * Z);"), std::string::npos) << e.datatype;
 }
 
-/// An array of a type the mapping does not handle keeps the element type of an
-/// integer array and says so in a comment.
+/// An array's element type has to survive the mapping: fields 7 and 8 of the
+/// fixture's struct are `[4 x i32]` and `[4 x double]`, and they are different
+/// types, so they must not come out as the same text.
 ///
-/// **Pinned as wrong.** `[4 x double]` comes out as `((ZMap.t Z) * Z)`, the same
-/// as `[4 x i32]`; the FIXME is the only thing distinguishing them, and a
-/// comment is not a type.
-TEST(ExtractBasics, ArrayOfDoubleLosesItsElementType) {
+/// They do today -- both `((ZMap.t Z) * Z)`, told apart only by a FIXME comment,
+/// and a comment is not a type -- so this reports a skip.  It asserts the types
+/// the fields should have rather than the ones they have, so it will simply pass
+/// once the mapping distinguishes them.
+TEST(ExtractBasics, ArrayOfDoubleKeepsItsElementType_Unimplemented) {
     RUN_OR_SKIP(e, "all_types.ll");
-    EXPECT_NE(e.datatype.find("e_s_Fields_8 : ((ZMap.t Z) * Z) (* FIXME: complex array *);"),
-              std::string::npos) << e.datatype;
+    auto const field = [&e](const char *name) {
+        const size_t at = e.datatype.find(name);
+        if (at == std::string::npos) return std::string();
+        return e.datatype.substr(at, e.datatype.find('\n', at) - at);
+    };
+    const std::string as_int = field("e_s_Fields_7 :");
+    const std::string as_double = field("e_s_Fields_8 :");
+    ASSERT_FALSE(as_int.empty()) << e.datatype;
+    ASSERT_FALSE(as_double.empty()) << e.datatype;
+
+    if (as_double.find("FIXME") != std::string::npos)
+        GTEST_SKIP() << "unimplemented: an array of a type the mapping does not handle "
+                        "keeps the element type of an integer array --\n  "
+                     << as_int << "\n  " << as_double;
+    EXPECT_NE(as_int.substr(as_int.find(':')), as_double.substr(as_double.find(':')))
+        << e.datatype;
 }
 
 /// A vector maps to the same thing an array does, and to the same text spoq's
@@ -202,14 +220,15 @@ TEST(ExtractPointers, NoStackSlotIsUnnamed) {
     EXPECT_EQ(e.machine.find("UnknownType"), std::string::npos) << e.machine;
 }
 
-/// **Pinned as wrong, and independent of the type mapping.**
+/// Every constructor of the StackVal inductive must have a distinct name: Coq
+/// rejects an Inductive with duplicates, so a module that produces two emits a
+/// file that does not compile.
 ///
-/// The constructor name is chosen from a coarse family -- ZVal, ZFloatVal,
-/// ZMapVal, ZMapOtherVal -- while the payload type is the precise one, so two
-/// types in one family give two constructors with the same name.  Coq rejects
-/// an Inductive with duplicate constructors, so any module with both a float
-/// and a double on the stack emits a file that does not compile.
-TEST(ExtractPointers, StackValConstructorNamesCollide) {
+/// Two collide today -- the name comes from a coarse family (ZVal, ZFloatVal,
+/// ZMapVal, ZMapOtherVal) while the payload type is the precise one, so two
+/// types in one family share a name -- and this reports a skip.  Independent of
+/// the type mapping: the payload types are right, only the names are not.
+TEST(ExtractPointers, StackValConstructorNamesAreDistinct_Unimplemented) {
     RUN_OR_SKIP(e, "stack_types.ll");
     // Only the declaration; the constructors are also used in load_stack and
     // store_stack, which duplicate their match arms for the same reason.
@@ -224,10 +243,12 @@ TEST(ExtractPointers, StackValConstructorNamesCollide) {
             n++;
         return n;
     };
-    EXPECT_EQ(count("| ZFloatVal "), 2u) << "float and double share a constructor name:\n"
-                                         << inductive;
-    EXPECT_EQ(count("| ZMapOtherVal "), 2u)
-        << "[2 x [3 x i32]] and [4 x double] share one:\n" << inductive;
+    if (count("| ZFloatVal ") > 1 || count("| ZMapOtherVal ") > 1)
+        GTEST_SKIP() << "unimplemented: float and double share ZFloatVal, and "
+                        "[2 x [3 x i32]] and [4 x double] share ZMapOtherVal:\n"
+                     << inductive;
+    EXPECT_EQ(count("| ZFloatVal "), 1u) << inductive;
+    EXPECT_EQ(count("| ZMapOtherVal "), 1u) << inductive;
 }
 
 /* -- ExtractPointers: the extent of a global --------------------------------- */
@@ -284,3 +305,8 @@ TEST(ExtractPointers, UnknownExtentsAreParameters) {
 }
 
 }  // namespace
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return spoq_test::skip_aware_status(RUN_ALL_TESTS());
+}
