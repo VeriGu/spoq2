@@ -352,6 +352,18 @@ namespace autov {
                         auto succ = br->getSuccessor(i);
                         if (visited[succ]) continue;
                         if (jump.find(succ) != jump.end()) {
+                            // A loop nested directly inside this one.  Record
+                            // the parent here, where the nesting is what is
+                            // being walked, rather than leaving it to whichever
+                            // traversal reaches the nested preheader first:
+                            // pass_analysis needs it to place a value defined
+                            // inside the nested loop, and its DFS can reach a
+                            // use before the preheader -- a join that a branch
+                            // out of this header reaches first, say.  Missing,
+                            // the value looks top-level and is passed *into*
+                            // every loop on the stack, including the one it is
+                            // defined in.
+                            update_parent(succ, pre);
                             succ = jump[succ];
                         }
                         else {
@@ -366,6 +378,9 @@ namespace autov {
 
         void travel_all() {
             header_map.clear();
+            // Rebuilt below alongside header_map, so that a stale nesting from
+            // before a control flow conversion cannot survive into this one.
+            outter_loop_header.clear();
             for(auto  const&pair: jump) {
                 travel(pair.first, pair.second);
             }

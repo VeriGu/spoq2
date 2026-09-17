@@ -65,6 +65,8 @@
 
 #include <gtest/gtest.h>
 
+#include "../skip_code.h"
+
 #include <cctype>
 #include <csignal>
 #include <cstdlib>
@@ -219,7 +221,19 @@ TranslateStatus run_to_spec_of_module(std::unique_ptr<llvm::Module> module,
         std::set<std::string> free;
         free_vars(proj.get(), spec.get(), free);
         free.erase("st");
-        for (auto const &arg : func->args()) free.erase(arg.getName().str());
+        // Erase the names the *translator* gives the arguments, not the ones
+        // LLVM has: a dot is replaced, and an unnamed argument becomes `v_<n>`.
+        // Comparing against getName() alone reports both kinds free.
+        for (auto const &arg : func->args()) {
+            if (!arg.getName().empty()) {
+                free.erase(Shortcut::replace_dot(arg.getName().str()));
+                continue;
+            }
+            std::string n;
+            llvm::raw_string_ostream os(n);
+            arg.printAsOperand(os, false, module.get());
+            free.erase("v_" + Shortcut::replace_dot(n.substr(1)));
+        }
         for (auto const &[name, _] : stack_vars) free.erase(name);
         if (!free.empty()) {
             for (auto const &n : free) llvm::errs() << "free: " << n << "\n";
@@ -651,7 +665,31 @@ int main(int argc, char **argv) {
                       std::string(argv[1]) == "--spec-cfg")) {
         std::string spec, defs;
         const bool run_cfg = std::string(argv[1]) == "--spec-cfg";
-        const TranslateStatus st = run_to_spec(argv[2], argv[3], {}, &spec, run_cfg, &defs);
+        // Give every alloca a stack slot of its own.  A real project gets these
+        // from the StackMap the preprocessing passes emit; without them the
+        // alloca arm asserts, which would stop this being usable as a reduction
+        // oracle on a function lifted out of one.
+        std::map<std::string, std::string> stack_vars;
+        {
+            llvm::LLVMContext ctx;
+            llvm::SMDiagnostic err;
+            if (auto m = llvm::parseIRFile(argv[2], err, ctx))
+                if (auto *fn = m->getFunction(argv[3]))
+                    for (auto &bb : *fn)
+                        for (auto &inst : bb)
+                            if (auto *a = llvm::dyn_cast<llvm::AllocaInst>(&inst)) {
+                                std::string name = a->getName().str();
+                                if (name.empty()) {
+                                    llvm::raw_string_ostream os(name);
+                                    a->printAsOperand(os, false, m.get());
+                                    name.erase(0, 1);
+                                }
+                                name = "v_" + Shortcut::replace_dot(name);
+                                stack_vars[name] = "stack_" + name;
+                            }
+        }
+        const TranslateStatus st =
+            run_to_spec(argv[2], argv[3], stack_vars, &spec, run_cfg, &defs);
         llvm::errs() << spec << "\n";
         if (!defs.empty()) llvm::errs() << "\n-- definitions --\n" << defs;
         return st;
@@ -663,7 +701,7 @@ int main(int argc, char **argv) {
         return st;
     }
     ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    return spoq_test::skip_aware_status(RUN_ALL_TESTS());
 }
 
 /* -- joins that merge a loop exit with a path that skipped the loop ---------- */
@@ -671,23 +709,39 @@ int main(int argc, char **argv) {
 /// A join phi whose loop-side value is defined *inside* the loop body, rather
 /// than being the header phi itself.
 ///
-/// **This case currently fails.** Kept as the fix target.
+/// `bind_loop_results` has to bind the backedge *source*, not only the header
+/// phi and the pass-in values: the join phi here takes `%add`, defined in the
+/// body, and the spec used to end `let baseline_0_lcssa := add in` with nothing
+/// binding `add`.
 ///
-/// `bind_loop_results` binds each header phi and pass-in value to its `_after`
-/// name on the way out of the loop, which covers a join phi that takes the
-/// carried value. It does not cover one that takes the backedge *source*: here
-/// the phi takes `%add`, defined in the body, so the emitted spec ends
-///
-///     let baseline_08 := baseline_08_after in
-///     let baseline_0_lcssa := add in
-///
-/// with nothing binding `add`. Running loops unrolled (`SPOQ_CFG_CLONE_JOINS=1`)
-/// gives the skipping path its own copy and does not hit it.
-///
-/// This is the translation failure behind lua002 (`luaG_getfuncline`), where it
-/// aborts the whole run in `check_well_typed` with `Unknown symbol: add`.
+/// This was the translation failure behind lua002 (`luaG_getfuncline`), which
+/// aborted in check_well_typed with `Unknown symbol: add`.  Passes now; the
+/// fixture is the guard.
 TEST(IrTranslationSpec, LoopExitJoinBindsBodyValue) {
     expect_spec("loop_exit_join_body_value.ll", "vuln", {}, nullptr, /*run_cfg=*/true);
+}
+
+/// A value defined in an *inner* loop, escaping through a join that sits inside
+/// the outer loop and is also reachable without entering the inner one.
+///
+/// `%v` cannot be an input to the outer loop -- it is defined strictly inside
+/// it -- and used to be passed in all the same, so the outer loop's call site
+/// named it before anything bound it.
+///
+/// The cause was an ordering dependence: pass_analysis needs a nested loop's
+/// parent link to place a value defined inside it, and that link was only
+/// recorded when the DFS happened to reach the nested preheader.  Here the join
+/// is the *first* successor of the outer header, so the use came first, the
+/// value looked top-level, and it was passed into every loop on the stack.
+/// travel() records the nesting now, where the nesting is what is being walked.
+///
+/// Reduced from initFilter (ffm001), which aborted the run with
+/// `Unknown symbol: indvars_iv_next552_1`.  The cases above cover the
+/// single-loop version of the same escape, which always worked; it took the
+/// nesting plus the skip edge.
+TEST(IrTranslationSpec, LoopInnerValueEscapesToOuterJoin) {
+    expect_spec("loop_inner_value_escapes_to_outer_join.ll", "vuln", {}, nullptr,
+                /*run_cfg=*/true);
 }
 
 /// Signature stability. The header phi `%acc` takes its initial value from
@@ -714,8 +768,7 @@ TEST(IrTranslationSpec, LoopHeaderPhiInitialValueDoesNotWidenTheLoop) {
 /// the postheader selector has to dispatch between them while the escaping
 /// value is carried out alongside it.
 ///
-/// **This case currently fails**: `%sum` is left free, exactly as `%add` is in
-/// the single-exit case.
+/// Passes now, with `%sum` carried out alongside the selector.
 TEST(IrTranslationSpec, LoopTwoExitsBindBodyValue) {
     expect_spec("loop_two_exits_body_value.ll", "vuln", {}, nullptr, /*run_cfg=*/true);
 }

@@ -279,6 +279,7 @@ add_executable(IrTranslationTest test/unit/IrTranslationTest.cpp $<TARGET_OBJECT
 target_link_libraries(IrTranslationTest GTest::gtest_main GTest::gtest irloader parser antlr4_shared
     ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
 target_compile_definitions(IrTranslationTest PRIVATE
+    SPOQ_SKIP_RETURN_CODE=${SPOQ_SKIP_RETURN_CODE}
     SPOQ_LL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/ll_to_spoq")
 add_test(NAME IrTranslation COMMAND IrTranslationTest)
 set_tests_properties(IrTranslation PROPERTIES TIMEOUT 300)
