@@ -43,6 +43,12 @@
 
 namespace autov {
 
+/// Whether [proj] already declares [name].  Out of line because SpoqIRModule.h
+/// only forward declares Project, and its one caller there is inline.
+bool project_declares(Project* proj, const std::string& name) {
+    return proj && proj->is_known_symbol(name);
+}
+
 /**
  * @brief This look up table is incomplete and only contains the most common binary ops in llvm.
  *

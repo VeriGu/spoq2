@@ -744,6 +744,19 @@ TEST(IrTranslationSpec, LoopInnerValueEscapesToOuterJoin) {
                 /*run_cfg=*/true);
 }
 
+/// A register named the same as a declared symbol has to give way.
+///
+/// clang calls the result of `fneg` `%fneg`, and the uninterpreted float
+/// negation is declared under that name too, so the binding shadowed it and the
+/// value was used where a Z -> Z function was expected.
+TEST(IrTranslationSpec, ValueNamedLikeADeclarationIsRenamed) {
+    std::string spec, defs;
+    expect_spec("value_named_like_a_declaration.ll", "vuln", {}, &spec, /*run_cfg=*/false, &defs);
+    EXPECT_NE(defs.find("Parameter fneg : Z -> Z."), std::string::npos) << defs;
+    EXPECT_NE(spec.find("let v_fneg := (fneg x)"), std::string::npos)
+        << "the binding still shadows the declaration:\n" << spec;
+}
+
 /// Signature stability. The header phi `%acc` takes its initial value from
 /// `%init`, computed outside the loop, and `%acc` is itself what escapes.
 /// header_phi supplies that initial value positionally at the call site, so it
