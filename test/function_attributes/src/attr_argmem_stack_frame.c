@@ -1,23 +1,12 @@
-/* The stack clause of the argmem frame, and how coarse it is.  **Not
-   implemented**: this asserts the right answer and reports a skip until spoq
-   gives it.
+/* The stack clause of the argmem frame, slot by slot.
 
-   The callee is handed one stack pointer, so the frame's stack arm applies:
-   is_stack_ptr p -> heap' = heap /\ globals' = globals.  Nothing is said about
-   the rest of the stack.  `other` is a different slot the callee was never
-   given the address of, yet the whole stack map is left unconstrained, so it is
-   not provably still 7 -- though it plainly is, which is why the expected file
-   asks for verified: true.
+   The callee is handed one stack pointer, so every stack slot except the one it
+   names is pinned, the same way every heap block except the one an argument
+   names is.  `other` is a different slot the callee was never given the address
+   of, so it is still 7 afterwards.
 
-   Contrast attr_argmem_frame, the same shape reading a global instead: that one
-   verifies, because globals are pinned whole.  Only the heap clause is stated
-   block by block; the stack and globals are all-or-nothing.
-
-   A per-slot stack frame -- stack' = stack except at p.(pbase) -- would make
-   this verify, and would be the analogue of what the heap arm already does.
-
-   `other`'s address is handed to the callee once before it is set, so that it
-   is a real slot in the stack map rather than a value spoq can keep out of it:
+   Its address is handed to the callee once before it is set, so that it is a
+   real slot in the stack map rather than a value spoq can keep out of it:
    without that escape the store and the load fold together and the frame is
    never consulted.
 

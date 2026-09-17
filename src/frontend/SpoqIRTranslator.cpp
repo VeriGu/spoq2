@@ -469,7 +469,13 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
             auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
             vec->push_back(std::make_unique<StringConst>(name));
             vec->push_back(std::make_unique<IntConst>(0));
-            return std::make_unique<Expr>("mkPtr", std::move(vec));
+            auto expr = std::make_unique<Expr>("mkPtr", std::move(vec));
+            // A global's address is a Ptr wherever it appears, so say so rather
+            // than leave it to inference: in a variadic argument past the
+            // declared parameters there is no signature to recover it from, and
+            // an untyped node trips check_well_typed with "Unknown type".
+            expr->type = Struct::Ptr;
+            return expr;
         } else if(auto data = llvm::dyn_cast<llvm::ConstantData>(value)) {
             if (auto int_val = llvm::dyn_cast<llvm::ConstantInt>(data)) {
                 if(int_val->getBitWidth() == 1) {

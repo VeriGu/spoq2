@@ -1,3 +1,4 @@
+#include <functional>
 #include "SpoqIRLoader.h"
 #include "SpoqIRModule.h"
 #include "ir2spec.h"
@@ -156,9 +157,14 @@ unique_ptr<SpecNode> pure_property(const string &pre, const string &post,
 ///
 /// Which region each of those objects lives in is not known statically, so the
 /// property is stated per region rather than per pointer: each region is pinned
-/// unless some argument could name it, and the heap additionally block by
-/// block.  One clause per region rather than one arm per assignment of pointers
-/// to regions, which would be 3^n.
+/// unless some argument could name it, and the heap and the stack additionally
+/// object by object.  One clause per region rather than one arm per assignment
+/// of pointers to regions, which would be 3^n.
+///
+/// The globals stay all-or-nothing.  Heap blocks and stack slots are maps that
+/// can be indexed by what the pointer carries -- spvn of its pbase, and its
+/// pbase -- whereas GLOBALS is a record whose fields differ per project, so
+/// framing it per object means a case analysis this cannot construct generically.
 ///
 /// Written as one Rely rather than woven into the state so that the state stays
 /// a plain symbol and later loads and stores are not forced to reason through an
@@ -181,6 +187,27 @@ unique_ptr<SpecNode> argmem_property(const string &pre, const string &post,
     auto const blocks_of = [&](unique_ptr<SpecNode> st) {
         return attr_field(attr_field(std::move(st), "heap"), "blocks");
     };
+    /// `map` with each argument's entry set to what the post-state holds there.
+    /// Updating unconditionally is what keeps this linear in the number of
+    /// arguments: a conditional "leave this one alone" branch has to name the
+    /// map built so far, which doubles the term per argument.  Aliasing is safe
+    /// either way -- if two arguments share a key the later store wins and gives
+    /// the post-state value, which is the right answer for both.
+    auto const framed = [&](unique_ptr<SpecNode> map,
+                            const std::function<unique_ptr<SpecNode>()> &post_map,
+                            const std::function<unique_ptr<SpecNode>(const string &)> &key) {
+        for (auto const &p : ptrs) {
+            auto post_at = std::make_unique<vector<unique_ptr<SpecNode>>>();
+            post_at->push_back(post_map());
+            post_at->push_back(key(p));
+            auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
+            v->push_back(std::move(map));
+            v->push_back(key(p));
+            v->push_back(std::make_unique<Expr>(Expr::GET, std::move(post_at)));
+            map = std::make_unique<Expr>(Expr::SET, std::move(v));
+        }
+        return map;
+    };
     /// `some(f)` = f holds of at least one argument; false when there are none.
     auto const some = [&](const char *pred) {
         unique_ptr<SpecNode> acc = nullptr;
@@ -191,32 +218,27 @@ unique_ptr<SpecNode> argmem_property(const string &pre, const string &post,
         return acc ? std::move(acc) : std::make_unique<BoolConst>(false);
     };
 
-    // The heap, block by block: every block except the ones the arguments name
-    // is pinned.  Updating a key to the post-state value unconditionally is
-    // what makes this linear in the number of arguments -- a conditional
-    // "leave it alone" branch has to name the map built so far, which doubles
-    // the term per argument.  The cost is that an argument naming the stack or
-    // a global leaves one heap key unpinned; the clause below recovers that
-    // whenever no argument names the heap at all.
+    // The heap, block by block, and the stack, slot by slot: every object
+    // except the ones the arguments name is pinned.  The cost of the
+    // unconditional update is that an argument in one region leaves one entry
+    // of the other unpinned; the all-or-nothing clauses below recover that
+    // whenever no argument names the region at all.
     //
     // An argmem-only callee cannot allocate, so nextBlock is pinned too.
-    unique_ptr<SpecNode> blocks = blocks_of(pre_st());
-    for (auto const &p : ptrs) {
-        auto const key = [&]() { return attr_apply("spvn", attr_field(arg_ptr(p), "pbase")); };
-        auto post_at = std::make_unique<vector<unique_ptr<SpecNode>>>();
-        post_at->push_back(blocks_of(post_st()));
-        post_at->push_back(key());
-        auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
-        v->push_back(std::move(blocks));
-        v->push_back(key());
-        v->push_back(std::make_unique<Expr>(Expr::GET, std::move(post_at)));
-        blocks = std::make_unique<Expr>(Expr::SET, std::move(v));
-    }
     auto mem = std::make_unique<vector<unique_ptr<SpecNode>>>();
-    mem->push_back(std::move(blocks));
+    mem->push_back(framed(
+        blocks_of(pre_st()), [&]() { return blocks_of(post_st()); },
+        [&](const string &p) { return attr_apply("spvn", attr_field(arg_ptr(p), "pbase")); }));
     mem->push_back(attr_field(attr_field(pre_st(), "heap"), "nextBlock"));
     auto heap_framed = attr_bin(Expr::EQUAL, attr_field(post_st(), "heap"),
                                 std::make_unique<Expr>(std::string("mkMEM"), std::move(mem)));
+
+    auto stack_slots =
+        attr_bin(Expr::EQUAL, attr_field(post_st(), "stack"),
+                 framed(
+                     attr_field(pre_st(), "stack"),
+                     [&]() { return attr_field(post_st(), "stack"); },
+                     [&](const string &p) { return attr_field(arg_ptr(p), "pbase"); }));
 
     // A region no argument can name is pinned whole.  For the heap that is the
     // stronger statement -- it pins the key an argument in another region would
@@ -235,10 +257,12 @@ unique_ptr<SpecNode> argmem_property(const string &pre, const string &post,
     auto stack_framed = attr_bin(Expr::OR, some("is_stack_ptr"), same("stack"));
     auto globals_framed = attr_bin(Expr::OR, some("is_global_ptr"), same("globals"));
 
-    return attr_bin(Expr::AND, std::move(heap_framed),
-                    attr_bin(Expr::AND, std::move(heap_whole),
-                             attr_bin(Expr::AND, std::move(stack_framed),
-                                      std::move(globals_framed))));
+    return attr_bin(
+        Expr::AND, std::move(heap_framed),
+        attr_bin(Expr::AND, std::move(stack_slots),
+                 attr_bin(Expr::AND, std::move(heap_whole),
+                          attr_bin(Expr::AND, std::move(stack_framed),
+                                   std::move(globals_framed)))));
 }
 
 }  // namespace

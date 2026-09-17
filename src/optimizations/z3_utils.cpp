@@ -605,6 +605,43 @@ Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& con
 }
 
 
+namespace {
+
+/// Whether `exists <binders>. pattern = src` says anything the recognizer for
+/// the pattern's outermost constructor does not already say.
+///
+/// It does not, when every position the pattern leaves open is a distinct fresh
+/// name.  A free datatype's recognizer asserts that the scrutinee *is* that
+/// constructor applied to its own accessors, and those accessors are then the
+/// only values the equality admits -- so the equality holds by construction and
+/// the quantifier has nothing to look for.
+///
+/// A constant, a constructor below the root, or a name used twice does pin
+/// something; the caller states that on the accessors rather than under a
+/// quantifier.  A tuple is transparent at any depth: a struct has one
+/// constructor, so it constrains nothing on its own.
+bool pattern_is_transparent(Project *proj, SpecNode *pat, std::set<string> &seen, bool root) {
+    if (auto sym = instance_of(pat, Symbol)) {
+        // A nullary constructor is content wherever it appears: the caller emits
+        // a recognizer only for an Expr pattern, so nothing else asserts it.
+        if (proj->is_ind_constr(sym->text)) return false;
+        return seen.insert(sym->text).second;
+    }
+    if (is_instance(pat, Const)) return false;
+    auto expr = instance_of(pat, Expr);
+    if (!expr) return false;
+
+    bool const is_tuple = op_eq(expr->op, Expr::Tuple);
+    // Anything else here is a constructor of a type with alternatives, so it
+    // needs a recognizer, and the caller emits one only at the root.
+    if (!is_tuple && !root) return false;
+    for (auto const &elem : *expr->elems)
+        if (!pattern_is_transparent(proj, elem.get(), seen, false)) return false;
+    return true;
+}
+
+}  // namespace
+
 shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pat, const shared_ptr<SpecValue>& src,
                                       unordered_map<string, shared_ptr<SpecValue>> &vars,
                                       unordered_map<string, shared_ptr<SpecValue>> &assigns)
@@ -668,6 +705,59 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
     }
 
     throw std::runtime_error("Unknown pattern(" + std::to_string(__LINE__) + "): " + string(*pat));
+}
+
+/// The condition under which a match arm is taken, without quantifiers.
+///
+/// Fills [vars] with the pattern's binders and [assigns] with the accessor term
+/// each one stands for, as resolve_pattern does; the caller substitutes the
+/// latter into the arm body.
+///
+/// Where the pattern pins something, the equality is stated on those accessors.
+/// That is the existential instantiated at its witness, and it loses nothing:
+/// in a free datatype the witness is unique, so the quantified and instantiated
+/// forms are equivalent.
+z3::expr match_arm_condition(Project *proj, SpecNode *val, SpecNode *pattern,
+                             const shared_ptr<SpecValue> &src,
+                             unordered_map<string, shared_ptr<SpecValue>> &vars,
+                             unordered_map<string, shared_ptr<SpecValue>> &assigns) {
+    auto const pat = resolve_pattern(proj, val, pattern, src, vars, assigns);
+
+    z3::expr cond = z3ctx.bool_val(true);
+    bool has_recognizer = false;
+    if (auto const ind_ty = dynamic_pointer_cast<Inductive>(src->get_type())) {
+        if (auto constr = dynamic_cast<Expr *>(pattern)) {
+            string constr_name;
+            if (std::holds_alternative<string>(constr->op)) {
+                constr_name = std::get<string>(constr->op);
+            } else if (auto const op = std::get_if<Expr::ops>(&constr->op)) {
+                // Some and None do not reach the symbol table as names.
+                auto const option_ty = dynamic_pointer_cast<Option>(ind_ty);
+                assert(option_ty);
+                if (*op == Expr::ops::Some) constr_name = "Some_" + option_ty->elem_type->name;
+                else if (*op == Expr::ops::None) constr_name = "None_" + option_ty->elem_type->name;
+            }
+            if (!constr_name.empty()) {
+                cond = ind_ty->get_recognizer(constr_name)(src->get_z3_value());
+                has_recognizer = true;
+            }
+        }
+    }
+
+    std::set<string> seen;
+    if (pattern_is_transparent(proj, pattern, seen, /*root=*/true) && has_recognizer)
+        return cond;
+
+    // Rebuild the pattern over the accessors rather than the fresh binders.
+    z3::expr_vector from(z3ctx), to(z3ctx);
+    for (auto const &[name, var] : vars) {
+        auto const witness = assigns.find(name);
+        if (witness == assigns.end()) continue;
+        from.push_back(var->get_z3_value());
+        to.push_back(witness->second->get_z3_value());
+    }
+    auto const eq = pat->get_z3_value().substitute(from, to) == src->get_z3_value();
+    return has_recognizer ? (cond && eq) : eq;
 }
 
 
@@ -1536,38 +1626,8 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
         for (auto pm = match->match_list->rbegin(); pm != match->match_list->rend(); pm++) {
             unordered_map<string, shared_ptr<SpecValue>> vars;
             unordered_map<string, shared_ptr<SpecValue>> assigns;
-            auto const pat = resolve_pattern(proj, val, (*pm)->pattern.get(), src, vars, assigns);
-            z3::expr cond = pat->get_z3_value() == src->get_z3_value();
-
-            //cond : exists v1,v2...., constructor v1 v2 = src.
-
-            if (auto const ind_ty = dynamic_pointer_cast<Inductive>(src->get_type())) {
-                auto const z3t = ind_ty->get_z3_type();
-                if(auto ind_constr_expr = dynamic_cast<Expr*>((*pm)->pattern.get())){
-                // } else if (info.kind == SymbolKind::IndConstructor) {
-                    if(std::holds_alternative<string>(ind_constr_expr->op)){
-                        auto const constr_name = std::get<string>(ind_constr_expr->op);
-                        auto const recognizer = ind_ty->get_recognizer(constr_name);
-                        cond = recognizer(src->get_z3_value()) && (cond);
-                    } else if(std::holds_alternative<Expr::ops>(ind_constr_expr->op)){
-                        // This is an indication that we are looking at a Some or a None
-                        auto const op = std::get<Expr::ops>(ind_constr_expr->op);
-                        auto const option_ty = dynamic_pointer_cast<Option>(ind_ty);
-                        assert(option_ty);
-                        std::string constr_name = "";
-                        if(op == Expr::ops::Some) {
-                            constr_name = "Some_" + option_ty->elem_type->name;
-                        } else if(op == Expr::ops::None){
-                            constr_name = "None_" + option_ty->elem_type->name;
-                        }
-                        auto const recognizer = option_ty->get_recognizer(constr_name);
-                        cond = recognizer(src->get_z3_value()) && (cond);
-                    }
-                }
-            }
-            for (auto v = vars.begin(); v != vars.end(); v++) {
-                cond = z3::exists(v->second->get_z3_value(), cond);
-            }
+            auto const cond =
+                match_arm_condition(proj, val, (*pm)->pattern.get(), src, vars, assigns);
             auto const z3_res = z3_check(state, cond);
             if (z3_res == Z3Result::False) {
                 continue;
@@ -2036,41 +2096,8 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         for (auto pm = match->match_list->rbegin(); pm != match->match_list->rend(); pm++) {
             unordered_map<string, shared_ptr<SpecValue>> vars;
             unordered_map<string, shared_ptr<SpecValue>> assigns;
-            auto const pat = resolve_pattern(proj, val, (*pm)->pattern.get(), src, vars, assigns);
-            // auto new_state = state->copy();
-            // for (auto v = assigns.begin(); v != assigns.end(); v++) {
-            //     (*new_state->vars)[v->first] = v->second;
-            // }
-            auto cond = pat->get_z3_value() == src->get_z3_value();
-
-            if (auto const ind_ty = dynamic_pointer_cast<Inductive>(src->get_type())) {
-                auto const z3t = ind_ty->get_z3_type();
-                if(auto ind_constr_expr = dynamic_cast<Expr*>((*pm)->pattern.get())){
-                // } else if (info.kind == SymbolKind::IndConstructor) {
-                    if(std::holds_alternative<string>(ind_constr_expr->op)){
-                        auto const constr_name = std::get<string>(ind_constr_expr->op);
-                        auto const recognizer = ind_ty->get_recognizer(constr_name);
-                        cond = recognizer(src->get_z3_value()) && (cond);
-                    } else if(std::holds_alternative<Expr::ops>(ind_constr_expr->op)){
-                        // This is an indication that we are looking at a Some or a None
-                        auto const op = std::get<Expr::ops>(ind_constr_expr->op);
-                        auto const option_ty = dynamic_pointer_cast<Option>(ind_ty);
-                        assert(option_ty);
-                        std::string constr_name = "";
-                        if(op == Expr::ops::Some) {
-                            constr_name = "Some_" +  option_ty->elem_type->name;
-                        } else if(op == Expr::ops::None){
-                            constr_name = "None_" + option_ty->elem_type->name;
-                        }
-                        auto const recognizer = option_ty->get_recognizer(constr_name);
-                        cond = recognizer(src->get_z3_value()) && (cond);
-                    }
-                }
-            }
-
-                for (auto v = vars.begin(); v != vars.end(); v++) {
-                    cond = z3::exists(v->second->get_z3_value(), cond);
-                }
+            auto const cond =
+                match_arm_condition(proj, val, (*pm)->pattern.get(), src, vars, assigns);
 
             if (!OPTS.__OPT_ON_MATCH) {
                 // LOG_INFO << "[PROFILE]" << "z3_eval: z3_check: match stands: " << string(*val);
@@ -2498,39 +2525,8 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         for (auto pm = match->match_list->rbegin(); pm != match->match_list->rend(); pm++) {
             unordered_map<string, shared_ptr<SpecValue>> vars;
             unordered_map<string, shared_ptr<SpecValue>> assigns;
-            auto const pat = resolve_pattern(proj, val, (*pm)->pattern.get(), src, vars, assigns);
-            auto cond = pat->get_z3_value() == src->get_z3_value();
-
-            // Find recognizer
-            if (auto const ind_ty = dynamic_pointer_cast<Inductive>(src->get_type())) {
-                auto const z3t = ind_ty->get_z3_type();
-                if(auto ind_constr_expr = dynamic_cast<Expr*>((*pm)->pattern.get())){
-                // } else if (info.kind == SymbolKind::IndConstructor) {
-                    if(std::holds_alternative<string>(ind_constr_expr->op)){
-                        auto const constr_name = std::get<string>(ind_constr_expr->op);
-                        auto const recognizer = ind_ty->get_recognizer(constr_name);
-                        cond = recognizer(src->get_z3_value()) && (cond);
-                    } else if(std::holds_alternative<Expr::ops>(ind_constr_expr->op)){
-                        // This is an indication that we are looking at a Some or a None
-                        auto const op = std::get<Expr::ops>(ind_constr_expr->op);
-                        auto const option_ty = dynamic_pointer_cast<Option>(ind_ty);
-                        assert(option_ty);
-                        std::string constr_name = "";
-                        if(op == Expr::ops::Some) {
-                            constr_name = "Some_" + option_ty->elem_type->name;
-                        } else if(op == Expr::ops::None){
-                            constr_name = "None_" + option_ty->elem_type->name;
-                        }
-                        auto const recognizer = option_ty->get_recognizer(constr_name);
-                        cond = recognizer(src->get_z3_value()) && (cond);
-                    }
-                }
-            }
-
-            //exists v1,v2..., constructor v1 v2 ... = src.
-            for (auto v = vars.begin(); v != vars.end(); v++) {
-                cond = z3::exists(v->second->get_z3_value(), cond);
-            }
+            auto const cond =
+                match_arm_condition(proj, val, (*pm)->pattern.get(), src, vars, assigns);
 
             auto const z3_res = z3_check(state, cond);
             if (z3_res == Z3Result::False) {
