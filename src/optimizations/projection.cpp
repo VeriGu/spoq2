@@ -153,7 +153,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
     auto &preconds = proj->cmds.PreCond[fname];
 
     if (OPTS.count_leaves){
-        proj->leaves_in_unfolded_func_pre_transform[fname] = leaves_in_spec_unfolded(proj, def->body.get());
+        proj->leaves_in_unfolded_func_pre_transform[fname] = leaves_in_spec_unfolded(proj, def->body().get());
     }
 
     for (auto const arg : *def->args) {
@@ -184,7 +184,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
     auto const state = make_shared<EvalState>(vars, conds);
     set<string> fix_string;
     for (auto const &a : proj->axioms) {
-        auto axiom_body = proj->defs[a]->body.get();
+        auto axiom_body = proj->defs[a]->body().get();
         auto const axiom_expr = z3_eval(proj, axiom_body, state, false, true, fix_string);
         state->conds->push_back(axiom_expr->get_z3_value());
     }
@@ -210,12 +210,12 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 LOG_DEBUG << "Starting transformation iteration " << cur_iter << ".";//  Current spec " << s << "";
                 auto const dumpfile = def->name + "_transform_" + std::to_string(cur_iter);
                 std::ofstream ofs(dumpfile);
-                ofs << def->body;
+                ofs << def->body();
                 ofs.close();
             }else {
                 LOG_DEBUG << def->name << " transformation iteration " << cur_iter << ".";//  Current spec " << s << "";
             }
-            auto spec = std::move(def->body);
+            auto spec = std::move(def->body());
 
             // SPOQ_TRACE_TRANSFORM: size at each pass boundary, attributing a
             // growing iteration to the pass that grows it.
@@ -522,13 +522,13 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
 
             profile_update_epoch();
             assert(spec);
-            def->body = std::move(spec);
+            def->body() = std::move(spec);
 
             // SPOQ_TRACE_TRANSFORM: size and identity per iteration, which
             // separates a spec that is growing from one cycling between forms
             // and one already at a fixpoint.
             if (trace_on()) {
-                auto const text = string(*def->body);
+                auto const text = string(*def->body());
                 LOG_DEBUG << "[TRACE] " << def->name << " iter " << cur_iter
                           << " bytes " << text.size()
                           << " hash " << std::hash<std::string>{}(text)
@@ -551,7 +551,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             }
     }
     if (OPTS.count_leaves){
-        proj->leaves_in_unfolded_func_post_transform[fname] = leaves_in_spec_unfolded(proj, def->body.get());
+        proj->leaves_in_unfolded_func_post_transform[fname] = leaves_in_spec_unfolded(proj, def->body().get());
     }
 }
 
@@ -568,7 +568,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
     converged_spec.clear();
     /** Rules with smart pointers */
     while (true) {
-        auto new_spec = std::move(def->body);
+        auto new_spec = std::move(def->body());
         auto changed = false;
 
         // group 1
@@ -665,7 +665,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
                     << string(*new_spec.get()) << "\n==============================\n";
         // }
 
-        def->body = std::move(new_spec);
+        def->body() = std::move(new_spec);
         def->_str.clear();
 
         if (!changed)

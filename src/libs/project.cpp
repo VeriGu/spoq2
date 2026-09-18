@@ -201,7 +201,7 @@ void Project::update_definition_body(Definition *def) {
 
     auto old_def = defs[def->name].get();
 
-    def->body = std::move(old_def->body);
+    def->body() = std::move(old_def->body());
 }
 
 void Project::add_layer(std::unique_ptr<Layer> layer) {
@@ -633,7 +633,7 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, const s
         for (auto &def: *low_specs) {
             LOG_INFO << "Generate low definition " << def->name << ", Fixpoint: " << is_instance(def, Fixpoint) << std::endl;
             std::cout << string(*def) << std::endl;
-            proj->deps[def->name] = proj->calc_dependencies(def->body.get());
+            proj->deps[def->name] = proj->calc_dependencies(def->body().get());
 
             auto const loc = make_shared<loc_t>(L->name, fname, Project::LOC_LOWSPEC);
 
@@ -656,7 +656,7 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, const s
             } else {
                 spec_transformer(proj, def, layer_id, false, true);
             }
-            if(!def->body) {
+            if(!def->body()) {
                 LOG_ERROR << "def is null";
             }
             profile_finalize();
@@ -837,12 +837,12 @@ infer_spec_task(Project *proj, int layer_id, const string& fname) {
         if (proj->defs.find(high_name) != proj->defs.end()) {
             auto _def = proj->defs[high_name].get();
             LOG_DEBUG << "High_name: " << high_name;
-            proj->deps[high_name] = proj->calc_dependencies(_def->body.get());
+            proj->deps[high_name] = proj->calc_dependencies(_def->body().get());
             LOG_DEBUG << "proj.deps size :" << proj->deps[high_name].size();
 
-            proj->deps[high_name] = proj->calc_dependencies(_def->body.get());
+            proj->deps[high_name] = proj->calc_dependencies(_def->body().get());
 
-            if (_def->body) {
+            if (_def->body()) {
                 if(_def->deleyed_type_inference) {
                     _def->infer_type(*proj);
                 }
@@ -856,7 +856,7 @@ infer_spec_task(Project *proj, int layer_id, const string& fname) {
             low_def->deleyed_type_inference = false;
         }
         // High spec begins from the low spec
-        unique_ptr<SpecNode> high_body = low_def->body->deep_copy();
+        unique_ptr<SpecNode> high_body = low_def->body()->deep_copy();
 
         if (have_loop || have_sub) {
             auto [new_high, __changed] = proj->rules.replace_spec_name(std::move(high_body), name_map);
@@ -904,7 +904,7 @@ infer_spec_task(Project *proj, int layer_id, const string& fname) {
 
 
 #ifndef MT_TRANSFORM
-        proj->deps[high_name] = proj->calc_dependencies(high_def->body.get());
+        proj->deps[high_name] = proj->calc_dependencies(high_def->body().get());
 #endif
         if (is_instance(low_def, Fixpoint))
             proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(high_def)),
@@ -962,7 +962,7 @@ static void collect_relations(Project *proj) {
             throw std::runtime_error("[collect_relations] Fixpoint rel not supported for now\n");
         } else {
             pure_rel = new Definition(rel_def->name, rel_def->rettype, std::move(l_args),
-                                      rel_def->body->deep_copy());
+                                      rel_def->body()->deep_copy());
         }
         if (rel_def->deleyed_type_inference) {
             pure_rel->infer_type(*proj);
@@ -1000,7 +1000,7 @@ static void collect_lemmas(Project *proj) {
             throw std::runtime_error("[collect_lemmas] Fixpoint lemma not supported for now\n");
         } else {
             pure_lemma = new Definition(lemma_def->name, lemma_def->rettype, std::move(l_args),
-                                      lemma_def->body->deep_copy());
+                                      lemma_def->body()->deep_copy());
         }
         // LOG_INFO << "Pure Lemma: " << string(*pure_lemma) << std::endl;
         if (lemma_def->deleyed_type_inference) {
@@ -1131,7 +1131,7 @@ void trans_inv(Project *proj) {
 
     for(auto const name : proj->axioms) {
        Definition *axiom_def = proj->defs[name].get();
-       type_inference::infer_type(*proj, axiom_def->body.get(), known, Bool::BOOL);
+       type_inference::infer_type(*proj, axiom_def->body().get(), known, Bool::BOOL);
        spec_transformer_v2(proj, axiom_def, 0, true, true);
     }
 }
@@ -1301,9 +1301,9 @@ void Project::compute_mem_op_closures() {
             auto const name = work.back();
             work.pop_back();
             auto const def = defs.find(name);
-            if (def == defs.end() || !def->second->body) continue;
+            if (def == defs.end() || !def->second->body()) continue;
             std::set<string> callees;
-            collect_called_defs(this, def->second->body.get(), callees);
+            collect_called_defs(this, def->second->body().get(), callees);
             for (auto const &callee : callees)
                 if (callee != root && reached.insert(callee).second) work.push_back(callee);
         }
@@ -1580,12 +1580,12 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
         if (proj->defs.find(high_name) != proj->defs.end()) {
             auto _def = proj->defs[high_name].get();
             LOG_DEBUG << "High_name: " << high_name;
-            proj->deps[high_name] = proj->calc_dependencies(_def->body.get());
+            proj->deps[high_name] = proj->calc_dependencies(_def->body().get());
             LOG_DEBUG << "proj.deps size :" << proj->deps[high_name].size();
 
-            proj->deps[high_name] = proj->calc_dependencies(_def->body.get());
+            proj->deps[high_name] = proj->calc_dependencies(_def->body().get());
 
-            if (_def->body) {
+            if (_def->body()) {
                 check_provided_spec_signature(_def, low_def.get());
                 LOG_INFO << "Provided: " << high_name << std::endl;
                 proj->update_symbol_loc(high_name, make_shared<loc_t>(proj->layers[layer_id]->name, Project::LOC_SPEC, ""));
@@ -1597,7 +1597,7 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
             low_def->deleyed_type_inference = false;
         }
         // High spec begins from the low spec
-        unique_ptr<SpecNode> high_body = low_def->body->deep_copy();
+        unique_ptr<SpecNode> high_body = low_def->body()->deep_copy();
 
         if (have_loop || have_sub) {
             auto [new_high, __changed] = proj->rules.replace_spec_name(std::move(high_body), name_map);
@@ -1655,7 +1655,7 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
         //spec_prover(proj, high_def);
 
 #ifndef MT_TRANSFORM
-        proj->deps[high_name] = proj->calc_dependencies(high_def->body.get());
+        proj->deps[high_name] = proj->calc_dependencies(high_def->body().get());
 #endif
         if (is_instance(low_def.get(), Fixpoint))
             proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(high_def)),
@@ -1697,7 +1697,13 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
                 throw UndefinedSpecException(def_name);
             }
 
-            // spec transformer
+            // Transformed here rather than on first read.  Definition::body()
+            // would run it on demand -- and does so safely -- but deferring it
+            // saves nothing: the high spec built just below reads every low
+            // body, so every transformation happens anyway, only in a different
+            // order.  That order is not free, because the transformation
+            // carries mutable global state; measured on ffm001 it turned 617
+            // seconds into 949.
             profile_clear();
             if(OPTS.new_trans) {
                 spec_transformer_v2(proj, def, layer_id, false, true);
@@ -1755,12 +1761,12 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
         std::regex const pattern2(fname + "_\\d+_low");
         string low_name = fname + "_spec_low";
 
-        unique_ptr<SpecNode> spec = std::move(proj->defs[low_name]->body);
+        unique_ptr<SpecNode> spec = std::move(proj->defs[low_name]->body());
         if(!was_generated_here && proj->cmds.InitRely.find(fname) != proj->cmds.InitRely.end()) {
             for(auto & f : proj->cmds.InitRely[fname])
                 spec = std::make_unique<Rely>(f->deep_copy(), std::move(spec));
         }
-        proj->defs[low_name]->body = std::move(spec);
+        proj->defs[low_name]->body() = std::move(spec);
 
         // TODO: function types
         // auto func = this->code->functions->at(fname);
@@ -1808,7 +1814,7 @@ void Project::prepare_abstraction() {
             auto& abs_def = this->defs[abs.abs_spec_name];
             assert(abs_def && "abs_def is null for abstraction");
 
-            if (auto expr = dynamic_cast<Expr*>(raw_def->body.get())) {
+            if (auto expr = dynamic_cast<Expr*>(raw_def->body().get())) {
                 abs.raw_expr = expr->deep_copy_down();
             } else {
                 std::cout << "*raw_def: " << string(*raw_def) << std::endl;
@@ -1816,7 +1822,7 @@ void Project::prepare_abstraction() {
             }
 
             // abs.abs_expr = abs_def->body->deep_copy();
-            if (auto expr = dynamic_cast<Expr*>(abs_def->body.get())) {
+            if (auto expr = dynamic_cast<Expr*>(abs_def->body().get())) {
                 abs.abs_expr = expr->deep_copy_down();
             } else {
                 std::cout << "*abs_def: " << string(*abs_def) << std::endl;

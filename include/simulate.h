@@ -18,7 +18,7 @@ namespace autov
 		return name + "_sim";
 	}
 	// verify the relational property by traversing the project
-	bool check_hprop_by_path(Project *proj, Definition* rel, Definition *spec, Definition  const*impl = nullptr, bool det = true, Definition* endrel = nullptr);
+	bool check_hprop_by_path(Project *proj, Definition* rel, Definition *spec, Definition *impl = nullptr, bool det = true, Definition* endrel = nullptr);
 	shared_ptr<SpecValue> formulate_relation(Project *proj, Definition *rel, SpecNode  const*st_spec, SpecNode  const*st_impl, const shared_ptr<ProveState>& state);
 	
 	class SimulateResult {

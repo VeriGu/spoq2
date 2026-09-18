@@ -70,7 +70,7 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
         } else if (proj->defs.find(sym->text) != proj->defs.end()) {
             auto df = proj->defs[sym->text].get();
             assert(df->args->size() == 0);
-            if (auto c = instance_of(df->body.get(), Const)) {
+            if (auto c = instance_of(df->body().get(), Const)) {
                 return _cache(z3_expr(proj, c, state));
             } else {
                 return _cache(df->absf()->call({}));
@@ -1311,7 +1311,7 @@ bool prove_by_traverse(
                         new_state->inductions->clear();
                     }
                     for (auto const &l : proj->lemmas) {
-                        auto lemma_body = proj->defs[l]->body.get();
+                        auto lemma_body = proj->defs[l]->body().get();
                         auto const lemma = proj->rules.instantiate_prop(
                             lemma_body->deep_copy(), st_ret->deep_copy());
                         auto const lemma_expr = z3_expr(proj, lemma.get(), new_state);
@@ -1439,13 +1439,13 @@ bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv,
 
     // instantiate parameter-related invariants
     for (auto const &l : proj->lemmas) {
-        auto lemma_body = proj->defs[l]->body.get();
+        auto lemma_body = proj->defs[l]->body().get();
         auto const lemma_expr = z3_expr(proj, lemma_body, state);
         state->add_induction(lemma_expr->get_z3_value());
     }
 
     for (auto const &a : proj->axioms) {
-        auto axiom_body = proj->defs[a]->body.get();
+        auto axiom_body = proj->defs[a]->body().get();
         auto const axiom_expr = z3_expr(proj, axiom_body, state);
         state->conds->push_back(axiom_expr->get_z3_value());
     }
@@ -1457,8 +1457,8 @@ bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv,
         state->conds->push_back(c->get_z3_value());
     }
 
-    def->body->clear_z3_eval();
-    bool const ret = prove_by_traverse(proj, def->body.get(), inv, state,
+    def->body()->clear_z3_eval();
+    bool const ret = prove_by_traverse(proj, def->body().get(), inv, state,
                                  used_abs_funcs, ProveMode::SYS, def->name,
                                  NoneConditionAccumulator(proj, def->name));
     return ret;
@@ -1468,7 +1468,7 @@ bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv,
 bool check_loop_inv_v2(Project *proj, Definition *loop,
                        std::unordered_set<string> &used_abs) {
     Z3Cache.clear();
-    loop->body->clear_z3_eval();
+    loop->body()->clear_z3_eval();
     auto vars =
         std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
     auto conds = std::make_shared<vector<z3::expr>>();
@@ -1515,13 +1515,13 @@ bool check_loop_inv_v2(Project *proj, Definition *loop,
     state->conds->push_back(c->get_z3_value());
     // instantiate parameter-related invariants
     for (auto const &l : proj->lemmas) {
-        auto lemma_body = proj->defs[l]->body.get();
+        auto lemma_body = proj->defs[l]->body().get();
         auto const lemma_expr = z3_expr(proj, lemma_body, state);
         state->add_induction(lemma_expr->get_z3_value());
     }
 
     proj->query_saver = QueryInfo(query_saver_dir(loop->name, "loop_inv"));
-    bool const res = prove_by_traverse(proj, loop->body.get(), inv.get(), state,
+    bool const res = prove_by_traverse(proj, loop->body().get(), inv.get(), state,
                                  used_abs, ProveMode::LOOP, loop->name,
                                  NoneConditionAccumulator(proj, loop->name));
 
@@ -1548,7 +1548,7 @@ bool check_none(Project *proj, Definition *def,
         l_args->push_back(arg);
     }
     auto spec_def = new Definition(def->name, def->rettype, std::move(l_args),
-                                   def->body->deep_copy());
+                                   def->body()->deep_copy());
 
     proj->query_saver = QueryInfo(query_saver_dir(def->name, "none_check"));
 
@@ -1573,7 +1573,7 @@ bool check_none(Project *proj, Definition *def,
             def->sufficient_none_condition = std::move(n);
         }
     };
-    bool const res = prove_by_traverse(proj, spec_def->body.get(), postcond.get(),
+    bool const res = prove_by_traverse(proj, spec_def->body().get(), postcond.get(),
                                  state, used_abs, ProveMode::None, def->name,
                                  std::move(none_cond_accumulator));
     std::set<string> vars_in_none_cond;
@@ -1639,7 +1639,7 @@ bool check_pre_post(Project *proj, Definition *def,
         l_args->push_back(arg);
     }
     auto spec_def = new Definition(def->name, def->rettype, std::move(l_args),
-                                   def->body->deep_copy());
+                                   def->body()->deep_copy());
     coi_reduction(proj, spec_def, postcond.get());
 
     proj->query_saver = QueryInfo(query_saver_dir(def->name, "integrity"));
@@ -1650,7 +1650,7 @@ bool check_pre_post(Project *proj, Definition *def,
     auto const c = z3_eval(proj, precond.get(), state, false, true, used_fixpoint);
     state->conds->push_back(c->get_z3_value());
     bool const res =
-        prove_by_traverse(proj, spec_def->body.get(), postcond.get(), state,
+        prove_by_traverse(proj, spec_def->body().get(), postcond.get(), state,
                           used_abs, ProveMode::PREPOST, def->name,
                           NoneConditionAccumulator(proj, def->name));
     return res;
@@ -1717,7 +1717,7 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     }
     SpecNode *vuln_body = nullptr, *patched_body = nullptr;
     auto tmp_patched_body =
-        subst_v2(proj, patched_def->body->deep_copy(),
+        subst_v2(proj, patched_def->body()->deep_copy(),
                  patched_def->args->back()->name, st_sym_1->deep_copy());
 
 
@@ -1726,8 +1726,8 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     std::set<string> used_var_names;
     bool unneeded = false;
     // Collect all the symbols in the vuln-def
-    std::tie(vuln_def->body, unneeded) = proj->rules.collect_all_vars(std::move(vuln_def->body), used_var_names);
-    vuln_body = vuln_def->body.get();
+    std::tie(vuln_def->body(), unneeded) = proj->rules.collect_all_vars(std::move(vuln_def->body()), used_var_names);
+    vuln_body = vuln_def->body().get();
 
     // Remove the arguments, functions, and definitions
     used_var_names.erase("None");
@@ -1756,7 +1756,7 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     tmp_patched_body = proj->rules.eliminate_ambiguity(std::move(tmp_patched_body), used_var_names, unneeded);
     // LOG_DEBUG << "subst Patched body: " << z3_eval(proj, patched_body,
     // state)->value.to_string();;
-    patched_def->body = tmp_patched_body->deep_copy();
+    patched_def->body() = tmp_patched_body->deep_copy();
 
     patched_body = tmp_patched_body.get();
     field_t const ret_rel_names;
@@ -1809,7 +1809,7 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     set<string> const used_fixpoint;
 
     for (auto const &a : proj->axioms) {
-        auto axiom_body = proj->defs[a]->body.get();
+        auto axiom_body = proj->defs[a]->body().get();
         auto const axiom_expr = z3_eval(proj, axiom_body, state);
         state->conds->push_back(axiom_expr->get_z3_value());
     }
@@ -1909,15 +1909,15 @@ static void collect_folded_callees(Project *proj, SpecNode *spec,
 /// perturbs.  Splicing the callee in leaves everything else exactly as the
 /// transformation left it.
 static bool inline_callee(Project *proj, Definition *def, const string &fname) {
-    if (!def || !def->body) return false;
-    auto [body, changed] = proj->rules.unfold_calls_to(std::move(def->body), fname);
+    if (!def || !def->body()) return false;
+    auto [body, changed] = proj->rules.unfold_calls_to(std::move(def->body()), fname);
     if (changed) {
         std::set<string> known;
         for (auto const arg : *def->args) known.insert(arg->name);
         bool amb = false;
         body = proj->rules.eliminate_ambiguity(std::move(body), known, amb);
     }
-    def->body = std::move(body);
+    def->body() = std::move(body);
     if (!changed) return false;
     // The spliced-in body is the callee as the transformation left it, not as
     // it would look specialised to this call site: its arguments are bound by a
@@ -1948,7 +1948,7 @@ bool simulate(Project *proj, bool check_sec = true) {
         unique_ptr<SpecNode> relation = make_unique<BoolConst>(true);
         for (auto &r : proj->relations) {
             auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-            elems->push_back(proj->defs[r]->body->deep_copy());
+            elems->push_back(proj->defs[r]->body()->deep_copy());
             elems->push_back(std::move(relation));
             relation =
                 make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
@@ -1958,7 +1958,7 @@ bool simulate(Project *proj, bool check_sec = true) {
             end_relation = make_unique<BoolConst>(true);
             for (auto &r : proj->end_relations) {
                 auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-                elems->push_back(proj->defs[r]->body->deep_copy());
+                elems->push_back(proj->defs[r]->body()->deep_copy());
                 elems->push_back(std::move(end_relation));
                 end_relation =
                     make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
@@ -1992,7 +1992,7 @@ bool simulate(Project *proj, bool check_sec = true) {
                 // with callees uninterpreted is provisional, so unfold what was
                 // withheld and re-simulate before believing it.
                 std::vector<string> candidates;
-                collect_folded_callees(proj, def->body.get(), candidates);
+                collect_folded_callees(proj, def->body().get(), candidates);
                 for (size_t i = 0; !res && i < candidates.size(); i++) {
                     if (!inline_callee(proj, def, candidates[i])) continue;
                     LOG_DEBUG << "Simulation of " << def->name << " failed; "
@@ -2001,7 +2001,7 @@ bool simulate(Project *proj, bool check_sec = true) {
                               << ") and re-checking.";
                     res = check_hprop_by_path(proj, rel_def.get(), def, nullptr,
                                               true, end_rel_def.get());
-                    collect_folded_callees(proj, def->body.get(), candidates);
+                    collect_folded_callees(proj, def->body().get(), candidates);
                 }
             }
             if (res) {
@@ -2017,7 +2017,7 @@ bool simulate(Project *proj, bool check_sec = true) {
         unique_ptr<SpecNode> sec_relation = make_unique<BoolConst>(true);
         for (auto &r : proj->sec_relations) {
             auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-            elems->push_back(proj->defs[r]->body->deep_copy());
+            elems->push_back(proj->defs[r]->body()->deep_copy());
             elems->push_back(std::move(sec_relation));
             sec_relation =
                 make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
@@ -2092,7 +2092,7 @@ void spec_prover(Project *proj) {
                 }
                 auto spec_def = new Definition(
                     goal_def->name, goal_def->rettype, std::move(l_args),
-                    goal_def->body->deep_copy());
+                    goal_def->body()->deep_copy());
                 // coi_reduction(proj, spec_def, inv);
 
                 proj->verifying_invariant = name;
@@ -2181,11 +2181,11 @@ void spec_prover(Project *proj) {
         }
         for (auto  const&other_def_pair : proj->defs) {
             auto other_def = other_def_pair.second.get();
-            if (!other_def || other_def == def || !other_def->body || other_def->name.find("_vuln_spec") == std::string::npos || other_def->name.find("_patch_spec") != std::string::npos)
+            if (!other_def || other_def == def || !other_def->body() || other_def->name.find("_vuln_spec") == std::string::npos || other_def->name.find("_patch_spec") != std::string::npos)
                 continue;
 
             auto current_free_vars = std::set<string>();
-            free_vars(proj, other_def->body.get(), current_free_vars);
+            free_vars(proj, other_def->body().get(), current_free_vars);
             for (auto  const&arg : *(def->args)){
                 current_free_vars.insert(arg->name);
             }
@@ -2195,15 +2195,15 @@ void spec_prover(Project *proj) {
 
                 LOG_DEBUG << "Applying PostCondWithNone for " << def->name
                 << " in " << other_def->name;
-            auto old_body = other_def->body->deep_copy();
+            auto old_body = other_def->body()->deep_copy();
             auto new_body = proj->rules.wrap_none_call_with_cond(
-                proj, std::move(other_def->body), def->name,
+                proj, std::move(other_def->body()), def->name,
                 def->sufficient_none_condition->deep_copy());
-            other_def->body = std::move(new_body.first);
+            other_def->body() = std::move(new_body.first);
 
             updated_free_vars = std::set<string>();
             new_free_vars = std::set<string>();
-            free_vars(proj, other_def->body.get(), updated_free_vars);
+            free_vars(proj, other_def->body().get(), updated_free_vars);
             std::set_difference(updated_free_vars.begin(), updated_free_vars.end(), current_free_vars.begin(), current_free_vars.end(), inserter(new_free_vars, new_free_vars.begin()));
             assert(new_free_vars.empty());
 
@@ -2222,35 +2222,35 @@ void spec_prover(Project *proj) {
             while(i < max_iter && any_changes){
                 i++;
                 any_changes = false;
-                old_body = other_def->body->deep_copy();
+                old_body = other_def->body()->deep_copy();
                 auto start = std::chrono::high_resolution_clock::now();
 
                 LOG_DEBUG << "Starting simplification of " << other_def->name << " round "<< i;
                 new_body = proj->rules.hoist_branch_out_of_when(
-                    std::move(other_def->body));
+                    std::move(other_def->body()));
                 auto next = std::chrono::high_resolution_clock::now();
                 LOG_DEBUG << "Simplification A " << new_body.second << ", " << (next-start).count() * 1.0e-9;
                 start = next;
-                other_def->body = std::move(new_body.first);
+                other_def->body() = std::move(new_body.first);
                 any_changes = any_changes || new_body.second;
-                old_body = other_def->body->deep_copy();
+                old_body = other_def->body()->deep_copy();
                 new_body = proj->rules.hoist_match_from_branch(
-                    std::move(other_def->body));
+                    std::move(other_def->body()));
                     next = std::chrono::high_resolution_clock::now();
                 // new_body.first = std::move(other_def->body);
                 LOG_DEBUG << "Simplification B " << new_body.second << ", " << (next-start).count() * 1.0e-9;
                 start=next;
-                other_def->body = std::move(new_body.first);
+                other_def->body() = std::move(new_body.first);
                 any_changes = any_changes || new_body.second;
 
                 new_body = proj->rules.simple_const_bool(
-                    std::move(other_def->body));
+                    std::move(other_def->body()));
                 next = std::chrono::high_resolution_clock::now();
 
 
                 LOG_DEBUG << "Simplification C " << new_body.second << ", " << (next-start).count() * 1.0e-9;
                 start=next;
-                other_def->body = std::move(new_body.first);
+                other_def->body() = std::move(new_body.first);
                 any_changes = any_changes || new_body.second;
             }
             auto start = std::chrono::high_resolution_clock::now();
@@ -2258,55 +2258,55 @@ void spec_prover(Project *proj) {
             any_changes = any_changes || new_body.second;
             // old_body = other_def->body->deep_copy();
             new_body = proj->rules.rule_eliminate_if(
-                std::move(other_def->body), true);
+                std::move(other_def->body()), true);
             next = std::chrono::high_resolution_clock::now();
                 LOG_DEBUG << "Simplification D " << new_body.second << ", " << (next-start).count() * 1.0e-9;
             start=next;
 
-            other_def->body = std::move(new_body.first);
+            other_def->body() = std::move(new_body.first);
             any_changes = any_changes || new_body.second;
             // old_body = other_def->body->deep_copy();
             new_body = proj->rules.rule_eliminate_match_simple(
-                std::move(other_def->body), true);
+                std::move(other_def->body()), true);
             next = std::chrono::high_resolution_clock::now();
                 LOG_DEBUG << "Simplification E " << new_body.second << ", " << (next-start).count() * 1.0e-9;
             start=next;
-            other_def->body = std::move(new_body.first);
+            other_def->body() = std::move(new_body.first);
             any_changes = any_changes || new_body.second;
 
             do{
             new_body = proj->rules.rule_unfold_specs(
-                std::move(other_def->body), true);
+                std::move(other_def->body()), true);
             next = std::chrono::high_resolution_clock::now();
                 LOG_DEBUG << "Simplification F " << new_body.second << ", " << (next-start).count() * 1.0e-9;
             start=next;
-            other_def->body = std::move(new_body.first);
+            other_def->body() = std::move(new_body.first);
             any_changes = any_changes || new_body.second;
 
             bool changed = false;
             auto disamb = proj->rules.eliminate_ambiguity(
-                std::move(other_def->body), known, changed);
+                std::move(other_def->body()), known, changed);
             next = std::chrono::high_resolution_clock::now();
                 LOG_DEBUG << "Simplification G " << new_body.second << ", " << (next-start).count() * 1.0e-9;
             start=next;
-            other_def->body = std::move(disamb);
-            if (!other_def->body){
+            other_def->body() = std::move(disamb);
+            if (!other_def->body()){
                 LOG_ERROR << "eliminate_ambiguity failed!";
             }
             any_changes = any_changes || changed;
             } while (new_body.second);
-            old_body = other_def->body->deep_copy();
+            old_body = other_def->body()->deep_copy();
             new_body = proj->rules.rule_simplify_expr(
-                std::move(other_def->body), true);
+                std::move(other_def->body()), true);
             next = std::chrono::high_resolution_clock::now();
                 LOG_DEBUG << "Simplification H " << new_body.second << ", " << (next-start).count() * 1.0e-9;
                             updated_free_vars = std::set<string>();
             new_free_vars = std::set<string>();
-            free_vars(proj, other_def->body.get(), updated_free_vars);
+            free_vars(proj, other_def->body().get(), updated_free_vars);
             std::set_difference(updated_free_vars.begin(), updated_free_vars.end(), current_free_vars.begin(), current_free_vars.end(), inserter(new_free_vars, new_free_vars.begin()));
             assert(new_free_vars.empty());
             start=next;
-            other_def->body = std::move(new_body.first);
+            other_def->body() = std::move(new_body.first);
             any_changes = any_changes || new_body.second;
 
             if (did_wrap) {
@@ -2374,8 +2374,8 @@ void spec_prover(Project *proj) {
             // that already succeeded cannot be lost, and no more of the program
             // is exposed than the proof turned out to need.
             std::vector<string> candidates;
-            collect_folded_callees(proj, vuln_def->second->body.get(), candidates);
-            collect_folded_callees(proj, patched_def->second->body.get(), candidates);
+            collect_folded_callees(proj, vuln_def->second->body().get(), candidates);
+            collect_folded_callees(proj, patched_def->second->body().get(), candidates);
             for (size_t i = 0; !refined && i < candidates.size(); i++) {
                 const auto &callee = candidates[i];
                 bool touched = inline_callee(proj, vuln_def->second.get(), callee);
@@ -2389,8 +2389,8 @@ void spec_prover(Project *proj) {
                     rel_pre_def->second.get(), rel_post_def->second.get(),
                     refines_info.ret_val_rel.get(), used_abstract_funcs, &result);
                 // A newly inlined body can itself contain folded calls.
-                collect_folded_callees(proj, vuln_def->second->body.get(), candidates);
-                collect_folded_callees(proj, patched_def->second->body.get(), candidates);
+                collect_folded_callees(proj, vuln_def->second->body().get(), candidates);
+                collect_folded_callees(proj, patched_def->second->body().get(), candidates);
             }
             std::cout << result;
             if (!refined) {

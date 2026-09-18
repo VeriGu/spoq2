@@ -87,7 +87,7 @@ TEST(Z3SimplifyFixpoint, ReportsAChangeWhenItSimplifies) {
     auto it = proj->defs.find("control_spec");
     ASSERT_NE(it, proj->defs.end()) << "the control definition did not parse";
     auto state = state_for(it->second.get());
-    auto spec = std::move(it->second->body);
+    auto spec = std::move(it->second->body());
 
     const std::string before = std::string(*spec);
     autov::force_simpl = true;
@@ -107,7 +107,7 @@ TEST(Z3SimplifyFixpoint, ReportsNoChangeOnATermItCannotImprove) {
     auto it = proj->defs.find("fixpoint_spec");
     ASSERT_NE(it, proj->defs.end()) << "the fixed-point spec did not parse";
     auto state = state_for(it->second.get());
-    auto spec = std::move(it->second->body);
+    auto spec = std::move(it->second->body());
 
     const std::string before = std::string(*spec);
     GTEST_LOG_(INFO) << "input " << text.size() << " bytes, parsed to " << before.size();
@@ -149,7 +149,7 @@ TEST(Z3SimplifyFixpoint, UndecidableWhenReportsAChangeItDidNotMake) {
     auto it = proj->defs.find("noop_spec");
     ASSERT_NE(it, proj->defs.end()) << "the case did not parse";
     auto state = state_for(it->second.get());
-    auto spec = std::move(it->second->body);
+    auto spec = std::move(it->second->body());
 
     const std::string before = std::string(*spec);
     autov::force_simpl = true;
@@ -173,7 +173,7 @@ TEST(Z3SimplifyFixpoint, IteratingReachesAFixedPoint) {
     auto it = proj->defs.find("fixpoint_spec");
     ASSERT_NE(it, proj->defs.end()) << "the fixed-point spec did not parse";
     auto *def = it->second.get();
-    auto spec = std::move(def->body);
+    auto spec = std::move(def->body());
 
     autov::force_simpl = true;
     constexpr int kMaxRounds = 40;

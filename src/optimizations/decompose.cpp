@@ -24,7 +24,7 @@ bool decompose(Project* proj, Definition* def, const string& secret) {
     set<field_t> public_ret;
     for(auto &r : proj->relations) {
         auto def = proj->defs[r].get();
-        analyze_invariant_fields(proj, def->body.get(), public_fields);
+        analyze_invariant_fields(proj, def->body().get(), public_fields);
     }
     for (auto pub: public_fields) {
         if(pub.empty() || public_fields_rm_list_sec.find(pub.front()) != public_fields_rm_list_sec.end()) {
@@ -40,7 +40,7 @@ bool decompose(Project* proj, Definition* def, const string& secret) {
     for (auto &r : target_relation) {
         auto rel = proj->defs[r].get();
         PROFILE_START(coi);
-        auto const coi_fields = analyze_cone_of_influence(proj, def, rel->body.get());
+        auto const coi_fields = analyze_cone_of_influence(proj, def, rel->body().get());
         PROFILE_END(coi);
         std::set<string> coi = {};
         for (auto &c : coi_fields) {
@@ -82,13 +82,13 @@ bool decompose(Project* proj, Definition* def, const string& secret) {
     unique_ptr<SpecNode> relation = make_unique<BoolConst>(true);
     for (auto &r : proj->relations) {
         auto orin_elems = make_unique<vector<unique_ptr<SpecNode>>>();
-        orin_elems->push_back(proj->defs[r]->body->deep_copy());
+        orin_elems->push_back(proj->defs[r]->body()->deep_copy());
         orin_elems->push_back(std::move(origin_relation));
         origin_relation = make_unique<Expr>(Expr::AND, std::move(orin_elems), Bool::BOOL);
         if(proj->unverified_relations.find(r) == proj->unverified_relations.end())
             continue;
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
-        elems->push_back(proj->defs[r]->body->deep_copy());
+        elems->push_back(proj->defs[r]->body()->deep_copy());
         elems->push_back(std::move(relation));
         relation = make_unique<Expr>(Expr::AND, std::move(elems), Bool::BOOL);
 	}

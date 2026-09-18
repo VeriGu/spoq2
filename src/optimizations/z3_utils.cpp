@@ -856,7 +856,7 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     assert(proj->loop_invs.find(loop->name) != proj->loop_invs.end());
     std::vector<unique_ptr<SpecNode>>& invs = proj->loop_invs[loop->name];
     assert(instance_of(loop, Fixpoint));
-    auto body = loop->body.get();
+    auto body = loop->body().get();
     auto args = loop->args.get();
     auto m = instance_of(body, Match);
 
@@ -917,7 +917,7 @@ bool check_loop_inv(Project* proj, Definition *loop) {
         make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var),
         std::make_shared<vector<z3::expr>>(*conds)));
 
-    auto const rettype = loop->body->type;
+    auto const rettype = loop->body()->type;
     auto ret = instance_of(rettype.get(), Option);
     auto const elems_type = ret->elem_type;
     auto tuple_type = instance_of(elems_type.get(), Tuple);
@@ -1247,9 +1247,9 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
         i++;
     }
 
-    auto rhstuple = new Expr(Expr::ops::Tuple, std::move(tupleelems), instance_of(def->body->type.get(), Option)->elem_type);
+    auto rhstuple = new Expr(Expr::ops::Tuple, std::move(tupleelems), instance_of(def->body()->type.get(), Option)->elem_type);
     rhselems->push_back(unique_ptr<SpecNode>(rhstuple));
-    auto rhsbody = new Expr(Expr::ops::Some, std::move(rhselems), def->body->type);
+    auto rhsbody = new Expr(Expr::ops::Some, std::move(rhselems), def->body()->type);
 
     auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
     elems->push_back(unique_ptr<SpecNode>(lhsbody));
@@ -1316,7 +1316,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
         } else if (proj->defs.find(sym->text) != proj->defs.end()) {
             auto df = proj->defs[sym->text].get();
             assert(df->args->size() == 0);
-            if (auto c = instance_of(df->body.get(), Const)) {
+            if (auto c = instance_of(df->body().get(), Const)) {
                 return states.push_back(std::make_pair(_cache(z3_eval(proj, c, state)), state));
             }
         } else if (proj->decls.find(sym->text) != proj->decls.end()) {
@@ -1766,7 +1766,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
 
 }
 
-z3::func_decl formulate_rec_function(Project* proj, Fixpoint const* fixpoint) {
+z3::func_decl formulate_rec_function(Project* proj, Fixpoint* fixpoint) {
     z3::sort_vector sorts(z3ctx);
     z3::expr_vector args(z3ctx);
     // int i = 0;
@@ -1777,7 +1777,7 @@ z3::func_decl formulate_rec_function(Project* proj, Fixpoint const* fixpoint) {
     }
 
     auto rec_fun = z3ctx.recfun(fixpoint->name.c_str(), sorts, fixpoint->rettype->get_z3_type());
-    auto body = instance_of(fixpoint->body.get(), Match);
+    auto body = instance_of(fixpoint->body().get(), Match);
     //auto basecase = body->match_list->at(0)->body.get();
     shared_ptr<unordered_map<string, shared_ptr<SpecValue>>> const vars;
     shared_ptr<vector<z3::expr>> const conds;
@@ -1790,7 +1790,7 @@ z3::func_decl formulate_rec_function(Project* proj, Fixpoint const* fixpoint) {
     return rec_fun;
 }
 
-z3::expr formulate_function(Project* proj, Definition const* def) {
+z3::expr formulate_function(Project* proj, Definition* def) {
     z3::expr_vector args(z3ctx);
     auto const vars = make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
     auto const conds = make_shared<vector<z3::expr>>();
@@ -1800,7 +1800,7 @@ z3::expr formulate_function(Project* proj, Definition const* def) {
         args.push_back(arg->type->declare(arg->name, 0)->get_z3_value());
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
-    auto body = def->body.get();
+    auto body = def->body().get();
 
     //add known variables
     auto const state = make_shared<EvalState>(vars, conds);
@@ -1828,7 +1828,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         } else if (proj->defs.find(sym->text) != proj->defs.end()) {
             auto df = proj->defs[sym->text].get();
             assert(df->args->size() == 0);
-            if (auto c = instance_of(df->body.get(), Const)) {
+            if (auto c = instance_of(df->body().get(), Const)) {
                 result = _cache(z3_eval(proj, c, state, check_loop));
             } else {
                 result = _cache(df->absf()->call({}));
@@ -2283,7 +2283,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         } else if (proj->defs.find(sym->text) != proj->defs.end()) {
             auto df = proj->defs[sym->text].get();
             assert(df->args->size() == 0);
-            if (auto c = instance_of(df->body.get(), Const)) {
+            if (auto c = instance_of(df->body().get(), Const)) {
                 return _cache(z3_eval(proj, c, state, check_loop, unfold, used_fixpoint));
             } else {
                 return _cache(df->absf()->call({}));

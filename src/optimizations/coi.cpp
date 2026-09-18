@@ -368,9 +368,9 @@ void analyze_invariant_fields(Project *proj, SpecNode *inv, std::set<field_t> &f
  * 
  *  Give an expression and a set of interested fields, backward propagate to all the dependent fields (its definition)
  */
-std::set<field_t> analyze_cone_of_influence(Project *proj, Definition  const*def, std::variant<SpecNode *, std::set<field_t>> coi_src, const std::set<string>& whitelist, std::set<string> blacklist) {
+std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, std::variant<SpecNode *, std::set<field_t>> coi_src, const std::set<string>& whitelist, std::set<string> blacklist) {
     auto args = def->args.get();
-    auto spec = def->body.get();
+    auto spec = def->body().get();
     std::set<string> arg_symbols = {};
     for (int i = 0 ; i < args->size() ; i++) {
         arg_symbols.insert(args->at(i)->name);
@@ -591,7 +591,7 @@ void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
     for (auto const arg : *def->args) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
-    auto spec = std::move(def->body);
+    auto spec = std::move(def->body());
 
     while (true) {
         spec->clear_z3_eval();
@@ -620,9 +620,9 @@ void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
         }
     }
 
-    def->body = std::move(spec);
+    def->body() = std::move(spec);
     def->_str.clear();
-    def->body->clear_z3_eval();
+    def->body()->clear_z3_eval();
     // def->infer_type(*proj);
     // std::cout << "[COI] spec after COI-reduction:\n" << string(*def) << std::endl;
 }
@@ -695,7 +695,7 @@ void collect_branch_conds(SpecNode *spec, const path_t& p, std::set<path_node_t>
     }
 }
 
-void mark_determ_branch(Project* proj, Definition* rel_def, Definition const* spec_def) {
+void mark_determ_branch(Project* proj, Definition* rel_def, Definition* spec_def) {
     // FIXME: move it to config file
     static std::set<string> rm_list_pub = { "g_norm", };
     static std::set<string> rm_list = {
@@ -705,7 +705,7 @@ void mark_determ_branch(Project* proj, Definition* rel_def, Definition const* sp
     };
     // calculate public variables
     std::set<field_t> public_vars = {};
-    analyze_invariant_fields(proj, rel_def->body.get(), public_vars);
+    analyze_invariant_fields(proj, rel_def->body().get(), public_vars);
 
 
     std::set<field_t> pv = {};
@@ -725,10 +725,10 @@ void mark_determ_branch(Project* proj, Definition* rel_def, Definition const* sp
     // find all branch conds as propagation nodes
     std::set<path_node_t> conds = {};
     path_t const p = {};
-    collect_branch_conds(spec_def->body.get(), p, conds);
+    collect_branch_conds(spec_def->body().get(), p, conds);
 
     auto args = spec_def->args.get();
-    auto spec = spec_def->body.get();
+    auto spec = spec_def->body().get();
     std::set<string> arg_symbols = {};
     for (int i = 0 ; i < args->size() ; i++) {
         arg_symbols.insert(args->at(i)->name);
@@ -788,7 +788,7 @@ void mark_determ_branch(Project* proj, Definition* rel_def, Definition const* sp
             }
         }
     }
-    auto const v_pair = count_branch_conds(spec_def->body.get());
+    auto const v_pair = count_branch_conds(spec_def->body().get());
     LOG_DEBUG << "[mark_determ_branch] Total branch number: " << v_pair.first << " for " << rel_def->name;
     LOG_DEBUG << "[mark_determ_branch] Deterministic branch number: " << v_pair.second << " for " << rel_def->name;
 }

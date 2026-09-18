@@ -218,7 +218,7 @@ unsigned long length_of_exp(SpecNode* e) {
         return length_of_exp(f->body.get());
     }
     else if (auto d = instance_of(e, Definition)) {
-        return length_of_exp(d->body.get());
+        return length_of_exp(d->body().get());
     }
     else throw std::runtime_error("Unknown node type: " + std::string(typeid(e).name()));
 }

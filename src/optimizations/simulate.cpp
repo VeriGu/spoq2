@@ -19,7 +19,7 @@ namespace autov
 			names.push_back(rel->args->at(1)->name);
 			elems.push_back(st_impl->deep_copy());
 		}
-		auto const p = subst_v2(proj, rel->body->deep_copy(), &names, &elems);
+		auto const p = subst_v2(proj, rel->body()->deep_copy(), &names, &elems);
 		return z3_eval(proj, p.get(), state);
 	}
 
@@ -922,9 +922,9 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 	 * @return true		If the relation is proved
 	 * @return false	If the relation is not proved
 	 */
-	bool check_hprop_by_path(Project *proj, Definition* rel, Definition *spec, Definition  const*impl, bool det, Definition* endrel) {
-		LOG_DEBUG << "rel: " << string(*rel->body);
-		LOG_DEBUG << "end_rel: " << string(*rel->body);
+	bool check_hprop_by_path(Project *proj, Definition* rel, Definition *spec, Definition *impl, bool det, Definition* endrel) {
+		LOG_DEBUG << "rel: " << string(*rel->body());
+		LOG_DEBUG << "end_rel: " << string(*rel->body());
 		auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
 		auto conds = std::make_shared<vector<z3::expr>>();
 		for (auto const arg : *spec->args) {
@@ -940,21 +940,21 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 		for (auto const arg : *spec->args) {
 			l_args->push_back(arg);
 		}
-		auto spec_def = new Definition(spec->name, spec->rettype, std::move(l_args), spec->body->deep_copy());
+		auto spec_def = new Definition(spec->name, spec->rettype, std::move(l_args), spec->body()->deep_copy());
 		if (endrel) {
-			coi_reduction(proj, spec_def, endrel->body.get());
+			coi_reduction(proj, spec_def, endrel->body().get());
 		} else {
-			coi_reduction(proj, spec_def, rel->body.get());
+			coi_reduction(proj, spec_def, rel->body().get());
 		}
 		PROFILE_START(coi);
 		mark_determ_branch(proj, rel, spec_def);
 		PROFILE_END(coi);
 
-		spec_body = spec_def->body.get();
+		spec_body = spec_def->body().get();
 		if (!impl) {
 			impl_body = proj->rules.build_simulate_spec(spec_body->deep_copy()).release();
 		} else {
-			impl_body = impl->body.get();
+			impl_body = impl->body().get();
 		}
 
 		auto const last_arg = spec->args->back();
@@ -990,12 +990,12 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 			state->conds->push_back(e_impl->get_z3_value());
 		}
 		for (auto const &l : proj->lemmas) {
-			auto lemma_body = proj->defs[l]->body.get();
+			auto lemma_body = proj->defs[l]->body().get();
 			auto const lemma_expr = z3_eval(proj, lemma_body, state, false, true, used_fixpoint);
 			state->add_induction(lemma_expr->get_z3_value());
 		}
 		for (auto const &a : proj->axioms) {
-			auto axiom_body = proj->defs[a]->body.get();
+			auto axiom_body = proj->defs[a]->body().get();
 			auto const axiom_expr = z3_eval(proj, axiom_body, state, false, true, used_fixpoint);
 			state->conds->push_back(axiom_expr->get_z3_value());
 		}

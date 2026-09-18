@@ -9,6 +9,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <variant>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <set>
@@ -1508,7 +1509,6 @@ public:
     string name;
     shared_ptr<SpecType> rettype;
     unique_ptr<vector<shared_ptr<Arg>>> args;
-    unique_ptr<SpecNode> body;
     std::unique_ptr<SpecNode> sufficient_none_condition=nullptr;
     mutable string _str;
     bool deleyed_type_inference = false;
@@ -1517,15 +1517,28 @@ public:
     /// treating it as a spec the user provided.
     bool pending_transform = false;
 
+    /// Work that has to happen before the body can be read -- transforming it,
+    /// where that was left until something needed it.  Set by whoever deferred
+    /// the work; run and cleared by body().
+    std::function<void(Definition &)> finish_body;
+
+    /// The body, with any deferred work finished first.
+    ///
+    /// Everything outside the class reaches the body through here, so a
+    /// definition that was generated and left for later cannot be read in its
+    /// untransformed form by a caller that did not know to ask.  Returns the
+    /// owning pointer, so moving out of it and assigning to it work as before.
+    unique_ptr<SpecNode>& body();
+
     Definition() { throw std::invalid_argument("Definition must have a name, rettype, args, and body"); }
     Definition(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args, unique_ptr<SpecNode> body) :
-        name(std::move(name)), rettype(std::move(rettype)), args(std::move(args)), body(std::move(body)) {
+        name(std::move(name)), rettype(std::move(rettype)), args(std::move(args)), body_(std::move(body)) {
 
     }
 
     Definition(Definition &other) :
         name(other.name), rettype(other.rettype), args(make_unique<vector<shared_ptr<Arg>>>(*other.args)),
-        body(other.body->deep_copy()), sufficient_none_condition(other.sufficient_none_condition ? other.sufficient_none_condition->deep_copy() : nullptr) {}
+        body_(other.body_->deep_copy()), sufficient_none_condition(other.sufficient_none_condition ? other.sufficient_none_condition->deep_copy() : nullptr) {}
 
 
     bool operator==(const Definition& other) const {
@@ -1533,7 +1546,7 @@ public:
             return false;
         }
 
-        if (this->name != other.name || *this->rettype != *other.rettype || *this->body != *other.body) {
+        if (this->name != other.name || *this->rettype != *other.rettype || *this->body_ != *other.body_) {
             return false;
         }
 
@@ -1598,7 +1611,10 @@ private:
 protected:
     // Reserved for Fixpoint
     Definition(string name, shared_ptr<SpecType> rettype, unique_ptr<vector<shared_ptr<Arg>>> args) :
-        name(std::move(name)), rettype(std::move(rettype)), args(std::move(args)), body(nullptr) {}
+        name(std::move(name)), rettype(std::move(rettype)), args(std::move(args)), body_(nullptr) {}
+
+protected:
+    unique_ptr<SpecNode> body_;
 };
 
 class Fixpoint : public Definition {

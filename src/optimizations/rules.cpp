@@ -4270,7 +4270,7 @@ rule_ret_t SpecRules::rule_move_if_out_expr(std::unique_ptr<SpecNode> spec, bool
 bool enforce_no_div_by_zero_inner(SpecNode* spec, std::unique_ptr<SpecNode> *last_point_to_wrap);
 bool SpecRules::enforce_no_div_by_zero(Definition *def) {
     bool changed = false;
-    auto const body_type = def->body->get_type();
+    auto const body_type = def->body()->get_type();
     if(!dynamic_cast<Option*>(body_type.get())){
         // We need an option typed node to do a substitution.
         return false;
@@ -4293,7 +4293,7 @@ bool SpecRules::enforce_no_div_by_zero(Definition *def) {
         return false;
     };
     // LOG_DEBUG << "No div by zero! \n" << string(*def->body);
-    changed = enforce_no_div_by_zero_inner(def->body.get(), &def->body);
+    changed = enforce_no_div_by_zero_inner(def->body().get(), &def->body());
     // LOG_DEBUG << "No div by zero done! \n" << string(*def->body);
 
     return changed;
@@ -4579,7 +4579,7 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
 
                 unique_ptr<SpecNode> body;
                 if (self_unfold) { body = node->deep_copy(); }
-                else body = define->body->deep_copy();
+                else body = define->body()->deep_copy();
 
                 // The copy keeps the callee's binder names, which may shadow
                 // something live at this call site.  Rename those now, against

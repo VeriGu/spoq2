@@ -1018,7 +1018,7 @@ void Exists::infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType
 // ----------------------------------------------------------------------------
 const string Definition::to_string() const {
     std::ostringstream const oss;
-    string body_str = string(*(this->body));
+    string body_str = string(*(this->body_));
     string args_str = "";
 
     if (!rettype->record) {
@@ -1030,7 +1030,7 @@ const string Definition::to_string() const {
 
         return "Definition " + this->name + " " + args_str + " : " + string(*this->rettype) + " :=\n" + add_indent(body_str, 2) + ".";
     } else {
-        auto record_def = dynamic_cast<RecordDef *>(body.get());
+        auto record_def = dynamic_cast<RecordDef *>(body_.get());
         bool const first = true;
         for (const auto& kv : *record_def->fields) {
             const auto& key = kv.first;
@@ -1047,25 +1047,36 @@ const string Definition::to_string() const {
     return "Definition " + this->name + " : " + string(*this->rettype) + " :=\n  {|\n" + args_str + "\n  |}.";
 }
 
+unique_ptr<SpecNode>& Definition::body() {
+    if (finish_body) {
+        // Moved out first: the work reads this body, and re-entering here must
+        // not start it a second time.
+        auto const work = std::move(finish_body);
+        finish_body = nullptr;
+        work(*this);
+    }
+    return body_;
+}
+
 void Definition::infer_type(Project &proj) {
     shared_ptr<unordered_map<string, shared_ptr<SpecType>>> const known(new unordered_map<string, shared_ptr<SpecType>>());
     std::set<string> vars;
     bool well_typed;
 
 
-    if (!this->body)
+    if (!this->body_)
         return;
 
     for (auto it = args->begin(); it != args->end(); it++) {
         (*known)[(*it)->name] = (*it)->type;
     }
-    type_inference::infer_type(proj, body.get(), known, rettype);
+    type_inference::infer_type(proj, body_.get(), known, rettype);
 
     for (auto it = args->begin(); it != args->end(); it++) {
         vars.insert((*it)->name);
     }
 
-    well_typed = type_inference::check_well_typed(proj, body.get(), vars);
+    well_typed = type_inference::check_well_typed(proj, body_.get(), vars);
     assert(well_typed);
 }
 
@@ -1074,7 +1085,7 @@ void Definition::infer_type(Project &proj) {
 // ----------------------------------------------------------------------------
 const string Fixpoint::to_string() const {
     std::ostringstream const oss;
-    string body_str = string(*(this->body));
+    string body_str = string(*(this->body_));
     string args_str = "";
 
     for (auto it = args->begin(); it != args->end(); it++) {

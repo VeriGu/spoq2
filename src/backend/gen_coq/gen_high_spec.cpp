@@ -46,7 +46,7 @@ void gen_specs(Project *proj, loc_t loc, const string& out_path, const string& c
         if (proj->deps.find(s) == proj->deps.end()) {
             auto const def = proj->defs.find(s);
             if( def == proj->defs.end() || def->second == nullptr ) continue;
-            proj->deps[s] = proj->calc_dependencies((def->second)->body.get());
+            proj->deps[s] = proj->calc_dependencies((def->second)->body().get());
         }
 
         for (auto const d : proj->deps[s]) {
