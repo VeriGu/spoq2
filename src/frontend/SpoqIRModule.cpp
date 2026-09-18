@@ -38,7 +38,6 @@ bool SpoqIRModule::load_function_and_convert_all(Project *proj) {
         if (name == "zif_exif_read_data_vuln") continue; // would fail and abort anyway
         if (name == "zif_exif_read_data_patch") continue;
         if (name == "exif_discard_imageinfo") continue;
-        if (name == "nsv_parse_NSVf_header") continue;
         if (name == "zif_exif_thumbnail_vuln") continue;
         if (name == "zif_exif_thumbnail_patch") continue;
         if (name == "sws_setColorspaceDetails") continue;
