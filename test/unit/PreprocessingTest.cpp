@@ -304,6 +304,21 @@ TEST(ExtractPointers, UnknownExtentsAreParameters) {
               std::string::npos) << e.machine;
 }
 
+/// An array's Coq type is one ZMap per dimension, whatever the depth.
+///
+/// The mapping stopped at two dimensions of integers and gave anything deeper
+/// the placeholder `None`, which is not a type.  It reached spoq as
+/// `Parameter g_mask: None.` in the generated .main.v and ended the run in
+/// visitType, which looked the name up and threw `unordered_map::at`.  PNG001's
+/// png_combine_row masks are [2 x [3 x [3 x i32]]].
+TEST(ExtractPointers, ArrayTypesNestOneZMapPerDimension) {
+    RUN_OR_SKIP(e, "globals.ll");
+    EXPECT_NE(e.machine.find("Parameter g_mask: (ZMap.t (ZMap.t (ZMap.t Z)))."),
+              std::string::npos) << e.machine;
+    EXPECT_EQ(e.machine.find("FIXME"), std::string::npos)
+        << "a type is still a placeholder:\n" << e.machine;
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {

@@ -224,8 +224,15 @@ antlrcpp::Any ProgramVisitor::visitType(SpecParser::TypeContext *ctx) {
         ));
     } else if (ctx->name()) {
         std::string const name = ctx->name()->getText();
-        // LOG_DEBUG << "Visiting type: " << name;
-        autov::SymbolInfo  const&info = proj.symbols.at(name);
+        std::string const where =
+            " at " + path + ":" + std::to_string(ctx->getStart()->getLine());
+        // A generated .main.v can name a type nothing defines.  Found rather
+        // than subscripted, so that is reported with the name and the line
+        // instead of as std::unordered_map::at.
+        auto const found = proj.symbols.find(name);
+        if (found == proj.symbols.end())
+            throw std::runtime_error("Unknown type " + name + where);
+        autov::SymbolInfo const &info = found->second;
 
         if (info.kind == autov::SymbolKind::Struct) {
             return static_pointer_cast<SpecType>(proj.structs.at(name));
@@ -234,7 +241,7 @@ antlrcpp::Any ProgramVisitor::visitType(SpecParser::TypeContext *ctx) {
         } else if (info.kind == autov::SymbolKind::TypeDef) {
             return static_pointer_cast<SpecType>(proj.typedefs.at(name));
         } else {
-            throw std::runtime_error("Unknown type " + name);
+            throw std::runtime_error("Unknown type " + name + where);
         }
     } else {
         throw std::runtime_error("Unknown type " + ctx->getText());

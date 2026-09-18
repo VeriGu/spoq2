@@ -324,16 +324,15 @@ struct CoqStackVal {
   // type Coq rejects rather than a name spoq's parser dies on.
   std::string voidty() { return "unit"; }
 
+  // One ZMap per dimension, whatever the depth -- libpng's png_combine_row
+  // masks are [2 x [3 x [3 x i32]]] -- with the element type rendered by the
+  // same traversal, so an array of vector or of double is covered too.
+  //
+  // Every shape has to yield a name the project defines.  visitType resolves a
+  // type against the symbol table, so a placeholder makes the generated
+  // .main.v unparseable.
   std::string array(llvm::Type *ety, uint64_t) {
-    if (ety->isIntegerTy() || ety->isPointerTy()) return "(ZMap.t Z)";
-    if (ety->isFloatingPointTy()) return "(ZMap.t Float)";
-    if (ety->isStructTy())
-      return "(ZMap.t " + pass->getStructTypeIdentifier(llvm::dyn_cast<llvm::StructType>(ety)) + ")";
-    if (auto *inner = llvm::dyn_cast<llvm::ArrayType>(ety)) {
-      if (inner->getElementType()->isIntegerTy()) return "(ZMap.t (ZMap.t Z))";
-      return "None (* FIXME: nd array *)";
-    }
-    return "None (* FIXME: unknown subtype *)";
+    return "(ZMap.t " + autov::coqty::of_type(ety, *this) + ")";
   }
 
   // Same text spoq's llvm_ir_type_to_spec_pure produces, and the same as
