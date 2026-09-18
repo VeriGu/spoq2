@@ -622,8 +622,9 @@ namespace {
 /// constructor, so it constrains nothing on its own.
 bool pattern_is_transparent(Project *proj, SpecNode *pat, std::set<string> &seen, bool root) {
     if (auto sym = instance_of(pat, Symbol)) {
-        // A nullary constructor is content wherever it appears: the caller emits
-        // a recognizer only for an Expr pattern, so nothing else asserts it.
+        // A nullary constructor constrains the scrutinee wherever it appears:
+        // the caller emits a recognizer only for an Expr pattern, so nothing
+        // else asserts it.
         if (proj->is_ind_constr(sym->text)) return false;
         return seen.insert(sym->text).second;
     }

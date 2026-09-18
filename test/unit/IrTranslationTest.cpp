@@ -733,7 +733,7 @@ TEST(IrTranslationSpec, LoopExitJoinBindsBodyValue) {
 /// recorded when the DFS happened to reach the nested preheader.  Here the join
 /// is the *first* successor of the outer header, so the use came first, the
 /// value looked top-level, and it was passed into every loop on the stack.
-/// travel() records the nesting now, where the nesting is what is being walked.
+/// travel() now records the nesting during the walk that establishes it.
 ///
 /// Reduced from initFilter (ffm001), which aborted the run with
 /// `Unknown symbol: indvars_iv_next552_1`.  The cases above cover the
@@ -744,7 +744,7 @@ TEST(IrTranslationSpec, LoopInnerValueEscapesToOuterJoin) {
                 /*run_cfg=*/true);
 }
 
-/// A register named the same as a declared symbol has to give way.
+/// A register named the same as a declared symbol is renamed.
 ///
 /// clang calls the result of `fneg` `%fneg`, and the uninterpreted float
 /// negation is declared under that name too, so the binding shadowed it and the

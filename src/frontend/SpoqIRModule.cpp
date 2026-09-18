@@ -165,8 +165,8 @@ unique_ptr<SpecNode> pure_property(const string &pre, const string &post,
 /// pbase -- whereas GLOBALS is a record whose fields differ per project, so
 /// framing it per object means a case analysis this cannot construct generically.
 ///
-/// Written as one Rely rather than woven into the state so that the state stays
-/// a plain symbol and later loads and stores are not forced to reason through an
+/// Emitted as one Rely rather than as a rewritten post-state, so the post-state
+/// remains a symbol and later loads and stores do not have to reason through an
 /// if-expression.
 unique_ptr<SpecNode> argmem_property(const string &pre, const string &post,
                                      const std::vector<string> &ptrs,
@@ -189,9 +189,9 @@ unique_ptr<SpecNode> argmem_property(const string &pre, const string &post,
     /// `map` with each argument's entry set to what the post-state holds there.
     /// Updating unconditionally is what keeps this linear in the number of
     /// arguments: a conditional "leave this one alone" branch has to name the
-    /// map built so far, which doubles the term per argument.  Aliasing is safe
-    /// either way -- if two arguments share a key the later store wins and gives
-    /// the post-state value, which is the right answer for both.
+    /// map built so far, which doubles the term per argument.  Aliasing is
+    /// sound: if two arguments share a key the later store wins, and its value
+    /// is the post-state value the shared key must hold.
     auto const framed = [&](unique_ptr<SpecNode> map,
                             const std::function<unique_ptr<SpecNode>()> &post_map,
                             const std::function<unique_ptr<SpecNode>(const string &)> &key) {

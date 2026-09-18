@@ -1550,6 +1550,57 @@ static void check_provided_spec_signature(const Definition *provided, const Defi
     throw std::runtime_error(msg);
 }
 
+/// Restores Project::query_saver on scope exit.
+///
+/// Each verification phase assigns query_saver its own directory and does not
+/// restore it.  On-demand transformation runs nested inside a phase, and under
+/// --race the solver reads each query back by path, so the enclosing phase
+/// would resume with the wrong directory.
+struct QuerySaverGuard {
+    Project *proj;
+    QueryInfo saved;
+    explicit QuerySaverGuard(Project *p) : proj(p), saved(p->query_saver) {}
+    ~QuerySaverGuard() { proj->query_saver = saved; }
+};
+
+/// Saves UnfoldPolicy::only, skip and current_unfold, clears only and
+/// current_unfold, and restores all three on scope exit.
+///
+/// These fields scope one operation rather than the project: unfold_calls_to
+/// sets only to restrict a targeted inline to a single callee, and
+/// spec_transformer_v2 sets skip for its deferred-unfold phase.  Nested
+/// on-demand transformation must not inherit them; under only = f every callee
+/// except f is refused, leaving the nested spec partially transformed.
+struct UnfoldPolicyGuard {
+    string only;
+    bool skip;
+    string current_unfold;
+    UnfoldPolicyGuard()
+        : only(UNFOLD_POLICY.only), skip(UNFOLD_POLICY.skip),
+          current_unfold(UNFOLD_POLICY.current_unfold) {
+        UNFOLD_POLICY.only.clear();
+        UNFOLD_POLICY.current_unfold.clear();
+    }
+    ~UnfoldPolicyGuard() {
+        UNFOLD_POLICY.only = only;
+        UNFOLD_POLICY.skip = skip;
+        UNFOLD_POLICY.current_unfold = current_unfold;
+    }
+};
+
+/// Whether a spec is derived and transformed on first read of its body rather
+/// than at generation time.  Enabled unless SPOQ_EAGER_SPEC is set.
+///
+/// Deferring skips the transformation of every spec the proof does not open.
+/// It changes transformation order, which is observable because some pipeline
+/// state is scoped per operation rather than per definition; QuerySaverGuard
+/// and UnfoldPolicyGuard restore the cases found so far.  Z3Cache,
+/// converged_spec and unfold_count are not guarded.
+static bool lazy_spec_derivation() {
+    static bool const on = std::getenv("SPOQ_EAGER_SPEC") == nullptr;
+    return on;
+}
+
 std::tuple<string, vector<Definition *> *, vector<unique_ptr<Definition>> *>
 Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
 
@@ -1596,67 +1647,55 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
             low_def->infer_type(*proj);
             low_def->deleyed_type_inference = false;
         }
-        // High spec begins from the low spec
-        unique_ptr<SpecNode> high_body = low_def->body()->deep_copy();
-
-        if (have_loop || have_sub) {
-            auto [new_high, __changed] = proj->rules.replace_spec_name(std::move(high_body), name_map);
-            high_body = std::move(new_high);
-        }
-
         auto high_args = make_unique<vector<shared_ptr<Arg>>>();
         for (auto  const&arg: *low_def->args)
             high_args->push_back(arg);
 
         bool no_trans = false;
-        Definition *high_def = nullptr;
-
-        if (is_instance(low_def.get(), Fixpoint)) {
-            // For Fixpoint, we need to add the definition in advance for z3_eval
-            auto tmp_high_def = new Fixpoint(high_name, proj->defs[low_name]->rettype,
-                                             make_unique<vector<shared_ptr<Arg>>>(*high_args));
-
-            high_def = new Fixpoint(high_name, proj->defs[low_name]->rettype, std::move(high_args),
-                                    std::move(high_body));
-            proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(tmp_high_def)),
-                                 make_shared<loc_t>(proj->layers[layer_id]->name, Project::LOC_SPEC, ""), i + symbol_order);
+        bool const is_fix = is_instance(low_def.get(), Fixpoint);
+        if (is_fix) {
             // FIXME: temporarily suspend loop transformation
             if (proj->cmds.LoopTrans.find(high_name) == proj->cmds.LoopTrans.end()) {
-                // LOG_DEBUG << "Loop transformation for " << high_name << " is suspended";
                 no_trans |= true;
             } else {
                 LOG_DEBUG << "We will try to transform loop for " << high_name << "";
             }
-        } else {
-            high_def = new Definition(high_name, proj->defs[low_name]->rettype, std::move(high_args),
-                                      std::move(high_body));
         }
-
-        // Transform the low spec to high spec
         no_trans |= proj->cmds.NoHighSpec || proj->cmds.NoTrans.find(name_map[low_name]) != proj->cmds.NoTrans.end();
 
-
-        // LOG_DEBUG << "NO HIGH SPEC " << proj->cmds.NoHighSpec;
-
-        profile_clear();
-        if (!no_trans) {
-            if(OPTS.new_trans) {
-                spec_transformer_v2(proj, high_def, layer_id, layer_id, true, 300);
-            } else {
-                spec_transformer(proj, high_def, layer_id, layer_id, true);
+        // Registered now, so callers can type check against the signature, and
+        // derived on first read of the body.  Deriving copies the low body,
+        // which triggers the low spec's transformation, so both are deferred
+        // together.  Fixpoints are registered body-less here for z3_eval.
+        Definition *high_def =
+            is_fix ? static_cast<Definition *>(
+                         new Fixpoint(high_name, proj->defs[low_name]->rettype, std::move(high_args)))
+                   : new Definition(high_name, proj->defs[low_name]->rettype, std::move(high_args),
+                                    nullptr);
+        high_def->finish_body = [proj, layer_id, low_name, name_map, no_trans,
+                                 derive = have_loop || have_sub](Definition &d) mutable {
+            QuerySaverGuard const qguard(proj);
+            UnfoldPolicyGuard const pguard;
+            auto *const low = proj->defs[low_name].get();
+            auto body = low->body()->deep_copy();
+            if (derive) {
+                auto [renamed, __changed] = proj->rules.replace_spec_name(std::move(body), name_map);
+                body = std::move(renamed);
             }
-            LOG_INFO << "Transformed: " << high_name;// << std::endl << string(*high_def);
-        } else {
-            LOG_INFO << "No transformation for " << high_name;
-        }
-        profile_print();
-        profile_finalize();
-
-        //spec_prover(proj, high_def);
-
-#ifndef MT_TRANSFORM
-        proj->deps[high_name] = proj->calc_dependencies(high_def->body().get());
-#endif
+            d.body() = std::move(body);
+            profile_clear();
+            if (!no_trans) {
+                if (OPTS.new_trans) spec_transformer_v2(proj, &d, layer_id, layer_id, true, 300);
+                else                spec_transformer(proj, &d, layer_id, layer_id, true);
+                LOG_INFO << "Transformed: " << d.name;
+            } else {
+                LOG_INFO << "No transformation for " << d.name;
+            }
+            profile_print();
+            profile_finalize();
+            proj->deps[d.name] = proj->calc_dependencies(d.body().get());
+        };
+        if (!lazy_spec_derivation()) high_def->body();
         if (is_instance(low_def.get(), Fixpoint))
             proj->add_definition(unique_ptr<Fixpoint>(static_cast<Fixpoint *>(high_def)),
                                  make_shared<loc_t>(proj->layers[layer_id]->name, Project::LOC_SPEC, ""), i + symbol_order);
@@ -1697,21 +1736,17 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
                 throw UndefinedSpecException(def_name);
             }
 
-            // Transformed here rather than on first read.  Definition::body()
-            // would run it on demand -- and does so safely -- but deferring it
-            // saves nothing: the high spec built just below reads every low
-            // body, so every transformation happens anyway, only in a different
-            // order.  That order is not free, because the transformation
-            // carries mutable global state; measured on ffm001 it turned 617
-            // seconds into 949.
-            profile_clear();
-            if(OPTS.new_trans) {
-                spec_transformer_v2(proj, def, layer_id, false, true);
-            } else {
-                spec_transformer(proj, def, layer_id, false, true);
-            }
-            profile_finalize();
-            profile_print();
+            // Deferred with the high spec: deriving that reads this body, so
+            // deferring this alone has no effect.
+            def->finish_body = [proj, layer_id](Definition &d) {
+                QuerySaverGuard const qguard(proj);
+                UnfoldPolicyGuard const pguard;
+                profile_clear();
+                if (OPTS.new_trans) spec_transformer_v2(proj, &d, layer_id, false, true);
+                else                spec_transformer(proj, &d, layer_id, false, true);
+                profile_finalize();
+            };
+            if (!lazy_spec_derivation()) def->body();
 
             // conditional spec
             if (OPTS.conditional_spec) {

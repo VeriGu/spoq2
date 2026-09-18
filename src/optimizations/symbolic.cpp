@@ -1559,12 +1559,6 @@ bool check_none(Project *proj, Definition *def,
 
     auto none_cond_accumulator = NoneConditionAccumulator(proj, def->name);
     none_cond_accumulator.discharge_none = [=](std::unique_ptr<SpecNode> n) {
-        if(def->name == "ff_ac3_parse_header_spec"){
-            LOG_DEBUG << "Discharging none condition to " << def->name << ": " << string(*n);
-            LOG_DEBUG << ".";
-
-        }
-
         if (def->sufficient_none_condition) {
             def->sufficient_none_condition =
                 make_unique<If>(std::move(n), make_unique<BoolConst>(true),
@@ -2183,6 +2177,16 @@ void spec_prover(Project *proj) {
             auto other_def = other_def_pair.second.get();
             if (!other_def || other_def == def || !other_def->body() || other_def->name.find("_vuln_spec") == std::string::npos || other_def->name.find("_patch_spec") != std::string::npos)
                 continue;
+
+            // Derive the high spec before the wrap below rewrites this body.
+            // The high spec is a copy of the low body; taken after the wrap it
+            // would include the callee's none-condition.
+            if (other_def->name.size() > 4 &&
+                other_def->name.compare(other_def->name.size() - 4, 4, "_low") == 0) {
+                auto const high = proj->defs.find(
+                    other_def->name.substr(0, other_def->name.size() - 4));
+                if (high != proj->defs.end() && high->second) high->second->body();
+            }
 
             auto current_free_vars = std::set<string>();
             free_vars(proj, other_def->body().get(), current_free_vars);

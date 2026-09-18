@@ -840,8 +840,8 @@ void ExtractPointersPass::generate(llvm::Module& M) {
   std::string g_store_result = "";
   std::string is_global_ptr = "Definition is_global_ptr (p: Ptr): bool := (false = true)";
   // An arm of load_global/store_global: [body] runs only where the access lies
-  // inside the global's extent.  Outside it the access is undefined, and None
-  // is how this memory model spells that.
+  // inside the global's extent.  Outside it the access is undefined, which
+  // this memory model represents as None.
   auto const guarded = [&](llvm::GlobalVariable* g, const std::string& body) {
     return "  if (p.(pbase) =s \"" + getGVIdentifier(g).substr(2) + "\") then (\n" \
            "    if (global_in_bounds sz p " + getGVSizeName(g) + ") then (\n" \

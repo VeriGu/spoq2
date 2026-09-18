@@ -2,6 +2,9 @@
 
 Spoq is a tool for performing verification of C projects.
 
+# Style
+Keep all comments concise.  Do not refer to code that has been deleted.  Do not use similes, metaphors, or poetic language.  Use Computer Science terminology.
+
 # References:
 LLVM IR Reference, for semantics of LLVM IR instructions: https://releases.llvm.org/23.1.0/docs/LangRef.html
 LLVM's existing Analysis and Transform passes: https://llvm.org/docs/Passes.html

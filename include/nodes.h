@@ -1517,9 +1517,8 @@ public:
     /// treating it as a spec the user provided.
     bool pending_transform = false;
 
-    /// Work that has to happen before the body can be read -- transforming it,
-    /// where that was left until something needed it.  Set by whoever deferred
-    /// the work; run and cleared by body().
+    /// Deferred derivation and transformation of the body.  Run and cleared by
+    /// body() on the first read.
     std::function<void(Definition &)> finish_body;
 
     /// The body, with any deferred work finished first.

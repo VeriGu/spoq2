@@ -3333,9 +3333,8 @@ size_t hoist_budget() {
 }
 
 /// SPOQ_HOIST_NOOP: report any rewrite below that leaves the term it was given
-/// unchanged, which is what a `changed` flag the fixpoint loop never clears
-/// looks like from inside.  Off by default; the comparison renders the subtree
-/// twice at every candidate.
+/// unchanged, one cause of a `changed` flag the fixpoint loop never clears.
+/// Off by default; the comparison renders the subtree twice at every candidate.
 bool hoist_noop_trace() {
     static bool const on = std::getenv("SPOQ_HOIST_NOOP") != nullptr;
     return on;
@@ -4664,12 +4663,11 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
                     result = std::make_unique<Match>(std::move(src), std::move(pm_list));
                 }
 
-                // A layer's load or store opens a dispatch: the region tests,
-                // then the accessor for that region, then the byte-level
-                // loader.  None of it can be decided until all of it is
-                // visible, and the passes between one level and the next
-                // duplicate the tests they cannot decide -- so expand the whole
-                // closure here rather than a level per pass.
+                // A layer's load or store expands into a dispatch: the region
+                // tests, then that region's accessor, then the byte-level
+                // loader.  No level is decidable until every level is visible,
+                // and each intervening pass duplicates the undecided tests, so
+                // expand the whole closure here rather than one level per pass.
                 auto const closure = restrict_to ? proj->mem_op_closure.end()
                                                  : proj->mem_op_closure.find(define->name);
                 if (closure != proj->mem_op_closure.end()) {

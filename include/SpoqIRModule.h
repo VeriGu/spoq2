@@ -825,11 +825,10 @@ bool project_declares(Project* proj, const std::string& name);
             if(out_counter) *out_counter = counter;
             if(name == "") name = "v_" + std::to_string(counter++);
             // An LLVM register may be named the same as something the project
-            // already declares, and then the binding shadows it: clang calls the
-            // result of `fneg` `%fneg`, which is exactly the name the
-            // uninterpreted float negation is declared under.  Step out of the
-            // way rather than let the two share a name -- the declaration is
-            // global and the binding is not, so it is the binding that moves.
+            // already declares, and then the binding shadows it: clang names
+            // the result of `fneg` `%fneg`, which is also the name of the
+            // uninterpreted float negation.  Rename the binding, which is
+            // local, rather than the declaration, which is global.
             while (project_declares(proj, name)) name = "v_" + name;
             value_map[value] = name;
             return name;
