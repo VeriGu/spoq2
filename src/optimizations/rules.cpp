@@ -3322,8 +3322,7 @@ rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> sp
         None => false
 */
 namespace {
-/// Leaves a hoist may duplicate when it cannot show the copies will be decided.
-/// SPOQ_HOIST_BUDGET overrides; 0 removes the cap.
+/// Leaves a hoist may duplicate.  SPOQ_HOIST_BUDGET overrides; 0 removes the cap.
 size_t hoist_budget() {
     static size_t const b = [] {
         if (const char *e = std::getenv("SPOQ_HOIST_BUDGET")) return (size_t)std::atol(e);
@@ -3345,19 +3344,82 @@ struct HoistTally {
     size_t match_of_match = 0, single_arm = 0, match_of_if = 0, if_of_match = 0, if_of_if = 0;
 };
 
-/// Whether a copy of [outer] over any of [bodies] could be decided.
+/// Leaves of [m]'s arms: the patterns and their bodies.
+///
+/// This is what a hoist duplicates.  Not count_leaves, which includes the
+/// scrutinee -- the hoist releases that before copying and re-parents its
+/// branches, so its size does not enter the cost.
+size_t arm_leaves(Match *m) {
+    size_t n = 0;
+    for (auto &pm : *m->match_list) n += pm->count_leaves();
+    return n;
+}
+
+/// Nodes branch_frontier visits before reporting what it has reached so far.
+///
+/// A truncated walk reports fewer leaves, so the test below can only refuse a
+/// hoist it would otherwise allow, never the reverse.
+constexpr int kFrontierFuel = 256;
+
+/// Leaves of the branch tree rooted at [body], appended to [out].
+///
+/// Distribution descends If branches and Match arm bodies, so those are
+/// interior; a condition and a scrutinee are not reached at all.  This is where
+/// distribution puts the copies of the match, and so where the patterns have to
+/// be tested.
+void branch_frontier(SpecNode *body, std::vector<SpecNode *> &out, int &fuel) {
+    if (fuel-- <= 0) return;
+    if (auto iff = instance_of(body, If)) {
+        branch_frontier(iff->then_body.get(), out, fuel);
+        branch_frontier(iff->else_body.get(), out, fuel);
+        return;
+    }
+    if (auto m = instance_of(body, Match)) {
+        for (auto &pm : *m->match_list) branch_frontier(pm->body.get(), out, fuel);
+        return;
+    }
+    out.push_back(body);
+}
+
+/// Whether a copy of [outer] over a leaf of [bodies] could be decided.
 ///
 /// A hoist copies [outer] into every arm, with that arm's body as the new
 /// scrutinee.  [outer]'s own arm bodies cannot mention what those arms bind, so
 /// the copies differ only in the scrutinee: the rewrite pays off exactly when
 /// one of them is concrete enough for a pattern to match.
 bool any_arm_decidable(Project *proj, Match *outer, const std::vector<SpecNode *> &bodies) {
-    for (auto *body : bodies)
+    std::vector<SpecNode *> frontier;
+    int fuel = kFrontierFuel;
+    for (auto *body : bodies) branch_frontier(body, frontier, fuel);
+    for (auto *leaf : frontier)
         for (auto &pm : *outer->match_list) {
             std::unordered_map<string, unique_ptr<SpecNode>> assigns;
-            if (try_match(proj, pm->pattern.get(), body, assigns, false)) return true;
+            if (try_match(proj, pm->pattern.get(), leaf, assigns, false)) return true;
         }
     return false;
+}
+
+/// Whether distributing [m1] over [bodies] is worth [copies] copies of its arms.
+///
+/// Both conditions are required.  Some pattern has to match a leaf of the branch
+/// frontier, or every copy stays where it lands and the term only grows.  The
+/// copies also have to fit the budget: a decidable hoist still duplicates its
+/// arms at every leaf, and on ffm051 admitting the large ones on decidability
+/// alone grows one spec to 147 KB against 31 KB.
+bool hoist_is_worthwhile(Project *proj, Match *m1, const std::vector<SpecNode *> &bodies,
+                         size_t copies) {
+    bool const decidable = any_arm_decidable(proj, m1, bodies);
+    size_t const arms = arm_leaves(m1);
+    size_t const budget = hoist_budget();
+    /* copies * arms <= budget, without the multiplication, which overflows an
+     * unbounded budget. */
+    bool const affordable =
+        arms == 0 || budget == SIZE_MAX || (arms <= budget && copies <= budget / arms);
+    if (std::getenv("SPOQ_TRACE_TRANSFORM"))
+        LOG_DEBUG << "[HOIST] copies " << copies << " arm leaves " << arms << " budget "
+                  << budget << (decidable ? " decidable" : " undecidable")
+                  << (decidable && affordable ? "" : " -- declined");
+    return decidable && affordable;
 }
 }  // namespace
 
@@ -3386,28 +3448,12 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bo
         // auto z3t_string = node->get_type()->get_z3_type().to_string();
         if (auto m1 = instance_of(node.get(), Match)) {
             if (auto m2 = instance_of(m1->src.get(), Match)) {
-                // One copy of m1 per arm of m2.  Decline only when no copy can
-                // be decided *and* the copying is expensive: a hoist can pay
-                // off after later simplification, so undecidable alone is not
-                // reason to refuse a cheap one.
+                // One copy of m1's arms per arm of m2 beyond the first.  A
+                // single-arm match copies nothing.
                 std::vector<SpecNode *> bodies;
                 for (auto &pm : *m2->match_list) bodies.push_back(pm->body.get());
-                if (!any_arm_decidable(proj, m1, bodies)) {
-                    // A single-arm match copies nothing.  Otherwise compare
-                    // leaves against the budget divided by the copies rather
-                    // than multiplying out: the product overflows an unbounded
-                    // budget, the division cannot.  Counting stops at that
-                    // limit, since only whether it is cleared matters and an
-                    // exact count walks the whole term at every candidate.
-                    size_t const copies = m2->match_list->size() - 1;
-                    size_t const per_copy = copies ? hoist_budget() / copies : SIZE_MAX;
-                    size_t const leaves = copies ? m1->count_leaves(per_copy) : 0;
-                    if (std::getenv("SPOQ_TRACE_TRANSFORM"))
-                        LOG_DEBUG << "[HOIST] undecidable match-of-match, arms "
-                                  << m2->match_list->size() << " copies " << copies
-                                  << " leaves " << leaves << " per-copy budget " << per_copy;
-                    if (leaves > per_copy) return node;
-                }
+                size_t const copies = m2->match_list->size() - 1;
+                if (copies && !hoist_is_worthwhile(proj, m1, bodies, copies)) return node;
 
                 tally.match_of_match++;
                 size_t const arms = m2->match_list->size();
@@ -3464,17 +3510,10 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bo
                 return std::move(simplified.first);
             }
             if (auto iff = instance_of(m1->src.get(), If)){
-                if (!any_arm_decidable(proj, m1,
-                                       {iff->then_body.get(), iff->else_body.get()})) {
-                    // Two branches, so one extra copy: the budget bounds it
-                    // directly.
-                    size_t const budget = hoist_budget();
-                    size_t const leaves = m1->count_leaves(budget);
-                    if (std::getenv("SPOQ_TRACE_TRANSFORM"))
-                        LOG_DEBUG << "[HOIST] undecidable match-of-if, leaves " << leaves
-                                  << " budget " << budget;
-                    if (leaves > budget) return node;
-                }
+                // Two branches, so one extra copy of the arms.
+                if (!hoist_is_worthwhile(proj, m1, {iff->then_body.get(), iff->else_body.get()},
+                                         1))
+                    return node;
                 tally.match_of_if++;
                 auto const before = hoist_noop_trace() ? string(*node) : std::string();
                 // LOG_DEBUG << "Found hoist if from match candidate:" << string(*node);

@@ -323,6 +323,19 @@ target_link_libraries(UnfoldAmbiguityTest GTest::gtest_main GTest::gtest irloade
     antlr4_shared ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
 add_test(NAME UnfoldAmbiguity COMMAND UnfoldAmbiguityTest)
 
+# ------------------------------------------------------------------------------
+# HoistBudgetTest -- the guard on hoist_match_from_branch
+# ------------------------------------------------------------------------------
+# Drives the rule directly on terms parsed against a project's .main.v, so the
+# refusal is isolated from the transformation loop that surrounds it.
+add_executable(HoistBudgetTest test/unit/HoistBudgetTest.cpp $<TARGET_OBJECTS:spoq_core>)
+target_link_libraries(HoistBudgetTest GTest::gtest_main GTest::gtest irloader parser
+    antlr4_shared ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
+target_compile_definitions(HoistBudgetTest PRIVATE
+    SPOQ_DEMAND_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/demand_unfolding")
+add_test(NAME HoistBudget COMMAND HoistBudgetTest)
+set_tests_properties(HoistBudget PROPERTIES TIMEOUT 120)
+
 add_executable(Z3SimplifyFixpointTest test/unit/Z3SimplifyFixpointTest.cpp $<TARGET_OBJECTS:spoq_core>)
 target_link_libraries(Z3SimplifyFixpointTest GTest::gtest_main GTest::gtest irloader parser
     antlr4_shared ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
