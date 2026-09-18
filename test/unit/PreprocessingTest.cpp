@@ -267,8 +267,9 @@ TEST(ExtractPointers, GlobalAccessIsBoundedByItsExtent) {
                           "Definition SZ_pairs : Z := 64."})
         EXPECT_NE(e.machine.find(d), std::string::npos) << d << " missing from:\n" << e.machine;
 
-    // One gate per arm: seven loads and six stores -- the string constant is
-    // read-only, so it contributes a load and no store.
+    // One gate per arm: eight loads and six stores.  Two globals contribute a
+    // load and no store -- the string constant, which is read-only, and the
+    // nested array, whose write is not modelled.
     const auto count = [&e](const std::string &needle) {
         size_t n = 0;
         for (size_t i = e.machine.find(needle); i != std::string::npos;
@@ -276,7 +277,7 @@ TEST(ExtractPointers, GlobalAccessIsBoundedByItsExtent) {
             n++;
         return n;
     };
-    EXPECT_EQ(count("if (global_in_bounds sz p SZ_"), 13u) << e.machine;
+    EXPECT_EQ(count("if (global_in_bounds sz p SZ_"), 14u) << e.machine;
     EXPECT_NE(e.machine.find("Definition global_in_bounds (sz: Z) (p: Ptr) (limit: Z) : bool :=\n"
                              "  (0 <=? p.(poffset)) && (p.(poffset) + sz <=? limit)."),
               std::string::npos) << e.machine;
@@ -306,17 +307,29 @@ TEST(ExtractPointers, UnknownExtentsAreParameters) {
 
 /// An array's Coq type is one ZMap per dimension, whatever the depth.
 ///
-/// The mapping stopped at two dimensions of integers and gave anything deeper
-/// the placeholder `None`, which is not a type.  It reached spoq as
-/// `Parameter g_mask: None.` in the generated .main.v and ended the run in
-/// visitType, which looked the name up and threw `unordered_map::at`.  PNG001's
-/// png_combine_row masks are [2 x [3 x [3 x i32]]].
+/// Guards the PNG001 abort: a depth with no Coq type was emitted as the
+/// placeholder `None`, which reached spoq as `Parameter g_mask: None.` and
+/// ended the run in visitType with `unordered_map::at`.  png_combine_row's
+/// masks are [2 x [3 x [3 x i32]]].
 TEST(ExtractPointers, ArrayTypesNestOneZMapPerDimension) {
     RUN_OR_SKIP(e, "globals.ll");
     EXPECT_NE(e.machine.find("Parameter g_mask: (ZMap.t (ZMap.t (ZMap.t Z)))."),
               std::string::npos) << e.machine;
     EXPECT_EQ(e.machine.find("FIXME"), std::string::npos)
         << "a type is still a placeholder:\n" << e.machine;
+}
+
+/// A read of one is one index per dimension, recovered from the byte offset.
+///
+/// @mask is [2 x [3 x [3 x i32]]], so the strides are 36, 12 and 4.  There is
+/// no store_global arm: the write is not modelled.
+TEST(ExtractPointers, NestedArrayGlobalIsIndexedPerDimension) {
+    RUN_OR_SKIP(e, "globals.ll");
+    EXPECT_NE(e.machine.find("      let idx_0 := p.(poffset) / 36 in\n"
+                             "      let idx_1 := (p.(poffset) mod 36) / 12 in\n"
+                             "      let idx_2 := (p.(poffset) mod 12) / 4 in\n"
+                             "      Some(g_mask @ idx_0 @ idx_1 @ idx_2)\n"),
+              std::string::npos) << e.machine;
 }
 
 }  // namespace

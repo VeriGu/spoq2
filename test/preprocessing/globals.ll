@@ -1,9 +1,8 @@
 ; Globals whose extent the memory model has to bound.  One of each shape
 ; load_global emits an arm for, plus the two shapes whose extent is not the
 ; static size: several string constants merged under one identifier, and a
-; zero-length array.  @mask is three-dimensional, which is the shape
-; ExtractPointers used to have no Coq type for: libpng's png_combine_row masks
-; are [2 x [3 x [3 x i32]]].
+; zero-length array.  @mask is three-dimensional, the shape of libpng's
+; png_combine_row masks.
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
 
 %struct.Pair = type { i32, i32 }

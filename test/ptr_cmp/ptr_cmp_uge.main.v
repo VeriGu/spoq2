@@ -64,8 +64,8 @@ Definition MAX_GLOBAL : Z := 67112960.
    a test of this against 0.  The state is an argument because where a base sits
    is fixed by the allocation state.  Two pointers into one block are ordered by
    their offsets, which is the case a bound check on a buffer walk produces;
-   across blocks the order is left uninterpreted, which is all a layer that does
-   not place the blocks can say. *)
+   across blocks the order is uninterpreted, since this layer does not place
+   the blocks. *)
 Parameter icmp_ptr_unrelated : (Ptr -> (Ptr -> (RData -> (Z)))).
 Definition icmp_ptr (p1: Ptr) (p2: Ptr) (st: RData) : Z :=
   if (p1.(pbase) =s p2.(pbase))
@@ -103,7 +103,7 @@ End Layer1.
 
 
 (* %p and %end share a base and differ by 8, so `%p >= %end` is false and the
-   function returns 0.  Proving that needs the comparison to have been
-   translated and then simplified, not merely to have translated. *)
+   function returns 0.  Proving it needs the comparison translated and then
+   simplified, not merely translated. *)
 Hint CheckInv vuln_spec.
 Hint Postcondition vuln_spec (_ret_0 =? (0)).

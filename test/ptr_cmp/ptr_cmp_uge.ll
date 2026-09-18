@@ -1,11 +1,8 @@
 ; An ordering comparison between two pointers.
 ;
-; `icmp uge ptr` is the bound check a buffer walk ends with -- ffm021's
-; nsvdec.c has `while (p < end)` compiled to `%cmp27 = icmp uge ptr %p.1,
-; %add.ptr26` -- and it is the predicate that used to abort translation:
-;
-;   Unsupported binary cmp operation with pointer operand
-;   Assertion `false && "Binary Cmp operation not supported"' failed.
+; `icmp uge ptr` is the bound check a buffer walk ends with; FFM021's
+; nsv_parse_NSVf_header has `%cmp27 = icmp uge ptr %p.1, %add.ptr26`, which
+; aborted translation before icmp_ptr existed.
 ;
 ; Both pointers are into the same block and their offsets differ by a constant,
 ; so the comparison has one answer and the return value is pinned by it.

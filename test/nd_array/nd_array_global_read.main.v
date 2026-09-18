@@ -139,6 +139,13 @@ Definition global_in_bounds (sz: Z) (p: Ptr) (limit: Z) : bool :=
   (0 <=? p.(poffset)) && (p.(poffset) + sz <=? limit).
 
 Definition load_global (sz: Z) (p: Ptr) (st: RData) : (option Z) :=
+  if (p.(pbase) =s "mask") then (
+    if (global_in_bounds sz p SZ_mask) then (
+      let idx_0 := p.(poffset) / 36 in
+      let idx_1 := (p.(poffset) mod 36) / 12 in
+      let idx_2 := (p.(poffset) mod 12) / 4 in
+      Some(g_mask @ idx_0 @ idx_1 @ idx_2)
+    ) else None) else
   None. (* load_global *)
 
 Definition store_global (sz: Z) (p: Ptr) (v: Z) (st: RData) : option RData :=
@@ -157,8 +164,8 @@ Definition ptr_to_int (p: Ptr) : Z :=
  if (p.(pbase) =s "null") then 0 else
  if (p.(pbase) =s "mask") then (MASK_BASE + p.(poffset)) else
     (-1).
-(* One function and no patch, so what these cases read is the spec spoq derives
-   for it, not a refinement between two.  CheckInv is what asks for it. *)
+(* One function and no patch, so these cases read the spec spoq derives for it
+   rather than a refinement.  CheckInv is what asks for one. *)
 Hint CheckInv vuln_spec.
 
 Parameter pick_spec : (RData-> (option ((Z) * RData))).

@@ -1,5 +1,4 @@
 {
   "spec_v_definition": "vuln_spec",
-  "spec_v_contains": "g_mask",
-  "unimplemented": "load_global has an arm only for a global it can index -- a scalar, a pointer, a struct, or an array of those -- so a read of an array of arrays is undefined and vuln_spec is None"
+  "spec_v_contains": "g_mask @ (((i * (4)) + (60)) / (36));(((i * (4)) + (60)) mod (36)) / (12);(((i * (4)) + (60)) mod (12)) / (4)"
 }

@@ -154,6 +154,45 @@ class ExtractPointersPass : public llvm::PassInfoMixin<ExtractPointersPass> {
     }
   }
 
+  /// The body of a load_global arm for a global whose type is an array of
+  /// arrays: one index per dimension, applied to [value].
+  ///
+  /// Each index comes out of the byte offset.  The outermost is the offset over
+  /// its dimension's stride; each inner one is the remainder from the dimension
+  /// above, over its own.  The innermost element is read as in a
+  /// one-dimensional array of that element.
+  ///
+  /// Empty for an element load_global cannot index and for a zero stride, which
+  /// a flexible member has.  A global with no arm reads as None.
+  std::string nestedArrayLoad(llvm::ArrayType* aty, const std::string& value) {
+    std::vector<uint64_t> strides;
+    llvm::Type* ety = aty->getElementType();
+    for (; auto inner = llvm::dyn_cast<llvm::ArrayType>(ety); ety = inner->getElementType())
+      strides.push_back(dl->getTypeAllocSize(ety));
+    strides.push_back(dl->getTypeAllocSize(ety));
+    for (auto const stride : strides)
+      if (stride == 0) return "";
+
+    std::string body, index = value;
+    for (size_t i = 0; i < strides.size(); i++) {
+      std::string const within =
+          i == 0 ? "p.(poffset)"
+                 : "(p.(poffset) mod " + std::to_string(strides[i - 1]) + ")";
+      body += "      let idx_" + std::to_string(i) + " := " + within + " / " +
+              std::to_string(strides[i]) + " in\n";
+      index += " @ idx_" + std::to_string(i);
+    }
+
+    if (ety->isIntegerTy() || ety->isPointerTy())
+      return body + "      Some(" + index + ")\n";
+    if (auto sty = llvm::dyn_cast<llvm::StructType>(ety))
+      return body +
+             "      when ret == load_" + getStructTypeIdentifier(sty) + " sz (p.(poffset) mod " +
+             std::to_string(strides.back()) + ") (" + index + ");\n" +
+             "      Some(ret)\n";
+    return "";
+  }
+
   bool isUnion(llvm::StructType* ty) {
     return ty->getName().starts_with("union.");
   }
@@ -325,12 +364,9 @@ struct CoqStackVal {
   std::string voidty() { return "unit"; }
 
   // One ZMap per dimension, whatever the depth -- libpng's png_combine_row
-  // masks are [2 x [3 x [3 x i32]]] -- with the element type rendered by the
-  // same traversal, so an array of vector or of double is covered too.
-  //
-  // Every shape has to yield a name the project defines.  visitType resolves a
-  // type against the symbol table, so a placeholder makes the generated
-  // .main.v unparseable.
+  // masks are [2 x [3 x [3 x i32]]] -- with the element type through the same
+  // traversal.  visitType resolves a type name against the symbol table, so
+  // every shape has to yield one the project defines.
   std::string array(llvm::Type *ety, uint64_t) {
     return "(ZMap.t " + autov::coqty::of_type(ety, *this) + ")";
   }
@@ -944,6 +980,11 @@ void ExtractPointersPass::generate(llvm::Module& M) {
         "       when ret == (store_"+ getStructTypeIdentifier(sty) +" sz elem_ofs v " + getGVLoadStr(&globalVar) + " @ idx);\n " \
         "       Some(" + getGVStoreStr(&globalVar) + ":< " + "(st.(globals).(" + getGVIdentifier(&globalVar) + ") # idx == ret) )\n");
         }
+      } else if (ety->isArrayTy()) {
+        // An array of arrays.  Read only -- a write would have to rebuild
+        // every level above the one it changes -- so a store to one is None.
+        auto const body = nestedArrayLoad(aty, getGVLoadStr(&globalVar));
+        if (!body.empty()) g_load_result += guarded(&globalVar, body);
       }
     } else {
       // llvm::errs() << "Cannot handle." << "\n";

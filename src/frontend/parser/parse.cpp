@@ -226,9 +226,9 @@ antlrcpp::Any ProgramVisitor::visitType(SpecParser::TypeContext *ctx) {
         std::string const name = ctx->name()->getText();
         std::string const where =
             " at " + path + ":" + std::to_string(ctx->getStart()->getLine());
-        // A generated .main.v can name a type nothing defines.  Found rather
-        // than subscripted, so that is reported with the name and the line
-        // instead of as std::unordered_map::at.
+        // A generated .main.v can name a type nothing defines.  Looked up
+        // rather than indexed, so the report carries the name and the line
+        // instead of being std::unordered_map::at.
         auto const found = proj.symbols.find(name);
         if (found == proj.symbols.end())
             throw std::runtime_error("Unknown type " + name + where);

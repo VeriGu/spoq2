@@ -192,15 +192,9 @@ static const std::unordered_map<llvm::CmpInst::Predicate, Expr::binops> ptr_cmpo
 
 /// `icmp_ptr p1 p2 st <op> 0`, for an ordering comparison of two pointers.
 ///
-/// The order of two pointers is not a function of the pointers alone: where a
-/// base sits is fixed by the allocation state, so two pointers into different
-/// blocks are ordered by st.  icmp_ptr takes both pointers and the state and
-/// reports a three-way comparison, which each predicate reads off against 0.
-/// One function covers the eight ordering predicates, where a boolean operation
-/// per predicate would need eight.
-///
-/// Declared uninterpreted when the project's main.v does not define it, which
-/// is the only sound thing to say about an order the layer has not fixed.
+/// The order is not a function of the pointers alone: where a base sits is
+/// fixed by the allocation state, so pointers into different blocks are ordered
+/// by st.  Declared uninterpreted when main.v does not define it.
 static unique_ptr<Expr> ptr_ordering(Project *proj, SpoqIRContext &context,
                                      llvm::CmpInst *cmp, Expr::binops op,
                                      unique_ptr<vector<unique_ptr<SpecNode>>> operands) {
@@ -1154,8 +1148,8 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             if (cmp->getOperand(0)->getType()->isPointerTy()) {
                 auto const pred = cmp->getPredicate();
                 auto const ord = ptr_cmpops_lut.find(pred);
-                // Equality keeps ptr_eqb, which compares base and offset: it is
-                // exact and needs no state, so it is not an ordering question.
+                // Equality is ptr_eqb, a comparison of base and offset:
+                // exact, and independent of the state.
                 if (pred == llvm::CmpInst::Predicate::ICMP_EQ) {
                     expr = std::make_unique<Expr>(context.ptr_eqb_op_name, std::move(operands));
                 }
