@@ -1,0 +1,7 @@
+{
+  "coq_contains": "(icmp_ptr p (ptr_offset p 8) st) >=? (0)",
+  "spec_v_definition": "vuln_spec",
+  "spec_v_contains": "Some (0, st)",
+  "stderr_contains": "imply post condition :) : vuln_spec",
+  "stderr_lacks": "does not imply post condition;[ERR]"
+}

@@ -700,8 +700,6 @@ bool project_declares(Project* proj, const std::string& name);
             if(layer->ops["ptr2int"] != "") ptr2int_op_name = layer->ops["ptr2int"];
             if(layer->ops["int2ptr"] != "") int2ptr_op_name = layer->ops["int2ptr"];
             if(layer->ops["ptr_eqb"] != "") ptr_eqb_op_name = layer->ops["ptr_eqb"];
-            if(layer->ops["ptr_ltb"] != "") ptr_ltb_op_name = layer->ops["ptr_ltb"];
-            if(layer->ops["ptr_leb"] != "") ptr_ltb_op_name = layer->ops["ptr_leb"];
             if(layer->ops["ptr_offset"] != "") ptr_off_op_name = layer->ops["ptr_offset"];
             if(layer->abs_data != nullptr) abs_data_type = layer->abs_data;
             else assert(false && "abs_data_type is nullptr");
@@ -726,9 +724,9 @@ bool project_declares(Project* proj, const std::string& name);
         std::string ptr2int_op_name = "ptr_to_int";
         std::string int2ptr_op_name = "int_to_ptr";
         std::string ptr_eqb_op_name = "ptr_eqb";
-        std::string ptr_ltb_op_name = "ptr_ltb";
-        std::string ptr_leb_op_name = "ptr_leb";
-        std::string ptr_ugt_op_name = "ptr_ugt";
+        /// Three-way comparison of two pointers in a state.  Every ordering
+        /// predicate on pointers is a test of its result against 0.
+        std::string icmp_ptr_op_name = "icmp_ptr";
 
         std::string ptr_off_op_name = "ptr_offset";
 

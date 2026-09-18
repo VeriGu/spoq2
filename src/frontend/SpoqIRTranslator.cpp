@@ -175,6 +175,51 @@ static void declare_uninterpreted(Project *proj, const std::string &name,
                           make_shared<loc_t>(Project::LOC_GLOBALDEFS, "", ""));
 }
 
+/// The ordering predicates on pointers, and the test on icmp_ptr each becomes.
+///
+/// Signed and unsigned share an entry, as they do for integers: the layer fixes
+/// one order on pointers and icmp_ptr reports it.
+static const std::unordered_map<llvm::CmpInst::Predicate, Expr::binops> ptr_cmpops_lut = {
+    {llvm::CmpInst::Predicate::ICMP_SLT, Expr::binops::BLT},
+    {llvm::CmpInst::Predicate::ICMP_ULT, Expr::binops::BLT},
+    {llvm::CmpInst::Predicate::ICMP_SLE, Expr::binops::BLE},
+    {llvm::CmpInst::Predicate::ICMP_ULE, Expr::binops::BLE},
+    {llvm::CmpInst::Predicate::ICMP_SGT, Expr::binops::BGT},
+    {llvm::CmpInst::Predicate::ICMP_UGT, Expr::binops::BGT},
+    {llvm::CmpInst::Predicate::ICMP_SGE, Expr::binops::BGE},
+    {llvm::CmpInst::Predicate::ICMP_UGE, Expr::binops::BGE},
+};
+
+/// `icmp_ptr p1 p2 st <op> 0`, for an ordering comparison of two pointers.
+///
+/// The order of two pointers is not a function of the pointers alone: where a
+/// base sits is fixed by the allocation state, so two pointers into different
+/// blocks are ordered by st.  icmp_ptr takes both pointers and the state and
+/// reports a three-way comparison, which each predicate reads off against 0.
+/// One function covers the eight ordering predicates, where a boolean operation
+/// per predicate would need eight.
+///
+/// Declared uninterpreted when the project's main.v does not define it, which
+/// is the only sound thing to say about an order the layer has not fixed.
+static unique_ptr<Expr> ptr_ordering(Project *proj, SpoqIRContext &context,
+                                     llvm::CmpInst *cmp, Expr::binops op,
+                                     unique_ptr<vector<unique_ptr<SpecNode>>> operands) {
+    auto arg_types = make_shared<vector<shared_ptr<SpecType>>>();
+    arg_types->push_back(context.get_llvm_value_type(cmp->getOperand(0)));
+    arg_types->push_back(context.get_llvm_value_type(cmp->getOperand(1)));
+    arg_types->push_back(context.abs_data_type);
+    declare_uninterpreted(proj, context.icmp_ptr_op_name, arg_types, Int::INT);
+
+    operands->push_back(context.get_abs_data());
+    auto call = std::make_unique<Expr>(context.icmp_ptr_op_name, std::move(operands));
+    call->type = Int::INT;
+
+    auto test = std::make_unique<vector<unique_ptr<SpecNode>>>();
+    test->push_back(std::move(call));
+    test->push_back(std::make_unique<IntConst>(0));
+    return std::make_unique<Expr>(op, std::move(test), Bool::BOOL);
+}
+
 /// [cond] in a boolean position, coerced if it is not already a Bool.
 ///
 /// C tests an int against zero, and a spec whose result is an i1 rendered as Z
@@ -1107,22 +1152,20 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             operands->push_back(context.get_llvm_value_spec(cmp->getOperand(1)));
             unique_ptr<Expr> expr = nullptr;
             if (cmp->getOperand(0)->getType()->isPointerTy()) {
-                if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_EQ) {
+                auto const pred = cmp->getPredicate();
+                auto const ord = ptr_cmpops_lut.find(pred);
+                // Equality keeps ptr_eqb, which compares base and offset: it is
+                // exact and needs no state, so it is not an ordering question.
+                if (pred == llvm::CmpInst::Predicate::ICMP_EQ) {
                     expr = std::make_unique<Expr>(context.ptr_eqb_op_name, std::move(operands));
                 }
-                else if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_ULT) {
-                    expr = std::make_unique<Expr>(context.ptr_ltb_op_name, std::move(operands));
-                }
-                else if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_NE) {
+                else if (pred == llvm::CmpInst::Predicate::ICMP_NE) {
                     expr = std::make_unique<Expr>(context.ptr_eqb_op_name, std::move(operands));
                     operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
                     operands->push_back(std::move(expr));
                     expr = std::make_unique<Expr>(Expr::ops::BNOT, std::move(operands));
-                } else if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_ULE) {
-                    expr = std::make_unique<Expr>(context.ptr_leb_op_name, std::move(operands));
-
-                } else if (cmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_UGT) {
-                    expr = std::make_unique<Expr>(context.ptr_ugt_op_name, std::move(operands));
+                } else if (ord != ptr_cmpops_lut.end()) {
+                    expr = ptr_ordering(proj, context, cmp, ord->second, std::move(operands));
                 } else {
                     llvm::errs() << "Unsupported binary cmp operation with pointer operand" << "\n";
                 }
