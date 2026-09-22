@@ -70,9 +70,9 @@ public:
 
     /// Bits in the LLVM type this came from, 0 when it did not come from one.
     ///
-    /// The Coq name is "Z" at every width.  The z3 sort is a bitvector of this
-    /// many bits, or an unbounded integer under SPOQ_BV_SORTS=0; a width of 0
-    /// is an unbounded integer either way.
+    /// The Coq name is "Z" at every width.  The z3 sort is an unbounded
+    /// integer, or a bitvector of this many bits under SPOQ_BV_SORTS=1; a width
+    /// of 0 is an unbounded integer either way.
     unsigned bits = 0;
 
     Int() : SpecType("Z") {}
@@ -492,10 +492,10 @@ public:
 
 /* -- bitvector encoding ------------------------------------------------------
  *
- * A value that came from an LLVM type carries its width in Int::bits and is
- * declared at a bitvector sort of that width; SPOQ_BV_SORTS=0 declares it as an
- * unbounded integer instead.  A value declared in a .main.v is a Z and carries
- * no width either way, so the two meet constantly and every operation below
+ * A value that came from an LLVM type carries its width in Int::bits, and under
+ * SPOQ_BV_SORTS=1 is declared at a bitvector sort of that width rather than as
+ * an unbounded integer.  A value declared in a .main.v is a Z and carries no
+ * width either way, so the two meet constantly and every operation below
  * reconciles its operands first.
  *
  * The bitwise operations -- `a & b` and the rest -- are uninterpreted functions
@@ -519,8 +519,8 @@ constexpr unsigned kBitwiseWidth = 64;
 /// Whether the bitvector encoding of the bitwise operations is on.
 bool z3_bitvec_bitwise_enabled();
 
-/// Whether a width-carrying integer is declared as a bitvector sort.  On unless
-/// SPOQ_BV_SORTS=0.
+/// Whether a width-carrying integer is declared as a bitvector sort.  Off
+/// unless SPOQ_BV_SORTS=1.
 bool z3_bv_sorts_enabled();
 
 /// The z3 term [op] denotes when it names a width reduction -- `wrapN` the low

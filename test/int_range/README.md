@@ -43,9 +43,30 @@ with identical per-project verdicts:
 
 | | corpus |
 |---|---|
-| default | 81 s |
-| `SPOQ_BV_SORTS=0` | 73 s |
-| `SPOQ_Z3_BITVEC=0` | 81 s |
+| default | 72 s |
+| `SPOQ_BV_SORTS=1` | 75 s |
+| `SPOQ_Z3_BITVEC=0` | 69 s |
 
 The bitwise encoding is free because a mask is rare, and it is the only way the
 solver learns anything about one.
+
+## Why the bitvector sorts are off
+
+`SPOQ_BV_SORTS=1` declares a width-carrying value at a bitvector sort instead of
+converting at each use. It proves the same things, so the choice is about how
+much the solver can see, and today it sees less. A value declared in a `.main.v`
+-- an oracle result, a record field, a global -- is a `Z` and carries no width,
+so it meets a width-carrying value constantly, and each meeting is a `bv2int` or
+an `int2bv` that does not compose with the arithmetic around it. Over the corpus
+that is 848 such conversions.
+
+Closing that means giving the declarations widths: a Coq alias `intN := Z`
+leaves the proofs unchanged, since it is convertible with `Z`, while the width
+reaches the solver through the declared type. Measured on one project, typing
+its record fields and the memory model's value slot takes it from 195
+conversions to 0, with the verdict unchanged.
+
+It has to be done for a whole project at once. Typing only the memory model
+across the corpus moved the count the wrong way, from 848 to 2989: a bitvector
+slot fed by a value that still arrives as `Z` needs an `int2bv`, so partial
+typing relocates the conversions rather than removing them.

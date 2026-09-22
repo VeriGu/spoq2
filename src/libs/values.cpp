@@ -40,19 +40,20 @@ static const std::string &bitvec_setting() {
 bool z3_bitvec_bitwise_enabled() { return bitvec_setting() != "0"; }
 
 /// A value with an LLVM width is declared as a bitvector of that width rather
-/// than converted at each use.  On by default; SPOQ_BV_SORTS=0 turns it off.
+/// than converted at each use.  Off by default; SPOQ_BV_SORTS=1 turns it on.
 ///
-/// The two encodings are meant to give the same verdicts; the switch exists to
-/// compare them, not to be chosen per run.
-///
-/// Still partial: a value declared in a .main.v is a Z and carries no width, so
-/// it meets a width-carrying one constantly and reconcile_sorts drops both back
-/// to the integers.  Widening the bitvector islands is what the Coq int/SizeT
-/// split is for.
+/// The two encodings give the same verdicts, so this is not a choice about what
+/// is proved.  It is off because it is incomplete: a value declared in a
+/// .main.v is a Z and carries no width, so it meets a width-carrying one
+/// constantly and reconcile_sorts drops both back to the integers.  Every such
+/// meeting is a bv2int or an int2bv the solver cannot see through, and until
+/// the declarations carry widths there are more of them than the bitvectors
+/// save.  Giving the declarations widths is what the Coq int/SizeT split is
+/// for; test/int_range records what it is worth.
 bool z3_bv_sorts_enabled() {
     static bool const on = [] {
         const char *e = std::getenv("SPOQ_BV_SORTS");
-        return !e || std::string(e) != "0";
+        return e && std::string(e) == "1";
     }();
     return on;
 }
