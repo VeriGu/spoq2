@@ -1,6 +1,6 @@
 ; A three-dimensional global, and a read from it.
 ;
-; libpng's png_combine_row masks are [2 x [3 x [3 x i32]]].  PNG001 stopped
+; libpng's png_combine_row masks are [2 x [3 x [3 x i32]]].  png001 stopped
 ; before any analysis on that shape: with no Coq type for it the generated
 ; .main.v declared the global as `None`, and spoq's parser rejected the name
 ; with `std::out_of_range`/`unordered_map::at`.

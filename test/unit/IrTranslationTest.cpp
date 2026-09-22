@@ -456,7 +456,9 @@ TEST(IrTranslation, SelectChainTranslates) {
 TEST(IrTranslation, StraightLineProducesSpec) {
     std::string spec;
     ASSERT_NO_FATAL_FAILURE(expect_spec("translate_straightline.ll", "vuln", {}, &spec));
-    EXPECT_NE(spec.find("let sum := (a + (b))"), std::string::npos) << spec;
+    // An arithmetic result is reduced to its width; a mask cannot leave one, so
+    // it is not.
+    EXPECT_NE(spec.find("let sum := (wrap32 (a + (b)))"), std::string::npos) << spec;
     EXPECT_NE(spec.find("let masked := (shifted & (255))"), std::string::npos) << spec;
     // Returns the value paired with the unchanged state.
     EXPECT_NE(spec.find("(Some (masked, st))"), std::string::npos) << spec;
@@ -1241,7 +1243,7 @@ TEST(IrTranslationSpec, LoopPreheaderOnTwoPathsCarriesValueOut) {
     // with no recursive call is not a loop.
     EXPECT_NE(defs.find("(vuln_loop_0_low"), std::string::npos)
         << "the Fixpoint has no recursive call -- its body was dropped:\n" << defs;
-    EXPECT_NE(defs.find("sum_next := (sum + (i))"), std::string::npos)
+    EXPECT_NE(defs.find("sum_next := (wrap32 (sum + (i)))"), std::string::npos)
         << "the loop body is missing from the definition:\n" << defs;
 }
 
@@ -1380,6 +1382,37 @@ TEST(IrTranslationSpec, VectorTypeMatchesTheGeneratedSignature) {
     // An array is the same shape: spoq drops the length that ExtractBasics
     // keeps in a record field, and the signature side agrees with spoq.
     EXPECT_EQ(coq(f->getArg(2)->getType()), "(ZMap.t Z)");
+}
+
+/// An integer's LLVM width reaches the spec type.
+///
+/// The LLVM type is the only place the width exists, so SpecTypeOf::integer
+/// must carry it through.  Everything that reduces a value to its width reads
+/// it from here -- wrapN, unsN, the range relies, the bitvector sorts -- so
+/// this pins that it survives.  The Coq name is "Z" at every width.
+TEST(IrTranslationSpec, IntegerTypesCarryTheirWidth) {
+    llvm::LLVMContext ctx;
+    llvm::SMDiagnostic err;
+    auto module = llvm::parseAssemblyString(
+        "define i32 @vuln(i8 %a, i32 %b, i64 %c, i1 %d) {\n"
+        "entry:\n  ret i32 %b\n}\n", err, ctx);
+    ASSERT_TRUE(module) << "fixture did not parse";
+    auto *f = module->getFunction("vuln");
+    ASSERT_NE(f, nullptr);
+
+    const auto bits = [](llvm::Type *t) {
+        auto const i = dynamic_pointer_cast<Int>(SpoqIRModule::llvm_ir_type_to_spec_pure(t));
+        return i ? (int)i->bits : -1;
+    };
+    EXPECT_EQ(bits(f->getArg(0)->getType()), 8);
+    EXPECT_EQ(bits(f->getArg(1)->getType()), 32);
+    EXPECT_EQ(bits(f->getArg(2)->getType()), 64);
+    // i1 is a Bool, not a one-bit Int.
+    EXPECT_EQ(bits(f->getArg(3)->getType()), -1);
+    EXPECT_EQ(std::string(*SpoqIRModule::llvm_ir_type_to_spec_pure(f->getArg(1)->getType())), "Z");
+    // Interned, so a width costs no more to pass around than the singleton.
+    EXPECT_EQ(Int::of_width(32), Int::of_width(32));
+    EXPECT_EQ(Int::of_width(0), Int::INT);
 }
 
 /* -- calls through a function pointer --------------------------------------- */

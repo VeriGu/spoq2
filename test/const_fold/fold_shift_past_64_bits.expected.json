@@ -1,0 +1,5 @@
+{
+  "stderr_contains": "imply post condition :) : vuln_spec",
+  "stderr_lacks": "does not imply post condition;[ERR]",
+  "unimplemented": "rule_simplify_expr folds a constant shift with C++ << on an unsigned long, which is undefined for a count of 64 or more"
+}

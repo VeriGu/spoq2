@@ -166,7 +166,7 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
                 static_pointer_cast<IntValue>(elems[1])));
         if (op_eq(expr->op, Expr::binops::EQUAL))
             return _cache(Prop::PROP->from_z3_value(
-                (elems[0]->get_z3_value() == elems[1]->get_z3_value())
+                (z3_eq(elems[0]->get_z3_value(), elems[1]->get_z3_value()))
                     .simplify()));
         if (op_eq(expr->op, Expr::binops::BEQ))
             return _cache(static_pointer_cast<IntValue>(elems[0])->eq(
@@ -175,8 +175,7 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
             return _cache(static_pointer_cast<StringValue>(elems[0])->eq(
                 static_pointer_cast<StringValue>(elems[1])));
         if (op_eq(expr->op, Expr::binops::NOT_EQUAL))
-            return _cache(Prop::PROP->from_z3_value(elems[0]->get_z3_value() !=
-                                                    elems[1]->get_z3_value()));
+            return _cache(Prop::PROP->from_z3_value(z3_ne(elems[0]->get_z3_value(), elems[1]->get_z3_value())));
         if (op_eq(expr->op, Expr::binops::BNE))
             return _cache(static_pointer_cast<IntValue>(elems[0])->ne(
                 static_pointer_cast<IntValue>(elems[1])));
@@ -279,6 +278,8 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
                 static_pointer_cast<Tuple>(val->get_type())->construct(elems));
         } else if (op_eq(expr->op, "prop"))
             return _cache(elems[0]);
+        else if (auto const reduced = width_reduction(expr->op, elems))
+            return _cache(make_shared<IntValue>(reduced->simplify()));
         else if (op_eq(expr->op, "ptr_to_int"))
             return _cache(static_pointer_cast<FuncValue>(autov::ptr_to_int())
                               ->call(elems));
@@ -329,7 +330,7 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
             unordered_map<string, shared_ptr<SpecValue>> assigns;
             auto const pat = resolve_pattern(proj, val, (*pm)->pattern.get(), src,
                                        vars, assigns);
-            auto const cond = pat->get_z3_value() == src->get_z3_value();
+            auto const cond = z3_eq(pat->get_z3_value(), src->get_z3_value());
             // for (auto v = vars.begin(); v != vars.end(); v++) {
             //     cond = z3::exists(v->second->get_z3_value(), cond);
             // }

@@ -1,3 +1,6 @@
+#include <cstdio>
+#include <cstdlib>
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -5,6 +8,7 @@
 #include <unordered_map>
 #include <utils.h>
 #include <values.h>
+#include <limits>
 #include <sstream>
 #include <z3++.h>
 
@@ -23,6 +27,218 @@ z3::context z3ctx;
 unordered_map<string, z3::sort> Inductive::created_z3_types;
 unordered_map<string, z3::sort> Struct::created_z3_types;
 unordered_map<string, z3::sort> List::created_z3_types;
+
+/// SPOQ_Z3_BITVEC, read once.
+static const std::string &bitvec_setting() {
+    static std::string const s = [] {
+        const char *e = std::getenv("SPOQ_Z3_BITVEC");
+        return std::string(e ? e : "");
+    }();
+    return s;
+}
+
+bool z3_bitvec_bitwise_enabled() { return bitvec_setting() != "0"; }
+
+/// A value with an LLVM width is declared as a bitvector of that width rather
+/// than converted at each use.  On by default; SPOQ_BV_SORTS=0 turns it off.
+///
+/// The two encodings are meant to give the same verdicts; the switch exists to
+/// compare them, not to be chosen per run.
+///
+/// Still partial: a value declared in a .main.v is a Z and carries no width, so
+/// it meets a width-carrying one constantly and reconcile_sorts drops both back
+/// to the integers.  Widening the bitvector islands is what the Coq int/SizeT
+/// split is for.
+bool z3_bv_sorts_enabled() {
+    static bool const on = [] {
+        const char *e = std::getenv("SPOQ_BV_SORTS");
+        return !e || std::string(e) != "0";
+    }();
+    return on;
+}
+
+/// Counts of each kind of sort crossing, dumped at exit when SPOQ_TRACE_SORTS
+/// is set.  Plain data, so nothing it touches can have been destroyed by the
+/// time the handler runs.
+enum CrossKind {
+    X_RECONCILE_LIT, X_RECONCILE_BV2INT,
+    X_BV2INT, X_BV2INT_LIT, X_INT2BV, X_INT2BV_LIT, X_WIDEN, X_NARROW, X_OTHER, X_N
+};
+static const char *const kCrossName[X_N] = {
+    "reconcile literal", "reconcile bv->int",
+    "coerce bv->int", "coerce bv->int literal", "coerce int->bv",
+    "coerce int->bv literal", "coerce bv->bv widen", "coerce bv->bv narrow", "coerce other"};
+static unsigned long g_crossings[X_N];
+static bool g_trace_sorts_on = false;
+
+/// Sites, by literal pointer: nothing here has a destructor, so there is
+/// nothing for the exit handler to read after destruction.
+static const char *g_site_names[8];
+static unsigned long g_site_counts[8];
+static void note_site(const char *site) {
+    if (!g_trace_sorts_on) return;
+    for (int i = 0; i < 8; i++) {
+        if (g_site_names[i] == site) { g_site_counts[i]++; return; }
+        if (!g_site_names[i]) { g_site_names[i] = site; g_site_counts[i] = 1; return; }
+    }
+}
+
+static void dump_crossings() {
+    for (int i = 0; i < X_N; i++)
+        if (g_crossings[i]) fprintf(stderr, "[sorts] %-24s %lu\n", kCrossName[i], g_crossings[i]);
+    for (int i = 0; i < 8 && g_site_names[i]; i++)
+        fprintf(stderr, "[sorts]   at %-20s %lu\n", g_site_names[i], g_site_counts[i]);
+}
+static void note_crossing(CrossKind k) {
+    static bool const init = [] {
+        g_trace_sorts_on = std::getenv("SPOQ_TRACE_SORTS") != nullptr;
+        if (g_trace_sorts_on) std::atexit(dump_crossings);
+        return true;
+    }();
+    (void)init;
+    if (g_trace_sorts_on) g_crossings[k]++;
+}
+
+std::pair<z3::expr, z3::expr> reconcile_sorts(const z3::expr &a, const z3::expr &b) {
+    auto const abv = a.is_bv(), bbv = b.is_bv();
+    if (abv == bbv) {
+        if (!abv || a.get_sort().bv_size() == b.get_sort().bv_size()) return {a, b};
+        // Equal widths are what an LLVM operation gives; widen rather than
+        // truncate if one ever arrives narrower.
+        auto const wa = a.get_sort().bv_size(), wb = b.get_sort().bv_size();
+        return wa < wb ? std::make_pair(z3::sext(a, wb - wa), b)
+                       : std::make_pair(a, z3::sext(b, wa - wb));
+    }
+    auto const &v = abv ? a : b;
+    auto const &o = abv ? b : a;
+    auto const w = v.get_sort().bv_size();
+    int64_t lit = 0;
+    note_crossing(o.is_numeral() ? X_RECONCILE_LIT : X_RECONCILE_BV2INT);
+    // Only when the literal fits the width.  bv_val truncates, so 2^31 at 32
+    // bits would become -2^31 and a range bound like `x < 2147483648` would
+    // read as `x <s -2147483648`, which is false -- every branch under it then
+    // prunes as unreachable.  A bound that does not fit is exactly the kind a
+    // range rely states, so this is the common case, not a corner.
+    if (o.is_numeral() && o.is_numeral_i64(lit) && w < 64 &&
+        lit >= -(int64_t(1) << (w - 1)) && lit < (int64_t(1) << (w - 1))) {
+        auto const as_bv = z3ctx.bv_val(lit, w);
+        return abv ? std::make_pair(a, as_bv) : std::make_pair(as_bv, b);
+    }
+    auto const as_int = z3::bv2int(v, true);
+    return abv ? std::make_pair(as_int, b) : std::make_pair(a, as_int);
+}
+
+z3::expr coerce_to_sort(const z3::expr &e, const z3::sort &want, const char *site) {
+    if (z3::eq(e.get_sort(), want)) return e;
+    auto const have_bv = e.is_bv(), want_bv = want.is_bv();
+    if (have_bv && want_bv) {
+        auto const hw = e.get_sort().bv_size(), ww = want.bv_size();
+        note_crossing(hw < ww ? X_WIDEN : X_NARROW);
+        return hw < ww ? z3::sext(e, ww - hw) : e.extract(ww - 1, 0);
+    }
+    if (have_bv && want.is_int()) {
+        note_crossing(e.is_numeral() ? X_BV2INT_LIT : X_BV2INT);
+        note_site(site);
+        return z3::bv2int(e, true);
+    }
+    if (e.is_int() && want_bv) {
+        auto const w = want.bv_size();
+        int64_t lit = 0;
+        if (e.is_numeral() && e.is_numeral_i64(lit) && w < 64 &&
+            lit >= -(int64_t(1) << (w - 1)) && lit < (int64_t(1) << (w - 1))) {
+            note_crossing(X_INT2BV_LIT);
+            return z3ctx.bv_val(lit, w);
+        }
+        note_crossing(X_INT2BV);
+        return z3::int2bv(w, e);
+    }
+    // Z3's power is real-valued over the integers.  pow2_int converts at the
+    // source; this covers any other real, taking its floor, so that a stray one
+    // is a loss of precision rather than an uncaught z3::exception.
+    if (e.is_real() && (want.is_int() || want_bv))
+        return coerce_to_sort(z3::expr(z3ctx, Z3_mk_real2int(z3ctx, e)), want, site);
+    note_crossing(X_OTHER);
+    return e;
+}
+
+/// Exact for a non-negative exponent, which is what a shift amount is.
+z3::expr pow2_int(const z3::expr &e) {
+    auto const p = z3::pw(2, e);
+    if (!p.is_real()) return p;
+    return z3::expr(z3ctx, Z3_mk_real2int(z3ctx, p));
+}
+
+std::optional<z3::expr> width_op_value(const std::string &op, const z3::expr &x) {
+    if (!x.is_int() && !x.is_bv()) return std::nullopt;
+    bool is_signed = false;
+    size_t at = 0;
+    if (op.rfind("wrap", 0) == 0) { is_signed = true; at = 4; }
+    else if (op.rfind("uns", 0) == 0) { at = 3; }
+    else return std::nullopt;
+    if (at >= op.size()) return std::nullopt;
+    unsigned bits = 0;
+    for (size_t i = at; i < op.size(); i++) {
+        if (!std::isdigit(static_cast<unsigned char>(op[i]))) return std::nullopt;
+        bits = bits * 10 + unsigned(op[i] - '0');
+        if (bits > 63) return std::nullopt;
+    }
+    if (bits < 1) return std::nullopt;
+
+    // A literal takes the same path as everything else of its width.  Reducing
+    // it in the integers instead would leave `uns32 14` an integer while
+    // `uns32 idx` is a vector, so two guards that are each other's complement
+    // would be stated in different representations and relating them would need
+    // a bv2int pushed through arithmetic.
+    z3::expr arg = x;
+    int64_t lit = 0;
+    if (z3_bv_sorts_enabled() && arg.is_int() && arg.is_numeral() && arg.is_numeral_i64(lit) &&
+        bits < 64 && lit >= -(int64_t(1) << (bits - 1)) && lit < (int64_t(1) << (bits - 1)))
+        arg = z3ctx.bv_val(lit, bits);
+
+    // On a bitvector the reduction is not arithmetic.  Reducing a w-bit value
+    // to w bits signed is the identity -- bvadd already wrapped -- so wrapN
+    // disappears, which is the point of the sorts.  unsN is a zero extension by
+    // one bit, so that the signed comparison the operators emit gives the
+    // unsigned answer on the result.
+    if (arg.is_bv()) {
+        auto const w = arg.get_sort().bv_size();
+        auto at_width = w == bits            ? arg
+                        : w > bits           ? arg.extract(bits - 1, 0)
+                                             : z3::sext(arg, bits - w);
+        // Widened to twice the width, not by the one bit [0, 2^N) needs: a
+        // bounds check adds one to the index, and at 2^N-1 that overflows a
+        // signed N+1-bit vector to negative, so the check passes where it
+        // should fail.  Doubling leaves room for the sums and products a check
+        // is made of, and is not a bound on every expression that follows.
+        return is_signed ? at_width : z3::zext(at_width, bits);
+    }
+
+    auto const modulus = z3ctx.int_val((uint64_t)1 << bits);
+    if (!is_signed) return z3::mod(arg, modulus);
+    auto const half = z3ctx.int_val((uint64_t)1 << (bits - 1));
+    return z3::mod(arg + half, modulus) - half;
+}
+
+z3::expr bv_bitwise(BitOp op, const z3::expr &a0, const z3::expr &b0,
+                    const z3::func_decl &fallback) {
+    auto const apply = [&](const z3::expr &x, const z3::expr &y) {
+        return op == BitOp::And ? (x & y) : op == BitOp::Or ? (x | y) : (x ^ y);
+    };
+    // One sort first: the fallback's domain is (Int Int), and two operands
+    // already carrying a width should not be taken apart again.
+    auto const [a, b] = reconcile_sorts(a0, b0);
+    // Exact at that width, so no guard, and no fallback to switch off.
+    if (a.is_bv()) return apply(a, b).simplify();
+    if (!z3_bitvec_bitwise_enabled() || !a.is_int() || !b.is_int()) return fallback(a, b);
+    auto const bits = apply(z3::int2bv(kBitwiseWidth, a), z3::int2bv(kBitwiseWidth, b));
+    // Two's complement at this width agrees with Z.land and its siblings only
+    // for an operand the width holds, so outside that the uninterpreted
+    // function stands and the solver learns nothing rather than something
+    // false.
+    auto const half = z3ctx.int_val(std::numeric_limits<int64_t>::min()) * z3ctx.int_val(-1);
+    auto const fits = [&](const z3::expr &e) { return e >= -half && e < half; };
+    return z3::ite(fits(a) && fits(b), z3::bv2int(bits, true), fallback(a, b));
+}
 
 z3::func_decl land_func = z3ctx.function("land", z3ctx.int_sort(), z3ctx.int_sort(), z3ctx.int_sort());
 z3::func_decl lor_func = z3ctx.function("lor", z3ctx.int_sort(), z3ctx.int_sort(), z3ctx.int_sort());
@@ -56,6 +272,14 @@ shared_ptr<Inductive> Inductive::Nat = make_shared<Inductive>(
 
 shared_ptr<SpecType> SpecType::UNKNOWN_TYPE = make_shared<SpecType>("UNKNOWN_TYPE");
 shared_ptr<Int> Int::INT = make_shared<Int>();
+
+shared_ptr<Int> Int::of_width(unsigned bits) {
+    if (bits == 0) return Int::INT;
+    static std::map<unsigned, shared_ptr<Int>> interned;
+    auto const it = interned.find(bits);
+    if (it != interned.end()) return it->second;
+    return interned.emplace(bits, make_shared<Int>(bits)).first->second;
+}
 shared_ptr<Float> Float::FLOAT = make_shared<Float>();
 shared_ptr<String> String::STRING = make_shared<String>();
 shared_ptr<Bool> Bool::BOOL = make_shared<Bool>();
@@ -91,6 +315,7 @@ shared_ptr<SpecValue> SpecType::declare(string name, int nid) {
 // Int
 // ----------------------------------------------------------------------------
 z3::sort Int::get_z3_type() {
+    if (bits && z3_bv_sorts_enabled()) return z3ctx.bv_sort(bits);
     return z3ctx.int_sort();
 }
 
@@ -255,6 +480,19 @@ std::string Struct::define() const {
     return res;
 }
 
+/// The sort a field of [t] gets inside a record or tuple.
+///
+/// Struct sorts are interned by name, and an integer's name is "Z" whatever
+/// width it carries, so two records that Coq calls the same type must get the
+/// same sort or the second one silently reuses the first one's.  Canonical
+/// means widthless: a field is an integer, and a value with a width converts
+/// into it at construction.  Taking the width instead would make the direction
+/// int->bv, which is the conversion the solver cannot see through.
+static z3::sort field_sort(const shared_ptr<SpecType> &t) {
+    if (dynamic_pointer_cast<Int>(t)) return Int::INT->get_z3_type();
+    return t->get_z3_type();
+}
+
 z3::sort Struct::get_z3_type() {
     //std::cout << "Struct::get_z3_type " << name << std::endl;
     if (Struct::created_z3_types.find(name) != Struct::created_z3_types.end()) {
@@ -266,7 +504,7 @@ z3::sort Struct::get_z3_type() {
     vector<z3::symbol> accs;
 
     for (auto const arg : *elems) {
-        sorts.push_back(this->elems_map[arg->name]->get_z3_type());
+        sorts.push_back(field_sort(this->elems_map[arg->name]));
         accs.push_back(z3ctx.str_symbol(arg->name.c_str()));
     }
 
@@ -295,7 +533,7 @@ shared_ptr<SpecValue> Struct::construct(vector<shared_ptr<SpecValue>> &elems) {
     z3::expr_vector args(z3ctx);
 
     for (int i = 0; i < elems.size(); i++) {
-        args.push_back(elems[i]->get_z3_value());
+        args.push_back(coerce_to_sort(elems[i]->get_z3_value(), mkRData.domain(i), "record construct"));
     }
 
     return from_z3_value(mkRData(args));
@@ -365,7 +603,7 @@ shared_ptr<StructValue> StructValue::set(string key, const shared_ptr<SpecValue>
         int i = 0;
         for(auto const arg : *s->elems) {
             if(arg->name == field) {
-                elems.push_back(value->get_z3_value());
+                elems.push_back(coerce_to_sort(value->get_z3_value(), cs.domain(i), "record set"));
             } else {
                 elems.push_back(z3type.constructors()[0].accessors()[i](get_z3_value()));
             }
@@ -510,21 +748,17 @@ shared_ptr<SpecValue> Inductive::construct(string constr, vector<shared_ptr<Spec
         constr = constr + "_" + lst->elem_type->name;
     }
 
-    z3::expr_vector z3_args(z3ctx);
-    for (int i = 0; i < args.size(); i++) {
-        z3_args.push_back(args[i]->get_z3_value());
-    }
-
     auto const css = this->get_z3_type().constructors();
 
     for (int i = 0; i < css.size(); i++) {
         auto const cs = css[i];
         if (cs.name().str() == constr) {
-            if (z3_args.size() == 0) {
-                return from_z3_value(cs());
-            } else {
-                return from_z3_value(cs(z3_args));
-            }
+            if (args.empty()) return from_z3_value(cs());
+            // Coerced against this constructor's domain, so the arity is known.
+            z3::expr_vector z3_args(z3ctx);
+            for (int j = 0; j < args.size(); j++)
+                z3_args.push_back(coerce_to_sort(args[j]->get_z3_value(), cs.domain(j), "inductive construct"));
+            return from_z3_value(cs(z3_args));
         }
     }
 

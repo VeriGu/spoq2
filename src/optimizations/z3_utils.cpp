@@ -35,6 +35,7 @@
 
 namespace autov
 {
+
 using autov::Bool;
 using autov::BoolConst;
 using autov::Expr;
@@ -977,8 +978,8 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     //auto n_invariant_base = Int::INT->declare("_N_",0)->get_z3_value() == (Int::INT->declare("_N_'",0)->get_z3_value());
     //auto n_eq0 = (_N_->get_z3_value() == 0);
     //auto n_gt0 = (_N_->get_z3_value() > 0);
-    //auto vc_base = z3::implies(inval_before->get_z3_value() && n_eq0 && full_val->get_z3_value() == base_case_val->get_z3_value() && n_invariant_base, inv_after->get_z3_value());
-    auto vc_induct = z3::implies(inval_before->get_z3_value() && full_val->get_z3_value() == loop_body_val->get_z3_value(), inv_after->get_z3_value());
+    //auto vc_base = z3::implies(inval_before->get_z3_value() && n_eq0 && z3_eq(full_val->get_z3_value(), base_case_val->get_z3_value()) && n_invariant_base, inv_after->get_z3_value());
+    auto vc_induct = z3::implies(inval_before->get_z3_value() && z3_eq(full_val->get_z3_value(), loop_body_val->get_z3_value()), inv_after->get_z3_value());
     //LOG_DEBUG << "base_case query: " << vc_base;
     LOG_DEBUG << "inductive case query:" << vc_induct;
 
@@ -1397,13 +1398,13 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
         else if (op_eq(expr->op, "Z.xorb"))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->xorb(static_pointer_cast<IntValue>(elems[1]))), state));
         else if (op_eq(expr->op, Expr::binops::EQUAL))
-            states.push_back(std::make_pair(_cache(Prop::PROP->from_z3_value((elems[0]->get_z3_value() == elems[1]->get_z3_value()).simplify())), state));
+            states.push_back(std::make_pair(_cache(Prop::PROP->from_z3_value(z3_eq(elems[0]->get_z3_value(), elems[1]->get_z3_value()).simplify())), state));
         else if (op_eq(expr->op, Expr::binops::BEQ))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->eq(static_pointer_cast<IntValue>(elems[1]))), state));
         else if (op_eq(expr->op, Expr::binops::SEQ))
             states.push_back(std::make_pair(_cache(static_pointer_cast<StringValue>(elems[0])->eq(static_pointer_cast<StringValue>(elems[1]))), state));
         else if (op_eq(expr->op, Expr::binops::NOT_EQUAL))
-            states.push_back(std::make_pair(_cache(Prop::PROP->from_z3_value(elems[0]->get_z3_value() != elems[1]->get_z3_value())), state));
+            states.push_back(std::make_pair(_cache(Prop::PROP->from_z3_value(z3_ne(elems[0]->get_z3_value(), elems[1]->get_z3_value()))), state));
         else if (op_eq(expr->op, Expr::binops::BNE))
             states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->ne(static_pointer_cast<IntValue>(elems[1]))), state));
         else if (op_eq(expr->op, Expr::binops::SNE))
@@ -1430,7 +1431,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
             if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
 
                 if (op_eq(e->op, Expr::SET)) {
-                    auto const z3_res = z3_check(state, z3_eval(proj, e->elems->at(1).get(), state)->get_z3_value() == elems[1]->get_z3_value());
+                    auto const z3_res = z3_check(state, z3_eq(z3_eval(proj, e->elems->at(1).get(), state)->get_z3_value(), elems[1]->get_z3_value()));
                     if (z3_res == Z3Result::True) {
                         vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>> const retstates;
                         symbolic(proj, e->elems->at(2).get(), state, states);
@@ -1454,7 +1455,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
         } else if (op_eq(expr->op, Expr::SET)) {
             if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
                 if (op_eq(e->op, Expr::SET)) {
-                    auto const z3_res = z3_check(state, z3_eval(proj, e->elems->at(1).get(), state)->get_z3_value() == elems[1]->get_z3_value());
+                    auto const z3_res = z3_check(state, z3_eq(z3_eval(proj, e->elems->at(1).get(), state)->get_z3_value(), elems[1]->get_z3_value()));
                     if (z3_res == Z3Result::True) {
                         elems[0] = z3_eval(proj, e->elems->at(0).get(), state);
                     }
@@ -1510,6 +1511,8 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
         }
         else if (op_eq(expr->op, "prop"))
             states.push_back(std::make_pair(_cache(elems[0]), state));
+        else if (auto const reduced = width_reduction(expr->op, elems))
+            states.push_back(std::make_pair(_cache(make_shared<IntValue>(reduced->simplify())), state));
         else if (op_eq(expr->op,"ptr_to_int"))
             states.push_back(std::make_pair(_cache(static_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems)), state));
         else if (op_eq(expr->op,"int_to_ptr"))
@@ -1548,7 +1551,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
                         auto const ret = func_call->get_type()->declare("ret", val->nid);
 
                         //ret_x = f(a,b,c,d)
-                        auto const eqformula = ret->get_z3_value() == func_call->get_z3_value();
+                        auto const eqformula = z3_eq(ret->get_z3_value(), func_call->get_z3_value());
 
                         // auto some = instance_of(ret.get(), IndValue);
 
@@ -1931,13 +1934,13 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         else if(op_eq(expr->op, "Z.xorb"))
             result = _cache(static_pointer_cast<IntValue>(elems[0])->xorb(static_pointer_cast<IntValue>(elems[1])));
         else if(op_eq(expr->op, Expr::binops::EQUAL))
-            result = _cache(Prop::PROP->from_z3_value((elems[0]->get_z3_value() == elems[1]->get_z3_value()).simplify()));
+            result = _cache(Prop::PROP->from_z3_value(z3_eq(elems[0]->get_z3_value(), elems[1]->get_z3_value()).simplify()));
         else if(op_eq(expr->op, Expr::binops::BEQ))
             result = _cache(static_pointer_cast<IntValue>(elems[0])->eq(static_pointer_cast<IntValue>(elems[1])));
         else if(op_eq(expr->op, Expr::binops::SEQ))
             result = _cache(static_pointer_cast<StringValue>(elems[0])->eq(static_pointer_cast<StringValue>(elems[1])));
         else if(op_eq(expr->op, Expr::binops::NOT_EQUAL))
-            result = _cache(Prop::PROP->from_z3_value(elems[0]->get_z3_value() != elems[1]->get_z3_value()));
+            result = _cache(Prop::PROP->from_z3_value(z3_ne(elems[0]->get_z3_value(), elems[1]->get_z3_value())));
         else if(op_eq(expr->op, Expr::binops::BNE))
             result = _cache(static_pointer_cast<IntValue>(elems[0])->ne(static_pointer_cast<IntValue>(elems[1])));
         else if(op_eq(expr->op, Expr::binops::SNE))
@@ -2032,6 +2035,8 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
             result = _cache(static_pointer_cast<Tuple>(val->get_type())->construct(elems));
         } else if (op_eq(expr->op, "prop"))
             result = _cache(elems[0]);
+        else if (auto const reduced = width_reduction(expr->op, elems))
+            result = _cache(make_shared<IntValue>(reduced->simplify()));
         else if (op_eq(expr->op,"ptr_to_int"))
             result = _cache(static_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems));
         else if (op_eq(expr->op,"int_to_ptr")){ // possible valgrind error here?
@@ -2366,13 +2371,13 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         if (op_eq(expr->op, "Z.xorb"))
             return _cache(static_pointer_cast<IntValue>(elems[0])->xorb(static_pointer_cast<IntValue>(elems[1])));
         if (op_eq(expr->op, Expr::binops::EQUAL))
-            return _cache(Prop::PROP->from_z3_value((elems[0]->get_z3_value() == elems[1]->get_z3_value()).simplify()));
+            return _cache(Prop::PROP->from_z3_value(z3_eq(elems[0]->get_z3_value(), elems[1]->get_z3_value()).simplify()));
         if (op_eq(expr->op, Expr::binops::BEQ))
             return _cache(static_pointer_cast<IntValue>(elems[0])->eq(static_pointer_cast<IntValue>(elems[1])));
         if (op_eq(expr->op, Expr::binops::SEQ))
             return _cache(static_pointer_cast<StringValue>(elems[0])->eq(static_pointer_cast<StringValue>(elems[1])));
         if (op_eq(expr->op, Expr::binops::NOT_EQUAL))
-            return _cache(Prop::PROP->from_z3_value(elems[0]->get_z3_value() != elems[1]->get_z3_value()));
+            return _cache(Prop::PROP->from_z3_value(z3_ne(elems[0]->get_z3_value(), elems[1]->get_z3_value())));
         if (op_eq(expr->op, Expr::binops::BNE))
             return _cache(static_pointer_cast<IntValue>(elems[0])->ne(static_pointer_cast<IntValue>(elems[1])));
         if (op_eq(expr->op, Expr::binops::SNE))
@@ -2450,6 +2455,8 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         }
         else if (op_eq(expr->op, "prop"))
             return _cache(elems[0]);
+        else if (auto const reduced = width_reduction(expr->op, elems))
+            return _cache(make_shared<IntValue>(reduced->simplify()));
         else if (op_eq(expr->op,"ptr_to_int"))
             return _cache(static_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems));
         else if (op_eq(expr->op,"int_to_ptr"))

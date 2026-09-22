@@ -3,6 +3,9 @@
 ;
 ;   vuln(x) = (x > 0) ? x : -x        /* absolute value */
 ;
+; Two's complement absolute value, so the negation wraps: at x = -2^31 the
+; result is -2^31 again, which the postcondition's first disjunct covers.
+;
 ; The point is the join.  `if.end` has two predecessors and a phi merging two
 ; different SSA values, which is the shape control_flow_clone_and_split exists
 ; to remove: it clones the join and everything after it, once per incoming

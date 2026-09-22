@@ -1,3 +1,4 @@
+#include <limits>
 #include "llvm_coq_type.h"
 #include "SpoqIR.h"
 #include "SpoqIRModule.h"
@@ -226,6 +227,160 @@ static unique_ptr<SpecNode> as_condition(unique_ptr<SpecNode> cond) {
     elems->push_back(std::move(cond));
     elems->push_back(std::make_unique<IntConst>(0));
     return std::make_unique<Expr>(Expr::binops::BNE, std::move(elems), Bool::BOOL);
+}
+
+/* -- machine integer widths -------------------------------------------------
+ *
+ * A value of LLVM type iN is its two's complement signed residue: it lies in
+ * [-2^(N-1), 2^(N-1)).  That is the convention the rest of the translation
+ * already leans on -- an integer literal comes from getSExtValue, and
+ * cmpops_lut sends the signed and the unsigned predicate to the same `<?`.
+ *
+ * A value that enters opaquely -- an argument, a call result, a load -- has no
+ * computation to derive a range from, so rely_in_width asserts one where it
+ * enters.  test/int_range states the whole set.
+ */
+
+/// Whether the constants a width needs are representable.
+///
+/// wrap needs 2^bits, and IntConst holds an unsigned long, so 64 and wider are
+/// left exact rather than silently reduced by a wrong modulus.
+static bool width_is_representable(unsigned bits) { return bits >= 1 && bits <= 63; }
+
+static unique_ptr<SpecNode> pow2(unsigned bits) {
+    return std::make_unique<IntConst>(1UL << bits);
+}
+
+static unique_ptr<SpecNode> binop(Expr::binops op, unique_ptr<SpecNode> a,
+                                  unique_ptr<SpecNode> b) {
+    auto elems = std::make_unique<vector<unique_ptr<SpecNode>>>();
+    elems->push_back(std::move(a));
+    elems->push_back(std::move(b));
+    return std::make_unique<Expr>(op, std::move(elems), Int::INT);
+}
+
+/// The reduction of a value to [bits] bits, as one application.
+///
+/// `wrapN x` reads the low N bits signed, `unsN x` unsigned.  Named rather than
+/// written out, for three reasons: a reduction is one node instead of five, so
+/// it does not enlarge the terms the rules and the solver work over; the emitted
+/// spec reads as the operation rather than as its encoding; and width_reduction
+/// can recognise it, because the two are exactly a bitvector read of the low N
+/// bits, which is what the solver is handed under bitvector sorts.
+///
+/// Defined into GlobalDefs the first time a width is used, so the generated Coq
+/// carries the definition and nothing outside this file has to know the widths
+/// a module happens to use.  Registered NoUnfold, or the transformation stage
+/// would inline the definition and put the modulus back.
+static unique_ptr<SpecNode> width_op(Project *proj, bool is_signed, unsigned bits,
+                                     unique_ptr<SpecNode> x) {
+    auto const name = (is_signed ? "wrap" : "uns") + std::to_string(bits);
+    // At the width, not the width-unknown integer: the reduction is a function
+    // of a value of that width, and a z3 declaration built from a widthless
+    // type cannot be applied to one that carries a width.
+    auto const ty = Int::of_width(bits);
+    if (proj && proj->defs.find(name) == proj->defs.end()) {
+        auto arg = std::make_unique<Symbol>("x", ty);
+        unique_ptr<SpecNode> body;
+        if (is_signed) {
+            auto shifted = binop(Expr::binops::ADD, arg->deep_copy(), pow2(bits - 1));
+            auto reduced = binop(Expr::binops::MOD, std::move(shifted), pow2(bits));
+            body = binop(Expr::binops::MINUS, std::move(reduced), pow2(bits - 1));
+        } else {
+            body = binop(Expr::binops::MOD, arg->deep_copy(), pow2(bits));
+        }
+        auto args = std::make_unique<vector<shared_ptr<Arg>>>();
+        args->push_back(make_shared<Arg>("x", ty));
+        proj->add_definition(
+            std::make_unique<Definition>(name, ty, std::move(args), std::move(body)),
+            make_shared<loc_t>(Project::LOC_GLOBALDEFS, "", ""));
+        proj->cmds.NoUnfold.insert(name);
+    }
+    auto elems = std::make_unique<vector<unique_ptr<SpecNode>>>();
+    elems->push_back(std::move(x));
+    return std::make_unique<Expr>(name, std::move(elems), ty);
+}
+
+/// [x] reduced into [bits]-bit two's complement.
+static unique_ptr<SpecNode> wrap_to_width(Project *proj, unique_ptr<SpecNode> x, unsigned bits) {
+    return width_op(proj, /*is_signed=*/true, bits, std::move(x));
+}
+
+/// Whether [op]'s result can fall outside the width of its operands.
+///
+/// The bitwise operations cannot: each output bit is a function of the input
+/// bits at that position.  Division cannot either, except for the one signed
+/// pair that is undefined anyway.
+static bool leaves_its_width(llvm::Instruction::BinaryOps op) {
+    using B = llvm::Instruction::BinaryOps;
+    return op == B::Add || op == B::Sub || op == B::Mul || op == B::Shl;
+}
+
+/// [x], a [bits]-bit value, read as unsigned.
+static unique_ptr<SpecNode> as_unsigned(Project *proj, unique_ptr<SpecNode> x, unsigned bits) {
+    return width_op(proj, /*is_signed=*/false, bits, std::move(x));
+}
+
+/// `rely (x >= -2^(bits-1) /\ x < 2^(bits-1))` wrapped around [body].
+///
+/// A value that enters opaquely -- a call result, a load, an argument -- is the
+/// only place a width can be asserted rather than computed.  Without it the
+/// reductions the other operations apply would be reachable from a value no
+/// machine could hold.  Nothing when the type is not an integer narrow enough for
+/// 2^width to be a constant, or is i1, which is a Bool.
+unique_ptr<SpecNode> rely_in_width(unique_ptr<SpecNode> body, unique_ptr<SpecNode> x,
+                                   llvm::Type *ty) {
+    if (!ty || !ty->isIntegerTy()) return body;
+    auto const bits = ty->getIntegerBitWidth();
+    if (bits <= 1 || !width_is_representable(bits)) return body;
+    auto lo = binop(Expr::binops::GTE, x->deep_copy(),
+                    binop(Expr::binops::MINUS, std::make_unique<IntConst>(0), pow2(bits - 1)));
+    auto hi = binop(Expr::binops::LT, std::move(x), pow2(bits - 1));
+    return std::make_unique<Rely>(binop(Expr::binops::AND, std::move(lo), std::move(hi)),
+                                  std::move(body));
+}
+
+/// `rely (a >= 0 /\ a <= 2^64-1)` wrapped around [body].
+///
+/// ptrtoint is where a program observes an address as a number.  An address
+/// outside the width cannot arise from a defined program -- forming a pointer
+/// more than one element past its object is undefined -- so the conversion
+/// carries the obligation instead of narrowing, and an address that does not
+/// fit is reported rather than silently reduced to one that aliases a real
+/// object.
+///
+/// 64 bits because ptrtoint in the corpus is always to i64, and the memory
+/// model bounds a base by 2^64 (IntPtrCast.ptr_int_base_range).  2^64-1 rather
+/// than 2^64 because IntConst holds an unsigned long.
+static unique_ptr<SpecNode> rely_address_fits(unique_ptr<SpecNode> body, unique_ptr<SpecNode> a) {
+    auto lo = binop(Expr::binops::GTE, a->deep_copy(), std::make_unique<IntConst>(0));
+    auto hi = binop(Expr::binops::LTE, std::move(a),
+                    std::make_unique<IntConst>(std::numeric_limits<unsigned long>::max()));
+    return std::make_unique<Rely>(binop(Expr::binops::AND, std::move(lo), std::move(hi)),
+                                  std::move(body));
+}
+
+/// Whether [op] reads its operands as unsigned.  The signed residue is the
+/// representation, so these are the ones that need converting first.
+static bool reads_operands_unsigned(llvm::Instruction::BinaryOps op) {
+    using B = llvm::Instruction::BinaryOps;
+    return op == B::UDiv || op == B::URem || op == B::LShr;
+}
+
+/// The unsigned integer comparisons.  LLVM's iN has no signedness, so the
+/// predicate is the only thing that says how to read the bits.
+static bool is_unsigned_predicate(llvm::CmpInst::Predicate p) {
+    using P = llvm::CmpInst::Predicate;
+    return p == P::ICMP_ULT || p == P::ICMP_ULE || p == P::ICMP_UGT || p == P::ICMP_UGE;
+}
+
+/// [x] read as unsigned when [ty] is an integer wide enough to have a sign bit
+/// and narrow enough for 2^width to be a constant; [x] unchanged otherwise.
+static unique_ptr<SpecNode> unsigned_at(Project *proj, unique_ptr<SpecNode> x, llvm::Type *ty) {
+    if (!ty->isIntegerTy()) return x;
+    auto const bits = ty->getIntegerBitWidth();
+    if (bits <= 1 || !width_is_representable(bits)) return x;
+    return as_unsigned(proj, std::move(x), bits);
 }
 
 /// The symbol standing for a `poison` or `undef` vector, declared.
@@ -772,7 +927,7 @@ struct SpecTypeOf {
     using result_t = shared_ptr<SpecType>;
 
     shared_ptr<SpecType> boolean() { return Bool::BOOL; }
-    shared_ptr<SpecType> integer(unsigned) { return Int::INT; }
+    shared_ptr<SpecType> integer(unsigned bits) { return Int::of_width(bits); }
     shared_ptr<SpecType> pointer() { return Struct::Ptr; }
 
     /// A Z of unknown magnitude: `Float := Z` in every prelude, and nothing is
@@ -784,7 +939,7 @@ struct SpecTypeOf {
 
     /// Metadata is not a value type: it reaches an operand only through a debug
     /// intrinsic, which is stripped before translation.  Rejected rather than
-    /// named, as it was before the traversal was shared.
+    /// given a name no caller could use.
     shared_ptr<SpecType> metadata() {
         throw std::invalid_argument("metadata is not a spec type");
     }
@@ -1074,6 +1229,15 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
 
             unique_ptr<SpecNode> expr = nullptr;
 
+            // udiv, urem and lshr read the bits as unsigned; every other
+            // integer operation agrees with the signed residue as it stands.
+            if (reads_operands_unsigned(bi->getOpcode()) && operands->size() == 2) {
+                auto *const ty = bi->getOperand(0)->getType();
+                operands->at(0) = unsigned_at(proj, std::move(operands->at(0)), ty);
+                if (bi->getOpcode() != llvm::Instruction::BinaryOps::LShr)
+                    operands->at(1) = unsigned_at(proj, std::move(operands->at(1)), ty);
+            }
+
             if (bi->getOpcode() == llvm::Instruction::BinaryOps::Xor) {
                 if(bi->getOperand(0)->getType()->isIntegerTy(1)) {
                     expr = std::make_unique<Expr>("xorb_spec", std::move(operands));
@@ -1114,6 +1278,18 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             if (expr == nullptr) {
                 llvm::errs() << "Binary operation not supported: " << *bi << "\n";
                 assert(false && "Binary operation not supported");
+            }
+
+            // The result is reduced back into its width.  Not under movein or
+            // reduce: those build an address out of a pointer's offset, and an
+            // address is unbounded.  i64 is left exact because 2^64 is not a
+            // representable constant, which is also what keeps a pointer offset
+            // out of the reduction.
+            if (!movein && !reduce && bi->getType()->isIntegerTy() &&
+                leaves_its_width(bi->getOpcode())) {
+                auto const bits = bi->getType()->getIntegerBitWidth();
+                if (bits > 1 && width_is_representable(bits))
+                    expr = wrap_to_width(proj, std::move(expr), bits);
             }
 
             if (movein) {
@@ -1164,8 +1340,16 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     llvm::errs() << "Unsupported binary cmp operation with pointer operand" << "\n";
                 }
             } else if(cmpops_lut.find(cmp->getPredicate()) != cmpops_lut.end()) {
+                // The table sends a signed and an unsigned predicate to the same
+                // operator; what separates them is which reading of the operands
+                // it is applied to.
+                if (is_unsigned_predicate(cmp->getPredicate())) {
+                    auto *const ty = cmp->getOperand(0)->getType();
+                    operands->at(0) = unsigned_at(proj, std::move(operands->at(0)), ty);
+                    operands->at(1) = unsigned_at(proj, std::move(operands->at(1)), ty);
+                }
                 expr = std::make_unique<Expr>(cmpops_lut.at(cmp->getPredicate()), std::move(operands));
-            }// z3 only has signed integers, so signed and unsigned gt should be the same
+            }
             if (expr == nullptr) {
                 llvm::errs() << "Binary Cmp operation not supported: " << *cmp << "\n";
                 assert(false && "Binary Cmp operation not supported");
@@ -1331,6 +1515,8 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     }
                 }
 
+                remain = rely_in_width(std::move(remain), context.get_llvm_value_spec(call),
+                                       call->getType());
                 return Shortcut::_When_u(std::move(ret), std::move(new_expr), std::move(remain));
             } else {
                 llvm::errs() << "No inline asm && No called function found: " << *call << "\n";
@@ -1355,7 +1541,11 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             }
         } else if (auto store = llvm::dyn_cast<llvm::StoreInst>(spoq_inst->inst)) {
             auto rhs = store_load_to_spec(spoq_inst->inst, context);
-            return Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second), spoq_inst_to_spec(proj, vec, num + 1, context));
+            auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
+            if (auto load = llvm::dyn_cast<llvm::LoadInst>(spoq_inst->inst))
+                remain = rely_in_width(std::move(remain), context.get_llvm_value_spec(load),
+                                       load->getType());
+            return Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second), std::move(remain));
         }
 
         if (auto alloc = llvm::dyn_cast<llvm::AllocaInst>(spoq_inst->inst)) {
@@ -1516,7 +1706,9 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             auto expr = std::make_unique<Expr>(context.ptr2int_op_name, std::move(operands));
             auto sym = context.get_llvm_value_spec(p2i);
             context.add_cache(context.get_llvm_value_name(p2i), expr);
-            return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
+            auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
+            remain = rely_address_fits(std::move(remain), context.get_llvm_value_spec(p2i));
+            return Shortcut::_Let_u(std::move(sym), std::move(expr), std::move(remain));
         } else if (auto i2p = llvm::dyn_cast<llvm::IntToPtrInst>(spoq_inst->inst)) {
             auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
             operands->push_back(context.get_llvm_value_spec(i2p->getOperand(0)));
@@ -1560,10 +1752,17 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     // context.add_cache(context.get_llvm_value_name(bc), expr);
                     return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
                 }
-                // TODO: overflow / underflow check
-                // is this sext?
+                auto const from = src->getIntegerBitWidth();
+                auto const to = dst->getIntegerBitWidth();
                 auto sym = context.get_llvm_value_spec(bc);
                 auto expr = context.get_llvm_value_spec(bc->getOperand(0));
+                // sext is the identity on a signed residue.  trunc keeps the low
+                // bits; zext reads the source as unsigned, which only widens.
+                if (to < from && width_is_representable(to))
+                    expr = wrap_to_width(proj, std::move(expr), to);
+                else if (to > from && width_is_representable(from) &&
+                         llvm::dyn_cast<llvm::ZExtInst>(bc))
+                    expr = as_unsigned(proj, std::move(expr), from);
                 context.add_cache(context.get_llvm_value_name(bc), expr);
                 return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
             } else if (src->isVectorTy() && dst->isVectorTy()) {

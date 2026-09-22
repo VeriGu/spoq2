@@ -4758,8 +4758,22 @@ rule_ret_t SpecRules::rule_simplify_expr(std::unique_ptr<SpecNode> spec, bool re
                 std::set<op> vec = {op::EQUAL, op::NOT_EQUAL, op::LTE, op::GTE, op::GT, op::LT, op::BEQ,
                                     op:: BNE, op::BLT, op::BGT, op::BGE, op::BLE};
 
-                if (vec.find(ops) != vec.end() && m->elems->at(0)->get_type() == Int::INT &&
-                    m->elems->at(1)->get_type() == Int::INT && !is_instance(m->elems->at(1).get(), Const)) {
+                // `a <op> b` becomes `(a - b) <op> 0`, which holds over the
+                // integers but not over a fixed width, where the subtraction
+                // wraps: at 32 bits `x >= -2^31` would read as `x - (-2^31) >=
+                // 0`, false at x = 0.  So only while the encoding is unbounded.
+                // SPOQ_FORCE_CMP_NORM re-enables it under bitvector sorts,
+                // where it is unsound, to measure what its absence costs.
+                static bool const force_norm = std::getenv("SPOQ_FORCE_CMP_NORM") != nullptr;
+                // Compared by name: an Int carrying an LLVM width is a
+                // different object from the width-unknown singleton and the
+                // same type.
+                auto const is_int = [](const shared_ptr<SpecType> &t) {
+                    return t && *t == *Int::INT;
+                };
+                if (vec.find(ops) != vec.end() && (force_norm || !z3_bv_sorts_enabled()) &&
+                    is_int(m->elems->at(0)->get_type()) &&
+                    is_int(m->elems->at(1)->get_type()) && !is_instance(m->elems->at(1).get(), Const)) {
                     auto elems = new vector<unique_ptr<SpecNode>>();
                     elems->push_back(std::move(m->elems->at(0)));
                     elems->push_back(std::move(m->elems->at(1)));
@@ -4892,11 +4906,20 @@ rule_ret_t SpecRules::rule_simplify_expr(std::unique_ptr<SpecNode> spec, bool re
                         if (holds_alternative<bop>(elem0->op)) {
                             auto const elem0op = std::get<bop>(elem0->op);
                             if (vec.find(elem0op) != vec.end()) {
-                                std::map<bop,bop> rev = {{bop::BEQ, bop::BNE}, {bop::EQUAL, bop::NOT_EQUAL},
-                                                        {bop::LT, bop::GTE}, {bop::GTE, bop::LT}, {bop::GT, bop::LTE},
-                                                        {bop::LTE, bop::GT}, {bop::BGT, bop::BLE}, {bop::BLE, bop::BGT},
-                                                        {bop::BLT, bop::BGE}, {bop::BGE, bop::BLT}};
-                                return make_unique<Expr>(rev[elem0op], std::move(elem0->elems), node->get_type());
+                                // Every operator in `vec` needs an entry.  A
+                                // missing one is skipped rather than looked up
+                                // with operator[], which returns a
+                                // default-constructed binops -- MULT -- and
+                                // would turn a negation into a product.
+                                static const std::map<bop,bop> rev = {
+                                    {bop::BEQ, bop::BNE}, {bop::BNE, bop::BEQ},
+                                    {bop::EQUAL, bop::NOT_EQUAL}, {bop::NOT_EQUAL, bop::EQUAL},
+                                    {bop::LT, bop::GTE}, {bop::GTE, bop::LT}, {bop::GT, bop::LTE},
+                                    {bop::LTE, bop::GT}, {bop::BGT, bop::BLE}, {bop::BLE, bop::BGT},
+                                    {bop::BLT, bop::BGE}, {bop::BGE, bop::BLT}};
+                                auto const r = rev.find(elem0op);
+                                if (r != rev.end())
+                                    return make_unique<Expr>(r->second, std::move(elem0->elems), node->get_type());
                             }
                         }
                     }

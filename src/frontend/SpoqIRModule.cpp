@@ -509,6 +509,12 @@ bool SpoqIRModule::code_to_spec(Project *proj, const string& fname, int layer_id
             }
 
         }
+        // Only for an argument the body reads.  A range on an unread argument
+        // adds nothing, and mentioning it is not free: vuln and patch need not
+        // take the same arguments, and the refinement leaves one the body never
+        // mentioned unbound.
+        if (!arg.use_empty())
+            spec = rely_in_width(std::move(spec), sym->deep_copy(), arg.getType());
         args->push_back(std::make_shared<Arg> (symbol->text, symbol->type));
     }
     args->push_back(make_shared<Arg>(context.abs_data_name, context.abs_data_type));

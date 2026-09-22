@@ -14,6 +14,17 @@
 
 namespace autov {
 
+    /// The z3 term `wrapN`/`unsN` denotes, when [op] names one and carries the
+    /// single argument those take; nothing otherwise.  Here rather than in one
+    /// evaluator so that every evaluator recognises a width reduction.
+    inline std::optional<z3::expr> width_reduction(
+        const decltype(Expr::op) &op,
+        const std::vector<std::shared_ptr<SpecValue>> &elems) {
+        auto const name = std::get_if<std::string>(&op);
+        if (!name || elems.size() != 1 || !elems[0]) return std::nullopt;
+        return width_op_value(*name, elems[0]->get_z3_value());
+    }
+
     enum ProveMode {
         PREPOST,
         LOOP,

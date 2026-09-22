@@ -53,6 +53,12 @@ class Project;
 /// caller is inline.  Defined in SpoqIRTranslator.cpp.
 bool project_declares(Project* proj, const std::string& name);
 
+/// `rely (x >= -2^(bits-1) /\ x < 2^(bits-1))` wrapped around [body], for an
+/// integer [ty] narrow enough for 2^width to be a constant.  See the machine
+/// integer widths note in SpoqIRTranslator.cpp.
+std::unique_ptr<SpecNode> rely_in_width(std::unique_ptr<SpecNode> body,
+                                        std::unique_ptr<SpecNode> x, llvm::Type *ty);
+
     class SpoqAbstractionLayout;
     class SpoqAbstraction {
     public:

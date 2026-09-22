@@ -654,7 +654,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 					impl_src = z3_eval(proj, impl_m->src.get(), state, true, false, impl_used_fix);
 					// srcs are equivalent iff there is no model in which they differ.
 					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Comparing Match src values: " << "Spec: " << string(*src) << "\nImpl: " << string(*impl_src);
-					auto const diff_res = z3_check(state, (src->get_z3_value() != impl_src->get_z3_value()), &proj->query_saver, Z3_SIM_TIMEOUT);
+					auto const diff_res = z3_check(state, (z3_ne(src->get_z3_value(), impl_src->get_z3_value())), &proj->query_saver, Z3_SIM_TIMEOUT);
 					if (diff_res == Z3Result::False) {
 						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Impl match src provably equivalent to spec, advancing impl.";
 						impl_match = impl_m;

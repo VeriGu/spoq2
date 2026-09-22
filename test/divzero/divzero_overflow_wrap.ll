@@ -9,12 +9,10 @@
 ; cannot relate the two forms, so it reads the patch's None branch as undefined
 ; behaviour the spec does not have.
 ;
-; The CVE is a second, separate gap.  It exists only because the 32-bit add
-; wraps: len = rps = 0xFFFFFFFF gives n == 0 in the vuln and n == 1 in the
-; patch, so the vuln divides by zero.  spoq's integers are unbounded Z and its
-; casts are the identity (SpoqIRTranslator.cpp, "TODO: overflow / underflow
-; check"), so the wrap cannot happen and the real bug is not expressible here at
-; all.  Bounded arithmetic would turn this fixture into a test of that too.
+; The CVE needs the 32-bit add to wrap: len = rps = 0xFFFFFFFF gives n == 0 in
+; the vuln and n == 1 in the patch, so the vuln divides by zero.  That much the
+; model now has -- an i32 sum is reduced to its width -- so what is left is only
+; the first gap, relating the two forms of the ceiling.
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
 declare dso_local i32 @len()
 declare dso_local i32 @rps()

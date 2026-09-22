@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <sstream>
 #include <memory>
+#include <optional>
 #include <z3++.h>
 
 namespace autov {
@@ -63,9 +64,24 @@ public:
 
 class Int : public SpecType {
 public:
+    /// The widthless Int, used where no LLVM type supplies a width: a
+    /// hand-written spec, and the terms the rules build.
     static shared_ptr<Int> INT;
 
+    /// Bits in the LLVM type this came from, 0 when it did not come from one.
+    ///
+    /// The Coq name is "Z" at every width.  The z3 sort is a bitvector of this
+    /// many bits, or an unbounded integer under SPOQ_BV_SORTS=0; a width of 0
+    /// is an unbounded integer either way.
+    unsigned bits = 0;
+
     Int() : SpecType("Z") {}
+    explicit Int(unsigned bits) : SpecType("Z"), bits(bits) {}
+
+    /// The interned Int of [bits].  Interned so that a type carrying a width is
+    /// as cheap to pass around as the singleton, and so the shared_ptrs of one
+    /// width compare equal.
+    static shared_ptr<Int> of_width(unsigned bits);
 
     shared_ptr<Int> getptr() {
         return static_pointer_cast<Int>(shared_from_this());
@@ -474,6 +490,84 @@ public:
     virtual ~SpecValue() = default;
 };
 
+/* -- bitvector encoding ------------------------------------------------------
+ *
+ * A value that came from an LLVM type carries its width in Int::bits and is
+ * declared at a bitvector sort of that width; SPOQ_BV_SORTS=0 declares it as an
+ * unbounded integer instead.  A value declared in a .main.v is a Z and carries
+ * no width either way, so the two meet constantly and every operation below
+ * reconciles its operands first.
+ *
+ * The bitwise operations -- `a & b` and the rest -- are uninterpreted functions
+ * over Z, so the solver knows nothing about them at all.  Where neither operand
+ * carries a width, one is assumed, the encoding is guarded by both operands
+ * fitting in it, and the uninterpreted function stands outside, which keeps it
+ * sound on a value no width bounds.  SPOQ_Z3_BITVEC=0 turns that off.
+ *
+ * A width reduction -- `wrapN`, `unsN` -- is extract/sext/zext on a bitvector
+ * and the arithmetic it denotes on an integer, never a round trip through
+ * int2bv/bv2int, because a round trip does not compose over integer arithmetic:
+ * `wrap32 (wrap32 (n+5) + 5) = wrap32 (10+n)` is instant as native bitvectors
+ * and does not finish in a minute as a round trip, with or without a range on
+ * n.  A bitwise round trip does compose, which is why that one stays.
+ */
+
+/// Width assumed for a bitwise operation, whose operands carry none.  One wider
+/// than any width the translation reduces, so a value at a reduced width fits.
+constexpr unsigned kBitwiseWidth = 64;
+
+/// Whether the bitvector encoding of the bitwise operations is on.
+bool z3_bitvec_bitwise_enabled();
+
+/// Whether a width-carrying integer is declared as a bitvector sort.  On unless
+/// SPOQ_BV_SORTS=0.
+bool z3_bv_sorts_enabled();
+
+/// The z3 term [op] denotes when it names a width reduction -- `wrapN` the low
+/// N bits read signed, `unsN` read unsigned -- nothing otherwise.
+std::optional<z3::expr> width_op_value(const std::string &op, const z3::expr &x);
+
+/// [a] and [b] brought to one sort, for an operation that needs them to agree.
+///
+/// A value with an LLVM width is a bitvector; one from a .main.v declaration --
+/// an oracle result, a record field, an offset -- is an integer, and the two
+/// meet constantly.  A literal takes whichever sort the other operand has,
+/// exactly, which covers most of the mixing.  Anything else falls back to the
+/// integers rather than converting into the bitvectors: a bv2int at a boundary
+/// composes, an int2bv wrapped around arithmetic does not.
+std::pair<z3::expr, z3::expr> reconcile_sorts(const z3::expr &a, const z3::expr &b);
+
+/// [e] in sort [want], when the two differ over being a bitvector or a width.
+///
+/// An application's domain comes from its declaration -- a .main.v Parameter is
+/// a Z, a datatype field is whatever type first built it -- while the argument
+/// comes from the term and may carry an LLVM width.  Converting here is the
+/// boundary case: nothing is interleaved with arithmetic, so the solver
+/// composes over it, unlike a conversion wrapped around an operation.
+z3::expr coerce_to_sort(const z3::expr &e, const z3::sort &want, const char *site = "?");
+
+/// 2^[e] at Int sort.  Z3's power is real-valued over the integers.
+z3::expr pow2_int(const z3::expr &e);
+
+/// `a = b` and `a <> b` with the operands brought to one sort first.  A raw ==
+/// on two z3 values throws when one carries a width and the other does not.
+inline z3::expr z3_eq(const z3::expr &a, const z3::expr &b) {
+    auto const p = reconcile_sorts(a, b);
+    return p.first == p.second;
+}
+inline z3::expr z3_ne(const z3::expr &a, const z3::expr &b) {
+    auto const p = reconcile_sorts(a, b);
+    return p.first != p.second;
+}
+
+enum class BitOp { And, Or, Xor };
+
+/// [op] on [a] and [b].  Two bitvectors are the operation at their width; two
+/// integers are [kBitwiseWidth]-bit vectors where both fit, and [fallback]
+/// applied where they do not.
+z3::expr bv_bitwise(BitOp op, const z3::expr &a, const z3::expr &b,
+                    const z3::func_decl &fallback);
+
 extern z3::func_decl land_func;
 extern z3::func_decl lor_func;
 extern z3::func_decl lxor_func;
@@ -524,30 +618,72 @@ public:
 
     shared_ptr<IntValue> neg() { return make_shared<IntValue>((-value).simplify()); }
     shared_ptr<IntValue> add(const shared_ptr<IntValue>& other) {
-        return make_shared<IntValue>((value + other->value).simplify());
+        auto const [a, b] = reconcile_sorts(value, other->value);
+        return make_shared<IntValue>((a + b).simplify());
     }
     shared_ptr<IntValue> sub(const shared_ptr<IntValue>& other) {
-        return make_shared<IntValue>((value - other->value).simplify());
+        auto const [a, b] = reconcile_sorts(value, other->value);
+        return make_shared<IntValue>((a - b).simplify());
     }
-    shared_ptr<IntValue> mul(const shared_ptr<IntValue>& other) { return make_shared<IntValue>((value * other->value).simplify()); }
-    shared_ptr<IntValue> div(const shared_ptr<IntValue>& other) { return make_shared<IntValue>((value / other->value).simplify()); }
-    shared_ptr<IntValue> mod(const shared_ptr<IntValue>& other) {return make_shared<IntValue>((value % other->value).simplify()); }
-    shared_ptr<IntValue> shiftl(const shared_ptr<IntValue>& other) { return make_shared<IntValue>(( value * z3::pw(2, other->value)).simplify()); }
-    shared_ptr<IntValue> shiftr(const shared_ptr<IntValue>& other) { return make_shared<IntValue>(( value / z3::pw(2, other->value)).simplify()); }
-    shared_ptr<IntValue> xorb(const shared_ptr<IntValue>& other) { return make_shared<IntValue>((value ^ other->value).simplify()); }
-    shared_ptr<IntValue> land(const shared_ptr<IntValue>& other) { return make_shared<IntValue>(land_func(value, other->value)); }
-    shared_ptr<IntValue> lor(const shared_ptr<IntValue>& other) { return make_shared<IntValue>(lor_func(value, other->value)); }
-    shared_ptr<IntValue> lxor(const shared_ptr<IntValue>& other) { return make_shared<IntValue>(lxor_func(value, other->value)); }
+    shared_ptr<IntValue> mul(const shared_ptr<IntValue>& other) {
+        auto const [a, b] = reconcile_sorts(value, other->value);
+        return make_shared<IntValue>((a * b).simplify());
+    }
+    shared_ptr<IntValue> div(const shared_ptr<IntValue>& other) {
+        auto const [a, b] = reconcile_sorts(value, other->value);
+        return make_shared<IntValue>((a / b).simplify());
+    }
+    shared_ptr<IntValue> mod(const shared_ptr<IntValue>& other) {
+        auto const [a, b] = reconcile_sorts(value, other->value);
+        return make_shared<IntValue>((z3::mod(a, b)).simplify());
+    }
+    /// Left shift: bvshl on bitvectors, multiply by a power of two on integers.
+    shared_ptr<IntValue> shiftl(const shared_ptr<IntValue>& other) {
+        auto const [a, b] = reconcile_sorts(value, other->value);
+        return make_shared<IntValue>((a.is_bv() ? z3::shl(a, b) : a * pow2_int(b)).simplify());
+    }
+    /// Right shift: bvashr on bitvectors, divide by a power of two on integers.
+    /// Both round towards negative infinity.  A logical shift reaches here with
+    /// its operand already converted to the unsigned residue.
+    shared_ptr<IntValue> shiftr(const shared_ptr<IntValue>& other) {
+        auto const [a, b] = reconcile_sorts(value, other->value);
+        return make_shared<IntValue>((a.is_bv() ? z3::ashr(a, b) : a / pow2_int(b)).simplify());
+    }
+    shared_ptr<IntValue> xorb(const shared_ptr<IntValue>& other) {
+        auto const [a, b] = reconcile_sorts(value, other->value);
+        return make_shared<IntValue>((a ^ b).simplify());
+    }
+    shared_ptr<IntValue> land(const shared_ptr<IntValue>& other) { return make_shared<IntValue>(bv_bitwise(BitOp::And, value, other->value, land_func)); }
+    shared_ptr<IntValue> lor(const shared_ptr<IntValue>& other) { return make_shared<IntValue>(bv_bitwise(BitOp::Or, value, other->value, lor_func)); }
+    shared_ptr<IntValue> lxor(const shared_ptr<IntValue>& other) { return make_shared<IntValue>(bv_bitwise(BitOp::Xor, value, other->value, lxor_func)); }
     shared_ptr<IntValue> lnot() { return make_shared<IntValue>(lnot_func(value)); }
     shared_ptr<IntValue> setbit(const shared_ptr<IntValue>& other) { return make_shared<IntValue>(setbit_func(value, other->value)); }
     shared_ptr<IntValue> clearbit(const shared_ptr<IntValue>& other) { return make_shared<IntValue>(clearbit_func(value, other->value)); }
     shared_ptr<BoolValue> testbit(const shared_ptr<IntValue>& other) { return make_shared<BoolValue>(testbit_func(value, other->value)); }
-    shared_ptr<BoolValue> eq(const shared_ptr<IntValue>& other) { return make_shared<BoolValue>((value == other->value).simplify()); }
-    shared_ptr<BoolValue> ne(const shared_ptr<IntValue>& other) { return make_shared<BoolValue>((value != other->value).simplify()); }
-    shared_ptr<BoolValue> lt(const shared_ptr<IntValue>& other) { return make_shared<BoolValue>((value < other->value).simplify()); }
-    shared_ptr<BoolValue> le(const shared_ptr<IntValue>& other) { return make_shared<BoolValue>((value <= other->value).simplify()); }
-    shared_ptr<BoolValue> gt(const shared_ptr<IntValue>& other) { return make_shared<BoolValue>((value > other->value).simplify()); }
-    shared_ptr<BoolValue> ge(const shared_ptr<IntValue>& other) { return make_shared<BoolValue>((value >= other->value).simplify()); }
+    shared_ptr<BoolValue> eq(const shared_ptr<IntValue>& other) {
+        auto const [a, b] = reconcile_sorts(value, other->value);
+        return make_shared<BoolValue>((a == b).simplify());
+    }
+    shared_ptr<BoolValue> ne(const shared_ptr<IntValue>& other) {
+        auto const [a, b] = reconcile_sorts(value, other->value);
+        return make_shared<BoolValue>((a != b).simplify());
+    }
+    shared_ptr<BoolValue> lt(const shared_ptr<IntValue>& other) {
+        auto const [a, b] = reconcile_sorts(value, other->value);
+        return make_shared<BoolValue>((a < b).simplify());
+    }
+    shared_ptr<BoolValue> le(const shared_ptr<IntValue>& other) {
+        auto const [a, b] = reconcile_sorts(value, other->value);
+        return make_shared<BoolValue>((a <= b).simplify());
+    }
+    shared_ptr<BoolValue> gt(const shared_ptr<IntValue>& other) {
+        auto const [a, b] = reconcile_sorts(value, other->value);
+        return make_shared<BoolValue>((a > b).simplify());
+    }
+    shared_ptr<BoolValue> ge(const shared_ptr<IntValue>& other) {
+        auto const [a, b] = reconcile_sorts(value, other->value);
+        return make_shared<BoolValue>((a >= b).simplify());
+    }
     shared_ptr<BoolValue> to_bool() { return make_shared<BoolValue>(value != 0); }
 };
 class FloatValue : public SpecValue {
@@ -613,11 +749,14 @@ public:
     }
 
     shared_ptr<SpecValue> get(const shared_ptr<IntValue>& key) {
-        return dynamic_cast<ZMap *>(typ.get())->elem_type->from_z3_value(value[key->value].simplify());
+        auto const k = coerce_to_sort(key->value, value.get_sort().array_domain(), "zmap index");
+        return dynamic_cast<ZMap *>(typ.get())->elem_type->from_z3_value(value[k].simplify());
     }
 
     shared_ptr<ZMapValue> set(const shared_ptr<IntValue>& key, const shared_ptr<SpecValue>& value) {
-        return make_shared<ZMapValue>(typ, z3::store(this->value, key->value, value->value).simplify());
+        auto const k = coerce_to_sort(key->value, this->value.get_sort().array_domain(), "zmap index");
+        auto const v = coerce_to_sort(value->value, this->value.get_sort().array_range(), "zmap value");
+        return make_shared<ZMapValue>(typ, z3::store(this->value, k, v).simplify());
     }
 
     shared_ptr<BoolValue> eq(const shared_ptr<ZMapValue>& other) {
@@ -660,7 +799,8 @@ public:
         vector<z3::expr> z3_args;
 
         for (const auto &arg : args) {
-            z3_args.push_back(arg->get_z3_value());
+            auto const at = z3_args.size() < z3_func.arity() ? z3_args.size() : z3_func.arity() - 1;
+            z3_args.push_back(coerce_to_sort(arg->get_z3_value(), z3_func.domain(at), "function call"));
             // A hack to not crash on unsupported varargs stubs
             if(z3_args.size() == z3_func.arity()){
                 if(args.size() > z3_args.size()){

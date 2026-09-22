@@ -334,8 +334,10 @@ Section Axioms.
 (* Definition malloc_not_static: Prop := forall (h: MEM), (let pb := pvns (h.(nextBlock)) in (~(is_static_pbase pb))). *)
 End Axioms.
 
-Parameter global_to_ptr: (Z -> (Ptr)).
-Parameter ptr_to_int: (Z -> (Ptr)).
+(* Of the three casts, only int_to_ptr has no generated definition, so the
+   axioms above are all that constrain it.  extractpointers emits ptr_to_int
+   and global_to_ptr into <module>.machine.v. *)
+Parameter int_to_ptr: (Z -> (Ptr)).
 
 Parameter llvm_memcpy_p0i8_p0i8_i64_spec: (Ptr -> (Ptr -> (Z -> (bool -> (RData -> (option RData)))))).
 Parameter llvm_memcpy_p0_p0_i64_spec: (Ptr -> (Ptr -> (Z -> (bool -> (RData -> (option RData)))))).

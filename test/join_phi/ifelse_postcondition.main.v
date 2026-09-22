@@ -137,6 +137,10 @@ End Layer1.
    asserted here.  Same restriction, same reason, as
    test/select/select_postcondition.main.v. *)
 Hint CheckInv vuln_spec.
+(* Two's complement abs: the negation wraps, so at x = -2^31 it returns -2^31
+   again.  The disjunction still holds there, by the first arm rather than the
+   second -- deciding that needs the reduction to be exact rather than an
+   uninterpreted symbol. *)
 Hint Postcondition vuln_spec ((_ret_0 = x) \/ (_ret_0 = (0 - x))).
 (* Fix target -- true on both paths, rejected today; see above.
 Hint Postcondition vuln_spec (_ret_0 >=? (0)). *)
