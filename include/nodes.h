@@ -309,12 +309,17 @@ public:
         }
     }
 
+    // The copy keeps the type: a constant translated from LLVM carries its
+    // width there, which the constructor alone would reset to Int::INT.
     void deep_copy(unique_ptr<SpecNode> &p) const {
         p = make_unique<IntConst>(this->get_value(), this->sign);
+        p->type = this->type;
     }
 
     unique_ptr<SpecNode> deep_copy() const {
-        return make_unique<IntConst>(this->get_value(), this->sign);
+        auto p = make_unique<IntConst>(this->get_value(), this->sign);
+        p->type = this->type;
+        return p;
     }
 
 private:

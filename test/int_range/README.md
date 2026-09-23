@@ -2,7 +2,9 @@
 
 spoq used to map every LLVM integer width to unbounded `Z` and every
 integer-to-integer cast to the identity. These cases assert the facts a width
-carries instead, and all seven pass.
+carries instead, and all seven pass. A cast is an explicit application:
+`wrapN` truncates, `sextN_M` and `zextN_M` extend, so arithmetic after an
+extension is at the destination width.
 
 | case | asks |
 |---|---|

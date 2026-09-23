@@ -50,6 +50,7 @@ enum class RuleID {
     rule_simple_record_get_set,
     rule_move_rely_out_when, 
     rule_move_when_out_when,
+    rule_move_match_out_when,
     rule_simple_const_bool,
     rule_move_if_out_match,
     rule_move_if_out_expr,
@@ -98,6 +99,7 @@ public:
             { RuleID::rule_simple_record_get_set,   [this](auto spec) { return rule_simple_record_get_set(std::move(spec), true); } },
             { RuleID::rule_move_rely_out_when,      [this](auto spec) { return rule_move_rely_out_when(std::move(spec), true); } },
             { RuleID::rule_move_when_out_when,      [this](auto spec) { return rule_move_when_out_when(std::move(spec), true); } },
+            { RuleID::rule_move_match_out_when,     [this](auto spec) { return rule_move_match_out_when(std::move(spec), true); } },
             //{ RuleID::rule_move_if_out_match,       [this](auto spec) { return rule_move_if_out_match(std::move(spec), true); } },
             // { RuleID::rule_hoist_branch_out_of_when,        [this](auto spec) { return hoist_branch_out_of_when(std::move(spec)); } },
             // { RuleID::rule_hoist_match_from_branch,        [this](auto spec) { return hoist_match_from_branch(std::move(spec)); } },
@@ -129,6 +131,7 @@ public:
     rule_ret_t rule_simple_record_get_set(std::unique_ptr<SpecNode> spec, bool rec);
     rule_ret_t rule_move_rely_out_when(std::unique_ptr<SpecNode> spec, bool rec);
     rule_ret_t rule_move_when_out_when(std::unique_ptr<SpecNode> spec, bool rec);
+    rule_ret_t rule_move_match_out_when(std::unique_ptr<SpecNode> spec, bool rec);
     rule_ret_t rule_move_if_out_match(std::unique_ptr<SpecNode> spec, bool rec);
     rule_ret_t rule_move_if_out_expr(std::unique_ptr<SpecNode> spec, bool rec);
     rule_ret_t rule_move_match_out_expr(std::unique_ptr<SpecNode> spec, bool rec);

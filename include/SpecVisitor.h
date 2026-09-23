@@ -105,6 +105,12 @@ public:
 
     virtual std::any visitBool(SpecParser::BoolContext *context) = 0;
 
+    virtual std::any visitVeclen(SpecParser::VeclenContext *context) = 0;
+
+    virtual std::any visitVecget(SpecParser::VecgetContext *context) = 0;
+
+    virtual std::any visitVecreplace(SpecParser::VecreplaceContext *context) = 0;
+
 
 };
 

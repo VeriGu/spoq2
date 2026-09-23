@@ -15,6 +15,15 @@ using std::shared_ptr;
 using std::make_shared;
 using std::unordered_map;
 
+/// Whether a value typed [have] can be given the type [want] pushed down onto
+/// it: any machine integer for any other -- every width is Z in Coq, and the
+/// encoding widens or converts -- or the same type by name.
+static bool takes_declared(const shared_ptr<SpecType> &want, const shared_ptr<SpecType> &have) {
+    if (!want || !have || have == SpecType::UNKNOWN_TYPE) return false;
+    if (is_int_type(want) && is_int_type(have)) return true;
+    return *want == *have;
+}
+
 static void infer_pattern(Project &proj, SpecNode *pattern, const shared_ptr<unordered_map<string, shared_ptr<SpecType>>>& known_types) {
     if (dynamic_cast<Symbol *>(pattern)) {
         auto sym = dynamic_cast<Symbol *>(pattern);
@@ -94,7 +103,11 @@ void infer_type(Project &proj, SpecNode *spec, const shared_ptr<unordered_map<st
                 case Expr::LSHIFT: case Expr::RSHIFT: case Expr::BITAND: case Expr::BITOR: {
                     // TODO:: Z.lnot, Z.lxor
                     if (n < expr->elems->size()) {
-                        expr->elems->at(n)->type = Int::INT;
+                        // An integer operand keeps the width it has -- a
+                        // literal or a symbol translated from LLVM -- since the
+                        // result's width is read from the operands below.
+                        if (!is_int_type(expr->elems->at(n)->type))
+                            expr->elems->at(n)->type = Int::INT;
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(n).get(), 0, known_types));
                     } else if (expr->elems->size() != 2) {
@@ -102,8 +115,15 @@ void infer_type(Project &proj, SpecNode *spec, const shared_ptr<unordered_map<st
                     } else {
                         auto const fst = expr->elems->at(0)->type;
                         auto const snd = expr->elems->at(1)->type;
-                        if (fst->name == "Z" && snd->name == "Z") {
-                            expr->type = Int::INT;
+                        if (is_int_type(fst) && is_int_type(snd)) {
+                            // Same width in, same width out; operands of
+                            // different widths leave a result with no width to
+                            // claim.
+                            auto const a = dynamic_pointer_cast<Int>(fst);
+                            auto const b = dynamic_pointer_cast<Int>(snd);
+                            expr->type = a->bits == b->bits
+                                             ? fst
+                                             : static_pointer_cast<SpecType>(Int::INT);
                         } else if (fst->name == snd->name){
                             // Two vectors can also be added together.
                             expr->type = fst;
@@ -319,13 +339,23 @@ void infer_type(Project &proj, SpecNode *spec, const shared_ptr<unordered_map<st
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(n).get(), 0, known_types));
                     } else {
-                        auto const tuple_type = make_shared<vector<shared_ptr<SpecType>>>();
+                        // A tuple type pushed down from a declaration stands,
+                        // and the elements take its widths -- a field read at
+                        // int32 returned through `option int64` widens.  Read
+                        // from the elements only when none was pushed.
+                        auto const declared = dynamic_pointer_cast<Tuple>(expr->type);
+                        bool keep = declared && declared->elems->size() == expr->elems->size();
+                        for (size_t i = 0; keep && i < expr->elems->size(); i++)
+                            keep = takes_declared(declared->elems->at(i)->type, expr->elems->at(i)->type);
+                        if (!keep) {
+                            auto const tuple_type = make_shared<vector<shared_ptr<SpecType>>>();
 
-                        for (const auto &elem : *expr->elems) {
-                            tuple_type->push_back(elem->type);
+                            for (const auto &elem : *expr->elems) {
+                                tuple_type->push_back(elem->type);
+                            }
+
+                            expr->type = make_shared<Tuple>(tuple_type);
                         }
-
-                        expr->type = make_shared<Tuple>(tuple_type);
                     }
                     break;
                 }
@@ -336,7 +366,7 @@ void infer_type(Project &proj, SpecNode *spec, const shared_ptr<unordered_map<st
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(1).get(), 0, known_types));
                     } else if (n == 1) {
                         if (expr->type != SpecType::UNKNOWN_TYPE && expr->elems->at(1)->type != SpecType::UNKNOWN_TYPE) {
-                            if(expr->elems->at(1)->type->name == "Z"){
+                            if(is_int_type(expr->elems->at(1)->type)){
                                 expr->elems->at(0)->type = make_shared<ZMap>(expr->type);
                             } else if(expr->elems->at(1)->type->name == "string") {
                                 expr->elems->at(0)->type = make_shared<SMap>(expr->type);
@@ -486,7 +516,10 @@ void infer_type(Project &proj, SpecNode *spec, const shared_ptr<unordered_map<st
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
                     } else {
-                        expr->type = make_shared<Option>(expr->elems->at(0)->type);
+                        // As for a tuple: a declared option type stands.
+                        auto const declared = dynamic_pointer_cast<Option>(expr->type);
+                        if (!declared || !takes_declared(declared->elem_type, expr->elems->at(0)->type))
+                            expr->type = make_shared<Option>(expr->elems->at(0)->type);
                     }
 
                     break;
@@ -530,11 +563,12 @@ void infer_type(Project &proj, SpecNode *spec, const shared_ptr<unordered_map<st
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
                     } else {
-                        expr->type = Int::INT;
+                        // The word a pointer is stored as.
+                        expr->type = Int::size_t_int();
                     }
                 } else if (op == Project::LAYER_INT2PTR || op == "int_to_ptr") {
                     if (n == 0) {
-                        expr->elems->at(0)->type = Int::INT;
+                        expr->elems->at(0)->type = Int::size_t_int();
                         stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
                         stack.push_back(std::make_tuple(__LINE__, expr->elems->at(0).get(), 0, known_types));
                     } else {

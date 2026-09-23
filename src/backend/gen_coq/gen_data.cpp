@@ -54,6 +54,18 @@ unique_ptr<vector<string>> generate_data(Project *p)
     fout << "Require Import CommonDeps.\n\n";
     fout << "Local Open Scope Z_scope.\n\n";
 
+    // The machine integer widths this module uses.  Each is Z, so a value of
+    // one is convertible with a Z and every lemma over Z applies unchanged; the
+    // width exists so that a declaration keeps it and the solver can be given a
+    // bitvector instead of an unbounded integer.
+    if (!int_widths_used().empty()) {
+        for (auto const bits : int_widths_used())
+            fout << "Definition int" << bits << " := Z.\n";
+        fout << "Definition intSizeT := int" << kSizeTWidth << ".\n\n";
+    }
+    // PMap.t is ZMap.t keyed by a provenance; the two differ only to the solver.
+    if (ZMap::pmap_used_flag()) fout << "Module PMap := ZMap.\n\n";
+
     vector<string> outputs;
     for (auto const &[key, value] : p->symbols) {
         if (key != "Ptr" && std::get<0>(p->symbols[key].loc) == "DataTypes") {
@@ -71,7 +83,7 @@ unique_ptr<vector<string>> generate_data(Project *p)
             fout << p->indtypes[s]->define();
             fout << "\n\n";
         } else if (p->typedefs.find(s) != p->typedefs.end()) {
-            fout << "Definition " + s + ": Type :=" << string(*p->typedefs[s]) << ".";
+            fout << "Definition " + s + ": Type :=" << coq_type_name(p->typedefs[s]) << ".";
             fout << "\n\n";
         }
     }

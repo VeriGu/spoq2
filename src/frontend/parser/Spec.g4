@@ -41,6 +41,7 @@ type:
 	| list_type = 'list' type
 	| option_type = 'option' type
 	| zmap_type = 'ZMap.t' type
+	| pmap_type = 'PMap.t' type
 	| smap_type = 'SMap' type
 	| vector_type = 'Vector' type
 	| '(' type ( tup = '*' type  ) + ')'

@@ -265,6 +265,37 @@ Z3Result z3_race_check(QueryInfo const* qinfo) {
     }
 }
 
+/// The solver for one check.  Under bitvector sorts it is the `qfaufbv`
+/// tactic: its preprocessing -- ite elimination, ackermannization,
+/// bit-blasting -- decides a matched callee body in milliseconds where the
+/// default strategy times out.  SPOQ_Z3_TACTIC names another tactic, or
+/// "default" for the plain solver.
+static z3::solver make_solver() {
+    static const char *chosen = std::getenv("SPOQ_Z3_TACTIC");
+    static const std::string tactic = chosen && *chosen ? chosen : z3_bv_sorts_enabled() ? "qfaufbv" : "default";
+    if (tactic != "default") return z3::tactic(z3ctx, tactic.c_str()).mk_solver();
+    return z3::solver(z3ctx);
+}
+
+/// SPOQ_SLOW_QUERY_DIR, if set, receives every check that took at least
+/// SPOQ_SLOW_QUERY_MS (default 200) as an .smt2 with its result and time.
+static bool slow_query_wanted(std::chrono::duration<double> elapsed) {
+    static const char *dir = std::getenv("SPOQ_SLOW_QUERY_DIR");
+    static const double ms = std::getenv("SPOQ_SLOW_QUERY_MS") ? std::atof(std::getenv("SPOQ_SLOW_QUERY_MS")) : 200.0;
+    return dir && elapsed.count() * 1000.0 >= ms;
+}
+static void dump_slow_query(std::chrono::duration<double> elapsed, const std::string &what, int timeout,
+                            const std::string &query) {
+    static const char *dir = std::getenv("SPOQ_SLOW_QUERY_DIR");
+    static unsigned id = 0;
+    std::filesystem::create_directories(dir);
+    std::ofstream out(std::string(dir) + "/slow_" + std::to_string(id++) + ".smt2");
+    out << "; " << elapsed.count() * 1000.0 << " ms, " << what << ", timeout " << timeout << " ms\n" << query;
+}
+static std::string to_string(z3::check_result r) {
+    return r == z3::sat ? "sat" : r == z3::unsat ? "unsat" : "unknown";
+}
+
 /** specialized z3 checker for automated proof
  *  1. only check !cond if UNSAT (True) or not
  *  2. automatically dump queries
@@ -272,7 +303,7 @@ Z3Result z3_race_check(QueryInfo const* qinfo) {
   */
 Z3Result z3_verify(const shared_ptr<ProveState>& state, const z3::expr& cond, QueryInfo *qinfo, int timeout) {
     auto const start = std::chrono::high_resolution_clock::now();
-    z3::solver solve(z3ctx);
+    z3::solver solve = make_solver();
     Z3Params.set("timeout", (unsigned int)timeout);
     solve.set(Z3Params);
     for (auto  const&c : *state->conds) {
@@ -288,7 +319,10 @@ Z3Result z3_verify(const shared_ptr<ProveState>& state, const z3::expr& cond, Qu
         qinfo->dump(solve.to_smt2());
 
     auto const end = std::chrono::high_resolution_clock::now();
-    z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+    auto const elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+    z3_accumulative_time += elapsed;
+    if (slow_query_wanted(elapsed))
+        dump_slow_query(elapsed, "z3_verify not cond: " + to_string(not_res), timeout, solve.to_smt2());
 
     // std::cout << "-----------------Z3_verify-----------------" << std::endl;
     // std::cout << "z3 check cond: " << cond << ", hash: " << cond.hash() << std::endl;
@@ -315,7 +349,7 @@ Z3Result z3_verify(const shared_ptr<ProveState>& state, const z3::expr& cond, Qu
  * */
 Z3Result z3_verify_state_sat(const shared_ptr<ProveState>& state, QueryInfo *qinfo, int timeout) {
     auto const start = std::chrono::high_resolution_clock::now();
-    z3::solver solve(z3ctx);
+    z3::solver solve = make_solver();
 
     Z3Params.set("timeout", (unsigned int)timeout);
     solve.set(Z3Params);
@@ -354,7 +388,7 @@ Z3Result z3_verify_state_sat(const shared_ptr<ProveState>& state, QueryInfo *qin
 }
 Z3Result z3_verify_state_sat(const shared_ptr<EvalState>& state, QueryInfo *qinfo, int timeout) {
     auto const start = std::chrono::high_resolution_clock::now();
-    z3::solver solve(z3ctx);
+    z3::solver solve = make_solver();
 
     Z3Params.set("timeout", (unsigned int)timeout);
     solve.set(Z3Params);
@@ -400,7 +434,7 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, const z3::expr& cond, Quer
     }
 
     Z3Params.set("timeout", (unsigned int)timeout);
-    z3::solver solver(z3ctx);
+    z3::solver solver = make_solver();
     solver.set(Z3Params);
     for (auto  const&c : *state->conds) {
         solver.add(c);
@@ -461,7 +495,11 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, const z3::expr& cond, Quer
 #endif
 
     auto const end = std::chrono::high_resolution_clock::now();
-    z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+    auto const elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+    z3_accumulative_time += elapsed;
+    if (slow_query_wanted(elapsed))
+        dump_slow_query(elapsed, "z3_check cond: " + to_string(res) + ", not cond: " + to_string(not_res), timeout,
+                        serialize(cond));
 
     if (not_res == z3::unsat) {
         if (res == z3::unsat) {
@@ -498,7 +536,7 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, int timeout) {
 
 
     Z3Params.set("timeout", (unsigned int)timeout);
-    z3::solver solver(z3ctx);
+    z3::solver solver = make_solver();
     solver.set(Z3Params);
 
 
@@ -558,7 +596,7 @@ Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& con
 
     Z3Params.set("timeout", (unsigned int)timeout);
 
-    z3::solver solver(z3ctx);
+    z3::solver solver = make_solver();
     solver.set(Z3Params);
 
 
@@ -736,8 +774,8 @@ z3::expr match_arm_condition(Project *proj, SpecNode *val, SpecNode *pattern,
                 // Some and None do not reach the symbol table as names.
                 auto const option_ty = dynamic_pointer_cast<Option>(ind_ty);
                 assert(option_ty);
-                if (*op == Expr::ops::Some) constr_name = "Some_" + option_ty->elem_type->name;
-                else if (*op == Expr::ops::None) constr_name = "None_" + option_ty->elem_type->name;
+                if (*op == Expr::ops::Some) constr_name = option_ty->some_name();
+                else if (*op == Expr::ops::None) constr_name = option_ty->none_name();
             }
             if (!constr_name.empty()) {
                 cond = ind_ty->get_recognizer(constr_name)(src->get_z3_value());
@@ -1353,9 +1391,9 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
         if (op_eq(expr->op, Expr::None))
             states.push_back(std::make_pair(_cache(static_pointer_cast<Inductive>(val->get_type())->construct("None", {})),state));
         else if (op_eq(expr->op, Expr::binops::ADD)){
-            if (expr->type->name == "Z"){
+            if (is_int_type(expr->type)){
                 states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1]))), state));
-            }else if (expr->type->name == "ZMap_Z"){
+            }else if (is_int_zmap_type(expr->type)){
                 // find the definition of the zmap_z_add function
                 // use func->call to generate the right z3 expr
                 auto const func = proj->defs.find("zmap_z_add");
@@ -1520,7 +1558,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
         else if (op_eq(expr->op, "z_to_nat"))
             states.push_back(std::make_pair(_cache(static_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems)), state));
         else if (op_eq(expr->op,"zmap_init") || op_eq(expr->op, "ZMap.init"))
-            states.push_back(std::make_pair(_cache(val->get_type()->from_z3_value(z3::const_array(z3ctx.int_sort(), elems[0]->get_z3_value()))), state));
+            states.push_back(std::make_pair(_cache(val->get_type()->from_z3_value(z3::const_array(static_pointer_cast<ZMap>(val->get_type())->key_sort(), elems[0]->get_z3_value()))), state));
         else if (std::holds_alternative<string>(expr->op)) {
             auto const sym = std::get<string>(expr->op);
             auto const info = proj->symbols[sym];
@@ -1891,9 +1929,9 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         }
         else if (op_eq(expr->op, Expr::binops::ADD) ){
 
-            if (expr->type->name == "Z") {
+            if (is_int_type(expr->type)) {
                 result = _cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1])));
-            } else if (expr->type->name == "ZMap_Z"){
+            } else if (is_int_zmap_type(expr->type)){
                 // find the definition of the zmap_z_add function
                 // use func->call to generate the right z3 expr
                 auto const func = proj->defs.find("zmap_z_add");
@@ -2047,7 +2085,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         }else if (op_eq(expr->op, "z_to_nat"))
             result = _cache(static_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems));
         else if (op_eq(expr->op,"zmap_init") || op_eq(expr->op, "ZMap.init"))
-            result = _cache(val->get_type()->from_z3_value(z3::const_array(z3ctx.int_sort(), elems[0]->get_z3_value())));
+            result = _cache(val->get_type()->from_z3_value(z3::const_array(static_pointer_cast<ZMap>(val->get_type())->key_sort(), elems[0]->get_z3_value())));
         else if (op_eq(expr->op, "List.is_empty"))
             result = _cache(static_pointer_cast<ListValue>(elems[0])->is_empty());
         else if (op_eq(expr->op, "List.empty"))
@@ -2328,9 +2366,9 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         if (op_eq(expr->op, Expr::None))
             return _cache(static_pointer_cast<Inductive>(val->get_type())->construct("None", {}));
         if (op_eq(expr->op, Expr::binops::ADD)){
-            if (expr->type->name == "Z") {
+            if (is_int_type(expr->type)) {
                 return _cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1])));
-            } else if (expr->type->name == "ZMap_Z"){
+            } else if (is_int_zmap_type(expr->type)){
                 // find the definition of the zmap_z_add function
                 // use func->call to generate the right z3 expr
                 auto const func = proj->defs.find("zmap_z_add");
@@ -2464,7 +2502,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         else if (op_eq(expr->op, "z_to_nat"))
             return _cache(static_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems));
         else if (op_eq(expr->op,"zmap_init") || op_eq(expr->op, "ZMap.init"))
-            return _cache(val->get_type()->from_z3_value(z3::const_array(z3ctx.int_sort(), elems[0]->get_z3_value())));
+            return _cache(val->get_type()->from_z3_value(z3::const_array(static_pointer_cast<ZMap>(val->get_type())->key_sort(), elems[0]->get_z3_value())));
         else if (op_eq(expr->op, "List.is_empty"))
             return _cache(static_pointer_cast<ListValue>(elems[0])->is_empty());
         else if (op_eq(expr->op, "List.empty"))

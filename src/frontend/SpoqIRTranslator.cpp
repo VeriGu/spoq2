@@ -259,30 +259,40 @@ static unique_ptr<SpecNode> binop(Expr::binops op, unique_ptr<SpecNode> a,
     return std::make_unique<Expr>(op, std::move(elems), Int::INT);
 }
 
-/// The reduction of a value to [bits] bits, as one application.
+/// A width operation on a [bits]-bit value, as one application.
 ///
-/// `wrapN x` reads the low N bits signed, `unsN x` unsigned.  Named rather than
-/// written out, for three reasons: a reduction is one node instead of five, so
-/// it does not enlarge the terms the rules and the solver work over; the emitted
-/// spec reads as the operation rather than as its encoding; and width_reduction
-/// can recognise it, because the two are exactly a bitvector read of the low N
-/// bits, which is what the solver is handed under bitvector sorts.
+/// With [to] equal to [bits]: `wrapN x` reads the low N bits signed, `unsN x`
+/// unsigned.  With [to] wider: `sextN_M x` and `zextN_M x` read the N-bit
+/// value signed or unsigned into M bits.  Named rather than written out, for
+/// three reasons: an application is one node instead of five, so it does not
+/// enlarge the terms the rules and the solver work over; the emitted spec
+/// reads as the operation rather than as its encoding; and width_reduction
+/// can recognise it, because each is exactly a bitvector extract, sext or
+/// zext, which is what the solver is handed under bitvector sorts.  Without
+/// the sorts every intN is Z, so sextN_M is the identity and the others are
+/// modular arithmetic.
 ///
 /// Defined into GlobalDefs the first time a width is used, so the generated Coq
 /// carries the definition and nothing outside this file has to know the widths
 /// a module happens to use.  Registered NoUnfold, or the transformation stage
 /// would inline the definition and put the modulus back.
 static unique_ptr<SpecNode> width_op(Project *proj, bool is_signed, unsigned bits,
-                                     unique_ptr<SpecNode> x) {
-    auto const name = (is_signed ? "wrap" : "uns") + std::to_string(bits);
-    // At the width, not the width-unknown integer: the reduction is a function
+                                     unique_ptr<SpecNode> x, unsigned to) {
+    auto const extends = to > bits;
+    auto const name = extends ? (is_signed ? "sext" : "zext") + std::to_string(bits) + "_" +
+                                    std::to_string(to)
+                              : (is_signed ? "wrap" : "uns") + std::to_string(bits);
+    // At the widths, not the width-unknown integer: the operation is a function
     // of a value of that width, and a z3 declaration built from a widthless
     // type cannot be applied to one that carries a width.
-    auto const ty = Int::of_width(bits);
+    auto const arg_ty = Int::of_width(bits);
+    auto const ty = Int::of_width(to);
     if (proj && proj->defs.find(name) == proj->defs.end()) {
-        auto arg = std::make_unique<Symbol>("x", ty);
+        auto arg = std::make_unique<Symbol>("x", arg_ty);
         unique_ptr<SpecNode> body;
-        if (is_signed) {
+        if (is_signed && extends) {
+            body = arg->deep_copy();
+        } else if (is_signed) {
             auto shifted = binop(Expr::binops::ADD, arg->deep_copy(), pow2(bits - 1));
             auto reduced = binop(Expr::binops::MOD, std::move(shifted), pow2(bits));
             body = binop(Expr::binops::MINUS, std::move(reduced), pow2(bits - 1));
@@ -290,7 +300,7 @@ static unique_ptr<SpecNode> width_op(Project *proj, bool is_signed, unsigned bit
             body = binop(Expr::binops::MOD, arg->deep_copy(), pow2(bits));
         }
         auto args = std::make_unique<vector<shared_ptr<Arg>>>();
-        args->push_back(make_shared<Arg>("x", ty));
+        args->push_back(make_shared<Arg>("x", arg_ty));
         proj->add_definition(
             std::make_unique<Definition>(name, ty, std::move(args), std::move(body)),
             make_shared<loc_t>(Project::LOC_GLOBALDEFS, "", ""));
@@ -303,7 +313,49 @@ static unique_ptr<SpecNode> width_op(Project *proj, bool is_signed, unsigned bit
 
 /// [x] reduced into [bits]-bit two's complement.
 static unique_ptr<SpecNode> wrap_to_width(Project *proj, unique_ptr<SpecNode> x, unsigned bits) {
-    return width_op(proj, /*is_signed=*/true, bits, std::move(x));
+    return width_op(proj, /*is_signed=*/true, bits, std::move(x), bits);
+}
+
+/// [x], a [from]-bit value, extended to [to] bits, signed or unsigned.
+static unique_ptr<SpecNode> extend_to_width(Project *proj, unique_ptr<SpecNode> x, unsigned from,
+                                            unsigned to, bool is_signed) {
+    return width_op(proj, is_signed, from, std::move(x), to);
+}
+
+/// An integer literal at the address width: a size or an offset.
+static unique_ptr<SpecNode> size_t_const(unsigned long v) {
+    auto c = std::make_unique<IntConst>(v);
+    c->type = Int::size_t_int();
+    return c;
+}
+
+/// A getelementptr index as an address-width offset: an index narrower than
+/// the address is sign-extended, as the instruction does.
+static unique_ptr<SpecNode> index_at_address_width(Project *proj, unique_ptr<SpecNode> idx,
+                                                   llvm::Type *ty) {
+    if (!ty->isIntegerTy()) return idx;
+    auto const bits = ty->getIntegerBitWidth();
+    if (bits <= 1 || bits >= kSizeTWidth || !width_is_representable(bits)) return idx;
+    return extend_to_width(proj, std::move(idx), bits, kSizeTWidth, /*is_signed=*/true);
+}
+
+/// [a] + [b] or [a] * [b] at the address width.
+static unique_ptr<SpecNode> size_t_binop(Expr::binops op, unique_ptr<SpecNode> a,
+                                         unique_ptr<SpecNode> b) {
+    auto elems = std::make_unique<vector<unique_ptr<SpecNode>>>();
+    elems->push_back(std::move(a));
+    elems->push_back(std::move(b));
+    return std::make_unique<Expr>(op, std::move(elems), Int::size_t_int());
+}
+
+/// The width a load of [ty] is narrowed to from the memory word, or nothing:
+/// an integer narrower than the 64-bit word and wide enough to have a sign bit
+/// (i1 is a bool).
+static std::optional<unsigned> narrowed_load_width(llvm::Type *ty) {
+    if (!ty || !ty->isIntegerTy()) return std::nullopt;
+    auto const bits = ty->getIntegerBitWidth();
+    if (bits <= 1 || bits >= 64 || !width_is_representable(bits)) return std::nullopt;
+    return bits;
 }
 
 /// Whether [op]'s result can fall outside the width of its operands.
@@ -318,7 +370,7 @@ static bool leaves_its_width(llvm::Instruction::BinaryOps op) {
 
 /// [x], a [bits]-bit value, read as unsigned.
 static unique_ptr<SpecNode> as_unsigned(Project *proj, unique_ptr<SpecNode> x, unsigned bits) {
-    return width_op(proj, /*is_signed=*/false, bits, std::move(x));
+    return width_op(proj, /*is_signed=*/false, bits, std::move(x), bits);
 }
 
 /// `rely (x >= -2^(bits-1) /\ x < 2^(bits-1))` wrapped around [body].
@@ -682,6 +734,12 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
                     return std::make_unique<BoolConst>(!int_val->isZero());
                 } else {
                     auto spec = std::make_unique<IntConst>(int_val->getSExtValue(), int_val->isNegative());
+                    // At its LLVM width, like any other value of that type.  A
+                    // widthless literal builds a widthless tuple where it is
+                    // returned, and a join with a branch returning a value of
+                    // the same type then meets two tuple sorts.
+                    if (int_val->getBitWidth() <= kMaxIntWidth)
+                        spec->type = Int::of_width(int_val->getBitWidth());
                     if (abstraction && !int_val->isNegative()) {
                         auto v = int_val->getZExtValue();
                         if (!abs_const_checked[v]) {
@@ -804,7 +862,7 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
                                             type_map[value]);
         auto const abs = arg_require_abstraction(arg->getParent(), arg->getArgNo());
         if (abstraction && abs != "") {
-            assert(type_map[value]->name == "Z" && "only support Z type for abstraction");
+            assert(is_int_type(type_map[value]) && "only support Z type for abstraction");
             // std::cout << "abstraction: " << abs << std::endl;
             auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
             vec->push_back(std::move(symbol));
@@ -831,7 +889,7 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
             auto const abs = ret_require_abstraction(call->getCalledFunction(), 0);
             if (abs != "") {
                 // std::cout << string(*symbol) << " " << string(*type_map[value]) << std::endl;
-                assert(type_map[value]->name == "Z" &&
+                assert(is_int_type(type_map[value]) &&
                        "only support Z type for abstraction");
                 // std::cout << "abstraction: " << abs << std::endl;
                 auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
@@ -853,7 +911,7 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
         if (load && abstraction) {
             auto const abs = symbol_require_abstraction(load->getParent()->getParent(), symbol->text);
             if (abs != "") {
-                assert(type_map[value]->name == "Z" &&
+                assert(is_int_type(type_map[value]) &&
                        "only support Z type for abstraction");
                 auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
                 vec->push_back(std::move(symbol));
@@ -927,7 +985,17 @@ struct SpecTypeOf {
     using result_t = shared_ptr<SpecType>;
 
     shared_ptr<SpecType> boolean() { return Bool::BOOL; }
-    shared_ptr<SpecType> integer(unsigned bits) { return Int::of_width(bits); }
+    /// A width wider than kMaxIntWidth has no encoding: 2^bits is not an
+    /// IntConst, the bitwise encoding assumes kMaxIntWidth, and there is no
+    /// bitvector sort for it.  Rejected rather than translated into a value
+    /// that silently behaves as an unbounded integer.
+    shared_ptr<SpecType> integer(unsigned bits) {
+        if (bits < 1 || bits > kMaxIntWidth)
+            throw std::invalid_argument("unsupported integer width i" + std::to_string(bits) +
+                                        "; the encoding supports i1 to i" +
+                                        std::to_string(kMaxIntWidth));
+        return Int::of_width(bits);
+    }
     shared_ptr<SpecType> pointer() { return Struct::Ptr; }
 
     /// A Z of unknown magnitude: `Float := Z` in every prelude, and nothing is
@@ -1026,7 +1094,7 @@ SpoqIRModule::gep_inst_to_spec (llvm::Value* gep_inst_or_expr, SpoqIRContext& co
     auto gep = llvm::dyn_cast<llvm::User>(gep_inst_or_expr);
 
     auto const ptr = context.get_llvm_value_spec(gep->getOperand(0));
-    unique_ptr<SpecNode> expr = std::make_unique<IntConst>(0);
+    unique_ptr<SpecNode> expr = size_t_const(0);
     assert(gep->getOperand(0)->getType()->isPointerTy() &&
            "source pointer type is not a pointer type for GEP");
     // Under opaque pointers the operand type no longer names the pointee, so read the
@@ -1043,23 +1111,15 @@ SpoqIRModule::gep_inst_to_spec (llvm::Value* gep_inst_or_expr, SpoqIRContext& co
             assert(index->getType()->isIntegerTy() && "Struct index is not integer");
             auto index_val = llvm::dyn_cast<llvm::ConstantInt>(index);
             auto const offset = context.llvm_dl->getStructLayout(sty)->getElementOffset(index_val->getZExtValue());
-            auto operands = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
-            operands->push_back(std::move(expr));
-            operands->push_back(std::make_unique<IntConst>(offset));
-            expr = make_unique<Expr>(Expr::binops::ADD, std::move(operands));
+            expr = size_t_binop(Expr::binops::ADD, std::move(expr), size_t_const(offset));
         } else {
             int type_size;
             if(elem_type->isVectorTy()) type_size = context.llvm_dl->getTypeStoreSize(elem_type);
             else type_size = context.llvm_dl->getTypeAllocSize(elem_type);
-            auto index_value = context.get_llvm_value_spec(index);
-            auto operands = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
-            operands->push_back(std::move(index_value));
-            operands->push_back(std::make_unique<IntConst>(type_size));
-            auto mul_expr = std::make_unique<Expr>(Expr::binops::MULT,std::move(operands));
-            operands = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
-            operands->push_back(std::move(mul_expr));
-            operands->push_back(std::move(expr));
-            expr = make_unique<Expr>(Expr::binops::ADD, std::move(operands));
+            auto index_value = index_at_address_width(context.proj, context.get_llvm_value_spec(index),
+                                                      index->getType());
+            auto mul_expr = size_t_binop(Expr::binops::MULT, std::move(index_value), size_t_const(type_size));
+            expr = size_t_binop(Expr::binops::ADD, std::move(mul_expr), std::move(expr));
         }
         source_type = elem_type;
     }
@@ -1087,7 +1147,7 @@ SpoqIRModule::store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context
         auto value_type = load->getType();
         auto const value_size = context.llvm_dl->getTypeStoreSize(value_type);
 
-        operands->push_back(make_unique<IntConst>(value_size));
+        operands->push_back(size_t_const(value_size));
         operands->push_back(context.get_llvm_value_spec(load->getPointerOperand()));
         operands->push_back(context.get_abs_data());
 
@@ -1120,7 +1180,7 @@ SpoqIRModule::store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context
         unique_ptr<vector<unique_ptr<SpecNode>>> operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
         auto value_type = store->getValueOperand()->getType();
         auto const value_size = context.llvm_dl->getTypeStoreSize(value_type);
-        operands->push_back(make_unique<IntConst>(value_size));
+        operands->push_back(size_t_const(value_size));
         operands->push_back(context.get_llvm_value_spec(store->getPointerOperand()));
         auto value_op = context.get_llvm_value_spec(store->getValueOperand());
         if (value_type->isIntegerTy()) {
@@ -1536,15 +1596,25 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
 
                 auto remain_expr = Shortcut::_Let_u(context.get_llvm_value_spec(load, nullptr, false), std::move(i2p_v), spoq_inst_to_spec(proj, vec, num + 1, context));
                 return Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second), std::move(remain_expr));
+            } else if (auto const bits = narrowed_load_width(load->getType())) {
+                // Memory holds 64-bit words, so the load yields a word, and the
+                // value is its low [bits] bits read signed -- what an iN load
+                // is.  A store sign-extends, so a word written as an iN reads
+                // back unchanged; one written wider, or never written, reads as
+                // an iN too.  Under bitvector sorts the reduction is an
+                // extract, so the value carries the load's width.
+                auto value = std::move(rhs.first);
+                auto const value_name = static_cast<Symbol *>(value.get())->text;
+                auto word = std::make_unique<Symbol>(value_name + "_word", Int::of_width(64));
+                auto rest = Shortcut::_Let_u(std::move(value), wrap_to_width(proj, word->deep_copy(), *bits),
+                                             spoq_inst_to_spec(proj, vec, num + 1, context));
+                return Shortcut::_When_u(std::move(word), std::move(rhs.second), std::move(rest));
             } else {
                 return Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second), spoq_inst_to_spec(proj, vec, num + 1, context));
             }
         } else if (auto store = llvm::dyn_cast<llvm::StoreInst>(spoq_inst->inst)) {
             auto rhs = store_load_to_spec(spoq_inst->inst, context);
             auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
-            if (auto load = llvm::dyn_cast<llvm::LoadInst>(spoq_inst->inst))
-                remain = rely_in_width(std::move(remain), context.get_llvm_value_spec(load),
-                                       load->getType());
             return Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second), std::move(remain));
         }
 
@@ -1572,7 +1642,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
 
         if (auto gep = llvm::dyn_cast<llvm::GetElementPtrInst>(spoq_inst->inst)) {
             auto const ptr = context.get_llvm_value_spec(gep->getPointerOperand());
-            unique_ptr<SpecNode> expr = std::make_unique<IntConst>(0);
+            unique_ptr<SpecNode> expr = size_t_const(0);
             auto source_element_type = gep->getPointerOperandType();
             std::vector<llvm::Value*> indices;
             // llvm::errs() << "\n" << *gep << "\n";
@@ -1593,23 +1663,15 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     // llvm::errs() << "*index_val: " << *index << "\n";
                     assert(index_val && "index is not a constant integer");
                     auto const offset = context.llvm_dl->getStructLayout(sty)->getElementOffset(index_val->getZExtValue());
-                    auto operands = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
-                    operands->push_back(std::move(expr));
-                    operands->push_back(std::make_unique<IntConst>(offset));
-                    expr = make_unique<Expr>(Expr::binops::ADD, std::move(operands));
+                    expr = size_t_binop(Expr::binops::ADD, std::move(expr), size_t_const(offset));
                 } else {
                     int type_size;
                     if(elem_type->isVectorTy()) type_size = context.llvm_dl->getTypeStoreSize(elem_type);
                     else type_size = context.llvm_dl->getTypeAllocSize(elem_type);
-                    auto index_value = context.get_llvm_value_spec(index);
-                    auto operands = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
-                    operands->push_back(std::move(index_value));
-                    operands->push_back(std::make_unique<IntConst>(type_size));
-                    auto mul_expr = std::make_unique<Expr>(Expr::binops::MULT,std::move(operands));
-                    operands = std::make_unique<std::vector<unique_ptr<SpecNode>>>();
-                    operands->push_back(std::move(mul_expr));
-                    operands->push_back(std::move(expr));
-                    expr = make_unique<Expr>(Expr::binops::ADD, std::move(operands));
+                    auto index_value = index_at_address_width(proj, context.get_llvm_value_spec(index),
+                                                              index->getType());
+                    auto mul_expr = size_t_binop(Expr::binops::MULT, std::move(index_value), size_t_const(type_size));
+                    expr = size_t_binop(Expr::binops::ADD, std::move(mul_expr), std::move(expr));
                 }
                 source_element_type = elem_type;
             }
@@ -1756,13 +1818,14 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 auto const to = dst->getIntegerBitWidth();
                 auto sym = context.get_llvm_value_spec(bc);
                 auto expr = context.get_llvm_value_spec(bc->getOperand(0));
-                // sext is the identity on a signed residue.  trunc keeps the low
-                // bits; zext reads the source as unsigned, which only widens.
+                // trunc keeps the low bits.  An extension carries the
+                // destination width, so arithmetic that follows is done at
+                // that width and not the source's; on Z, sext is the identity.
                 if (to < from && width_is_representable(to))
                     expr = wrap_to_width(proj, std::move(expr), to);
-                else if (to > from && width_is_representable(from) &&
-                         llvm::dyn_cast<llvm::ZExtInst>(bc))
-                    expr = as_unsigned(proj, std::move(expr), from);
+                else if (to > from && width_is_representable(from) && to <= kMaxIntWidth)
+                    expr = extend_to_width(proj, std::move(expr), from, to,
+                                           /*is_signed=*/llvm::isa<llvm::SExtInst>(bc));
                 context.add_cache(context.get_llvm_value_name(bc), expr);
                 return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
             } else if (src->isVectorTy() && dst->isVectorTy()) {

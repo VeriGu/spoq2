@@ -1517,7 +1517,14 @@ unique_ptr<SpecNode> partial_eval(Project* proj, unique_ptr<SpecNode> spec, int 
 
                         return cache(std::move(result));
                     }
-                    spec = std::move(__spec);
+                    // A `when` over a constructor match: push it into the arms.
+                    auto [__spec2, __changed2] = proj->rules.rule_move_match_out_when(std::move(__spec), false);
+                    if(__changed2){
+                        auto result = partial_eval(proj, std::move(__spec2), level, state, used_symbols, unfold);
+
+                        return cache(std::move(result));
+                    }
+                    spec = std::move(__spec2);
                     m = instance_of(spec.get(), Match);
         }
         bool whnf = false;
@@ -1777,7 +1784,7 @@ SpecNode* try_divide_const_factor(SpecNode *expr, int factor) {
             return new IntConst(std::get<unsigned long>(m->value) / factor);
         }
     } else if(auto m = instance_of(expr, Expr)) {
-        if(m->type->name != "Z")
+        if(!is_int_type(m->type))
             return expr;
         if(holds_alternative<Expr::binops>(m->op)) {
             auto op = std::get<Expr::binops>(m->op);
@@ -3165,10 +3172,46 @@ rule_ret_t SpecRules::rule_subst_match_src_with_content(std::unique_ptr<SpecNode
     }
 }
 
+/// A width operation on an integer literal, as the literal it denotes.  The
+/// operations are opaque to unfolding, so without this a literal behind one --
+/// a store read straight back -- stays an application the solver has to
+/// evaluate.
+static unique_ptr<SpecNode> fold_width_op(Expr *e) {
+    auto const name = std::get_if<string>(&e->op);
+    if (!name || e->elems->size() != 1) return nullptr;
+    auto const c = dynamic_cast<IntConst *>(e->elems->at(0).get());
+    if (!c) return nullptr;
+    auto const w = parse_width_op(*name);
+    if (!w) return nullptr;
+    auto const is_signed = w->is_signed;
+    auto const bits = w->bits;
+
+    __int128 const v = c->is_signed() ? (__int128)(int64_t)c->get_value() : (__int128)c->get_value();
+    __int128 const m = (__int128)1 << bits;
+    __int128 r = ((v % m) + m) % m;                 // [0, 2^N)
+    if (is_signed && r >= m / 2) r -= m;             // [-2^(N-1), 2^(N-1))
+    if (is_signed && w->to > bits) r = v;            // sextN_M is the identity
+    // At the operation's result width, which is what the literal replaces.
+    auto const ty = Int::of_width(w->to);
+    if (r >= 0) {
+        auto lit = std::make_unique<IntConst>((unsigned long)r);
+        lit->type = ty;
+        return lit;
+    }
+    auto elems = std::make_unique<vector<unique_ptr<SpecNode>>>();
+    elems->push_back(std::make_unique<IntConst>(0));
+    elems->push_back(std::make_unique<IntConst>((unsigned long)(-r)));
+    return std::make_unique<Expr>(Expr::binops::MINUS, std::move(elems), ty);
+}
+
 rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
     auto const f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         if (auto s = instance_of(node.get(), Expr)) {
+            if (auto folded = fold_width_op(s)) {
+                changed = true;
+                return folded;
+            }
             if (holds_alternative<string>(s->op) && (std::get<string>(s->op) == "store_RData")) {
                 if(auto e = instance_of(s->elems->at(1).get(), Expr)){
                     if(holds_alternative<string>(e->op) && std::get<string>(e->op) == "mkPtr"){
@@ -4197,6 +4240,67 @@ rule_ret_t SpecRules::rule_move_when_out_when(std::unique_ptr<SpecNode> spec, bo
             }
         }
         return node;
+    };
+
+    if(rec) {
+        auto new_root = rec_apply(std::move(spec), f);
+        return { std::move(new_root), changed };
+    } else {
+        auto new_root = f(std::move(spec));
+        return { std::move(new_root), changed };
+    }
+}
+
+/*
+when x == (match s with | p_i => e_i end); body
+  -> match s with | p_i => (when x == e_i; body) end
+
+The case-of-case for a `when` over a constructor match.  Each arm's copy of the
+`when` meets that arm's own result -- usually `rely r; Some e`, which the other
+rules discharge -- instead of a match it cannot see through.  A read-after-write
+through store_stack folds only this way once scalar stack slots have more than
+one StackVal constructor: the store rebuilds whichever constructor it finds, so
+the stack it yields is a match, and the load that follows reads from it.
+
+The continuation is copied into every arm.  Where the scrutinee is known the
+other arms are pruned at once; where it is not -- a pointer argument that may
+address any stack slot -- the copies stand, which is the price of the split.
+Skipped when a pattern variable of an arm is free in the continuation, which the
+copy would capture.
+*/
+rule_ret_t SpecRules::rule_move_match_out_when(std::unique_ptr<SpecNode> spec, bool rec) {
+    bool changed = false;
+
+    auto const f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
+        auto m = instance_of(node.get(), Match);
+        if (!m || !m->is_when()) return node;
+        auto src = instance_of(m->src.get(), Match);
+        // A `when` source is rule_move_when_out_when's.
+        if (!src || src->is_when()) return node;
+
+        for (auto const &pm : *src->match_list) {
+            std::set<string> vars;
+            get_vars_from_pattern(proj, pm->pattern.get(), vars);
+            for (auto const &outer : *m->match_list)
+                if (contains_vars(proj, outer->body.get(), vars)) return node;
+        }
+
+        auto arms = std::make_unique<std::vector<std::unique_ptr<PatternMatch>>>();
+        auto const n = src->match_list->size();
+        for (size_t i = 0; i < n; i++) {
+            auto &pm = src->match_list->at(i);
+            unique_ptr<vector<unique_ptr<PatternMatch>>> outer_arms;
+            if (i + 1 < n) {
+                unique_ptr<Match> copy(static_cast<Match *>(m->deep_copy().release()));
+                outer_arms = std::move(copy->match_list);
+            } else {
+                outer_arms = std::move(m->match_list);
+            }
+            arms->push_back(std::make_unique<PatternMatch>(
+                std::move(pm->pattern), std::make_unique<Match>(std::move(pm->body), std::move(outer_arms))));
+        }
+        changed = true;
+        return std::make_unique<Match>(std::move(src->src), std::move(arms));
     };
 
     if(rec) {

@@ -1,5 +1,0 @@
-{
-  "stderr_contains": "imply post condition :) : vuln_spec",
-  "stderr_lacks": "does not imply post condition;[ERR]",
-  "unimplemented": "rule_simplify_expr folds integer constants in unsigned long, so a product wider than 64 bits wraps at 2^64"
-}

@@ -17,17 +17,18 @@ public:
     T__14 = 15, T__15 = 16, T__16 = 17, T__17 = 18, T__18 = 19, T__19 = 20, 
     T__20 = 21, T__21 = 22, T__22 = 23, T__23 = 24, T__24 = 25, T__25 = 26, 
     T__26 = 27, T__27 = 28, T__28 = 29, T__29 = 30, T__30 = 31, T__31 = 32, 
-    T__32 = 33, T__33 = 34, T__34 = 35, MK = 36, INDUC = 37, RECORD = 38, 
-    FIXPOINT = 39, SECTION = 40, SECTION_END = 41, APPEND = 42, CONCAT = 43, 
-    ADD = 44, MINUS = 45, MULT = 46, DIV = 47, MOD = 48, LSHIFT = 49, RSHIFT = 50, 
-    BITAND = 51, BITOR = 52, BAND = 53, BOR = 54, BEQ = 55, BNE = 56, BGT = 57, 
-    BLT = 58, BGE = 59, BLE = 60, SEQ = 61, SNE = 62, LIST_EQ = 63, GET = 64, 
-    SET = 65, NTH = 66, AND = 67, OR = 68, NOT = 69, BNOT = 70, IMPLIES = 71, 
-    IFONLYIF = 72, EQUAL = 73, NOT_EQUAL = 74, GT = 75, LT = 76, GTE = 77, 
-    LTE = 78, LP = 79, RP = 80, IF = 81, THEN = 82, LET = 83, ELSE = 84, 
-    PARAM = 85, DEF = 86, WHEN = 87, FORALL = 88, EXISTS = 89, MATCH = 90, 
-    RETURN = 91, WITH = 92, END = 93, RELY = 94, ANNO = 95, TRUE = 96, FALSE = 97, 
-    NUMBER = 98, STR = 99, ID = 100, COMMENT = 101, WS = 102
+    T__32 = 33, T__33 = 34, T__34 = 35, T__35 = 36, T__36 = 37, T__37 = 38, 
+    T__38 = 39, MK = 40, INDUC = 41, RECORD = 42, FIXPOINT = 43, SECTION = 44, 
+    SECTION_END = 45, APPEND = 46, CONCAT = 47, ADD = 48, MINUS = 49, MULT = 50, 
+    DIV = 51, MOD = 52, LSHIFT = 53, RSHIFT = 54, BITAND = 55, BITOR = 56, 
+    BAND = 57, BOR = 58, BEQ = 59, BNE = 60, BGT = 61, BLT = 62, BGE = 63, 
+    BLE = 64, SEQ = 65, SNE = 66, LIST_EQ = 67, GET = 68, SET = 69, NTH = 70, 
+    AND = 71, OR = 72, NOT = 73, BNOT = 74, IMPLIES = 75, IFONLYIF = 76, 
+    EQUAL = 77, NOT_EQUAL = 78, GT = 79, LT = 80, GTE = 81, LTE = 82, LP = 83, 
+    RP = 84, IF = 85, THEN = 86, LET = 87, ELSE = 88, PARAM = 89, DEF = 90, 
+    WHEN = 91, FORALL = 92, EXISTS = 93, MATCH = 94, RETURN = 95, WITH = 96, 
+    END = 97, RELY = 98, ANNO = 99, TRUE = 100, FALSE = 101, NUMBER = 102, 
+    STR = 103, ID = 104, COMMENT = 105, WS = 106
   };
 
   enum {
@@ -41,7 +42,7 @@ public:
     RuleIf_stmt = 30, RuleInductive_decl = 31, RuleInduct_arm = 32, RuleRecord_decl = 33, 
     RuleRecord_fields = 34, RuleRecord_def_stmt = 35, RuleRecord_fields_def = 36, 
     RuleValue = 37, RuleMk = 38, RuleName = 39, RuleNumber = 40, RuleString = 41, 
-    RuleBool = 42
+    RuleBool = 42, RuleVeclen = 43, RuleVecget = 44, RuleVecreplace = 45
   };
 
   explicit SpecParser(antlr4::TokenStream *input);
@@ -103,7 +104,10 @@ public:
   class NameContext;
   class NumberContext;
   class StringContext;
-  class BoolContext; 
+  class BoolContext;
+  class VeclenContext;
+  class VecgetContext;
+  class VecreplaceContext; 
 
   class  ProgramContext : public antlr4::ParserRuleContext {
   public:
@@ -347,6 +351,7 @@ public:
     antlr4::Token *list_type = nullptr;
     antlr4::Token *option_type = nullptr;
     antlr4::Token *zmap_type = nullptr;
+    antlr4::Token *pmap_type = nullptr;
     antlr4::Token *smap_type = nullptr;
     antlr4::Token *vector_type = nullptr;
     antlr4::Token *tup = nullptr;
@@ -843,6 +848,42 @@ public:
   };
 
   BoolContext* bool_();
+
+  class  VeclenContext : public antlr4::ParserRuleContext {
+  public:
+    VeclenContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+   
+  };
+
+  VeclenContext* veclen();
+
+  class  VecgetContext : public antlr4::ParserRuleContext {
+  public:
+    VecgetContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+   
+  };
+
+  VecgetContext* vecget();
+
+  class  VecreplaceContext : public antlr4::ParserRuleContext {
+  public:
+    VecreplaceContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+   
+  };
+
+  VecreplaceContext* vecreplace();
 
 
   bool sempred(antlr4::RuleContext *_localctx, size_t ruleIndex, size_t predicateIndex) override;

@@ -4,79 +4,88 @@ Definition pvn := Z. (* Provenance *)
 Parameter spvn: string -> (Z).
 Parameter pvns : Z -> (string).
 Definition next_pvn (p: pvn): pvn := p + 1.
-Definition Byte := Z.
-Definition Block := ((ZMap.t Byte) * Z).
-Parameter empty_bks: ZMap.t (option Block).
+Definition Byte := int64.
+Definition Block := ((ZMap.t Byte) * intSizeT).
+Parameter empty_bks: PMap.t (option Block).
 Parameter empty_bk: ZMap.t Byte.
 Definition bk := Block.
 Record MEM := mkMEM {
-  blocks: (ZMap.t (option Block));
+  blocks: (PMap.t (option Block));
   nextBlock: pvn
 }.
 Definition empty_MEM: MEM := mkMEM empty_bks 1.
-Definition malloc (m: MEM) (sz: Z): option (Ptr * MEM) :=
+(* An object is smaller than 2^62 bytes, so a size can be added to or
+   subtracted from an offset without leaving the 64-bit range.  The bound is
+   assumed of every block size; a pointer offset is not bounded, since an
+   argument may carry any value. *)
+Definition MAX_OBJECT : intSizeT := 4611686018427387904.
+Definition size_in_range (sz: intSizeT) : bool := (0 <=? sz) && (sz <? MAX_OBJECT).
+Definition malloc (m: MEM) (sz: intSizeT): option (Ptr * MEM) :=
   let new_mem := mkMEM (m.(blocks) # (m.(nextBlock)) == (Some (empty_bk,sz))) (next_pvn m.(nextBlock)) in
   let new_ptr := (mkPtr (pvns m.(nextBlock)) 0) in
+  rely (size_in_range sz);
   rely (~(is_global_ptr new_ptr));
   rely (~(is_stack_ptr new_ptr));
   Some (new_ptr, new_mem).
 
-Definition free (m: MEM) (p: Ptr) : option MEM := 
-  let deref := m.(blocks) @ (spvn p.(pbase)) in 
+Definition free (m: MEM) (p: Ptr) : option MEM :=
+  let deref := m.(blocks) @ (spvn p.(pbase)) in
   match deref with
   | Some deref_bk => Some (mkMEM (m.(blocks) # (spvn p.(pbase)) == None) m.(nextBlock))
   | None => None
   end.
 
-Definition blk_store (b: Block) (p: Ptr) (sz: Z) (v: Byte) : option Block :=
+Definition blk_store (b: Block) (p: Ptr) (sz: intSizeT) (v: Byte) : option Block :=
   if (p.(pbase) =s "null") then None else
-  match b with 
-    | (bytemap, bk_sz) => match (p.(poffset) + sz <=? bk_sz) with
+  match b with
+    | (bytemap, bk_sz) => rely (size_in_range bk_sz);
+      match (p.(poffset) <=? bk_sz - sz) with
       | false => None
-      | true => if (p.(poffset) >=? 0) then 
+      | true => if (p.(poffset) >=? 0) then
       Some (bytemap # p.(poffset) == v, sz)
       else None
       end
     end.
 
-Definition blk_load (b: Block) (p: Ptr) (sz: Z) : option Byte :=
+Definition blk_load (b: Block) (p: Ptr) (sz: intSizeT) : option Byte :=
   if (p.(pbase) =s "null") then None else
-  match b with 
-    | (bytemap, bk_sz) => (if ((p.(poffset) + sz) <=? bk_sz) then 
-      (if (p.(poffset) >=? 0) then 
+  match b with
+    | (bytemap, bk_sz) => rely (size_in_range bk_sz);
+      (if (p.(poffset) <=? bk_sz - sz) then
+      (if (p.(poffset) >=? 0) then
         (if (sz >? 0) then
           (Some (bytemap @ (p.(poffset))))
-        else None) 
-      else None) 
+        else None)
+      else None)
     else None)
     end.
 
-Definition heap_store (m: MEM) (sz: Z) (p: Ptr) (v: Z) : option MEM :=
-  let pb := (spvn p.(pbase)) in 
-  let blk := (m.(blocks) @ pb) in 
-    (match blk with 
+Definition heap_store (m: MEM) (sz: intSizeT) (p: Ptr) (v: int64) : option MEM :=
+  let pb := (spvn p.(pbase)) in
+  let blk := (m.(blocks) @ pb) in
+    (match blk with
       | None => None
-      | Some b => (let new_blk := (blk_store b p sz v) in 
+      | Some b => (let new_blk := (blk_store b p sz v) in
         match new_blk with
         | None => None
         | Some snb => Some (mkMEM (m.(blocks) # pb == (Some snb)) (m.(nextBlock)))
         end)
       end).
 
-Definition heap_load (m: MEM) (sz: Z) (p: Ptr) : option (Byte) := 
-  let pb := (spvn p.(pbase)) in 
-  let blk := (m.(blocks) @ pb) in 
+Definition heap_load (m: MEM) (sz: intSizeT) (p: Ptr) : option (Byte) :=
+  let pb := (spvn p.(pbase)) in
+  let blk := (m.(blocks) @ pb) in
     (match blk with
       | None => None
       | Some b => (blk_load b p sz)
       end).
 
-Definition ptr_add (p: Ptr) (idx: Z) : Ptr :=
+Definition ptr_add (p: Ptr) (idx: intSizeT) : Ptr :=
   (mkPtr p.(pbase) (p.(poffset) + idx)).
 
 (* Given a heap and a pointer, max_heap_ptr_offset gives the
    number of valid bytes that can be read after that pointer *)
-Definition max_heap_ptr_offset (m: MEM) (p: Ptr) : Z :=
+Definition max_heap_ptr_offset (m: MEM) (p: Ptr) : intSizeT :=
   let blk := (m.(blocks) @ (spvn p.(pbase))) in
     (match blk with
      | None => 0
@@ -88,7 +97,7 @@ Definition max_heap_ptr_offset (m: MEM) (p: Ptr) : Z :=
 Definition Float := Z.
 Definition Double := Z.
 Definition Metadata := Z.
-  
+
 (* SPOQ STOP *)
 Definition PROJ_NAME: string := "attr_writeonly".
 Definition PROJ_BASE: string := "attr_writeonly".
@@ -100,17 +109,17 @@ Definition PROJ_BC_PATH: string := "attr_writeonly.bc".
 Definition is_stack_ptr (p: Ptr): bool := (false = true).
 
 
-Inductive StackVal := 
-	| ZMapVal (ZMapValConstr: (ZMap.t (ZMap.t Z)))
-	| ZVal (ZValConstr: Z)
+Inductive StackVal :=
+	| ZMapVal (ZMapValConstr: (ZMap.t (ZMap.t int64)))
+	| ZVal (ZValConstr: int64)
 .
 Definition STACK := (SMap (option StackVal)).
 
-Inductive StackKey := 
+Inductive StackKey :=
 | sk_Null.
 
 
-Definition load_stack (sz: Z) (p: Ptr) (stack_map: STACK): (option Z) := 
+Definition load_stack (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option int64) :=
 	match (stack_map @ p.(pbase)) with
 		| Some sv => match sv with
 			| ZVal ZVal_val => rely (false);
@@ -118,7 +127,7 @@ Definition load_stack (sz: Z) (p: Ptr) (stack_map: STACK): (option Z) :=
 		end
 	| None => None
 end. (* load_stack *)
-Definition store_stack (sz: Z) (p: Ptr) (v: Z) (stack_map: STACK): (option STACK) := 
+Definition store_stack (sz: intSizeT) (p: Ptr) (v: int64) (stack_map: STACK): (option STACK) :=
 	match (stack_map @ p.(pbase)) with
 		| Some sv => match sv with
 			| ZVal ZVal_val => rely (false);
@@ -128,31 +137,31 @@ Definition store_stack (sz: Z) (p: Ptr) (v: Z) (stack_map: STACK): (option STACK
 end. (* store_stack *)
 Record GLOBALS :=
   mkGLOBALS {
-      g_g: Z
+      g_g: int64
     }.
 Record RData := mkRData {	stack: STACK;	heap: MEM;	globals: GLOBALS}.
 Definition is_global_ptr (p: Ptr): bool := (false = true)\/
 	"g" =s p.(pbase).
 
-Definition load_global (sz: Z) (p: Ptr) (st: RData) : (option Z) :=
+Definition load_global (sz: intSizeT) (p: Ptr) (st: RData) : (option int64) :=
   if (p.(pbase) =s "g") then (
       Some(st.(globals).(g_g))) else
   None. (* load_global *)
 
-Definition store_global (sz: Z) (p: Ptr) (v: Z) (st: RData) : option RData :=
+Definition store_global (sz: intSizeT) (p: Ptr) (v: int64) (st: RData) : option RData :=
   if (p.(pbase) =s "g") then (
       Some(st.[globals].[g_g] :< v)) else
   None. (* store_global *)
 
-Definition G_BASE : Z := 67108864.
-Definition MAX_GLOBAL : Z := 67112960.
+Definition G_BASE : intSizeT := 67108864.
+Definition MAX_GLOBAL : intSizeT := 67112960.
 
-Definition global_to_ptr (v: Z) : Ptr := 
+Definition global_to_ptr (v: intSizeT) : Ptr :=
  if (v >=? MAX_GLOBAL ) then (mkPtr "null" 0) else
  if (v <? 0 ) then (mkPtr "null" 0) else
  if (v >=? G_BASE) then (mkPtr "g" (v - G_BASE)) else
    (mkPtr "null" 0).
-Definition ptr_to_int (p: Ptr) : Z := 
+Definition ptr_to_int (p: Ptr) : intSizeT :=
  if (p.(poffset) <? 0) then (-1) else
  if (p.(pbase) =s "null") then 0 else
  if (p.(pbase) =s "g") then (G_BASE + p.(poffset)) else
@@ -168,7 +177,7 @@ Parameter zeroinitializer_vector: (ZMap.t Z).
 Definition zmap_z_add (a: (ZMap.t Z)) (b: (ZMap.t Z)) : (ZMap.t Z) :=
   (zmap_z_add_inner a b k).
 
-Definition zmap_z_add_inner (a: (ZMap.t Z)) (b: (ZMap.t Z)) (k: Z) : Z :=
+Definition zmap_z_add_inner (a: (ZMap.t Z)) (b: (ZMap.t Z)) (k: intSizeT) : Z :=
   ((a @ k) + (b @ k)).
 
 (* Parameter llvm_vector_reduce_add_v4i32_spec : ((ZMap.t Z) -> ((RData) -> (option ((Z) * RData)))). *)
@@ -194,14 +203,14 @@ Definition ptr_ugt (p1: Ptr) (p2: Ptr) : bool :=
 Definition spoq_zext_spec (v_0: bool) : Z := (* used to model LLVM zext *)
   if (v_0) then 1 else 0.
 
-Definition pv_assert_spec (v_0: Z) (st: RData) : (option RData) :=
+Definition pv_assert_spec (v_0: int32) (st: RData) : (option RData) :=
   let v_1 := (v_0 <>? (0)) in
   if v_1
   then (Some st)
   else None.
 
-Definition exit_spec (v_0: Z) (st: RData) : (option RData) := None.
-Definition malloc_spec (sz: Z) (st: RData) : option (Ptr * RData) :=
+Definition exit_spec (v_0: int32) (st: RData) : (option RData) := None.
+Definition malloc_spec (sz: intSizeT) (st: RData) : option (Ptr * RData) :=
   let result := (malloc st.(heap) sz) in
   match result with
   | None => None
@@ -215,7 +224,7 @@ Definition free_spec (p: Ptr) (st: RData) : option RData :=
   | Some m' => Some (st.[heap] :< m')
   end.
 
-Definition load_RData (sz: Z) (p: Ptr) (st: RData) : (option Z) :=
+Definition load_RData (sz: intSizeT) (p: Ptr) (st: RData) : (option int64) :=
   if (p.(pbase) =s "null") then None else
   if (is_global_ptr p) then
   match (load_global sz p st) with
@@ -232,7 +241,7 @@ Definition load_RData (sz: Z) (p: Ptr) (st: RData) : (option Z) :=
       | Some byte => Some(byte)
   end.
 
-Definition store_RData (sz: Z) (p: Ptr) (v: Z) (st: RData) : option RData :=
+Definition store_RData (sz: intSizeT) (p: Ptr) (v: int64) (st: RData) : option RData :=
   if (p.(pbase) =s "null") then None else
   if (is_global_ptr p) then
     store_global sz p v st
@@ -248,15 +257,15 @@ Definition store_RData (sz: Z) (p: Ptr) (v: Z) (st: RData) : option RData :=
   end.
 Hint DelayUnfold load_RData.
 Hint DelayUnfold store_RData.
-Definition store_stack_bypass (sz: Z) (p: Ptr) (v: Z) (st: RData) : option RData :=
+Definition store_stack_bypass (sz: intSizeT) (p: Ptr) (v: int64) (st: RData) : option RData :=
   match (store_stack sz p v st.(stack)) with
     | Some new_stack => Some(st.[stack] :< new_stack)
     | None => None
   end.
-Definition load_stack_bypass (sz: Z) (p: Ptr) (st: RData) : (option Z) :=
+Definition load_stack_bypass (sz: intSizeT) (p: Ptr) (st: RData) : (option int64) :=
   load_stack sz p st.(stack).
 (*
-Definition load_RData (sz: Z) (p: Ptr) (st: RData) : (option Z) :=
+Definition load_RData (sz: intSizeT) (p: Ptr) (st: RData) : (option int64) :=
   if (is_static_pbase p.(pbase)) then
     (load_static_RData sz p st)
   else match (heap_load st.(heap) sz p) with
@@ -264,7 +273,7 @@ Definition load_RData (sz: Z) (p: Ptr) (st: RData) : (option Z) :=
   | Some byte => Some(byte)
   end.
 
-Definition store_RData (sz: Z) (p: Ptr) (v: Z) (st: RData) : option RData :=
+Definition store_RData (sz: intSizeT) (p: Ptr) (v: int64) (st: RData) : option RData :=
   if (is_static_pbase p.(pbase)) then
     (store_static_RData  sz p v st)
   else match (heap_store st.(heap) sz p v) with
@@ -278,7 +287,7 @@ Definition xorb_spec (b1 : bool) (b2 : bool) : bool :=
 
 Section Axioms.
   Definition LAYER_DATA := RData.
-  (* Definition load_RData_no_effect : Prop := forall (sz: Z) (p: Ptr) (st: RData) (st2: RData) (ret: Z),
+  (* Definition load_RData_no_effect : Prop := forall (sz: intSizeT) (p: Ptr) (st: RData) (st2: RData) (ret: Z),
      ((load_RData sz p st = Some (ret, st2)) -> (st2 = st)). *)
   Definition int_to_ptr_zero : Prop := (int_to_ptr 0) = (mkPtr "null" 0).
   Definition int_to_ptr_neg_one : Prop := (int_to_ptr (0 - 1)) = (mkPtr "null" (0 - 1)).
@@ -286,7 +295,7 @@ Section Axioms.
   (* Definition pvns_not_static_unfold : Prop := forall (p: Provenance), (let pb := pvns p in (~(is_static_pbase pb))). *)
   (* Hint Unfold pvns_not_static_unfold. *)
   (* Definition max_heap_ptr_offset_no_deref_zero (m: MEM) (p: Ptr): Prop :=   *)
-    (* ((max_heap_ptr_offset m p) <= 0) -> (forall (sz: Z), ((heap_load m sz p) = None)). *)
+    (* ((max_heap_ptr_offset m p) <= 0) -> (forall (sz: intSizeT), ((heap_load m sz p) = None)). *)
 
 (* Definition malloc_not_static: Prop := forall (h: MEM), (let pb := pvns (h.(nextBlock)) in (~(is_static_pbase pb))). *)
 End Axioms.
@@ -294,12 +303,12 @@ End Axioms.
 (* Of the three casts, only int_to_ptr has no generated definition, so the
    axioms above are all that constrain it.  extractpointers emits ptr_to_int
    and global_to_ptr into <module>.machine.v. *)
-Parameter int_to_ptr: (Z -> (Ptr)).
+Parameter int_to_ptr: (intSizeT -> (Ptr)).
 
-Parameter llvm_memcpy_p0i8_p0i8_i64_spec: (Ptr -> (Ptr -> (Z -> (bool -> (RData -> (option RData)))))).
-Parameter llvm_memcpy_p0_p0_i64_spec: (Ptr -> (Ptr -> (Z -> (bool -> (RData -> (option RData)))))).
+Parameter llvm_memcpy_p0i8_p0i8_i64_spec: (Ptr -> (Ptr -> (int64 -> (bool -> (RData -> (option RData)))))).
+Parameter llvm_memcpy_p0_p0_i64_spec: (Ptr -> (Ptr -> (int64 -> (bool -> (RData -> (option RData)))))).
 
-(* Definition llvm_memcpy_p0i8_p0i8_i64_spec (v_dest: Ptr) (v_src: Ptr) (sz: Z) (is_volatile: bool) (st: RData) : (option RData) :=
+(* Definition llvm_memcpy_p0i8_p0i8_i64_spec (v_dest: Ptr) (v_src: Ptr) (sz: intSizeT) (is_volatile: bool) (st: RData) : (option RData) :=
     (Some st). *)
 Definition llvm_lifetime_start_p0_spec (p: Ptr) (st: RData) : (option RData) := (Some st).
 Definition llvm_lifetime_end_p0_spec (p: Ptr) (st: RData) : (option RData) := (Some st).
@@ -310,7 +319,7 @@ Definition read_spec (fd: Z) (buf: Ptr) (len: Z) (st: RData) : (option RData) :=
   (store_RData read_bytes buf
   ). *)
 
-Parameter ext_wo_spec : (RData -> (option ((Z) * RData))).
+Parameter ext_wo_spec : (RData -> (option ((int32) * RData))).
 
 Section Bottom.
     Definition LAYER_DATA := RData.

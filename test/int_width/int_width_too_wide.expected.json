@@ -1,0 +1,3 @@
+{
+  "expect_error": "unsupported integer width i128; the encoding supports i1 to i64"
+}

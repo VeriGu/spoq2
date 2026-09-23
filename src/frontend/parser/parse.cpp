@@ -215,6 +215,9 @@ antlrcpp::Any ProgramVisitor::visitType(SpecParser::TypeContext *ctx) {
     } else if (ctx->zmap_type) {
         return static_pointer_cast<SpecType>(make_shared<ZMap>(
             any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)))));
+    } else if (ctx->pmap_type) {
+        return static_pointer_cast<SpecType>(make_shared<ZMap>(
+            any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0))), Int::INT));
     } else if (ctx->smap_type) {
         return static_pointer_cast<SpecType>(make_shared<SMap>(
             any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)))));
@@ -224,6 +227,12 @@ antlrcpp::Any ProgramVisitor::visitType(SpecParser::TypeContext *ctx) {
         ));
     } else if (ctx->name()) {
         std::string const name = ctx->name()->getText();
+
+        // `intN` and `intSizeT` are the machine integers; gen_data defines each as Z.
+        if (name == "intSizeT")
+            return static_pointer_cast<SpecType>(Int::size_t_int());
+        if (auto const bits = int_type_width(name))
+            return static_pointer_cast<SpecType>(Int::of_width(*bits));
         std::string const where =
             " at " + path + ":" + std::to_string(ctx->getStart()->getLine());
         // A generated .main.v can name a type nothing defines.  Looked up

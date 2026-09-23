@@ -4,19 +4,26 @@ Definition pvn := Z. (* Provenance *)
 Parameter spvn: string -> (Z).
 Parameter pvns : Z -> (string).
 Definition next_pvn (p: pvn): pvn := p + 1.
-Definition Byte := Z.
-Definition Block := ((ZMap.t Byte) * Z).
-Parameter empty_bks: ZMap.t (option Block).
+Definition Byte := int64.
+Definition Block := ((ZMap.t Byte) * intSizeT).
+Parameter empty_bks: PMap.t (option Block).
 Parameter empty_bk: ZMap.t Byte.
 Definition bk := Block.
 Record MEM := mkMEM {
-  blocks: (ZMap.t (option Block));
+  blocks: (PMap.t (option Block));
   nextBlock: pvn
 }.
 Definition empty_MEM: MEM := mkMEM empty_bks 1.
-Definition malloc (m: MEM) (sz: Z): option (Ptr * MEM) :=
+(* An object is smaller than 2^62 bytes, so a size can be added to or
+   subtracted from an offset without leaving the 64-bit range.  The bound is
+   assumed of every block size; a pointer offset is not bounded, since an
+   argument may carry any value. *)
+Definition MAX_OBJECT : intSizeT := 4611686018427387904.
+Definition size_in_range (sz: intSizeT) : bool := (0 <=? sz) && (sz <? MAX_OBJECT).
+Definition malloc (m: MEM) (sz: intSizeT): option (Ptr * MEM) :=
   let new_mem := mkMEM (m.(blocks) # (m.(nextBlock)) == (Some (empty_bk,sz))) (next_pvn m.(nextBlock)) in
   let new_ptr := (mkPtr (pvns m.(nextBlock)) 0) in
+  rely (size_in_range sz);
   rely (~(is_global_ptr new_ptr));
   rely (~(is_stack_ptr new_ptr));
   Some (new_ptr, new_mem).
@@ -26,13 +33,13 @@ Definition PROJ_NAME: string := "shift_right_by_variable".
 Definition PROJ_BASE: string := "shift_right_by_variable".
 Definition PROJ_BC_PATH: string := "shift_right_by_variable.bc".
 
-Inductive StackVal := 
-	| ZMapVal (ZMapValConstr: (ZMap.t (ZMap.t Z)))
-	| ZVal (ZValConstr: Z)
+Inductive StackVal :=
+	| ZMapVal (ZMapValConstr: (ZMap.t (ZMap.t int64)))
+	| ZVal (ZValConstr: int64)
 .
 Definition STACK := (SMap (option StackVal)).
 
-Definition load_stack (sz: Z) (p: Ptr) (stack_map: STACK): (option Z) := 
+Definition load_stack (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option int64) :=
 	match (stack_map @ p.(pbase)) with
 		| Some sv => match sv with
 			| ZVal ZVal_val => rely (false);
@@ -40,7 +47,7 @@ Definition load_stack (sz: Z) (p: Ptr) (stack_map: STACK): (option Z) :=
 		end
 	| None => None
 end. (* load_stack *)
-Definition store_stack (sz: Z) (p: Ptr) (v: Z) (stack_map: STACK): (option STACK) := 
+Definition store_stack (sz: intSizeT) (p: Ptr) (v: int64) (stack_map: STACK): (option STACK) :=
 	match (stack_map @ p.(pbase)) with
 		| Some sv => match sv with
 			| ZVal ZVal_val => rely (false);
@@ -50,21 +57,21 @@ Definition store_stack (sz: Z) (p: Ptr) (v: Z) (stack_map: STACK): (option STACK
 end. (* store_stack *)
 Record GLOBALS :=
   mkGLOBALS {
-      g_g: Z
+      g_g: int64
     }.
 Record RData := mkRData {	stack: STACK;	heap: MEM;	globals: GLOBALS}.
 Definition is_global_ptr (p: Ptr): bool := (false = true)\/
 	"g" =s p.(pbase).
 
-Definition G_BASE : Z := 67108864.
-Definition MAX_GLOBAL : Z := 67112960.
+Definition G_BASE : intSizeT := 67108864.
+Definition MAX_GLOBAL : intSizeT := 67112960.
 
 (* Two i32 results: the value and the shift amount. *)
-Parameter pick_spec : (RData-> (option ((Z) * RData))).
+Parameter pick_spec : (RData-> (option ((int32) * RData))).
 
 Section Axioms.
   Definition LAYER_DATA := RData.
-  (* Definition load_RData_no_effect : Prop := forall (sz: Z) (p: Ptr) (st: RData) (st2: RData) (ret: Z),
+  (* Definition load_RData_no_effect : Prop := forall (sz: intSizeT) (p: Ptr) (st: RData) (st2: RData) (ret: Z),
      ((load_RData sz p st = Some (ret, st2)) -> (st2 = st)). *)
   Definition int_to_ptr_zero : Prop := (int_to_ptr 0) = (mkPtr "null" 0).
   Definition int_to_ptr_neg_one : Prop := (int_to_ptr (0 - 1)) = (mkPtr "null" (0 - 1)).
@@ -72,7 +79,7 @@ Section Axioms.
   (* Definition pvns_not_static_unfold : Prop := forall (p: Provenance), (let pb := pvns p in (~(is_static_pbase pb))). *)
   (* Hint Unfold pvns_not_static_unfold. *)
   (* Definition max_heap_ptr_offset_no_deref_zero (m: MEM) (p: Ptr): Prop :=   *)
-    (* ((max_heap_ptr_offset m p) <= 0) -> (forall (sz: Z), ((heap_load m sz p) = None)). *)
+    (* ((max_heap_ptr_offset m p) <= 0) -> (forall (sz: intSizeT), ((heap_load m sz p) = None)). *)
 
 (* Definition malloc_not_static: Prop := forall (h: MEM), (let pb := pvns (h.(nextBlock)) in (~(is_static_pbase pb))). *)
 End Axioms.

@@ -504,7 +504,7 @@ static inline unique_ptr<Definition> make_ptr_offset(void) {
     auto plus_elems = make_unique<vector<unique_ptr<SpecNode>>>();
 
     plus_elems->push_back(std::move(record_get1));
-    plus_elems->push_back(make_unique<Symbol>("_offs", Int::INT));
+    plus_elems->push_back(make_unique<Symbol>("_offs", Int::size_t_int()));
 
     auto plus = make_unique<Expr>(Expr::ADD, std::move(plus_elems));
 
@@ -525,7 +525,7 @@ static inline unique_ptr<Definition> make_ptr_offset(void) {
     auto ptr_offset_args = make_unique<vector<shared_ptr<Arg>>>();
 
     ptr_offset_args->push_back(make_shared<Arg>("_ptr", Struct::Ptr));
-    ptr_offset_args->push_back(make_shared<Arg>("_offs", Int::INT));
+    ptr_offset_args->push_back(make_shared<Arg>("_offs", Int::size_t_int()));
 
     return make_unique<Definition>("ptr_offset", Struct::Ptr, std::move(ptr_offset_args), std::move(mkptr));
 

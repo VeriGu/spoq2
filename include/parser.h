@@ -19,6 +19,10 @@ public:
                     proj(proj), path(std::move(path)), current_layer(layer) {}
 
     antlrcpp::Any visitProgram(SpecParser::ProgramContext* ctx) override;
+    // Vector keywords the grammar declares and no visitor interprets.
+    antlrcpp::Any visitVeclen(SpecParser::VeclenContext* ctx) override { return visitChildren(ctx); }
+    antlrcpp::Any visitVecget(SpecParser::VecgetContext* ctx) override { return visitChildren(ctx); }
+    antlrcpp::Any visitVecreplace(SpecParser::VecreplaceContext* ctx) override { return visitChildren(ctx); }
 
     antlrcpp::Any visitSection_begin(SpecParser::Section_beginContext* ctx) override;
 

@@ -137,7 +137,7 @@ std::string ExtractBasicsPass::generateStoreZField(std::string obj, int offset, 
 std::string ExtractBasicsPass::generateStore(llvm::StructType* sty) {
   auto ty_name = getStructTypeIdentifier(sty, false);
   std::string definition =
-    "Definition store_" + ty_name + " (sz: Z) (ofs:Z) (v:Z) " \
+    "Definition store_" + ty_name + " (sz: intSizeT) (ofs:intSizeT) (v: int64) " \
     " (st: " + ty_name + ") : option " + ty_name + " := \n";
   int n = sty->getNumElements();
 
@@ -177,8 +177,8 @@ std::string ExtractBasicsPass::generateLoadStructField(std::string obj, int offs
 std::string ExtractBasicsPass::generateLoad(llvm::StructType* sty) {
   auto ty_name = getStructTypeIdentifier(sty, false);
   std::string definition =
-    "Definition load_" + ty_name + " (sz: Z) (ofs:Z) " \
-    " (st_" + ty_name + ": " + ty_name + ") : option Z := \n";
+    "Definition load_" + ty_name + " (sz: intSizeT) (ofs:intSizeT) " \
+    " (st_" + ty_name + ": " + ty_name + ") : option int64 := \n";
   int n = sty->getNumElements();
   auto layout = dl->getStructLayout(sty);
   for(int i = 0; i < n; i++) {
@@ -268,15 +268,22 @@ struct CoqField {
   using result_t = std::string;
   ExtractBasicsPass *pass;
   bool pointers_are_ptr;
-  bool ints_are_Z;
+  bool widths;
 
-  // i1 is a Z like every other width -- spoq's own mapping makes it Bool, which
-  // is a difference worth knowing about but not one to change here.
   std::string boolean() { return integer(1); }
+  // An integer carries its LLVM width as `intN`: Z in Coq, and an N-bit
+  // bitvector to the solver under SPOQ_BV_SORTS, so a value declared here meets
+  // a translated one of the same width with no conversion.  i1 stays Z, since
+  // spoq makes an i1 value a bool, which no width names; wider than 64 bits has
+  // no encoding and stays Z, and spoq rejects it where it is translated.
   std::string integer(unsigned bits) {
-    return ints_are_Z ? "Z" : std::to_string(bits) + "Z";
+    if (!widths || bits == 1 || bits > 64) return "Z";
+    return "int" + std::to_string(bits);
   }
-  std::string pointer() { return pointers_are_ptr ? "Ptr" : "Z"; }
+  // A Ptr in a signature.  In a record field, `intSizeT`: the integer a
+  // pointer is stored as, named separately so its representation can change in
+  // one place (spoq's kSizeTWidth) without touching this pass.
+  std::string pointer() { return pointers_are_ptr ? "Ptr" : (widths ? "intSizeT" : "Z"); }
   // Float and Double are distinct names, both `:= Z` in the prelude.
   std::string floating(llvm::Type *ty) { return ty->isFloatTy() ? "Float" : "Double"; }
   std::string structure(llvm::StructType *sty) {
@@ -289,15 +296,17 @@ struct CoqField {
   // type Coq rejects rather than a name spoq's parser dies on.
   std::string voidty() { return "unit"; }
 
-  // (contents, length).  Only one level, and only these element types.
+  // (contents, length).  Only one level, and only these element types.  The
+  // elements take the field rendering; the length is a size, so intSizeT.
   std::string array(llvm::Type *ety, uint64_t) {
-    if (ety->isIntegerTy() || ety->isPointerTy()) return "((ZMap.t Z) * Z)";
+    if (ety->isIntegerTy() || ety->isPointerTy())
+      return "((ZMap.t " + autov::coqty::of_type(ety, *this) + ") * intSizeT)";
     if (ety->isStructTy())
       return "((ZMap.t " +
              pass->getStructTypeIdentifier(llvm::dyn_cast<llvm::StructType>(ety),
                                            pointers_are_ptr) +
-             ") * Z)";
-    return "((ZMap.t Z) * Z) (* FIXME: complex array *)";
+             ") * intSizeT)";
+    return "((ZMap.t Z) * intSizeT) (* FIXME: complex array *)";
   }
 
   // A map of its elements, and without a length: this has to be the same text
@@ -310,8 +319,8 @@ struct CoqField {
 };
 }  // namespace
 
-std::string ExtractBasicsPass::generateField(llvm::Type* ty, bool pointers_are_ptr, bool ints_are_Z=true) {
-  CoqField builder{this, pointers_are_ptr, ints_are_Z};
+std::string ExtractBasicsPass::generateField(llvm::Type* ty, bool pointers_are_ptr, bool widths=true) {
+  CoqField builder{this, pointers_are_ptr, widths};
   return autov::coqty::of_type(ty, builder);
 }
 

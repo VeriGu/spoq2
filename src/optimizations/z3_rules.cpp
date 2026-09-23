@@ -53,7 +53,7 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, const shared_
             state->conds->push_back(src->get_z3_value() == t->construct(sym->text, {})->get_z3_value());
         } else if(sym->text == "_" && dynamic_cast<Match*>(spec)){
             auto const option = dynamic_pointer_cast<Option>(src->get_type());
-            auto const idx = option->get_constr_index("None_" + option->elem_type->name);
+            auto const idx = option->get_constr_index(option->none_name());
             auto const is_some = option->get_z3_type().recognizers()[idx];
             state->conds->push_back(is_some(src->get_z3_value()));
 
@@ -103,7 +103,7 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, const shared_
         if (op_eq(expr->op, Expr::Some)) {
             auto const value = dynamic_pointer_cast<IndValue>(src)->get("value");
             auto const t = dynamic_pointer_cast<Option>(src->get_type());
-            auto const idx = t->get_constr_index("Some_" + t->elem_type->name);
+            auto const idx = t->get_constr_index(t->some_name());
             auto const is_some = t->get_z3_type().recognizers()[idx];
             auto const tester = is_some(src->get_z3_value());
             state->conds->push_back(tester);
@@ -126,7 +126,7 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, const shared_
             auto const t = dynamic_pointer_cast<Option>(src->get_type());
             // auto t = dynamic_pointer_cast<Inductive>(src->get_type());
             // auto v = t->construct("None", {});
-            auto const idx = t->get_constr_index("None_" + t->elem_type->name);
+            auto const idx = t->get_constr_index(t->none_name());
             auto const is_some = t->get_z3_type().recognizers()[idx];
             auto const tester = is_some(src->get_z3_value());
             state->conds->push_back(tester);

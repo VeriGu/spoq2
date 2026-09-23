@@ -8,7 +8,9 @@
 #include <unordered_map>
 #include <sstream>
 #include <memory>
+#include <cctype>
 #include <optional>
+#include <set>
 #include <z3++.h>
 
 namespace autov {
@@ -60,6 +62,15 @@ public:
     virtual operator string() const {
         return name;
     }
+
+    /// The name a z3 sort for this type is interned and declared under.  The
+    /// same as `name` except where a type contains a machine integer: `name`
+    /// is width-blind -- every integer is "Z", which is what type equality and
+    /// the emitted Coq want -- while two sorts differing only in a field's
+    /// width must not share an interned sort.
+    virtual std::string sort_key() const {
+        return name;
+    }
 };
 
 class Int : public SpecType {
@@ -70,18 +81,36 @@ public:
 
     /// Bits in the LLVM type this came from, 0 when it did not come from one.
     ///
-    /// The Coq name is "Z" at every width.  The z3 sort is an unbounded
-    /// integer, or a bitvector of this many bits under SPOQ_BV_SORTS=1; a width
-    /// of 0 is an unbounded integer either way.
+    /// The Coq name is "intN" at a width and "Z" without one.  `intN := Z`, so
+    /// a value of one is convertible with a Z and every lemma over Z applies
+    /// unchanged; the width is carried so that a declaration keeps it.  The z3
+    /// sort is an unbounded integer, or a bitvector of this many bits under
+    /// SPOQ_BV_SORTS=1; a width of 0 is an unbounded integer either way.
     unsigned bits = 0;
 
+    /// The Coq name, when it is not the one [bits] implies: `intSizeT`.  Kept
+    /// so the declaration round-trips under that name, and redefining the name
+    /// changes every field declared with it.
+    std::string alias;
+
     Int() : SpecType("Z") {}
-    explicit Int(unsigned bits) : SpecType("Z"), bits(bits) {}
+    explicit Int(unsigned bits, std::string alias = "")
+        : SpecType("Z"), bits(bits), alias(std::move(alias)) {}
+
+    /// "intN" only when the width changes the sort, i.e. under bitvector sorts;
+    /// otherwise every integer is the same sort and the key is "Z".
+    std::string sort_key() const override;
 
     /// The interned Int of [bits].  Interned so that a type carrying a width is
     /// as cheap to pass around as the singleton, and so the shared_ptrs of one
     /// width compare equal.
     static shared_ptr<Int> of_width(unsigned bits);
+
+    /// `intSizeT`: the integer a pointer is stored as in a record, and the
+    /// type of a pointer offset, a size and a ZMap key, of kSizeTWidth bits.
+    /// Its own object rather than of_width(kSizeTWidth), so that it keeps its
+    /// name through a round trip.
+    static shared_ptr<Int> size_t_int();
 
     shared_ptr<Int> getptr() {
         return static_pointer_cast<Int>(shared_from_this());
@@ -144,6 +173,7 @@ public:
     shared_ptr<SpecType> elem_type;
     Array() = default;
     Array(const shared_ptr<SpecType>& elem_type) : SpecType("list_" + elem_type->name), elem_type(elem_type) {}
+    std::string sort_key() const override { return "list_" + elem_type->sort_key(); }
     //Array(const Array& other) : SpecType(other.name), elem_type(std::make_unique<SpecType>(*other.elem_type)) {}
 
     shared_ptr<Array> getptr() {
@@ -201,6 +231,7 @@ public:
     shared_ptr<SpecType> elem_type;
     Vector() = default;
     Vector(const shared_ptr<SpecType>& elem_type) : SpecType("Vec_" + elem_type->name), elem_type(elem_type) { }
+    std::string sort_key() const override { return "Vec_" + elem_type->sort_key(); }
 
     shared_ptr<Vector> getptr() {
         return static_pointer_cast<Vector>(shared_from_this());
@@ -214,18 +245,34 @@ public:
     virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
     virtual shared_ptr<SpecValue> declare(string name, int nid);
 };
+/// A map from integers.  `ZMap.t` is indexed by a machine integer -- an
+/// offset, an array index -- and its key is intSizeT; `PMap.t` is indexed by
+/// a provenance, which is a Z and not a machine integer.  Both are ZMap in
+/// Coq, where every integer is Z; they differ in the key sort the solver sees.
 class ZMap : public SpecType {
 public:
     shared_ptr<SpecType> elem_type;
+    shared_ptr<SpecType> key_type;
     ZMap() = default;
-    ZMap(const shared_ptr<SpecType>& elem_type) : SpecType("ZMap_" + elem_type->name), elem_type(elem_type) { }
+    ZMap(const shared_ptr<SpecType>& elem_type, const shared_ptr<SpecType>& key_type = nullptr)
+        : SpecType((key_type && key_type != Int::size_t_int() ? "PMap_" : "ZMap_") + elem_type->name),
+          elem_type(elem_type), key_type(key_type ? key_type : Int::size_t_int()) {
+        if (by_provenance()) pmap_used_flag() = true;
+    }
+    /// Whether the key is a provenance rather than a machine integer.
+    bool by_provenance() const { return key_type != Int::size_t_int(); }
+    std::string coq_name() const { return by_provenance() ? "PMap.t" : "ZMap.t"; }
+    std::string sort_key() const override { return (by_provenance() ? "PMap_" : "ZMap_") + elem_type->sort_key(); }
+    z3::sort key_sort() const { return key_type->get_z3_type(); }
+    /// Whether a PMap type was built, so the Coq output defines the module.
+    static bool &pmap_used_flag() { static bool used = false; return used; }
 
     shared_ptr<ZMap> getptr() {
         return static_pointer_cast<ZMap>(shared_from_this());
     }
 
     operator string() const {
-        return "(ZMap.t " + string(*elem_type) + ")";
+        return "(" + coq_name() + " " + string(*elem_type) + ")";
     }
 
     virtual z3::sort get_z3_type();
@@ -237,6 +284,7 @@ public:
     shared_ptr<SpecType> elem_type;
     SMap() = default;
     SMap(const shared_ptr<SpecType>& elem_type) : SpecType("SMap_" + elem_type->name), elem_type(elem_type) {}
+    std::string sort_key() const override { return "SMap_" + elem_type->sort_key(); }
 
     shared_ptr<SMap> getptr() {
         return static_pointer_cast<SMap>(shared_from_this());
@@ -390,6 +438,8 @@ public:
     shared_ptr<vector<shared_ptr<SpecType>>> types;
     Tuple(const shared_ptr<vector<shared_ptr<SpecType>>>& types);
 
+    std::string sort_key() const override;
+
     operator string() const;
 
     shared_ptr<Tuple> getptr() {
@@ -406,8 +456,10 @@ public:
         SpecType("list_" + elem_type->name),
         elem_type(elem_type) {
             auto elem_sort = elem_type->get_z3_type();
-            created_z3_types.emplace(name, z3ctx.seq_sort(elem_sort));
+            created_z3_types.emplace(sort_key(), z3ctx.seq_sort(elem_sort));
         }
+
+    std::string sort_key() const override { return "list_" + elem_type->sort_key(); }
 
     shared_ptr<List> getptr() {
         return static_pointer_cast<List>(shared_from_this());
@@ -431,18 +483,27 @@ public:
             make_shared<vector<shared_ptr<IndConstr>>>(
                 std::initializer_list<shared_ptr<IndConstr>>{
                     make_shared<IndConstr>(
-                        "Some_"  + elem_type->name,
+                        some_name(elem_type),
                         make_shared<vector<shared_ptr<Arg>>>(
                             std::initializer_list<shared_ptr<Arg>>{
-                                make_shared<Arg>("value_" + elem_type->name, elem_type)
+                                make_shared<Arg>("value_" + elem_type->sort_key(), elem_type)
                             }
                         )
                     ),
-                    make_shared<IndConstr>("None_" + elem_type->name, make_shared<vector<shared_ptr<Arg>>>(vector<shared_ptr<Arg>>()))
+                    make_shared<IndConstr>(none_name(elem_type), make_shared<vector<shared_ptr<Arg>>>(vector<shared_ptr<Arg>>()))
                 }
             )
         ),
         elem_type(elem_type) {}
+
+    std::string sort_key() const override { return "Option_" + elem_type->sort_key(); }
+
+    /// The z3 constructor names.  Keyed like the sort, so that an option of an
+    /// int32 and an option of a Z are distinct datatypes under bitvector sorts.
+    static std::string some_name(const shared_ptr<SpecType> &elem) { return "Some_" + elem->sort_key(); }
+    static std::string none_name(const shared_ptr<SpecType> &elem) { return "None_" + elem->sort_key(); }
+    std::string some_name() const { return some_name(elem_type); }
+    std::string none_name() const { return none_name(elem_type); }
 
     shared_ptr<Option> getptr() {
         return static_pointer_cast<Option>(shared_from_this());
@@ -494,9 +555,10 @@ public:
  *
  * A value that came from an LLVM type carries its width in Int::bits, and under
  * SPOQ_BV_SORTS=1 is declared at a bitvector sort of that width rather than as
- * an unbounded integer.  A value declared in a .main.v is a Z and carries no
- * width either way, so the two meet constantly and every operation below
- * reconciles its operands first.
+ * an unbounded integer.  The memory model is typed to match: a loaded word is
+ * int64, a pointer offset, a size and a ZMap key are intSizeT.  A Z declared
+ * in a .main.v carries no width either way, so where one meets a width the
+ * operations below reconcile their operands first.
  *
  * The bitwise operations -- `a & b` and the rest -- are uninterpreted functions
  * over Z, so the solver knows nothing about them at all.  Where neither operand
@@ -504,8 +566,9 @@ public:
  * fitting in it, and the uninterpreted function stands outside, which keeps it
  * sound on a value no width bounds.  SPOQ_Z3_BITVEC=0 turns that off.
  *
- * A width reduction -- `wrapN`, `unsN` -- is extract/sext/zext on a bitvector
- * and the arithmetic it denotes on an integer, never a round trip through
+ * A width operation -- `wrapN`, `unsN`, `sextN_M`, `zextN_M` -- is
+ * extract/sext/zext on a bitvector and the arithmetic it denotes on an
+ * integer, never a round trip through
  * int2bv/bv2int, because a round trip does not compose over integer arithmetic:
  * `wrap32 (wrap32 (n+5) + 5) = wrap32 (10+n)` is instant as native bitvectors
  * and does not finish in a minute as a round trip, with or without a range on
@@ -523,8 +586,19 @@ bool z3_bitvec_bitwise_enabled();
 /// unless SPOQ_BV_SORTS=1.
 bool z3_bv_sorts_enabled();
 
-/// The z3 term [op] denotes when it names a width reduction -- `wrapN` the low
-/// N bits read signed, `unsN` read unsigned -- nothing otherwise.
+/// A width operation, by name.  `wrapN` reads the low N bits signed and `unsN`
+/// unsigned, both at width N; `sextN_M` and `zextN_M` read an N-bit value
+/// signed or unsigned into M bits.  N is [bits], M is [to].
+struct WidthOp {
+    bool is_signed;
+    unsigned bits;
+    unsigned to;
+};
+
+/// [name] decoded as a width operation; nothing when it is not one.
+std::optional<WidthOp> parse_width_op(const std::string &name);
+
+/// The z3 term [op] denotes when it names a width operation; nothing otherwise.
 std::optional<z3::expr> width_op_value(const std::string &op, const z3::expr &x);
 
 /// [a] and [b] brought to one sort, for an operation that needs them to agree.
@@ -541,13 +615,57 @@ std::pair<z3::expr, z3::expr> reconcile_sorts(const z3::expr &a, const z3::expr 
 ///
 /// An application's domain comes from its declaration -- a .main.v Parameter is
 /// a Z, a datatype field is whatever type first built it -- while the argument
-/// comes from the term and may carry an LLVM width.  Converting here is the
-/// boundary case: nothing is interleaved with arithmetic, so the solver
-/// composes over it, unlike a conversion wrapped around an operation.
-z3::expr coerce_to_sort(const z3::expr &e, const z3::sort &want, const char *site = "?");
+/// comes from the term and may carry an LLVM width.  A bitvector going into a Z
+/// slot is converted with bv2int.
+///
+/// A Z term never becomes a bitvector: that is an error naming the slot, because
+/// the argument is usually arithmetic and the solver cannot reason through
+/// int2bv around it.  Only an integer literal that fits the width is re-typed,
+/// which is exact and costs the solver nothing.  [name] identifies the function,
+/// record or constructor for the error.
+z3::expr coerce_to_sort(const z3::expr &e, const z3::sort &want, const char *site = "?",
+                        const std::string &name = "");
 
 /// 2^[e] at Int sort.  Z3's power is real-valued over the integers.
 z3::expr pow2_int(const z3::expr &e);
+
+/// The widest machine integer the encoding supports.  A bitvector sort, an
+/// IntConst holding 2^bits, and the bitwise encoding are all bounded by it.
+constexpr unsigned kMaxIntWidth = 64;
+
+/// Width of `intSizeT`, the integer a pointer is stored as in a record.  The one
+/// place to change that representation.  64 today, so it is the same sort as
+/// int64 and a pointer word meets the memory's int64 slots with no conversion.
+constexpr unsigned kSizeTWidth = 64;
+
+/// The width `intN` names, when [name] is one of those.
+inline std::optional<unsigned> int_type_width(const std::string &name) {
+    if (name.rfind("int", 0) != 0 || name.size() <= 3) return std::nullopt;
+    unsigned bits = 0;
+    for (size_t i = 3; i < name.size(); i++) {
+        if (!std::isdigit(static_cast<unsigned char>(name[i]))) return std::nullopt;
+        bits = bits * 10 + unsigned(name[i] - '0');
+        if (bits > kMaxIntWidth) return std::nullopt;
+    }
+    return bits >= 1 ? std::optional<unsigned>(bits) : std::nullopt;
+}
+
+/// The Coq type [t] is written as: `intN` for a machine integer that carries a
+/// width, and the type's own name otherwise.  Used where a declaration is
+/// emitted, so that the width survives a round trip through spoq; `name` stays
+/// "Z" at every width because it is an interning key and an identifier
+/// fragment, and every machine integer is the same Coq type.
+std::string coq_type_name(const shared_ptr<SpecType> &t);
+
+/// Whether [t] is a machine integer, at any width or none.
+bool is_int_type(const shared_ptr<SpecType> &t);
+
+/// Whether [t] is a ZMap whose elements are machine integers.
+bool is_int_zmap_type(const shared_ptr<SpecType> &t);
+
+/// Widths Int::of_width has been asked for, so the generated Coq can define
+/// `intN := Z` for each one a module happens to use.
+const std::set<unsigned> &int_widths_used();
 
 /// `a = b` and `a <> b` with the operands brought to one sort first.  A raw ==
 /// on two z3 values throws when one carries a width and the other does not.
@@ -605,14 +723,24 @@ public:
 };
 
 
+/// The Int whose sort [value] has: the width of a bitvector, none otherwise.
+shared_ptr<SpecType> int_type_of(const z3::expr &value);
+
+/// k when [e] is the bitvector literal 2^k with 0 <= k < width; nothing
+/// otherwise.
+std::optional<unsigned> pow2_exponent(const z3::expr &e);
+
 class IntValue : public SpecValue {
 public:
     IntValue(unsigned long value, bool sign = false) : SpecValue(Int::INT, value, sign) {
     }
     IntValue(long value, bool sign = false) : SpecValue(Int::INT, value, sign) {
     }
-    IntValue(z3::expr value) : SpecValue(Int::INT, std::move(value)) {
-
+    /// Typed by the expression's sort, so that a bitvector value reports its
+    /// width.  A variable bound to it -- a pattern, a `when` -- is declared from
+    /// this type, and a widthless one would declare an unbounded integer that
+    /// the bitvector then has to be converted into.
+    IntValue(const z3::expr &value) : SpecValue(int_type_of(value), value) {
     }
 
 
@@ -629,12 +757,22 @@ public:
         auto const [a, b] = reconcile_sorts(value, other->value);
         return make_shared<IntValue>((a * b).simplify());
     }
+    /// Z.div and Z.modulo round towards negative infinity.  On a bitvector, a
+    /// divisor 2^k makes both exact and cheap: the quotient is an arithmetic
+    /// shift and the remainder is the low k bits, where bvsdiv and bvsmod
+    /// would be bit-blasted.
     shared_ptr<IntValue> div(const shared_ptr<IntValue>& other) {
         auto const [a, b] = reconcile_sorts(value, other->value);
+        if (auto const k = pow2_exponent(b)) return make_shared<IntValue>(z3::ashr(a, *k).simplify());
         return make_shared<IntValue>((a / b).simplify());
     }
     shared_ptr<IntValue> mod(const shared_ptr<IntValue>& other) {
         auto const [a, b] = reconcile_sorts(value, other->value);
+        if (auto const k = pow2_exponent(b)) {
+            auto const w = a.get_sort().bv_size();
+            if (*k == 0) return make_shared<IntValue>(z3ctx.bv_val(0, w));
+            return make_shared<IntValue>(z3::zext(a.extract(*k - 1, 0), w - *k).simplify());
+        }
         return make_shared<IntValue>((z3::mod(a, b)).simplify());
     }
     /// Left shift: bvshl on bitvectors, multiply by a power of two on integers.
@@ -800,7 +938,7 @@ public:
 
         for (const auto &arg : args) {
             auto const at = z3_args.size() < z3_func.arity() ? z3_args.size() : z3_func.arity() - 1;
-            z3_args.push_back(coerce_to_sort(arg->get_z3_value(), z3_func.domain(at), "function call"));
+            z3_args.push_back(coerce_to_sort(arg->get_z3_value(), z3_func.domain(at), "function call", z3_func.name().str()));
             // A hack to not crash on unsupported varargs stubs
             if(z3_args.size() == z3_func.arity()){
                 if(args.size() > z3_args.size()){

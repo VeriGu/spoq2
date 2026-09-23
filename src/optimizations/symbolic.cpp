@@ -108,10 +108,10 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
             return _cache(static_pointer_cast<Inductive>(val->get_type())
                               ->construct("None", {}));
         if (op_eq(expr->op, Expr::binops::ADD)){
-            if(expr->type->name == "Z"){
+            if(is_int_type(expr->type)){
                 return _cache(static_pointer_cast<IntValue>(elems[0])->add(
                 static_pointer_cast<IntValue>(elems[1])));
-            } else if (expr->type->name == "ZMap_Z"){
+            } else if (is_int_zmap_type(expr->type)){
                 // find the definition of the zmap_z_add function
                 // use func->call to generate the right z3 expr
                 auto const func = proj->defs.find("zmap_z_add");
@@ -291,7 +291,7 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
                 static_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems));
         else if (op_eq(expr->op, "zmap_init") || op_eq(expr->op, "ZMap.init"))
             return _cache(val->get_type()->from_z3_value(
-                z3::const_array(z3ctx.int_sort(), elems[0]->get_z3_value())));
+                z3::const_array(static_pointer_cast<ZMap>(val->get_type())->key_sort(), elems[0]->get_z3_value())));
         else if (std::holds_alternative<string>(expr->op)) {
             auto const sym = std::get<string>(expr->op);
             auto const info = proj->symbols[sym];

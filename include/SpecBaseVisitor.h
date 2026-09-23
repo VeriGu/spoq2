@@ -187,6 +187,18 @@ public:
     return visitChildren(ctx);
   }
 
+  virtual std::any visitVeclen(SpecParser::VeclenContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
+  virtual std::any visitVecget(SpecParser::VecgetContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
+  virtual std::any visitVecreplace(SpecParser::VecreplaceContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
 
 };
 

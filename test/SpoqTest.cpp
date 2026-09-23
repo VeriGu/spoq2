@@ -247,6 +247,24 @@ void runCaseChecks(const TestCase &tc) {
         << " --query-path " << work / "z3" << "/ 2>" << work / "stderr.log";
 
     const RunResult run_result = run(cmd.str());
+
+    boost::property_tree::ptree expected_early;
+    ASSERT_TRUE(readJson(tc.expected, "", expected_early));
+
+    // A fixture spoq is meant to reject.  Checked before the non-zero exit is
+    // treated as a failure, which is what every other fixture wants.
+    //   expect_error   substring of the diagnostic; spoq must also exit non-zero
+    const auto expect_error = expected_early.get<std::string>("expect_error", "");
+    if (!expect_error.empty()) {
+        std::ifstream log_in(work / "stderr.log");
+        const std::string log((std::istreambuf_iterator<char>(log_in)),
+                              std::istreambuf_iterator<char>());
+        EXPECT_NE(run_result.status, 0) << "spoq accepted a fixture it should reject";
+        EXPECT_NE(log.find(expect_error), std::string::npos)
+            << "'" << expect_error << "' missing from spoq's stderr";
+        return;
+    }
+
     if (run_result.status != 0) {
         std::string detail;
         std::ifstream log(work / "stderr.log");
@@ -269,7 +287,8 @@ void runCaseChecks(const TestCase &tc) {
     bool wants_result_json = false;
     for (const auto &[key, value] : expected)
         if (key.rfind("spec_v_", 0) != 0 && key.rfind("stderr_", 0) != 0 &&
-            key.rfind("coq_", 0) != 0 && key != "unimplemented")
+            key.rfind("coq_", 0) != 0 && key != "unimplemented" &&
+            key != "unimplemented_bv_sorts" && key != "expect_error")
             wants_result_json = true;
 
     if (wants_result_json) {
@@ -281,7 +300,8 @@ void runCaseChecks(const TestCase &tc) {
 
         for (const auto &[key, value] : expected) {
             if (key.rfind("spec_v_", 0) == 0 || key.rfind("stderr_", 0) == 0 ||
-                key.rfind("coq_", 0) == 0 || key == "unimplemented")
+                key.rfind("coq_", 0) == 0 || key == "unimplemented" ||
+                key == "unimplemented_bv_sorts")
                 continue;
             const auto found = actual.get_optional<std::string>(key);
             EXPECT_TRUE(found.has_value()) << "result has no key '" << key << "'";
@@ -346,7 +366,13 @@ void runCaseChecks(const TestCase &tc) {
 void runCase(const TestCase &tc) {
     boost::property_tree::ptree expected;
     ASSERT_TRUE(readJson(tc.expected, "", expected));
-    const auto unimplemented = expected.get_optional<std::string>("unimplemented");
+    auto unimplemented = expected.get_optional<std::string>("unimplemented");
+    // "unimplemented_bv_sorts" is the same marker for SPOQ_BV_SORTS=1 only:
+    // the expected values are the integer-sort answer, and the case passes
+    // there.
+    const char *bv = std::getenv("SPOQ_BV_SORTS");
+    if (!unimplemented && bv && std::string(bv) == "1")
+        unimplemented = expected.get_optional<std::string>("unimplemented_bv_sorts");
     if (!unimplemented) {
         runCaseChecks(tc);
         return;

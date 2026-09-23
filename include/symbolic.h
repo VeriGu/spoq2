@@ -14,7 +14,7 @@
 
 namespace autov {
 
-    /// The z3 term `wrapN`/`unsN` denotes, when [op] names one and carries the
+    /// The z3 term a width operation denotes, when [op] names one and carries the
     /// single argument those take; nothing otherwise.  Here rather than in one
     /// evaluator so that every evaluator recognises a width reduction.
     inline std::optional<z3::expr> width_reduction(

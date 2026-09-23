@@ -114,11 +114,13 @@ Emitted runOrSkipImpl(const std::string &fixture) {
 
 TEST(ExtractBasics, ScalarParameterTypes) {
     RUN_OR_SKIP(e, "all_types.ll");
-    // Every integer width collapses to Z, including i1.
-    for (const char *f : {"p_i1", "p_i8", "p_i32", "p_i64"})
-        EXPECT_NE(e.declarations.find(std::string("Parameter ") + f + "_spec : (Z-> "),
+    // An integer carries its width, so a declared value meets a translated one
+    // of the same width with no conversion.  i1 stays Z: spoq makes it a bool.
+    for (auto const &[f, ty] : {std::pair{"p_i1", "Z"}, std::pair{"p_i8", "int8"},
+                                std::pair{"p_i32", "int32"}, std::pair{"p_i64", "int64"}})
+        EXPECT_NE(e.declarations.find(std::string("Parameter ") + f + "_spec : (" + ty + "-> "),
                   std::string::npos)
-            << f << " is not Z:\n" << e.declarations;
+            << f << " is not " << ty << ":\n" << e.declarations;
     EXPECT_NE(e.declarations.find("Parameter p_ptr_spec : (Ptr-> "), std::string::npos)
         << e.declarations;
     // Float and Double are distinct names here, both `:= Z` in the prelude.
@@ -136,24 +138,37 @@ TEST(ExtractBasics, ResultTypes) {
               std::string::npos) << e.declarations;
     EXPECT_NE(e.declarations.find("Parameter r_ptr_spec : (RData-> (option ((Ptr) * RData)))"),
               std::string::npos) << e.declarations;
+    // An integer result carries its width too.
+    EXPECT_NE(e.declarations.find("Parameter p_i8_spec : (int8-> (RData-> (option ((int32) * RData))))"),
+              std::string::npos) << e.declarations;
 }
 
 TEST(ExtractBasics, StructFieldTypes) {
     RUN_OR_SKIP(e, "all_types.ll");
-    // Pointers inside a record are Z, not Ptr -- generateField is called with
-    // pointers_are_ptr=false for fields and true for signatures.
-    EXPECT_NE(e.datatype.find("e_s_Fields_4 : Z;"), std::string::npos) << e.datatype;
+    // Integer fields carry their width; i1 stays Z.
+    EXPECT_NE(e.datatype.find("e_s_Fields_0 : Z;"), std::string::npos) << e.datatype;
+    EXPECT_NE(e.datatype.find("e_s_Fields_1 : int8;"), std::string::npos) << e.datatype;
+    EXPECT_NE(e.datatype.find("e_s_Fields_2 : int32;"), std::string::npos) << e.datatype;
+    EXPECT_NE(e.datatype.find("e_s_Fields_3 : int64;"), std::string::npos) << e.datatype;
+    // A pointer in a record is an intSizeT, not a Ptr -- generateField is
+    // called with pointers_are_ptr=false for fields and true for signatures.
+    EXPECT_NE(e.datatype.find("e_s_Fields_4 : intSizeT;"), std::string::npos) << e.datatype;
     EXPECT_NE(e.datatype.find("e_s_Fields_5 : Float;"), std::string::npos) << e.datatype;
     EXPECT_NE(e.datatype.find("e_s_Fields_6 : Double;"), std::string::npos) << e.datatype;
-    // An array carries its length: (contents, length).
-    EXPECT_NE(e.datatype.find("e_s_Fields_7 : ((ZMap.t Z) * Z);"), std::string::npos) << e.datatype;
+    // An array carries its length: (contents, length).  The length is a size.
+    EXPECT_NE(e.datatype.find("e_s_Fields_7 : ((ZMap.t int32) * intSizeT);"), std::string::npos) << e.datatype;
+    // A record is loaded and stored through the memory word, whatever the field.
+    EXPECT_NE(e.datatype.find("Definition load_s_Fields (sz: intSizeT) (ofs:intSizeT)  (st_s_Fields: s_Fields) : option int64 :="),
+              std::string::npos) << e.datatype;
+    EXPECT_NE(e.datatype.find("Definition store_s_Fields (sz: intSizeT) (ofs:intSizeT) (v: int64)"),
+              std::string::npos) << e.datatype;
 }
 
 /// An array's element type has to survive the mapping: fields 7 and 8 of the
 /// fixture's struct are `[4 x i32]` and `[4 x double]`, and they are different
 /// types, so they must not come out as the same text.
 ///
-/// They do today -- both `((ZMap.t Z) * Z)`, told apart only by a FIXME comment,
+/// They do today -- both `((ZMap.t Z) * intSizeT)`, told apart only by a FIXME comment,
 /// and a comment is not a type -- so this reports a skip.  It asserts the types
 /// the fields should have rather than the ones they have, so it will simply pass
 /// once the mapping distinguishes them.
@@ -207,7 +222,15 @@ TEST(ExtractBasics, VectorTypesMapToAZMap) {
 
 TEST(ExtractPointers, StackValueTypes) {
     RUN_OR_SKIP(e, "stack_types.ll");
-    EXPECT_NE(e.machine.find("ZVal (ZValConstr: Z)"), std::string::npos) << e.machine;
+    // Every integer slot is the 64-bit word, so they share one constructor and a
+    // load yields a bitvector under bitvector sorts.  A pointer slot is an
+    // intSizeT, with a constructor of its own.
+    EXPECT_NE(e.machine.find("ZVal (ZValConstr: int64)"), std::string::npos) << e.machine;
+    EXPECT_NE(e.machine.find("PtrVal (PtrValConstr: intSizeT)"), std::string::npos) << e.machine;
+    EXPECT_NE(e.machine.find("Definition load_stack (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option int64) :="),
+              std::string::npos) << e.machine;
+    EXPECT_NE(e.machine.find("Definition store_stack (sz: intSizeT) (p: Ptr) (v: int64) (stack_map: STACK)"),
+              std::string::npos) << e.machine;
     EXPECT_NE(e.machine.find("ZFloatVal (ZFloatValConstr: Float)"), std::string::npos) << e.machine;
     EXPECT_NE(e.machine.find("ZFloatVal (ZFloatValConstr: Double)"), std::string::npos) << e.machine;
     EXPECT_NE(e.machine.find("s_TwoVal (s_TwoValConstr: s_Two)"), std::string::npos) << e.machine;
@@ -260,11 +283,11 @@ TEST(ExtractPointers, StackValConstructorNamesAreDistinct_Unimplemented) {
 TEST(ExtractPointers, GlobalAccessIsBoundedByItsExtent) {
     RUN_OR_SKIP(e, "globals.ll");
     // Sizes are bytes: [2049 x i8], i32, ptr, {i32,i32}, [8 x {i32,i32}].
-    for (const char *d : {"Definition SZ_table : Z := 2049.",
-                          "Definition SZ_counter : Z := 4.",
-                          "Definition SZ_handle : Z := 8.",
-                          "Definition SZ_pair : Z := 8.",
-                          "Definition SZ_pairs : Z := 64."})
+    for (const char *d : {"Definition SZ_table : intSizeT := 2049.",
+                          "Definition SZ_counter : intSizeT := 4.",
+                          "Definition SZ_handle : intSizeT := 8.",
+                          "Definition SZ_pair : intSizeT := 8.",
+                          "Definition SZ_pairs : intSizeT := 64."})
         EXPECT_NE(e.machine.find(d), std::string::npos) << d << " missing from:\n" << e.machine;
 
     // One gate per arm: eight loads and six stores.  Two globals contribute a
@@ -278,8 +301,8 @@ TEST(ExtractPointers, GlobalAccessIsBoundedByItsExtent) {
         return n;
     };
     EXPECT_EQ(count("if (global_in_bounds sz p SZ_"), 14u) << e.machine;
-    EXPECT_NE(e.machine.find("Definition global_in_bounds (sz: Z) (p: Ptr) (limit: Z) : bool :=\n"
-                             "  (0 <=? p.(poffset)) && (p.(poffset) + sz <=? limit)."),
+    EXPECT_NE(e.machine.find("Definition global_in_bounds (sz: intSizeT) (p: Ptr) (limit: intSizeT) : bool :=\n"
+                             "  (0 <=? p.(poffset)) && (p.(poffset) <=? limit - sz)."),
               std::string::npos) << e.machine;
 }
 
@@ -294,12 +317,12 @@ TEST(ExtractPointers, GlobalAccessIsBoundedByItsExtent) {
 TEST(ExtractPointers, UnknownExtentsAreParameters) {
     RUN_OR_SKIP(e, "globals.ll");
     EXPECT_NE(e.machine.find("Parameter SZ_flex_unknown : Z.\n"
-                             "Definition SZ_flex : Z := "
+                             "Definition SZ_flex : intSizeT := "
                              "if (SZ_flex_unknown >? 0) then SZ_flex_unknown else 0."),
               std::string::npos) << e.machine;
     // [4 x i8] and [16 x i8] merge; the floor is the longer.
     EXPECT_NE(e.machine.find("Parameter SZ_merged_constant_global_string_unknown : Z.\n"
-                             "Definition SZ_merged_constant_global_string : Z := "
+                             "Definition SZ_merged_constant_global_string : intSizeT := "
                              "if (SZ_merged_constant_global_string_unknown >? 16) "
                              "then SZ_merged_constant_global_string_unknown else 16."),
               std::string::npos) << e.machine;
@@ -313,8 +336,16 @@ TEST(ExtractPointers, UnknownExtentsAreParameters) {
 /// masks are [2 x [3 x [3 x i32]]].
 TEST(ExtractPointers, ArrayTypesNestOneZMapPerDimension) {
     RUN_OR_SKIP(e, "globals.ll");
-    EXPECT_NE(e.machine.find("Parameter g_mask: (ZMap.t (ZMap.t (ZMap.t Z)))."),
+    EXPECT_NE(e.machine.find("Parameter g_mask: (ZMap.t (ZMap.t (ZMap.t int64)))."),
               std::string::npos) << e.machine;
+    // Globals are memory too: a pointer global is an intSizeT.
+    EXPECT_NE(e.machine.find("g_handle: intSizeT;"), std::string::npos) << e.machine;
+    EXPECT_NE(e.machine.find("Definition load_global (sz: intSizeT) (p: Ptr) (st: RData) : (option int64) :="),
+              std::string::npos) << e.machine;
+    EXPECT_NE(e.machine.find("Definition store_global (sz: intSizeT) (p: Ptr) (v: int64) (st: RData)"),
+              std::string::npos) << e.machine;
+    // ptr_to_int yields the word a pointer is stored as.
+    EXPECT_NE(e.machine.find("Definition ptr_to_int (p: Ptr) : intSizeT :="), std::string::npos) << e.machine;
     EXPECT_EQ(e.machine.find("FIXME"), std::string::npos)
         << "a type is still a placeholder:\n" << e.machine;
 }

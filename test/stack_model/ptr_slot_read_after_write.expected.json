@@ -1,0 +1,9 @@
+{
+  "verified": true,
+  "spec_has_ub": true,
+  "impl_eliminates_ub": false,
+  "impl_has_non_spec_ub": false,
+  "spec_v_definition": "vuln_spec",
+  "spec_v_contains": "(PtrVal PtrVal_val) =>;(Some (104, (st.[stack] :< ((st.(stack)) # (buf.(pbase)) == (Some (PtrVal 104))))))",
+  "spec_v_lacks": "new_stack"
+}

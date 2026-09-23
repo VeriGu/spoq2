@@ -225,10 +225,10 @@ class ExtractPointersPass : public llvm::PassInfoMixin<ExtractPointersPass> {
       auto const &e = extents[name];
       auto const floor = std::to_string(e.floor);
       if (e.members == 1 && e.floor > 0) {
-        result += "Definition " + name + " : Z := " + floor + ".\n";
+        result += "Definition " + name + " : intSizeT := " + floor + ".\n";
       } else {
         result += "Parameter " + name + "_unknown : Z.\n" \
-                  "Definition " + name + " : Z := if (" + name + "_unknown >? " + floor +
+                  "Definition " + name + " : intSizeT := if (" + name + "_unknown >? " + floor +
                   ") then " + name + "_unknown else " + floor + ".\n";
       }
     }
@@ -241,14 +241,14 @@ class ExtractPointersPass : public llvm::PassInfoMixin<ExtractPointersPass> {
       std::string gv_name = g->getName().str();
       std::transform(gv_name.begin(), gv_name.end(), gv_name.begin(), ::toupper);
       std::replace(gv_name.begin(), gv_name.end(), '.', '_');
-      result += "Definition " + gv_name + "_BASE : Z := " + std::to_string(gv_addr[g].first + base_offset) + ".\n";
+      result += "Definition " + gv_name + "_BASE : intSizeT := " + std::to_string(gv_addr[g].first + base_offset) + ".\n";
     }
-    result += "Definition MAX_GLOBAL : Z := " + std::to_string(base + base_offset) + ".\n";
+    result += "Definition MAX_GLOBAL : intSizeT := " + std::to_string(base + base_offset) + ".\n";
     return result;
   }
 
   std::string generateIntToPtr() {
-    std::string result = "Definition global_to_ptr (v: Z) : Ptr := \n" \
+    std::string result = "Definition global_to_ptr (v: intSizeT) : Ptr := \n" \
     " if (v >=? MAX_GLOBAL ) then (mkPtr \"null\" 0) else\n" \
     " if (v <? 0 ) then (mkPtr \"null\" 0) else\n";
     for (auto it = gv_list.rbegin(); it != gv_list.rend(); it++) {
@@ -266,7 +266,9 @@ class ExtractPointersPass : public llvm::PassInfoMixin<ExtractPointersPass> {
   }
 
   std::string generatePtrToInt() {
-    std::string result = "Definition ptr_to_int (p: Ptr) : Z := \n" \
+    // intSizeT, the type a pointer word has in memory, so that storing the
+    // result is not a conversion.
+    std::string result = "Definition ptr_to_int (p: Ptr) : intSizeT := \n" \
     " if (p.(poffset) <? 0) then (-1) else\n" \
     // " if (p.(pbase) =s \"status\") then (MAX_ERR + p.(poffset)) else\n" 
     " if (p.(pbase) =s \"null\") then 0 else\n" ;
@@ -343,17 +345,25 @@ std::string ExtractPointersPass::getTypeIdentifier(llvm::Type* ty) {
 }
 
 namespace {
-/// Renders a type as the payload of a StackVal constructor.  Differs from
-/// ExtractBasics deliberately -- a pointer on the stack is a Z, and an array
-/// does not carry its length -- which is why the shared part in
-/// include/llvm_coq_type.h is the traversal and not the rendering.
+/// Renders a type as the payload of a StackVal constructor or a global.
+/// Differs from ExtractBasics deliberately -- an array does not carry its
+/// length -- which is why the shared part in include/llvm_coq_type.h is the
+/// traversal and not the rendering.
+///
+/// An integer in memory is a 64-bit word, `int64`, whatever its width: one
+/// slot type, so that integer stack slots share one StackVal constructor and a
+/// load yields a bitvector under SPOQ_BV_SORTS.  A narrower value sign-extends
+/// into it.  A pointer is `intSizeT`, the word ptrtoint gives, named separately
+/// so its representation can change in one place (spoq's kSizeTWidth).  Wider
+/// than 64 bits has no encoding and stays Z, and spoq rejects it where it is
+/// translated.
 struct CoqStackVal {
   using result_t = std::string;
   ExtractPointersPass *pass;
 
-  std::string boolean() { return "Z"; }
-  std::string integer(unsigned) { return "Z"; }
-  std::string pointer() { return "Z"; }
+  std::string boolean() { return "int64"; }
+  std::string integer(unsigned bits) { return bits > 64 ? "Z" : "int64"; }
+  std::string pointer() { return "intSizeT"; }
   std::string floating(llvm::Type *ty) { return ty->isFloatTy() ? "Float" : "Double"; }
   std::string structure(llvm::StructType *sty) { return pass->getStructTypeIdentifier(sty); }
   std::string metadata() { return "Metadata"; }
@@ -613,23 +623,23 @@ We can do this in a proxy definition for each type
   // Map stack type identifiers from getStructTypeIdentifier to stackval branch and possible pointers
   using stackval_info_entry_t = std::tuple<std::string,bool,bool,std::optional<std::string>, int, std::vector<std::string>>;
   std::map<std::string,stackval_info_entry_t> stackval_info;
-  // This corresponds to  | ZVal (ZValConstr: Z)
+  // This corresponds to  | ZVal (ZValConstr: int64)
   stackval_info_entry_t z_val_entry = {"ZVal", false, false, std::nullopt, 0, {}};
-  stackval_info.emplace("Z", z_val_entry);
+  stackval_info.emplace("int64", z_val_entry);
   stackval_info_entry_t zmap_val_entry = {"ZMapVal", true, false, std::nullopt, 0, {}};
-  stackval_info.emplace("(ZMap.t Z)", zmap_val_entry);
+  stackval_info.emplace("(ZMap.t int64)", zmap_val_entry);
 
   std::string stackkey_def = "Inductive StackKey := \n";
   std::string stackval_def = "Inductive StackVal := \n";
   // stackval_info_entry_t z_val_entry = {"ZVal", false, {}};
   // "| ZVal (zStackVal: Z)\n"
   // "| ZMapVal (zmapStackVal: (ZMap.t Z))"; // left unclosed!
-  std::string load_result = "Definition load_stack (sz: Z) (p: Ptr) (stack_map: STACK): (option Z) := \n" \
+  std::string load_result = "Definition load_stack (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option int64) := \n" \
   "\tmatch (stack_map @ p.(pbase)) with\n" \
   "\t\t| Some sv => match sv with\n";
   // "\t\t\t| ZVal z => Some z\n"
   // "\t\t\t| ZMapVal zmap => Some (zmap @ p.(poffset))\n";
-  std::string store_result = "Definition store_stack (sz: Z) (p: Ptr) (v: Z) (stack_map: STACK): (option STACK) := \n" \
+  std::string store_result = "Definition store_stack (sz: intSizeT) (p: Ptr) (v: int64) (stack_map: STACK): (option STACK) := \n" \
   "\tmatch (stack_map @ p.(pbase)) with\n" \
   "\t\t| Some sv => match sv with\n";
   // "\t\t\t| ZVal z => Some (stack_map # p.(pbase) == Some(ZVal v))\n"
@@ -657,16 +667,18 @@ We can do this in a proxy definition for each type
         stackval_branch_id = struct_id + "ArrVal";
         stackval_accessor = ("(ZMap.t "+struct_id+")", struct_id);
       } else {
-        stackval_branch_id = "ZMapOtherVal";
         stackval_accessor = generateField(x.first);
+        stackval_branch_id = stackval_accessor == "(ZMap.t intSizeT)" ? "ZMapPtrVal" : "ZMapOtherVal";
       }
     } else if(x.first->isFloatingPointTy()) {
       stackval_branch_id = "ZFloatVal";
       stackval_accessor = generateField(x.first);
 
     } else {
-      stackval_branch_id = "ZVal";
       stackval_accessor = generateField(x.first);
+      stackval_branch_id = stackval_accessor == "int64"      ? "ZVal"
+                           : stackval_accessor == "intSizeT" ? "PtrVal"
+                                                             : "ZWideVal";
     }
     if(stackval_info.count(stackval_accessor) == 0){
       stackval_info_entry_t entry = {stackval_branch_id, x.first->isArrayTy(), is_struct, struct_name, element_size, {}};
@@ -1003,12 +1015,12 @@ void ExtractPointersPass::generate(llvm::Module& M) {
     "}.\n"
     << is_global_ptr << ".\n\n"
     << generateGlobalSizeDefinitions(M)
-    << "\nDefinition global_in_bounds (sz: Z) (p: Ptr) (limit: Z) : bool :=\n"
-       "  (0 <=? p.(poffset)) && (p.(poffset) + sz <=? limit).\n"
-    << "\nDefinition load_global (sz: Z) (p: Ptr) (st: RData) : (option Z) :=\n"
+    << "\nDefinition global_in_bounds (sz: intSizeT) (p: Ptr) (limit: intSizeT) : bool :=\n"
+       "  (0 <=? p.(poffset)) && (p.(poffset) <=? limit - sz).\n"
+    << "\nDefinition load_global (sz: intSizeT) (p: Ptr) (st: RData) : (option int64) :=\n"
     << g_load_result 
     << "  None. (* load_global *)\n";
-  fout << "\nDefinition store_global (sz: Z) (p: Ptr) (v: Z) (st: RData) : option RData :=\n"
+  fout << "\nDefinition store_global (sz: intSizeT) (p: Ptr) (v: int64) (st: RData) : option RData :=\n"
    << g_store_result 
    << "  None. (* store_global *)\n\n";
 
