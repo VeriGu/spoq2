@@ -130,27 +130,38 @@ static std::string try_getenv(const char* var, const char* def) {
     return p ? std::string(p) : std::string(def);
 }
 
-/** Race two Z3 builds on one query file and take the first definite answer.
+/** Race Z3 processes on one query file and take the first definite answer:
+ *  the z3 on PATH, the build at Z3_PATH, and under bitvector sorts the z3 on
+ *  PATH with the qfaufbv tactic, which decides unsat checks over
+ *  uninterpreted functions with bitvector arguments that the default strategy
+ *  times out on.
  *
  * Out of process on purpose: a child that blows through its -t: budget can still
  * be killed from here, which an in-process solver.check() on this thread cannot.
  * Now it works well on z3 4.13.4 and 4.12.5.
  */
 static z3::check_result z3_race_file(const std::string &file, int timeout_ms) {
-    // two z3 process to race (each with 120s CPU bound)
     std::string const z3_cli = "z3";
     std::string const z3_path = try_getenv("Z3_PATH", "z3/build/z3");
     std::string const z3_timeout = "-t:" + std::to_string(timeout_ms);
-    std::array<std::string,2> cmds = {
+    std::vector<std::string> cmds = {
         z3_cli + " " + z3_timeout + " " + file,
         z3_path + " " + z3_timeout + " " + file
     };
+    if (z3_bv_sorts_enabled())
+        cmds.push_back(z3_cli + " " + z3_timeout + " tactic.default_tactic=qfaufbv " + file);
+    size_t const n = cmds.size();
 
-    std::array<pid_t,2> pids;
-    std::array<std::array<int,2>,2> pipes;
-    for (int i = 0; i < 2; ++i) {
+    std::vector<pid_t> pids(n);
+    std::vector<std::array<int,2>> pipes(n);
+    for (size_t i = 0; i < n; ++i) {
         if (pipe(pipes[i].data()) == -1) {
             perror("pipe");
+            for (size_t j = 0; j < i; ++j) {
+                kill(pids[j], SIGKILL);
+                waitpid(pids[j], nullptr, 0);
+                close(pipes[j][0]);
+            }
             return z3::unknown;
         }
         if ((pids[i] = fork()) == 0) {
@@ -165,16 +176,26 @@ static z3::check_result z3_race_file(const std::string &file, int timeout_ms) {
         close(pipes[i][1]);
     }
 
-    std::array<std::string,2> outputs = {{ "", "" }};
-    std::array<bool,2> done    = {{ false, false }};
-    int finished               = 0;
+    std::vector<std::string> outputs(n);
+    std::vector<bool> done(n, false);
+    size_t finished = 0;
+
+    // Kill and reap every child still running.
+    auto const stop_rest = [&]() {
+        for (size_t i = 0; i < n; ++i) {
+            if (done[i]) continue;
+            kill(pids[i], SIGKILL);
+            waitpid(pids[i], nullptr, 0);
+            close(pipes[i][0]);
+        }
+    };
 
     auto const start     = std::chrono::steady_clock::now();
     auto const wall_limit = std::chrono::seconds(130);
 
     // main poll loop
-    while (finished < 2) {
-        for (int i = 0; i < 2; ++i) {
+    while (finished < n) {
+        for (size_t i = 0; i < n; ++i) {
             if (done[i]) continue;
 
             int status = 0;
@@ -192,33 +213,23 @@ static z3::check_result z3_race_file(const std::string &file, int timeout_ms) {
                 ++finished;
                 char buf[256];
                 while (true) {
-                    ssize_t const n = read(pipes[i][0], buf, sizeof(buf));
-                    if (n <= 0) break;
-                    outputs[i].append(buf, n);
+                    ssize_t const len = read(pipes[i][0], buf, sizeof(buf));
+                    if (len <= 0) break;
+                    outputs[i].append(buf, len);
                 }
                 close(pipes[i][0]);
 
                 // shortcut on "unsat"
                 if (outputs[i].find("unsat") != std::string::npos) {
-                    int const other = 1 - i;
-                    if (!done[other]) {
-                        kill(pids[other], SIGKILL);
-                        close(pipes[other][0]);
-                    }
+                    stop_rest();
                     return z3::unsat;
                 }
             }
         }
 
-        if (finished < 2 &&
+        if (finished < n &&
             std::chrono::steady_clock::now() - start > wall_limit) {
-            // kill any still-running solver
-            for (int i = 0; i < 2; ++i) {
-                if (!done[i]) {
-                    kill(pids[i], SIGKILL);
-                    close(pipes[i][0]);
-                }
-            }
+            stop_rest();
             return z3::unknown;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
@@ -237,7 +248,7 @@ static z3::check_result z3_race_file(const std::string &file, int timeout_ms) {
     return z3::unknown;
 }
 
-/** Solve one query out of process, racing two Z3 builds.  The query text must
+/** Solve one query out of process, racing Z3 processes.  The query text must
  *  already end in a check-sat form; it is written to a scratch file because the
  *  children take a path, not a string. */
 static z3::check_result z3_race_solve(const std::string &query, int timeout_ms) {
