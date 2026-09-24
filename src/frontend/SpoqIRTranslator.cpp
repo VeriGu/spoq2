@@ -58,9 +58,9 @@ const std::unordered_map<llvm::Instruction::BinaryOps, Expr::binops> SpoqIRModul
     {llvm::Instruction::BinaryOps::Add, Expr::binops::ADD},
     {llvm::Instruction::BinaryOps::Sub, Expr::binops::MINUS},
     {llvm::Instruction::BinaryOps::Mul, Expr::binops::MULT},
-    {llvm::Instruction::BinaryOps::SDiv, Expr::binops::DIV},
+    // sdiv and srem are not here: they truncate toward zero, where Coq's
+    // Z.div and Z.modulo round toward negative infinity.
     {llvm::Instruction::BinaryOps::UDiv, Expr::binops::DIV},
-    {llvm::Instruction::BinaryOps::SRem, Expr::binops::MOD},
     {llvm::Instruction::BinaryOps::URem, Expr::binops::MOD},
     {llvm::Instruction::BinaryOps::Shl, Expr::binops::LSHIFT},
     {llvm::Instruction::BinaryOps::LShr, Expr::binops::RSHIFT}, // FIXME: we use RSHIFT(arithmetic) for both LShr
@@ -1321,6 +1321,12 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 assert(bi->getOperand(1)->getType()->isIntegerTy(1) && "Binary operation on bool and ?");
                 assert(bool_binops_lut.find(bi->getOpcode()) != bool_binops_lut.end() && "Binary operation not supported");
                 expr = std::make_unique<Expr>(bool_binops_lut.at(bi->getOpcode()), std::move(operands));
+            } else if (bi->getOpcode() == llvm::Instruction::BinaryOps::SDiv ||
+                       bi->getOpcode() == llvm::Instruction::BinaryOps::SRem) {
+                // Coq's Z.quot and Z.rem: the quotient rounds toward zero and
+                // the remainder takes the dividend's sign, as sdiv and srem do.
+                auto const name = bi->getOpcode() == llvm::Instruction::BinaryOps::SDiv ? "Z.quot" : "Z.rem";
+                expr = std::make_unique<Expr>(name, std::move(operands));
             } else if(binops_lut.find(bi->getOpcode()) != binops_lut.end()) {
                 bool const shift_to_div = (bi->getOpcode() == llvm::Instruction::BinaryOps::LShr || bi->getOpcode() == llvm::Instruction::BinaryOps::AShr)
                     && bi->getOperand(0)->getType()->isIntegerTy(64) && bi->getOperand(1)->getType()->isIntegerTy(64);

@@ -1534,6 +1534,10 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
             states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->lor(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, "Z.lxor"))
             states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->lxor(static_pointer_cast<IntValue>(elems[1])), state));
+        else if (op_eq(expr->op, "Z.quot"))
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->quot(static_pointer_cast<IntValue>(elems[1])), state));
+        else if (op_eq(expr->op, "Z.rem"))
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->rem(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, "Z.lnot"))
             states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->lnot(), state));
         else if (op_eq(expr->op, "Z.testbit"))
@@ -2059,6 +2063,10 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
             result = static_pointer_cast<IntValue>(elems[0])->lor(static_pointer_cast<IntValue>(elems[1]));
         else if(op_eq(expr->op, "Z.lxor"))
             result = static_pointer_cast<IntValue>(elems[0])->lxor(static_pointer_cast<IntValue>(elems[1]));
+        else if(op_eq(expr->op, "Z.quot"))
+            result = static_pointer_cast<IntValue>(elems[0])->quot(static_pointer_cast<IntValue>(elems[1]));
+        else if(op_eq(expr->op, "Z.rem"))
+            result = static_pointer_cast<IntValue>(elems[0])->rem(static_pointer_cast<IntValue>(elems[1]));
         else if(op_eq(expr->op, "Z.lnot"))
             result = static_pointer_cast<IntValue>(elems[0])->lnot();
         else if(op_eq(expr->op, "Z.testbit"))
@@ -2487,6 +2495,10 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
             return static_pointer_cast<IntValue>(elems[0])->lor(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, "Z.lxor"))
             return static_pointer_cast<IntValue>(elems[0])->lxor(static_pointer_cast<IntValue>(elems[1]));
+        if (op_eq(expr->op, "Z.quot"))
+            return static_pointer_cast<IntValue>(elems[0])->quot(static_pointer_cast<IntValue>(elems[1]));
+        if (op_eq(expr->op, "Z.rem"))
+            return static_pointer_cast<IntValue>(elems[0])->rem(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, "Z.lnot"))
             return static_pointer_cast<IntValue>(elems[0])->lnot();
         if (op_eq(expr->op, "Z.testbit"))

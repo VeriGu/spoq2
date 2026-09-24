@@ -582,6 +582,21 @@ void infer_type(Project &proj, SpecNode *spec, const shared_ptr<unordered_map<st
                     } else {
                         expr->type = Inductive::Nat;
                     }
+                } else if (op == "Z.quot" || op == "Z.rem") {
+                    // Typed as the integer binops are: an operand keeps its
+                    // width, and the result has the width both operands share.
+                    if (n < expr->elems->size()) {
+                        if (!is_int_type(expr->elems->at(n)->type))
+                            expr->elems->at(n)->type = Int::INT;
+                        stack.push_back(std::make_tuple(__LINE__, spec, n + 1, known_types));
+                        stack.push_back(std::make_tuple(__LINE__, expr->elems->at(n).get(), 0, known_types));
+                    } else {
+                        auto const fst = expr->elems->at(0)->type;
+                        auto const snd = expr->elems->at(1)->type;
+                        auto const a = dynamic_pointer_cast<Int>(fst);
+                        auto const b = dynamic_pointer_cast<Int>(snd);
+                        expr->type = a && b && a->bits == b->bits ? fst : static_pointer_cast<SpecType>(Int::INT);
+                    }
                 } else if (op == "Z.lnot" || op == "Z.lxor" || op == "Z.setbit" || op == "Z.clearbit") {
                     if (n < expr->elems->size()) {
                         expr->elems->at(n)->type = Int::INT;

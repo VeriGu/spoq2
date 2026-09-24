@@ -4453,7 +4453,8 @@ bool enforce_no_div_by_zero_inner(SpecNode* spec, std::unique_ptr<SpecNode> *las
     if (dynamic_cast<Symbol*>(spec)) {
     } else if (dynamic_cast<Const*>(spec)) {
     } else if (auto e = instance_of(spec, Expr)) {
-        if (op_eq(e->op, Expr::binops::DIV) || op_eq(e->op, Expr::binops::MOD)) {
+        if (op_eq(e->op, Expr::binops::DIV) || op_eq(e->op, Expr::binops::MOD) ||
+            op_eq(e->op, "Z.quot") || op_eq(e->op, "Z.rem")) {
             // When we encounter a division, we want to wrap that division in:
             // if(denominator = 0) then None else original_code.
             // LOG_DEBUG << "Doing div by zero replacement " << string(**last_point_to_wrap);

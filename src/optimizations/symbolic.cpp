@@ -127,6 +127,12 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
         if (op_eq(expr->op, Expr::binops::MOD))
             return static_pointer_cast<IntValue>(elems[0])->mod(
                 static_pointer_cast<IntValue>(elems[1]));
+        if (op_eq(expr->op, "Z.quot"))
+            return static_pointer_cast<IntValue>(elems[0])->quot(
+                static_pointer_cast<IntValue>(elems[1]));
+        if (op_eq(expr->op, "Z.rem"))
+            return static_pointer_cast<IntValue>(elems[0])->rem(
+                static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, Expr::binops::LSHIFT))
             return static_pointer_cast<IntValue>(elems[0])->shiftl(
                 static_pointer_cast<IntValue>(elems[1]));

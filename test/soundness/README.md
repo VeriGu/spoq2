@@ -16,6 +16,7 @@ nearest correct one, which the fix must still prove.
 | `args_extra_param_wrong_patch` / `_right_patch` | false / true | a parameter only the patch takes is free, and distinct from a vuln parameter of the same name |
 | `return_type_mismatch` | false | functions with different return types are refused |
 | `loop_invariant_false` / `_inductive` | false / true | a loop invariant the refinement assumes is checked first |
+| `srem_pow2_*`, `srem_other_*`, `sdiv_pow2_*`, `sdiv_other_*` | false / true | `srem` and `sdiv` truncate toward zero, as LLVM defines them, in both sort modes and for divisors that are and are not powers of two |
 
 The result cache and the parsing of raced solver output have unit tests in
 `test/unit/Z3UtilsTest.cpp`: the cache is keyed by the exact query, not a hash

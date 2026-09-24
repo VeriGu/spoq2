@@ -766,6 +766,25 @@ public:
         if (auto const k = pow2_exponent(b)) return make_shared<IntValue>(z3::ashr(a, *k).simplify());
         return make_shared<IntValue>((a / b).simplify());
     }
+    /// Truncating quotient and remainder, as LLVM's sdiv and srem: the quotient
+    /// rounds toward zero and the remainder takes the dividend's sign.  Native on
+    /// bitvectors.  On integers Z3's div is Euclidean, so it is applied to the
+    /// magnitudes and the sign is restored.
+    static z3::expr trunc_quot(const z3::expr &a, const z3::expr &b) {
+        if (a.is_bv()) return a / b;
+        auto const zero = z3ctx.int_val(0);
+        return z3::ite(a >= zero, z3::ite(b > zero, a / b, -(a / -b)),
+                       z3::ite(b > zero, -(-a / b), -a / -b));
+    }
+    shared_ptr<IntValue> quot(const shared_ptr<IntValue>& other) {
+        auto const [a, b] = reconcile_sorts(value, other->value);
+        return make_shared<IntValue>(trunc_quot(a, b).simplify());
+    }
+    shared_ptr<IntValue> rem(const shared_ptr<IntValue>& other) {
+        auto const [a, b] = reconcile_sorts(value, other->value);
+        if (a.is_bv()) return make_shared<IntValue>(z3::srem(a, b).simplify());
+        return make_shared<IntValue>((a - b * trunc_quot(a, b)).simplify());
+    }
     shared_ptr<IntValue> mod(const shared_ptr<IntValue>& other) {
         auto const [a, b] = reconcile_sorts(value, other->value);
         if (auto const k = pow2_exponent(b)) {
