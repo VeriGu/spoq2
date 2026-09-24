@@ -136,272 +136,269 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
     return true;
 }
 
-	/// Continues the traversal into [body] under [state]; [det] as in forward_simulation.
-	using descend_t = std::function<SimulateResult(SpecNode *body, const shared_ptr<ProveState> &state, bool det)>;
-
 	/// One impl-side step at a Match: check the callee's precondition, bind each
-	/// feasible arm with the callee's post-condition or loop invariant, and hand
-	/// the arm's body to [descend].  If an arm fails below a folded callee, the
-	/// scrutinee is unfolded in place and [redo] re-simulates the Match.
-	static SimulateResult step_impl_match(Project *proj, Match *m, const shared_ptr<ProveState>& state, bool det,
-	                                      const path_t &path, int i, const descend_t &descend,
-	                                      const std::function<SimulateResult()> &redo) {
-			int const random_code = rand() % 10000;
-			set<string> used_fix;
-			bool add_post_condition = false;
-			bool const resolve_to_none = false;
-			unique_ptr<SpecNode> post_cond;
-			unique_ptr<SpecNode> loop_post_cond;
-			auto const src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
-			if (auto expr = instance_of(m->src.get(), Expr)) {
-				/** TODO: add post-conds and loop-invs */
-				if (holds_alternative<string>(expr->op)){
-					auto op = std::get<string>(expr->op);
-					auto const info = proj->symbols[op];
-					if (info.kind == SymbolKind::Def) {
-						if (proj->defs.find(op) != proj->defs.end()) {
+	/// feasible arm with the callee's post-condition or loop invariant, and
+	/// continue into the arm's body with descend(body, state, det).  Returns
+	/// nullopt when an arm failed below a folded callee and the scrutinee was
+	/// unfolded in place: the caller re-simulates the Match.
+	template <typename Descend>
+	static std::optional<SimulateResult> step_impl_match(Project *proj, Match *m, const shared_ptr<ProveState>& state,
+	                                                     bool det, const path_t &path, int i, Descend descend) {
+		int const random_code = rand() % 10000;
+		set<string> used_fix;
+		bool add_post_condition = false;
+		bool const resolve_to_none = false;
+		unique_ptr<SpecNode> post_cond;
+		unique_ptr<SpecNode> loop_post_cond;
+		auto const src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
+		if (auto expr = instance_of(m->src.get(), Expr)) {
+			/** TODO: add post-conds and loop-invs */
+			if (holds_alternative<string>(expr->op)){
+				auto op = std::get<string>(expr->op);
+				auto const info = proj->symbols[op];
+				if (info.kind == SymbolKind::Def) {
+					if (proj->defs.find(op) != proj->defs.end()) {
                             auto def = proj->defs[op].get();
-							if (auto loop = instance_of(proj->defs[op].get(), Fixpoint)){
-								if(proj->loop_invs.find(op) != proj->loop_invs.end()) {
-									if (proj->cmds.PreCond.find(op) != proj->cmds.PreCond.end()) {
-										if (!check_states_implies_pre_condition(proj, state, op, expr->elems.get())){
-											LOG_INFO << "[forward_simulation] Loop Invariant Precondition not Satified";
-											return SimulateResult{false, false, false, false};
-										};
-									}
-									LOG_INFO << "[forward_simulation] Loop Invariant Precondition Satisfied";
-									auto fname = loop->name;
-									loop_post_cond = formulate_loop_invariant(proj, fname, expr->elems.get());
-									add_post_condition = true;
-									LOG_DEBUG << "[forward_simulation " << random_code << "] Loop Invariant Adding loop postcondition: " << op;
-								} else {
-									LOG_WARNING << "[forward_simulation] Loop Invariant not specified: " << op;
-								}
-							} else {
+						if (auto loop = instance_of(proj->defs[op].get(), Fixpoint)){
+							if(proj->loop_invs.find(op) != proj->loop_invs.end()) {
 								if (proj->cmds.PreCond.find(op) != proj->cmds.PreCond.end()) {
-									// LOG_DEBUG << "[forward_simulation " << random_code << "] Call requiring precondition evaluation: " << string(*expr);
 									if (!check_states_implies_pre_condition(proj, state, op, expr->elems.get())){
 										LOG_INFO << "[forward_simulation] Loop Invariant Precondition not Satified";
 										return SimulateResult{false, false, false, false};
 									};
 								}
-								if(proj->cmds.PostCond.find(op) != proj->cmds.PostCond.end()) {
-									auto fname = def->name;
-									post_cond = formulate_post_condition(proj, fname, expr->elems.get());
-									add_post_condition = true;
-								}
+								LOG_INFO << "[forward_simulation] Loop Invariant Precondition Satisfied";
+								auto fname = loop->name;
+								loop_post_cond = formulate_loop_invariant(proj, fname, expr->elems.get());
+								add_post_condition = true;
+								LOG_DEBUG << "[forward_simulation " << random_code << "] Loop Invariant Adding loop postcondition: " << op;
+							} else {
+								LOG_WARNING << "[forward_simulation] Loop Invariant not specified: " << op;
+							}
+						} else {
+							if (proj->cmds.PreCond.find(op) != proj->cmds.PreCond.end()) {
+								// LOG_DEBUG << "[forward_simulation " << random_code << "] Call requiring precondition evaluation: " << string(*expr);
+								if (!check_states_implies_pre_condition(proj, state, op, expr->elems.get())){
+									LOG_INFO << "[forward_simulation] Loop Invariant Precondition not Satified";
+									return SimulateResult{false, false, false, false};
+								};
+							}
+							if(proj->cmds.PostCond.find(op) != proj->cmds.PostCond.end()) {
+								auto fname = def->name;
+								post_cond = formulate_post_condition(proj, fname, expr->elems.get());
+								add_post_condition = true;
 							}
 						}
 					}
 				}
 			}
-			auto const abst_spec = abst_transition(proj, m->src.get());
-			SpecNode  const*st_input = extract_st_from_expr(proj, m->src.get());
+		}
+		auto const abst_spec = abst_transition(proj, m->src.get());
+		SpecNode  const*st_input = extract_st_from_expr(proj, m->src.get());
 
-			auto sim_result = SimulateResult{true, false, false, false};
-			// SpecNode *impl_rest = nullptr;
+		auto sim_result = SimulateResult{true, false, false, false};
+		// SpecNode *impl_rest = nullptr;
 
-			int cnt = 0;
-			for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
-				auto const pm_state = state->copy();
-				auto pat = (*pm)->pattern.get();
+		int cnt = 0;
+		for (auto pm = m->match_list->begin() ; pm != m->match_list->end(); pm++) {
+			auto const pm_state = state->copy();
+			auto pat = (*pm)->pattern.get();
 
-				resolve_pattern(proj, m, pat, src, pm_state);
-				if(resolve_to_none) {
-					if(auto expr = instance_of(pat, Expr)) {
-						if(!op_eq(expr->op, Expr::None)) {
-							continue;
-						} else {
-							auto const this_branch_result = descend((*pm)->body.get(), pm_state, det);
-							sim_result = sim_result + this_branch_result;
-							return sim_result;
-						}
+			resolve_pattern(proj, m, pat, src, pm_state);
+			if(resolve_to_none) {
+				if(auto expr = instance_of(pat, Expr)) {
+					if(!op_eq(expr->op, Expr::None)) {
+						continue;
+					} else {
+						auto const this_branch_result = descend((*pm)->body.get(), pm_state, det);
+						sim_result = sim_result + this_branch_result;
+						return sim_result;
 					}
 				}
-				if (add_post_condition) {
-					auto expr = instance_of(m->src.get(), Expr);
-					auto const op = std::get<string>(expr->op);
-					if (auto loop = instance_of(proj->defs[op].get(), Fixpoint)){
-						if(auto p = instance_of(pat, Expr)) {
-							if(op_eq(p->op, Expr::Some)) {
-								if(instance_of(p->elems->at(0)->type.get(), Tuple)) {
-									auto tuple = p->elems->at(0).get();
-									if(auto t = instance_of(tuple, Expr)) {
-										vector<string> names;
-										vector<unique_ptr<SpecNode>> elems;
-										for(int i = 0; i < t->elems->size(); i++) {
-											auto elem = t->elems->at(i).get();
-											if(auto sym = instance_of(elem, Symbol)) {
-												names.push_back(loop->name + "_" + loop->args->at(i)->name + "_new");
-												elems.push_back(sym->deep_copy());
-												(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
-											}
+			}
+			if (add_post_condition) {
+				auto expr = instance_of(m->src.get(), Expr);
+				auto const op = std::get<string>(expr->op);
+				if (auto loop = instance_of(proj->defs[op].get(), Fixpoint)){
+					if(auto p = instance_of(pat, Expr)) {
+						if(op_eq(p->op, Expr::Some)) {
+							if(instance_of(p->elems->at(0)->type.get(), Tuple)) {
+								auto tuple = p->elems->at(0).get();
+								if(auto t = instance_of(tuple, Expr)) {
+									vector<string> names;
+									vector<unique_ptr<SpecNode>> elems;
+									for(int i = 0; i < t->elems->size(); i++) {
+										auto elem = t->elems->at(i).get();
+										if(auto sym = instance_of(elem, Symbol)) {
+											names.push_back(loop->name + "_" + loop->args->at(i)->name + "_new");
+											elems.push_back(sym->deep_copy());
+											(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 										}
-										auto const new_inv = subst_v2(proj,std::move(loop_post_cond), &names, &elems);
-										LOG_DEBUG << "[forward_simulation " << random_code << "] Checking loop invariant: Adding loop postcondition: " << string(*new_inv);
-										auto const new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
-										pm_state->conds->push_back(new_inv_z3->get_z3_value());
 									}
-								} else if(p->elems->at(0)->type == proj->layers[0]->abs_data){
-									if(auto sym = instance_of(p->elems->at(0).get(), Symbol)) {
-										(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
-									}
-									auto const new_inv = subst_v2(proj,std::move(loop_post_cond), loop->name + "_" + "st_new", p->elems->at(0)->deep_copy());
+									auto const new_inv = subst_v2(proj,std::move(loop_post_cond), &names, &elems);
 									LOG_DEBUG << "[forward_simulation " << random_code << "] Checking loop invariant: Adding loop postcondition: " << string(*new_inv);
 									auto const new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
 									pm_state->conds->push_back(new_inv_z3->get_z3_value());
 								}
+							} else if(p->elems->at(0)->type == proj->layers[0]->abs_data){
+								if(auto sym = instance_of(p->elems->at(0).get(), Symbol)) {
+									(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
+								}
+								auto const new_inv = subst_v2(proj,std::move(loop_post_cond), loop->name + "_" + "st_new", p->elems->at(0)->deep_copy());
+								LOG_DEBUG << "[forward_simulation " << random_code << "] Checking loop invariant: Adding loop postcondition: " << string(*new_inv);
+								auto const new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
+								pm_state->conds->push_back(new_inv_z3->get_z3_value());
 							}
 						}
-					} else {
-						//normal definition
-						auto def = instance_of(proj->defs[op].get(), Definition);
-						if(auto p = instance_of(pat, Expr)) {
-							if(op_eq(p->op, Expr::Some)) {
-								if(instance_of(p->elems->at(0)->type.get(), Tuple)) {
-									auto tuple = p->elems->at(0).get();
-									if(auto t = instance_of(tuple, Expr)) {
-										vector<string> names;
-										vector<unique_ptr<SpecNode>> elems;
-										for(int i = 0; i < t->elems->size(); i++) {
-											auto elem = t->elems->at(i).get();
-											if(auto sym = instance_of(elem, Symbol)) {
-												if(i + 1 == t->elems->size()) {
-													names.push_back(def->name + "_st_new_");
-													elems.push_back(sym->deep_copy());
-												} else {
-													names.push_back(def->name + "_ret_" + std::to_string(i));
-													elems.push_back(sym->deep_copy());
-												}
-												(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
+					}
+				} else {
+					//normal definition
+					auto def = instance_of(proj->defs[op].get(), Definition);
+					if(auto p = instance_of(pat, Expr)) {
+						if(op_eq(p->op, Expr::Some)) {
+							if(instance_of(p->elems->at(0)->type.get(), Tuple)) {
+								auto tuple = p->elems->at(0).get();
+								if(auto t = instance_of(tuple, Expr)) {
+									vector<string> names;
+									vector<unique_ptr<SpecNode>> elems;
+									for(int i = 0; i < t->elems->size(); i++) {
+										auto elem = t->elems->at(i).get();
+										if(auto sym = instance_of(elem, Symbol)) {
+											if(i + 1 == t->elems->size()) {
+												names.push_back(def->name + "_st_new_");
+												elems.push_back(sym->deep_copy());
+											} else {
+												names.push_back(def->name + "_ret_" + std::to_string(i));
+												elems.push_back(sym->deep_copy());
 											}
+											(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 										}
-										auto const new_inv = subst_v2(proj,std::move(post_cond), &names, &elems);
-										LOG_DEBUG << "[forward_simulation " << random_code << "] Adding postcondition: " << string(*new_inv);
-										auto const new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
-										pm_state->conds->push_back(new_inv_z3->get_z3_value());
 									}
-								} else if(p->elems->at(0)->type == proj->layers[0]->abs_data) {
-									if(auto sym = instance_of(p->elems->at(0).get(), Symbol)) {
-										(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
-									}
-									auto const new_inv = subst_v2(proj,std::move(post_cond), def->name + "_st_new_", p->elems->at(0)->deep_copy());
-
+									auto const new_inv = subst_v2(proj,std::move(post_cond), &names, &elems);
 									LOG_DEBUG << "[forward_simulation " << random_code << "] Adding postcondition: " << string(*new_inv);
 									auto const new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
 									pm_state->conds->push_back(new_inv_z3->get_z3_value());
 								}
+							} else if(p->elems->at(0)->type == proj->layers[0]->abs_data) {
+								if(auto sym = instance_of(p->elems->at(0).get(), Symbol)) {
+									(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
+								}
+								auto const new_inv = subst_v2(proj,std::move(post_cond), def->name + "_st_new_", p->elems->at(0)->deep_copy());
+
+								LOG_DEBUG << "[forward_simulation " << random_code << "] Adding postcondition: " << string(*new_inv);
+								auto const new_inv_z3 = z3_eval(proj, new_inv.get(), pm_state, true, false, used_fix);
+								pm_state->conds->push_back(new_inv_z3->get_z3_value());
 							}
 						}
 					}
 				}
+			}
 
 
-				if (!std::holds_alternative<std::nullptr_t>(abst_spec)) {
-					SpecNode  const*st_ret = extract_st_from_expr(proj, pat);
-					if (st_input && st_ret) {
-						/** TODO: add lemmas and invariants here */
-						/** TODO: check weak induction pre-condition:
-						 * 		st_input ~ st_sim_input
-						 */
-					}
-				}
-
-				// for non-abst func here (match-as-branch), check state validity here
-				Z3Result res = Z3Result::Unknown;
-				if (det && m->src->is_determ_branch) {
-					res = (path[i] == cnt++) ? Z3Result::True : Z3Result::False;
-				} else {
-					res = z3_verify_state_sat(pm_state, &proj->query_saver, Z3_SAT_TIMEOUT);
-				}
-
-				if (res == Z3Result::False) {
-					continue;
-				} else {
-					LOG_DEBUG << "[forward_simulation " << random_code << "] Checking Match src: " << string(*m->src).substr(0,200) <<  "\nPattern: " << string(*pat).substr(0,200);
-					auto this_branch_result = descend((*pm)->body.get(), pm_state, det);
-					if(!this_branch_result.verified){
-						LOG_DEBUG << "[forward_simulation " << random_code << "] Match verification failed on branch: " << string(*pat).substr(0,200);
-						LOG_DEBUG << "Matched expr: " << string(*m->src->deep_copy());
-						// If the scrutinee was an opaque callee, unfold it here and redo
-						// just this Match with the state we entered it with.
-						if (inline_folded_scrutinee(proj, m, state))
-							return redo();
-						return this_branch_result;
-					}
-					sim_result = sim_result + this_branch_result;
+			if (!std::holds_alternative<std::nullptr_t>(abst_spec)) {
+				SpecNode  const*st_ret = extract_st_from_expr(proj, pat);
+				if (st_input && st_ret) {
+					/** TODO: add lemmas and invariants here */
+					/** TODO: check weak induction pre-condition:
+					 * 		st_input ~ st_sim_input
+					 */
 				}
 			}
-			// LOG_DEBUG << "[forward_simulation " << random_code << "] Completed Match of src " << string(*m->src).substr(0,100);
-			return sim_result;
 
+			// for non-abst func here (match-as-branch), check state validity here
+			Z3Result res = Z3Result::Unknown;
+			if (det && m->src->is_determ_branch) {
+				res = (path[i] == cnt++) ? Z3Result::True : Z3Result::False;
+			} else {
+				res = z3_verify_state_sat(pm_state, &proj->query_saver, Z3_SAT_TIMEOUT);
+			}
+
+			if (res == Z3Result::False) {
+				continue;
+			} else {
+				LOG_DEBUG << "[forward_simulation " << random_code << "] Checking Match src: " << string(*m->src).substr(0,200) <<  "\nPattern: " << string(*pat).substr(0,200);
+				auto this_branch_result = descend((*pm)->body.get(), pm_state, det);
+				if(!this_branch_result.verified){
+					LOG_DEBUG << "[forward_simulation " << random_code << "] Match verification failed on branch: " << string(*pat).substr(0,200);
+					LOG_DEBUG << "Matched expr: " << string(*m->src->deep_copy());
+					// If the scrutinee was an opaque callee, unfold it here; the
+					// caller redoes just this Match with the state it entered with.
+					if (inline_folded_scrutinee(proj, m, state))
+						return std::nullopt;
+					return this_branch_result;
+				}
+				sim_result = sim_result + this_branch_result;
+			}
+		}
+		// LOG_DEBUG << "[forward_simulation " << random_code << "] Completed Match of src " << string(*m->src).substr(0,100);
+		return sim_result;
 	}
 
 	/// One impl-side step at an If: split on the condition where both branches
-	/// are feasible and hand each feasible branch to [descend].
+	/// are feasible and continue into each feasible branch with descend(body, state, det).
+	template <typename Descend>
 	static SimulateResult step_impl_if(Project *proj, If *iff, const shared_ptr<ProveState>& state, bool det,
-	                                   const path_t &path, int i, const descend_t &descend) {
-			int const random_code = rand() % 10000;
-			auto const cond = z3_eval(proj, iff->cond.get(), state);
-			auto cond_val = cond->get_z3_value();
-			if (cond_val.is_int()){
-				cond_val = (cond_val != 0);
-			}
-			// LOG_DEBUG << "[forward_simulation " << random_code << "] If: " << cond.get()->get_z3_value();
-			LOG_DEBUG << "[forward_simulation " << random_code << "] If: " << string(*iff->cond).substr(0,1000);
+	                                   const path_t &path, int i, Descend descend) {
+		int const random_code = rand() % 10000;
+		auto const cond = z3_eval(proj, iff->cond.get(), state);
+		auto cond_val = cond->get_z3_value();
+		if (cond_val.is_int()){
+			cond_val = (cond_val != 0);
+		}
+		// LOG_DEBUG << "[forward_simulation " << random_code << "] If: " << cond.get()->get_z3_value();
+		LOG_DEBUG << "[forward_simulation " << random_code << "] If: " << string(*iff->cond).substr(0,1000);
 
-			bool true_branch_plausible = true;
-			bool false_branch_plausible = true;
+		bool true_branch_plausible = true;
+		bool false_branch_plausible = true;
 
-			if (det && iff->cond->is_determ_branch) {
-				LOG_DEBUG << "[forward_simulation " << random_code << "] If is determ branch True";
-				false_branch_plausible = (path[i] == 1) ? false : true;
-			} else {
-				// LOG_DEBUG << "[forward_simulation " << random_code << "] If is determ branch False";
-				z3::model model(z3ctx);
-				auto const t_race = OPTS.race_timeout;
-				// OPTS.race_timeout = Z3_SIM_TIMEOUT;
-				// true_res = z3_check(state, cond->get_z3_value(), Z3_SIM_TIMEOUT);
-				// if z3_check_unsat returns True on !cond, then !cond cannot be false, meaning cond cannot be true.
+		if (det && iff->cond->is_determ_branch) {
+			LOG_DEBUG << "[forward_simulation " << random_code << "] If is determ branch True";
+			false_branch_plausible = (path[i] == 1) ? false : true;
+		} else {
+			// LOG_DEBUG << "[forward_simulation " << random_code << "] If is determ branch False";
+			z3::model model(z3ctx);
+			auto const t_race = OPTS.race_timeout;
+			// OPTS.race_timeout = Z3_SIM_TIMEOUT;
+			// true_res = z3_check(state, cond->get_z3_value(), Z3_SIM_TIMEOUT);
+			// if z3_check_unsat returns True on !cond, then !cond cannot be false, meaning cond cannot be true.
                 std::pair<bool,bool> const plausibility = check_branch_plausibility(proj, state, cond, model);
-				true_branch_plausible = plausibility.first;
-				false_branch_plausible = plausibility.second;
-				OPTS.race_timeout = t_race;
+			true_branch_plausible = plausibility.first;
+			false_branch_plausible = plausibility.second;
+			OPTS.race_timeout = t_race;
+		}
+		if (!true_branch_plausible && !false_branch_plausible) {
+			LOG_DEBUG << "[forward_simulation " << random_code << "] If - Both branches impossible!";
+			return SimulateResult{true, false, false, false};
+		} else if (true_branch_plausible && !false_branch_plausible) {
+			LOG_DEBUG << "[forward_simulation " << random_code << "] If - On True branch only";
+			state->conds->push_back(cond_val);
+			return descend(iff->then_body.get(), state, det);
+		} else if (!true_branch_plausible && false_branch_plausible) {
+			LOG_DEBUG << "[forward_simulation " << random_code << "] If - On False branch only";
+			state->conds->push_back(!cond_val);
+			return descend(iff->else_body.get(), state, det);
+		} else {
+			LOG_DEBUG << "[forward_simulation " << random_code << "] If - On both branches";
+			// O(N^2) simulation search
+			// if (!det || !iff->cond->is_determ_branch) {
+			// 	LOG_DEBUG << "Unsolved (try) If non-determ cond!" << string(*iff->cond.get());
+			// }
+			auto const then_state = state->copy();
+			auto const else_state = state->copy();
+			then_state->conds->push_back(cond_val);
+			else_state->conds->push_back(!cond_val);
+			auto const then_sim_result = descend(iff->then_body.get(), then_state, false);
+			if (!then_sim_result.verified) {
+				LOG_DEBUG << "[forward_simulation " << random_code << "] Then branch of if not verified";
+				LOG_DEBUG << "[forward_simulation " << random_code << "] Guilty condition " << cond.get()->get_z3_value();
 			}
-			if (!true_branch_plausible && !false_branch_plausible) {
-				LOG_DEBUG << "[forward_simulation " << random_code << "] If - Both branches impossible!";
-				return SimulateResult{true, false, false, false};
-			} else if (true_branch_plausible && !false_branch_plausible) {
-				LOG_DEBUG << "[forward_simulation " << random_code << "] If - On True branch only";
-				state->conds->push_back(cond_val);
-				return descend(iff->then_body.get(), state, det);
-			} else if (!true_branch_plausible && false_branch_plausible) {
-				LOG_DEBUG << "[forward_simulation " << random_code << "] If - On False branch only";
-				state->conds->push_back(!cond_val);
-				return descend(iff->else_body.get(), state, det);
-			} else {
-				LOG_DEBUG << "[forward_simulation " << random_code << "] If - On both branches";
-				// O(N^2) simulation search
-				// if (!det || !iff->cond->is_determ_branch) {
-				// 	LOG_DEBUG << "Unsolved (try) If non-determ cond!" << string(*iff->cond.get());
-				// }
-				auto const then_state = state->copy();
-				auto const else_state = state->copy();
-				then_state->conds->push_back(cond_val);
-				else_state->conds->push_back(!cond_val);
-				auto const then_sim_result = descend(iff->then_body.get(), then_state, false);
-				if (!then_sim_result.verified) {
-					LOG_DEBUG << "[forward_simulation " << random_code << "] Then branch of if not verified";
-					LOG_DEBUG << "[forward_simulation " << random_code << "] Guilty condition " << cond.get()->get_z3_value();
-				}
-				auto const else_sim_result = descend(iff->else_body.get(), else_state, false);
-				if (!else_sim_result.verified) {
-					LOG_DEBUG << "[forward_simulation " << random_code << "] else branch of if not verified";
-					LOG_DEBUG << "[forward_simulation " << random_code << "] Guilty condition " << (!cond_val);
-				}
-				return then_sim_result + else_sim_result;
+			auto const else_sim_result = descend(iff->else_body.get(), else_state, false);
+			if (!else_sim_result.verified) {
+				LOG_DEBUG << "[forward_simulation " << random_code << "] else branch of if not verified";
+				LOG_DEBUG << "[forward_simulation " << random_code << "] Guilty condition " << (!cond_val);
 			}
-
+			return then_sim_result + else_sim_result;
+		}
 	}
 
 	SimulateResult forward_simulation(Project *proj, SpecNode *st_check, SpecNode *spec_ret, SpecNode *impl, Definition *rel, Definition *ret_rel, const shared_ptr<ProveState>& state,
@@ -409,6 +406,10 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 				int const random_code = rand() % 10000;
 			// bool det = false, const path_t &path = {}, int i = 0, bool allow_none = false) {
 		// LOG_DEBUG << "[forward_simulation " << random_code << "] start! checking " << string(*impl).substr(0,10000) << std::endl;
+		// Continues this simulation into an impl If or Match arm.
+		auto const descend = [&](SpecNode *body, const shared_ptr<ProveState> &s, bool d) {
+			return forward_simulation(proj, st_check, spec_ret, body, rel, ret_rel, s, d, path, i + 1, allow_none);
+		};
 		if (auto expr = instance_of(impl, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
 				if (*e_op == Expr::Some) {
@@ -477,17 +478,9 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 				}
 			}
 		} else if (auto m = instance_of(impl, Match)) {
-			auto const descend = [&](SpecNode *body, const shared_ptr<ProveState> &s, bool d) {
-				return forward_simulation(proj, st_check, spec_ret, body, rel, ret_rel, s, d, path, i + 1, allow_none);
-			};
-			auto const redo = [&]() {
-				return forward_simulation(proj, st_check, spec_ret, impl, rel, ret_rel, state, det, path, i, allow_none);
-			};
-			return step_impl_match(proj, m, state, det, path, i, descend, redo);
+			if (auto result = step_impl_match(proj, m, state, det, path, i, descend)) return *result;
+			return forward_simulation(proj, st_check, spec_ret, impl, rel, ret_rel, state, det, path, i, allow_none);
 		} else if (auto iff = instance_of(impl, If)) {
-			auto const descend = [&](SpecNode *body, const shared_ptr<ProveState> &s, bool d) {
-				return forward_simulation(proj, st_check, spec_ret, body, rel, ret_rel, s, d, path, i + 1, allow_none);
-			};
 			return step_impl_if(proj, iff, state, det, path, i, descend);
 		} else if (auto r = instance_of(impl, Rely)) {
 			auto const c = z3_eval(proj, r->prop.get(), state);
@@ -607,11 +600,12 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 				spec->clear_z3_eval();
 				return simulate_by_traverse(proj, spec, body, rel, ret_rel, s, p, det);
 			};
-			if (auto impl_m = instance_of(impl, Match)) {
-				auto const redo = [&]() { return simulate_by_traverse(proj, spec, impl, rel, ret_rel, state, p, det); };
-				return step_impl_match(proj, impl_m, state, det, p, 0, descend, redo);
-			}
-			return step_impl_if(proj, instance_of(impl, If), state, det, p, 0, descend);
+			// det is false here, so the path index is never read.
+			if (auto impl_if = instance_of(impl, If))
+				return step_impl_if(proj, impl_if, state, false, p, 0, descend);
+			if (auto result = step_impl_match(proj, instance_of(impl, Match), state, false, p, 0, descend))
+				return *result;
+			return simulate_by_traverse(proj, spec, impl, rel, ret_rel, state, p, det);
 		}
 		if (auto expr = instance_of(spec, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {

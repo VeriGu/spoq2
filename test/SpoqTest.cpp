@@ -25,6 +25,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <algorithm>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -245,15 +246,11 @@ void runCaseChecks(const TestCase &tc) {
 
     // Environment for this spoq run only.
     //   env   `;`-separated VAR=value assignments
-    std::string env_prefix;
-    {
-        std::istringstream in(expected_early.get<std::string>("env", ""));
-        for (std::string kv; std::getline(in, kv, ';');)
-            if (!kv.empty()) env_prefix += kv + " ";
-    }
+    auto env = expected_early.get<std::string>("env", "");
+    std::replace(env.begin(), env.end(), ';', ' ');
 
     std::ostringstream cmd;
-    cmd << "cd " << work << " && " << (env_prefix.empty() ? "" : "env " + env_prefix) << "timeout "
+    cmd << "cd " << work << " && " << (env.empty() ? "" : "env " + env + " ") << "timeout "
         << kTimeoutSeconds << " " << SPOQ_BINARY << " "
         << tc.stem << ".main.v"
         << " --new-trans --llvm --no-profile --check-patch-refinement --check-pre-post"

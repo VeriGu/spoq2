@@ -1211,17 +1211,10 @@ SpoqIRModule::store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context
 static unique_ptr<SpecNode> with_alignment(Project *proj, SpoqIRContext &context, llvm::Instruction *inst,
                                            unique_ptr<SpecNode> node) {
     node->origin_fn = shared_ptr<llvm::Function>(proj->spoq_code.llvm_module, context.spoq_func.llvm_func);
-    if (!inst) return node;
-    if (auto *md = inst->getMetadata("pv.align")) {
-        if (md->getNumOperands() > 0) {
-            if (auto *ci = llvm::mdconst::dyn_extract<llvm::ConstantInt>(md->getOperand(0)))
-            {
-                node->align_idx = static_cast<int>(ci->getSExtValue());
-                LOG_DEBUG << "[align] " << context.fname() << ": index " << node->align_idx << " on "
-                          << string(*node).substr(0, 60);
-            }
-        }
-    }
+    auto *md = inst ? inst->getMetadata("pv.align") : nullptr;
+    if (!md || md->getNumOperands() == 0) return node;
+    if (auto *ci = llvm::mdconst::dyn_extract<llvm::ConstantInt>(md->getOperand(0)))
+        node->align_idx = static_cast<int>(ci->getSExtValue());
     return node;
 }
 

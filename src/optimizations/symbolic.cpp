@@ -1651,6 +1651,24 @@ bool check_pre_post(Project *proj, Definition *def,
     return res;
 }
 
+/// The If/Match spine of [n], one node per line with its alignment index, for
+/// SPOQ_TRACE_ALIGN.
+static void alignment_skeleton(const SpecNode *n, int depth, std::ostream &out) {
+    auto const pad = string(2 * depth, ' ');
+    if (auto m = dynamic_cast<const Match *>(n)) {
+        out << pad << "match " << string(*m->src).substr(0, 80) << " @" << m->align_idx << "\n";
+        for (auto const &pm : *m->match_list) alignment_skeleton(pm->body.get(), depth + 1, out);
+    } else if (auto i = dynamic_cast<const If *>(n)) {
+        out << pad << "if " << string(*i->cond).substr(0, 80) << " @" << i->align_idx << "\n";
+        alignment_skeleton(i->then_body.get(), depth + 1, out);
+        alignment_skeleton(i->else_body.get(), depth + 1, out);
+    } else if (auto r = dynamic_cast<const Rely *>(n)) {
+        alignment_skeleton(r->body.get(), depth, out);
+    } else {
+        out << pad << string(*n).substr(0, 60) << "\n";
+    }
+}
+
 /// [out], when given, receives the result instead of it being printed.  The
 /// demand-driven retry loop calls this more than once and only the settled
 /// verdict should reach stdout -- the harness reads the first line.
@@ -1834,29 +1852,11 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     // LOG_DEBUG << "Using relation: " << string(*rel_with_rets_def->body);
     // LOG_DEBUG << "Original state relation: " << string(*rel_post->body);
     if (std::getenv("SPOQ_TRACE_ALIGN")) {
-        // The If/Match skeleton of each body with its alignment indices.
-        std::function<void(const SpecNode *, int, std::ostream &)> skeleton = [&](const SpecNode *n, int depth,
-                                                                                  std::ostream &out) {
-            auto const pad = string(2 * depth, ' ');
-            auto const tag = [&](const SpecNode *x) { return " @" + std::to_string(x->align_idx); };
-            if (auto m = dynamic_cast<const Match *>(n)) {
-                out << pad << "match " << string(*m->src).substr(0, 80) << tag(m) << "\n";
-                for (auto const &pm : *m->match_list) skeleton(pm->body.get(), depth + 1, out);
-            } else if (auto i = dynamic_cast<const If *>(n)) {
-                out << pad << "if " << string(*i->cond).substr(0, 80) << tag(i) << "\n";
-                skeleton(i->then_body.get(), depth + 1, out);
-                skeleton(i->else_body.get(), depth + 1, out);
-            } else if (auto r = dynamic_cast<const Rely *>(n)) {
-                skeleton(r->body.get(), depth, out);
-            } else {
-                out << pad << string(*n).substr(0, 60) << "\n";
-            }
-        };
-        std::ostringstream v, pt;
-        skeleton(vuln_body, 0, v);
-        skeleton(patched_body, 0, pt);
-        LOG_DEBUG << "[align] vuln skeleton:\n" << v.str();
-        LOG_DEBUG << "[align] patch skeleton:\n" << pt.str();
+        std::ostringstream vuln_out, patch_out;
+        alignment_skeleton(vuln_body, 0, vuln_out);
+        alignment_skeleton(patched_body, 0, patch_out);
+        LOG_DEBUG << "[align] vuln skeleton:\n" << vuln_out.str();
+        LOG_DEBUG << "[align] patch skeleton:\n" << patch_out.str();
     }
     if (std::getenv("SPOQ_DUMP_REFINES")) {
         static int seq = 0;
