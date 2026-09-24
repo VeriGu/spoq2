@@ -54,6 +54,12 @@ no call to `helper_spec`.
 both entry points pass 0, so the UB is never reachable. Deciding that needs the
 callee's body, so the retry fires: it inlines `peek_next_val_spec` and re-checks.
 
+`impl_eliminates_ub` is true because an argument pointer may have any offset.
+At `d.poffset` in [-8, -1], in a block of at least 8 bytes whose `next` field
+is null, the vuln loads `d->val` at a negative offset while the patch reads
+`d->next` in bounds and returns -1.  With `d.(poffset) >= 0` assumed it is
+false.
+
 Both modes agree on the values in `.expected.json`. The specs they reach are not
 the same, though: the lazy one is substantially larger and keeps more `None`
 branches, because `inline_callee` splices the callee into a body whose branch

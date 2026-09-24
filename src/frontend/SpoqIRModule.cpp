@@ -430,30 +430,6 @@ bool SpoqIRModule::validate_for_gen_low_spec(Project* proj, string fname, int la
 }
 
 
-/**
- * @brief Recover the struct a pointer argument points at, or nullptr if it isn't one.
- *
- * Opaque pointers dropped the pointee from the pointer type itself, so fall back on
- * what the IR still records: an explicit byval/sret type, or the element type of a
- * GEP that walks the argument.  A pointer we cannot resolve is simply treated as not
- * pointing at a struct, which drops an alignment assumption but never adds one.
- */
-static llvm::Type *pointee_struct_type(llvm::Argument &arg) {
-    for (auto *ty : {arg.getParamByValType(), arg.getParamStructRetType()})
-        if (ty && ty->isStructTy())
-            return ty;
-
-    for (auto *user : arg.users()) {
-        auto *gep = llvm::dyn_cast<llvm::GEPOperator>(user);
-        if (!gep || gep->getPointerOperand() != &arg)
-            continue;
-        if (gep->getSourceElementType()->isStructTy())
-            return gep->getSourceElementType();
-    }
-
-    return nullptr;
-}
-
 bool SpoqIRModule::code_to_spec(Project *proj, const string& fname, int layer_id,
                                    std::vector<std::string> &low_specs,
                                    std::unordered_map<string, string> &name_map) {
@@ -483,32 +459,6 @@ bool SpoqIRModule::code_to_spec(Project *proj, const string& fname, int layer_id
         auto symbol = dynamic_cast<Symbol*>(sym.get());
         assert(symbol && "arg is not a symbol without abstraction");
 
-        if(arg.getType()->isPointerTy()){
-            // We make an assumption about LLVM IR.
-            // IR compiled from C code will never pass a pointer to a struct as a parameter
-            // that does not point at the beginning of the struct or 1 past the end of the struct
-            auto pointee_ty = pointee_struct_type(arg);
-            if(pointee_ty){
-                std::unique_ptr<SpecNode> mod_expr = sym->deep_copy();
-                auto record_get_elems = make_unique<std::vector<unique_ptr<SpecNode>>>();
-                record_get_elems->push_back(std::move(mod_expr));
-                record_get_elems->push_back(make_unique<Symbol>("poffset"));
-                mod_expr = make_unique<Expr>(Expr::RecordGet, std::move(record_get_elems));
-                auto mod_elems = make_unique<std::vector<unique_ptr<SpecNode>>>();
-                mod_elems->push_back(std::move(mod_expr));
-                // calculate total aggregate size
-                auto const aggregate_size = context.llvm_dl->getTypeAllocSize(pointee_ty);
-                mod_elems->push_back(make_unique<IntConst>(aggregate_size));
-                mod_expr = make_unique<Expr>(Expr::binops::MOD, std::move(mod_elems));
-                auto rely_prop_elems = make_unique<std::vector<unique_ptr<SpecNode>>>();
-                rely_prop_elems->push_back(std::move(mod_expr));
-                rely_prop_elems->push_back(make_unique<IntConst>(0));
-                auto rely_prop = make_unique<Expr>(Expr::binops::EQUAL, std::move(rely_prop_elems));
-                spec = make_unique<Rely>(std::move(rely_prop), std::move(spec));
-
-            }
-
-        }
         // Only for an argument the body reads.  A range on an unread argument
         // adds nothing, and mentioning it is not free: vuln and patch need not
         // take the same arguments, and the refinement leaves one the body never
