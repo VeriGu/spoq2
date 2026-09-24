@@ -68,10 +68,7 @@ size_t leaves_in_spec_unfolded(Project* proj, const SpecNode *node) {
     if (proj->name == "struct_array_elem") return 0;  
     auto new_node = node->deep_copy();
     auto changed = false;
-    int iter = 0;
     do {
-        // LOG_DEBUG << "Unfold iteration " << iter << ": \n" << new_node << "\n\n";
-        iter++;
         changed = false;
         bool unfold_changed, hoist_changed = false;
         std::tie(new_node, hoist_changed) = proj->rules.hoist_match_from_branch(std::move(new_node), true);
@@ -170,7 +167,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
         proj->leaves_in_unfolded_func_pre_transform[fname] = leaves_in_spec_unfolded(proj, def->body().get());
     }
 
-    for (auto const arg : *def->args) {
+    for (auto const &arg : *def->args) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
     unique_ptr<SpecNode> aggrepres = make_unique<BoolConst>(true);
@@ -183,17 +180,14 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
     // LOG_DEBUG << "ADDING PreConditions: " << string(*aggrepres);
 
     auto llvm_func = proj->spoq_code.llvm_module->getFunction(fname);
-    size_t idx = 0;
-    for (auto const arg: *def->args) {
+    for (auto const &arg: *def->args) {
         auto const st = Struct::Ptr;
         auto const argt = arg->type;
         if(st.get() == argt.get()) {
             if(llvm_func) {
-                // auto larg = llvm_func->getArg(idx);
                 LOG_DEBUG << "Arg: " << arg->name << " type: " << arg->type->name;
             }
-        }    
-        idx++;
+        }
     }
     auto const state = make_shared<EvalState>(vars, conds);
     set<string> fix_string;
@@ -213,7 +207,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             cur_iter++;
             profile_clear_epoch();
             auto known = std::set<string>();
-            for (auto const arg : *def->args) {
+            for (auto const &arg : *def->args) {
                 known.insert(arg->name);
             }
 
@@ -293,11 +287,8 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             force_simpl = false;
             changed = false;
             bool still_unfolding = true;
-            int inner_iter = 0;
             bool um_changed, le_changed, me_changed, we_changed, cb_changed, hoist_changed = false;
-            // while(still_unfolding && inner_iter < 50){
                 still_unfolding = false;
-                inner_iter += 1;
             if(unfold && !proj->cmds.NoUnfoldAll) {
                 assert(spec);
                 auto [_spec, unfolded] = proj->rules.rule_unfold_specs(std::move(spec), true);
@@ -321,7 +312,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             // LOG_DEBUG << "end unfold , start eliminate" << "\n";
             
             known = std::set<string>();
-            for (auto const arg : *def->args) {
+            for (auto const &arg : *def->args) {
                 known.insert(arg->name);
             }
             assert(spec);
@@ -450,7 +441,6 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 }
             }           
             changed |= cb_changed;
-            // } 
             
             
             if(def->name == log_fn_name){
@@ -585,7 +575,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
     auto known = std::set<string>();
     auto fname = def->name;
 
-    for (auto const arg : *def->args) {
+    for (auto const &arg : *def->args) {
         known.insert(arg->name);
     }
 
@@ -675,7 +665,7 @@ void spec_transformer(Project *proj, Definition *def, int layer_id, bool unfold,
         // if (unfold) {
             auto const vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
             auto const conds = std::make_shared<vector<z3::expr>>();
-            for (auto const arg : *def->args) {
+            for (auto const &arg : *def->args) {
                 (*vars)[arg->name] = arg->type->declare(arg->name, 0);
             }
             profile_clear_epoch();

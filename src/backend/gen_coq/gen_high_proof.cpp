@@ -39,9 +39,9 @@ void gen_high_proof(Project *p, int i, const string& fname, const string& path, 
                              base_layer + ".Layer",
                              layer + ".RefineRel"};
 
-    for (auto const s : syms) {
+    for (auto const &s : syms) {
         if (p->deps.find(s) == p->deps.end()) continue;
-        for (auto const d : p->deps[s]) {
+        for (auto const &d : p->deps[s]) {
             if (p->symbols[d].loc == tuple<string, string, string>("", "", "") || p->symbols[d].loc == loc_proof)
                 continue;
 
@@ -50,9 +50,9 @@ void gen_high_proof(Project *p, int i, const string& fname, const string& path, 
         }
     }
 
-    for (auto const s : mid_syms) {
+    for (auto const &s : mid_syms) {
         if (p->deps.find(s) == p->deps.end()) continue;
-        for (auto const d : p->deps[s]) {
+        for (auto const &d : p->deps[s]) {
             if (p->symbols[d].loc == tuple<string, string, string>("", "", "") || p->symbols[d].loc == loc_proof)
                 continue;
 
@@ -83,7 +83,7 @@ void gen_high_proof(Project *p, int i, const string& fname, const string& path, 
 
     // mid_specs
 
-    for (auto const s : mid_syms) {
+    for (auto const &s : mid_syms) {
         if (p->symbols[s].kind == SymbolKind::Def) {
             out << add_indent(string(*p->defs[s]), 2) << "\n\n";
             cache_o << string(*p->defs[s]) << "\n\n";
@@ -302,7 +302,7 @@ unique_ptr<vector<string>> generate_high_proof(Project *p)
             fs::remove(cache_out.string());
         }
 
-        for (auto const prim : L->prims) {
+        for (auto const &prim : L->prims) {
             auto const prim_path = dir / layer_name / boost::filesystem::path(prim);
             if (!fs::exists(prim_path.string())) {
                 fs::create_directory(prim_path.string());

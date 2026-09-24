@@ -257,7 +257,7 @@ antlrcpp::Any LightProgramVisitor::visitType(SpecParser::TypeContext* ctx) {
             shared_ptr<Function> const curried_type_func = dynamic_pointer_cast<Function>(curried_type);
 
             // push back all the arguments of curried_type_func
-            for (auto const arg : *curried_type_func->args) {
+            for (auto const &arg : *curried_type_func->args) {
                 args->push_back(arg);
             }
 

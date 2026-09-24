@@ -60,7 +60,7 @@ bool decompose(Project* proj, Definition* def, const string& secret) {
                 continue;
             }
             auto contain = false;
-            for(auto const public_field : public_ret) {
+            for(auto const &public_field : public_ret) {
                 if(contains_field(coi_field, public_field)) {
                     // proj->unverified_relations.insert(r);
                     

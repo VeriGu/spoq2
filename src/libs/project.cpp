@@ -1129,7 +1129,7 @@ void trans_inv(Project *proj) {
         }
     }
 
-    for(auto const name : proj->axioms) {
+    for(auto const &name : proj->axioms) {
        Definition *axiom_def = proj->defs[name].get();
        type_inference::infer_type(*proj, axiom_def->body().get(), known, Bool::BOOL);
        spec_transformer_v2(proj, axiom_def, 0, true, true);

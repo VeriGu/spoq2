@@ -21,7 +21,7 @@ void rec_update(std::ofstream &fout, Project *p, const shared_ptr<autov::Struct>
                   ").[" + fields.at(fields.size() - 1) + "] :< _b).\n";
 
         vector<string> temp;
-        for (auto const f : fields) {
+        for (auto const &f : fields) {
             temp.push_back(".[" + f + "]");
         }
         string notation = "\"_a '" + join(temp, "") + "' ':<' _b\"";
@@ -33,7 +33,7 @@ void rec_update(std::ofstream &fout, Project *p, const shared_ptr<autov::Struct>
     }
 
     if (auto f = dynamic_cast<autov::Struct *>(cur.get())) {
-        for (auto const e : *f->elems) {
+        for (auto const &e : *f->elems) {
             fields.push_back(e->name);
             rec_update(fout, p, init, fields, e->type);
 
@@ -75,7 +75,7 @@ unique_ptr<vector<string>> generate_data(Project *p)
 
     sort(outputs.begin(), outputs.end(), [p](const string& x, const string& y) { return p->symbols[x].order < p->symbols[y].order; });
 
-    for (auto const s : outputs) {
+    for (auto const &s : outputs) {
         if (p->structs.find(s) != p->structs.end()) {
             fout << p->structs[s]->define();
             fout << "\n\n";
@@ -88,13 +88,13 @@ unique_ptr<vector<string>> generate_data(Project *p)
         }
     }
 
-    for (auto const s : outputs) {
+    for (auto const &s : outputs) {
         if (p->structs.find(s) != p->structs.end()) {
             vector<string> fields;
             for (auto const &elem : *p->structs[s]->elems) {
                 fields.push_back(elem->name);
             }
-            for (auto const name : fields) {
+            for (auto const &name : fields) {
                 string update = "Definition update_" + s + "_" + name + "(_a: " + s + ") _b :=\n  mk" + s;
                 for (auto i = 0; i < fields.size(); i++) {
                     if (fields[i] == name) {
@@ -114,7 +114,7 @@ unique_ptr<vector<string>> generate_data(Project *p)
         }
     }
 
-    for (auto const s : outputs) {
+    for (auto const &s : outputs) {
         if (p->structs.find(s) != p->structs.end()) {
             vector<string> fields;
             rec_update(fout, p, p->structs[s], fields, p->structs[s]);

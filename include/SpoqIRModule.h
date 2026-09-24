@@ -46,6 +46,12 @@
 
 namespace autov {
 
+/// [term] if it is a branch, conditional or not; else null.
+inline llvm::Instruction *as_branch(llvm::Instruction *term) {
+    return llvm::isa_and_nonnull<llvm::UncondBrInst, llvm::CondBrInst>(term) ? term : nullptr;
+}
+
+
 class Project;
 
 /// Whether [proj] already declares [name] -- a definition, a declaration, or a
@@ -360,7 +366,7 @@ std::unique_ptr<SpecNode> rely_in_width(std::unique_ptr<SpecNode> body,
                 if (cur == post) continue;
 
                 auto last = cur->getTerminator();
-                if (auto br = llvm::dyn_cast<llvm::BranchInst>(last)) {
+                if (auto br = as_branch(last)) {
                     for (int i = 0; i < br->getNumSuccessors(); i++) {
                         auto succ = br->getSuccessor(i);
                         if (visited[succ]) continue;
@@ -700,7 +706,7 @@ std::unique_ptr<SpecNode> rely_in_width(std::unique_ptr<SpecNode> body,
 
         SpoqIRContext(SpoqFunction& spoq_func_, unique_ptr<Layer>& layer, int id, std::vector<SpoqAbstraction>& abs_config,
             std::vector<SpoqAbstractionLayout>& abs_layout, Project* proj_ = nullptr)
-            :  abs_config(abs_config), abs_layout(abs_layout), spoq_func(spoq_func_), proj(proj_) {
+            :  proj(proj_), abs_config(abs_config), abs_layout(abs_layout), spoq_func(spoq_func_) {
             if(layer->ops["load"] != "") load_op_name = layer->ops["load"];
             if(layer->ops["store"] != "") store_op_name = layer->ops["store"];
             if(layer->ops["ptr2int"] != "") ptr2int_op_name = layer->ops["ptr2int"];

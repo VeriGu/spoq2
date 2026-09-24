@@ -404,13 +404,13 @@ bool SpoqIRModule::validate_for_gen_low_spec(Project* proj, string fname, int la
             return false;
         }
         proj->spoq_code.extract_inline_asm(spoq_func);
-        for(auto const iasm: proj->spoq_code.iasm_defs) {
+        for(auto const &iasm: proj->spoq_code.iasm_defs) {
             if (proj->defs.find(iasm.first + "_spec") == proj->defs.end()) {
                 // if (checked[iasm.first]) continue;
                 // checked[iasm.first] = true;
                 LOG_ERROR << "cannot find iasm definition, please provide it manually " << iasm.first + "_spec" << std::endl;
                 // std::cout << "# " << iasm.first + "_spec" << std::endl;
-                for(auto const i2f : proj->spoq_code.iasm2func) {
+                for(auto const &i2f : proj->spoq_code.iasm2func) {
                     if (i2f.second == iasm.first)
                         llvm::errs() << *(i2f.first) << " -> " << i2f.second << "\n";
                 }

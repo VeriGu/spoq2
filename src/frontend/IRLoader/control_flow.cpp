@@ -851,7 +851,8 @@ static rule_ret_t rule_duplicate_scc(int scc, nodes_t nodes, edges_t edges, back
     if (P_set.size() <= 0)
         RULE_RETURN_FALSE(n);
 
-    auto const P = vector<string>(P_set.begin(), P_set.end());
+    // The duplication itself is not implemented, so the rule never applies.
+    RULE_RETURN_FALSE("");
 #else
     throw std::runtime_error("rule_duplicate_scc is not implemented");
 #endif

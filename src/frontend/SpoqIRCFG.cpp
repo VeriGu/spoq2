@@ -242,20 +242,20 @@ bool SpoqIRModule::control_flow_eliminate_select(llvm::Function* func) {
                 // Build the true arm:  true_bridge → true_bb → suffix
                 auto true_bb = llvm::BasicBlock::Create(func->getContext(), "select.true.bb", func);
                 auto true_bridge = llvm::BasicBlock::Create(func->getContext(), "select.true.bridge", func);
-                llvm::BranchInst::Create(suffix_bb, true_bb);
-                llvm::BranchInst::Create(true_bb, true_bridge);
+                llvm::UncondBrInst::Create(suffix_bb, true_bb);
+                llvm::UncondBrInst::Create(true_bb, true_bridge);
 
                 // Build the false arm:  false_bridge → false_bb → suffix
                 auto false_bb = llvm::BasicBlock::Create(func->getContext(), "select.false.bb", func);
                 auto false_bridge = llvm::BasicBlock::Create(func->getContext(), "select.false.bridge", func);
-                llvm::BranchInst::Create(suffix_bb, false_bb);
-                llvm::BranchInst::Create(false_bb, false_bridge);
+                llvm::UncondBrInst::Create(suffix_bb, false_bb);
+                llvm::UncondBrInst::Create(false_bb, false_bridge);
 
                 // Replace the unconditional br (added by splitBasicBlock)
                 // with a conditional branch on the select's condition.
                 auto term = bb.getTerminator();
                 term->eraseFromParent();
-                llvm::BranchInst::Create(true_bridge, false_bridge, cond, &bb);
+                llvm::CondBrInst::Create(cond, true_bridge, false_bridge, &bb);
 
                 // Insert a phi at the merge point (suffix) to pick the
                 // correct value depending on which arm was taken.
@@ -312,7 +312,7 @@ bool SpoqIRModule::control_flow_duplicate(llvm::BasicBlock *bb,
     while (!q.empty()) {
         auto cur = q.front(); q.pop();
         auto last = cur->getTerminator();
-        if (auto br = llvm::dyn_cast<llvm::BranchInst>(last)) {
+        if (auto br = as_branch(last)) {
             for (int i = 0; i < br->getNumSuccessors(); i++) {
                 auto succ = br->getSuccessor(i);
                 // Don't clone blocks outside our region (preheader,
@@ -419,7 +419,7 @@ bool SpoqIRModule::control_flow_clone_and_split(llvm::BasicBlock *bb, SpoqLoopCo
     }
 
     auto last = bb->getTerminator();
-    if (auto br = llvm::dyn_cast<llvm::BranchInst>(last)) {
+    if (auto br = as_branch(last)) {
         for (int i = 0; i < br->getNumSuccessors(); i++) {
             auto succ = br->getSuccessor(i);
 
@@ -481,7 +481,7 @@ void SpoqIRModule::control_flow_merge_bridge(llvm::BasicBlock* bb, std::set<llvm
     }
 
     auto last = bb->getTerminator();
-    if (auto br = llvm::dyn_cast<llvm::BranchInst>(last)) {
+    if (auto br = as_branch(last)) {
         // Can we merge?  Unconditional branch to a single-predecessor block.
         if(br->getNumSuccessors() == 1 && br->getSuccessor(0)->hasNPredecessors(1)) {
             auto succ = br->getSuccessor(0);
@@ -831,7 +831,7 @@ bool SpoqIRModule::control_flow_conversion_v2(string fname,
                 if (auto ret = llvm::dyn_cast<llvm::ReturnInst>(last)){
                     e->splitBasicBlock(last, "ret.shadow");
                 }
-                auto br = llvm::dyn_cast_or_null<llvm::BranchInst>(last);
+                auto br = as_branch(last);
                 assert(br && "exit block does not have a branch terminator");
                 bool set = false;
                 for(int i = 0; i < br->getNumSuccessors(); i++) {

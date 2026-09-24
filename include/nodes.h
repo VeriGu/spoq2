@@ -734,7 +734,7 @@ public:
         if (body) type = body->get_type();
     }
 
-    bool operator==(const SpecNode& other) const {
+    bool operator==(const SpecNode& other) const override {
         if (typeid(other) != typeid(PatternMatch)) {
             return false;
         }
@@ -743,28 +743,28 @@ public:
                *this->body == *((PatternMatch&)other).body;
     }
 
-    bool operator!=(const SpecNode& other) const {
+    bool operator!=(const SpecNode& other) const override {
         return !(*this == other);
     }
 
-    unique_ptr<SpecNode> deep_copy() const {
+    unique_ptr<SpecNode> deep_copy() const override {
         return deep_copy_down();
     }
 
-    bool deep_eq(SpecNode* n) const {
+    bool deep_eq(SpecNode* n) const override {
         auto other = dynamic_cast<PatternMatch*>(n);
         if(other){
             return *other == *this;
         }
         return false;
     }
-    void clear_z3_eval() {
+    void clear_z3_eval() override {
         this->cached_eval = nullptr;
         this->pattern->clear_z3_eval();
         this->body->clear_z3_eval();
     }
 
-    void deep_copy(unique_ptr<SpecNode> &p) const {
+    void deep_copy(unique_ptr<SpecNode> &p) const override {
         p = deep_copy_down();
     }
 
@@ -785,16 +785,16 @@ public:
 
         p = make_unique<PatternMatch>(std::move(new_pattern), std::move(new_body));
     }
-    size_t count_leaves(size_t max = SIZE_MAX) const {
+    size_t count_leaves(size_t max = SIZE_MAX) const override {
         size_t const count = this->pattern->count_leaves(max);
         if (count > max) return count;
         return count + this->body->count_leaves(max - count);
     }
     ~PatternMatch() {}
 
-    std::ostream &stream(std::ostream &out) const;
+    std::ostream &stream(std::ostream &out) const override;
 private:
-  const string to_string() const;
+  const string to_string() const override;
 };
 
 class Match : public SpecNode {
@@ -819,7 +819,7 @@ public:
             type = (*match_list)[0]->body->get_type();
     }
 
-    bool operator==(const SpecNode& other) const {
+    bool operator==(const SpecNode& other) const override {
         if (typeid(other) != typeid(Match)) {
             return false;
         }
@@ -841,11 +841,11 @@ public:
         return true;
     }
 
-    bool operator!=(const SpecNode& other) const {
+    bool operator!=(const SpecNode& other) const override {
         return !(*this == other);
     }
 
-    void clear_z3_eval() {
+    void clear_z3_eval() override {
         this->cached_eval = nullptr;
         this->src->clear_z3_eval();
         for (auto it = match_list->begin(); it != match_list->end(); it++) {
@@ -875,7 +875,7 @@ public:
         auto ret = make_unique<Match>(std::move(new_src), std::move(new_match_list));
         return ret;
     }
-    unique_ptr<SpecNode> deep_copy() const {
+    unique_ptr<SpecNode> deep_copy() const override {
         // deep copy src and match_list
         unique_ptr<SpecNode> new_src = this->src ? this->src->deep_copy() : nullptr;
         unique_ptr<vector<unique_ptr<PatternMatch>>> new_match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
@@ -892,7 +892,7 @@ public:
         return ret;
     }
 
-    void deep_copy(unique_ptr<SpecNode> &p) const {
+    void deep_copy(unique_ptr<SpecNode> &p) const override {
         // deep copy src and match_list
         unique_ptr<SpecNode> new_src = this->src->deep_copy();
         unique_ptr<vector<unique_ptr<PatternMatch>>> new_match_list = make_unique<vector<unique_ptr<PatternMatch>>>();
@@ -905,14 +905,14 @@ public:
         p->copy_alignment_from(*this);
     }
 
-    bool deep_eq(SpecNode* n) const {
+    bool deep_eq(SpecNode* n) const override {
         auto other = dynamic_cast<Match*>(n);
         if(other){
             return *other == *this;
         }
         return false;
     }
-    size_t count_leaves(size_t max = SIZE_MAX) const {
+    size_t count_leaves(size_t max = SIZE_MAX) const override {
         size_t count = 0;
         if (this->src) {
             count += this->src->count_leaves(max);
@@ -1065,9 +1065,9 @@ public:
         return unique_ptr<Match>(raw_let(std::move(name), std::move(value), std::move(body), std::move(typ)));
     }
 
-    std::ostream &stream(std::ostream &out) const;
+    std::ostream &stream(std::ostream &out) const override;
 private:
-  const string to_string() const;
+  const string to_string() const override;
 };
 
 class RelyAnno: public SpecNode {
@@ -1084,7 +1084,7 @@ public:
     }
 
     virtual ~RelyAnno() = default;
-    size_t count_leaves(size_t max = SIZE_MAX) const {
+    size_t count_leaves(size_t max = SIZE_MAX) const override {
         size_t const count = this->prop->count_leaves(max);
         if (count > max) return count;
         return count + this->body->count_leaves(max - count);
@@ -1230,7 +1230,7 @@ public:
         type = then_body ? then_body->get_type() : SpecType::UNKNOWN_TYPE;
     }
 
-    bool operator==(const SpecNode& other) const {
+    bool operator==(const SpecNode& other) const override {
         if (typeid(other) != typeid(If)) {
             return false;
         }
@@ -1240,34 +1240,34 @@ public:
                *this->else_body == *((If&)other).else_body;
     }
 
-    bool operator!=(const SpecNode& other) const {
+    bool operator!=(const SpecNode& other) const override {
         return !(*this == other);
     }
 
-    void clear_z3_eval() {
+    void clear_z3_eval() override {
         this->cached_eval = nullptr;
         this->cond->clear_z3_eval();
         this->then_body->clear_z3_eval();
         this->else_body->clear_z3_eval();
     }
 
-    unique_ptr<SpecNode> deep_copy() const {
+    unique_ptr<SpecNode> deep_copy() const override {
         unique_ptr<SpecNode> ret;
         deep_copy_impl(ret);
         return ret;
     }
 
-    void deep_copy(unique_ptr<SpecNode> &p) const {
+    void deep_copy(unique_ptr<SpecNode> &p) const override {
         deep_copy_impl(p);
     }
-    bool deep_eq(SpecNode* n) const {
+    bool deep_eq(SpecNode* n) const override {
         auto other = dynamic_cast<If*>(n);
         if(other){
             return *other == *this;
         }
         return false;
     }
-    size_t count_leaves(size_t max = SIZE_MAX) const {
+    size_t count_leaves(size_t max = SIZE_MAX) const override {
         size_t count = this->cond->count_leaves(max);
         if (count > max) return count;
         count += this->then_body->count_leaves(max - count);
@@ -1277,9 +1277,9 @@ public:
     void infer_type(Project &proj, unordered_map<string, shared_ptr<SpecType>> &known_types,
                 optional<shared_ptr<SpecType>> &result_type);
 
-                std::ostream &stream(std::ostream &out) const;
+                std::ostream &stream(std::ostream &out) const override;
 private:
-  const string to_string() const;
+  const string to_string() const override;
 
   void deep_copy_impl(unique_ptr<SpecNode> &p) const {
       unique_ptr<SpecNode> new_cond;
@@ -1559,7 +1559,8 @@ public:
 
     Definition(Definition &other) :
         name(other.name), rettype(other.rettype), args(make_unique<vector<shared_ptr<Arg>>>(*other.args)),
-        body_(other.body_->deep_copy()), sufficient_none_condition(other.sufficient_none_condition ? other.sufficient_none_condition->deep_copy() : nullptr) {}
+        sufficient_none_condition(other.sufficient_none_condition ? other.sufficient_none_condition->deep_copy() : nullptr),
+        body_(other.body_->deep_copy()) {}
 
 
     bool operator==(const Definition& other) const {

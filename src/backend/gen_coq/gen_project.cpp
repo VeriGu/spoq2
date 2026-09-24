@@ -51,7 +51,7 @@ void generate_proj(Project *p)
 
     sort(files.begin(), files.end());
 
-    for (auto const f : files) {
+    for (auto const &f : files) {
 #define HIGH_SPEC_ONLY
 #ifdef HIGH_SPEC_ONLY
         static int const low_spec_len = string("LowSpec.v").length();

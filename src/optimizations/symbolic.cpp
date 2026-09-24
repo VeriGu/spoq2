@@ -582,7 +582,7 @@ bool check_states_implies_pre_condition(Project *proj,
     auto const conds = std::make_shared<vector<z3::expr>>();
     auto const known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
     // Check Precondition
-    for (auto const arg : *def->args) {
+    for (auto const &arg : *def->args) {
         (*var)[def->name + "_" + arg->name] =
             arg->type->declare(def->name + "_" + arg->name, 0); // current
         (*known)[arg->name] = arg->type;
@@ -601,7 +601,7 @@ bool check_states_implies_pre_condition(Project *proj,
     vector<string> names;
     vector<unique_ptr<SpecNode>> selems;
     int i = 0;
-    for (auto const arg : *def->args) {
+    for (auto const &arg : *def->args) {
         names.push_back(arg->name);
         selems.push_back(elems->at(i)->deep_copy());
         i++;
@@ -653,7 +653,7 @@ z3::expr formulate_loop_invariant_z3(Project *proj, const std::string& fname,
     auto const loop_post_cond =
         formulate_loop_invariant(proj, fname, expr->elems.get());
     // LOG_DEBUG << "loop invariant post: " << string(*loop_post_cond);
-    for (auto const arg : *loop->args) {
+    for (auto const &arg : *loop->args) {
         (*state->vars)[loop->name + "_" + arg->name + "_new"] =
             arg->type->declare(loop->name + "_" + arg->name + "_new",
                                0); // current
@@ -664,7 +664,7 @@ z3::expr formulate_loop_invariant_z3(Project *proj, const std::string& fname,
     auto const loop_post_val =
         z3_eval(proj, loop_post_cond.get(), state, false, true, used_fix);
     auto post = loop_post_val->get_z3_value();
-    for (auto const arg : *loop->args) {
+    for (auto const &arg : *loop->args) {
         post = z3::forall((*state->vars)[loop->name + "_" + arg->name + "_new"]
                               ->get_z3_value(),
                           post);
@@ -682,7 +682,7 @@ z3::expr formulate_post_cond_z3(Project *proj, const std::string& fname,
     int i = 0;
     auto rettype = instance_of(def->rettype.get(), Option);
     if (auto rettupletype = instance_of(rettype->elem_type.get(), Tuple)) {
-        for (auto const elemtype : *rettupletype->types) {
+        for (auto const &elemtype : *rettupletype->types) {
             if (i != rettupletype->types->size() - 1) {
                 (*state->vars)[def->name + tmpname + std::to_string(i)] =
                     elemtype->declare(def->name + tmpname + std::to_string(i),
@@ -702,8 +702,7 @@ z3::expr formulate_post_cond_z3(Project *proj, const std::string& fname,
         z3_eval(proj, post_cond.get(), state, false, false, used_fix);
     auto post = post_val->get_z3_value();
     if (auto rettupletype = instance_of(rettype->elem_type.get(), Tuple)) {
-        i = 0;
-        for (auto const elemtype : *rettupletype->types) {
+        for (i = 0; i < rettupletype->types->size(); i++) {
             if (i != rettupletype->types->size() - 1) {
                 post = z3::forall(
                     (*state->vars)[def->name + tmpname + std::to_string(i)]
@@ -714,7 +713,6 @@ z3::expr formulate_post_cond_z3(Project *proj, const std::string& fname,
                     (*state->vars)[def->name + "_st_new_"]->get_z3_value(),
                     post);
             }
-            i++;
         }
     } else {
         post = z3::forall(
@@ -1414,7 +1412,7 @@ bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv,
     auto vars =
         std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
     auto conds = std::make_shared<vector<z3::expr>>();
-    for (auto const arg : *def->args) {
+    for (auto const &arg : *def->args) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
     auto induction = std::make_shared<vector<z3::expr>>();
@@ -1452,7 +1450,7 @@ bool check_inv_by_path(Project *proj, Definition *def, SpecNode *inv,
     }
 
     // also add proved invariant
-    for (auto const proved : proj->verified_invariants) {
+    for (auto const &proved : proj->verified_invariants) {
         auto pinv = proj->sys_invs[proved].get();
         auto const c = z3_eval(proj, pinv, state, false, true, used_fixpoint);
         state->conds->push_back(c->get_z3_value());
@@ -1504,7 +1502,7 @@ bool check_loop_inv_v2(Project *proj, Definition *loop,
                                 Bool::BOOL);
     }
 
-    for (auto const arg : *loop->args) {
+    for (auto const &arg : *loop->args) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
         //(*vars)[arg->name + "_old"] = arg->type->declare(arg->name + "_old",
         // 0);
@@ -1540,12 +1538,12 @@ bool check_none(Project *proj, Definition *def,
         std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
     auto conds = std::make_shared<vector<z3::expr>>();
 
-    for (auto const arg : *def->args) {
+    for (auto const &arg : *def->args) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
 
     auto l_args = make_unique<vector<shared_ptr<Arg>>>();
-    for (auto const arg : *def->args) {
+    for (auto const &arg : *def->args) {
         l_args->push_back(arg);
     }
     auto spec_def = new Definition(def->name, def->rettype, std::move(l_args),
@@ -1583,7 +1581,7 @@ bool check_none(Project *proj, Definition *def,
                   << ": " << string(*def->sufficient_none_condition);
         auto known = std::set<string>();
 
-        for (auto const arg : *def->args) {
+        for (auto const &arg : *def->args) {
             known.insert(arg->name);
         }
         auto new_spec = std::move(def->sufficient_none_condition);
@@ -1602,7 +1600,7 @@ bool check_pre_post(Project *proj, Definition *def,
         std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
     auto conds = std::make_shared<vector<z3::expr>>();
 
-    for (auto const arg : *def->args) {
+    for (auto const &arg : *def->args) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
 
@@ -1630,7 +1628,7 @@ bool check_pre_post(Project *proj, Definition *def,
     }
 
     auto l_args = make_unique<vector<shared_ptr<Arg>>>();
-    for (auto const arg : *def->args) {
+    for (auto const &arg : *def->args) {
         l_args->push_back(arg);
     }
     auto spec_def = new Definition(def->name, def->rettype, std::move(l_args),
@@ -1687,7 +1685,7 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
 
     // Since the arguments are the same for the vuln and patched def,
     // we just need to iterate through one set.
-    for (auto const arg : *vuln_def->args) {
+    for (auto const &arg : *vuln_def->args) {
         auto mangled_name = arg->name;
         (*vars)[mangled_name] = arg->type->declare(mangled_name, 0);
     }
@@ -1695,7 +1693,7 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
 
     auto l_args = make_unique<vector<shared_ptr<Arg>>>();
 
-    for (auto const arg : *vuln_def->args) {
+    for (auto const &arg : *vuln_def->args) {
         l_args->push_back(arg);
     }
 
@@ -1725,7 +1723,7 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     // predicate: (forall args... (vuln args...) = (patch args...)) start with
     // the args.
     auto args = std::make_unique<std::vector<std::shared_ptr<Arg>>>();
-    for (auto const arg : *vuln_def->args) {
+    for (auto const &arg : *vuln_def->args) {
         args->push_back(arg);
     }
     SpecNode *vuln_body = nullptr, *patched_body = nullptr;
@@ -1745,25 +1743,25 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     // Remove the arguments, functions, and definitions
     used_var_names.erase("None");
     LOG_DEBUG << "Used Var Names 1: ";
-    for (auto const s: used_var_names){ std::cerr << s << ", ";}
+    for (auto const &s: used_var_names){ std::cerr << s << ", ";}
      std::cerr << std::endl;
-    for (auto const arg: *vuln_def->args) {
+    for (auto const &arg: *vuln_def->args) {
         used_var_names.erase(arg->name);
     }
     LOG_DEBUG << "Used Var Names 2: ";
-    for (auto const s: used_var_names){ std::cerr << s << ", ";}
+    for (auto const &s: used_var_names){ std::cerr << s << ", ";}
      std::cerr << std::endl;
      for (auto &[def_name, def]: proj->defs){
         used_var_names.erase(def_name);
     }
     LOG_DEBUG << "Used Var Names 3: ";
-    for (auto const s: used_var_names){ std::cerr << s << ", ";}
+    for (auto const &s: used_var_names){ std::cerr << s << ", ";}
      std::cerr << std::endl;
           for (auto &[def_name, def]: proj->symbols){
         used_var_names.erase(def_name);
     }
         LOG_DEBUG << "Used Var Names 4: ";
-    for (auto const s: used_var_names){ std::cerr << s << ", ";}
+    for (auto const &s: used_var_names){ std::cerr << s << ", ";}
      std::cerr << std::endl;
 
     tmp_patched_body = proj->rules.eliminate_ambiguity(std::move(tmp_patched_body), used_var_names, unneeded);
@@ -1933,7 +1931,7 @@ static bool inline_callee(Project *proj, Definition *def, const string &fname) {
     auto [body, changed] = proj->rules.unfold_calls_to(std::move(def->body()), fname);
     if (changed) {
         std::set<string> known;
-        for (auto const arg : *def->args) known.insert(arg->name);
+        for (auto const &arg : *def->args) known.insert(arg->name);
         bool amb = false;
         body = proj->rules.eliminate_ambiguity(std::move(body), known, amb);
     }
@@ -1996,7 +1994,7 @@ bool simulate(Project *proj, bool check_sec = true) {
                 make_unique<vector<shared_ptr<Arg>>>(*rel->args),
                 end_relation->deep_copy());
         }
-        for (auto const prim : proj->cmds.invs) {
+        for (auto const &prim : proj->cmds.invs) {
             auto def = proj->defs[prim].get();
             proj->query_saver =
                 QueryInfo(query_saver_dir(def->name, "relate_RData"));
@@ -2047,7 +2045,7 @@ bool simulate(Project *proj, bool check_sec = true) {
             "_relate_secret", rel->rettype,
             make_unique<vector<shared_ptr<Arg>>>(*rel->args),
             sec_relation->deep_copy());
-        for (auto const prim : proj->cmds.invs) {
+        for (auto const &prim : proj->cmds.invs) {
             auto def = proj->defs[prim].get();
             proj->query_saver =
                 QueryInfo(query_saver_dir(def->name, "relate_secure"));
@@ -2107,7 +2105,7 @@ void spec_prover(Project *proj) {
                 // std::deque<Definition *> q = {goal_def};
 
                 auto l_args = make_unique<vector<shared_ptr<Arg>>>();
-                for (auto const arg : *goal_def->args) {
+                for (auto const &arg : *goal_def->args) {
                     l_args->push_back(arg);
                 }
                 auto spec_def = new Definition(
@@ -2152,7 +2150,7 @@ void spec_prover(Project *proj) {
     // check loop_invariant, only check what's needed.
     if (OPTS.check_loop_inv || OPTS.check_pre_post) {
         // check all the loops that have invariants provided.
-        for (auto const prim : proj->cmds.invs) {
+        for (auto const &prim : proj->cmds.invs) {
             used_abstract_funcs.insert(prim);
         }
         while (used_abstract_funcs.size() > 0) {
@@ -2243,7 +2241,7 @@ void spec_prover(Project *proj) {
             }
 
             auto known = std::set<string>();
-            for (auto const arg : *def->args) {
+            for (auto const &arg : *def->args) {
                 known.insert(arg->name);
             }
             bool any_changes = true;

@@ -420,7 +420,7 @@ std::set<field_t> analyze_cone_of_influence(Project *proj, Definition *def, std:
     }
 
     std::set<field_t> coi_ret = {};
-    for (auto const c : whitelist) {
+    for (auto const &c : whitelist) {
         coi_ret.insert({c});
     }
     for (auto &c : coi_fields) {
@@ -588,7 +588,7 @@ void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
 
     auto const vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
     auto const conds = std::make_shared<vector<z3::expr>>();
-    for (auto const arg : *def->args) {
+    for (auto const &arg : *def->args) {
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);
     }
     auto spec = std::move(def->body());

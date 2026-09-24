@@ -869,7 +869,6 @@ rule_ret_t SpecRules::simple_expr_by_z3(std::unique_ptr<Expr> spec, const std::s
 }
 
 rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state) {
-    bool const changed = false;
     if (!spec) return {std::move(spec), false};
     if (!force_simpl) { return { std::move(spec), false } ; }
     // LOG_DEBUG << "Simplifying: " << string(*spec).substr(0,1000);

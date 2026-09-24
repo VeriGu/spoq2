@@ -93,7 +93,7 @@ shared_ptr<SpecType> ir_type_to_spec(IRType *typ)
     } else if (auto func = dynamic_cast<TFunction *>(typ)) {
         auto const vec = make_shared<vector<shared_ptr<SpecType>>>();
 
-        for (auto const t : *(func->arglist))
+        for (auto const &t : *(func->arglist))
             vec->push_back(ir_type_to_spec(t.get()));
 
         return make_shared<Function>(ir_type_to_spec(func->rettype.get()), vec);
@@ -486,7 +486,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, const string& fname, vec
     if(args->size() > 0) {
         vector<unique_ptr<SpecNode>> *name_args = new vector<unique_ptr<SpecNode>>();
 
-        for(auto const a : *args) {
+        for(auto const &a : *args) {
             if (a == "")
                 continue;
             name_args->push_back(unique_ptr<SpecNode>(_name(a, types.get())));
@@ -586,7 +586,6 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, const string& fname, vec
             SpecNode *stmt;
             bool ensure_includes_st = false;
             if (proj->cmds.PostEnsure.find(func) != proj->cmds.PostEnsure.end()) {
-                auto ret_st = _st(abs_data);
                 for (auto & prop : proj->cmds.PostEnsure[func]) {
                     auto p = prop->deep_copy();
                     // LOG_INFO << "[before subst] post-ensure prop: " << string(*p) << std::endl;
@@ -819,7 +818,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, const string& fname, vec
         auto else_body = ir_insts_to_spec(proj, Layer, fname, f->false_body.get(), defs, f->output.get(), in_loop, false, suffix, 0);
 
         SpecNode* val = new If(unique_ptr<SpecNode>(cond), unique_ptr<SpecNode>(then_body), unique_ptr<SpecNode>(else_body));
-        for(auto const o : *f->need_init) {
+        for(auto const &o : *f->need_init) {
             if (o == "")
                 continue;
             val = _Let(o, default_val((*types)[o]), val);
@@ -845,7 +844,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, const string& fname, vec
         SpecNode* out;
         if(f->output->size() > 0) {
             auto vec = new vector<unique_ptr<SpecNode>>();
-            for(auto const o : *f->output) {
+            for(auto const &o : *f->output) {
                 if (o == "")
                     continue;
                 vec->push_back(unique_ptr<SpecNode>(new Symbol(o)));
@@ -897,7 +896,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, const string& fname, vec
         loop_args->push_back(unique_ptr<SpecNode>(new Symbol("_N_", Inductive::Nat)));
 
         auto elems = new vector<unique_ptr<SpecNode>>();
-        for(auto const a : *f->input) {
+        for(auto const &a : *f->input) {
             elems->push_back(unique_ptr<SpecNode>(_name(a, types.get())));
         }
         auto children = new Expr(fname + "_loop" + loop_hash + "_rank",
@@ -909,7 +908,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, const string& fname, vec
         loop_init->push_back(unique_ptr<SpecNode>(new Expr("z_to_nat",
         unique_ptr<vector<unique_ptr<SpecNode>>>(out_elems))));
 
-        for(auto const a : *f->loop_args) {
+        for(auto const &a : *f->loop_args) {
             loop_args->push_back(unique_ptr<SpecNode>(_name(a, types.get())));
 
             if(a == "__return__" || a == "__break__") {
@@ -976,7 +975,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, const string& fname, vec
                                        iteration_body);
 
                 auto tupletypes = new vector<shared_ptr<SpecType>>();
-                for(auto const a: *f->loop_args) {
+                for(auto const &a: *f->loop_args) {
                     tupletypes->push_back((*types)[a]);
                 }
                 tupletypes->push_back((*types)["st"]);
@@ -984,7 +983,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, const string& fname, vec
 
                 auto args = new vector<shared_ptr<Arg>>();
                 args->push_back(shared_ptr<Arg>(new Arg("_N_", Inductive::Nat)));
-                for(auto const a :*f->loop_args) {
+                for(auto const &a :*f->loop_args) {
                     args->push_back(shared_ptr<Arg>(new Arg(a, (*types)[a])));
                 }
                 args->push_back(shared_ptr<Arg>(new Arg("st", (*types)["st"])));
@@ -1009,7 +1008,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, const string& fname, vec
         if (proj->defs.find(fname + "_loop" + loop_hash + "_rank") == proj->defs.end()) {
             auto args = new vector<shared_ptr<Arg>>();
 
-            for(auto const a :*f->input)
+            for(auto const &a :*f->input)
                 args->push_back(shared_ptr<Arg>(new Arg(a, (*types)[a])));
 
             defs->push_back(new Definition(fname + "_loop" + loop_hash + "_rank",
@@ -1030,7 +1029,7 @@ SpecNode* ir_insts_to_spec(Project *proj, Layer *Layer, const string& fname, vec
 
         auto prop_elems = new vector<unique_ptr<SpecNode>>();
         auto args = new vector<unique_ptr<SpecNode>>();
-        for(auto const a :*f->input) {
+        for(auto const &a :*f->input) {
             args->push_back(unique_ptr<SpecNode>(_name(a, types.get())));
         }
 
@@ -1288,7 +1287,7 @@ static void _analyze_input_output(CFunction *func, vector<unique_ptr<IRInst>> &i
 
             vector<Inst> before_var, after_var;
 
-            for (auto const name: *inst_i->loop_args) {
+            for (auto const &name: *inst_i->loop_args) {
                 before_var.push_back(new IRLoader::VLocal(TVoid::TVOID, name));
                 after_var.push_back(new IRLoader::VLocal(TBool::TBOOL, name));
             }

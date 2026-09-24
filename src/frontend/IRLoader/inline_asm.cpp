@@ -61,7 +61,7 @@ static type_str_t irtype_to_str(IRType *typ, bool input) {
     } else if (auto struct_type = dynamic_cast<TStruct *>(typ)) {
         auto ret = make_unique<vector<string>>();
 
-        for (auto const e: *struct_type->elems) {
+        for (auto const &e: *struct_type->elems) {
             // Struct should never be nested. Just let it throw an error.
             ret->push_back(std::get<string>(irtype_to_str(e->type.get(), false)));
         }

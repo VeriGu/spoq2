@@ -68,7 +68,7 @@ void free_vars_map(Project *proj, SpecNode *spec, std::set<string> &free, std::m
                 }
             };
             collect_symbols(pm->pattern.get());
-            for(auto const sym : symbols) {
+            for(auto const &sym : symbols) {
                 free.erase(sym);
                 map.erase(sym);
             }
@@ -77,7 +77,7 @@ void free_vars_map(Project *proj, SpecNode *spec, std::set<string> &free, std::m
         auto body = fe->body->deep_copy().release();
         auto vars = new vector<shared_ptr<Arg>>(*fe->vars.get());
         free_vars_map(proj, body, free, map);
-        for(auto const arg : *vars) {
+        for(auto const &arg : *vars) {
             free.erase(arg->name);
             map.erase(arg->name);
         }
@@ -2597,7 +2597,7 @@ std::unique_ptr<SpecNode> SpecRules::eliminate_ambiguity(
 
         for (auto  const&v : *vars) {
             auto temp = std::set<string>(ps);
-            for(auto const sym : *vars) {
+            for(auto const &sym : *vars) {
                 if(v->name != sym->name){
                     temp.insert(sym->name);
                 }
@@ -4428,23 +4428,6 @@ bool SpecRules::enforce_no_div_by_zero(Definition *def) {
         // We need an option typed node to do a substitution.
         return false;
     }
-    auto const wrap = [&](std::unique_ptr<SpecNode> wrappable, Expr* div_expr) -> std::unique_ptr<SpecNode> {
-        auto extra_args = make_unique<std::vector<std::unique_ptr<SpecNode>>>();
-        extra_args->push_back(div_expr->elems->at(1)->deep_copy());
-        extra_args->push_back(make_unique<IntConst>(0));
-        return make_unique<If>(make_unique<Expr>(Expr::binops::NOT_EQUAL, std::move(extra_args)),
-            std::move(wrappable),
-            make_unique<Symbol>("None")
-        );
-    };
-    auto const is_div = [&](const SpecNode* spec) -> bool {
-        if(auto exp = dynamic_cast<const Expr*>(spec)){
-            if(op_eq(exp->op, Expr::binops::DIV)){
-                return true;
-            }
-        }
-        return false;
-    };
     // LOG_DEBUG << "No div by zero! \n" << string(*def->body);
     changed = enforce_no_div_by_zero_inner(def->body().get(), &def->body());
     // LOG_DEBUG << "No div by zero done! \n" << string(*def->body);

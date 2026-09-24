@@ -587,7 +587,7 @@ z3::sort Struct::get_z3_type() {
     vector<z3::sort> sorts;
     vector<z3::symbol> accs;
 
-    for (auto const arg : *elems) {
+    for (auto const &arg : *elems) {
         // The declared type, width and all: sorts are interned by sort_key, so
         // two records differing only in a field's width get distinct sorts.
         sorts.push_back(this->elems_map[arg->name]->get_z3_type());
@@ -640,7 +640,7 @@ std::shared_ptr<SpecValue> StructValue::get(string key) {
     if (auto s = dynamic_cast<Struct*>(typ.get())) {
         int i = 0;
         bool found = false;
-        for(auto const arg : *s->elems) {
+        for(auto const &arg : *s->elems) {
             if(arg->name == field) {
                 found = true;
                 break;
@@ -687,7 +687,7 @@ shared_ptr<StructValue> StructValue::set(string key, const shared_ptr<SpecValue>
 
         z3::expr_vector elems(z3ctx);
         int i = 0;
-        for(auto const arg : *s->elems) {
+        for(auto const &arg : *s->elems) {
             if(arg->name == field) {
                 elems.push_back(coerce_to_sort(value->get_z3_value(), cs.domain(i), "record set", s->name));
             } else {
@@ -724,8 +724,6 @@ shared_ptr<SpecValue> IndValue::get(const string& key) {
 
     if(auto type = instance_of(typ.get(), Inductive)) {
         auto const val = get_z3_value();
-        int const i = 0;
-        auto ind_type = dynamic_cast<Inductive*>(typ.get());
         // for(auto [arg, type]: type->arg_type) {
         //     if(arg == accessor)
         //         break;
@@ -793,10 +791,10 @@ z3::sort Inductive::get_z3_type() {
     auto const tname = z3ctx.str_symbol(key.c_str());
     auto const tsort = z3ctx.datatype_sort(tname);
 
-    for (auto const constr : *constrs) {
+    for (auto const &constr : *constrs) {
         sorts.clear();
         accs.clear();
-        for (auto const arg : *constr->args) {
+        for (auto const &arg : *constr->args) {
             auto arg_name = arg->name;
 
             if (arg->type->name == this->name)

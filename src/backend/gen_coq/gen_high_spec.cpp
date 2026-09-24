@@ -35,7 +35,7 @@ void gen_specs(Project *proj, loc_t loc, const string& out_path, const string& c
 
     std::queue<string> q;
     std::map<string, int> checked;
-    for (auto const s : syms) {
+    for (auto const &s : syms) {
         q.push(s);
         checked[s] = 1;
     }
@@ -49,7 +49,7 @@ void gen_specs(Project *proj, loc_t loc, const string& out_path, const string& c
             proj->deps[s] = proj->calc_dependencies((def->second)->body().get());
         }
 
-        for (auto const d : proj->deps[s]) {
+        for (auto const &d : proj->deps[s]) {
             if (proj->symbols[d].loc == loc) continue;
             if (proj->symbols[d].loc == loc_t("", "", "")) continue;
 
@@ -67,7 +67,7 @@ void gen_specs(Project *proj, loc_t loc, const string& out_path, const string& c
         }
     }
 
-    for (auto const d : deps)
+    for (auto const &d : deps)
         out << "Require Import " + d + ".\n";
 
     out << "\n";
@@ -77,7 +77,7 @@ void gen_specs(Project *proj, loc_t loc, const string& out_path, const string& c
     out << "Local Open Scope Z_scope.\n";
     out << "\n";
 
-    for (auto const s : syms) {
+    for (auto const &s : syms) {
         if (proj->symbols[s].kind == SymbolKind::Decl) {
             out << string(*proj->decls[s]) + "\n\n";
             if (cache_out != "") cache_o << string(*proj->decls[s]) + "\n\n";
@@ -96,7 +96,7 @@ void gen_specs(Project *proj, loc_t loc, const string& out_path, const string& c
     out << "  Context `{int_ptr: IntPtrCast}.\n";
     out << "\n";
 
-    for (auto const s : syms) {
+    for (auto const &s : syms) {
         if (proj->symbols[s].kind == SymbolKind::Def) {
             out << add_indent(string(*proj->defs[s]), 2) + "\n\n";
             if (cache_out != "") cache_o << string(*proj->defs[s]) + "\n\n";
@@ -115,7 +115,7 @@ void gen_specs(Project *proj, loc_t loc, const string& out_path, const string& c
 
     out << ".\n\n";
 
-    for (auto const s : syms) {
+    for (auto const &s : syms) {
         if (proj->symbols[s].kind == SymbolKind::Def) {
             if (proj->cmds.NoUnfold.find(s) != proj->cmds.NoUnfold.end()) {
                 out << "Opaque " + s + ".\n";

@@ -452,9 +452,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 							// 	LOG_DEBUG << "Condition: " << cond;
 							//  	}
 						}
-						auto const res = z3_verify_state_sat(state);
-						if(!is_relate || !ret_is_relate)
-							int const x = 5;
+						z3_verify_state_sat(state);
 						return SimulateResult{is_relate && ret_is_relate, false, false, false};
 					} else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
 						st_ret = expr->elems->at(0)->deep_copy();
@@ -494,7 +492,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 					// for(auto cond: *state->conds) {
 					// 	LOG_DEBUG << "Condition: " << cond;
 					// }
-					auto const res = z3_verify_state_sat(state, &proj->query_saver);
+					z3_verify_state_sat(state, &proj->query_saver);
 					LOG_DEBUG << "[forward_simulation " << random_code << "] allow_none violation state saved.";
 				}
 				return SimulateResult{allow_none, allow_none, false, !allow_none};
@@ -986,7 +984,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 		LOG_DEBUG << "end_rel: " << string(*rel->body());
 		auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
 		auto conds = std::make_shared<vector<z3::expr>>();
-		for (auto const arg : *spec->args) {
+		for (auto const &arg : *spec->args) {
 			(*vars)[arg->name] = arg->type->declare(arg->name, 0);
 		}
 		(*vars)[get_sim_name("st")] = proj->layers[0]->abs_data->declare(get_sim_name("st"), 0);
@@ -996,7 +994,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 		SpecNode* impl_body = nullptr, *spec_body = nullptr;
 
 		auto l_args = make_unique<vector<shared_ptr<Arg>>>();
-		for (auto const arg : *spec->args) {
+		for (auto const &arg : *spec->args) {
 			l_args->push_back(arg);
 		}
 		auto spec_def = new Definition(spec->name, spec->rettype, std::move(l_args), spec->body()->deep_copy());
@@ -1038,7 +1036,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 		state->conds->push_back(prec->get_z3_value());
 		// add invariants for both
 
-		for (auto const proved : proj->verified_invariants) {
+		for (auto const &proved : proj->verified_invariants) {
 			auto inv_for_spec = proj->sys_invs[proved].get();
 			auto inv_for_impl = proj->rules.build_simulate_spec(proj->sys_invs[proved]->deep_copy()).release();
 			// std::cout << "[check_hprop_by_path] Proved invariant: " << string(*inv_for_spec) << std::endl;

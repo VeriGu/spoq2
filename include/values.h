@@ -185,7 +185,7 @@ public:
     // virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
     // virtual shared_ptr<SpecValue> declare(string name, int nid);
 
-    operator string() const {
+    operator string() const override {
         return "list_" + string(*elem_type);
     }
 };
@@ -237,13 +237,13 @@ public:
         return static_pointer_cast<Vector>(shared_from_this());
     }
 
-    operator string() const {
+    operator string() const override {
         return "(Vec " + string(*elem_type) + ")";
     }
 
-    virtual z3::sort get_z3_type();
-    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
-    virtual shared_ptr<SpecValue> declare(string name, int nid);
+    virtual z3::sort get_z3_type() override;
+    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value) override;
+    virtual shared_ptr<SpecValue> declare(string name, int nid) override;
 };
 /// A map from integers.  `ZMap.t` is indexed by a machine integer -- an
 /// offset, an array index -- and its key is intSizeT; `PMap.t` is indexed by
@@ -271,13 +271,13 @@ public:
         return static_pointer_cast<ZMap>(shared_from_this());
     }
 
-    operator string() const {
+    operator string() const override {
         return "(" + coq_name() + " " + string(*elem_type) + ")";
     }
 
-    virtual z3::sort get_z3_type();
-    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
-    virtual shared_ptr<SpecValue> declare(string name, int nid);
+    virtual z3::sort get_z3_type() override;
+    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value) override;
+    virtual shared_ptr<SpecValue> declare(string name, int nid) override;
 };
 class SMap : public SpecType {
 public:
@@ -290,13 +290,13 @@ public:
         return static_pointer_cast<SMap>(shared_from_this());
     }
 
-    operator string() const {
+    operator string() const override {
         return "(SMap " + string(*elem_type) + ")";
     }
 
-    virtual z3::sort get_z3_type();
-    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value);
-    virtual shared_ptr<SpecValue> declare(string name, int nid);
+    virtual z3::sort get_z3_type() override;
+    virtual shared_ptr<SpecValue> from_z3_value(z3::expr value) override;
+    virtual shared_ptr<SpecValue> declare(string name, int nid) override;
 };
 class Expr;
 class Arg {
@@ -440,7 +440,7 @@ public:
 
     std::string sort_key() const override;
 
-    operator string() const;
+    operator string() const override;
 
     shared_ptr<Tuple> getptr() {
         return static_pointer_cast<Tuple>(shared_from_this());
@@ -465,7 +465,7 @@ public:
         return static_pointer_cast<List>(shared_from_this());
     }
 
-    operator string() const {
+    operator string() const override {
         return "list " + string(*elem_type);
     }
 
@@ -509,7 +509,7 @@ public:
         return static_pointer_cast<Option>(shared_from_this());
     }
 
-    operator string() const {
+    operator string() const override {
         return "(option " + string(*elem_type) + ")";
     }
 

@@ -16,7 +16,7 @@ void gen_layer_refine_rel(Project *proj, int i, const string& path)
     auto const &base_layer = proj->layers.at(i - 1);
 
     vector<string> const deps = {"CommonDeps", "DataTypes"};
-    for (auto const d : deps) {
+    for (auto const &d : deps) {
         out << "Require Import " + d + ".\n";
     }
 
@@ -38,7 +38,7 @@ void gen_layer(Project *proj, int i, const string& path)
     std::set<string> deps;
     deps = {"CommonDeps", "DataTypes"};
 
-    for (auto const p : ps) {
+    for (auto const &p : ps) {
         auto const spec = p + "_spec";
         auto loc = proj->symbols[spec].loc;
         string l = std::get<0>(loc);
@@ -67,7 +67,7 @@ void gen_layer(Project *proj, int i, const string& path)
         deps.insert(l);
     }
 
-    for (auto const d : deps) {
+    for (auto const &d : deps) {
         if (d == "") continue;
         out << "Require Import " + d + ".\n";
     }
@@ -239,7 +239,7 @@ void gen_layer(Project *proj, int i, const string& path)
 
     auto first = true;
 
-    for (auto const p : ps) {
+    for (auto const &p : ps) {
         if (first) {
             out << "          (\"" + p + "\", prim " + p + "_spec)\n";
             first = false;

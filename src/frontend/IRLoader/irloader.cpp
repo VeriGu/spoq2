@@ -872,7 +872,7 @@ shared_ptr<IRModule> parse_module(ptree &module, bool postprocess) {
         structs_info.emplace(name, make_shared<TStruct>(std::move(elems), sz));
     }
 
-    for (auto const gvar: module.get_child("global_variables")) {
+    for (auto const &gvar: module.get_child("global_variables")) {
         auto vname = gvar.first;
         auto var = gvar.second;
         auto const vtype = parse_type(var.get_child("type"));

@@ -650,9 +650,9 @@ void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec (llvm::BasicBlock* block, llvm::
             continue;
         }
 
-        if(auto br = llvm::dyn_cast<llvm::BranchInst>(&inst)) {
-            if(br->isConditional()) {
-                auto cond = br->getCondition();
+        if(auto br = as_branch(&inst)) {
+            if(auto cond_br = llvm::dyn_cast<llvm::CondBrInst>(br)) {
+                auto cond = cond_br->getCondition();
                 auto true_block = br->getSuccessor(0);
                 auto false_block = br->getSuccessor(1);
                 auto *join = reconvergence_point(block, true_block, false_block, context);

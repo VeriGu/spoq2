@@ -191,7 +191,7 @@ void SpoqAbstractionLayout::compute_and_mask_eq() {
 void SpoqAbstractionLayout::compute_upgrade_or() {
     // (PA_to_Z raw) |' MASK --> new_type
     assert(rich_fields.size() <= 1 && "multiple rich fields do not support for now");
-    for (auto const rich: rich_fields) {
+    for (auto const &rich: rich_fields) {
         // std::cout << "rich field: " << rich.first << " " << rich.second << std::endl;
         auto const elem_name = rich.first;
         auto const elem_ty_name = rich.second;

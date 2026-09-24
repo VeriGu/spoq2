@@ -103,7 +103,6 @@ namespace autov {
                 is_match = true;
             }
             assert(!new_accumulator.last_pattern_match);
-            auto orig_cond = cond.get();
             auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
             elems->push_back(std::move(cond));
             elems->push_back(std::move(temp_held_match_body));

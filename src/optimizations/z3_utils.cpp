@@ -1032,7 +1032,7 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     //declare loop arguments
     auto const known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
 
-    for (auto const arg : *args) {
+    for (auto const &arg : *args) {
         if (arg->name != "_N_") {
             (*var)[arg->name] = arg->type->declare(arg->name, 0); //current
             (*known)[arg->name] = arg->type;
@@ -1075,7 +1075,7 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     auto const full_val_var = make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*var);
 
 
-    for (auto const arg : *args) {
+    for (auto const &arg : *args) {
         (*full_val_var)[arg->name + "'"] = arg->type->declare(arg->name + "'", 0);
     }
 
@@ -1087,7 +1087,7 @@ bool check_loop_inv(Project* proj, Definition *loop) {
     auto after_inv = inv->deep_copy();
     //subst the loop body with correct arguments
     auto const after_var = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
-    for (auto const arg : *args) {
+    for (auto const &arg : *args) {
         if (arg->name != "_N_") {
             (*after_var)[arg->name + "'"] = arg->type->declare(arg->name + "'", 0); //initial
         }
@@ -1097,7 +1097,7 @@ bool check_loop_inv(Project* proj, Definition *loop) {
         }
     }
 
-    for(auto const arg : *loop->args) {
+    for(auto const &arg : *loop->args) {
         auto const sym = make_unique<Symbol>(arg->name + "'", arg->type);
         bool succ;
         after_inv = subst(std::move(after_inv), arg->name, sym.get(), succ);
@@ -1205,7 +1205,7 @@ void pattern_matching(SpecNode const* pattern, SpecNode const* spec) {
 unique_ptr<SpecNode> formulate_preserved_function(Project* proj, string fname) {
     auto const proved_inv = proj->verified_invariants;
     unique_ptr<SpecNode> conjoined = proj->sys_invs[proj->verifying_invariant]->deep_copy();
-    for(auto const string: proved_inv) {
+    for(auto const &string: proved_inv) {
         auto inv = proj->sys_invs[string].get();
         auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
         elems->push_back(std::move(conjoined));
@@ -1220,7 +1220,7 @@ unique_ptr<SpecNode> formulate_preserved_function(Project* proj, string fname) {
     auto arg_elems = make_unique<vector<unique_ptr<SpecNode>>>();
     auto quantified = make_unique<vector<shared_ptr<Arg>>>();
     //z3::expr_vector args(z3ctx);
-    for(auto const arg: *proj->defs[fname]->args) {
+    for(auto const &arg: *proj->defs[fname]->args) {
         //args.push_back(arg->type->declare(arg->name, 0)->get_z3_value());
         quantified->push_back(arg);
         arg_elems->push_back(make_unique<Symbol>(arg->name, arg->type));
@@ -1240,7 +1240,7 @@ unique_ptr<SpecNode> formulate_preserved_function(Project* proj, string fname) {
        auto tmpname = "__tmp__";
        int i = 0;
        auto varelems = make_unique<vector<unique_ptr<SpecNode>>>();
-       for(auto const elemtype : *elem_type->types) {
+       for(auto const &elemtype : *elem_type->types) {
             if(i != elem_type->types->size() - 1) {
                 //(*var)[tmpname + i] = elemtype->declare(tmpname + i, 0); //after
                 varelems->push_back(unique_ptr<SpecNode>(new Symbol(tmpname + i, elemtype)));
@@ -1296,7 +1296,7 @@ unique_ptr<SpecNode> formulate_post_condition(Project* proj, const string& fname
         int i = 0;
         vector<string> names;
         vector<unique_ptr<SpecNode>> nodes;
-        for(auto const elemtype : *rettupletype->types) {
+        for(auto const &elemtype : *rettupletype->types) {
             if(i != rettupletype->types->size() - 1) {
                 (*known)[tmpname + std::to_string(i)] = elemtype;
                 //(*var)[tmpname + i] = elemtype->declare(tmpname + i, 0); //after
@@ -1360,7 +1360,7 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
     unique_ptr<vector<shared_ptr<Arg>>> vars = make_unique<vector<shared_ptr<Arg>>>();
 
     int i = 0;
-    for(auto const arg : *def->args) {
+    for(auto const &arg : *def->args) {
         vars->push_back(make_shared<Arg>(def->name + "_" + arg->name + "_new", arg->type));
     }
 
@@ -1377,7 +1377,7 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
     auto tupleelems = make_unique<vector<unique_ptr<SpecNode>>>();
     i = 0;
     auto const known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
-    for(auto const arg: *def->args) {
+    for(auto const &arg: *def->args) {
         tupleelems->push_back(make_unique<Symbol>(def->name + "_" + arg->name + "_new", arg->type));
         (*known)[arg->name] = arg->type;
         if(arg->name == "st") {
@@ -1409,7 +1409,7 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
     i = 0;
     vector<string> names;
     vector<unique_ptr<SpecNode>> nodes;
-    for(auto const arg : *def->args) {
+    for(auto const &arg : *def->args) {
         auto sym = make_unique<Symbol>(def->name + "_" + arg->name + "_new", arg->type);
         // bool succ;
         names.push_back(arg->name);
@@ -1674,7 +1674,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
                         auto const var = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
                         auto const conds = std::make_shared<vector<z3::expr>>();
                         //declare loop arguments
-                        for (auto const arg : *loop->args) {
+                        for (auto const &arg : *loop->args) {
                             if (arg->name != "_N_") {
                                 (*var)[arg->name] = arg->type->declare(loop->name + "_" + arg->name, 0); //current
                                 (*var)[arg->name + "_old"] = arg->type->declare(loop->name + "_" + arg->name + "_old", 0); //initial
@@ -1715,7 +1715,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
 
                         unique_ptr<SpecNode> before_inv = aggreinv->deep_copy();
                         //subst invariant inv[ret_x[0]/a' ret_x[1]/b' ret_x[2]/c' ret_x[3]/d']
-                        for(auto const arg : *loop->args) {
+                        for(auto const &arg : *loop->args) {
                             if (arg->name != "_N_") {
                                 auto const sym = make_unique<Symbol>(loop->name + "_" + arg->name, arg->type);
                                 bool succ;
@@ -1725,7 +1725,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
                         auto vc = z3ctx.bool_val(true);
                         auto const invval = z3_eval(proj, before_inv.get(), make_shared<EvalState>(var, conds));
                         int const i = 0;
-                        for(auto const arg : *loop->args) {
+                        for(auto const &arg : *loop->args) {
                             auto name = arg->name;
                             //instantiate variable to each element
                             auto const z3_eq_expr = elems.at(i)->get_z3_value() == (*var)[name]->get_z3_value();
@@ -1807,7 +1807,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
         vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>> condret;
         vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>> retstates;
         symbolic(proj, rely->prop.get(), state, condret);
-        for(auto const condstate : condret) {
+        for(auto const &condstate : condret) {
             auto const cond = condstate.first;
             auto const condst = condstate.second;
             auto const res = z3_check(condst, cond->get_z3_value());
@@ -1831,14 +1831,14 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
                 retstates.push_back(std::make_pair(none, false_state));
             }
         }
-        for(auto const s: retstates) {
+        for(auto const &s: retstates) {
             states.push_back(s);
         }
     } else if (auto iff = instance_of(val, If)) {
         vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>> condret;
         symbolic(proj, iff->cond.get(), state, condret);
         vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>> retstates;
-        for(auto const condstate : condret) {
+        for(auto const &condstate : condret) {
             auto const cond = condstate.first;
             auto const condst = condstate.second;
             auto const res = z3_check(condst, cond->get_z3_value());
@@ -1866,7 +1866,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
                 symbolic(proj, iff->else_body.get(), false_state, retstates);
             }
         }
-        for(auto const s: retstates) {
+        for(auto const &s: retstates) {
             states.push_back(s);
         }
     } else if (auto forall = instance_of(val, Forall)) {
@@ -1879,7 +1879,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
         }
         vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>> retstates;
         symbolic(proj, forall->body.get(), state, retstates);
-        for(auto const retstate: retstates) {
+        for(auto const &retstate: retstates) {
             auto const st = retstate.second;
             auto const body = retstate.first;
             states.push_back(std::make_pair(_cache(make_shared<BoolValue>(z3::forall(vars, body->value))),st));
@@ -1895,7 +1895,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
         vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>> retstates;
 
         symbolic(proj, exsts->body.get(), state, retstates);
-        for(auto const retstate: retstates) {
+        for(auto const &retstate: retstates) {
             auto const st = retstate.second;
             auto const body = retstate.first;
             states.push_back(std::make_pair(_cache(make_shared<BoolValue>(z3::exists(vars, body->value))), state));
@@ -1912,7 +1912,7 @@ z3::func_decl formulate_rec_function(Project* proj, Fixpoint* fixpoint) {
     z3::expr_vector args(z3ctx);
     // int i = 0;
     auto const n = z3ctx.int_const("_N_");
-    for(auto const arg: *fixpoint->args) {
+    for(auto const &arg: *fixpoint->args) {
         sorts.push_back(arg->type->get_z3_type());
         args.push_back(arg->type->declare(arg->name, 0)->get_z3_value());
     }
@@ -1936,7 +1936,7 @@ z3::expr formulate_function(Project* proj, Definition* def) {
     auto const vars = make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
     auto const conds = make_shared<vector<z3::expr>>();
 
-    for(auto const arg: *def->args) {
+    for(auto const &arg: *def->args) {
         //sorts.push_back(arg->type->get_z3_type());
         args.push_back(arg->type->declare(arg->name, 0)->get_z3_value());
         (*vars)[arg->name] = arg->type->declare(arg->name, 0);

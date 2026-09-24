@@ -31,9 +31,9 @@ void gen_low_proof_func(Project *p, int i, const string& fname, const string& pa
     }
 
     std::set<string> dep_defs;
-    for (auto const s : syms) {
+    for (auto const &s : syms) {
         if (p->deps.find(s) == p->deps.end()) continue;
-        for (auto const d : p->deps[s]) {
+        for (auto const &d : p->deps[s]) {
             if (p->symbols[d].loc == loc_t("", "", "")) continue;
             dep_defs.insert(d);
             string l = "";
@@ -51,7 +51,7 @@ void gen_low_proof_func(Project *p, int i, const string& fname, const string& pa
     }
 
     std::ofstream out(path);
-    for (auto const d : deps) {
+    for (auto const &d : deps) {
         out << "Require Import " + d + ".\n";
     }
     out << "\n";
@@ -68,7 +68,7 @@ void gen_low_proof_func(Project *p, int i, const string& fname, const string& pa
     out << "  Context `{int_ptr: IntPtrCast}.\n";
     out << "\n";
 
-    for (auto const d : dep_defs) {
+    for (auto const &d : dep_defs) {
         // probaly need to escape fname
         string lit = R"(^)" + fname + R"(.*?_(loop\d+_rank|loop\d+_low|funptr_wrap\d+)$)";
         std::regex const pattern(lit);
@@ -185,9 +185,9 @@ void gen_low_proof_proc(Project *p, int i, const string& fname, const string& pa
     }
 
     std::set<string> dep_defs;
-    for (auto const s : syms) {
+    for (auto const &s : syms) {
         if (p->deps.find(s) != p->deps.end()) continue;
-        for (auto const d : p->deps[s]) {
+        for (auto const &d : p->deps[s]) {
             dep_defs.insert(d);
             if (p->symbols[d].loc == loc_t("", "", "")) continue;
             deps.insert(std::get<0>(p->symbols[d].loc));
@@ -201,7 +201,7 @@ void gen_low_proof_proc(Project *p, int i, const string& fname, const string& pa
         }
     }
 
-    for (auto const d : deps) {
+    for (auto const &d : deps) {
         out << "Require Import " + d + ".\n";
     }
     out << "\n";
@@ -287,7 +287,7 @@ unique_ptr<vector<string>> generate_low_proof(Project *p)
         if (!fs::exists((dir / layer_name).string())) {
             fs::create_directory((dir / layer_name).string());
         }
-        for (auto const prim : L->prims) {
+        for (auto const &prim : L->prims) {
             auto const prim_path = dir / layer_name / boost::filesystem::path(prim);
             if (!fs::exists(prim_path.string())) {
                 fs::create_directory(prim_path.string());

@@ -21,9 +21,9 @@ void gen_low_spec(Project *proj, int i, const string& fname, const string& path)
     sort(syms.begin(), syms.end(),
          [proj](const string& s1, const string& s2) { return proj->symbols[s1].order < proj->symbols[s2].order; });
     std::set<string> deps = {"CommonDeps", "Code", "DataTypes", "GlobalDefs"};
-    for (auto const s : syms) {
+    for (auto const &s : syms) {
         if (proj->deps.find(s) == proj->deps.end()) continue;
-        for (auto const d : proj->deps[s]) {
+        for (auto const &d : proj->deps[s]) {
             if (proj->symbols[d].loc == loc) continue;
             if (proj->symbols[d].loc == loc_t("", "", "")) continue;
             string l = std::get<0>(proj->symbols[d].loc);
@@ -37,7 +37,7 @@ void gen_low_spec(Project *proj, int i, const string& fname, const string& path)
         }
     }
 
-    for (auto const d : deps) {
+    for (auto const &d : deps) {
         out << "Require Import " + d + ".\n";
     }
 
@@ -46,7 +46,7 @@ void gen_low_spec(Project *proj, int i, const string& fname, const string& path)
     out << "Local Open Scope Z_scope.\n";
     out << "\n";
 
-    for (auto const s : syms) {
+    for (auto const &s : syms) {
         if (proj->symbols[s].kind == SymbolKind::Decl) out << string(*proj->decls[s]) + "\n\n";
     }
 
@@ -63,7 +63,7 @@ void gen_low_spec(Project *proj, int i, const string& fname, const string& path)
     out << "  Context `{int_ptr: IntPtrCast}.\n";
     out << "\n";
 
-    for (auto const s : syms) {
+    for (auto const &s : syms) {
         if (proj->symbols[s].kind == SymbolKind::Def) {
             out << add_indent(string(*proj->defs[s]), 2) + "\n\n";
         }
@@ -78,7 +78,7 @@ void gen_low_spec(Project *proj, int i, const string& fname, const string& path)
     }
 
     out << ".\n\n";
-    for (auto const s : syms) {
+    for (auto const &s : syms) {
         if (proj->symbols[s].kind == SymbolKind::Def) {
             if (proj->cmds.NoUnfold.find(s) == proj->cmds.NoUnfold.end())
                 out << "#[global] Hint Unfold " + s + ": spec.\n";

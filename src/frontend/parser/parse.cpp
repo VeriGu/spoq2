@@ -120,6 +120,7 @@ ProgramVisitor::visitGlobal_anno(SpecParser::Global_annoContext *ctx) {
     // unsigned long size = std::stoul(ctx->anno_struct()->size->getText());
     // unsigned long num_elems =
     // std::stoul(ctx->anno_struct()->max_elems->getText());
+    return std::any();
 }
 
 antlrcpp::Any ProgramVisitor::visitInclude(SpecParser::IncludeContext *ctx) {
@@ -194,7 +195,7 @@ antlrcpp::Any ProgramVisitor::visitType(SpecParser::TypeContext *ctx) {
                 dynamic_pointer_cast<Function>(curried_type);
 
             // push back all the arguments of curried_type_func
-            for (auto const arg : *curried_type_func->args) {
+            for (auto const &arg : *curried_type_func->args) {
                 args->push_back(arg);
             }
 
@@ -1104,6 +1105,7 @@ antlrcpp::Any ProgramVisitor::visitVar_anno(SpecParser::Var_annoContext *ctx) {
 
         return make_shared<Arg>(ctx->name()->getText(), unique_ptr<Expr>(expr));
     }
+    throw std::runtime_error("var_anno has neither a type nor an expression: " + ctx->getText());
 }
 
 void parse(Project *proj, const std::string &path) {
