@@ -130,6 +130,16 @@ static std::string try_getenv(const char* var, const char* def) {
     return p ? std::string(p) : std::string(def);
 }
 
+/// Per-check timeout multiplied by SPOQ_Z3_TIMEOUT_SCALE.  The default is 3
+/// under bitvector sorts, whose checks cost several times their integer
+/// counterparts, and 1 otherwise.
+static int scaled_timeout(int timeout) {
+    static const double scale = std::getenv("SPOQ_Z3_TIMEOUT_SCALE") ? std::atof(std::getenv("SPOQ_Z3_TIMEOUT_SCALE"))
+                                : z3_bv_sorts_enabled()                ? 3.0
+                                                                       : 1.0;
+    return static_cast<int>(timeout * scale);
+}
+
 /** Race Z3 processes on one query file and take the first definite answer:
  *  the z3 on PATH, the build at Z3_PATH, and under bitvector sorts the z3 on
  *  PATH with the qfaufbv tactic, which decides unsat checks over
@@ -269,7 +279,7 @@ Z3Result z3_race_check(QueryInfo const* qinfo) {
                      + "/query_"
                      + std::to_string(qinfo->query_id - 1)
                      + ".smt2";
-    switch (z3_race_file(file, OPTS.race_timeout)) {
+    switch (z3_race_file(file, scaled_timeout(OPTS.race_timeout))) {
         case z3::unsat: return Z3Result::True;
         case z3::sat:   return Z3Result::Sat;
         default:        ++z3_unknowns; return Z3Result::Unknown;
@@ -282,10 +292,76 @@ Z3Result z3_race_check(QueryInfo const* qinfo) {
 /// default strategy times out.  SPOQ_Z3_TACTIC names another tactic, or
 /// "default" for the plain solver.
 static z3::solver make_solver() {
+    // SPOQ_Z3_PARAMS: space-separated key=value pairs set as global Z3 parameters.
+    static const bool params_set = [] {
+        if (const char *e = std::getenv("SPOQ_Z3_PARAMS")) {
+            std::istringstream in(e);
+            for (std::string kv; in >> kv;) {
+                auto const eq = kv.find('=');
+                if (eq != std::string::npos) z3::set_param(kv.substr(0, eq).c_str(), kv.substr(eq + 1).c_str());
+            }
+        }
+        return true;
+    }();
+    (void)params_set;
     static const char *chosen = std::getenv("SPOQ_Z3_TACTIC");
     static const std::string tactic = chosen && *chosen ? chosen : z3_bv_sorts_enabled() ? "qfaufbv" : "default";
     if (tactic != "default") return z3::tactic(z3ctx, tactic.c_str()).mk_solver();
     return z3::solver(z3ctx);
+}
+
+/// Under bitvector sorts, asserts `args(a) = args(b) -> a = b` for each pair of
+/// applications of one uninterpreted function with a bitvector argument whose
+/// bitvector arguments are syntactically identical, so the antecedent equates
+/// only non-bitvector arguments such as program states: a callee applied to the
+/// same scalars at two states.  Z3's bitvector theory reports an argument
+/// equality to congruence closure only once every bit of both arguments is
+/// assigned, and explains it by those bits; the lemma gives the search a
+/// word-level literal to decide and learn on.  Pairs that differ in a bitvector
+/// argument are left out: on lua002 they add work without a net gain.  The
+/// lemmas are valid, so they do not change any verdict.  `goal` names a formula
+/// checked as an assumption rather than asserted.  SPOQ_BV_CONGRUENCE=0 disables.
+static void add_congruence_lemmas(z3::solver &s, const z3::expr *goal = nullptr) {
+    static const bool enabled = [] {
+        const char *e = std::getenv("SPOQ_BV_CONGRUENCE");
+        return z3_bv_sorts_enabled() && !(e && std::string(e) == "0");
+    }();
+    if (!enabled) return;
+    // Bounds the quadratic number of lemmas per function.
+    constexpr size_t max_apps = 64;
+
+    std::map<unsigned, std::vector<z3::expr>> apps;
+    std::unordered_set<unsigned> seen;
+    std::vector<z3::expr> todo;
+    for (auto const a : s.assertions()) todo.push_back(a);
+    if (goal) todo.push_back(*goal);
+    while (!todo.empty()) {
+        z3::expr const e = todo.back();
+        todo.pop_back();
+        // Quantifier bodies are not entered: their applications may mention bound variables.
+        if (!e.is_app() || !seen.insert(e.id()).second) continue;
+        for (unsigned i = 0; i < e.num_args(); ++i) todo.push_back(e.arg(i));
+        z3::func_decl const f = e.decl();
+        if (f.decl_kind() != Z3_OP_UNINTERPRETED || f.arity() == 0) continue;
+        bool bv_arg = false;
+        for (unsigned i = 0; i < f.arity(); ++i) bv_arg |= f.domain(i).is_bv();
+        auto &v = apps[f.id()];
+        if (bv_arg && v.size() < max_apps) v.push_back(e);
+    }
+    for (auto const &[_, v] : apps) {
+        for (size_t i = 0; i < v.size(); ++i) {
+            for (size_t j = i + 1; j < v.size(); ++j) {
+                z3::expr_vector eqs(z3ctx);
+                bool bv_differs = false;
+                for (unsigned k = 0; k < v[i].num_args(); ++k) {
+                    if (z3::eq(v[i].arg(k), v[j].arg(k))) continue;
+                    bv_differs |= v[i].arg(k).is_bv();
+                    eqs.push_back(v[i].arg(k) == v[j].arg(k));
+                }
+                if (!bv_differs) s.add(z3::implies(z3::mk_and(eqs), v[i] == v[j]));
+            }
+        }
+    }
 }
 
 /// SPOQ_SLOW_QUERY_DIR, if set, receives every check that took at least
@@ -315,6 +391,7 @@ static std::string to_string(z3::check_result r) {
 Z3Result z3_verify(const shared_ptr<ProveState>& state, const z3::expr& cond, QueryInfo *qinfo, int timeout) {
     auto const start = std::chrono::high_resolution_clock::now();
     z3::solver solve = make_solver();
+    timeout = scaled_timeout(timeout);
     Z3Params.set("timeout", (unsigned int)timeout);
     solve.set(Z3Params);
     for (auto  const&c : *state->conds) {
@@ -325,6 +402,7 @@ Z3Result z3_verify(const shared_ptr<ProveState>& state, const z3::expr& cond, Qu
     }
 
     solve.add(!cond);
+    add_congruence_lemmas(solve);
     auto const not_res = solve.check();
     if (qinfo)
         qinfo->dump(solve.to_smt2());
@@ -362,6 +440,7 @@ Z3Result z3_verify_state_sat(const shared_ptr<ProveState>& state, QueryInfo *qin
     auto const start = std::chrono::high_resolution_clock::now();
     z3::solver solve = make_solver();
 
+    timeout = scaled_timeout(timeout);
     Z3Params.set("timeout", (unsigned int)timeout);
     solve.set(Z3Params);
 
@@ -371,6 +450,7 @@ Z3Result z3_verify_state_sat(const shared_ptr<ProveState>& state, QueryInfo *qin
     for (auto  const&ind : *state->inductions) {
         solve.add(ind);
     }
+    add_congruence_lemmas(solve);
     // Under --race the query goes to external Z3 processes instead of running on
     // this thread, so a solver that overruns its budget can still be killed.
     // Unlike z3_check there is no assumption here -- the state is asserted and
@@ -401,12 +481,14 @@ Z3Result z3_verify_state_sat(const shared_ptr<EvalState>& state, QueryInfo *qinf
     auto const start = std::chrono::high_resolution_clock::now();
     z3::solver solve = make_solver();
 
+    timeout = scaled_timeout(timeout);
     Z3Params.set("timeout", (unsigned int)timeout);
     solve.set(Z3Params);
 
     for (auto  const&c : *state->conds) {
         solve.add(c);
     }
+    add_congruence_lemmas(solve);
 
     // Under --race the query goes to external Z3 processes instead of running on
     // this thread, so a solver that overruns its budget can still be killed.
@@ -444,6 +526,7 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, const z3::expr& cond, Quer
         return Z3Cache[hash];
     }
 
+    timeout = scaled_timeout(timeout);
     Z3Params.set("timeout", (unsigned int)timeout);
     z3::solver solver = make_solver();
     solver.set(Z3Params);
@@ -455,6 +538,7 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, const z3::expr& cond, Quer
             solver.add(ind);
         }
     }
+    add_congruence_lemmas(solver, &cond);
     // cond is checked as an assumption, so it is not one of the solver's asserted
     // formulas and to_smt2() would write the context without the goal.  Rebuild it
     // on a throwaway solver, recording the goal behind a marker constant so a
@@ -546,6 +630,7 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, int timeout) {
     }
 
 
+    timeout = scaled_timeout(timeout);
     Z3Params.set("timeout", (unsigned int)timeout);
     z3::solver solver = make_solver();
     solver.set(Z3Params);
@@ -560,6 +645,7 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, int timeout) {
             solver.add(ind);
         }
     }
+    add_congruence_lemmas(solver);
 
 
 #ifdef Z3_PCACHE
@@ -605,6 +691,7 @@ Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& con
 
     z3_checks++;
 
+    timeout = scaled_timeout(timeout);
     Z3Params.set("timeout", (unsigned int)timeout);
 
     z3::solver solver = make_solver();
@@ -620,6 +707,7 @@ Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& con
     }
 
     solver.add(!cond);
+    add_congruence_lemmas(solver);
     // auto not_res = solver.check();
     auto not_res = z3::unknown;
     if (qinfo)

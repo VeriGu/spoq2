@@ -38,7 +38,7 @@ cd spoq3-artifacts/rmm-pa/ && python3 run.py
 
 ### Dependencies
 
-- Z3 : 4.12.5 (Please use the cmake-version for our cmakefile to correctly find z3).
+- Z3 : 4.17 or later (Please use the cmake-version for our cmakefile to correctly find z3).
 - LLVM : 23 (`llvm-23`, `llvm-23-dev`, `clang-23`) — from apt.llvm.org; Ubuntu 24.04 (noble) or newer
 - Antlr4: Served as a submodule
 - Boost: (todo: specify version)

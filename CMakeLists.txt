@@ -21,8 +21,8 @@ set(ANTLR_BUILD_CPP_TESTS OFF)
 # ------------------------------------------------------------------------------
 # Z3
 # ------------------------------------------------------------------------------
-set(Z3_DIR "~/workspace/VeriFrame/build/_deps/z3-build")
-find_package(Z3 4.12.5 REQUIRED CONFIG)
+set(Z3_DIR "$ENV{HOME}/workspace/z3/build" CACHE PATH "Directory containing Z3Config.cmake")
+find_package(Z3 4.17 REQUIRED CONFIG)
 include_directories(${Z3_CXX_INCLUDE_DIRS})
 message(STATUS "Found Z3 ${Z3_VERSION_STRING}")
 message(STATUS "Using Z3Config.cmake in: ${Z3_DIR}")
