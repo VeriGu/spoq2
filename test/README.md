@@ -10,6 +10,11 @@ the tests can never run against a stale binary.
     ctest                                  # one ctest entry per case
     ctest -R attr_readonly
 
+`SPOQ_TEST_ARGS` is appended to every spoq command line, so the suite can be
+run under another solver configuration:
+
+    SPOQ_TEST_ARGS=--race ctest
+
 Set `SPOQ_TEST_KEEP=1` to keep every scratch directory — on pass as well as on
 fail — for inspection. Each kept directory holds the `.bc`, the `.main.v`, the
 full spoq `stderr.log` and the `.smt2` queries, so a case can be re-run by hand.

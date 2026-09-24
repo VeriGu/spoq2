@@ -56,6 +56,12 @@ bool keepScratchDirs() {
     return keep;
 }
 
+/// SPOQ_TEST_ARGS: extra spoq options appended to every run, e.g. "--race".
+std::string extraSpoqArgs() {
+    const char *e = std::getenv("SPOQ_TEST_ARGS");
+    return e ? std::string(" ") + e : "";
+}
+
 /// Kept directories, in completion order, for the end-of-run summary.
 std::vector<std::pair<std::string, std::string>> &keptDirs() {
     static std::vector<std::pair<std::string, std::string>> dirs;
@@ -254,7 +260,7 @@ void runCaseChecks(const TestCase &tc) {
         << kTimeoutSeconds << " " << SPOQ_BINARY << " "
         << tc.stem << ".main.v"
         << " --new-trans --llvm --no-profile --check-patch-refinement --check-pre-post"
-        << " --query-path " << work / "z3" << "/ 2>" << work / "stderr.log";
+        << extraSpoqArgs() << " --query-path " << work / "z3" << "/ 2>" << work / "stderr.log";
 
     const RunResult run_result = run(cmd.str());
 

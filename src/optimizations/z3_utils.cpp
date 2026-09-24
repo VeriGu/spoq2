@@ -280,15 +280,9 @@ static z3::check_result z3_race_solve(const std::string &query, int timeout_ms) 
     return result;
 }
 
-/** Ask whether !cond is unsat, out of process. */
-Z3Result z3_race_check(QueryInfo const* qinfo) {
-    if (!qinfo || qinfo->query_id == 0)
-        return Z3Result::Unknown;
-    std::string const file = qinfo->query_dir
-                     + "/query_"
-                     + std::to_string(qinfo->query_id - 1)
-                     + ".smt2";
-    switch (z3_race_file(file, scaled_timeout(OPTS.race_timeout))) {
+/** Ask whether [query], which asserts !cond, is unsat, out of process. */
+static Z3Result z3_race_check(const std::string &query) {
+    switch (z3_race_solve(query, scaled_timeout(OPTS.race_timeout))) {
         case z3::unsat: return Z3Result::True;
         case z3::sat:   return Z3Result::Sat;
         default:        ++z3_unknowns; return Z3Result::Unknown;
@@ -720,11 +714,12 @@ Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& con
     add_congruence_lemmas(solver);
     // auto not_res = solver.check();
     auto not_res = z3::unknown;
-    if (qinfo)
-        qinfo->dump(solver.to_smt2());
+    std::string query;
+    if (qinfo || OPTS.race) query = solver.to_smt2();
+    if (qinfo) qinfo->dump(query);
 
     if (OPTS.race) {
-        auto const raced = z3_race_check(qinfo);
+        auto const raced = z3_race_check(query);
         if (raced != Z3Result::Sat) Z3Cache.insert(cache_query, raced);
         return raced;
     } else {
