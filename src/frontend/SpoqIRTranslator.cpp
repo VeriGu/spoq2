@@ -658,6 +658,7 @@ void SpoqIRModule::dfs_llvm_ir_to_spoq_inst_vec (llvm::BasicBlock* block, llvm::
                 auto *join = reconvergence_point(block, true_block, false_block, context);
 
                 SpoqIfInst spoq_inst(cond);
+                spoq_inst.branch = br;
                 spoq_inst.join = join;
                 // With a join, each arm stops there; without one, each arm runs
                 // to its own return and inherits our own stop.
@@ -1205,6 +1206,25 @@ SpoqIRModule::store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context
     assert(false && "store_load_to_spec: Not implemented yet[store inst]");
 }
 
+/// Record on [node] the function it is translated from and the alignment index
+/// in [inst]'s !pv.align metadata, `!{i64 N}`, if present.
+static unique_ptr<SpecNode> with_alignment(Project *proj, SpoqIRContext &context, llvm::Instruction *inst,
+                                           unique_ptr<SpecNode> node) {
+    node->origin_fn = shared_ptr<llvm::Function>(proj->spoq_code.llvm_module, context.spoq_func.llvm_func);
+    if (!inst) return node;
+    if (auto *md = inst->getMetadata("pv.align")) {
+        if (md->getNumOperands() > 0) {
+            if (auto *ci = llvm::mdconst::dyn_extract<llvm::ConstantInt>(md->getOperand(0)))
+            {
+                node->align_idx = static_cast<int>(ci->getSExtValue());
+                LOG_DEBUG << "[align] " << context.fname() << ": index " << node->align_idx << " on "
+                          << string(*node).substr(0, 60);
+            }
+        }
+    }
+    return node;
+}
+
 unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_vec_t& vec, int num, SpoqIRContext& context) {
     if(num >= vec.size()) {
         return construct_return_spec(proj, context);
@@ -1577,7 +1597,8 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
 
                 remain = rely_in_width(std::move(remain), context.get_llvm_value_spec(call),
                                        call->getType());
-                return Shortcut::_When_u(std::move(ret), std::move(new_expr), std::move(remain));
+                return with_alignment(proj, context, call,
+                                      Shortcut::_When_u(std::move(ret), std::move(new_expr), std::move(remain)));
             } else {
                 llvm::errs() << "No inline asm && No called function found: " << *call << "\n";
                 assert(false && "No inline asm && No called function found");
@@ -1595,7 +1616,8 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 auto i2p_v = std::make_unique<Expr>(context.int2ptr_op_name, std::move(children));
 
                 auto remain_expr = Shortcut::_Let_u(context.get_llvm_value_spec(load, nullptr, false), std::move(i2p_v), spoq_inst_to_spec(proj, vec, num + 1, context));
-                return Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second), std::move(remain_expr));
+                return with_alignment(proj, context, load,
+                                      Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second), std::move(remain_expr)));
             } else if (auto const bits = narrowed_load_width(load->getType())) {
                 // Memory holds 64-bit words, so the load yields a word, and the
                 // value is its low [bits] bits read signed -- what an iN load
@@ -1608,9 +1630,12 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 auto word = std::make_unique<Symbol>(value_name + "_word", Int::of_width(64));
                 auto rest = Shortcut::_Let_u(std::move(value), wrap_to_width(proj, word->deep_copy(), *bits),
                                              spoq_inst_to_spec(proj, vec, num + 1, context));
-                return Shortcut::_When_u(std::move(word), std::move(rhs.second), std::move(rest));
+                return with_alignment(proj, context, load,
+                                      Shortcut::_When_u(std::move(word), std::move(rhs.second), std::move(rest)));
             } else {
-                return Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second), spoq_inst_to_spec(proj, vec, num + 1, context));
+                return with_alignment(proj, context, load,
+                                      Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second),
+                                                        spoq_inst_to_spec(proj, vec, num + 1, context)));
             }
         } else if (auto store = llvm::dyn_cast<llvm::StoreInst>(spoq_inst->inst)) {
             auto rhs = store_load_to_spec(spoq_inst->inst, context);
@@ -1897,13 +1922,13 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
         auto cond = as_condition(context.get_llvm_value_spec(inst->cond));
         auto then_body = spoq_inst_to_spec(proj, inst->true_body, 0, context);
         auto else_body = spoq_inst_to_spec(proj, inst->false_body, 0, context);
-        unique_ptr<If> if_inst = std::make_unique<If>(
-            std::move(cond), std::move(then_body), std::move(else_body));
+        auto if_inst = with_alignment(proj, context, inst->branch,
+                                      std::make_unique<If>(std::move(cond), std::move(then_body), std::move(else_body)));
 
         if (!inst->join) {
             // Each arm ran to its own return, so there is nothing after the If.
             assert(num == vec.size() - 1 && "a non-reconverging if-else must be the final return");
-            return std::move(if_inst);
+            return if_inst;
         }
 
         // The arms reconverge.  Bind what they yield and carry on once:
@@ -1923,8 +1948,9 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                                ? std::move(pattern_parts->at(0))
                                : Shortcut::_Tuple_u(std::move(pattern_parts));
 
-        return Shortcut::_When_u(std::move(pattern), std::move(if_inst),
-                                 spoq_inst_to_spec(proj, vec, num + 1, context));
+        return with_alignment(proj, context, inst->branch,
+                              Shortcut::_When_u(std::move(pattern), std::move(if_inst),
+                                                spoq_inst_to_spec(proj, vec, num + 1, context)));
     } else if (auto inst = Shortcut::dyn_cast_u<SpoqLoopInst>(vec[num])) {
 
         // Generate the loop body spec
@@ -1968,7 +1994,8 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
         auto pass_out_list = Shortcut::_Tuple_u(context.compute_loop_break_return_list(inst->preheader_block));
         auto rest = context.bind_loop_results(inst->preheader_block,
                                               spoq_inst_to_spec(proj, vec, num + 1, context));
-        return Shortcut::_When_u(std::move(pass_out_list), std::move(src_loop), std::move(rest));
+        return with_alignment(proj, context, inst->preheader_block->getTerminator(),
+                              Shortcut::_When_u(std::move(pass_out_list), std::move(src_loop), std::move(rest)));
     } else if (auto inst = Shortcut::dyn_cast_u<SpoqContinueInst>(vec[num])) {
         assert(num == vec.size() - 1 && "continue is not the last instruction");
         int guard = 0, i = 0;

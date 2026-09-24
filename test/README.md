@@ -39,6 +39,9 @@ just whether it proved:
 | `spec_v_contains` | `;`-separated substrings that must appear in that body |
 | `spec_v_lacks` | `;`-separated substrings that must not |
 
+It may also set `env`, `;`-separated `VAR=value` assignments applied to that
+case's spoq run only, for a case that needs a knob such as `SPOQ_HOIST_BUDGET`.
+
 The driver assembles each case in its own scratch directory, assembles the `.ll`
 to the `.bc` that `PROJ_BC_PATH` names (in process, via the same LLVM spoq links
 against), runs spoq there, and compares only the keys present in the expected

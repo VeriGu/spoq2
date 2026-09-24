@@ -797,6 +797,7 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, const std:
             return { std::make_unique<Symbol>("None", typ), changed };
         } else {
             auto result = std::make_unique<Match>(std::move(spec->src), std::move(match_list));
+            result->copy_alignment_from(*spec);
             // auto new_src = string(*result);
             // if(changed && orig_src == new_src) {
             //     LOG_DEBUG << "Unchanged source with changed marker!!!!";

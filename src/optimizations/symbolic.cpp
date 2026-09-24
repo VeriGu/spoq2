@@ -1833,6 +1833,31 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     }
     // LOG_DEBUG << "Using relation: " << string(*rel_with_rets_def->body);
     // LOG_DEBUG << "Original state relation: " << string(*rel_post->body);
+    if (std::getenv("SPOQ_TRACE_ALIGN")) {
+        // The If/Match skeleton of each body with its alignment indices.
+        std::function<void(const SpecNode *, int, std::ostream &)> skeleton = [&](const SpecNode *n, int depth,
+                                                                                  std::ostream &out) {
+            auto const pad = string(2 * depth, ' ');
+            auto const tag = [&](const SpecNode *x) { return " @" + std::to_string(x->align_idx); };
+            if (auto m = dynamic_cast<const Match *>(n)) {
+                out << pad << "match " << string(*m->src).substr(0, 80) << tag(m) << "\n";
+                for (auto const &pm : *m->match_list) skeleton(pm->body.get(), depth + 1, out);
+            } else if (auto i = dynamic_cast<const If *>(n)) {
+                out << pad << "if " << string(*i->cond).substr(0, 80) << tag(i) << "\n";
+                skeleton(i->then_body.get(), depth + 1, out);
+                skeleton(i->else_body.get(), depth + 1, out);
+            } else if (auto r = dynamic_cast<const Rely *>(n)) {
+                skeleton(r->body.get(), depth, out);
+            } else {
+                out << pad << string(*n).substr(0, 60) << "\n";
+            }
+        };
+        std::ostringstream v, pt;
+        skeleton(vuln_body, 0, v);
+        skeleton(patched_body, 0, pt);
+        LOG_DEBUG << "[align] vuln skeleton:\n" << v.str();
+        LOG_DEBUG << "[align] patch skeleton:\n" << pt.str();
+    }
     if (std::getenv("SPOQ_DUMP_REFINES")) {
         static int seq = 0;
         auto const stem = "refines_" + vuln_def->name + "_" + std::to_string(seq++);

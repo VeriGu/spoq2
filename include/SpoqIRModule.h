@@ -1121,7 +1121,8 @@ std::unique_ptr<SpecNode> rely_in_width(std::unique_ptr<SpecNode> body,
     public:
         int iasm_count = 0;
         llvm::LLVMContext llvm_context;
-        unique_ptr<llvm::Module> llvm_module;
+        // Shared so spec nodes can hold their originating llvm::Function.
+        shared_ptr<llvm::Module> llvm_module;
         std::map<std::string, SpoqFunction> spoq_funcs;
 
         /**

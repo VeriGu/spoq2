@@ -136,79 +136,17 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
     return true;
 }
 
-	SimulateResult forward_simulation(Project *proj, SpecNode *st_check, SpecNode *spec_ret, SpecNode *impl, Definition *rel, Definition *ret_rel, const shared_ptr<ProveState>& state,
-			bool det, const path_t &path, int i, bool allow_none) {
-				int const random_code = rand() % 10000;
-			// bool det = false, const path_t &path = {}, int i = 0, bool allow_none = false) {
-		// LOG_DEBUG << "[forward_simulation " << random_code << "] start! checking " << string(*impl).substr(0,10000) << std::endl;
-		if (auto expr = instance_of(impl, Expr)) {
-			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
-				if (*e_op == Expr::Some) {
-					// Assume allow_none is true iff we have a None in the spec.
-					if (allow_none) {
-						return SimulateResult{true, true , true, false};
-					}
-					unique_ptr<SpecNode> st_ret;
-					if (auto ret_Some = instance_of(expr->elems->at(0).get(), Expr)) {
-						st_ret = expr->elems->at(0)->deep_copy();
-						SpecNode* impl_ret = nullptr;
-						if (auto ret_op = std::get_if<Expr::ops>(&ret_Some->op)) {
-							if (*ret_op == Expr::Tuple) {
-								st_ret = ret_Some->elems->back()->deep_copy();
-								impl_ret = ret_Some->elems->front()->deep_copy().release();
-							}
-						}
-						auto [is_relate, expr_relate]         = check_relation(proj, rel,     st_check, st_ret.get(), state);
-						auto [ret_is_relate, ret_expr_relate] = check_relation(proj, ret_rel, spec_ret, impl_ret, state);
-						if (is_relate && ret_is_relate) {
-							auto const rel_expr = formulate_relation(proj, rel, st_check, st_ret.get(), state);
-							auto const ret_expr = formulate_relation(proj, ret_rel, spec_ret, impl_ret, state);
-							// LOG_INFO << "[forward_simulation] St Relation " << rel_expr->get_z3_value() << " is proved between\n"  << string(*st_check) << " and " << string(*st_ret.get()) << std::endl;
-							// if(!spec_ret) {
-							// 	LOG_INFO << "[forward_simulation] Spec SpecNode null." << std::endl;
-							// } else if (!impl_ret){
-							// 	LOG_INFO << "[forward_simulation] Impl SpecNode null." << std::endl;
-							// }else{
-							// 	LOG_INFO << "[forward_simulation] Ret Relation " << ret_expr->get_z3_value() << " is proved between\n"  << string(*spec_ret) << " and " << string(*impl_ret) << std::endl;
-							// }
-						} else {
-							if (!is_relate) {
-								LOG_WARNING << "[forward_simulation] State Relation can not be proved between\n"  << string(*st_check) << " and " << string(*st_ret.get())  << std::endl;
-							}
-							if (!ret_is_relate){
-								LOG_WARNING << "[forward_simulation] ret val Relation can not be proved between\n"  << string(*spec_ret) << " and " << string(*impl_ret)  << std::endl;
-							}
+	/// Continues the traversal into [body] under [state]; [det] as in forward_simulation.
+	using descend_t = std::function<SimulateResult(SpecNode *body, const shared_ptr<ProveState> &state, bool det)>;
 
-							// for(auto cond: *state->conds) {
-							// 	LOG_DEBUG << "Condition: " << cond;
-							//  	}
-						}
-						auto const res = z3_verify_state_sat(state);
-						if(!is_relate || !ret_is_relate)
-							int const x = 5;
-						return SimulateResult{is_relate && ret_is_relate, false, false, false};
-					} else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
-						st_ret = expr->elems->at(0)->deep_copy();
-
-						auto [is_relate, expr_relate] = check_relation(proj, rel, st_check, st_ret.get(), state);
-						if (is_relate) {
-							LOG_INFO << "[forward_simulation] Symbol Relation is proved between\n"  << string(*st_check) << " and " << string(*st_ret.get()) << std::endl;
-						} else {
-							LOG_WARNING << "[forward_simulation] Symbol Relation can not be proved between\n"  << string(*st_check) << " and " << string(*st_ret.get())  << std::endl;
-							// for(auto cond: *state->conds) {
-							// 	LOG_DEBUG << "Condition: " << cond;
-							// }
-						}
-						return SimulateResult{is_relate, false, false, false};
-					}
-				} else if(*e_op == Expr::None) {
-					LOG_DEBUG << "[forward_simulation " << random_code << "] None in impl, allow_none: " << allow_none;
-					return SimulateResult{allow_none, allow_none, false, !allow_none};
-				} else {
-					LOG_ERROR << "[forward_simulation] Expr with op: " << static_cast<int>(*e_op);
-				}
-			}
-		} else if (auto m = instance_of(impl, Match)) {
+	/// One impl-side step at a Match: check the callee's precondition, bind each
+	/// feasible arm with the callee's post-condition or loop invariant, and hand
+	/// the arm's body to [descend].  If an arm fails below a folded callee, the
+	/// scrutinee is unfolded in place and [redo] re-simulates the Match.
+	static SimulateResult step_impl_match(Project *proj, Match *m, const shared_ptr<ProveState>& state, bool det,
+	                                      const path_t &path, int i, const descend_t &descend,
+	                                      const std::function<SimulateResult()> &redo) {
+			int const random_code = rand() % 10000;
 			set<string> used_fix;
 			bool add_post_condition = false;
 			bool const resolve_to_none = false;
@@ -274,7 +212,7 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 						if(!op_eq(expr->op, Expr::None)) {
 							continue;
 						} else {
-							auto const this_branch_result = forward_simulation(proj, st_check, spec_ret, (*pm)->body.get(), rel, ret_rel, pm_state, det, path, i+1, allow_none);
+							auto const this_branch_result = descend((*pm)->body.get(), pm_state, det);
 							sim_result = sim_result + this_branch_result;
 							return sim_result;
 						}
@@ -381,14 +319,14 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 					continue;
 				} else {
 					LOG_DEBUG << "[forward_simulation " << random_code << "] Checking Match src: " << string(*m->src).substr(0,200) <<  "\nPattern: " << string(*pat).substr(0,200);
-					auto this_branch_result = forward_simulation(proj, st_check, spec_ret, (*pm)->body.get(), rel, ret_rel, pm_state, det, path, i+1, allow_none);
+					auto this_branch_result = descend((*pm)->body.get(), pm_state, det);
 					if(!this_branch_result.verified){
 						LOG_DEBUG << "[forward_simulation " << random_code << "] Match verification failed on branch: " << string(*pat).substr(0,200);
 						LOG_DEBUG << "Matched expr: " << string(*m->src->deep_copy());
 						// If the scrutinee was an opaque callee, unfold it here and redo
 						// just this Match with the state we entered it with.
 						if (inline_folded_scrutinee(proj, m, state))
-							return forward_simulation(proj, st_check, spec_ret, impl, rel, ret_rel, state, det, path, i, allow_none);
+							return redo();
 						return this_branch_result;
 					}
 					sim_result = sim_result + this_branch_result;
@@ -397,7 +335,13 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 			// LOG_DEBUG << "[forward_simulation " << random_code << "] Completed Match of src " << string(*m->src).substr(0,100);
 			return sim_result;
 
-		} else if (auto iff = instance_of(impl, If)) {
+	}
+
+	/// One impl-side step at an If: split on the condition where both branches
+	/// are feasible and hand each feasible branch to [descend].
+	static SimulateResult step_impl_if(Project *proj, If *iff, const shared_ptr<ProveState>& state, bool det,
+	                                   const path_t &path, int i, const descend_t &descend) {
+			int const random_code = rand() % 10000;
 			auto const cond = z3_eval(proj, iff->cond.get(), state);
 			auto cond_val = cond->get_z3_value();
 			if (cond_val.is_int()){
@@ -430,11 +374,11 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 			} else if (true_branch_plausible && !false_branch_plausible) {
 				LOG_DEBUG << "[forward_simulation " << random_code << "] If - On True branch only";
 				state->conds->push_back(cond_val);
-				return forward_simulation(proj, st_check, spec_ret, iff->then_body.get(), rel, ret_rel, state, det, path, i+1, allow_none);
+				return descend(iff->then_body.get(), state, det);
 			} else if (!true_branch_plausible && false_branch_plausible) {
 				LOG_DEBUG << "[forward_simulation " << random_code << "] If - On False branch only";
 				state->conds->push_back(!cond_val);
-				return forward_simulation(proj, st_check, spec_ret, iff->else_body.get(), rel, ret_rel, state, det, path, i+1, allow_none);
+				return descend(iff->else_body.get(), state, det);
 			} else {
 				LOG_DEBUG << "[forward_simulation " << random_code << "] If - On both branches";
 				// O(N^2) simulation search
@@ -445,12 +389,12 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 				auto const else_state = state->copy();
 				then_state->conds->push_back(cond_val);
 				else_state->conds->push_back(!cond_val);
-				auto const then_sim_result = forward_simulation(proj, st_check, spec_ret, iff->then_body.get(), rel, ret_rel, then_state, false, path, i+1, allow_none);
+				auto const then_sim_result = descend(iff->then_body.get(), then_state, false);
 				if (!then_sim_result.verified) {
 					LOG_DEBUG << "[forward_simulation " << random_code << "] Then branch of if not verified";
 					LOG_DEBUG << "[forward_simulation " << random_code << "] Guilty condition " << cond.get()->get_z3_value();
 				}
-				auto const else_sim_result = forward_simulation(proj, st_check, spec_ret, iff->else_body.get(), rel, ret_rel, else_state, false, path, i+1, allow_none);
+				auto const else_sim_result = descend(iff->else_body.get(), else_state, false);
 				if (!else_sim_result.verified) {
 					LOG_DEBUG << "[forward_simulation " << random_code << "] else branch of if not verified";
 					LOG_DEBUG << "[forward_simulation " << random_code << "] Guilty condition " << (!cond_val);
@@ -458,6 +402,93 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 				return then_sim_result + else_sim_result;
 			}
 
+	}
+
+	SimulateResult forward_simulation(Project *proj, SpecNode *st_check, SpecNode *spec_ret, SpecNode *impl, Definition *rel, Definition *ret_rel, const shared_ptr<ProveState>& state,
+			bool det, const path_t &path, int i, bool allow_none) {
+				int const random_code = rand() % 10000;
+			// bool det = false, const path_t &path = {}, int i = 0, bool allow_none = false) {
+		// LOG_DEBUG << "[forward_simulation " << random_code << "] start! checking " << string(*impl).substr(0,10000) << std::endl;
+		if (auto expr = instance_of(impl, Expr)) {
+			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
+				if (*e_op == Expr::Some) {
+					// Assume allow_none is true iff we have a None in the spec.
+					if (allow_none) {
+						return SimulateResult{true, true , true, false};
+					}
+					unique_ptr<SpecNode> st_ret;
+					if (auto ret_Some = instance_of(expr->elems->at(0).get(), Expr)) {
+						st_ret = expr->elems->at(0)->deep_copy();
+						SpecNode* impl_ret = nullptr;
+						if (auto ret_op = std::get_if<Expr::ops>(&ret_Some->op)) {
+							if (*ret_op == Expr::Tuple) {
+								st_ret = ret_Some->elems->back()->deep_copy();
+								impl_ret = ret_Some->elems->front()->deep_copy().release();
+							}
+						}
+						auto [is_relate, expr_relate]         = check_relation(proj, rel,     st_check, st_ret.get(), state);
+						auto [ret_is_relate, ret_expr_relate] = check_relation(proj, ret_rel, spec_ret, impl_ret, state);
+						if (is_relate && ret_is_relate) {
+							auto const rel_expr = formulate_relation(proj, rel, st_check, st_ret.get(), state);
+							auto const ret_expr = formulate_relation(proj, ret_rel, spec_ret, impl_ret, state);
+							// LOG_INFO << "[forward_simulation] St Relation " << rel_expr->get_z3_value() << " is proved between\n"  << string(*st_check) << " and " << string(*st_ret.get()) << std::endl;
+							// if(!spec_ret) {
+							// 	LOG_INFO << "[forward_simulation] Spec SpecNode null." << std::endl;
+							// } else if (!impl_ret){
+							// 	LOG_INFO << "[forward_simulation] Impl SpecNode null." << std::endl;
+							// }else{
+							// 	LOG_INFO << "[forward_simulation] Ret Relation " << ret_expr->get_z3_value() << " is proved between\n"  << string(*spec_ret) << " and " << string(*impl_ret) << std::endl;
+							// }
+						} else {
+							if (!is_relate) {
+								LOG_WARNING << "[forward_simulation] State Relation can not be proved between\n"  << string(*st_check) << " and " << string(*st_ret.get())  << std::endl;
+							}
+							if (!ret_is_relate){
+								LOG_WARNING << "[forward_simulation] ret val Relation can not be proved between\n"  << string(*spec_ret) << " and " << string(*impl_ret)  << std::endl;
+							}
+
+							// for(auto cond: *state->conds) {
+							// 	LOG_DEBUG << "Condition: " << cond;
+							//  	}
+						}
+						auto const res = z3_verify_state_sat(state);
+						if(!is_relate || !ret_is_relate)
+							int const x = 5;
+						return SimulateResult{is_relate && ret_is_relate, false, false, false};
+					} else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
+						st_ret = expr->elems->at(0)->deep_copy();
+
+						auto [is_relate, expr_relate] = check_relation(proj, rel, st_check, st_ret.get(), state);
+						if (is_relate) {
+							LOG_INFO << "[forward_simulation] Symbol Relation is proved between\n"  << string(*st_check) << " and " << string(*st_ret.get()) << std::endl;
+						} else {
+							LOG_WARNING << "[forward_simulation] Symbol Relation can not be proved between\n"  << string(*st_check) << " and " << string(*st_ret.get())  << std::endl;
+							// for(auto cond: *state->conds) {
+							// 	LOG_DEBUG << "Condition: " << cond;
+							// }
+						}
+						return SimulateResult{is_relate, false, false, false};
+					}
+				} else if(*e_op == Expr::None) {
+					LOG_DEBUG << "[forward_simulation " << random_code << "] None in impl, allow_none: " << allow_none;
+					return SimulateResult{allow_none, allow_none, false, !allow_none};
+				} else {
+					LOG_ERROR << "[forward_simulation] Expr with op: " << static_cast<int>(*e_op);
+				}
+			}
+		} else if (auto m = instance_of(impl, Match)) {
+			auto const descend = [&](SpecNode *body, const shared_ptr<ProveState> &s, bool d) {
+				return forward_simulation(proj, st_check, spec_ret, body, rel, ret_rel, s, d, path, i + 1, allow_none);
+			};
+			auto const redo = [&]() {
+				return forward_simulation(proj, st_check, spec_ret, impl, rel, ret_rel, state, det, path, i, allow_none);
+			};
+			return step_impl_match(proj, m, state, det, path, i, descend, redo);
+		} else if (auto iff = instance_of(impl, If)) {
+			auto const descend = [&](SpecNode *body, const shared_ptr<ProveState> &s, bool d) {
+				return forward_simulation(proj, st_check, spec_ret, body, rel, ret_rel, s, d, path, i + 1, allow_none);
+			};
+			return step_impl_if(proj, iff, state, det, path, i, descend);
 		} else if (auto r = instance_of(impl, Rely)) {
 			auto const c = z3_eval(proj, r->prop.get(), state);
 			state->conds->push_back(c->get_z3_value());
@@ -537,6 +568,18 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 	 * @return true if the specification relation is proved
 	 * @return false if the specification relation is not proved
 	 */
+	/// Whether the lockstep traversal steps the impl before the spec.  Only an
+	/// If or Match head on both sides is a choice: a spec Rely or leaf is always
+	/// consumed first, and an impl leaf waits for the spec to reach its own.
+	/// With both heads aligned the lower index goes first; with one aligned, the
+	/// unaligned side goes first; with neither, the spec does.
+	static bool impl_steps_first(SpecNode *spec, SpecNode *impl) {
+		auto const steppable = [](SpecNode *n) { return instance_of(n, If) || instance_of(n, Match); };
+		if (!steppable(spec) || !steppable(impl)) return false;
+		if (spec->has_alignment() && impl->has_alignment()) return impl->align_idx < spec->align_idx;
+		return spec->has_alignment();
+	}
+
 	SimulateResult simulate_by_traverse(Project *proj, SpecNode *spec, SpecNode *impl, Definition *rel, Definition *ret_rel, const shared_ptr<ProveState>& state, const path_t& p, bool det) {
 		int const random_code = rand() % 10000;
 		LOG_DEBUG << "[simulate_by_traverse " << random_code << "] start!" << std::endl;
@@ -547,6 +590,28 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 			auto const c = z3_eval(proj, impl_rely->prop.get(), state);
 			state->conds->push_back(c->get_z3_value());
 			return simulate_by_traverse(proj, spec, impl_rely->body.get(), rel, ret_rel, state, p, det);
+		}
+		// A deterministic simulation pairs branches in order, so only a
+		// non-deterministic one may reorder by alignment.
+		if (!det && impl_steps_first(spec, impl)) {
+			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Advancing impl first: spec @" << spec->align_idx
+			          << ", impl @" << impl->align_idx;
+			// z3_eval decides the Ifs and Matches inside an expression under the
+			// path condition and memoises the result on the node, so a cached value
+			// holds only on paths whose condition implies the one it was computed
+			// under.  Stepping the impl first walks the spec subtree once per impl
+			// branch, and reaches this impl node on more than one spec path: drop
+			// both subtrees' cached values before evaluating them here.
+			impl->clear_z3_eval();
+			auto const descend = [&](SpecNode *body, const shared_ptr<ProveState> &s, bool) {
+				spec->clear_z3_eval();
+				return simulate_by_traverse(proj, spec, body, rel, ret_rel, s, p, det);
+			};
+			if (auto impl_m = instance_of(impl, Match)) {
+				auto const redo = [&]() { return simulate_by_traverse(proj, spec, impl, rel, ret_rel, state, p, det); };
+				return step_impl_match(proj, impl_m, state, det, p, 0, descend, redo);
+			}
+			return step_impl_if(proj, instance_of(impl, If), state, det, p, 0, descend);
 		}
 		if (auto expr = instance_of(spec, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {

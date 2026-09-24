@@ -1919,6 +1919,7 @@ std::unique_ptr<SpecNode> subst(
 
         auto new_match = std::make_unique<Match>(std::move(new_src), std::move(matches));
         new_match->type = m->type;
+        new_match->copy_alignment_from(*m);
         return new_match;
     } else if (auto r = instance_of(spec.get(), Rely)) {
         auto new_prop = subst(std::move(r->prop), name, value, succ, last_place_substituted);
@@ -1938,6 +1939,7 @@ std::unique_ptr<SpecNode> subst(
         auto new_else = subst(std::move(i->else_body), name, value, succ, last_place_substituted);
         auto new_if = std::make_unique<If>(std::move(new_cond), std::move(new_then), std::move(new_else));
         new_if->type = i->type;
+        new_if->copy_alignment_from(*i);
         return new_if;
     } else if (auto fe = instance_of(spec.get(), Forall)) {
         auto vars = std::make_unique<std::vector<std::shared_ptr<Arg>>>(*fe->vars);
@@ -2186,6 +2188,7 @@ std::unique_ptr<SpecNode> subst_v2(Project* proj, std::unique_ptr<SpecNode> spec
         auto new_else = subst_v2(proj, std::move(i->else_body), names, values);
         auto new_if = std::make_unique<If>(std::move(new_cond), std::move(new_then), std::move(new_else));
         new_if->type = i->type;
+        new_if->copy_alignment_from(*i);
         return new_if;
     } else if (auto fe = instance_of(spec.get(), Forall)) {
         auto vars = std::make_unique<std::vector<std::shared_ptr<Arg>>>(*fe->vars);
@@ -2380,7 +2383,9 @@ std::unique_ptr<SpecNode> subst_expr(
                 matches->push_back(std::make_unique<PatternMatch>(pm->pattern->deep_copy(), std::move(body)));
             }
         }
-        return std::make_unique<Match>(std::move(src), std::move(matches));
+        auto new_match = std::make_unique<Match>(std::move(src), std::move(matches));
+        new_match->copy_alignment_from(*m);
+        return new_match;
 
     } else if (auto r = instance_of(spec.get(), Rely)) {
         return std::make_unique<Rely>(
@@ -2393,11 +2398,13 @@ std::unique_ptr<SpecNode> subst_expr(
             subst_expr(proj, std::move(r->body), expr, var, succ)
         );
     } else if (auto i = instance_of(spec.get(), If)) {
-        return std::make_unique<If>(
+        auto new_if = std::make_unique<If>(
             subst_expr(proj, std::move(i->cond), expr, var, succ),
             subst_expr(proj, std::move(i->then_body), expr, var, succ),
             subst_expr(proj, std::move(i->else_body), expr, var, succ)
         );
+        new_if->copy_alignment_from(*i);
+        return new_if;
     } else if (auto fe = instance_of(spec.get(), Forall)) {
         auto free_vars = std::set<string>();
         for (auto  const&v : *fe->vars)
@@ -2568,7 +2575,9 @@ std::unique_ptr<SpecNode> SpecRules::eliminate_ambiguity(
 
         auto else_body = eliminate_ambiguity(std::move(i->else_body), prev_symbols, changed);
         // assert(z3t_string == else_body->get_type()->get_z3_type().to_string());
-        return std::make_unique<If>(std::move(cond), std::move(then_body), std::move(else_body));
+        auto new_if = std::make_unique<If>(std::move(cond), std::move(then_body), std::move(else_body));
+        new_if->copy_alignment_from(*i);
+        return new_if;
 
     } else if (auto fe = instance_of(spec.get(), ForallExists)) {
         auto prev = std::set<string>(prev_symbols);
@@ -3159,7 +3168,9 @@ rule_ret_t SpecRules::rule_subst_match_src_with_content(std::unique_ptr<SpecNode
                     matches->push_back(std::move(pm));
                 }
             }
-            return std::make_unique<Match>(std::move(s->src), std::move(matches));
+            auto new_match = std::make_unique<Match>(std::move(s->src), std::move(matches));
+            new_match->copy_alignment_from(*s);
+            return new_match;
         }
         return node;
     };

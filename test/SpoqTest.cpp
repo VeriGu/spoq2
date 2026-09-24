@@ -240,16 +240,26 @@ void runCaseChecks(const TestCase &tc) {
                   fs::copy_options::overwrite_existing);
     ASSERT_TRUE(assemble(tc.ll, work / (tc.stem + ".bc")));
 
+    boost::property_tree::ptree expected_early;
+    ASSERT_TRUE(readJson(tc.expected, "", expected_early));
+
+    // Environment for this spoq run only.
+    //   env   `;`-separated VAR=value assignments
+    std::string env_prefix;
+    {
+        std::istringstream in(expected_early.get<std::string>("env", ""));
+        for (std::string kv; std::getline(in, kv, ';');)
+            if (!kv.empty()) env_prefix += kv + " ";
+    }
+
     std::ostringstream cmd;
-    cmd << "cd " << work << " && timeout " << kTimeoutSeconds << " " << SPOQ_BINARY << " "
+    cmd << "cd " << work << " && " << (env_prefix.empty() ? "" : "env " + env_prefix) << "timeout "
+        << kTimeoutSeconds << " " << SPOQ_BINARY << " "
         << tc.stem << ".main.v"
         << " --new-trans --llvm --no-profile --check-patch-refinement --check-pre-post"
         << " --query-path " << work / "z3" << "/ 2>" << work / "stderr.log";
 
     const RunResult run_result = run(cmd.str());
-
-    boost::property_tree::ptree expected_early;
-    ASSERT_TRUE(readJson(tc.expected, "", expected_early));
 
     // A fixture spoq is meant to reject.  Checked before the non-zero exit is
     // treated as a failure, which is what every other fixture wants.
@@ -283,13 +293,17 @@ void runCaseChecks(const TestCase &tc) {
     // A result JSON is only produced by the refinement check.  A fixture that
     // asserts something else -- a postcondition, say -- need not declare a
     // Refines hint at all, and then there is no JSON and nothing to compare.
+    // Keys that direct the driver rather than pin a field of the result JSON.
+    const auto is_driver_key = [](const std::string &key) {
+        return key.rfind("spec_v_", 0) == 0 || key.rfind("stderr_", 0) == 0 ||
+               key.rfind("coq_", 0) == 0 || key == "unimplemented" ||
+               key == "unimplemented_bv_sorts" || key == "expect_error" || key == "env";
+    };
+
     // Require one only when the expected file actually pins a result field.
     bool wants_result_json = false;
     for (const auto &[key, value] : expected)
-        if (key.rfind("spec_v_", 0) != 0 && key.rfind("stderr_", 0) != 0 &&
-            key.rfind("coq_", 0) != 0 && key != "unimplemented" &&
-            key != "unimplemented_bv_sorts" && key != "expect_error")
-            wants_result_json = true;
+        if (!is_driver_key(key)) wants_result_json = true;
 
     if (wants_result_json) {
         std::istringstream out(run_result.output);
@@ -299,10 +313,7 @@ void runCaseChecks(const TestCase &tc) {
         ASSERT_TRUE(readJson(tc.ll, first_line, actual));
 
         for (const auto &[key, value] : expected) {
-            if (key.rfind("spec_v_", 0) == 0 || key.rfind("stderr_", 0) == 0 ||
-                key.rfind("coq_", 0) == 0 || key == "unimplemented" ||
-                key == "unimplemented_bv_sorts")
-                continue;
+            if (is_driver_key(key)) continue;
             const auto found = actual.get_optional<std::string>(key);
             EXPECT_TRUE(found.has_value()) << "result has no key '" << key << "'";
             if (found) EXPECT_EQ(*found, value.get_value<std::string>()) << "for key '" << key << "'";

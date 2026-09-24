@@ -79,6 +79,7 @@ public:
 class SpoqIfInst : public SpoqInst {
 public:
     llvm::Value* cond;
+    llvm::Instruction* branch = nullptr; ///< the conditional branch this If comes from
     spoq_inst_vec_t true_body;
     spoq_inst_vec_t false_body;
 

@@ -220,7 +220,29 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             // SPOQ_TRACE_TRANSFORM: size at each pass boundary, attributing a
             // growing iteration to the pass that grows it.
             size_t last_size = trace_on() ? string(*spec).size() : 0;
+            // SPOQ_TRACE_ALIGN: If/Match nodes still carrying an alignment index.
+            static bool const trace_align = std::getenv("SPOQ_TRACE_ALIGN") != nullptr;
+            std::function<size_t(const SpecNode *)> aligned_nodes = [&](const SpecNode *n) -> size_t {
+                if (!n) return 0;
+                if (auto m = dynamic_cast<const Match *>(n)) {
+                    size_t c = m->has_alignment();
+                    for (auto const &pm : *m->match_list) c += aligned_nodes(pm->body.get());
+                    return c;
+                }
+                if (auto i = dynamic_cast<const If *>(n))
+                    return i->has_alignment() + aligned_nodes(i->then_body.get()) + aligned_nodes(i->else_body.get());
+                if (auto r = dynamic_cast<const Rely *>(n)) return aligned_nodes(r->body.get());
+                return 0;
+            };
+            size_t last_aligned = trace_align ? aligned_nodes(spec.get()) : 0;
             auto const trace_pass = [&](const char *pass) {
+                if (trace_align) {
+                    auto const now = aligned_nodes(spec.get());
+                    if (now != last_aligned)
+                        LOG_DEBUG << "[align] " << def->name << " iter " << cur_iter << " " << pass
+                                  << " aligned nodes " << last_aligned << " -> " << now;
+                    last_aligned = now;
+                }
                 if (!trace_on()) return;
                 auto const now = string(*spec).size();
                 if (now != last_size)

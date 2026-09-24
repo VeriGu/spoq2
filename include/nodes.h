@@ -18,6 +18,8 @@
 #include <log.h>
 #include <cassert>
 
+namespace llvm { class Function; }
+
 namespace autov {
 using std::string;
 using std::vector;
@@ -50,6 +52,18 @@ public:
     mutable string _str; // cached string representation
     shared_ptr<SpecType> tmp;
     shared_ptr<SpecValue> cached_eval;
+    /// LLVM function this node was translated from; null if not from IR.
+    shared_ptr<llvm::Function> origin_fn;
+    /// Vuln/patch alignment index from the originating instruction's
+    /// !pv.align metadata; -1 if the instruction carried none.
+    int align_idx = -1;
+
+    bool has_alignment() const { return align_idx >= 0; }
+    /// Carry origin and alignment over to a node built in place of [other].
+    void copy_alignment_from(const SpecNode &other) {
+        origin_fn = other.origin_fn;
+        align_idx = other.align_idx;
+    }
 
     SpecNode() : type(SpecType::UNKNOWN_TYPE), nid(id++) {}
     SpecNode(shared_ptr<SpecType> type) : type(std::move(type)), nid(id++) {}
@@ -873,6 +887,7 @@ public:
         new_src->is_determ_branch = this->src->is_determ_branch;
         }
         auto ret = make_unique<Match>(std::move(new_src), std::move(new_match_list));
+        ret->copy_alignment_from(*this);
 
         return ret;
     }
@@ -887,6 +902,7 @@ public:
         }
 
         p = make_unique<Match>(std::move(new_src), std::move(new_match_list));
+        p->copy_alignment_from(*this);
     }
 
     bool deep_eq(SpecNode* n) const {
@@ -1280,6 +1296,7 @@ private:
       this->else_body->deep_copy(new_else_body);
       p = make_unique<If>(std::move(new_cond), std::move(new_then_body),
                           std::move(new_else_body));
+      p->copy_alignment_from(*this);
   }
 };
 

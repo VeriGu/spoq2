@@ -1,0 +1,5 @@
+{
+  "env": "SPOQ_HOIST_BUDGET=1",
+  "verified": false,
+  "stderr_contains": "Advancing impl first: spec @1, impl @-1"
+}
