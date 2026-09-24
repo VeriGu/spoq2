@@ -594,7 +594,6 @@ void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
     auto spec = std::move(def->body());
 
     while (true) {
-        spec->clear_z3_eval();
         bool changed = false;
         
         do {
@@ -622,7 +621,6 @@ void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
 
     def->body() = std::move(spec);
     def->_str.clear();
-    def->body()->clear_z3_eval();
     // def->infer_type(*proj);
     // std::cout << "[COI] spec after COI-reduction:\n" << string(*def) << std::endl;
 }

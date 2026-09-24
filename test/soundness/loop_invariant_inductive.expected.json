@@ -1,0 +1,4 @@
+{
+  "verified": true,
+  "stderr_contains": "loop invariant: vuln_loop_0 is inductive"
+}

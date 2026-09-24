@@ -84,39 +84,38 @@ z3::check_result z3_pcache_check(z3::expr_vector const &assumptions) {
 }
 #endif
 
-unordered_map<size_t, Z3Result> Z3Cache;
+Z3ResultCache Z3Cache;
 
-size_t hash_unsigned_vector(const vector<unsigned> &v) {
-    size_t hash = 0;
-    for (const auto &i : v) {
-        boost::hash_combine(hash, i);
+Z3ResultCache::Query Z3ResultCache::query(Kind kind, const EvalState &state, const z3::expr *goal, int timeout) {
+    Query q;
+    // Sorted within each group, which asserts its formulas as a set; the
+    // groups are separated, since a formula means one thing as a condition
+    // and another as an induction.
+    auto const add_group = [&](const vector<z3::expr> &group) {
+        auto const first = q.ids.size();
+        for (auto const &e : group) {
+            q.ids.push_back(e.id());
+            q.formulas.push_back(e);
+        }
+        std::sort(q.ids.begin() + first, q.ids.end());
+        q.ids.push_back(UINT_MAX);
+    };
+    add_group(*state.conds);
+    if (auto const prover = dynamic_cast<const ProveState *>(&state)) add_group(*prover->inductions);
+    if (goal) {
+        q.ids.push_back(goal->id());
+        q.formulas.push_back(*goal);
     }
-    return hash;
+    q.ids.push_back(UINT_MAX);
+    q.ids.push_back(static_cast<unsigned>(timeout));
+    q.ids.push_back(static_cast<unsigned>(kind));
+    return q;
 }
 
-static size_t hash_z3_expr(z3::expr  const&e) {
-    return e.hash();
-}
-
-size_t hash_z3_state(const std::shared_ptr<EvalState>& state, int timeout) {
-    std::vector<unsigned> hashes;
-    for (auto  const&c : *state->conds) {
-        hashes.push_back(hash_z3_expr(c));
-    }
-    sort(hashes.begin(), hashes.end());
-    hashes.push_back(timeout);
-    return hash_unsigned_vector(hashes);
-}
-
-size_t hash_z3_state(const std::shared_ptr<EvalState>& state, const z3::expr& cond, int timeout) {
-    std::vector<unsigned> hashes;
-    for (auto  const&c : *state->conds) {
-        hashes.push_back(hash_z3_expr(c));
-    }
-    sort(hashes.begin(), hashes.end());
-    hashes.push_back(hash_z3_expr(cond));
-    hashes.push_back(timeout);
-    return hash_unsigned_vector(hashes);
+std::optional<Z3Result> Z3ResultCache::find(const Query &q) const {
+    auto const it = entries.find(q.ids);
+    if (it == entries.end()) return std::nullopt;
+    return it->second.first;
 }
 
 unsigned long z3_unknowns = 0;
@@ -138,6 +137,16 @@ static int scaled_timeout(int timeout) {
                                 : z3_bv_sorts_enabled()                ? 3.0
                                                                        : 1.0;
     return static_cast<int>(timeout * scale);
+}
+
+z3::check_result z3_solver_answer(const std::string &out) {
+    auto const end = out.find_last_not_of(" \t\r\n");
+    if (end == std::string::npos) return z3::unknown;
+    auto const begin = out.find_last_of('\n', end) == std::string::npos ? 0 : out.find_last_of('\n', end) + 1;
+    auto const line = out.substr(begin, end + 1 - begin);
+    if (line == "unsat") return z3::unsat;
+    if (line == "sat") return z3::sat;
+    return z3::unknown;
 }
 
 /** Race Z3 processes on one query file and take the first definite answer:
@@ -230,7 +239,7 @@ static z3::check_result z3_race_file(const std::string &file, int timeout_ms) {
                 close(pipes[i][0]);
 
                 // shortcut on "unsat"
-                if (outputs[i].find("unsat") != std::string::npos) {
+                if (z3_solver_answer(outputs[i]) == z3::unsat) {
                     stop_rest();
                     return z3::unsat;
                 }
@@ -245,13 +254,13 @@ static z3::check_result z3_race_file(const std::string &file, int timeout_ms) {
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
 
-    // final decision.  "unsat" first: it contains "sat" as a substring.
+    // final decision: any unsat, else any sat.
     for (auto  const&out : outputs) {
-        if (out.find("unsat") != std::string::npos)
+        if (z3_solver_answer(out) == z3::unsat)
             return z3::unsat;
     }
     for (auto  const&out : outputs) {
-        if (out.find("sat") != std::string::npos)
+        if (z3_solver_answer(out) == z3::sat)
             return z3::sat;
     }
 
@@ -519,11 +528,11 @@ Z3Result z3_verify_state_sat(const shared_ptr<EvalState>& state, QueryInfo *qinf
 // Defautl value of timeout is 50
 Z3Result z3_check(const shared_ptr<EvalState>& state, const z3::expr& cond, QueryInfo *qinfo, int timeout) {
     auto const start = std::chrono::high_resolution_clock::now();
-    auto const hash = hash_z3_state(state, cond, timeout);
+    auto const cache_query = Z3ResultCache::query(Z3ResultCache::Kind::Check, *state, &cond, timeout);
     z3_checks++;
-    if (Z3Cache.find(hash) != Z3Cache.end()) {
+    if (auto const hit = Z3Cache.find(cache_query)) {
         z3_cache_hits++;
-        return Z3Cache[hash];
+        return *hit;
     }
 
     timeout = scaled_timeout(timeout);
@@ -598,22 +607,22 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, const z3::expr& cond, Quer
 
     if (not_res == z3::unsat) {
         if (res == z3::unsat) {
-            Z3Cache[hash] = Z3Result::False;
+            Z3Cache.insert(cache_query, Z3Result::False);
             return Z3Result::False;
         }
         return Z3Result::True;
     } else if (res == z3::unsat) {
-        Z3Cache[hash] = Z3Result::False;
+        Z3Cache.insert(cache_query, Z3Result::False);
         return Z3Result::False;
     } else if(res == z3::sat && not_res == z3::sat){
-        Z3Cache[hash] = Z3Result::Sat;
+        Z3Cache.insert(cache_query, Z3Result::Sat);
         return Z3Result::Sat;
     } else if(res == z3::unknown && not_res == z3::unknown){
-        Z3Cache[hash] = Z3Result::Unknown;
+        Z3Cache.insert(cache_query, Z3Result::Unknown);
         z3_unknowns++;
         return Z3Result::Unknown;
     } else if(res == z3::sat && not_res == z3::unknown){
-        Z3Cache[hash] = Z3Result::Sat;
+        Z3Cache.insert(cache_query, Z3Result::Sat);
         return Z3Result::Sat;
     } else {
         return Z3Result::Unknown;
@@ -622,11 +631,11 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, const z3::expr& cond, Quer
 
 Z3Result z3_check(const shared_ptr<EvalState>& state, int timeout) {
     auto const start = std::chrono::high_resolution_clock::now();
-    auto const hash = hash_z3_state(state, timeout);
+    auto const cache_query = Z3ResultCache::query(Z3ResultCache::Kind::CheckState, *state, nullptr, timeout);
     z3_checks++;
-    if (Z3Cache.find(hash) != Z3Cache.end()) {
+    if (auto const hit = Z3Cache.find(cache_query)) {
         z3_cache_hits++;
-        return Z3Cache[hash];
+        return *hit;
     }
 
 
@@ -664,14 +673,14 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, int timeout) {
     // std::cout << "-----------------Z3-----------------" << std::endl;
 
     if (res == z3::unsat) {
-        Z3Cache[hash] = Z3Result::False;
+        Z3Cache.insert(cache_query, Z3Result::False);
         return Z3Result::False;
     } else if(res == z3::unknown) {
-        Z3Cache[hash] = Z3Result::Unknown;
+        Z3Cache.insert(cache_query, Z3Result::Unknown);
         z3_unknowns++;
         return Z3Result::Unknown;
     } else if(res == z3::sat) {
-        Z3Cache[hash] = Z3Result::Sat;
+        Z3Cache.insert(cache_query, Z3Result::Sat);
         return Z3Result::Sat;
     } else {
         assert(false);
@@ -683,10 +692,11 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, int timeout) {
 //@model will get assigned to the return model.
 Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& cond, z3::model& ce, QueryInfo *qinfo, int timeout) {
     auto const start = std::chrono::high_resolution_clock::now();
-    auto const hash = hash_z3_state(state, cond, timeout);
-    if (Z3Cache.find(hash) != Z3Cache.end()) {
+    // Sat is not cached: it comes with the counterexample in [ce].
+    auto const cache_query = Z3ResultCache::query(Z3ResultCache::Kind::CheckUnsat, *state, &cond, timeout);
+    if (auto const hit = Z3Cache.find(cache_query)) {
         z3_cache_hits++;
-        return Z3Cache[hash];
+        return *hit;
     }
 
     z3_checks++;
@@ -714,7 +724,9 @@ Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& con
         qinfo->dump(solver.to_smt2());
 
     if (OPTS.race) {
-        return z3_race_check(qinfo);
+        auto const raced = z3_race_check(qinfo);
+        if (raced != Z3Result::Sat) Z3Cache.insert(cache_query, raced);
+        return raced;
     } else {
         not_res = solver.check();
     }
@@ -732,12 +744,14 @@ Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& con
     // std::clog << "-----------------Z3_check_unsat-----------------" << std::endl;
 
     if (not_res == z3::unsat) {
+        Z3Cache.insert(cache_query, Z3Result::True);
         return Z3Result::True;
     } else if (not_res == z3::sat) {
         //obtained the counter example
         ce = solver.get_model();
         return Z3Result::Sat;
     } else {
+        Z3Cache.insert(cache_query, Z3Result::Unknown);
         return Z3Result::Unknown;
     }
 }
@@ -1444,29 +1458,25 @@ unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vecto
 void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>>& states) {
     //std::cout << "z3_eval: " << string(*val) << std::endl;
 
-    auto const _cache = [&](shared_ptr<SpecValue> return_val) {
-        val->set_z3_eval(return_val);
-        return return_val;
-    };
 
     if (auto sym = instance_of(val, Symbol)) {
         if (sym->text != "None" && sym->text != "nil" && state->vars->find(sym->text) != state->vars->end()) {
-            states.push_back(std::make_pair(_cache(state->vars->at(sym->text)), state));
+            states.push_back(std::make_pair(state->vars->at(sym->text), state));
         } else if (proj->defs.find(sym->text) != proj->defs.end()) {
             auto df = proj->defs[sym->text].get();
             assert(df->args->size() == 0);
             if (auto c = instance_of(df->body().get(), Const)) {
-                return states.push_back(std::make_pair(_cache(z3_eval(proj, c, state)), state));
+                return states.push_back(std::make_pair(z3_eval(proj, c, state), state));
             }
         } else if (proj->decls.find(sym->text) != proj->decls.end()) {
             auto decl = proj->decls[sym->text].get();
             assert(!dynamic_pointer_cast<Function>(decl->type));
-            states.push_back(std::make_pair(_cache(decl->absf()), state));
+            states.push_back(std::make_pair(decl->absf(), state));
         } else if (proj->is_ind_constr(sym->text)) {
-            states.push_back(std::make_pair(_cache(static_pointer_cast<Inductive>(sym->get_type())->construct(sym->text, {})), state));
+            states.push_back(std::make_pair(static_pointer_cast<Inductive>(sym->get_type())->construct(sym->text, {}), state));
         } else if (proj->symbols.find(sym->text) != proj->symbols.end() &&
                    proj->symbols[sym->text].kind == SymbolKind::StructElem) {
-            states.push_back(std::make_pair(_cache(make_shared<StringValue>(sym->text)), state));
+            states.push_back(std::make_pair(make_shared<StringValue>(sym->text), state));
         } else {
             throw std::runtime_error("Unknown symbol: " + sym->text);
         }
@@ -1488,82 +1498,82 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
         }
 
         if (op_eq(expr->op, Expr::None))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<Inductive>(val->get_type())->construct("None", {})),state));
+            states.push_back(std::make_pair((static_pointer_cast<Inductive>(val->get_type())->construct("None", {})),state));
         else if (op_eq(expr->op, Expr::binops::ADD)){
             if (is_int_type(expr->type)){
-                states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1]))), state));
+                states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1])), state));
             }else if (is_int_zmap_type(expr->type)){
                 // find the definition of the zmap_z_add function
                 // use func->call to generate the right z3 expr
                 auto const func = proj->defs.find("zmap_z_add");
                 auto const absf = func->second->absf();
-                states.push_back(std::make_pair(_cache(absf->call(elems)), state));
+                states.push_back(std::make_pair(absf->call(elems), state));
             }
         }
         else if (op_eq(expr->op, Expr::binops::MINUS)) {
             if (expr->elems->size() == 2)
-                states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->sub(static_pointer_cast<IntValue>(elems[1]))), state));
+                states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->sub(static_pointer_cast<IntValue>(elems[1])), state));
             else
-                states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->neg()), state));
+                states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->neg(), state));
         }
         else if (op_eq(expr->op, Expr::binops::MULT))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->mul(static_pointer_cast<IntValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->mul(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, Expr::binops::DIV)){
             auto const num = static_pointer_cast<IntValue>(elems[0]);
             auto const den = static_pointer_cast<IntValue>(elems[1]);
-            states.push_back(std::make_pair(_cache(num->div(den)), state));
+            states.push_back(std::make_pair(num->div(den), state));
         } else if (op_eq(expr->op, Expr::binops::MOD))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->mod(static_pointer_cast<IntValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->mod(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, Expr::binops::LSHIFT))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->shiftl(static_pointer_cast<IntValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->shiftl(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, Expr::binops::RSHIFT))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->shiftr(static_pointer_cast<IntValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->shiftr(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, Expr::binops::BITAND))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->land(static_pointer_cast<IntValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->land(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, Expr::binops::BITOR))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->lor(static_pointer_cast<IntValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->lor(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, "Z.lxor"))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->lxor(static_pointer_cast<IntValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->lxor(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, "Z.lnot"))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->lnot()), state));
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->lnot(), state));
         else if (op_eq(expr->op, "Z.testbit"))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->testbit(static_pointer_cast<IntValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->testbit(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, "Z.setbit"))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->setbit(static_pointer_cast<IntValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->setbit(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, "Z.clearbit"))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->clearbit(static_pointer_cast<IntValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->clearbit(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, "Z.xorb"))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->xorb(static_pointer_cast<IntValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->xorb(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, Expr::binops::EQUAL))
-            states.push_back(std::make_pair(_cache(Prop::PROP->from_z3_value(z3_eq(elems[0]->get_z3_value(), elems[1]->get_z3_value()).simplify())), state));
+            states.push_back(std::make_pair(Prop::PROP->from_z3_value(z3_eq(elems[0]->get_z3_value(), elems[1]->get_z3_value()).simplify()), state));
         else if (op_eq(expr->op, Expr::binops::BEQ))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->eq(static_pointer_cast<IntValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->eq(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, Expr::binops::SEQ))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<StringValue>(elems[0])->eq(static_pointer_cast<StringValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<StringValue>(elems[0])->eq(static_pointer_cast<StringValue>(elems[1])), state));
         else if (op_eq(expr->op, Expr::binops::NOT_EQUAL))
-            states.push_back(std::make_pair(_cache(Prop::PROP->from_z3_value(z3_ne(elems[0]->get_z3_value(), elems[1]->get_z3_value()))), state));
+            states.push_back(std::make_pair(Prop::PROP->from_z3_value(z3_ne(elems[0]->get_z3_value(), elems[1]->get_z3_value())), state));
         else if (op_eq(expr->op, Expr::binops::BNE))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->ne(static_pointer_cast<IntValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->ne(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, Expr::binops::SNE))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<StringValue>(elems[0])->ne(static_pointer_cast<StringValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<StringValue>(elems[0])->ne(static_pointer_cast<StringValue>(elems[1])), state));
         else if (op_eq(expr->op, Expr::binops::GT) || op_eq(expr->op, Expr::binops::BGT))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->gt(static_pointer_cast<IntValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->gt(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, Expr::binops::GTE) || op_eq(expr->op, Expr::binops::BGE))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->ge(static_pointer_cast<IntValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->ge(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, Expr::binops::LT) || op_eq(expr->op, Expr::binops::BLT))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->lt(static_pointer_cast<IntValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->lt(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, Expr::binops::LTE) || op_eq(expr->op, Expr::binops::BLE))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<IntValue>(elems[0])->le(static_pointer_cast<IntValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<IntValue>(elems[0])->le(static_pointer_cast<IntValue>(elems[1])), state));
         else if (op_eq(expr->op, Expr::ops::NOT) || op_eq(expr->op, Expr::ops::BNOT))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<BoolValue>(elems[0])->negb()), state));
+            states.push_back(std::make_pair(static_pointer_cast<BoolValue>(elems[0])->negb(), state));
         else if (op_eq(expr->op, Expr::binops::AND) || op_eq(expr->op, Expr::binops::BAND))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<BoolValue>(elems[0])->andb(static_pointer_cast<BoolValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<BoolValue>(elems[0])->andb(static_pointer_cast<BoolValue>(elems[1])), state));
         else if (op_eq(expr->op, Expr::binops::OR) || op_eq(expr->op, Expr::binops::BOR))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<BoolValue>(elems[0])->orb(static_pointer_cast<BoolValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<BoolValue>(elems[0])->orb(static_pointer_cast<BoolValue>(elems[1])), state));
         else if (op_eq(expr->op, "xorb"))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<BoolValue>(elems[0])->xorb(static_pointer_cast<BoolValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<BoolValue>(elems[0])->xorb(static_pointer_cast<BoolValue>(elems[1])), state));
         else if (op_eq(expr->op, Expr::binops::IMPLIES))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<BoolValue>(elems[0])->implies(static_pointer_cast<BoolValue>(elems[1]))), state));
+            states.push_back(std::make_pair(static_pointer_cast<BoolValue>(elems[0])->implies(static_pointer_cast<BoolValue>(elems[1])), state));
         else if (op_eq(expr->op, Expr::GET)) {
             if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
 
@@ -1575,9 +1585,9 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
                     } else if (z3_res == Z3Result::False) {
                         auto const map_val = z3_eval(proj, e->elems->at(0).get(), state);
                         if(auto const zmv = dynamic_pointer_cast<ZMapValue>(map_val)){
-                            states.push_back(std::make_pair(_cache(zmv->get(static_pointer_cast<IntValue>(elems[1]))), state));
+                            states.push_back(std::make_pair(zmv->get(static_pointer_cast<IntValue>(elems[1])), state));
                         } else if(auto const smv = dynamic_pointer_cast<SMapValue>(map_val)){
-                            states.push_back(std::make_pair(_cache(smv->get(static_pointer_cast<StringValue>(elems[1]))), state));
+                            states.push_back(std::make_pair(smv->get(static_pointer_cast<StringValue>(elems[1])), state));
                         }
                     }
                 }
@@ -1585,9 +1595,9 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
             //std::cout << "expr: " << string(*expr) << std::endl;
             auto const map_val = elems[0];
             if(auto const zmv = dynamic_pointer_cast<ZMapValue>(map_val)){
-                states.push_back(std::make_pair(_cache(zmv->get(static_pointer_cast<IntValue>(elems[1]))), state));
+                states.push_back(std::make_pair(zmv->get(static_pointer_cast<IntValue>(elems[1])), state));
             } else if(auto const smv = dynamic_pointer_cast<SMapValue>(map_val)){
-                states.push_back(std::make_pair(_cache(smv->get(static_pointer_cast<StringValue>(elems[1]))), state));
+                states.push_back(std::make_pair(smv->get(static_pointer_cast<StringValue>(elems[1])), state));
             }
         } else if (op_eq(expr->op, Expr::SET)) {
             if (auto e = instance_of(expr->elems->at(0).get(), Expr)) {
@@ -1600,9 +1610,9 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
             }
             auto const map_val = elems[0];
             if(auto const zmv = dynamic_pointer_cast<ZMapValue>(map_val)){
-                states.push_back(std::make_pair(_cache(zmv->set(static_pointer_cast<IntValue>(elems[1]), elems[2])), state));
+                states.push_back(std::make_pair(zmv->set(static_pointer_cast<IntValue>(elems[1]), elems[2]), state));
             } else if(auto const smv = dynamic_pointer_cast<SMapValue>(map_val)){
-                states.push_back(std::make_pair(_cache(smv->set(static_pointer_cast<StringValue>(elems[1]), elems[2])), state));
+                states.push_back(std::make_pair(smv->set(static_pointer_cast<StringValue>(elems[1]), elems[2]), state));
             }
 
         } else if (op_eq(expr->op, Expr::RecordGet)) {
@@ -1611,7 +1621,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
             for (int i = 1; i < expr->elems->size(); i++) {
                 elems[i] = static_pointer_cast<StructValue>(elems[i-1])->get(static_cast<Symbol *>(expr->elems->at(i).get())->text);
             }
-            states.push_back(std::make_pair(_cache(elems.back()), state));
+            states.push_back(std::make_pair(elems.back(), state));
         } else if (op_eq(expr->op, Expr::RecordSet)) {
             // expr.elem[0]: record
             // expr.elem[1...n-2]: (sub)fields
@@ -1628,43 +1638,43 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
                 elems[i - 1] = static_pointer_cast<StructValue>(elems[i - 1])->set(static_cast<Symbol *>(expr->elems->at(i).get())->text, elems[i]);
             }
 
-            states.push_back(std::make_pair(_cache(elems[0]), state));
+            states.push_back(std::make_pair(elems[0], state));
         } else if (op_eq(expr->op, Expr::binops::APPEND)) {
             // elem[0]: new element
             // elem[1]: old list
             auto const list = static_pointer_cast<ListValue>(elems[1]);
             auto const new_list = list->append(elems[0]);
 
-            states.push_back(std::make_pair(_cache(new_list), state));
+            states.push_back(std::make_pair(new_list, state));
         } else if (op_eq(expr->op, Expr::binops::CONCAT)) {
             auto const list1 = static_pointer_cast<ListValue>(elems[0]);
             auto const new_list = list1->concat(static_pointer_cast<SpecValue>(elems[1]));
 
-            states.push_back(std::make_pair(_cache(new_list), state));
+            states.push_back(std::make_pair(new_list, state));
         } else if (op_eq(expr->op, Expr::ops::Some))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<Option>(val->get_type())->construct("Some", {elems[0]})), state));
+            states.push_back(std::make_pair(static_pointer_cast<Option>(val->get_type())->construct("Some", {elems[0]}), state));
         else if (op_eq(expr->op,Expr::ops::Tuple)) {
-            states.push_back(std::make_pair(_cache(static_pointer_cast<Tuple>(val->get_type())->construct(elems)), state));
+            states.push_back(std::make_pair(static_pointer_cast<Tuple>(val->get_type())->construct(elems), state));
         }
         else if (op_eq(expr->op, "prop"))
-            states.push_back(std::make_pair(_cache(elems[0]), state));
+            states.push_back(std::make_pair(elems[0], state));
         else if (auto const reduced = width_reduction(expr->op, elems))
-            states.push_back(std::make_pair(_cache(make_shared<IntValue>(reduced->simplify())), state));
+            states.push_back(std::make_pair(make_shared<IntValue>(reduced->simplify()), state));
         else if (op_eq(expr->op,"ptr_to_int"))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems)), state));
+            states.push_back(std::make_pair(static_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems), state));
         else if (op_eq(expr->op,"int_to_ptr"))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<FuncValue>(autov::int_to_ptr())->call(elems)), state));
+            states.push_back(std::make_pair(static_pointer_cast<FuncValue>(autov::int_to_ptr())->call(elems), state));
         else if (op_eq(expr->op, "z_to_nat"))
-            states.push_back(std::make_pair(_cache(static_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems)), state));
+            states.push_back(std::make_pair(static_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems), state));
         else if (op_eq(expr->op,"zmap_init") || op_eq(expr->op, "ZMap.init"))
-            states.push_back(std::make_pair(_cache(val->get_type()->from_z3_value(z3::const_array(static_pointer_cast<ZMap>(val->get_type())->key_sort(), elems[0]->get_z3_value()))), state));
+            states.push_back(std::make_pair(val->get_type()->from_z3_value(z3::const_array(static_pointer_cast<ZMap>(val->get_type())->key_sort(), elems[0]->get_z3_value())), state));
         else if (std::holds_alternative<string>(expr->op)) {
             auto const sym = std::get<string>(expr->op);
             auto const info = proj->symbols[sym];
             if (info.kind == SymbolKind::StructConstr) {
-                states.push_back(std::make_pair(_cache(static_pointer_cast<Struct>(val->get_type())->construct(elems)), state));
+                states.push_back(std::make_pair(static_pointer_cast<Struct>(val->get_type())->construct(elems), state));
             } else if (info.kind == SymbolKind::IndConstructor) {
-                states.push_back(std::make_pair(_cache(static_pointer_cast<Inductive>(val->get_type())->construct(sym, elems)), state));
+                states.push_back(std::make_pair(static_pointer_cast<Inductive>(val->get_type())->construct(sym, elems), state));
             } else if (info.kind == SymbolKind::Def) {
                 auto df = proj->defs[sym].get();
                 if(auto loop = instance_of(df, Fixpoint)) {
@@ -1738,17 +1748,17 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
                             return;
                         }
 
-                        states.push_back(std::make_pair(_cache(func_call), state));
+                        states.push_back(std::make_pair(func_call, state));
                     } else {
                         LOG_ERROR << "no loop invariant specified";
                     }
                 } else {
-                    states.push_back(std::make_pair(_cache(df->absf()->call(elems)), state));
+                    states.push_back(std::make_pair(df->absf()->call(elems), state));
                 }
             } else if (info.kind == SymbolKind::Decl) {
                 auto df = proj->decls[sym].get();
                 auto const absf = static_pointer_cast<FuncValue>(df->absf());
-                states.push_back(std::make_pair(_cache(absf->call(elems)), state));
+                states.push_back(std::make_pair(absf->call(elems), state));
             } else {
                 std::cout << "expr: " << string(*expr) << std::endl;
                 throw std::runtime_error("Unknown symbol: " + sym);
@@ -1756,7 +1766,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
         } else if (std::holds_alternative<unique_ptr<SpecNode>>(expr->op)) {
             auto const op = z3_eval(proj, std::get<unique_ptr<SpecNode>>(expr->op).get(), state);
             if (auto const func = dynamic_pointer_cast<FuncValue>(op))
-                states.push_back(std::make_pair(_cache(func->call(elems)), state));
+                states.push_back(std::make_pair(func->call(elems), state));
         } else {
             throw std::runtime_error("Unknown expression: " + string(*expr));
         }
@@ -1799,9 +1809,9 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
         }
         if (match_val == nullptr) {
             auto const opt = static_pointer_cast<Option>(val->get_type());
-            return states.push_back(std::make_pair(_cache(opt->construct("None", {})), state));
+            return states.push_back(std::make_pair(opt->construct("None", {}), state));
         } else {
-            return states.push_back(std::make_pair(_cache(match_val), state));
+            return states.push_back(std::make_pair(match_val, state));
         }
     } else if (auto rely = instance_of(val, Rely)) {
         vector<std::pair<shared_ptr<SpecValue>, shared_ptr<EvalState>>> condret;
@@ -1882,7 +1892,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
         for(auto const &retstate: retstates) {
             auto const st = retstate.second;
             auto const body = retstate.first;
-            states.push_back(std::make_pair(_cache(make_shared<BoolValue>(z3::forall(vars, body->value))),st));
+            states.push_back(std::make_pair((make_shared<BoolValue>(z3::forall(vars, body->value))),st));
         }
     } else if (auto exsts = instance_of(val, Exists)) {
         z3::expr_vector vars(z3ctx);
@@ -1898,7 +1908,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
         for(auto const &retstate: retstates) {
             auto const st = retstate.second;
             auto const body = retstate.first;
-            states.push_back(std::make_pair(_cache(make_shared<BoolValue>(z3::exists(vars, body->value))), state));
+            states.push_back(std::make_pair(make_shared<BoolValue>(z3::exists(vars, body->value)), state));
         }
     } else {
         throw std::runtime_error("Unknown node type: " + string(*val));
@@ -1955,34 +1965,26 @@ z3::expr formulate_function(Project* proj, Definition* def) {
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, bool check_loop) {
     shared_ptr<SpecValue> result;
 
-    if (OPTS.z3_expr_cache && val->cached_eval) {
-        result = val->cached_eval;
-    } else {
-
-    auto const _cache = [&](shared_ptr<SpecValue> return_val) {
-        val->set_z3_eval(return_val);
-        return return_val;
-    };
     if (auto sym = instance_of(val, Symbol)) {
         if (sym->text != "None" && sym->text != "nil" && state->vars->find(sym->text) != state->vars->end()) {
-            result = _cache(state->vars->at(sym->text));
+            result = state->vars->at(sym->text);
         } else if (proj->defs.find(sym->text) != proj->defs.end()) {
             auto df = proj->defs[sym->text].get();
             assert(df->args->size() == 0);
             if (auto c = instance_of(df->body().get(), Const)) {
-                result = _cache(z3_eval(proj, c, state, check_loop));
+                result = z3_eval(proj, c, state, check_loop);
             } else {
-                result = _cache(df->absf()->call({}));
+                result = df->absf()->call({});
             }
         } else if (proj->decls.find(sym->text) != proj->decls.end()) {
             auto decl = proj->decls[sym->text].get();
             assert(!dynamic_pointer_cast<Function>(decl->type));
-            result = _cache(decl->absf());
+            result = decl->absf();
         } else if (proj->is_ind_constr(sym->text)) {
-            result = _cache(static_pointer_cast<Inductive>(sym->get_type())->construct(sym->text, {}));
+            result = static_pointer_cast<Inductive>(sym->get_type())->construct(sym->text, {});
         } else if (proj->symbols.find(sym->text) != proj->symbols.end() &&
                    proj->symbols[sym->text].kind == SymbolKind::StructElem) {
-            result = _cache(make_shared<StringValue>(sym->text));
+            result = make_shared<StringValue>(sym->text);
         } else {
             throw std::runtime_error("Unknown symbol: " + sym->text);
         }
@@ -2016,82 +2018,79 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         // XXX: this is a hack to handle List.empty which takes a type as an argument
         if (!op_eq(expr->op, "List.empty")) {
             for (auto e = expr->elems->begin(); e != expr->elems->end(); e++) {
-                if (expr->elems->size() > 1) {
-                    auto const v = z3_eval(proj, expr->elems.get()[0][1].get(), state,  check_loop);
-                }
                 elems.push_back(z3_eval(proj, e->get(), state,  check_loop));
             }
         }
 
         if (op_eq(expr->op, Expr::None)){
-            result = _cache(static_pointer_cast<Inductive>(val->get_type())->construct("None", {}));
+            result = static_pointer_cast<Inductive>(val->get_type())->construct("None", {});
         }
         else if (op_eq(expr->op, Expr::binops::ADD) ){
 
             if (is_int_type(expr->type)) {
-                result = _cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1])));
+                result = static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1]));
             } else if (is_int_zmap_type(expr->type)){
                 // find the definition of the zmap_z_add function
                 // use func->call to generate the right z3 expr
                 auto const func = proj->defs.find("zmap_z_add");
                 auto const absf = func->second->absf();
-                result = _cache(absf->call(elems));
+                result = absf->call(elems);
             }
         }
         else if (op_eq(expr->op, Expr::binops::MINUS)) {
             if (expr->elems->size() == 2)
-                result = _cache(static_pointer_cast<IntValue>(elems[0])->sub(static_pointer_cast<IntValue>(elems[1])));
+                result = static_pointer_cast<IntValue>(elems[0])->sub(static_pointer_cast<IntValue>(elems[1]));
             else
-                result = _cache(static_pointer_cast<IntValue>(elems[0])->neg());
+                result = static_pointer_cast<IntValue>(elems[0])->neg();
         }
         else if (op_eq(expr->op, Expr::binops::MULT))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->mul(static_pointer_cast<IntValue>(elems[1])));
+            result = static_pointer_cast<IntValue>(elems[0])->mul(static_pointer_cast<IntValue>(elems[1]));
         else if (op_eq(expr->op, Expr::binops::DIV))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->div(static_pointer_cast<IntValue>(elems[1])));
+            result = static_pointer_cast<IntValue>(elems[0])->div(static_pointer_cast<IntValue>(elems[1]));
         else if (op_eq(expr->op, Expr::binops::MOD))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->mod(static_pointer_cast<IntValue>(elems[1])));
+            result = static_pointer_cast<IntValue>(elems[0])->mod(static_pointer_cast<IntValue>(elems[1]));
         else if(op_eq(expr->op, Expr::binops::LSHIFT))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->shiftl(static_pointer_cast<IntValue>(elems[1])));
+            result = static_pointer_cast<IntValue>(elems[0])->shiftl(static_pointer_cast<IntValue>(elems[1]));
         else if(op_eq(expr->op, Expr::binops::RSHIFT))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->shiftr(static_pointer_cast<IntValue>(elems[1])));
+            result = static_pointer_cast<IntValue>(elems[0])->shiftr(static_pointer_cast<IntValue>(elems[1]));
         else if(op_eq(expr->op, Expr::binops::BITAND))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->land(static_pointer_cast<IntValue>(elems[1])));
+            result = static_pointer_cast<IntValue>(elems[0])->land(static_pointer_cast<IntValue>(elems[1]));
         else if(op_eq(expr->op, Expr::binops::BITOR))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->lor(static_pointer_cast<IntValue>(elems[1])));
+            result = static_pointer_cast<IntValue>(elems[0])->lor(static_pointer_cast<IntValue>(elems[1]));
         else if(op_eq(expr->op, "Z.lxor"))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->lxor(static_pointer_cast<IntValue>(elems[1])));
+            result = static_pointer_cast<IntValue>(elems[0])->lxor(static_pointer_cast<IntValue>(elems[1]));
         else if(op_eq(expr->op, "Z.lnot"))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->lnot());
+            result = static_pointer_cast<IntValue>(elems[0])->lnot();
         else if(op_eq(expr->op, "Z.testbit"))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->testbit(static_pointer_cast<IntValue>(elems[1])));
+            result = static_pointer_cast<IntValue>(elems[0])->testbit(static_pointer_cast<IntValue>(elems[1]));
         else if(op_eq(expr->op, "Z.setbit"))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->setbit(static_pointer_cast<IntValue>(elems[1])));
+            result = static_pointer_cast<IntValue>(elems[0])->setbit(static_pointer_cast<IntValue>(elems[1]));
         else if(op_eq(expr->op, "Z.clearbit"))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->clearbit(static_pointer_cast<IntValue>(elems[1])));
+            result = static_pointer_cast<IntValue>(elems[0])->clearbit(static_pointer_cast<IntValue>(elems[1]));
         else if(op_eq(expr->op, "Z.xorb"))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->xorb(static_pointer_cast<IntValue>(elems[1])));
+            result = static_pointer_cast<IntValue>(elems[0])->xorb(static_pointer_cast<IntValue>(elems[1]));
         else if(op_eq(expr->op, Expr::binops::EQUAL))
-            result = _cache(Prop::PROP->from_z3_value(z3_eq(elems[0]->get_z3_value(), elems[1]->get_z3_value()).simplify()));
+            result = Prop::PROP->from_z3_value(z3_eq(elems[0]->get_z3_value(), elems[1]->get_z3_value()).simplify());
         else if(op_eq(expr->op, Expr::binops::BEQ))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->eq(static_pointer_cast<IntValue>(elems[1])));
+            result = static_pointer_cast<IntValue>(elems[0])->eq(static_pointer_cast<IntValue>(elems[1]));
         else if(op_eq(expr->op, Expr::binops::SEQ))
-            result = _cache(static_pointer_cast<StringValue>(elems[0])->eq(static_pointer_cast<StringValue>(elems[1])));
+            result = static_pointer_cast<StringValue>(elems[0])->eq(static_pointer_cast<StringValue>(elems[1]));
         else if(op_eq(expr->op, Expr::binops::NOT_EQUAL))
-            result = _cache(Prop::PROP->from_z3_value(z3_ne(elems[0]->get_z3_value(), elems[1]->get_z3_value())));
+            result = Prop::PROP->from_z3_value(z3_ne(elems[0]->get_z3_value(), elems[1]->get_z3_value()));
         else if(op_eq(expr->op, Expr::binops::BNE))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->ne(static_pointer_cast<IntValue>(elems[1])));
+            result = static_pointer_cast<IntValue>(elems[0])->ne(static_pointer_cast<IntValue>(elems[1]));
         else if(op_eq(expr->op, Expr::binops::SNE))
-            result = _cache(static_pointer_cast<StringValue>(elems[0])->ne(static_pointer_cast<StringValue>(elems[1])));
+            result = static_pointer_cast<StringValue>(elems[0])->ne(static_pointer_cast<StringValue>(elems[1]));
         else if(op_eq(expr->op, Expr::binops::GT) || op_eq(expr->op, Expr::binops::BGT))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->gt(static_pointer_cast<IntValue>(elems[1])));
+            result = static_pointer_cast<IntValue>(elems[0])->gt(static_pointer_cast<IntValue>(elems[1]));
         else if(op_eq(expr->op, Expr::binops::GTE) || op_eq(expr->op, Expr::binops::BGE))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->ge(static_pointer_cast<IntValue>(elems[1])));
+            result = static_pointer_cast<IntValue>(elems[0])->ge(static_pointer_cast<IntValue>(elems[1]));
         else if(op_eq(expr->op, Expr::binops::LT) || op_eq(expr->op, Expr::binops::BLT))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->lt(static_pointer_cast<IntValue>(elems[1])));
+            result = static_pointer_cast<IntValue>(elems[0])->lt(static_pointer_cast<IntValue>(elems[1]));
         else if(op_eq(expr->op, Expr::binops::LTE) || op_eq(expr->op, Expr::binops::BLE))
-            result = _cache(static_pointer_cast<IntValue>(elems[0])->le(static_pointer_cast<IntValue>(elems[1])));
+            result = static_pointer_cast<IntValue>(elems[0])->le(static_pointer_cast<IntValue>(elems[1]));
         else if(op_eq(expr->op, Expr::ops::NOT) || op_eq(expr->op, Expr::ops::BNOT))
-            result = _cache(static_pointer_cast<BoolValue>(elems[0])->negb());
+            result = static_pointer_cast<BoolValue>(elems[0])->negb();
         else if(op_eq(expr->op, Expr::binops::AND) || op_eq(expr->op, Expr::binops::BAND)){
             auto left = static_pointer_cast<BoolValue>(elems[0]);
             auto right = static_pointer_cast<BoolValue>(elems[1]);
@@ -2103,7 +2102,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
                 auto const zero_const = make_shared<IntValue>(0ul);
                 right = iv->ne(zero_const);
             }
-            result = _cache(left->andb(right));
+            result = left->andb(right);
         } else if (op_eq(expr->op, Expr::binops::OR) || op_eq(expr->op, Expr::binops::BOR)){
             auto left = static_pointer_cast<BoolValue>(elems[0]);
             auto right = static_pointer_cast<BoolValue>(elems[1]);
@@ -2115,22 +2114,22 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
                 auto const zero_const = make_shared<IntValue>(0ul);
                 right = iv->ne(zero_const);
             }
-            result = _cache(left->orb(right));
+            result = left->orb(right);
         } else if (op_eq(expr->op, "xorb"))
-            result = _cache(static_pointer_cast<BoolValue>(elems[0])->xorb(static_pointer_cast<BoolValue>(elems[1])));
+            result = static_pointer_cast<BoolValue>(elems[0])->xorb(static_pointer_cast<BoolValue>(elems[1]));
         else if (op_eq(expr->op, Expr::binops::IMPLIES))
-            result = _cache(static_pointer_cast<BoolValue>(elems[0])->implies(static_pointer_cast<BoolValue>(elems[1])));
+            result = static_pointer_cast<BoolValue>(elems[0])->implies(static_pointer_cast<BoolValue>(elems[1]));
         else if (op_eq(expr->op, Expr::GET)) {
             if(auto const zmv = dynamic_pointer_cast<ZMapValue>(elems[0])){
-                result = _cache(zmv->get(static_pointer_cast<IntValue>(elems[1])));
+                result = zmv->get(static_pointer_cast<IntValue>(elems[1]));
             } else if(auto const smv = dynamic_pointer_cast<SMapValue>(elems[0])){
-                result = _cache(smv->get(static_pointer_cast<StringValue>(elems[1])));
+                result = smv->get(static_pointer_cast<StringValue>(elems[1]));
             } else { throw new std::runtime_error("Unknown map type."); }
         } else if (op_eq(expr->op, Expr::SET)) {
             if(auto const zmv = dynamic_pointer_cast<ZMapValue>(elems[0])){
-                result = _cache(zmv->set(static_pointer_cast<IntValue>(elems[1]), elems[2]));
+                result = zmv->set(static_pointer_cast<IntValue>(elems[1]), elems[2]);
             } else if(auto const smv = dynamic_pointer_cast<SMapValue>(elems[0])){
-                result = _cache(smv->set(static_pointer_cast<StringValue>(elems[1]), elems[2]));
+                result = smv->set(static_pointer_cast<StringValue>(elems[1]), elems[2]);
             } else { throw new std::runtime_error("Unknown map type."); }
         } else if (op_eq(expr->op, Expr::RecordGet)) {
             // expr.elem[0]: record
@@ -2138,7 +2137,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
             for (int i = 1; i < expr->elems->size(); i++) {
                 elems[i] = static_pointer_cast<StructValue>(elems[i-1])->get(static_cast<Symbol *>(expr->elems->at(i).get())->text);
             }
-            result = _cache(elems.back());
+            result = elems.back();
         } else if (op_eq(expr->op, Expr::RecordSet)) {
             // expr.elem[0]: record
             // expr.elem[1...n-2]: (sub)fields
@@ -2155,59 +2154,59 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
                 elems[i - 1] = static_pointer_cast<StructValue>(elems[i - 1])->set(static_cast<Symbol *>(expr->elems->at(i).get())->text, elems[i]);
             }
 
-            result = _cache(elems[0]);
+            result = elems[0];
         } else if (op_eq(expr->op, Expr::binops::APPEND)) {
             auto const list = static_pointer_cast<ListValue>(elems[1]);
             auto const new_list = list->append(static_pointer_cast<SpecValue>(elems[0]));
 
-            result = _cache(new_list);
+            result = new_list;
         } else if (op_eq(expr->op, Expr::binops::CONCAT)) {
             auto const list1 = static_pointer_cast<ListValue>(elems[0]);
             auto const new_list = list1->concat(static_pointer_cast<ListValue>(elems[1]));
 
-            result = _cache(new_list);
+            result = new_list;
         } else if (op_eq(expr->op, Expr::ops::Some))
-            result = _cache(static_pointer_cast<Option>(val->get_type())->construct("Some", {elems[0]}));
+            result = static_pointer_cast<Option>(val->get_type())->construct("Some", {elems[0]});
         else if (op_eq(expr->op,Expr::ops::Tuple)) {
-            result = _cache(static_pointer_cast<Tuple>(val->get_type())->construct(elems));
+            result = static_pointer_cast<Tuple>(val->get_type())->construct(elems);
         } else if (op_eq(expr->op, "prop"))
-            result = _cache(elems[0]);
+            result = elems[0];
         else if (auto const reduced = width_reduction(expr->op, elems))
-            result = _cache(make_shared<IntValue>(reduced->simplify()));
+            result = make_shared<IntValue>(reduced->simplify());
         else if (op_eq(expr->op,"ptr_to_int"))
-            result = _cache(static_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems));
+            result = static_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems);
         else if (op_eq(expr->op,"int_to_ptr")){ // possible valgrind error here?
             auto const itp_func = autov::int_to_ptr();
             auto const cast_itp_func = static_pointer_cast<FuncValue>(itp_func);
             auto const call_result = cast_itp_func->call(elems);
-            result = _cache(call_result);
+            result = call_result;
         }else if (op_eq(expr->op, "z_to_nat"))
-            result = _cache(static_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems));
+            result = static_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems);
         else if (op_eq(expr->op,"zmap_init") || op_eq(expr->op, "ZMap.init"))
-            result = _cache(val->get_type()->from_z3_value(z3::const_array(static_pointer_cast<ZMap>(val->get_type())->key_sort(), elems[0]->get_z3_value())));
+            result = val->get_type()->from_z3_value(z3::const_array(static_pointer_cast<ZMap>(val->get_type())->key_sort(), elems[0]->get_z3_value()));
         else if (op_eq(expr->op, "List.is_empty"))
-            result = _cache(static_pointer_cast<ListValue>(elems[0])->is_empty());
+            result = static_pointer_cast<ListValue>(elems[0])->is_empty();
         else if (op_eq(expr->op, "List.empty"))
-            result = _cache(ListValue::empty(val->get_type()));
+            result = ListValue::empty(val->get_type());
         else if (op_eq(expr->op, "List.eq"))
-            result = _cache(static_pointer_cast<ListValue>(elems[0])->eq(static_pointer_cast<ListValue>(elems[1])));
+            result = static_pointer_cast<ListValue>(elems[0])->eq(static_pointer_cast<ListValue>(elems[1]));
         else if (std::holds_alternative<string>(expr->op)) {
             auto const sym = std::get<string>(expr->op);
             auto const info = proj->symbols[sym];
             if (info.kind == SymbolKind::StructConstr) {
                 auto const struct_t = proj->structs[info.info];
-                result = _cache(struct_t->construct(elems));
+                result = struct_t->construct(elems);
             } else if (info.kind == SymbolKind::IndConstructor) {
-                result = _cache(static_pointer_cast<Inductive>(val->get_type())->construct(sym, elems));
+                result = static_pointer_cast<Inductive>(val->get_type())->construct(sym, elems);
             } else if (info.kind == SymbolKind::Def) {
                 auto df = proj->defs[sym].get();
                 // LOG_DEBUG << string(*val);
-                result = _cache(df->absf()->call(elems));
+                result = df->absf()->call(elems);
             } else if (info.kind == SymbolKind::Decl) {
                 if(sym != "lens_v") {
                     auto df = proj->decls[sym].get();
                     auto const absf = static_pointer_cast<FuncValue>(df->absf());
-                    result = _cache(absf->call(elems));
+                    result = absf->call(elems);
                 } else {
                     auto id = static_cast<IntConst*>(expr->elems->at(0).get());
                     unsigned long const idi = std::get<unsigned long>(id->value);
@@ -2227,7 +2226,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         } else if (std::holds_alternative<unique_ptr<SpecNode>>(expr->op)) {
             auto const op = z3_eval(proj, std::get<unique_ptr<SpecNode>>(expr->op).get(), state,  check_loop);
             if (auto const func = dynamic_pointer_cast<FuncValue>(op))
-                result = _cache(func->call(elems));
+                result = func->call(elems);
         } else {
             throw std::runtime_error("Unknown expression: " + string(*expr));
 
@@ -2293,9 +2292,9 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         }
         if (match_val == nullptr) {
             auto const opt = static_pointer_cast<Option>(val->get_type());
-            result = _cache(opt->construct("None", {}));
+            result = opt->construct("None", {});
         } else {
-            result = _cache(match_val);
+            result = match_val;
         }
     } else if (auto rely = instance_of(val, Rely)) {
         auto const cond = z3_eval(proj, rely->prop.get(), state,  check_loop);
@@ -2307,12 +2306,12 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
             auto const none = static_pointer_cast<Option>(val->get_type())->construct("None", {});
 
             auto const z3_val = z3::ite(cond->get_z3_value(), body->get_z3_value(), none->get_z3_value());
-            result = _cache(rely->get_type()->from_z3_value(z3_val.simplify()));
+            result = rely->get_type()->from_z3_value(z3_val.simplify());
         } else if (res == Z3Result::True) {
-            result = _cache(z3_eval(proj, rely->body.get(), state,  check_loop));
+            result = z3_eval(proj, rely->body.get(), state,  check_loop);
         } else {
             // profile_log_eval_rely_solved(string(*rely->prop.get()));
-            result = _cache(static_pointer_cast<Option>(val->get_type())->construct("None", {}));
+            result = static_pointer_cast<Option>(val->get_type())->construct("None", {});
         }
     }
     else if (auto iff = instance_of(val, If))
@@ -2345,19 +2344,19 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         // LOG_DEBUG << "In z3_eval, evaluating else body.";
             auto const False = z3_eval(proj, iff->else_body.get(), false_state,  check_loop);
             auto const z3_val = z3::ite(c->get_z3_value(), True->get_z3_value(), False->get_z3_value());
-            result = _cache(iff->get_type()->from_z3_value(z3_val.simplify()));
+            result = iff->get_type()->from_z3_value(z3_val.simplify());
         }
         else if (res == Z3Result::True)
         {
             // profile_log_eval_if_solved(string(*iff->cond.get()));
             state->conds->push_back(c->get_z3_value());
-            result = _cache(z3_eval(proj, iff->then_body.get(), state,  check_loop));
+            result = z3_eval(proj, iff->then_body.get(), state,  check_loop);
         }
         else
         {
             // profile_log_eval_if_solved(string(*iff->cond.get()));
             state->conds->push_back(!c->get_z3_value());
-            result = _cache(z3_eval(proj, iff->else_body.get(), state,  check_loop));
+            result = z3_eval(proj, iff->else_body.get(), state,  check_loop);
         }
         // LOG_DEBUG << "z3_eval done " << random_code;
 
@@ -2380,15 +2379,14 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
             }
         }
         /** bounded variables may have a newer nid over cached z3 values, so we need to clear cached value first  */
-        forall->clear_z3_eval();
         auto const body = z3_eval(proj, forall->body.get(), new_state, check_loop);
         auto p = body->get_z3_value();
 
         for (const auto &h : hypos) {
             p = z3::implies(h, p);
         }
-        result = _cache(make_shared<BoolValue>(z3::forall(vars, p)));
-        // return _cache(make_shared<BoolValue>(z3::forall(vars, body->value)));
+        result = make_shared<BoolValue>(z3::forall(vars, p));
+        // return make_shared<BoolValue>(z3::forall(vars, body->value));
     }
     else if (auto exsts = instance_of(val, Exists))
     {
@@ -2400,12 +2398,10 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
             (*new_state->vars)[(*v)->name] = var;
             vars.push_back(var->get_z3_value());
         }
-        exsts->clear_z3_eval();
         auto const body = z3_eval(proj, exsts->body.get(), new_state, check_loop);
-        result = _cache(make_shared<BoolValue>(z3::exists(vars, body->value)));
+        result = make_shared<BoolValue>(z3::exists(vars, body->value));
     }else {
     throw std::runtime_error("Unknown node type: " + string(*val));
-    }
     }
     return result;
 }
@@ -2413,33 +2409,27 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, bool check_loop, bool unfold, set<string>& used_fixpoint) {
     // std::cout << "z3_eval: " << string(*val) << std::endl;
 
-    if (OPTS.z3_expr_cache && val->cached_eval) return val->cached_eval;
-
-    auto const _cache = [&](shared_ptr<SpecValue> return_val) {
-        val->set_z3_eval(return_val);
-        return return_val;
-    };
 
     if (auto sym = instance_of(val, Symbol)) {
         if (sym->text != "None" && sym->text != "nil" && state->vars->find(sym->text) != state->vars->end()) {
-            return _cache(state->vars->at(sym->text));
+            return state->vars->at(sym->text);
         } else if (proj->defs.find(sym->text) != proj->defs.end()) {
             auto df = proj->defs[sym->text].get();
             assert(df->args->size() == 0);
             if (auto c = instance_of(df->body().get(), Const)) {
-                return _cache(z3_eval(proj, c, state, check_loop, unfold, used_fixpoint));
+                return z3_eval(proj, c, state, check_loop, unfold, used_fixpoint);
             } else {
-                return _cache(df->absf()->call({}));
+                return df->absf()->call({});
             }
         } else if (proj->decls.find(sym->text) != proj->decls.end()) {
             auto decl = proj->decls[sym->text].get();
             assert(!dynamic_pointer_cast<Function>(decl->type));
-            return _cache(decl->absf());
+            return decl->absf();
         } else if (proj->is_ind_constr(sym->text)) {
-            return _cache(static_pointer_cast<Inductive>(sym->get_type())->construct(sym->text, {}));
+            return static_pointer_cast<Inductive>(sym->get_type())->construct(sym->text, {});
         } else if (proj->symbols.find(sym->text) != proj->symbols.end() &&
                    proj->symbols[sym->text].kind == SymbolKind::StructElem) {
-            return _cache(make_shared<StringValue>(sym->text));
+            return make_shared<StringValue>(sym->text);
         } else {
             throw std::runtime_error("Unknown symbol: " + sym->text);
         }
@@ -2463,93 +2453,93 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         }
 
         if (op_eq(expr->op, Expr::None))
-            return _cache(static_pointer_cast<Inductive>(val->get_type())->construct("None", {}));
+            return static_pointer_cast<Inductive>(val->get_type())->construct("None", {});
         if (op_eq(expr->op, Expr::binops::ADD)){
             if (is_int_type(expr->type)) {
-                return _cache(static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1])));
+                return static_pointer_cast<IntValue>(elems[0])->add(static_pointer_cast<IntValue>(elems[1]));
             } else if (is_int_zmap_type(expr->type)){
                 // find the definition of the zmap_z_add function
                 // use func->call to generate the right z3 expr
                 auto const func = proj->defs.find("zmap_z_add");
                 auto const absf = func->second->absf();
-                return _cache(absf->call(elems));
+                return absf->call(elems);
             }
         }
         if (op_eq(expr->op, Expr::binops::MINUS)) {
             if (expr->elems->size() == 2)
-                return _cache(static_pointer_cast<IntValue>(elems[0])->sub(static_pointer_cast<IntValue>(elems[1])));
+                return static_pointer_cast<IntValue>(elems[0])->sub(static_pointer_cast<IntValue>(elems[1]));
             else
-                return _cache(static_pointer_cast<IntValue>(elems[0])->neg());
+                return static_pointer_cast<IntValue>(elems[0])->neg();
         }
         if (op_eq(expr->op, Expr::binops::MULT))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->mul(static_pointer_cast<IntValue>(elems[1])));
+            return static_pointer_cast<IntValue>(elems[0])->mul(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, Expr::binops::DIV))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->div(static_pointer_cast<IntValue>(elems[1])));
+            return static_pointer_cast<IntValue>(elems[0])->div(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, Expr::binops::MOD))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->mod(static_pointer_cast<IntValue>(elems[1])));
+            return static_pointer_cast<IntValue>(elems[0])->mod(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, Expr::binops::LSHIFT))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->shiftl(static_pointer_cast<IntValue>(elems[1])));
+            return static_pointer_cast<IntValue>(elems[0])->shiftl(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, Expr::binops::RSHIFT))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->shiftr(static_pointer_cast<IntValue>(elems[1])));
+            return static_pointer_cast<IntValue>(elems[0])->shiftr(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, Expr::binops::BITAND))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->land(static_pointer_cast<IntValue>(elems[1])));
+            return static_pointer_cast<IntValue>(elems[0])->land(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, Expr::binops::BITOR))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->lor(static_pointer_cast<IntValue>(elems[1])));
+            return static_pointer_cast<IntValue>(elems[0])->lor(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, "Z.lxor"))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->lxor(static_pointer_cast<IntValue>(elems[1])));
+            return static_pointer_cast<IntValue>(elems[0])->lxor(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, "Z.lnot"))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->lnot());
+            return static_pointer_cast<IntValue>(elems[0])->lnot();
         if (op_eq(expr->op, "Z.testbit"))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->testbit(static_pointer_cast<IntValue>(elems[1])));
+            return static_pointer_cast<IntValue>(elems[0])->testbit(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, "Z.setbit"))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->setbit(static_pointer_cast<IntValue>(elems[1])));
+            return static_pointer_cast<IntValue>(elems[0])->setbit(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, "Z.clearbit"))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->clearbit(static_pointer_cast<IntValue>(elems[1])));
+            return static_pointer_cast<IntValue>(elems[0])->clearbit(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, "Z.xorb"))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->xorb(static_pointer_cast<IntValue>(elems[1])));
+            return static_pointer_cast<IntValue>(elems[0])->xorb(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, Expr::binops::EQUAL))
-            return _cache(Prop::PROP->from_z3_value(z3_eq(elems[0]->get_z3_value(), elems[1]->get_z3_value()).simplify()));
+            return Prop::PROP->from_z3_value(z3_eq(elems[0]->get_z3_value(), elems[1]->get_z3_value()).simplify());
         if (op_eq(expr->op, Expr::binops::BEQ))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->eq(static_pointer_cast<IntValue>(elems[1])));
+            return static_pointer_cast<IntValue>(elems[0])->eq(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, Expr::binops::SEQ))
-            return _cache(static_pointer_cast<StringValue>(elems[0])->eq(static_pointer_cast<StringValue>(elems[1])));
+            return static_pointer_cast<StringValue>(elems[0])->eq(static_pointer_cast<StringValue>(elems[1]));
         if (op_eq(expr->op, Expr::binops::NOT_EQUAL))
-            return _cache(Prop::PROP->from_z3_value(z3_ne(elems[0]->get_z3_value(), elems[1]->get_z3_value())));
+            return Prop::PROP->from_z3_value(z3_ne(elems[0]->get_z3_value(), elems[1]->get_z3_value()));
         if (op_eq(expr->op, Expr::binops::BNE))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->ne(static_pointer_cast<IntValue>(elems[1])));
+            return static_pointer_cast<IntValue>(elems[0])->ne(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, Expr::binops::SNE))
-            return _cache(static_pointer_cast<StringValue>(elems[0])->ne(static_pointer_cast<StringValue>(elems[1])));
+            return static_pointer_cast<StringValue>(elems[0])->ne(static_pointer_cast<StringValue>(elems[1]));
         if (op_eq(expr->op, Expr::binops::GT) || op_eq(expr->op, Expr::binops::BGT))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->gt(static_pointer_cast<IntValue>(elems[1])));
+            return static_pointer_cast<IntValue>(elems[0])->gt(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, Expr::binops::GTE) || op_eq(expr->op, Expr::binops::BGE))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->ge(static_pointer_cast<IntValue>(elems[1])));
+            return static_pointer_cast<IntValue>(elems[0])->ge(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, Expr::binops::LT) || op_eq(expr->op, Expr::binops::BLT))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->lt(static_pointer_cast<IntValue>(elems[1])));
+            return static_pointer_cast<IntValue>(elems[0])->lt(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, Expr::binops::LTE) || op_eq(expr->op, Expr::binops::BLE))
-            return _cache(static_pointer_cast<IntValue>(elems[0])->le(static_pointer_cast<IntValue>(elems[1])));
+            return static_pointer_cast<IntValue>(elems[0])->le(static_pointer_cast<IntValue>(elems[1]));
         if (op_eq(expr->op, Expr::ops::NOT) || op_eq(expr->op, Expr::ops::BNOT))
-            return _cache(static_pointer_cast<BoolValue>(elems[0])->negb());
+            return static_pointer_cast<BoolValue>(elems[0])->negb();
         if (op_eq(expr->op, Expr::binops::AND) || op_eq(expr->op, Expr::binops::BAND))
-            return _cache(static_pointer_cast<BoolValue>(elems[0])->andb(static_pointer_cast<BoolValue>(elems[1])));
+            return static_pointer_cast<BoolValue>(elems[0])->andb(static_pointer_cast<BoolValue>(elems[1]));
         if (op_eq(expr->op, Expr::binops::OR) || op_eq(expr->op, Expr::binops::BOR))
-            return _cache(static_pointer_cast<BoolValue>(elems[0])->orb(static_pointer_cast<BoolValue>(elems[1])));
+            return static_pointer_cast<BoolValue>(elems[0])->orb(static_pointer_cast<BoolValue>(elems[1]));
         if (op_eq(expr->op, "xorb"))
-            return _cache(static_pointer_cast<BoolValue>(elems[0])->xorb(static_pointer_cast<BoolValue>(elems[1])));
+            return static_pointer_cast<BoolValue>(elems[0])->xorb(static_pointer_cast<BoolValue>(elems[1]));
         if (op_eq(expr->op, Expr::binops::IMPLIES))
-            return _cache(static_pointer_cast<BoolValue>(elems[0])->implies(static_pointer_cast<BoolValue>(elems[1])));
+            return static_pointer_cast<BoolValue>(elems[0])->implies(static_pointer_cast<BoolValue>(elems[1]));
         else if (op_eq(expr->op, Expr::GET)) {
             auto const map_val = elems[0];
             if(auto const zmv = dynamic_pointer_cast<ZMapValue>(map_val)) {
-                return _cache(zmv->get(static_pointer_cast<IntValue>(elems[1])));
+                return zmv->get(static_pointer_cast<IntValue>(elems[1]));
             } else if(auto const smv = dynamic_pointer_cast<SMapValue>(map_val)){
-                return _cache(smv->get(static_pointer_cast<StringValue>(elems[1])));
+                return smv->get(static_pointer_cast<StringValue>(elems[1]));
             }
         } else if (op_eq(expr->op, Expr::SET)) {
             auto const map_val = elems[0];
             if(auto const zmv = dynamic_pointer_cast<ZMapValue>(map_val)) {
-                return _cache(zmv->set(static_pointer_cast<IntValue>(elems[1]), elems[2]));
+                return zmv->set(static_pointer_cast<IntValue>(elems[1]), elems[2]);
             } else if(auto const smv = dynamic_pointer_cast<SMapValue>(map_val)){
-                return _cache(smv->set(static_pointer_cast<StringValue>(elems[1]), elems[2]));
+                return smv->set(static_pointer_cast<StringValue>(elems[1]), elems[2]);
             }
         } else if (op_eq(expr->op, Expr::RecordGet)) {
             // expr.elem[0]: record
@@ -2557,7 +2547,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
             for (int i = 1; i < expr->elems->size(); i++) {
                 elems[i] = static_pointer_cast<StructValue>(elems[i-1])->get(static_cast<Symbol *>(expr->elems->at(i).get())->text);
             }
-            return _cache(elems.back());
+            return elems.back();
         } else if (op_eq(expr->op, Expr::RecordSet)) {
             // expr.elem[0]: record
             // expr.elem[1...n-2]: (sub)fields
@@ -2574,51 +2564,51 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
                 elems[i - 1] = static_pointer_cast<StructValue>(elems[i - 1])->set(static_cast<Symbol *>(expr->elems->at(i).get())->text, elems[i]);
             }
 
-            return _cache(elems[0]);
+            return elems[0];
         } else if (op_eq(expr->op, Expr::binops::APPEND)) {
             auto const list = static_pointer_cast<ListValue>(elems[1]);
             auto const new_list = list->append(static_pointer_cast<SpecValue>(elems[0]));
 
-            return _cache(new_list);
+            return new_list;
         } else if (op_eq(expr->op, Expr::binops::CONCAT)) {
             auto const list1 = static_pointer_cast<ListValue>(elems[0]);
             auto const new_list = list1->concat(static_pointer_cast<ListValue>(elems[1]));
 
-            return _cache(new_list);
+            return new_list;
         } else if (op_eq(expr->op, Expr::ops::Some))
-            return _cache(static_pointer_cast<Option>(val->get_type())->construct("Some", {elems[0]}));
+            return static_pointer_cast<Option>(val->get_type())->construct("Some", {elems[0]});
         else if (op_eq(expr->op,Expr::ops::Tuple)) {
-            return _cache(static_pointer_cast<Tuple>(val->get_type())->construct(elems));
+            return static_pointer_cast<Tuple>(val->get_type())->construct(elems);
         }
         else if (op_eq(expr->op, "prop"))
-            return _cache(elems[0]);
+            return elems[0];
         else if (auto const reduced = width_reduction(expr->op, elems))
-            return _cache(make_shared<IntValue>(reduced->simplify()));
+            return make_shared<IntValue>(reduced->simplify());
         else if (op_eq(expr->op,"ptr_to_int"))
-            return _cache(static_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems));
+            return static_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems);
         else if (op_eq(expr->op,"int_to_ptr"))
-            return _cache(static_pointer_cast<FuncValue>(autov::int_to_ptr())->call(elems));
+            return static_pointer_cast<FuncValue>(autov::int_to_ptr())->call(elems);
         else if (op_eq(expr->op, "z_to_nat"))
-            return _cache(static_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems));
+            return static_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems);
         else if (op_eq(expr->op,"zmap_init") || op_eq(expr->op, "ZMap.init"))
-            return _cache(val->get_type()->from_z3_value(z3::const_array(static_pointer_cast<ZMap>(val->get_type())->key_sort(), elems[0]->get_z3_value())));
+            return val->get_type()->from_z3_value(z3::const_array(static_pointer_cast<ZMap>(val->get_type())->key_sort(), elems[0]->get_z3_value()));
         else if (op_eq(expr->op, "List.is_empty"))
-            return _cache(static_pointer_cast<ListValue>(elems[0])->is_empty());
+            return static_pointer_cast<ListValue>(elems[0])->is_empty();
         else if (op_eq(expr->op, "List.empty"))
-            return _cache(ListValue::empty(val->get_type()));
+            return ListValue::empty(val->get_type());
         else if (op_eq(expr->op, "List.eq"))
-            return _cache(static_pointer_cast<ListValue>(elems[0])->eq(static_pointer_cast<ListValue>(elems[1])));
+            return static_pointer_cast<ListValue>(elems[0])->eq(static_pointer_cast<ListValue>(elems[1]));
         else if (std::holds_alternative<string>(expr->op)) {
             auto const sym = std::get<string>(expr->op);
             auto const info = proj->symbols[sym];
             if (info.kind == SymbolKind::StructConstr) {
-                return _cache(static_pointer_cast<Struct>(val->get_type())->construct(elems));
+                return static_pointer_cast<Struct>(val->get_type())->construct(elems);
             } else if (info.kind == SymbolKind::IndConstructor) {
-                return _cache(static_pointer_cast<Inductive>(val->get_type())->construct(sym, elems));
+                return static_pointer_cast<Inductive>(val->get_type())->construct(sym, elems);
             } else if (info.kind == SymbolKind::Def) {
                 auto df = proj->defs[sym].get();
                 if(auto loop = instance_of(df, Fixpoint)) {
-                    return _cache(df->absf()->call(elems));
+                    return df->absf()->call(elems);
                 } else {
                     // if(unfold && proj->cmds.NoUnfold.find(df->name) == proj->cmds.NoUnfold.end()) {
                     //     z3::expr func = formulate_function(proj, df);
@@ -2634,15 +2624,15 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
                     //     }
                     //     auto app = func[z3_args];
 
-                    //     return _cache(df->rettype->from_z3_value(app));
+                    //     return df->rettype->from_z3_value(app);
                     // }
-                    return _cache(df->absf()->call(elems));
+                    return df->absf()->call(elems);
                 }
             } else if (info.kind == SymbolKind::Decl) {
                 if(sym != "lens_v") {
                     auto df = proj->decls[sym].get();
                     auto const absf = static_pointer_cast<FuncValue>(df->absf());
-                    return _cache(absf->call(elems));
+                    return absf->call(elems);
                 } else {
                     auto id = static_cast<IntConst*>(expr->elems->at(0).get());
                     unsigned long const idi = std::get<unsigned long>(id->value);
@@ -2660,7 +2650,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         } else if (std::holds_alternative<unique_ptr<SpecNode>>(expr->op)) {
             auto const op = z3_eval(proj, std::get<unique_ptr<SpecNode>>(expr->op).get(), state,  check_loop, unfold, used_fixpoint);
             if (auto const func = dynamic_pointer_cast<FuncValue>(op))
-                return _cache(func->call(elems));
+                return func->call(elems);
         }
 
         throw std::runtime_error("Unknown expression: " + string(*expr));
@@ -2703,9 +2693,9 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         }
         if (match_val == nullptr) {
             auto const opt = static_pointer_cast<Option>(val->get_type());
-            return _cache(opt->construct("None", {}));
+            return opt->construct("None", {});
         } else {
-            return _cache(match_val);
+            return match_val;
         }
     } else if (auto rely = instance_of(val, Rely)) {
         auto const cond = z3_eval(proj, rely->prop.get(), state,  check_loop, unfold, used_fixpoint);
@@ -2717,11 +2707,11 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
             auto const none = static_pointer_cast<Option>(val->get_type())->construct("None", {});
 
             auto const z3_val = z3::ite(cond->get_z3_value(), body->get_z3_value(), none->get_z3_value());
-            return _cache(rely->get_type()->from_z3_value(z3_val.simplify()));
+            return rely->get_type()->from_z3_value(z3_val.simplify());
         } else if (res == Z3Result::True) {
-            return _cache(z3_eval(proj, rely->body.get(), state,  check_loop, unfold, used_fixpoint));
+            return z3_eval(proj, rely->body.get(), state,  check_loop, unfold, used_fixpoint);
         } else {
-            return _cache(static_pointer_cast<Option>(val->get_type())->construct("None", {}));
+            return static_pointer_cast<Option>(val->get_type())->construct("None", {});
         }
     }
     else if (auto iff = instance_of(val, If))
@@ -2737,17 +2727,17 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
             false_state->conds->push_back(!c->get_z3_value());
             auto const False = z3_eval(proj, iff->else_body.get(), false_state,  check_loop, unfold, used_fixpoint);
             auto const z3_val = z3::ite(c->get_z3_value(), True->get_z3_value(), False->get_z3_value());
-            return _cache(iff->get_type()->from_z3_value(z3_val.simplify()));
+            return iff->get_type()->from_z3_value(z3_val.simplify());
         }
         else if (res == Z3Result::True)
         {
             state->conds->push_back(c->get_z3_value());
-            return _cache(z3_eval(proj, iff->then_body.get(), state,  check_loop, unfold, used_fixpoint));
+            return z3_eval(proj, iff->then_body.get(), state,  check_loop, unfold, used_fixpoint);
         }
         else
         {
             state->conds->push_back(!c->get_z3_value());
-            return _cache(z3_eval(proj, iff->else_body.get(), state,  check_loop, unfold, used_fixpoint));
+            return z3_eval(proj, iff->else_body.get(), state,  check_loop, unfold, used_fixpoint);
         }
     }
     else if (auto forall = instance_of(val, Forall))
@@ -2767,14 +2757,13 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
             }
         }
         /** bounded variables may have a newer nid over cached z3 values, so we need to clear cached value first  */
-        forall->clear_z3_eval();
         auto const body = z3_eval(proj, forall->body.get(), new_state, check_loop, unfold, used_fixpoint);
         auto p = body->get_z3_value();
 
         for (const auto &h : hypos) {
             p = z3::implies(h, p);
         }
-        return _cache(make_shared<BoolValue>(z3::forall(vars, p)));
+        return make_shared<BoolValue>(z3::forall(vars, p));
     }
     else if (auto exsts = instance_of(val, Exists))
     {
@@ -2787,7 +2776,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
             vars.push_back(var->get_z3_value());
         }
         auto const body = z3_eval(proj, exsts->body.get(), new_state,  check_loop, unfold, used_fixpoint);
-        return _cache(make_shared<BoolValue>(z3::exists(vars, body->value)));
+        return make_shared<BoolValue>(z3::exists(vars, body->value));
     }
 
     throw std::runtime_error("Unknown node type: " + string(*val));

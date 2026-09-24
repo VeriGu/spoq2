@@ -51,6 +51,9 @@ namespace autov
                                         SpecNode *impl, Definition *rel, Definition *ret_rel,
                                         const shared_ptr<ProveState>& state, const path_t& p,
                                         bool det);
+    /// Forgets which demand-unfolding sites have been inlined; check_refines
+    /// calls it before each check.
+    void forget_unfolded_sites();
     std::pair<bool,bool> check_branch_plausibility(autov::Project *proj,
                                    std::shared_ptr<autov::ProveState>  const&state,
                                    std::shared_ptr<autov::SpecValue>  const&cond,

@@ -2,6 +2,5 @@
   "verified": true,
   "stderr_contains": "[UNFOLD] deferring helper_spec;[demand-unfold] simulation failed below a call to helper_spec",
   "spec_v_definition": "vuln_spec",
-  "spec_v_contains": "g_g] :< 5",
-  "spec_v_lacks": "helper_spec"
+  "spec_v_contains": "helper_spec st"
 }

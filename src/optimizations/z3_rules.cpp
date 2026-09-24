@@ -906,7 +906,6 @@ rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::sha
                 assert(v->expr);
             }
         }
-        forall->clear_z3_eval();
         auto res = this->rule_simple_by_z3(std::move(forall->body), state);
         result = { std::make_unique<Forall>(std::move(forall->vars), std::move(res.first)), res.second };
     }
@@ -915,7 +914,6 @@ rule_ret_t SpecRules::rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::sha
             assert(v->type);
             (*state->vars)[v->name] = v->type->declare(v->name, exists->nid);
         }
-        exists->clear_z3_eval();
         auto res = this->rule_simple_by_z3(std::move(exists->body), state);
         result = { std::make_unique<Exists>(std::move(exists->vars), std::move(res.first)), res.second };
     }

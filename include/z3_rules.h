@@ -114,7 +114,31 @@ enum class Z3Result {
 #define Z3_SAT_TIMEOUT 500
 #define Z3_SOLVE_RDATA_TIMEOUT 50
 #define Z3_SOLVE_SECURE_TIMEOUT 50
-extern unordered_map<size_t, Z3Result> Z3Cache;
+/// Results of solver checks, keyed exactly by what was asked: the kind of check,
+/// its timeout, and the AST ids of the asserted formulas, the inductions and
+/// the goal.  An entry holds those formulas, so their ids cannot be reused
+/// while it exists.
+class Z3ResultCache {
+public:
+    enum class Kind { Check, CheckState, CheckUnsat };
+    struct Query {
+        std::vector<unsigned> ids;
+        std::vector<z3::expr> formulas;
+    };
+    static Query query(Kind kind, const EvalState &state, const z3::expr *goal, int timeout);
+    std::optional<Z3Result> find(const Query &q) const;
+    void insert(const Query &q, Z3Result result) { entries.insert_or_assign(q.ids, std::make_pair(result, q.formulas)); }
+    void clear() { entries.clear(); }
+
+private:
+    std::map<std::vector<unsigned>, std::pair<Z3Result, std::vector<z3::expr>>> entries;
+};
+extern Z3ResultCache Z3Cache;
+
+/// The answer on the last line of a solver's output: exactly `sat` or `unsat`,
+/// else unknown.  The output carries stderr too, whose messages can contain
+/// either word.
+z3::check_result z3_solver_answer(const std::string &output);
 Z3Result z3_verify(const shared_ptr<ProveState>& state, const z3::expr& cond, QueryInfo *qinfo = nullptr, int timeout = Z3_VERIFY_TIMEOUT);
 Z3Result z3_verify_state_sat(const shared_ptr<ProveState>& state, QueryInfo *qinfo = nullptr, int timeout = Z3_VERIFY_TIMEOUT);
 Z3Result z3_verify_state_sat(const shared_ptr<EvalState>& state, QueryInfo *qinfo = nullptr, int timeout = Z3_VERIFY_TIMEOUT);

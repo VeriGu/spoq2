@@ -26,8 +26,12 @@ One module, two `.main.v` files differing only by
 decided with it folded. Without the hint the retry inlines it and the proof
 succeeds; with the hint the callee is never even deferred -- `rule_unfold_specs`
 returns at the `NoUnfold` check, ahead of `UnfoldPolicy::defer` -- so no retry
-candidate exists, and the proof is expected to fail with `helper_spec` still a
-call in the emitted spec.
+candidate exists, and the proof is expected to fail.
+
+Either way `helper_spec` is still a call in the emitted spec.  The retry inlines
+the callee into a copy of the Match that it re-simulates on the failing path
+only, simplified under that path's condition; written back into the
+definition, that body would stand for every path.
 
 `unfold_not_needed` is the same shape with `helper` writing an unrelated global,
 so its effect cancels and no retry is needed at all.

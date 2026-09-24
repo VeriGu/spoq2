@@ -33,7 +33,6 @@ static bool trace_on() {
     static bool const on = std::getenv("SPOQ_TRACE_TRANSFORM") != nullptr;
     return on;
 }
-extern unordered_map<size_t, Z3Result> Z3Cache;
 
 unsigned long mono_lens_id = 0;
 std::mutex Z3mtx;

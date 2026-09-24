@@ -65,28 +65,42 @@ extern class UnfoldPolicy UNFOLD_POLICY;
 /// scrutinee of a Match: `when st' == (f_spec args)`.  When the simulation
 /// beneath that Match fails, the failure may be an artefact of f being opaque
 /// rather than a real counterexample.  Instead of restarting the whole
-/// refinement with f unfolded everywhere, inline f into this one scrutinee,
+/// refinement with f unfolded everywhere, inline f into a copy of this Match,
 /// simplify the inlined body under the *live* state -- the path conditions and
 /// bindings the refinement has already accumulated on the way here -- and let
-/// the caller re-descend from this Match with that same state.  Parents and
-/// siblings keep their results; nothing above this node is revisited.  A
-/// rewritten scrutinee is no longer a folded call, so the re-descent cannot
-/// trigger this again: each site is inlined at most once.
+/// the caller re-descend from the copy with that same state.  Parents and
+/// siblings keep their results; nothing above this node is revisited.  The
+/// copy's scrutinee is no longer a folded call, so the re-descent cannot
+/// trigger this again.
 ///
-/// Returns true if the scrutinee was rewritten and the Match must be
-/// re-simulated; false if it was not a folded callee (a real failure).
-static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<ProveState>& state) {
-    auto expr = instance_of(m->src.get(), Expr);
-    if (!expr) return false;
+/// The copy is not written back into the tree: the simplification holds only
+/// under this path's condition, and the traversal reaches the same node on
+/// other paths, where the callee may take the branches cut here.
+///
+/// Returns the copy to re-simulate in place of [m], or null if the scrutinee
+/// is not a folded callee (a real failure).
+///
+/// An impl Match whose callee has had to be inlined once is inlined up front
+/// when stepped again on another path -- forward_simulation walks the impl once
+/// per spec leaf -- rather than after the folded attempt fails there too.
+/// Inlining preserves meaning, so this only saves time.  A spec Match is not:
+/// folded, it can pair with an impl Match on the same call.
+static std::unordered_set<const Match *> unfolded_before;
+
+void forget_unfolded_sites() { unfolded_before.clear(); }
+
+static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &m, const shared_ptr<ProveState>& state) {
+    auto expr = instance_of(m.src.get(), Expr);
+    if (!expr) return nullptr;
     auto op = std::get_if<string>(&expr->op);
-    if (!op || !UNFOLD_POLICY.deferred.count(*op)) return false;
+    if (!op || !UNFOLD_POLICY.deferred.count(*op)) return nullptr;
     auto const it = proj->defs.find(*op);
-    if (it == proj->defs.end() || instance_of(it->second.get(), Fixpoint)) return false;
+    if (it == proj->defs.end() || instance_of(it->second.get(), Fixpoint)) return nullptr;
 
     LOG_DEBUG << "[demand-unfold] simulation failed below a call to " << *op
               << "; inlining it at this site and re-simulating from here.";
-    auto [inlined, changed] = proj->rules.unfold_calls_to(std::move(m->src), *op);
-    if (!changed) { m->src = std::move(inlined); return false; }
+    auto [inlined, changed] = proj->rules.unfold_calls_to(m.src->deep_copy(), *op);
+    if (!changed) return nullptr;
 
     // Every name bound on the path so far: the inlined body must not capture
     // any of them.
@@ -123,27 +137,22 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
         // transformation stage runs, applied to this subtree alone.
         std::tie(inlined, c) = proj->rules.rule_simple_by_z3(std::move(inlined), state->copy());  changed_any |= c;
     }
-    m->src = std::move(inlined);
-    // z3_eval memoises a z3 term on every node it evaluates.  The arms beneath
-    // this Match were evaluated during the descent that just failed, against
-    // the *folded* binding of the scrutinee, and still hold those terms.  A
-    // re-descent that does not drop them re-proves against the opaque call --
-    // and fails identically -- however well the scrutinee was inlined.  This is
-    // the one thing a full restart did for us (check_refines clears both bodies
-    // up front) that continuing in place must do for itself, scoped to the
-    // subtree being re-simulated.
-    m->clear_z3_eval();
-    return true;
+    auto unfolded = m.deep_copy();
+    static_cast<Match *>(unfolded.get())->src = std::move(inlined);
+    unfolded_before.insert(&m);
+    return unfolded;
 }
 
 	/// One impl-side step at a Match: check the callee's precondition, bind each
 	/// feasible arm with the callee's post-condition or loop invariant, and
-	/// continue into the arm's body with descend(body, state, det).  Returns
-	/// nullopt when an arm failed below a folded callee and the scrutinee was
-	/// unfolded in place: the caller re-simulates the Match.
-	template <typename Descend>
-	static std::optional<SimulateResult> step_impl_match(Project *proj, Match *m, const shared_ptr<ProveState>& state,
-	                                                     bool det, const path_t &path, int i, Descend descend) {
+	/// continue into the arm's body with descend(body, state, det).  When an arm
+	/// fails below a folded callee, redo(unfolded) re-simulates a copy of the
+	/// Match with the callee inlined, in place of the Match, on this path.
+	template <typename Descend, typename Redo>
+	static SimulateResult step_impl_match(Project *proj, Match *m, const shared_ptr<ProveState>& state,
+	                                      bool det, const path_t &path, int i, Descend descend, Redo redo) {
+		if (unfolded_before.count(m))
+			if (auto unfolded = inline_folded_scrutinee(proj, *m, state)) return redo(unfolded.get());
 		int const random_code = rand() % 10000;
 		set<string> used_fix;
 		bool add_post_condition = false;
@@ -321,10 +330,10 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 				if(!this_branch_result.verified){
 					LOG_DEBUG << "[forward_simulation " << random_code << "] Match verification failed on branch: " << string(*pat).substr(0,200);
 					LOG_DEBUG << "Matched expr: " << string(*m->src->deep_copy());
-					// If the scrutinee was an opaque callee, unfold it here; the
-					// caller redoes just this Match with the state it entered with.
-					if (inline_folded_scrutinee(proj, m, state))
-						return std::nullopt;
+					// If the scrutinee was an opaque callee, unfold it for this path
+					// and redo just this Match with the state it entered with.
+					if (auto unfolded = inline_folded_scrutinee(proj, *m, state))
+						return redo(unfolded.get());
 					return this_branch_result;
 				}
 				sim_result = sim_result + this_branch_result;
@@ -476,8 +485,10 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 				}
 			}
 		} else if (auto m = instance_of(impl, Match)) {
-			if (auto result = step_impl_match(proj, m, state, det, path, i, descend)) return *result;
-			return forward_simulation(proj, st_check, spec_ret, impl, rel, ret_rel, state, det, path, i, allow_none);
+			auto const redo = [&](SpecNode *unfolded) {
+				return forward_simulation(proj, st_check, spec_ret, unfolded, rel, ret_rel, state, det, path, i, allow_none);
+			};
+			return step_impl_match(proj, m, state, det, path, i, descend, redo);
 		} else if (auto iff = instance_of(impl, If)) {
 			return step_impl_if(proj, iff, state, det, path, i, descend);
 		} else if (auto r = instance_of(impl, Rely)) {
@@ -587,23 +598,16 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 		if (!det && impl_steps_first(spec, impl)) {
 			LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Advancing impl first: spec @" << spec->align_idx
 			          << ", impl @" << impl->align_idx;
-			// z3_eval decides the Ifs and Matches inside an expression under the
-			// path condition and memoises the result on the node, so a cached value
-			// holds only on paths whose condition implies the one it was computed
-			// under.  Stepping the impl first walks the spec subtree once per impl
-			// branch, and reaches this impl node on more than one spec path: drop
-			// both subtrees' cached values before evaluating them here.
-			impl->clear_z3_eval();
 			auto const descend = [&](SpecNode *body, const shared_ptr<ProveState> &s, bool) {
-				spec->clear_z3_eval();
 				return simulate_by_traverse(proj, spec, body, rel, ret_rel, s, p, det);
 			};
 			// det is false here, so the path index is never read.
 			if (auto impl_if = instance_of(impl, If))
 				return step_impl_if(proj, impl_if, state, false, p, 0, descend);
-			if (auto result = step_impl_match(proj, instance_of(impl, Match), state, false, p, 0, descend))
-				return *result;
-			return simulate_by_traverse(proj, spec, impl, rel, ret_rel, state, p, det);
+			auto const redo = [&](SpecNode *unfolded) {
+				return simulate_by_traverse(proj, spec, unfolded, rel, ret_rel, state, p, det);
+			};
+			return step_impl_match(proj, instance_of(impl, Match), state, false, p, 0, descend, redo);
 		}
 		if (auto expr = instance_of(spec, Expr)) {
 			if (auto e_op = std::get_if<Expr::ops>(&expr->op)) {
@@ -853,10 +857,10 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 			}
 			if (!sim_result.verified) {
 				LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Completed Match: some branches not verified.";
-				// Same recovery on the spec side: unfold an opaque scrutinee in
-				// place and re-simulate only this Match.
-				if (inline_folded_scrutinee(proj, m, state))
-					return simulate_by_traverse(proj, spec, impl, rel, ret_rel, state, p, det);
+				// Same recovery on the spec side: unfold an opaque scrutinee for
+				// this path and re-simulate only this Match.
+				if (auto unfolded = inline_folded_scrutinee(proj, *m, state))
+					return simulate_by_traverse(proj, unfolded.get(), impl, rel, ret_rel, state, p, det);
 			}
 			return sim_result;
 		} else if (auto i = instance_of(spec, If)) {
@@ -1063,8 +1067,6 @@ static bool inline_folded_scrutinee(Project *proj, Match *m, const shared_ptr<Pr
 			auto const wsr_expr = formulate_relation(proj, wsr_def, st_sym_1.get(), st_sym_2.get(), state);
 			state->conds->push_back(wsr_expr->get_z3_value());
 		}
-		spec_body->clear_z3_eval();
-		impl_body->clear_z3_eval();
 		path_t const p = {};
 		/** TODO: set check for deterministic simulation */
 		Definition* end_rel = nullptr;

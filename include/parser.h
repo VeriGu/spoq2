@@ -175,5 +175,10 @@ public:
 };
 
 std::any parse_light(Project *proj, const std::string& text);
+/// Throws if [errors], the lexer's and parser's syntax-error count for
+/// [source], is nonzero.  ANTLR recovers from a syntax error by dropping or
+/// inserting tokens and reports it only on stderr, so the tree it returns can
+/// mean something other than the text.
+void require_no_syntax_errors(size_t errors, const std::string& source);
 
 } // namespace autov::parser

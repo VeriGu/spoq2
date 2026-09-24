@@ -288,3 +288,59 @@ TEST_P(VerifyStateSatTest, ProveStateTimedOutIsUnknown) {
     EXPECT_EQ(z3_verify_state_sat(prove_state_of({}, {pigeonhole(11)}), nullptr, kTimeout),
               Z3Result::Unknown);
 }
+
+/* -- the result cache is keyed by exactly what was asked ------------------- */
+
+TEST(Z3ResultCacheTest, SameFormulasInAnotherOrderHit) {
+    Z3ResultCache cache;
+    auto const goal = x() > 1;
+    cache.insert(Z3ResultCache::query(Z3ResultCache::Kind::Check, *state_of({x() > 0, x() < 5}), &goal, kTimeout),
+                 Z3Result::Sat);
+    auto const hit =
+        cache.find(Z3ResultCache::query(Z3ResultCache::Kind::Check, *state_of({x() < 5, x() > 0}), &goal, kTimeout));
+    ASSERT_TRUE(hit.has_value());
+    EXPECT_EQ(*hit, Z3Result::Sat);
+}
+
+TEST(Z3ResultCacheTest, AnyDifferenceInTheQueryMisses) {
+    Z3ResultCache cache;
+    auto const goal = x() > 1;
+    auto const other_goal = x() > 2;
+    auto const kind = Z3ResultCache::Kind::Check;
+    cache.insert(Z3ResultCache::query(kind, *state_of({x() > 0}), &goal, kTimeout), Z3Result::Sat);
+    EXPECT_FALSE(cache.find(Z3ResultCache::query(kind, *state_of({x() > 0, x() < 5}), &goal, kTimeout)));
+    EXPECT_FALSE(cache.find(Z3ResultCache::query(kind, *state_of({x() > 0}), &other_goal, kTimeout)));
+    EXPECT_FALSE(cache.find(Z3ResultCache::query(kind, *state_of({x() > 0}), nullptr, kTimeout)));
+    EXPECT_FALSE(cache.find(Z3ResultCache::query(kind, *state_of({x() > 0}), &goal, kTimeout + 1)));
+    EXPECT_FALSE(cache.find(
+        Z3ResultCache::query(Z3ResultCache::Kind::CheckUnsat, *state_of({x() > 0}), &goal, kTimeout)));
+}
+
+// A formula asserted as an induction is not the same query as the formula
+// asserted as a condition.
+TEST(Z3ResultCacheTest, ConditionsAndInductionsAreKeptApart) {
+    Z3ResultCache cache;
+    auto const goal = x() > 1;
+    auto const kind = Z3ResultCache::Kind::CheckUnsat;
+    cache.insert(Z3ResultCache::query(kind, *prove_state_of({x() > 0}, {}), &goal, kTimeout), Z3Result::True);
+    EXPECT_FALSE(cache.find(Z3ResultCache::query(kind, *prove_state_of({}, {x() > 0}), &goal, kTimeout)));
+}
+
+/* -- a raced solver's answer is its last line, exactly --------------------- */
+
+TEST(SolverAnswerTest, ExactAnswers) {
+    EXPECT_EQ(z3_solver_answer("unsat\n"), z3::unsat);
+    EXPECT_EQ(z3_solver_answer("sat"), z3::sat);
+    EXPECT_EQ(z3_solver_answer("sat\n\n"), z3::sat);
+    EXPECT_EQ(z3_solver_answer("unknown\n"), z3::unknown);
+    EXPECT_EQ(z3_solver_answer("timeout\n"), z3::unknown);
+    EXPECT_EQ(z3_solver_answer(""), z3::unknown);
+}
+
+// Diagnostics share the stream; a word inside one is not an answer.
+TEST(SolverAnswerTest, WordsInDiagnosticsAreNotAnswers) {
+    EXPECT_EQ(z3_solver_answer("(error \"line 3 column 10: unsat core is not available\")\nunknown\n"),
+              z3::unknown);
+    EXPECT_EQ(z3_solver_answer("WARNING: the model may not satisfy the assertions\n"), z3::unknown);
+    EXPECT_EQ(z3_solver_answer("sh: 1: z3/build/z3: not found\n"), z3::unknown);
+}

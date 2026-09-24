@@ -1108,6 +1108,11 @@ antlrcpp::Any ProgramVisitor::visitVar_anno(SpecParser::Var_annoContext *ctx) {
     throw std::runtime_error("var_anno has neither a type nor an expression: " + ctx->getText());
 }
 
+void require_no_syntax_errors(size_t errors, const std::string &source) {
+    if (errors > 0)
+        throw std::runtime_error(std::to_string(errors) + " syntax error(s) in " + source);
+}
+
 void parse(Project *proj, const std::string &path) {
     std::ifstream stream(path);
     antlr4::ANTLRInputStream input(stream);
@@ -1115,6 +1120,7 @@ void parse(Project *proj, const std::string &path) {
     antlr4::CommonTokenStream tokens(&lexer);
     SpecParser parser(&tokens);
     antlr4::tree::ParseTree *tree = parser.program();
+    require_no_syntax_errors(lexer.getNumberOfSyntaxErrors() + parser.getNumberOfSyntaxErrors(), path);
     ProgramVisitor visitor(*proj, path);
 
     visitor.visit(tree);
@@ -1127,6 +1133,7 @@ void parse(Project *proj, const std::string &path, Layer *current_layer) {
     antlr4::CommonTokenStream tokens(&lexer);
     SpecParser parser(&tokens);
     antlr4::tree::ParseTree *tree = parser.program();
+    require_no_syntax_errors(lexer.getNumberOfSyntaxErrors() + parser.getNumberOfSyntaxErrors(), path);
     ProgramVisitor visitor(*proj, path, current_layer);
 
     visitor.visit(tree);
@@ -1138,6 +1145,7 @@ SpecNode *parseExpr(Project *proj, const string& expr_str) {
     antlr4::CommonTokenStream tokens(&lexer);
     SpecParser parser(&tokens);
     antlr4::tree::ParseTree *tree = parser.expr();
+    require_no_syntax_errors(lexer.getNumberOfSyntaxErrors() + parser.getNumberOfSyntaxErrors(), "expression " + expr_str);
     ProgramVisitor visitor(*proj, "");
 
     SpecNode *spec = any_cast<SpecNode *>(visitor.visit(tree));

@@ -316,6 +316,7 @@ std::any parse_light(Project *proj, const string& text) {
     antlr4::CommonTokenStream tokens(&lexer);
     SpecParser parser(&tokens);
     antlr4::tree::ParseTree* tree = parser.program();
+    require_no_syntax_errors(lexer.getNumberOfSyntaxErrors() + parser.getNumberOfSyntaxErrors(), "text");
     LightProgramVisitor visitor(*proj);
     return visitor.visit(tree);
 }
