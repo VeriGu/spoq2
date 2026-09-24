@@ -4687,11 +4687,13 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
                 // one definition to be inlined into an already-transformed body.
                 else if (!UNFOLD_POLICY.only.empty()) {
                     if (define->name != UNFOLD_POLICY.only) return node;
-                } else if (is_called_function_spec(define->name)) {
+                } else if (is_called_function_spec(define->name) &&
+                           !proj->cmds.Unfold.count(define->name)) {
                     // Left folded for the whole transformation stage, so it
                     // cannot perturb the convergence schedule that drives loop
                     // unrolling.  z3_eval will encode it as an uninterpreted
                     // function; the driver inlines it later if a proof needs it.
+                    // `Hint Unfold` exempts a definition from deferral.
                     bool const first = !UNFOLD_POLICY.deferred.count(define->name);
                     if (UNFOLD_POLICY.defer(define->name)) {
                         if (first) LOG_DEBUG << "[UNFOLD] deferring " << define->name;

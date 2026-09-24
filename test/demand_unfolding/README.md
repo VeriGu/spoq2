@@ -14,6 +14,7 @@ which is the behaviour these cases are measured against.
 | `unfold_not_needed` | a proof that goes through with the callee left folded |
 | `unfold_needed` | a proof that needs the callee, so the retry fires |
 | `unfold_needed_nounfold` | the same, with `Hint NoUnfold` blocking the retry |
+| `unfold_hinted` | `Hint Unfold` inlining a callee no proof asks for |
 | `hidden_ub_unfold_not_triggered_fail` | the retry on a real case, against the eager result |
 
 ## `unfold_needed` / `unfold_needed_nounfold`
@@ -35,6 +36,17 @@ definition, that body would stand for every path.
 
 `unfold_not_needed` is the same shape with `helper` writing an unrelated global,
 so its effect cancels and no retry is needed at all.
+
+## `unfold_hinted`
+
+`unfold_not_needed` with
+
+    Hint Unfold helper_spec.
+
+The proof succeeds with `helper_spec` folded, so no retry fires. The hint
+exempts the definition from `UnfoldPolicy::defer`, so the transformation stage
+inlines it anyway: the emitted `vuln_spec` contains helper's store to `g2` and
+no call to `helper_spec`.
 
 ## `hidden_ub_unfold_not_triggered_fail`
 

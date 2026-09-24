@@ -1,0 +1,9 @@
+{
+  "verified": true,
+  "impl_eliminates_ub": false,
+  "impl_has_non_spec_ub": false,
+  "stderr_lacks": "[demand-unfold]",
+  "spec_v_definition": "vuln_spec",
+  "spec_v_contains": "g_g2] :< 7",
+  "spec_v_lacks": "helper_spec"
+}

@@ -272,7 +272,7 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
             return static_pointer_cast<Option>(val->get_type())
                               ->construct("Some", {elems[0]});
         else if (op_eq(expr->op, Expr::ops::Tuple)) {
-            return 
+            return
                 static_pointer_cast<Tuple>(val->get_type())->construct(elems);
         } else if (op_eq(expr->op, "prop"))
             return elems[0];
@@ -285,7 +285,7 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
             return static_pointer_cast<FuncValue>(autov::int_to_ptr())
                               ->call(elems);
         else if (op_eq(expr->op, "z_to_nat"))
-            return 
+            return
                 static_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems);
         else if (op_eq(expr->op, "zmap_init") || op_eq(expr->op, "ZMap.init"))
             return val->get_type()->from_z3_value(
