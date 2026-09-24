@@ -1,0 +1,5 @@
+{
+  "spec_has_ub": false,
+  "impl_eliminates_ub": false,
+  "unimplemented": "vuln_loop_0 never returns None, but the solver sees the fixpoint as an uninterpreted function, so the None arm of the match on its result counts as vuln UB the patch removes"
+}

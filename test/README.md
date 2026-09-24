@@ -57,6 +57,13 @@ prints when the option is in effect:
     test/soundness/precondition_weaker.expected.json        default solver
     test/soundness/precondition_weaker.race.expected.json   --race
 
+An `unimplemented` marker turns every mismatch in its file into a skip. A value
+that already holds for such a fixture is pinned in a variant without the marker
+(`divzero_overflow_wrap.ub`), and a known wrong value in a variant with it
+(`loop_invariant_inductive.ub`), so the rest of the file still fails on a change.
+
+Every case that gives `impl_eliminates_ub: true` pins it.
+
 The driver assembles each case in its own scratch directory, assembles the `.ll`
 to the `.bc` that `PROJ_BC_PATH` names (in process, via the same LLVM spoq links
 against), runs spoq there, and compares only the keys present in the expected

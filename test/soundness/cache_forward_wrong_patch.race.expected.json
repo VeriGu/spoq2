@@ -2,5 +2,6 @@
   "args": "--race",
   "env": "SPOQ_HOIST_BUDGET=1",
   "verified": false,
+  "impl_eliminates_ub": true,
   "stderr_contains": "race: true"
 }

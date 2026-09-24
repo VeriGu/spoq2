@@ -1,4 +1,5 @@
 {
   "env": "SPOQ_HOIST_BUDGET=1",
-  "verified": false
+  "verified": false,
+  "impl_eliminates_ub": true
 }
