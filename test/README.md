@@ -45,7 +45,17 @@ just whether it proved:
 | `spec_v_lacks` | `;`-separated substrings that must not |
 
 It may also set `env`, `;`-separated `VAR=value` assignments applied to that
-case's spoq run only, for a case that needs a knob such as `SPOQ_HOIST_BUDGET`.
+case's spoq run only, for a case that needs a knob such as `SPOQ_HOIST_BUDGET`,
+and `args`, extra spoq options for that run.
+
+An option is tested by running one fixture with and without it. A variant
+`<test>.<variant>.expected.json` is a further case, `Spoq.<test>.<variant>`, on
+the same `<test>.ll` and `<test>.main.v`; its `args` supply the option. The
+`.race` variants run `--race` and require `race: true` in stderr, which spoq
+prints when the option is in effect:
+
+    test/soundness/precondition_weaker.expected.json        default solver
+    test/soundness/precondition_weaker.race.expected.json   --race
 
 The driver assembles each case in its own scratch directory, assembles the `.ll`
 to the `.bc` that `PROJ_BC_PATH` names (in process, via the same LLVM spoq links

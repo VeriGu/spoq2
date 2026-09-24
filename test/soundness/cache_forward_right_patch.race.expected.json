@@ -1,0 +1,7 @@
+{
+  "args": "--race",
+  "env": "SPOQ_HOIST_BUDGET=1",
+  "verified": true,
+  "stderr_contains": "race: true",
+  "stderr_lacks": "precondition does not imply equal states"
+}

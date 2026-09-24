@@ -6,6 +6,10 @@
  *     <test>.main.v         the spoq configuration, self-contained
  *     <test>.expected.json  the fields of spoq's result JSON that are pinned
  *
+ * A variant <test>.<variant>.expected.json is a further case, Spoq.<test>.<variant>,
+ * on the same <test>.ll and <test>.main.v.  With an "args" key it runs spoq with
+ * extra options, so one fixture tests the result with and without an option.
+ *
  * Each case is assembled in its own scratch directory -- the .ll is assembled
  * to the .bc that <test>.main.v's PROJ_BC_PATH names -- spoq is run there, and
  * the keys present in the expected file are compared against the result.  Keys
@@ -77,7 +81,8 @@ std::string keptListPath() {
 }
 
 struct TestCase {
-    std::string stem;
+    std::string stem;  // case name: <test> or <test>.<variant>
+    std::string base;  // <test>, the stem of the .ll and .main.v
     fs::path ll;
     fs::path main_v;
     fs::path expected;
@@ -99,9 +104,14 @@ std::vector<TestCase> discover() {
         TestCase tc;
         tc.stem = name.substr(0, name.size() - suffix.size());
         tc.expected = entry.path();
-        tc.ll = entry.path().parent_path() / (tc.stem + ".ll");
-        tc.main_v = entry.path().parent_path() / (tc.stem + ".main.v");
+        const auto dot = tc.stem.find('.');
+        tc.base = tc.stem.substr(0, dot);
+        tc.ll = entry.path().parent_path() / (tc.base + ".ll");
+        tc.main_v = entry.path().parent_path() / (tc.base + ".main.v");
         if (fs::exists(tc.ll) && fs::exists(tc.main_v)) cases.push_back(std::move(tc));
+        else if (dot != std::string::npos)
+            std::fprintf(stderr, "variant %s has no %s.ll and %s.main.v\n",
+                         entry.path().c_str(), tc.base.c_str(), tc.base.c_str());
     }
 
     std::sort(cases.begin(), cases.end(),
@@ -243,9 +253,9 @@ void runCaseChecks(const TestCase &tc) {
         }
     } cleanup{work, tc.stem};
 
-    fs::copy_file(tc.main_v, work / (tc.stem + ".main.v"),
+    fs::copy_file(tc.main_v, work / (tc.base + ".main.v"),
                   fs::copy_options::overwrite_existing);
-    ASSERT_TRUE(assemble(tc.ll, work / (tc.stem + ".bc")));
+    ASSERT_TRUE(assemble(tc.ll, work / (tc.base + ".bc")));
 
     boost::property_tree::ptree expected_early;
     ASSERT_TRUE(readJson(tc.expected, "", expected_early));
@@ -254,13 +264,15 @@ void runCaseChecks(const TestCase &tc) {
     //   env   `;`-separated VAR=value assignments
     auto env = expected_early.get<std::string>("env", "");
     std::replace(env.begin(), env.end(), ';', ' ');
+    //   args  extra spoq options for this case
+    const auto args = expected_early.get<std::string>("args", "");
 
     std::ostringstream cmd;
     cmd << "cd " << work << " && " << (env.empty() ? "" : "env " + env + " ") << "timeout "
         << kTimeoutSeconds << " " << SPOQ_BINARY << " "
-        << tc.stem << ".main.v"
+        << tc.base << ".main.v"
         << " --new-trans --llvm --no-profile --check-patch-refinement --check-pre-post"
-        << extraSpoqArgs() << " --query-path " << work / "z3" << "/ 2>" << work / "stderr.log";
+        << (args.empty() ? "" : " " + args) << extraSpoqArgs() << " --query-path " << work / "z3" << "/ 2>" << work / "stderr.log";
 
     const RunResult run_result = run(cmd.str());
 
@@ -300,7 +312,8 @@ void runCaseChecks(const TestCase &tc) {
     const auto is_driver_key = [](const std::string &key) {
         return key.rfind("spec_v_", 0) == 0 || key.rfind("stderr_", 0) == 0 ||
                key.rfind("coq_", 0) == 0 || key == "unimplemented" ||
-               key == "unimplemented_bv_sorts" || key == "expect_error" || key == "env";
+               key == "unimplemented_bv_sorts" || key == "expect_error" || key == "env" ||
+               key == "args";
     };
 
     // Require one only when the expected file actually pins a result field.

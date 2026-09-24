@@ -1,0 +1,6 @@
+{
+  "args": "--race",
+  "env": "SPOQ_HOIST_BUDGET=1",
+  "verified": false,
+  "stderr_contains": "race: true"
+}

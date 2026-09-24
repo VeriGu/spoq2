@@ -1,0 +1,7 @@
+{
+  "args": "--race",
+  "verified": true,
+  "stderr_contains": "race: true;[UNFOLD] deferring helper_spec;[demand-unfold] simulation failed below a call to helper_spec",
+  "spec_v_definition": "vuln_spec",
+  "spec_v_contains": "helper_spec st"
+}
