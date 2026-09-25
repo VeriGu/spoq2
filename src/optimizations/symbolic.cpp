@@ -1109,6 +1109,9 @@ bool prove_by_traverse(
                     }
                 }
             }
+            // Bound first: the postconditions below are stated of the values
+            // the pattern binds.
+            resolve_pattern(proj, m, pat, src, new_state);
             if (!std::holds_alternative<std::nullptr_t>(abst_spec)) {
                 // instantiate the loop postconditions here
                 if (auto expr = instance_of(m->src.get(), Expr)) {
@@ -1142,10 +1145,6 @@ bool prove_by_traverse(
                                                             "_new");
                                                         elems.push_back(
                                                             sym->deep_copy());
-                                                        (*new_state
-                                                              ->vars)[sym->text] =
-                                                            sym->type->declare(
-                                                                sym->text, 0);
                                                     }
                                                 }
                                                 auto const new_inv = subst_v2(
@@ -1165,13 +1164,6 @@ bool prove_by_traverse(
                                             }
                                         } else if (p->elems->at(0)->type ==
                                                    proj->layers[0]->abs_data) {
-                                            if (auto sym = instance_of(
-                                                    p->elems->at(0).get(),
-                                                    Symbol)) {
-                                                (*new_state->vars)[sym->text] =
-                                                    sym->type->declare(
-                                                        sym->text, 0);
-                                            }
                                             auto const new_inv = subst_v2(
                                                 proj,std::move(loop_post_cond),
                                                 loop->name + "_" + "st_new",
@@ -1210,10 +1202,6 @@ bool prove_by_traverse(
                                                         t->elems->at(i).get();
                                                     if (auto sym = instance_of(
                                                             elem, Symbol)) {
-                                                        (*new_state
-                                                              ->vars)[sym->text] =
-                                                            sym->type->declare(
-                                                                sym->text, 0);
                                                         if (i + 1 ==
                                                             t->elems->size()) {
                                                             names.push_back(
@@ -1247,13 +1235,6 @@ bool prove_by_traverse(
                                             }
                                         } else if (p->elems->at(0)->type ==
                                                    proj->layers[0]->abs_data) {
-                                            if (auto sym = instance_of(
-                                                    p->elems->at(0).get(),
-                                                    Symbol)) {
-                                                (*new_state->vars)[sym->text] =
-                                                    sym->type->declare(
-                                                        sym->text, 0);
-                                            }
                                             auto const new_inv = subst_v2(
                                                 proj,std::move(post_cond),
                                                 def->name + "_st_new_",
@@ -1315,7 +1296,6 @@ bool prove_by_traverse(
             } else {
                 // LOG_DEBUG << "Resolving pattern: " << string(*pat);
             }
-            resolve_pattern(proj, m, pat, src, new_state);
             verify_success &= prove_by_traverse(
                 proj, (*pm)->body.get(), inv, new_state, used_abs_funcs, mode,
                 fname, none_accumulator.add_condition(m->bool_cond_for(*pm)));

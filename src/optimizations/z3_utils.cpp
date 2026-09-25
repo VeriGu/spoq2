@@ -150,22 +150,23 @@ z3::check_result z3_solver_answer(const std::string &out) {
     return z3::unknown;
 }
 
-/// Whether a check that returns unknown is retried with the retry tactic.
-/// Off unless SPOQ_Z3_RETRY is set to a value other than 0: on openjpeg the
-/// retries cost more time than the checks they decide save.
+/// Whether an in-process check that returns unknown is retried with the retry
+/// tactic.  On by default with integer sorts, where it was measured; off with
+/// bitvector sorts, whose solver is already the qfaufbv tactic.
+/// SPOQ_Z3_RETRY=0 or 1 overrides.
 static bool retry_enabled() {
     static const bool on = [] {
-        const char *e = std::getenv("SPOQ_Z3_RETRY");
-        return e && std::string(e) != "0";
+        if (const char *e = std::getenv("SPOQ_Z3_RETRY")) return std::string(e) != "0";
+        return !z3_bv_sorts_enabled();
     }();
     return on;
 }
 
 /// Preprocessing that eliminates the equalities binding spoq's expanded terms,
-/// then the SMT core without relevancy propagation.  On openjpeg's refinement
-/// queries it decides at 500 ms every unsat query the default strategy needs up
-/// to 5 s for, but it times out on some queries the default decides, so it runs
-/// only after the default returns unknown.
+/// then the SMT core without relevancy propagation.  On the 8,834 queries of
+/// an openjpeg run, at 500 ms, it decides 226 that the default strategy does
+/// not and loses 33 that it does, so it runs after the default returns unknown,
+/// or beside it under --race.
 static const char *const retry_tactic_text =
     "(then simplify propagate-values solve-eqs elim-uncnstr (using-params smt :relevancy 0))";
 
@@ -297,10 +298,12 @@ static z3::check_result z3_race_solve(const std::string &query, int timeout_ms) 
     auto const file = std::filesystem::temp_directory_path() /
                 ("spoq-race-" + std::to_string(::getpid()) + ".smt2");
     { std::ofstream ofs(file); ofs << query; }
-    // The same query under the retry tactic, raced alongside.
+    // The same query under the retry tactic, raced alongside.  Neither
+    // strategy decides every query the other does, and racing costs CPU rather
+    // than wall time, so it runs in both sort modes.
     std::filesystem::path retry_file;
     auto const at = query.rfind("(check-sat)");
-    if (retry_enabled() && at != std::string::npos) {
+    if (at != std::string::npos) {
         retry_file = std::filesystem::temp_directory_path() /
                      ("spoq-race-" + std::to_string(::getpid()) + ".retry.smt2");
         std::ofstream ofs(retry_file);
