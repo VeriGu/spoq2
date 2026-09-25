@@ -406,6 +406,28 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 		}
 	}
 
+	/// Budget for confirming that a path reaching UB the refinement does not
+	/// allow is satisfiable.
+	constexpr int IMPL_UB_CONFIRM_TIMEOUT = 10000;
+
+	/// The result at an impl None leaf.  Branch checks treat unknown as
+	/// feasible, so a path whose conditions are unsat can reach one; when UB is
+	/// not allowed, failing there would report UB no execution reaches.  The
+	/// path is rechecked with a larger budget first and holds vacuously if it
+	/// is unsat.
+	static SimulateResult impl_none_leaf(Project *proj, const shared_ptr<ProveState> &state,
+	                                     bool allow_none, int random_code) {
+		if (allow_none) return SimulateResult{true, true, false, false};
+		auto const feasible = z3_verify_state_sat(state, &proj->query_saver, IMPL_UB_CONFIRM_TIMEOUT);
+		if (feasible == Z3Result::False) {
+			LOG_DEBUG << "[forward_simulation " << random_code << "] None in impl on an unsat path.";
+			return SimulateResult{true, false, false, false};
+		}
+		LOG_DEBUG << "[forward_simulation " << random_code << "] None in impl, UB not allowed; path "
+		          << (feasible == Z3Result::True ? "sat" : "unknown") << ".";
+		return SimulateResult{false, false, false, true};
+	}
+
 	SimulateResult forward_simulation(Project *proj, SpecNode *st_check, SpecNode *spec_ret, SpecNode *impl, Definition *rel, Definition *ret_rel, const shared_ptr<ProveState>& state,
 			bool det, const path_t &path, int i, bool allow_none) {
 				int const random_code = rand() % 10000;
@@ -474,8 +496,7 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 						return SimulateResult{is_relate, false, false, false};
 					}
 				} else if(*e_op == Expr::None) {
-					LOG_DEBUG << "[forward_simulation " << random_code << "] None in impl, allow_none: " << allow_none;
-					return SimulateResult{allow_none, allow_none, false, !allow_none};
+					return impl_none_leaf(proj, state, allow_none, random_code);
 				} else {
 					LOG_ERROR << "[forward_simulation] Expr with op: " << static_cast<int>(*e_op);
 				}
@@ -493,17 +514,7 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 			return forward_simulation(proj, st_check, spec_ret, r->body.get(), rel, ret_rel, state, det, path, i, allow_none);
 		} else if (auto r = instance_of(impl, Symbol)){
 			auto sym = dynamic_cast<Symbol *>(impl);
-			if (sym->text == "None") {
-				if(!allow_none) {
-					LOG_DEBUG << "[forward_simulation " << random_code << "] None Symbol in impl, allow_none: " << allow_none;
-					// for(auto cond: *state->conds) {
-					// 	LOG_DEBUG << "Condition: " << cond;
-					// }
-					z3_verify_state_sat(state, &proj->query_saver);
-					LOG_DEBUG << "[forward_simulation " << random_code << "] allow_none violation state saved.";
-				}
-				return SimulateResult{allow_none, allow_none, false, !allow_none};
-			}
+			if (sym->text == "None") return impl_none_leaf(proj, state, allow_none, random_code);
 			LOG_ERROR << "[forward_simulation] Unexpected Symbol in impl.";
 			return SimulateResult{false, false, false, false};
 		} else if (auto r = instance_of(impl, Const)){
