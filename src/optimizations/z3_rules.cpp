@@ -690,22 +690,18 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, const std:
         }
         // auto true_const = make_shared<BoolValue>(true);
         // auto true_z3 = true_const->get_z3_value();
-        auto const res = z3_verify_state_sat(new_state, nullptr, Z3_TIMEOUT);
-        // auto res = z3_check(new_state, true_z3, nullptr, Z3_TIMEOUT);
-        // if (res == Z3Result::Unknown){
-        //     // Abort as everything from here will timeout
-        //     match_list->push_back(std::move((*pm)));
-        //     continue;
-        // }
-        // Drop the arms the state rules out -- except `None => None` and
-        // `_ => None`, which the totality repair below re-adds as soon as the
-        // survivors stop covering both cases.  Pruning one of those and having
-        // it put straight back reports a change without making one.
         auto const sym_pat = dynamic_cast<Symbol*>((*pm)->pattern.get());
         auto const bod_sym = dynamic_cast<Symbol*>((*pm)->body.get());
         auto const none_pattern = (exp_pat && op_eq(exp_pat->op, Expr::ops::None))
                                || (sym_pat && (sym_pat->text == "None" || sym_pat->text == "_"));
         auto const is_catchall_none = none_pattern && bod_sym && bod_sym->text == "None";
+        // Drop the arms the state rules out -- except `None => None` and
+        // `_ => None`, which the totality repair below re-adds as soon as the
+        // survivors stop covering both cases.  Pruning one of those and having
+        // it put straight back reports a change without making one.  Such an
+        // arm is kept whatever the check says, so it is not checked.
+        auto const res = is_catchall_none ? Z3Result::Unknown
+                                          : z3_verify_state_sat(new_state, nullptr, Z3_TIMEOUT);
         if(res == Z3Result::False && spec && !is_catchall_none) {
             continue;
         }

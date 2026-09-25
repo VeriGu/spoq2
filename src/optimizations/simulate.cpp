@@ -983,6 +983,7 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 	 * @return false	If the relation is not proved
 	 */
 	bool check_hprop_by_path(Project *proj, Definition* rel, Definition *spec, Definition *impl, bool det, Definition* endrel) {
+		init_stack_typing(proj);
 		LOG_DEBUG << "rel: " << string(*rel->body());
 		LOG_DEBUG << "end_rel: " << string(*rel->body());
 		auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();

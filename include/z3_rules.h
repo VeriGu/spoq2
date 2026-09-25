@@ -145,6 +145,8 @@ Z3Result z3_verify_state_sat(const shared_ptr<EvalState>& state, QueryInfo *qinf
 Z3Result z3_check(const std::shared_ptr<EvalState>& state, const z3::expr& cond, QueryInfo *qinfo = nullptr, int timeout=Z3_TIMEOUT);
 Z3Result z3_check(const shared_ptr<EvalState>& state, int timeout=Z3_TIMEOUT);
 Z3Result z3_check_unsat(const std::shared_ptr<ProveState>& state, const z3::expr& cond, z3::model& model, QueryInfo *qinfo = nullptr, int timeout=Z3_TIMEOUT);
+/// Reads the stack slot-to-constructor map from [proj]'s load_stack, once.
+void init_stack_typing(Project *proj);
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, bool check_loop = false);
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, bool check_loop, bool unfold, set<string>& used_fixpoint);
 rule_ret_t rule_simple_by_z3(Project* proj, SpecNode* spec, shared_ptr<EvalState> state);

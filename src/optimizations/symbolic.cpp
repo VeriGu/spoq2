@@ -1645,6 +1645,7 @@ static void alignment_skeleton(const SpecNode *n, int depth, std::ostream &out) 
 bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
                    Definition *rel_pre, Definition *rel_post, SpecNode  const*ret_rel,
                    std::unordered_set<string>  const&used_abs, SimulateResult *out) {
+    init_stack_typing(proj);
     Z3Cache.clear();
     forget_unfolded_sites();
     extern std::chrono::duration<double> z3_accumulative_time;

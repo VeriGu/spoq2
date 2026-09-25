@@ -122,6 +122,8 @@ unsigned long z3_unknowns = 0;
 unsigned long z3_retries = 0, z3_retries_decided = 0;
 unsigned long z3_checks = 0;
 unsigned long z3_cache_hits = 0;
+unsigned long z3_race_solves = 0;
+unsigned long z3_state_sat[3] = {0, 0, 0};  // unsat, sat, unknown
 std::chrono::duration<double> z3_accumulative_time = std::chrono::duration<double>::zero();
 
 // helper to read or fall back
@@ -295,6 +297,7 @@ static z3::check_result z3_race_file(const std::string &file, int timeout_ms,
  *  already end in a check-sat form; it is written to a scratch file because the
  *  children take a path, not a string. */
 static z3::check_result z3_race_solve(const std::string &query, int timeout_ms) {
+    z3_race_solves++;
     auto const file = std::filesystem::temp_directory_path() /
                 ("spoq-race-" + std::to_string(::getpid()) + ".smt2");
     { std::ofstream ofs(file); ofs << query; }
@@ -393,6 +396,144 @@ static z3::check_result check_retrying(z3::solver &solver, z3::model *model = nu
     return check_retrying(solver, z3::expr_vector(z3ctx), model);
 }
 
+/* -- stack typing ------------------------------------------------------------
+ *
+ * Each stack slot is present and holds the StackVal constructor of its
+ * declared type.  Sound for every real execution: the frame layout is fixed by
+ * the allocas, store_stack rebuilds only the constructor it finds, and callees
+ * reach the stack only through store_stack.  States built by a store inherit
+ * the fact from their base, so it is stated only for leaf states -- declared
+ * ones and those an opaque callee returns.  The slot-to-constructor map is read
+ * from load_stack, whose arm for each constructor relies on exactly the slots
+ * of that type.  Off unless SPOQ_STACK_TYPING=1: on libmodbus it prunes
+ * nothing, since the arms it rules out are catch-all `None` arms, which
+ * simple_match_by_z3 keeps anyway.  See docs/stack_assumptions.md.
+ */
+static std::vector<std::pair<std::string, std::string>> g_slot_constructor;
+
+/// String constants anywhere below [n].
+static void collect_strings(SpecNode *n, std::set<std::string> &out) {
+    if (!n) return;
+    if (auto c = dynamic_cast<StringConst *>(n)) { out.insert(std::get<string>(c->value)); return; }
+    if (auto e = dynamic_cast<Expr *>(n)) {
+        for (auto const &x : *e->elems) collect_strings(x.get(), out);
+    } else if (auto m = dynamic_cast<Match *>(n)) {
+        collect_strings(m->src.get(), out);
+        for (auto const &pm : *m->match_list) collect_strings(pm->body.get(), out);
+    } else if (auto r = dynamic_cast<RelyAnno *>(n)) {
+        collect_strings(r->prop.get(), out);
+        collect_strings(r->body.get(), out);
+    } else if (auto i = dynamic_cast<If *>(n)) {
+        collect_strings(i->cond.get(), out);
+        collect_strings(i->then_body.get(), out);
+        collect_strings(i->else_body.get(), out);
+    }
+}
+
+/// The constructor arms of load_stack's match on the slot's value.
+static void collect_slot_types(SpecNode *n, std::map<std::string, std::set<std::string>> &slots_of) {
+    if (auto m = dynamic_cast<Match *>(n)) {
+        for (auto const &pm : *m->match_list) {
+            auto pat = dynamic_cast<Expr *>(pm->pattern.get());
+            auto ctor = pat ? std::get_if<string>(&pat->op) : nullptr;
+            if (ctor && pat->elems->size() == 1) {
+                std::set<std::string> names;
+                collect_strings(pm->body.get(), names);
+                slots_of[*ctor].insert(names.begin(), names.end());
+            } else {
+                collect_slot_types(pm->body.get(), slots_of);
+            }
+        }
+    } else if (auto r = dynamic_cast<RelyAnno *>(n)) {
+        collect_slot_types(r->body.get(), slots_of);
+    }
+}
+
+void init_stack_typing(Project *proj) {
+    static bool done = false;
+    if (done) return;
+    done = true;
+    const char *e = std::getenv("SPOQ_STACK_TYPING");
+    if (!e || std::string(e) != "1") return;
+    auto const it = proj->defs.find("load_stack");
+    if (it == proj->defs.end() || !it->second->body()) return;
+    std::map<std::string, std::set<std::string>> slots_of;
+    collect_slot_types(it->second->body().get(), slots_of);
+    std::map<std::string, std::string> ctor_of;
+    std::set<std::string> ambiguous;
+    for (auto const &[ctor, slots] : slots_of)
+        for (auto const &s : slots)
+            if (!ctor_of.emplace(s, ctor).second) ambiguous.insert(s);
+    for (auto const &[s, ctor] : ctor_of)
+        if (!ambiguous.count(s)) g_slot_constructor.emplace_back(s, ctor);
+    LOG_DEBUG << "[stack typing] " << g_slot_constructor.size() << " typed slot(s)";
+}
+
+/// The index of [s]'s constructor or accessor whose name satisfies [pred].
+template <class Pred>
+static int find_constructor(const z3::sort &s, Pred pred) {
+    unsigned const n = Z3_get_datatype_sort_num_constructors(z3ctx, s);
+    for (unsigned i = 0; i < n; i++)
+        if (pred(z3::func_decl(z3ctx, Z3_get_datatype_sort_constructor(z3ctx, s, i)).name().str())) return int(i);
+    return -1;
+}
+
+/// For each leaf state term in [s]'s assertions (and [goal]), asserts that
+/// every typed slot of its stack is present with its declared constructor.
+static void add_stack_typing_facts(z3::solver &s, const z3::expr *goal = nullptr) {
+    if (g_slot_constructor.empty()) return;
+    std::unordered_set<unsigned> seen, leaves_seen;
+    std::vector<z3::expr> todo, leaves;
+    for (auto const a : s.assertions()) todo.push_back(a);
+    if (goal) todo.push_back(*goal);
+    auto const is_state = [](const z3::sort &srt) {
+        if (!srt.is_datatype() || Z3_get_datatype_sort_num_constructors(z3ctx, srt) != 1) return false;
+        z3::func_decl const mk(z3ctx, Z3_get_datatype_sort_constructor(z3ctx, srt, 0));
+        for (unsigned j = 0; j < mk.arity(); j++)
+            if (z3::func_decl(z3ctx, Z3_get_datatype_sort_constructor_accessor(z3ctx, srt, 0, j)).name().str() == "stack")
+                return true;
+        return false;
+    };
+    // Slot names the query mentions: a fact about any other slot is never
+    // used, and every fact enlarges the query.
+    std::set<std::string> mentioned;
+    while (!todo.empty()) {
+        auto const t = todo.back();
+        todo.pop_back();
+        if (!t.is_app() || !seen.insert(t.id()).second) continue;
+        if (t.is_string_value()) mentioned.insert(t.get_string());
+        auto const kind = t.decl().decl_kind();
+        if (is_state(t.get_sort()) && kind != Z3_OP_DT_CONSTRUCTOR && kind != Z3_OP_ITE &&
+            leaves_seen.insert(t.id()).second)
+            leaves.push_back(t);
+        for (unsigned i = 0; i < t.num_args(); i++) todo.push_back(t.arg(i));
+    }
+    for (auto const &st : leaves) {
+        auto const srt = st.get_sort();
+        z3::func_decl const mk(z3ctx, Z3_get_datatype_sort_constructor(z3ctx, srt, 0));
+        int stack_at = -1;
+        for (unsigned j = 0; j < mk.arity(); j++)
+            if (z3::func_decl(z3ctx, Z3_get_datatype_sort_constructor_accessor(z3ctx, srt, 0, j)).name().str() == "stack")
+                stack_at = int(j);
+        auto const stack = z3::func_decl(z3ctx, Z3_get_datatype_sort_constructor_accessor(z3ctx, srt, 0, stack_at))(st);
+        auto const opt = stack.get_sort().array_range();
+        int const some_at = find_constructor(opt, [](const std::string &n) { return n.rfind("Some", 0) == 0; });
+        if (some_at < 0) continue;
+        z3::func_decl const is_some(z3ctx, Z3_get_datatype_sort_recognizer(z3ctx, opt, some_at));
+        z3::func_decl const value(z3ctx, Z3_get_datatype_sort_constructor_accessor(z3ctx, opt, some_at, 0));
+        auto const val_sort = value.range();
+        for (auto const &[slot, ctor] : g_slot_constructor) {
+            if (!mentioned.count(slot)) continue;
+            int const c = find_constructor(val_sort, [&](const std::string &n) { return n == ctor; });
+            if (c < 0) continue;
+            z3::func_decl const is_ctor(z3ctx, Z3_get_datatype_sort_recognizer(z3ctx, val_sort, c));
+            auto const v = z3::select(stack, z3ctx.string_val(slot));
+            s.add(is_some(v) && is_ctor(value(v)));
+        }
+    }
+}
+
+
 /// Under bitvector sorts, asserts `args(a) = args(b) -> a = b` for each pair of
 /// applications of one uninterpreted function with a bitvector argument whose
 /// bitvector arguments are syntactically identical, so the antecedent equates
@@ -447,6 +588,77 @@ static void add_congruence_lemmas(z3::solver &s, const z3::expr *goal = nullptr)
     }
 }
 
+/// Ground instances of the rounding-up division facts ceil_fact and wrap_fact,
+/// proved in openjpeg_queries/CeilWrap.v, for each quotient of the form
+/// ((M - 1 + b + a) mod M) / (b mod M) with M a positive numeral: the
+/// translation of an unsigned (a + b - 1) / b.  With x = a mod M, y = b mod M:
+///   y > 0, x + y - 1 < M   the quotient is x / y + (x mod y <> 0)
+///   y > 0, x + y - 1 >= M  the numerator wrapped and the quotient is 0
+/// Z3 decides relations between the two forms only with these instances; a
+/// quantified form is never instantiated.  Integer sorts; SPOQ_DIV_LEMMAS=0
+/// disables.
+static void add_rounding_division_lemmas(z3::solver &s, const z3::expr *goal = nullptr) {
+    static const bool enabled = [] {
+        const char *e = std::getenv("SPOQ_DIV_LEMMAS");
+        return !(e && std::string(e) == "0");
+    }();
+    if (!enabled) return;
+    constexpr size_t max_lemmas = 64;
+
+    auto const is_mod_by_numeral = [](const z3::expr &e) {
+        return e.is_app() && e.decl().decl_kind() == Z3_OP_MOD && e.arg(1).is_numeral();
+    };
+    std::unordered_set<unsigned> seen;
+    std::vector<z3::expr> todo;
+    for (auto const a : s.assertions()) todo.push_back(a);
+    if (goal) todo.push_back(*goal);
+    size_t added = 0;
+    while (!todo.empty() && added < max_lemmas) {
+        z3::expr const e = todo.back();
+        todo.pop_back();
+        if (!e.is_app() || !seen.insert(e.id()).second) continue;
+        for (unsigned i = 0; i < e.num_args(); ++i) todo.push_back(e.arg(i));
+        if (e.decl().decl_kind() != Z3_OP_IDIV) continue;
+        z3::expr const num = e.arg(0), den = e.arg(1);
+        if (!is_mod_by_numeral(num) || !is_mod_by_numeral(den) || !z3::eq(num.arg(1), den.arg(1))) continue;
+        z3::expr const M = num.arg(1), sum = num.arg(0), b = den.arg(0);
+        if (!(M > 0).simplify().is_true()) continue;
+        // The summands, through nested additions.
+        std::vector<z3::expr> terms, open{sum};
+        while (!open.empty() && terms.size() <= 3) {
+            z3::expr const t = open.back();
+            open.pop_back();
+            if (t.is_app() && t.decl().decl_kind() == Z3_OP_ADD)
+                for (unsigned i = 0; i < t.num_args(); ++i) open.push_back(t.arg(i));
+            else
+                terms.push_back(t);
+        }
+        if (!open.empty() || terms.size() != 3) continue;
+        z3::expr const m1 = (M - 1).simplify();
+        // The summands other than M - 1 and b; exactly one is left, a.
+        std::vector<z3::expr> rest;
+        bool have_m1 = false, have_b = false;
+        for (auto const &t : terms) {
+            if (!have_m1 && z3::eq(t, m1)) have_m1 = true;
+            else if (!have_b && z3::eq(t, b)) have_b = true;
+            else rest.push_back(t);
+        }
+        if (!have_m1 || !have_b || rest.size() != 1) continue;
+        z3::expr const x = z3::mod(rest[0], M), y = den;
+        z3::expr const room = x + y - 1;
+        z3::expr const carry = z3::ite(z3::mod(x, y) == 0, z3ctx.int_val(0), z3ctx.int_val(1));
+        s.add(z3::implies(y > 0 && room < M, num == room && e == x / y + carry));
+        s.add(z3::implies(y > 0 && room >= M, num == room - M && e == 0));
+        ++added;
+    }
+}
+
+/// Every lemma kind, for one check.
+static void add_lemmas(z3::solver &s, const z3::expr *goal = nullptr) {
+    add_congruence_lemmas(s, goal);
+    add_rounding_division_lemmas(s, goal);
+}
+
 /// SPOQ_SLOW_QUERY_DIR, if set, receives every check that took at least
 /// SPOQ_SLOW_QUERY_MS (default 200) as an .smt2 with its result and time.
 static bool slow_query_wanted(std::chrono::duration<double> elapsed) {
@@ -485,7 +697,8 @@ Z3Result z3_verify(const shared_ptr<ProveState>& state, const z3::expr& cond, Qu
     }
 
     solve.add(!cond);
-    add_congruence_lemmas(solve);
+    add_lemmas(solve);
+    add_stack_typing_facts(solve);
     auto const not_res = check_retrying(solve);
     if (qinfo)
         qinfo->dump(solve.to_smt2());
@@ -533,7 +746,8 @@ Z3Result z3_verify_state_sat(const shared_ptr<ProveState>& state, QueryInfo *qin
     for (auto  const&ind : *state->inductions) {
         solve.add(ind);
     }
-    add_congruence_lemmas(solve);
+    add_lemmas(solve);
+    add_stack_typing_facts(solve);
     // Under --race the query goes to external Z3 processes instead of running on
     // this thread, so a solver that overruns its budget can still be killed.
     // Unlike z3_check there is no assumption here -- the state is asserted and
@@ -545,6 +759,7 @@ Z3Result z3_verify_state_sat(const shared_ptr<ProveState>& state, QueryInfo *qin
     auto const res = OPTS.race ? z3_race_solve(query, timeout) : check_retrying(solve);
     auto const end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+    z3_state_sat[res == z3::unsat ? 0 : res == z3::sat ? 1 : 2]++;
 
     // std::cout << "-----------------Z3_verify_state_sat-----------------" << std::endl;
     // for (auto &c : *state->conds) {
@@ -571,7 +786,8 @@ Z3Result z3_verify_state_sat(const shared_ptr<EvalState>& state, QueryInfo *qinf
     for (auto  const&c : *state->conds) {
         solve.add(c);
     }
-    add_congruence_lemmas(solve);
+    add_lemmas(solve);
+    add_stack_typing_facts(solve);
 
     // Under --race the query goes to external Z3 processes instead of running on
     // this thread, so a solver that overruns its budget can still be killed.
@@ -584,6 +800,7 @@ Z3Result z3_verify_state_sat(const shared_ptr<EvalState>& state, QueryInfo *qinf
     auto const res = OPTS.race ? z3_race_solve(query, timeout) : check_retrying(solve);
     auto const end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+    z3_state_sat[res == z3::unsat ? 0 : res == z3::sat ? 1 : 2]++;
 
     // std::cout << "-----------------Z3_verify_state_sat-----------------" << std::endl;
     // for (auto &c : *state->conds) {
@@ -621,7 +838,8 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, const z3::expr& cond, Quer
             solver.add(ind);
         }
     }
-    add_congruence_lemmas(solver, &cond);
+    add_lemmas(solver, &cond);
+    add_stack_typing_facts(solver, &cond);
     // cond is checked as an assumption, so it is not one of the solver's asserted
     // formulas and to_smt2() would write the context without the goal.  Rebuild it
     // on a throwaway solver, recording the goal behind a marker constant so a
@@ -728,7 +946,8 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, int timeout) {
             solver.add(ind);
         }
     }
-    add_congruence_lemmas(solver);
+    add_lemmas(solver);
+    add_stack_typing_facts(solver);
 
 
 #ifdef Z3_PCACHE
@@ -791,7 +1010,8 @@ Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& con
     }
 
     solver.add(!cond);
-    add_congruence_lemmas(solver);
+    add_lemmas(solver);
+    add_stack_typing_facts(solver);
     // auto not_res = solver.check();
     auto not_res = z3::unknown;
     std::string query;
@@ -826,6 +1046,7 @@ Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& con
         return Z3Result::Sat;
     } else {
         Z3Cache.insert(cache_query, Z3Result::Unknown);
+        z3_unknowns++;
         return Z3Result::Unknown;
     }
 }
