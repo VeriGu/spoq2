@@ -23,6 +23,10 @@ namespace autov {
         const NoneConditionAccumulator add_condition(std::unique_ptr<SpecNode> cond);
         NoneConditionAccumulator add_inverse_condition(std::unique_ptr<SpecNode> cond);
 
+        /// The node of [copy], a deep copy of [root], at the position [target]
+        /// has in [root]; nullptr if [target] is null or not in [root].
+        static SpecNode *corresponding_node(SpecNode *root, SpecNode *target, SpecNode *copy);
+
         // Copy Constructor
         NoneConditionAccumulator(const NoneConditionAccumulator& other) {
             if (other.accumulated_cond) {
@@ -31,7 +35,10 @@ namespace autov {
                 this->accumulated_cond = nullptr;
             }
             this->discharge_none = other.discharge_none;
-            this->last_pattern_match = nullptr; // Cannot copy the weak pointer.
+            // The node at the same position in the copy.
+            this->last_pattern_match = corresponding_node(other.accumulated_cond.get(),
+                                                          other.last_pattern_match,
+                                                          this->accumulated_cond.get());
             this->proj = other.proj;
             this->def_name = other.def_name;
         }

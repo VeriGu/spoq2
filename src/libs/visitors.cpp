@@ -3,6 +3,36 @@
 #include <utils.h>
 
 namespace autov {
+    /// The children of [n] in the order corresponding_node walks them.
+    static std::vector<SpecNode *> children(SpecNode *n) {
+        std::vector<SpecNode *> out;
+        if (auto e = instance_of(n, Expr)) {
+            if (e->elems)
+                for (auto const &c : *e->elems) out.push_back(c.get());
+        } else if (auto m = instance_of(n, Match)) {
+            out.push_back(m->src.get());
+            if (m->match_list)
+                for (auto const &pm : *m->match_list) out.push_back(pm.get());
+        } else if (auto pm = instance_of(n, PatternMatch)) {
+            out.push_back(pm->body.get());
+        } else if (auto i = instance_of(n, If)) {
+            out.insert(out.end(), {i->cond.get(), i->then_body.get(), i->else_body.get()});
+        } else if (auto r = instance_of(n, RelyAnno)) {
+            out.insert(out.end(), {r->prop.get(), r->body.get()});
+        }
+        return out;
+    }
+
+    SpecNode *NoneConditionAccumulator::corresponding_node(SpecNode *root, SpecNode *target,
+                                                           SpecNode *copy) {
+        if (!root || !target || !copy) return nullptr;
+        if (root == target) return copy;
+        auto const from = children(root), to = children(copy);
+        for (size_t k = 0; k < from.size() && k < to.size(); k++)
+            if (auto found = corresponding_node(from[k], target, to[k])) return found;
+        return nullptr;
+    }
+
     void NoneConditionAccumulator::visit_none() {
         if (discharge_none.has_value()) {
             (*discharge_none)(std::move(accumulated_cond));
@@ -67,6 +97,8 @@ namespace autov {
             }
             // LOG_DEBUG << "LPM swapped: " << string(*accumulated_cond);
             auto new_accumulator = NoneConditionAccumulator(*this);
+            // Found again below, where the new condition is placed.
+            new_accumulator.last_pattern_match = nullptr;
             // new_accumulator has copied the current state of the condition,
             // this includes the symbol of which has replaced the body of last_pattern_match.
             if(last_pattern_match){
