@@ -91,7 +91,11 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, const shared_
         state->conds->push_back(src->get_z3_value() == z3ctx.string_val(std::get<string>(con->value)));
     } else if (auto expr = instance_of(pat, Expr)) {
         if (op_eq(expr->op, Expr::Some)) {
-            auto const value = dynamic_pointer_cast<IndValue>(src)->get("value");
+            // The tester below is asserted, so the payload is the value; it
+            // saves the solver unwrapping every If on the way to it.
+            auto const ind = dynamic_pointer_cast<IndValue>(src);
+            auto value = ind->some_payload();
+            if (!value) value = ind->get("value");
             auto const t = dynamic_pointer_cast<Option>(src->get_type());
             auto const idx = t->get_constr_index(t->some_name());
             auto const is_some = t->get_z3_type().recognizers()[idx];

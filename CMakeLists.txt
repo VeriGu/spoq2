@@ -323,6 +323,12 @@ target_link_libraries(UnfoldAmbiguityTest GTest::gtest_main GTest::gtest irloade
     antlr4_shared ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
 add_test(NAME UnfoldAmbiguity COMMAND UnfoldAmbiguityTest)
 
+# MatchOutWhenTest -- rule_move_match_out_when on inner matches of any arity
+add_executable(MatchOutWhenTest test/unit/MatchOutWhenTest.cpp $<TARGET_OBJECTS:spoq_core>)
+target_link_libraries(MatchOutWhenTest GTest::gtest_main GTest::gtest irloader parser
+    antlr4_shared ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
+add_test(NAME MatchOutWhen COMMAND MatchOutWhenTest)
+
 # ------------------------------------------------------------------------------
 # HoistBudgetTest -- the guard on hoist_match_from_branch
 # ------------------------------------------------------------------------------

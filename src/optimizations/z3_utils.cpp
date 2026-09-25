@@ -150,12 +150,13 @@ z3::check_result z3_solver_answer(const std::string &out) {
     return z3::unknown;
 }
 
-/// Whether a check that returns unknown is retried with the retry tactic.  On
-/// by default with integer sorts; SPOQ_Z3_RETRY=0 or 1 overrides.
+/// Whether a check that returns unknown is retried with the retry tactic.
+/// Off unless SPOQ_Z3_RETRY is set to a value other than 0: on openjpeg the
+/// retries cost more time than the checks they decide save.
 static bool retry_enabled() {
     static const bool on = [] {
-        if (const char *e = std::getenv("SPOQ_Z3_RETRY")) return std::string(e) != "0";
-        return !z3_bv_sorts_enabled();
+        const char *e = std::getenv("SPOQ_Z3_RETRY");
+        return e && std::string(e) != "0";
     }();
     return on;
 }

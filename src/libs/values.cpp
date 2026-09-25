@@ -712,6 +712,34 @@ shared_ptr<StructValue> StructValue::set(int key, const shared_ptr<SpecValue>& v
 // IndValue
 // ----------------------------------------------------------------------------
 
+/// The payload of [e], an Option term, when [e] is not None; see
+/// IndValue::some_payload.
+static std::optional<z3::expr> option_payload(const z3::expr &e, const z3::func_decl &some,
+                                              const z3::func_decl &none) {
+    if (!e.is_app()) return std::nullopt;
+    auto const d = e.decl();
+    if (z3::eq(d, some)) return e.arg(0);
+    if (d.decl_kind() != Z3_OP_ITE) return std::nullopt;
+    auto const is_none = [&](const z3::expr &x) { return x.is_app() && z3::eq(x.decl(), none); };
+    auto const then_e = e.arg(1), else_e = e.arg(2);
+    if (is_none(then_e)) return option_payload(else_e, some, none);
+    if (is_none(else_e)) return option_payload(then_e, some, none);
+    auto const a = option_payload(then_e, some, none), b = option_payload(else_e, some, none);
+    if (!a || !b) return std::nullopt;
+    return z3::ite(e.arg(0), *a, *b);
+}
+
+shared_ptr<SpecValue> IndValue::some_payload() {
+    auto const option = instance_of(typ.get(), Option);
+    if (!option) return nullptr;
+    auto sort = value.get_sort();
+    auto const some = sort.constructors()[option->get_constr_index(option->some_name())];
+    auto const none = sort.constructors()[option->get_constr_index(option->none_name())];
+    auto const p = option_payload(value, some, none);
+    if (!p) return nullptr;
+    return option->elem_type->from_z3_value(*p);
+}
+
 shared_ptr<SpecValue> IndValue::get(const string& key) {
     auto accessor = key;
     if(auto type = instance_of(typ.get(), Option)) {

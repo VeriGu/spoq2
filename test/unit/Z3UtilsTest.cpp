@@ -344,3 +344,75 @@ TEST(SolverAnswerTest, WordsInDiagnosticsAreNotAnswers) {
     EXPECT_EQ(z3_solver_answer("WARNING: the model may not satisfy the assertions\n"), z3::unknown);
     EXPECT_EQ(z3_solver_answer("sh: 1: z3/build/z3: not found\n"), z3::unknown);
 }
+
+/* IndValue::some_payload: resolve_pattern binds a `Some x` pattern to it
+ * instead of value(src), so it must equal value(src) wherever src is Some. */
+namespace {
+
+struct OptionTerms {
+    shared_ptr<Option> type = make_shared<Option>(Int::INT);
+    z3::sort sort = type->get_z3_type();
+    z3::func_decl some = sort.constructors()[type->get_constr_index(Option::some_name(Int::INT))];
+    z3::func_decl none = sort.constructors()[type->get_constr_index(Option::none_name(Int::INT))];
+    z3::func_decl is_some = sort.recognizers()[type->get_constr_index(Option::some_name(Int::INT))];
+    z3::func_decl value = some.accessors()[0];
+    z3::expr x = z3ctx.int_const("px"), y = z3ctx.int_const("py");
+    z3::expr c = z3ctx.bool_const("pc"), d = z3ctx.bool_const("pd");
+    z3::expr None() const { return none(); }
+    shared_ptr<SpecValue> payload(const z3::expr &t) const {
+        return make_shared<IndValue>(type, t)->some_payload();
+    }
+    /// is_some(t) -> value(t) = p is valid.
+    bool agrees(const z3::expr &t, const z3::expr &p) const {
+        z3::solver s(z3ctx);
+        s.add(is_some(t) && value(t) != p);
+        return s.check() == z3::unsat;
+    }
+};
+
+}  // namespace
+
+TEST(SomePayloadTest, SomeGivesItsArgument) {
+    OptionTerms o;
+    auto const p = o.payload(o.some(o.x));
+    ASSERT_NE(p, nullptr);
+    EXPECT_TRUE(z3::eq(p->get_z3_value(), o.x));
+}
+
+TEST(SomePayloadTest, NoneBranchIsSkipped) {
+    OptionTerms o;
+    for (auto const &t : {z3::ite(o.c, o.None(), o.some(o.x)), z3::ite(o.c, o.some(o.x), o.None())}) {
+        auto const p = o.payload(t);
+        ASSERT_NE(p, nullptr) << t;
+        EXPECT_TRUE(z3::eq(p->get_z3_value(), o.x)) << t;
+        EXPECT_TRUE(o.agrees(t, p->get_z3_value())) << t;
+    }
+}
+
+TEST(SomePayloadTest, TwoSomeBranchesKeepTheCondition) {
+    OptionTerms o;
+    auto const t = z3::ite(o.c, o.some(o.x), o.some(o.y));
+    auto const p = o.payload(t);
+    ASSERT_NE(p, nullptr);
+    EXPECT_TRUE(o.agrees(t, p->get_z3_value()));
+    // Neither branch alone is the value.
+    EXPECT_FALSE(o.agrees(t, o.x));
+    EXPECT_FALSE(o.agrees(t, o.y));
+}
+
+TEST(SomePayloadTest, NestedTreeAgreesWithTheAccessor) {
+    OptionTerms o;
+    auto const t = z3::ite(o.c, o.None(), z3::ite(o.d, o.some(o.x + 1), z3::ite(o.c, o.some(o.y), o.None())));
+    auto const p = o.payload(t);
+    ASSERT_NE(p, nullptr);
+    EXPECT_TRUE(o.agrees(t, p->get_z3_value()));
+}
+
+TEST(SomePayloadTest, NoPayloadWithoutASomeLeafOrForAnOpaqueTerm) {
+    OptionTerms o;
+    EXPECT_EQ(o.payload(z3::ite(o.c, o.None(), o.None())), nullptr);
+    EXPECT_EQ(o.payload(o.None()), nullptr);
+    EXPECT_EQ(o.payload(z3ctx.constant("opaque_option", o.sort)), nullptr);
+    // A Some leaf beside an opaque one: the opaque leaf may be Some too.
+    EXPECT_EQ(o.payload(z3::ite(o.c, o.some(o.x), z3ctx.constant("opaque_option", o.sort))), nullptr);
+}

@@ -4296,17 +4296,18 @@ rule_ret_t SpecRules::rule_move_match_out_when(std::unique_ptr<SpecNode> spec, b
                 if (contains_vars(proj, outer->body.get(), vars)) return node;
         }
 
+        // Copies of the outer arms only: m->src is the inner match, whose arms
+        // are moved out below, so copying m itself would read moved-from arms.
+        auto const copy_outer = [&]() {
+            auto copy = std::make_unique<vector<unique_ptr<PatternMatch>>>();
+            for (auto const &outer : *m->match_list) copy->push_back(outer->deep_copy_down());
+            return copy;
+        };
         auto arms = std::make_unique<std::vector<std::unique_ptr<PatternMatch>>>();
         auto const n = src->match_list->size();
         for (size_t i = 0; i < n; i++) {
             auto &pm = src->match_list->at(i);
-            unique_ptr<vector<unique_ptr<PatternMatch>>> outer_arms;
-            if (i + 1 < n) {
-                unique_ptr<Match> copy(static_cast<Match *>(m->deep_copy().release()));
-                outer_arms = std::move(copy->match_list);
-            } else {
-                outer_arms = std::move(m->match_list);
-            }
+            auto outer_arms = i + 1 < n ? copy_outer() : std::move(m->match_list);
             arms->push_back(std::make_unique<PatternMatch>(
                 std::move(pm->pattern), std::make_unique<Match>(std::move(pm->body), std::move(outer_arms))));
         }

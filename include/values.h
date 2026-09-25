@@ -1008,6 +1008,11 @@ public:
     };
 
     shared_ptr<SpecValue> get(const string& key);
+    /// For an Option whose term is built from If, None and Some, the value it
+    /// holds when it is not None: If(c, None, e) gives e's, If(c, a, b) gives
+    /// If(c, a's, b's), Some(x) gives x.  Equal to get("value") wherever the
+    /// Option is Some, and free of the accessor.  nullptr for any other term.
+    shared_ptr<SpecValue> some_payload();
     // shared_ptr<IndValue> set(string key, shared_ptr<SpecValue> value);
     //shared_ptr<IndValue> concat(shared_ptr<IndValue> other);
 
