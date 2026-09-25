@@ -416,3 +416,48 @@ TEST(SomePayloadTest, NoPayloadWithoutASomeLeafOrForAnOpaqueTerm) {
     // A Some leaf beside an opaque one: the opaque leaf may be Some too.
     EXPECT_EQ(o.payload(z3::ite(o.c, o.some(o.x), z3ctx.constant("opaque_option", o.sort))), nullptr);
 }
+
+/* add_rounding_division_lemmas: an unsigned (a + b - 1) / b translates to
+ * ((M - 1 + b + a) mod M) / (b mod M).  Its relation to b's quotient and
+ * remainder (ceil_fact and wrap_fact, openjpeg_queries/CeilWrap.v) is out of
+ * Z3's reach without the instances: unknown even at 10 s. */
+namespace {
+
+struct RoundingDivision {
+    z3::expr a = z3ctx.int_const("rd_a"), b = z3ctx.int_const("rd_b");
+    z3::expr M = z3ctx.int_val("4294967296");
+    z3::expr x = z3::mod(a, M), y = z3::mod(b, M);
+    z3::expr quotient(long offset) const {  // ((M - offset + b + a) mod M) / (b mod M)
+        return z3::mod(z3ctx.int_val((int64_t)4294967296LL - offset) + b + a, M) / y;
+    }
+    z3::expr carry() const { return z3::ite(z3::mod(x, y) == 0, z3ctx.int_val(0), z3ctx.int_val(1)); }
+    Z3Result check(std::initializer_list<z3::expr> conds, const z3::expr &goal) const {
+        z3::model m(z3ctx);
+        return z3_check_unsat(prove_state_of(conds, {}), goal, m, nullptr, 300);
+    }
+};
+
+}  // namespace
+
+TEST(RoundingDivisionLemmaTest, QuotientWithoutWrapIsTheRoundedUpQuotient) {
+    RoundingDivision r;
+    EXPECT_EQ(r.check({r.y > 0, r.x + r.y - 1 < r.M}, r.quotient(1) == r.x / r.y + r.carry()),
+              Z3Result::True);
+}
+
+TEST(RoundingDivisionLemmaTest, QuotientWithWrapIsZero) {
+    RoundingDivision r;
+    EXPECT_EQ(r.check({r.y > 0, r.x + r.y - 1 >= r.M}, r.quotient(1) == 0), Z3Result::True);
+}
+
+TEST(RoundingDivisionLemmaTest, QuotientWithoutTheCarryIsNotProved) {
+    RoundingDivision r;
+    EXPECT_NE(r.check({r.y > 0, r.x + r.y - 1 < r.M}, r.quotient(1) == r.x / r.y), Z3Result::True);
+}
+
+TEST(RoundingDivisionLemmaTest, OtherNumeratorsGetNoLemma) {
+    // (a + b - 2) / b is not the rounded-up quotient; a lemma for it would be unsound.
+    RoundingDivision r;
+    EXPECT_NE(r.check({r.y > 0, r.x + r.y - 2 < r.M}, r.quotient(2) == r.x / r.y + r.carry()),
+              Z3Result::True);
+}
