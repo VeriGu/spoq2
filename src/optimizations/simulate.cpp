@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include "log.h"
 #include <symbolic.h>
 #include <simulate.h>
@@ -318,6 +319,9 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 				continue;
 			} else {
 				LOG_DEBUG << "[forward_simulation " << random_code << "] Checking Match src: " << string(*m->src).substr(0,200) <<  "\nPattern: " << string(*pat).substr(0,200);
+				static bool const trace_src = std::getenv("SPOQ_TRACE_IF") != nullptr;
+				if (trace_src)
+					LOG_DEBUG << "[forward_simulation " << random_code << "] Match src z3: " << src->get_z3_value().to_string().substr(0, 600);
 				auto this_branch_result = descend((*pm)->body.get(), pm_state, det);
 				if(!this_branch_result.verified){
 					LOG_DEBUG << "[forward_simulation " << random_code << "] Match verification failed on branch: " << string(*pat).substr(0,200);

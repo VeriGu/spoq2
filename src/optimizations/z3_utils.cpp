@@ -2786,6 +2786,9 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
     } else if (auto rely = instance_of(val, Rely)) {
         auto const cond = z3_eval(proj, rely->prop.get(), state,  check_loop, unfold, used_fixpoint);
         auto const res = z3_check(state, cond->get_z3_value());
+        static bool const trace_rely = std::getenv("SPOQ_TRACE_IF") != nullptr;
+        if (trace_rely)
+            LOG_DEBUG << "[z3_eval Rely] check=" << static_cast<int>(res) << " prop: " << string(*rely->prop).substr(0, 300);
         if (res == Z3Result::Unknown || res == Z3Result::Sat) {
             auto const new_state = state->copy();
             new_state->conds->push_back(cond->get_z3_value());
@@ -2804,6 +2807,10 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
     {
         auto const c = z3_eval(proj, iff->cond.get(), state,  check_loop, unfold, used_fixpoint);
         auto const res = z3_check(state, c->get_z3_value());
+        static bool const trace_if = std::getenv("SPOQ_TRACE_IF") != nullptr;
+        if (trace_if)
+            LOG_DEBUG << "[z3_eval If] check=" << static_cast<int>(res) << " cond: " << string(*iff->cond).substr(0, 300)
+                      << "\n  z3: " << c->get_z3_value().to_string().substr(0, 300);
         if (res == Z3Result::Unknown || res == Z3Result::Sat)
         {
             auto const true_state = state->copy();
