@@ -1242,6 +1242,8 @@ void Project::finalize_project()
     extern std::chrono::duration<double> z3_accumulative_time;
 
     LOG_INFO << "Z3 unknowns: " << z3_unknowns << "/" << z3_checks << std::endl;
+    extern unsigned long z3_retries, z3_retries_decided;
+    LOG_INFO << "Z3 unknown results decided on retry: " << z3_retries_decided << "/" << z3_retries << std::endl;
     LOG_INFO << "Z3 cache hits: " << z3_cache_hits << "/" << z3_checks << std::endl;
     LOG_INFO << "Z3 global hash hit: " << z3_global_hash_hit << "/" << z3_global_hash_total << std::endl;
     LOG_INFO << "Z3 accumulative time: " << z3_accumulative_time.count() << " (s)";
@@ -1489,6 +1491,8 @@ bool Project::finalize_project_v2() {
     extern std::chrono::duration<double> z3_accumulative_time;
 
     LOG_INFO << "Z3 unknowns: " << z3_unknowns << "/" << z3_checks << std::endl;
+    extern unsigned long z3_retries, z3_retries_decided;
+    LOG_INFO << "Z3 unknown results decided on retry: " << z3_retries_decided << "/" << z3_retries << std::endl;
     LOG_INFO << "Z3 cache hits: " << z3_cache_hits << "/" << z3_checks << std::endl;
     LOG_INFO << "Z3 global hash hit: " << z3_global_hash_hit << "/" << z3_global_hash_total << std::endl;
     LOG_INFO << "Z3 accumulative time: " << z3_accumulative_time.count() << " (s)";

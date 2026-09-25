@@ -1776,7 +1776,15 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     auto tmp_patched_body =
         subst_v2(proj, patched_def->body()->deep_copy(), &patched_arg_names, &vuln_arg_symbols);
 
-
+    // Both bodies are simulated in one state, where an argument name denotes
+    // the entry value.  A binder that re-binds one, such as the state in
+    // `when r, st == f st`, would change what the name denotes for the other
+    // side, so it is renamed; the patch's binders are renamed below.
+    {
+        std::set<string> arg_names;
+        for (auto const &arg : *vuln_def->args) arg_names.insert(arg->name);
+        vuln_def->body() = proj->rules.eliminate_ambiguity(std::move(vuln_def->body()), arg_names, unneeded);
+    }
 
     // Remove variable name conflicts between the two sides.
     std::set<string> used_var_names;
@@ -1789,9 +1797,6 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     LOG_DEBUG << "Used Var Names 1: ";
     for (auto const &s: used_var_names){ std::cerr << s << ", ";}
      std::cerr << std::endl;
-    for (auto const &arg: *vuln_def->args) {
-        used_var_names.erase(arg->name);
-    }
     LOG_DEBUG << "Used Var Names 2: ";
     for (auto const &s: used_var_names){ std::cerr << s << ", ";}
      std::cerr << std::endl;

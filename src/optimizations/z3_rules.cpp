@@ -58,21 +58,11 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, const shared_
             state->conds->push_back(is_some(src->get_z3_value()));
 
         } else {
-            // resolve_pattern in spec transformation will have  state->vars[sym->text] be empty.
-            // but resolve_pattern during verification will already have a value.
-            if (state->vars->find(sym->text) == state->vars->end()) {
-                (*state->vars)[sym->text] = src;
-            }
-
-            if (src->get_z3_value().get_sort().to_string() == sym->get_type()->get_z3_type().to_string()){
-                state->conds->push_back(src->get_z3_value() == (sym->get_type())->declare(sym->text, 0)->get_z3_value());
-            } else {
-                LOG_DEBUG << "src " << string(*src);
-                LOG_DEBUG << "symval " << string(*sym->get_type()->declare(sym->text, 0));
-                LOG_DEBUG << "src z3 val " << src->get_z3_value();
-                LOG_DEBUG << "src z3 val sort" << src->get_z3_value().get_sort();
-                LOG_DEBUG << "sym type sort" << sym->get_type()->get_z3_type();
-            }
+            // The pattern binds a new variable, shadowing any binding of the
+            // same name.  The body reads the value from state->vars; equating
+            // it with a per-name constant would equate every value bound to
+            // that name on the path, in either the spec or the impl.
+            (*state->vars)[sym->text] = src;
         }
     } else if (auto con = instance_of(pat, Const)) {
         if (auto v = std::get_if<unsigned long>(&con->value)) {
@@ -680,7 +670,6 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, const std:
                         elems.push_back(sym->deep_copy());
                         names.push_back(func->args->at(i)->name);
                         elems.push_back(sym->deep_copy());
-                        (*new_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
                         names.push_back(func->args->at(i)->name + "_old");
                         elems.push_back(expr_src->elems->at(i)->deep_copy());
                     }

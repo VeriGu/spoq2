@@ -119,6 +119,7 @@ std::optional<Z3Result> Z3ResultCache::find(const Query &q) const {
 }
 
 unsigned long z3_unknowns = 0;
+unsigned long z3_retries = 0, z3_retries_decided = 0;
 unsigned long z3_checks = 0;
 unsigned long z3_cache_hits = 0;
 std::chrono::duration<double> z3_accumulative_time = std::chrono::duration<double>::zero();
@@ -149,6 +150,24 @@ z3::check_result z3_solver_answer(const std::string &out) {
     return z3::unknown;
 }
 
+/// Whether a check that returns unknown is retried with the retry tactic.  On
+/// by default with integer sorts; SPOQ_Z3_RETRY=0 or 1 overrides.
+static bool retry_enabled() {
+    static const bool on = [] {
+        if (const char *e = std::getenv("SPOQ_Z3_RETRY")) return std::string(e) != "0";
+        return !z3_bv_sorts_enabled();
+    }();
+    return on;
+}
+
+/// Preprocessing that eliminates the equalities binding spoq's expanded terms,
+/// then the SMT core without relevancy propagation.  On openjpeg's refinement
+/// queries it decides at 500 ms every unsat query the default strategy needs up
+/// to 5 s for, but it times out on some queries the default decides, so it runs
+/// only after the default returns unknown.
+static const char *const retry_tactic_text =
+    "(then simplify propagate-values solve-eqs elim-uncnstr (using-params smt :relevancy 0))";
+
 /** Race Z3 processes on one query file and take the first definite answer:
  *  the z3 on PATH, the build at Z3_PATH, and under bitvector sorts the z3 on
  *  PATH with the qfaufbv tactic, which decides unsat checks over
@@ -159,7 +178,8 @@ z3::check_result z3_solver_answer(const std::string &out) {
  * be killed from here, which an in-process solver.check() on this thread cannot.
  * Now it works well on z3 4.13.4 and 4.12.5.
  */
-static z3::check_result z3_race_file(const std::string &file, int timeout_ms) {
+static z3::check_result z3_race_file(const std::string &file, int timeout_ms,
+                                     const std::string &retry_file = "") {
     std::string const z3_cli = "z3";
     std::string const z3_path = try_getenv("Z3_PATH", "z3/build/z3");
     std::string const z3_timeout = "-t:" + std::to_string(timeout_ms);
@@ -169,6 +189,8 @@ static z3::check_result z3_race_file(const std::string &file, int timeout_ms) {
     };
     if (z3_bv_sorts_enabled())
         cmds.push_back(z3_cli + " " + z3_timeout + " tactic.default_tactic=qfaufbv " + file);
+    if (!retry_file.empty())
+        cmds.push_back(z3_cli + " " + z3_timeout + " " + retry_file);
     size_t const n = cmds.size();
 
     std::vector<pid_t> pids(n);
@@ -274,9 +296,20 @@ static z3::check_result z3_race_solve(const std::string &query, int timeout_ms) 
     auto const file = std::filesystem::temp_directory_path() /
                 ("spoq-race-" + std::to_string(::getpid()) + ".smt2");
     { std::ofstream ofs(file); ofs << query; }
-    auto const result = z3_race_file(file.string(), timeout_ms);
+    // The same query under the retry tactic, raced alongside.
+    std::filesystem::path retry_file;
+    auto const at = query.rfind("(check-sat)");
+    if (retry_enabled() && at != std::string::npos) {
+        retry_file = std::filesystem::temp_directory_path() /
+                     ("spoq-race-" + std::to_string(::getpid()) + ".retry.smt2");
+        std::ofstream ofs(retry_file);
+        ofs << query.substr(0, at) << "(check-sat-using " << retry_tactic_text << ")"
+            << query.substr(at + std::string("(check-sat)").size());
+    }
+    auto const result = z3_race_file(file.string(), timeout_ms, retry_file.string());
     std::error_code ec;
     std::filesystem::remove(file, ec);
+    if (!retry_file.empty()) std::filesystem::remove(retry_file, ec);
     return result;
 }
 
@@ -292,8 +325,20 @@ static Z3Result z3_race_check(const std::string &query) {
 /// The solver for one check.  Under bitvector sorts it is the `qfaufbv`
 /// tactic: its preprocessing -- ite elimination, ackermannization,
 /// bit-blasting -- decides a matched callee body in milliseconds where the
-/// default strategy times out.  SPOQ_Z3_TACTIC names another tactic, or
-/// "default" for the plain solver.
+/// default strategy times out.  SPOQ_Z3_TACTIC names another tactic, a
+/// comma-separated list of tactics applied in sequence, or "default" for the
+/// plain solver.
+static z3::tactic make_tactic(const std::string &names) {
+    std::optional<z3::tactic> t;
+    std::istringstream in(names);
+    for (std::string name; std::getline(in, name, ',');) {
+        z3::tactic const next(z3ctx, name.c_str());
+        t = t ? *t & next : next;
+    }
+    if (!t) throw std::runtime_error("SPOQ_Z3_TACTIC names no tactic");
+    return *t;
+}
+
 static z3::solver make_solver() {
     // SPOQ_Z3_PARAMS: space-separated key=value pairs set as global Z3 parameters.
     static const bool params_set = [] {
@@ -309,8 +354,39 @@ static z3::solver make_solver() {
     (void)params_set;
     static const char *chosen = std::getenv("SPOQ_Z3_TACTIC");
     static const std::string tactic = chosen && *chosen ? chosen : z3_bv_sorts_enabled() ? "qfaufbv" : "default";
-    if (tactic != "default") return z3::tactic(z3ctx, tactic.c_str()).mk_solver();
+    if (tactic != "default") return make_tactic(tactic).mk_solver();
     return z3::solver(z3ctx);
+}
+
+static z3::solver make_retry_solver() {
+    z3::params p(z3ctx);
+    p.set("relevancy", 0u);
+    auto const t = make_tactic("simplify,propagate-values,solve-eqs,elim-uncnstr") &
+                   z3::with(z3::tactic(z3ctx, "smt"), p);
+    return t.mk_solver();
+}
+
+/// [solver]'s answer under [assumptions]; if it is unknown, the retry tactic's
+/// answer on the same assertions with the assumptions asserted.  [model], if
+/// given, receives the model of whichever solver answered sat.
+static z3::check_result check_retrying(z3::solver &solver, const z3::expr_vector &assumptions,
+                                       z3::model *model = nullptr) {
+    auto const res = assumptions.empty() ? solver.check() : solver.check(assumptions);
+    if (res == z3::sat && model) *model = solver.get_model();
+    if (res != z3::unknown || !retry_enabled()) return res;
+    ++z3_retries;
+    z3::solver retry = make_retry_solver();
+    retry.set(Z3Params);
+    for (auto const c : solver.assertions()) retry.add(c);
+    for (auto const a : assumptions) retry.add(a);
+    auto const again = retry.check();
+    if (again != z3::unknown) ++z3_retries_decided;
+    if (again == z3::sat && model) *model = retry.get_model();
+    return again;
+}
+
+static z3::check_result check_retrying(z3::solver &solver, z3::model *model = nullptr) {
+    return check_retrying(solver, z3::expr_vector(z3ctx), model);
 }
 
 /// Under bitvector sorts, asserts `args(a) = args(b) -> a = b` for each pair of
@@ -406,7 +482,7 @@ Z3Result z3_verify(const shared_ptr<ProveState>& state, const z3::expr& cond, Qu
 
     solve.add(!cond);
     add_congruence_lemmas(solve);
-    auto const not_res = solve.check();
+    auto const not_res = check_retrying(solve);
     if (qinfo)
         qinfo->dump(solve.to_smt2());
 
@@ -462,7 +538,7 @@ Z3Result z3_verify_state_sat(const shared_ptr<ProveState>& state, QueryInfo *qin
     std::string query;
     if (qinfo || OPTS.race) query = solve.to_smt2();
     if (qinfo) qinfo->dump(query);
-    auto const res = OPTS.race ? z3_race_solve(query, timeout) : solve.check();
+    auto const res = OPTS.race ? z3_race_solve(query, timeout) : check_retrying(solve);
     auto const end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
@@ -501,7 +577,7 @@ Z3Result z3_verify_state_sat(const shared_ptr<EvalState>& state, QueryInfo *qinf
     std::string query;
     if (qinfo || OPTS.race) query = solve.to_smt2();
     if (qinfo) qinfo->dump(query);
-    auto const res = OPTS.race ? z3_race_solve(query, timeout) : solve.check();
+    auto const res = OPTS.race ? z3_race_solve(query, timeout) : check_retrying(solve);
     auto const end = std::chrono::high_resolution_clock::now();
     z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
@@ -566,10 +642,10 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, const z3::expr& cond, Quer
     };
     // Under --race the query is solved by external Z3 processes.
     auto const check = [&](const z3::expr &goal, z3::expr_vector &assumptions) {
-        if (!qinfo && !current_query && !OPTS.race) return solver.check(assumptions);
+        if (!qinfo && !current_query && !OPTS.race) return check_retrying(solver, assumptions);
         auto const query = serialize(goal);
         record(query);
-        if (!OPTS.race) return solver.check(assumptions);
+        if (!OPTS.race) return check_retrying(solver, assumptions);
         return z3_race_solve(query, timeout);
     };
 
@@ -654,7 +730,7 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, int timeout) {
 #ifdef Z3_PCACHE
     auto res = z3_pcache_check();
 #else
-    auto const res = solver.check();
+    auto const res = check_retrying(solver);
 #endif
 
     auto const end = std::chrono::high_resolution_clock::now();
@@ -723,7 +799,7 @@ Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& con
         if (raced != Z3Result::Sat) Z3Cache.insert(cache_query, raced);
         return raced;
     } else {
-        not_res = solver.check();
+        not_res = check_retrying(solver, &ce);
     }
 
     auto const end = std::chrono::high_resolution_clock::now();
@@ -742,8 +818,7 @@ Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& con
         Z3Cache.insert(cache_query, Z3Result::True);
         return Z3Result::True;
     } else if (not_res == z3::sat) {
-        //obtained the counter example
-        ce = solver.get_model();
+        // check_retrying stored the counterexample in ce.
         return Z3Result::Sat;
     } else {
         Z3Cache.insert(cache_query, Z3Result::Unknown);

@@ -241,7 +241,6 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 										if(auto sym = instance_of(elem, Symbol)) {
 											names.push_back(loop->name + "_" + loop->args->at(i)->name + "_new");
 											elems.push_back(sym->deep_copy());
-											(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 										}
 									}
 									auto const new_inv = subst_v2(proj,std::move(loop_post_cond), &names, &elems);
@@ -251,7 +250,6 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 								}
 							} else if(p->elems->at(0)->type == proj->layers[0]->abs_data){
 								if(auto sym = instance_of(p->elems->at(0).get(), Symbol)) {
-									(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 								}
 								auto const new_inv = subst_v2(proj,std::move(loop_post_cond), loop->name + "_" + "st_new", p->elems->at(0)->deep_copy());
 								LOG_DEBUG << "[forward_simulation " << random_code << "] Checking loop invariant: Adding loop postcondition: " << string(*new_inv);
@@ -280,7 +278,6 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 												names.push_back(def->name + "_ret_" + std::to_string(i));
 												elems.push_back(sym->deep_copy());
 											}
-											(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 										}
 									}
 									auto const new_inv = subst_v2(proj,std::move(post_cond), &names, &elems);
@@ -290,7 +287,6 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 								}
 							} else if(p->elems->at(0)->type == proj->layers[0]->abs_data) {
 								if(auto sym = instance_of(p->elems->at(0).get(), Symbol)) {
-									(*pm_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 								}
 								auto const new_inv = subst_v2(proj,std::move(post_cond), def->name + "_st_new_", p->elems->at(0)->deep_copy());
 
@@ -774,7 +770,6 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 											if(auto sym = instance_of(elem, Symbol)) {
 												names.push_back(loop->name + "_" + loop->args->at(i)->name + "_new");
 												elems.push_back(sym->deep_copy());
-												(*new_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 											}
 										}
 										auto const new_inv = subst_v2(proj,std::move(loop_post_cond), &names, &elems);
@@ -784,7 +779,6 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 									}
 								} else if(p->elems->at(0)->type == proj->layers[0]->abs_data){
 									if(auto sym = instance_of(p->elems->at(0).get(), Symbol)) {
-										(*new_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 									}
 									auto const new_inv = subst_v2(proj,std::move(loop_post_cond), loop->name + "_" + "st_new", p->elems->at(0)->deep_copy());
 									LOG_DEBUG << "Adding loop postcondition: " << string(*new_inv);
@@ -813,7 +807,6 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 													names.push_back(def->name + "_ret_" + std::to_string(i));
 													elems.push_back(sym->deep_copy());
 												}
-												(*new_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 											}
 										}
 										auto const new_inv = subst_v2(proj,std::move(post_cond), &names, &elems);
@@ -823,7 +816,6 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 									}
 								} else if(p->elems->at(0)->type == proj->layers[0]->abs_data) {
 									if(auto sym = instance_of(p->elems->at(0).get(), Symbol)) {
-										(*new_state->vars)[sym->text] = sym->type->declare(sym->text, 0);
 									}
 									auto const new_inv = subst_v2(proj,std::move(post_cond), def->name + "_st_new_", p->elems->at(0)->deep_copy());
 									LOG_DEBUG << "Adding postcondition: " << string(*new_inv);
