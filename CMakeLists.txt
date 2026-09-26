@@ -252,6 +252,7 @@ target_link_libraries(SpoqTest GTest::gtest ${LLVM_LIBRARIES} ${Boost_LIBRARIES}
 add_executable(Z3UtilsTest test/unit/Z3UtilsTest.cpp $<TARGET_OBJECTS:spoq_core>)
 target_link_libraries(Z3UtilsTest GTest::gtest_main GTest::gtest irloader parser antlr4_shared
     ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
+target_compile_definitions(Z3UtilsTest PRIVATE SPOQ_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test")
 add_test(NAME Z3Utils COMMAND Z3UtilsTest)
 
 # ------------------------------------------------------------------------------

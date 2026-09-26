@@ -321,11 +321,13 @@ static z3::check_result z3_race_solve(const std::string &query, int timeout_ms) 
 }
 
 /** Ask whether [query], which asserts !cond, is unsat, out of process. */
-static Z3Result z3_race_check(const std::string &query) {
+static Z3Result z3_race_check(const std::string &query, bool count_unknown) {
     switch (z3_race_solve(query, scaled_timeout(OPTS.race_timeout))) {
         case z3::unsat: return Z3Result::True;
         case z3::sat:   return Z3Result::Sat;
-        default:        ++z3_unknowns; return Z3Result::Unknown;
+        default:
+            if (count_unknown) ++z3_unknowns;
+            return Z3Result::Unknown;
     }
 }
 
@@ -591,7 +593,8 @@ static void add_congruence_lemmas(z3::solver &s, const z3::expr *goal = nullptr)
 /// Ground instances of the rounding-up division facts ceil_fact and wrap_fact,
 /// proved in openjpeg_queries/CeilWrap.v, for each quotient of the form
 /// ((M - 1 + b + a) mod M) / (b mod M) with M a positive numeral: the
-/// translation of an unsigned (a + b - 1) / b.  With x = a mod M, y = b mod M:
+/// translation of an unsigned (a + b - 1) / b, including a = b written 2 * b.
+/// With x = a mod M, y = b mod M:
 ///   y > 0, x + y - 1 < M   the quotient is x / y + (x mod y <> 0)
 ///   y > 0, x + y - 1 >= M  the numerator wrapped and the quotient is 0
 /// Z3 decides relations between the two forms only with these instances; a
@@ -623,15 +626,27 @@ static void add_rounding_division_lemmas(z3::solver &s, const z3::expr *goal = n
         if (!is_mod_by_numeral(num) || !is_mod_by_numeral(den) || !z3::eq(num.arg(1), den.arg(1))) continue;
         z3::expr const M = num.arg(1), sum = num.arg(0), b = den.arg(0);
         if (!(M > 0).simplify().is_true()) continue;
-        // The summands, through nested additions.
+        // The summands, through nested additions.  The simplifier writes b + b
+        // as 2 * b, so a doubled term counts as two summands.
+        auto const doubled = [](const z3::expr &t) -> std::optional<z3::expr> {
+            if (!t.is_app() || t.decl().decl_kind() != Z3_OP_MUL || t.num_args() != 2) return std::nullopt;
+            int64_t k = 0;
+            for (unsigned i = 0; i < 2; ++i)
+                if (t.arg(i).is_numeral_i64(k) && k == 2) return t.arg(1 - i);
+            return std::nullopt;
+        };
         std::vector<z3::expr> terms, open{sum};
         while (!open.empty() && terms.size() <= 3) {
             z3::expr const t = open.back();
             open.pop_back();
-            if (t.is_app() && t.decl().decl_kind() == Z3_OP_ADD)
+            if (t.is_app() && t.decl().decl_kind() == Z3_OP_ADD) {
                 for (unsigned i = 0; i < t.num_args(); ++i) open.push_back(t.arg(i));
-            else
+            } else if (auto const half = doubled(t)) {
+                terms.push_back(*half);
+                terms.push_back(*half);
+            } else {
                 terms.push_back(t);
+            }
         }
         if (!open.empty() || terms.size() != 3) continue;
         z3::expr const m1 = (M - 1).simplify();
@@ -957,7 +972,10 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, int timeout) {
 #endif
 
     auto const end = std::chrono::high_resolution_clock::now();
-    z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+    auto const elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+    z3_accumulative_time += elapsed;
+    if (slow_query_wanted(elapsed))
+        dump_slow_query(elapsed, "z3_check state: " + to_string(res), timeout, solver.to_smt2());
 
     // std::cout << "-----------------Z3-----------------" << std::endl;
     // for (auto &c : *state->conds) {
@@ -983,7 +1001,8 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, int timeout) {
 //only check unsat for !@cond, return True if unsat, SAT if sat.
 //will not return False since will not check invalidity.
 //@model will get assigned to the return model.
-Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& cond, z3::model& ce, QueryInfo *qinfo, int timeout) {
+Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& cond, z3::model& ce, QueryInfo *qinfo, int timeout,
+                        bool count_unknown) {
     auto const start = std::chrono::high_resolution_clock::now();
     // Sat is not cached: it comes with the counterexample in [ce].
     auto const cache_query = Z3ResultCache::query(Z3ResultCache::Kind::CheckUnsat, *state, &cond, timeout);
@@ -1019,7 +1038,7 @@ Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& con
     if (qinfo) qinfo->dump(query);
 
     if (OPTS.race) {
-        auto const raced = z3_race_check(query);
+        auto const raced = z3_race_check(query, count_unknown);
         if (raced != Z3Result::Sat) Z3Cache.insert(cache_query, raced);
         return raced;
     } else {
@@ -1027,7 +1046,11 @@ Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& con
     }
 
     auto const end = std::chrono::high_resolution_clock::now();
-    z3_accumulative_time += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+    auto const elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+    z3_accumulative_time += elapsed;
+    if (slow_query_wanted(elapsed))
+        dump_slow_query(elapsed, "z3_check_unsat not cond: " + to_string(not_res), timeout,
+                        query.empty() ? solver.to_smt2() : query);
 
     // std::clog << "-----------------Z3_check_unsat-----------------" << std::endl;
     // std::clog << "hash: " << hash << std::endl;
@@ -1046,7 +1069,7 @@ Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& con
         return Z3Result::Sat;
     } else {
         Z3Cache.insert(cache_query, Z3Result::Unknown);
-        z3_unknowns++;
+        if (count_unknown) z3_unknowns++;
         return Z3Result::Unknown;
     }
 }

@@ -54,6 +54,14 @@ namespace autov
     /// Forgets which demand-unfolding sites have been inlined; check_refines
     /// calls it before each check.
     void forget_unfolded_sites();
+    /// Which branches of an If stay live, given the two checks
+    /// check_branch_plausibility makes.  z3_check_unsat(state, x) is True when
+    /// x holds on every path, so [true_check], its result on !cond, is True
+    /// when the true branch is impossible, and [false_check], on cond, when
+    /// the false branch is.  [undecided] is set when an unknown answer left a
+    /// branch open, i.e. neither check was proven -- a branch pruned by one
+    /// check is decided, whatever the other one answered.
+    std::pair<bool,bool> branch_plausibility(Z3Result true_check, Z3Result false_check, bool &undecided);
     std::pair<bool,bool> check_branch_plausibility(autov::Project *proj,
                                    std::shared_ptr<autov::ProveState>  const&state,
                                    std::shared_ptr<autov::SpecValue>  const&cond,

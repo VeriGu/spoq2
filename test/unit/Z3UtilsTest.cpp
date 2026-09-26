@@ -37,6 +37,7 @@
 #include "cmd.h"
 #include "values.h"
 #include "z3_rules.h"
+#include "simulate.h"
 
 /* main.cpp is not linked into this binary, so its globals live here instead. */
 SpoqOption OPTS;
@@ -460,4 +461,84 @@ TEST(RoundingDivisionLemmaTest, OtherNumeratorsGetNoLemma) {
     RoundingDivision r;
     EXPECT_NE(r.check({r.y > 0, r.x + r.y - 2 < r.M}, r.quotient(2) == r.x / r.y + r.carry()),
               Z3Result::True);
+}
+
+/* The same quotient with a = b, which the simplifier writes (M - 1 + 2 * b):
+ * tif003's stripsperplane once rowsperstrip is clamped to imagelength. */
+namespace {
+
+struct SelfRoundingDivision : RoundingDivision {
+    z3::expr quotient_times(int k) const {  // ((M - 1 + k * b) mod M) / (b mod M)
+        return z3::mod(z3ctx.int_val((int64_t)4294967295LL) + z3ctx.int_val(k) * b, M) / y;
+    }
+};
+
+}  // namespace
+
+TEST(RoundingDivisionLemmaTest, DoubledNumeratorInTif003StateRelation) {
+    // tif003's final-state relation check.  Its minimal unsat core: with
+    // il mod M <> 0 and the vuln's ((M - 1 + 2 * il) mod M) / (il mod M) nonzero,
+    // the two states are equal only if that quotient is 1.  Unknown at 500 ms
+    // without the instance, with or without the retry.
+    auto const assertions = z3ctx.parse_file(SPOQ_TEST_DIR "/unit/data/tif003_state_relation.smt2");
+    ASSERT_GE(assertions.size(), 2u);
+    auto const state = prove_state_of({}, {});
+    for (unsigned i = 0; i + 1 < assertions.size(); ++i) state->conds->push_back(assertions[i]);
+    z3::model m(z3ctx);
+    EXPECT_EQ(z3_check_unsat(state, !assertions[assertions.size() - 1], m, nullptr, 500), Z3Result::True);
+}
+
+TEST(RoundingDivisionLemmaTest, TripledNumeratorGetsNoLemma) {
+    // (3b - 1) / b is not a rounded-up quotient of b by b.
+    SelfRoundingDivision r;
+    EXPECT_NE(r.check({r.y > 0, r.quotient_times(3) != 0}, r.quotient_times(3) == 1), Z3Result::True);
+}
+
+/* -- branch plausibility --------------------------------------------------------
+ *
+ * check_branch_plausibility decides an If from two z3_check_unsat calls.
+ * z3_check_unsat(state, x) is True when x holds on every path: on !cond that
+ * rules out the true branch, on cond the false branch.  An unknown answer
+ * counts as an unknown only when it leaves a branch open: a branch pruned by one
+ * check is decided, even if the other check was unknown.  Under --race that
+ * happens whenever no racer answers one side and another proves the other side.
+ */
+
+TEST(BranchPlausibility, UnknownBesideUnsatIsDecided) {
+    bool undecided = true;
+    // The true branch is ruled out; the other check was unknown.
+    auto const live = branch_plausibility(Z3Result::True, Z3Result::Unknown, undecided);
+    EXPECT_FALSE(live.first);
+    EXPECT_TRUE(live.second);
+    EXPECT_FALSE(undecided);
+
+    undecided = true;
+    // The false branch is ruled out; the other check was unknown.
+    auto const live2 = branch_plausibility(Z3Result::Unknown, Z3Result::True, undecided);
+    EXPECT_TRUE(live2.first);
+    EXPECT_FALSE(live2.second);
+    EXPECT_FALSE(undecided);
+}
+
+TEST(BranchPlausibility, UnknownThatKeepsBothBranchesIsUndecided) {
+    bool undecided = false;
+    auto const live = branch_plausibility(Z3Result::Unknown, Z3Result::Sat, undecided);
+    EXPECT_TRUE(live.first && live.second);
+    EXPECT_TRUE(undecided);
+
+    undecided = false;
+    branch_plausibility(Z3Result::Unknown, Z3Result::Unknown, undecided);
+    EXPECT_TRUE(undecided);
+}
+
+TEST(BranchPlausibility, DecidedChecksAreNotUnknown) {
+    bool undecided = true;
+    auto const live = branch_plausibility(Z3Result::Sat, Z3Result::Sat, undecided);
+    EXPECT_TRUE(live.first && live.second);
+    EXPECT_FALSE(undecided);
+
+    undecided = true;
+    auto const none = branch_plausibility(Z3Result::True, Z3Result::True, undecided);
+    EXPECT_FALSE(none.first || none.second);
+    EXPECT_FALSE(undecided);
 }
