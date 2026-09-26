@@ -126,12 +126,6 @@ unsigned long z3_race_solves = 0;
 unsigned long z3_state_sat[3] = {0, 0, 0};  // unsat, sat, unknown
 std::chrono::duration<double> z3_accumulative_time = std::chrono::duration<double>::zero();
 
-// helper to read or fall back
-static std::string try_getenv(const char* var, const char* def) {
-    auto p = std::getenv(var);
-    return p ? std::string(p) : std::string(def);
-}
-
 /// Per-check timeout multiplied by SPOQ_Z3_TIMEOUT_SCALE.  The default is 3
 /// under bitvector sorts, whose checks cost several times their integer
 /// counterparts, and 1 otherwise.
@@ -173,10 +167,13 @@ static const char *const retry_tactic_text =
     "(then simplify propagate-values solve-eqs elim-uncnstr (using-params smt :relevancy 0))";
 
 /** Race Z3 processes on one query file and take the first definite answer:
- *  the z3 on PATH, the build at Z3_PATH, and under bitvector sorts the z3 on
- *  PATH with the qfaufbv tactic, which decides unsat checks over
- *  uninterpreted functions with bitvector arguments that the default strategy
- *  times out on.
+ *  the default strategy; the legacy arithmetic solver (smt.arith.solver=2),
+ *  which decides nonlinear integer queries on which the default solver reports
+ *  incomplete (theory arithmetic) -- on png001, 29 of 30 sampled such queries
+ *  within 30 s, 27 of them within 0.12 s; under bitvector sorts the qfaufbv
+ *  tactic, which decides unsat checks over uninterpreted functions with
+ *  bitvector arguments that the default strategy times out on; and the retry
+ *  tactic when a retry file is given.
  *
  * Out of process on purpose: a child that blows through its -t: budget can still
  * be killed from here, which an in-process solver.check() on this thread cannot.
@@ -185,11 +182,10 @@ static const char *const retry_tactic_text =
 static z3::check_result z3_race_file(const std::string &file, int timeout_ms,
                                      const std::string &retry_file = "") {
     std::string const z3_cli = "z3";
-    std::string const z3_path = try_getenv("Z3_PATH", "z3/build/z3");
     std::string const z3_timeout = "-t:" + std::to_string(timeout_ms);
     std::vector<std::string> cmds = {
         z3_cli + " " + z3_timeout + " " + file,
-        z3_path + " " + z3_timeout + " " + file
+        z3_cli + " " + z3_timeout + " smt.arith.solver=2 " + file
     };
     if (z3_bv_sorts_enabled())
         cmds.push_back(z3_cli + " " + z3_timeout + " tactic.default_tactic=qfaufbv " + file);
