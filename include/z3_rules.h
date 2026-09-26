@@ -144,7 +144,13 @@ Z3Result z3_verify_state_sat(const shared_ptr<ProveState>& state, QueryInfo *qin
 Z3Result z3_verify_state_sat(const shared_ptr<EvalState>& state, QueryInfo *qinfo = nullptr, int timeout = Z3_VERIFY_TIMEOUT);
 Z3Result z3_check(const std::shared_ptr<EvalState>& state, const z3::expr& cond, QueryInfo *qinfo = nullptr, int timeout=Z3_TIMEOUT);
 Z3Result z3_check(const shared_ptr<EvalState>& state, int timeout=Z3_TIMEOUT);
-Z3Result z3_check_unsat(const std::shared_ptr<ProveState>& state, const z3::expr& cond, z3::model& model, QueryInfo *qinfo = nullptr, int timeout=Z3_TIMEOUT);
+/// [count_unknown] false leaves counting an unknown result to the caller, for a
+/// caller that decides from this check together with another.
+Z3Result z3_check_unsat(const std::shared_ptr<ProveState>& state, const z3::expr& cond, z3::model& model, QueryInfo *qinfo = nullptr, int timeout=Z3_TIMEOUT, bool count_unknown = true);
+
+/// The number of checks whose answer left a decision open, reported as
+/// "Z3 unknowns".
+extern unsigned long z3_unknowns;
 /// Reads the stack slot-to-constructor map from [proj]'s load_stack, once.
 void init_stack_typing(Project *proj);
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, bool check_loop = false);

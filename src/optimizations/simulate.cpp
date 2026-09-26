@@ -538,16 +538,29 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 		if (cond_val.is_int()) {
 			cond_val = (cond_val != 0);
 		}
+        // Each check leaves counting its unknowns to this function: one of the
+        // two proven unsat decides the branch, even if the other was unknown
+        // -- which under --race means only that no racer answered it.
         auto const true_res = z3_check_unsat(state, !cond_val, model,
-                                  &proj->query_saver, 500);
+                                  &proj->query_saver, 500, /*count_unknown=*/false);
         // LOG_DEBUG << "[check_branch_plausibility] checking if cond is unsat: "
         //           << cond_val.to_string().substr(0,200);
         // if z3_check_unsat returns True, then cond cannot be false.
 		// In that case, the false branch is not possible.
         auto const res = z3_check_unsat(state, cond_val, model,
-                             &proj->query_saver, 500);
-		return std::make_pair(!(true_res == Z3Result::True),
-							  !(res == Z3Result::True));
+                             &proj->query_saver, 500, /*count_unknown=*/false);
+		bool undecided = false;
+		auto const live = branch_plausibility(true_res, res, undecided);
+		if (undecided) ++z3_unknowns;
+		return live;
+    }
+
+    std::pair<bool,bool> branch_plausibility(Z3Result true_check, Z3Result false_check, bool &undecided) {
+		bool const true_live = true_check != Z3Result::True;
+		bool const false_live = false_check != Z3Result::True;
+		undecided = true_live && false_live &&
+		            (true_check == Z3Result::Unknown || false_check == Z3Result::Unknown);
+		return {true_live, false_live};
     }
 
     /**
