@@ -552,6 +552,11 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 		bool undecided = false;
 		auto const live = branch_plausibility(true_res, res, undecided);
 		if (undecided) ++z3_unknowns;
+		auto const name = [](Z3Result r) {
+			return r == Z3Result::True ? "unsat" : r == Z3Result::Sat ? "sat" : "unknown";
+		};
+		LOG_DEBUG << "[check_branch_plausibility] true branch " << name(true_res) << ", false branch "
+		          << name(res) << (undecided ? ": undecided" : ": decided");
 		return live;
     }
 
