@@ -425,7 +425,10 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 		}
 		LOG_DEBUG << "[forward_simulation " << random_code << "] None in impl, UB not allowed; path "
 		          << (feasible == Z3Result::True ? "sat" : "unknown") << ".";
-		return SimulateResult{false, false, false, true};
+		// UB is not allowed because the spec is at a Some here.
+		SimulateResult result{false, false, false, true};
+		result.spec_reaches_some = true;
+		return result;
 	}
 
 	SimulateResult forward_simulation(Project *proj, SpecNode *st_check, SpecNode *spec_ret, SpecNode *impl, Definition *rel, Definition *ret_rel, const shared_ptr<ProveState>& state,
@@ -442,7 +445,9 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 				if (*e_op == Expr::Some) {
 					// Assume allow_none is true iff we have a None in the spec.
 					if (allow_none) {
-						return SimulateResult{true, true , true, false};
+						SimulateResult result{true, true , true, false};
+						result.impl_reaches_some = true;
+						return result;
 					}
 					unique_ptr<SpecNode> st_ret;
 					if (auto ret_Some = instance_of(expr->elems->at(0).get(), Expr)) {
@@ -479,8 +484,11 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 							// 	LOG_DEBUG << "Condition: " << cond;
 							//  	}
 						}
-						z3_verify_state_sat(state);
-						return SimulateResult{is_relate && ret_is_relate, false, false, false};
+						// Both sides end in Some here, unless the path is unsat.
+						auto const feasible = z3_verify_state_sat(state);
+						SimulateResult result{is_relate && ret_is_relate, false, false, false};
+						result.spec_reaches_some = result.impl_reaches_some = feasible != Z3Result::False;
+						return result;
 					} else if(auto ret_Some = instance_of(expr->elems->at(0).get(), Symbol)) {
 						st_ret = expr->elems->at(0)->deep_copy();
 
@@ -493,7 +501,9 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 							// 	LOG_DEBUG << "Condition: " << cond;
 							// }
 						}
-						return SimulateResult{is_relate, false, false, false};
+						SimulateResult result{is_relate, false, false, false};
+						result.spec_reaches_some = result.impl_reaches_some = true;
+						return result;
 					}
 				} else if(*e_op == Expr::None) {
 					return impl_none_leaf(proj, state, allow_none, random_code);
@@ -1121,6 +1131,8 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 		<< "\"spec_has_ub\": "          << b_to_s(r.spec_has_ub)  << ", "
 		<< "\"impl_eliminates_ub\": "   << b_to_s(r.impl_eliminates_ub)  << ", "
 		<< "\"impl_has_non_spec_ub\": " << b_to_s(r.impl_has_non_spec_ub)  << ", "
+		<< "\"spec_reaches_some\": "   << b_to_s(r.spec_reaches_some)  << ", "
+		<< "\"impl_reaches_some\": "   << b_to_s(r.impl_reaches_some)  << ", "
 		<< "\"z3_seconds\": " << opt_to_s(r.z3_time)  << ", "
 		<< "\"analysis_seconds\": " << opt_to_s(r.analysis_time)  << ", "
 		<< "\"total_seconds\": " << opt_to_s(r.total_time) << ", "

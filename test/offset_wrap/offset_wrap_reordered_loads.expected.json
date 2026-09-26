@@ -2,5 +2,7 @@
   "verified": true,
   "spec_has_ub": true,
   "impl_eliminates_ub": false,
-  "impl_has_non_spec_ub": false
+  "impl_has_non_spec_ub": false,
+  "spec_reaches_some": true,
+  "impl_reaches_some": true
 }

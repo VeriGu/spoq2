@@ -34,9 +34,15 @@ namespace autov
 		optional<size_t> vuln_leaves_after_transform;
 		optional<size_t> patch_leaves_before_transform;
 		optional<size_t> patch_leaves_after_transform;
+		/// Whether some path the traversal did not prove unsat ends in a Some
+		/// of the spec, and of the impl.  With neither, every path the check
+		/// covered ends in None or is unreachable, and a verified refinement
+		/// is vacuous.
+		bool spec_reaches_some = false;
+		bool impl_reaches_some = false;
 		SimulateResult operator+(const SimulateResult& rhs) const
 		{                           
-			return SimulateResult {
+			SimulateResult sum {
 				this->verified && rhs.verified,
 				this->spec_has_ub || rhs.spec_has_ub,
 				this->impl_eliminates_ub || rhs.impl_eliminates_ub,
@@ -44,6 +50,9 @@ namespace autov
 				std::nullopt,
 				std::nullopt
 			};
+			sum.spec_reaches_some = this->spec_reaches_some || rhs.spec_reaches_some;
+			sum.impl_reaches_some = this->impl_reaches_some || rhs.impl_reaches_some;
+			return sum;
 		}
 	};
 	std::ostream& operator<<(std::ostream& out, const SimulateResult& r);
