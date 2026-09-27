@@ -394,6 +394,79 @@ static z3::check_result check_retrying(z3::solver &solver, z3::model *model = nu
     return check_retrying(solver, z3::expr_vector(z3ctx), model);
 }
 
+
+/* -- int_to_ptr on the global address range ----------------------------------
+ *
+ * extractpointers lays the modelled globals out from MIN to MAX_GLOBAL: each
+ * block has a base constant, ptr_to_int maps a pointer into block n at offset
+ * k to BASE_n + k, and global_to_ptr is the inverse on that range.  int_to_ptr
+ * is uninterpreted, so without this a pointer to a global stored to memory and
+ * loaded back is an arbitrary pointer.  The table is read from the project's
+ * global_to_ptr, whose arms are `if (v >=? BASE) then (mkPtr "name" (v - BASE))`
+ * behind a first test against MAX_GLOBAL.  Values outside the range -- 0 and
+ * -1 among them, which have axioms of their own -- stay uninterpreted.
+ */
+namespace {
+struct GlobalAddressTable {
+    long max = 0;
+    std::vector<std::pair<long, std::string>> blocks;  // base, pbase; ascending
+};
+
+/// The value of a definition whose body is an integer literal.
+std::optional<long> int_def_value(Project *proj, SpecNode *n) {
+    auto const sym = dynamic_cast<Symbol *>(n);
+    if (!sym) return std::nullopt;
+    auto const it = proj->defs.find(sym->text);
+    if (it == proj->defs.end()) return std::nullopt;
+    auto const c = dynamic_cast<IntConst *>(it->second->body().get());
+    if (!c) return std::nullopt;
+    return (long)c->get_value();
+}
+
+const GlobalAddressTable &global_address_table(Project *proj) {
+    static std::map<Project *, GlobalAddressTable> tables;
+    auto const found = tables.find(proj);
+    if (found != tables.end()) return found->second;
+    auto &t = tables[proj];
+    auto const it = proj->defs.find("global_to_ptr");
+    if (it == proj->defs.end()) return t;
+    for (SpecNode *n = it->second->body().get(); auto i = dynamic_cast<If *>(n); n = i->else_body.get()) {
+        auto const cond = dynamic_cast<Expr *>(i->cond.get());
+        auto const then = dynamic_cast<Expr *>(i->then_body.get());
+        if (!cond || !then || cond->elems->size() != 2 || !op_eq(cond->op, Expr::binops::BGE)) continue;
+        auto const bound = int_def_value(proj, cond->elems->at(1).get());
+        auto const name = then->elems->empty() ? nullptr : dynamic_cast<StringConst *>(then->elems->at(0).get());
+        if (!bound || !name) continue;
+        auto const pbase = std::get<string>(name->value);
+        if (pbase == "null") t.max = *bound;
+        else t.blocks.emplace_back(*bound, pbase);
+    }
+    std::sort(t.blocks.begin(), t.blocks.end());
+    if (t.max == 0) t.blocks.clear();
+    return t;
+}
+}  // namespace
+
+shared_ptr<SpecValue> int_to_ptr_value(Project *proj, vector<shared_ptr<SpecValue>> &elems) {
+    auto const opaque = static_pointer_cast<FuncValue>(autov::int_to_ptr())->call(elems);
+    if (!proj || elems.size() != 1) return opaque;
+    auto const &table = global_address_table(proj);
+    if (table.blocks.empty()) return opaque;
+    // In int_to_ptr's own domain, as the opaque call converts it: under
+    // bitvector sorts a Z literal becomes the bitvector it denotes.
+    auto const v = coerce_to_sort(elems[0]->get_z3_value(), Int::size_t_int()->get_z3_type(), "int_to_ptr");
+    if (!v.is_int() && !v.is_bv()) return opaque;
+    auto const num = [&](long x) { return v.is_bv() ? z3ctx.bv_val((int64_t)x, v.get_sort().bv_size()) : z3ctx.int_val((int64_t)x); };
+    auto const ge = [&](long x) { return v.is_bv() ? z3::sge(v, num(x)) : v >= num(x); };
+    z3::expr chosen = opaque->get_z3_value();
+    for (auto const &[base, pbase] : table.blocks) {
+        vector<shared_ptr<SpecValue>> fields{make_shared<StringValue>(z3ctx.string_val(pbase)),
+                                             make_shared<IntValue>(v - num(base))};
+        chosen = z3::ite(ge(base), Struct::Ptr->construct(fields)->get_z3_value(), chosen);
+    }
+    return Struct::Ptr->from_z3_value(z3::ite(!ge(table.max), chosen, opaque->get_z3_value()));
+}
+
 /* -- stack typing ------------------------------------------------------------
  *
  * Each stack slot is present and holds the StackVal constructor of its
@@ -1981,7 +2054,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
         else if (op_eq(expr->op,"ptr_to_int"))
             states.push_back(std::make_pair(static_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems), state));
         else if (op_eq(expr->op,"int_to_ptr"))
-            states.push_back(std::make_pair(static_pointer_cast<FuncValue>(autov::int_to_ptr())->call(elems), state));
+            states.push_back(std::make_pair(int_to_ptr_value(proj, elems), state));
         else if (op_eq(expr->op, "z_to_nat"))
             states.push_back(std::make_pair(static_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems), state));
         else if (op_eq(expr->op,"zmap_init") || op_eq(expr->op, "ZMap.init"))
@@ -2497,12 +2570,9 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
             result = make_shared<IntValue>(reduced->simplify());
         else if (op_eq(expr->op,"ptr_to_int"))
             result = static_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems);
-        else if (op_eq(expr->op,"int_to_ptr")){ // possible valgrind error here?
-            auto const itp_func = autov::int_to_ptr();
-            auto const cast_itp_func = static_pointer_cast<FuncValue>(itp_func);
-            auto const call_result = cast_itp_func->call(elems);
-            result = call_result;
-        }else if (op_eq(expr->op, "z_to_nat"))
+        else if (op_eq(expr->op,"int_to_ptr"))
+            result = int_to_ptr_value(proj, elems);
+        else if (op_eq(expr->op, "z_to_nat"))
             result = static_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems);
         else if (op_eq(expr->op,"zmap_init") || op_eq(expr->op, "ZMap.init"))
             result = val->get_type()->from_z3_value(z3::const_array(static_pointer_cast<ZMap>(val->get_type())->key_sort(), elems[0]->get_z3_value()));
@@ -2913,7 +2983,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         else if (op_eq(expr->op,"ptr_to_int"))
             return static_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems);
         else if (op_eq(expr->op,"int_to_ptr"))
-            return static_pointer_cast<FuncValue>(autov::int_to_ptr())->call(elems);
+            return int_to_ptr_value(proj, elems);
         else if (op_eq(expr->op, "z_to_nat"))
             return static_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems);
         else if (op_eq(expr->op,"zmap_init") || op_eq(expr->op, "ZMap.init"))

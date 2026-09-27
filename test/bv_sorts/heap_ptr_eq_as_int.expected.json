@@ -1,0 +1,5 @@
+{
+  "verified": true,
+  "spec_has_ub": true,
+  "unimplemented_bv_sorts": "the zext of a pointer comparison is `if (ptr_eqb ...) then 1 else 0` with widthless literals; when ptr_eqb stays uninterpreted the ite, an unbounded integer term, reaches the int32 return slot and spoq aborts"
+}

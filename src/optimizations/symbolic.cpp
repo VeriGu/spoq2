@@ -282,8 +282,7 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
             return static_pointer_cast<FuncValue>(autov::ptr_to_int())
                               ->call(elems);
         else if (op_eq(expr->op, "int_to_ptr"))
-            return static_pointer_cast<FuncValue>(autov::int_to_ptr())
-                              ->call(elems);
+            return int_to_ptr_value(proj, elems);
         else if (op_eq(expr->op, "z_to_nat"))
             return
                 static_pointer_cast<FuncValue>(autov::z_to_nat())->call(elems);

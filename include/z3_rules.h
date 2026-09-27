@@ -151,6 +151,9 @@ Z3Result z3_check_unsat(const std::shared_ptr<ProveState>& state, const z3::expr
 /// The number of checks whose answer left a decision open, reported as
 /// "Z3 unknowns".
 extern unsigned long z3_unknowns;
+/// int_to_ptr of [elems]: global_to_ptr's block and offset on the global
+/// address range, the uninterpreted int_to_ptr elsewhere.
+shared_ptr<SpecValue> int_to_ptr_value(Project *proj, vector<shared_ptr<SpecValue>> &elems);
 /// Reads the stack slot-to-constructor map from [proj]'s load_stack, once.
 void init_stack_typing(Project *proj);
 shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, bool check_loop = false);

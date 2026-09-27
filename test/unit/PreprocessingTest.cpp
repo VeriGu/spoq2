@@ -328,6 +328,48 @@ TEST(ExtractPointers, UnknownExtentsAreParameters) {
               std::string::npos) << e.machine;
 }
 
+/// Every block is named by the pbase spoq gives a pointer to it: the global's
+/// IR name with '.' replaced by '_'.  The string literals merged under one
+/// identifier share contents and a size bound, but each keeps its own block,
+/// address and name, and the group's arm is taken for any of them.
+///
+/// Before, is_global_ptr and load_global named the merged group
+/// "merged_constant_global_string", which no pointer carries, while the address
+/// table named only the first member: a heap block could take a literal's name,
+/// and a literal pointer stored and reloaded became another pointer.
+TEST(ExtractPointers, MergedGlobalsKeepOneBlockEach) {
+    RUN_OR_SKIP(e, "globals.ll");
+    for (const char *d : {"\t\"_str_1\" =s p.(pbase)",
+                          "\t\"_str_2\" =s p.(pbase)",
+                          "if ((p.(pbase) =s \"_str_1\") || (p.(pbase) =s \"_str_2\")) then (",
+                          "Definition _STR_1_BASE : intSizeT := ",
+                          "Definition _STR_2_BASE : intSizeT := ",
+                          "(mkPtr \"_str_2\" (v - _STR_2_BASE))",
+                          "if (p.(pbase) =s \"_str_2\") then (_STR_2_BASE + p.(poffset))"})
+        EXPECT_NE(e.machine.find(d), std::string::npos) << d << " missing from:\n" << e.machine;
+    EXPECT_EQ(e.machine.find("\"merged_constant_global_string\""), std::string::npos) << e.machine;
+}
+
+/// Each name is_global_ptr lists has an arm in ptr_to_int and global_to_ptr,
+/// so no pointer the model calls global converts to -1 and back to garbage.
+TEST(ExtractPointers, AddressTableCoversEveryGlobalBlock) {
+    RUN_OR_SKIP(e, "globals.ll");
+    auto const start = e.machine.find("Definition is_global_ptr");
+    auto const end = e.machine.find(".\n", start);
+    ASSERT_NE(start, std::string::npos);
+    std::string const list = e.machine.substr(start, end - start);
+    size_t n = 0;
+    for (size_t q = list.find("\t\""); q != std::string::npos; q = list.find("\t\"", q + 1)) {
+        auto const name = list.substr(q + 2, list.find('"', q + 2) - (q + 2));
+        n++;
+        EXPECT_NE(e.machine.find("if (p.(pbase) =s \"" + name + "\") then ("), std::string::npos)
+            << "ptr_to_int has no arm for " << name;
+        EXPECT_NE(e.machine.find("(mkPtr \"" + name + "\" (v - "), std::string::npos)
+            << "global_to_ptr has no arm for " << name;
+    }
+    EXPECT_GE(n, 9u) << list;
+}
+
 /// An array's Coq type is one ZMap per dimension, whatever the depth.
 ///
 /// Guards the PNG001 abort: a depth with no Coq type was emitted as the

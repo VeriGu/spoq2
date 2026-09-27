@@ -121,6 +121,26 @@ class ExtractPointersPass : public llvm::PassInfoMixin<ExtractPointersPass> {
     }
   }
 
+  /// The pbase of [v]'s block: the name spoq gives a pointer to [v], which is
+  /// its IR name with each '.' replaced by '_' (Shortcut::replace_dot).  Every
+  /// emitter names blocks this way, or a real pointer to [v] matches none of
+  /// the definitions that should recognise it.  Globals merged under one
+  /// identifier (every `.str.N`) share contents and a size bound, but each
+  /// keeps its own block and address.
+  std::string getGVBaseName(llvm::GlobalVariable* v) {
+    std::string name = v->getName().str();
+    std::replace(name.begin(), name.end(), '.', '_');
+    return name;
+  }
+
+  /// The Coq name of the address [v]'s block starts at.
+  std::string getGVBaseConst(llvm::GlobalVariable* v) {
+    std::string name = getGVBaseName(v);
+    std::replace(name.begin(), name.end(), ':', '_');
+    std::transform(name.begin(), name.end(), name.begin(), ::toupper);
+    return name + "_BASE";
+  }
+
   /// Whether [v] is one of the globals the generated memory model talks about.
   /// The size pre-pass and the emission loop must agree on this exactly, or a
   /// global gets an arm in load_global with no size to bound it by.
@@ -238,10 +258,7 @@ class ExtractPointersPass : public llvm::PassInfoMixin<ExtractPointersPass> {
   std::string generateGlobalBaseDefinition() {
     std::string result;
     for (auto g: gv_list) {
-      std::string gv_name = g->getName().str();
-      std::transform(gv_name.begin(), gv_name.end(), gv_name.begin(), ::toupper);
-      std::replace(gv_name.begin(), gv_name.end(), '.', '_');
-      result += "Definition " + gv_name + "_BASE : intSizeT := " + std::to_string(gv_addr[g].first + base_offset) + ".\n";
+      result += "Definition " + getGVBaseConst(g) + " : intSizeT := " + std::to_string(gv_addr[g].first + base_offset) + ".\n";
     }
     result += "Definition MAX_GLOBAL : intSizeT := " + std::to_string(base + base_offset) + ".\n";
     return result;
@@ -253,13 +270,8 @@ class ExtractPointersPass : public llvm::PassInfoMixin<ExtractPointersPass> {
     " if (v <? 0 ) then (mkPtr \"null\" 0) else\n";
     for (auto it = gv_list.rbegin(); it != gv_list.rend(); it++) {
       auto g = *it;
-      std::string gv_name = g->getName().str();
-      std::replace(gv_name.begin(), gv_name.end(), '.', '_');
-      std::string gv_name_up = gv_name;
-      std::transform(gv_name_up.begin(), gv_name_up.end(), gv_name_up.begin(), ::toupper);
-
-      // result += "Definition " + gv_name + "_BASE = " + std::to_string(gv_addr[g].first) + "\n";
-      result += " if (v >=? " + gv_name_up + "_BASE) then (mkPtr \"" + gv_name + "\" (v - " + gv_name_up + "_BASE)) else\n";
+      auto const base_const = getGVBaseConst(g);
+      result += " if (v >=? " + base_const + ") then (mkPtr \"" + getGVBaseName(g) + "\" (v - " + base_const + ")) else\n";
     }
     result += "   (mkPtr \"null\" 0).";
     return result; 
@@ -275,13 +287,7 @@ class ExtractPointersPass : public llvm::PassInfoMixin<ExtractPointersPass> {
     // " if (v <? 0 ) then (mkPtr \"null\" 0) else\n";
     for (auto it = gv_list.rbegin(); it != gv_list.rend(); it++) {
       auto g = *it;
-      std::string gv_name = g->getName().str();
-      std::replace(gv_name.begin(), gv_name.end(), '.', '_');
-      std::string gv_name_up = gv_name;
-      std::transform(gv_name_up.begin(), gv_name_up.end(), gv_name_up.begin(), ::toupper);
-
-      // result += "Definition " + gv_name + "_BASE = " + std::to_string(gv_addr[g].first) + "\n";
-      result += " if (p.(pbase) =s \"" + gv_name + "\") then (" + gv_name_up + "_BASE + p.(poffset)) else\n";
+      result += " if (p.(pbase) =s \"" + getGVBaseName(g) + "\") then (" + getGVBaseConst(g) + " + p.(poffset)) else\n";
     }
     result += "    (-1).";
     return result; 
@@ -889,34 +895,43 @@ void ExtractPointersPass::generate(llvm::Module& M) {
   // An arm of load_global/store_global: [body] runs only where the access lies
   // inside the global's extent.  Outside it the access is undefined, which
   // this memory model represents as None.
+  // The globals sharing each identifier: a merged group's arm is taken for a
+  // pointer into any member's block.
+  std::map<std::string, std::vector<llvm::GlobalVariable*>> members;
+  for (llvm::GlobalVariable& g : M.globals())
+    if (isModelledGlobal(&g)) members[getGVIdentifier(&g)].push_back(&g);
   auto const guarded = [&](llvm::GlobalVariable* g, const std::string& body) {
-    return "  if (p.(pbase) =s \"" + getGVIdentifier(g).substr(2) + "\") then (\n" \
+    std::string cond;
+    for (auto m : members[getGVIdentifier(g)])
+      cond += (cond.empty() ? "" : " || ") + std::string("(p.(pbase) =s \"") + getGVBaseName(m) + "\")";
+    return "  if (" + cond + ") then (\n" \
            "    if (global_in_bounds sz p " + getGVSizeName(g) + ") then (\n" \
            + body + "    ) else None) else\n";
   };
   std::string g_result = "Record GLOBALS :=\n" \
                          "  mkGLOBALS {\n";
   std::set<std::string> done_ids;
-  
+
   for (llvm::GlobalVariable& globalVar : M.globals()) {
     if (!isModelledGlobal(&globalVar)) continue;
-    auto gv_type = globalVar.getValueType();
     std::string id = getGVIdentifier(&globalVar);
-    if(done_ids.count(id) > 0){
-      continue;
-    } else{
-      done_ids.insert(id);
-    }
-    int size = dl->getTypeAllocSize(gv_type);
+    // Every global gets its own block and address, sized by its own type.
+    int size = dl->getTypeAllocSize(globalVar.getValueType());
     int page = ((size - 1) / page_size) + 1;
     page_count += page;
     gv_list.push_back(&globalVar);
     gv_addr[&globalVar] = std::make_pair(base, base + page_size * page);
     base += page_size * page;
+    is_global_ptr += "\\/\n\t\"" + getGVBaseName(&globalVar) + "\" =s p.(pbase)";
+    // Contents, size and arms once per identifier.
+    if(done_ids.count(id) > 0){
+      continue;
+    } else{
+      done_ids.insert(id);
+    }
 
     auto vty = globalVar.getValueType();
     this->named_global_ty[getGVIdentifier(&globalVar)] = globalVar.getValueType();
-    is_global_ptr += "\\/\n\t\"" + getGVIdentifier(&globalVar).substr(2) + "\" =s p.(pbase)";
     // Pointers are not explicitly represented, but instead kept in a pointers field in order to mitigate long runtime from explicit modeling
     // Trying to create a smt query sort of like this
     // (declare-datatypes ((GLOBALS 0)) (((mkGLOBALS (pointers (Array Int (Array Int Int)))))))
