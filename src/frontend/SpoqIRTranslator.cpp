@@ -1669,6 +1669,8 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             unique_ptr<SpecNode> expr = size_t_const(0);
             auto source_element_type = gep->getPointerOperandType();
             std::vector<llvm::Value*> indices;
+            // The offset each index adds, for the inbounds check.
+            std::vector<unique_ptr<SpecNode>> steps;
             // llvm::errs() << "\n" << *gep << "\n";
 
             // A getElementPtr command may have many indexes into a nested aggregate structure.
@@ -1685,6 +1687,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     // llvm::errs() << "*index_val: " << *index << "\n";
                     assert(index_val && "index is not a constant integer");
                     auto const offset = context.llvm_dl->getStructLayout(sty)->getElementOffset(index_val->getZExtValue());
+                    if (offset != 0) steps.push_back(size_t_const(offset));
                     expr = size_t_binop(Expr::binops::ADD, std::move(expr), size_t_const(offset));
                 } else {
                     int type_size;
@@ -1693,15 +1696,39 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     auto index_value = index_at_address_width(proj, context.get_llvm_value_spec(index),
                                                               index->getType());
                     auto mul_expr = size_t_binop(Expr::binops::MULT, std::move(index_value), size_t_const(type_size));
+                    auto const zero_index = llvm::isa<llvm::ConstantInt>(index) &&
+                                            llvm::cast<llvm::ConstantInt>(index)->isZero();
+                    if (!zero_index && type_size != 0) steps.push_back(mul_expr->deep_copy());
                     expr = size_t_binop(Expr::binops::ADD, std::move(mul_expr), std::move(expr));
                 }
                 source_element_type = elem_type;
             }
-            auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
-            operands->push_back(context.get_llvm_value_spec(gep->getPointerOperand()));
-            operands->push_back(std::move(expr));
-            expr = std::make_unique<Expr>(context.ptr_off_op_name, std::move(operands));
-            expr->type = Struct::Ptr;
+            // An inbounds GEP with a non-zero index is poison unless the base,
+            // and the address after each offset, is in bounds of the object
+            // (LangRef, getelementptr).  The model's ptr_offset_inbounds gives
+            // the poison pointer when that fails; each step is one call on the
+            // previous step's result.  Indices that are the constant zero add
+            // no step.  A model without ptr_offset_inbounds keeps plain
+            // ptr_offset.
+            bool const check_inbounds = gep->isInBounds() && !steps.empty() &&
+                                        proj->is_known_symbol(context.ptr_off_inbounds_op_name);
+            if (check_inbounds) {
+                expr = context.get_llvm_value_spec(gep->getPointerOperand());
+                for (auto &step : steps) {
+                    auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                    operands->push_back(std::move(expr));
+                    operands->push_back(std::move(step));
+                    operands->push_back(context.get_abs_data());
+                    expr = std::make_unique<Expr>(context.ptr_off_inbounds_op_name, std::move(operands));
+                    expr->type = Struct::Ptr;
+                }
+            } else {
+                auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                operands->push_back(context.get_llvm_value_spec(gep->getPointerOperand()));
+                operands->push_back(std::move(expr));
+                expr = std::make_unique<Expr>(context.ptr_off_op_name, std::move(operands));
+                expr->type = Struct::Ptr;
+            }
             auto sym = context.get_llvm_value_spec(gep);
             context.add_cache(context.get_llvm_value_name(gep), expr);
             // No layout condition on the result: LLVM gives a GEP no alignment

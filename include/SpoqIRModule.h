@@ -741,6 +741,9 @@ std::unique_ptr<SpecNode> rely_in_width(std::unique_ptr<SpecNode> body,
         std::string icmp_ptr_op_name = "icmp_ptr";
 
         std::string ptr_off_op_name = "ptr_offset";
+        /// Offset by an inbounds GEP step in a state; used when the model
+        /// defines it.
+        std::string ptr_off_inbounds_op_name = "ptr_offset_inbounds";
 
         vector<Definition> defs;
         vector<string> args;
