@@ -2810,45 +2810,64 @@ static std::unique_ptr<SpecNode> rename_shadowing_binders(std::unique_ptr<SpecNo
     return rename_shadowing_binders(std::move(body), no_args, scope, unused);
 }
 
-/// Rewrite every occurrence of the names in [rename], binding and bound alike.
+/// Rename the binders of [spec] named in [rename], and the occurrences they bind.
 ///
-/// Deliberately not subst: subst is capture-avoiding, so it stops at a binder
-/// that reintroduces the name -- which is exactly the occurrence a rename has to
-/// reach.  Renaming uniformly across a whole term is sound as long as the
-/// replacement is fresh for that term, which the caller guarantees.
+/// Occurrences not bound by a renamed binder keep their name: a term can use a
+/// live name and also rebind it, and only the rebinding moves.  [active] holds
+/// the names bound by a renamed binder at this point, or, for a callee's
+/// formals, bound outside [spec].
+///
+/// Not subst: subst is capture-avoiding, so it stops at a binder that
+/// reintroduces the name, which is an occurrence a rename has to reach.
 static void rename_symbols_in_place(SpecNode *spec,
-                                    const std::map<std::string, std::string> &rename) {
+                                    const std::map<std::string, std::string> &rename,
+                                    const std::set<std::string> &active) {
     if (!spec || rename.empty()) return;
+    // [active] with the names [binds] adds that are in [rename].
+    auto const under = [&](const std::vector<std::string> &binds) {
+        std::set<std::string> a = active;
+        for (auto const &n : binds)
+            if (rename.count(n)) a.insert(n);
+        return a;
+    };
     if (auto sym = instance_of(spec, Symbol)) {
+        if (!active.count(sym->text)) return;
         auto const it = rename.find(sym->text);
         if (it != rename.end()) sym->text = it->second;
     } else if (auto e = instance_of(spec, Expr)) {
         if (e->elems)
-            for (auto const &elem : *e->elems) rename_symbols_in_place(elem.get(), rename);
+            for (auto const &elem : *e->elems) rename_symbols_in_place(elem.get(), rename, active);
         if (std::holds_alternative<std::unique_ptr<SpecNode>>(e->op))
-            rename_symbols_in_place(std::get<std::unique_ptr<SpecNode>>(e->op).get(), rename);
+            rename_symbols_in_place(std::get<std::unique_ptr<SpecNode>>(e->op).get(), rename, active);
     } else if (auto m = instance_of(spec, Match)) {
-        rename_symbols_in_place(m->src.get(), rename);
+        rename_symbols_in_place(m->src.get(), rename, active);
         if (m->match_list)
             for (auto const &pm : *m->match_list) {
-                rename_symbols_in_place(pm->pattern.get(), rename);
-                rename_symbols_in_place(pm->body.get(), rename);
+                std::vector<std::string> bound;
+                collect_pattern_symbols(pm->pattern.get(), bound);
+                auto const inner = under(bound);
+                rename_symbols_in_place(pm->pattern.get(), rename, inner);
+                rename_symbols_in_place(pm->body.get(), rename, inner);
             }
     } else if (auto r = instance_of(spec, RelyAnno)) {
-        rename_symbols_in_place(r->prop.get(), rename);
-        rename_symbols_in_place(r->body.get(), rename);
+        rename_symbols_in_place(r->prop.get(), rename, active);
+        rename_symbols_in_place(r->body.get(), rename, active);
     } else if (auto i = instance_of(spec, If)) {
-        rename_symbols_in_place(i->cond.get(), rename);
-        rename_symbols_in_place(i->then_body.get(), rename);
-        rename_symbols_in_place(i->else_body.get(), rename);
+        rename_symbols_in_place(i->cond.get(), rename, active);
+        rename_symbols_in_place(i->then_body.get(), rename, active);
+        rename_symbols_in_place(i->else_body.get(), rename, active);
     } else if (auto fe = instance_of(spec, ForallExists)) {
+        std::vector<std::string> bound;
+        if (fe->vars)
+            for (auto const &v : *fe->vars) bound.push_back(v->name);
+        auto const inner = under(bound);
         if (fe->vars)
             for (auto const &v : *fe->vars) {
                 auto const it = rename.find(v->name);
                 if (it != rename.end()) v->name = it->second;
-                if (v->expr) rename_symbols_in_place(v->expr.get(), rename);
+                if (v->expr) rename_symbols_in_place(v->expr.get(), rename, inner);
             }
-        rename_symbols_in_place(fe->body.get(), rename);
+        rename_symbols_in_place(fe->body.get(), rename, inner);
     }
 }
 
@@ -2885,7 +2904,11 @@ static std::unique_ptr<SpecNode> rename_shadowing_binders(
         rename[name] = fresh;
         if (arg_types.count(name)) arg_renames[name] = fresh;
     }
-    rename_symbols_in_place(body.get(), rename);
+    // A renamed formal is bound outside [body], so its free occurrences move.
+    std::set<std::string> formals;
+    for (auto const &a : args)
+        if (rename.count(a->name)) formals.insert(a->name);
+    rename_symbols_in_place(body.get(), rename, formals);
     return body;
 }
 

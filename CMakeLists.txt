@@ -343,6 +343,14 @@ target_compile_definitions(HoistBudgetTest PRIVATE
 add_test(NAME HoistBudget COMMAND HoistBudgetTest)
 set_tests_properties(HoistBudget PROPERTIES TIMEOUT 120)
 
+# HoistScopeTest -- hoist_match_from_branch keeps free uses of renamed binders
+add_executable(HoistScopeTest test/unit/HoistScopeTest.cpp $<TARGET_OBJECTS:spoq_core>)
+target_link_libraries(HoistScopeTest GTest::gtest_main GTest::gtest irloader parser
+    antlr4_shared ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
+target_compile_definitions(HoistScopeTest PRIVATE
+    SPOQ_DEMAND_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/demand_unfolding")
+add_test(NAME HoistScope COMMAND HoistScopeTest)
+
 add_executable(Z3SimplifyFixpointTest test/unit/Z3SimplifyFixpointTest.cpp $<TARGET_OBJECTS:spoq_core>)
 target_link_libraries(Z3SimplifyFixpointTest GTest::gtest_main GTest::gtest irloader parser
     antlr4_shared ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
