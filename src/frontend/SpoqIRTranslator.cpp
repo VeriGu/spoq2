@@ -1669,8 +1669,13 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             unique_ptr<SpecNode> expr = size_t_const(0);
             auto source_element_type = gep->getPointerOperandType();
             std::vector<llvm::Value*> indices;
-            // The offset each index adds, for the inbounds check.
-            std::vector<unique_ptr<SpecNode>> steps;
+            // The offset each index adds, for the inbounds check, and its value
+            // when it is a non-negative constant.
+            struct Step {
+                unique_ptr<SpecNode> ofs;
+                std::optional<uint64_t> k;
+            };
+            std::vector<Step> steps;
             // llvm::errs() << "\n" << *gep << "\n";
 
             // A getElementPtr command may have many indexes into a nested aggregate structure.
@@ -1687,7 +1692,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     // llvm::errs() << "*index_val: " << *index << "\n";
                     assert(index_val && "index is not a constant integer");
                     auto const offset = context.llvm_dl->getStructLayout(sty)->getElementOffset(index_val->getZExtValue());
-                    if (offset != 0) steps.push_back(size_t_const(offset));
+                    if (offset != 0) steps.push_back({size_t_const(offset), offset});
                     expr = size_t_binop(Expr::binops::ADD, std::move(expr), size_t_const(offset));
                 } else {
                     int type_size;
@@ -1696,9 +1701,12 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     auto index_value = index_at_address_width(proj, context.get_llvm_value_spec(index),
                                                               index->getType());
                     auto mul_expr = size_t_binop(Expr::binops::MULT, std::move(index_value), size_t_const(type_size));
-                    auto const zero_index = llvm::isa<llvm::ConstantInt>(index) &&
-                                            llvm::cast<llvm::ConstantInt>(index)->isZero();
-                    if (!zero_index && type_size != 0) steps.push_back(mul_expr->deep_copy());
+                    auto const const_index = llvm::dyn_cast<llvm::ConstantInt>(index);
+                    auto const zero_index = const_index && const_index->isZero();
+                    std::optional<uint64_t> k;
+                    if (const_index && const_index->getSExtValue() >= 0)
+                        k = (uint64_t)const_index->getSExtValue() * (uint64_t)type_size;
+                    if (!zero_index && type_size != 0) steps.push_back({mul_expr->deep_copy(), k});
                     expr = size_t_binop(Expr::binops::ADD, std::move(mul_expr), std::move(expr));
                 }
                 source_element_type = elem_type;
@@ -1713,11 +1721,44 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             bool const check_inbounds = gep->isInBounds() && !steps.empty() &&
                                         proj->is_known_symbol(context.ptr_off_inbounds_op_name);
             if (check_inbounds) {
-                expr = context.get_llvm_value_spec(gep->getPointerOperand());
+                // Non-negative steps in one state merge: ptr_in_object is an
+                // interval in the offset for a fixed base, so p and p + a + b in
+                // bounds put p + a in bounds, and one step checks what two did.
+                // Consecutive constant steps are summed, and a first constant
+                // step folds into a base that is itself a constant inbounds step
+                // in the same state.  Steps of unknown sign stay separate.
+                std::vector<Step> merged;
                 for (auto &step : steps) {
+                    if (step.k && !merged.empty() && merged.back().k) {
+                        auto const sum = *merged.back().k + *step.k;
+                        merged.back() = {size_t_const(sum), sum};
+                    } else {
+                        merged.push_back(std::move(step));
+                    }
+                }
+                expr = context.get_llvm_value_spec(gep->getPointerOperand());
+                auto const state = context.get_abs_data();
+                // The base as the GEP that computed it, when it is one.
+                auto const cached = instance_of(expr.get(), Symbol)
+                                        ? context.get_cache(context.get_llvm_value_name(gep->getPointerOperand()))
+                                        : nullptr;
+                auto const base_node = cached ? cached.get() : expr.get();
+                if (auto const base = instance_of(base_node, Expr); base && merged.front().k) {
+                    auto const op = std::get_if<string>(&base->op);
+                    auto const inner_k = base->elems && base->elems->size() == 3
+                                             ? instance_of(base->elems->at(1).get(), IntConst)
+                                             : nullptr;
+                    if (op && *op == context.ptr_off_inbounds_op_name && inner_k &&
+                        (long)inner_k->get_value() >= 0 && base->elems->at(2)->deep_eq(state.get())) {
+                        auto const sum = inner_k->get_value() + *merged.front().k;
+                        merged.front() = {size_t_const(sum), sum};
+                        expr = base->elems->at(0)->deep_copy();
+                    }
+                }
+                for (auto &step : merged) {
                     auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
                     operands->push_back(std::move(expr));
-                    operands->push_back(std::move(step));
+                    operands->push_back(std::move(step.ofs));
                     operands->push_back(context.get_abs_data());
                     expr = std::make_unique<Expr>(context.ptr_off_inbounds_op_name, std::move(operands));
                     expr->type = Struct::Ptr;
