@@ -6,10 +6,13 @@
 #include "values.h"
 #include "shortcuts.h"
 #include "cmd.h"
+#include "rules.h"
 #include "llvm/IR/Operator.h"
 
 extern SpoqOption OPTS;
 namespace autov {
+extern class UnfoldPolicy UNFOLD_POLICY;
+
 std::set<string> SpoqIRModule::get_func_dependencies(llvm::Function *func) {
     std::set<string> s;
     if (func == nullptr)
@@ -299,6 +302,33 @@ unique_ptr<SpecNode> argmem_property(const string &pre, const SpecNode &post,
                                    std::move(globals_framed)))));
 }
 
+/// max_heap_ptr_offset under a name that is left folded.  Unfolded, it is a
+/// match on the block in both states, which slows every check the Rely is in
+/// scope for; it is unfolded only when a proof needs the block.
+const char *const NOFREE_ROOM = "spoq_nofree_room";
+
+/// Define NOFREE_ROOM once per project.  False if max_heap_ptr_offset is not
+/// defined or the name is taken.
+bool ensure_nofree_room(Project *proj, const shared_ptr<loc_t> &loc) {
+    if (proj->defs.find(NOFREE_ROOM) != proj->defs.end()) return true;
+    if (proj->symbols.find(NOFREE_ROOM) != proj->symbols.end()) return false;
+    auto const it = proj->defs.find("max_heap_ptr_offset");
+    if (it == proj->defs.end() || it->second->args->size() != 2) return false;
+    auto args = std::make_unique<vector<shared_ptr<Arg>>>();
+    auto call = std::make_unique<vector<unique_ptr<SpecNode>>>();
+    for (auto const &a : *it->second->args) {
+        args->push_back(make_shared<Arg>(a->name, a->type));
+        call->push_back(std::make_unique<Symbol>(a->name, a->type));
+    }
+    proj->add_definition(
+        make_unique<Definition>(NOFREE_ROOM, it->second->rettype, std::move(args),
+                                std::make_unique<Expr>(std::string("max_heap_ptr_offset"),
+                                                       std::move(call))),
+        loc);
+    UNFOLD_POLICY.skip_list.insert(NOFREE_ROOM);
+    return true;
+}
+
 /// The heap block each of [ptrs] keys is still allocated, with its size
 /// unchanged.  max_heap_ptr_offset is 0 for an unallocated block and the block
 /// size less the offset otherwise, so equality pins both.  For a stack or
@@ -311,7 +341,7 @@ unique_ptr<SpecNode> nofree_property(const string &pre, const SpecNode &post,
         auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
         v->push_back(attr_field(std::move(st), "heap"));
         v->push_back(std::make_unique<Symbol>(p, Struct::Ptr));
-        return std::make_unique<Expr>(std::string("max_heap_ptr_offset"), std::move(v));
+        return std::make_unique<Expr>(std::string(NOFREE_ROOM), std::move(v));
     };
     unique_ptr<SpecNode> acc = nullptr;
     for (auto const &p : ptrs) {
@@ -481,6 +511,7 @@ void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
         };
 
         unique_ptr<SpecNode> property = nullptr;
+        unique_ptr<SpecNode> nofree = nullptr;
         auto const conj = [&](unique_ptr<SpecNode> p) {
             property = property ? attr_bin(Expr::AND, std::move(property), std::move(p))
                                 : std::move(p);
@@ -493,14 +524,16 @@ void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
         if (use_view) facts.push_back("globals viewed");
 
         // A block a written pointer names stays allocated.  Pure needs nothing:
-        // the post-state is the pre-state.
+        // the post-state is the pre-state.  A separate Rely: max_heap_ptr_offset
+        // unfolds to a match on both blocks, and the transformer splits a Rely
+        // over its arms, so a conjunction would copy the frame into each.
         if (effect == AttrEffect::ArgMem && summary.nofree) {
-            if (proj->defs.find("max_heap_ptr_offset") != proj->defs.end()) {
-                conj(nofree_property(pre_state, *post, ptr_names, state_type));
+            if (ensure_nofree_room(proj, make_shared<loc_t>(proj->symbols[spec_name].loc))) {
+                nofree = nofree_property(pre_state, *post, ptr_names, state_type);
                 facts.push_back("nofree");
             } else {
                 LOG_WARNING << "[ATTR] " << spec_name << " is nofree but max_heap_ptr_offset "
-                            << "is not defined; not using it.";
+                            << "is not defined or " << NOFREE_ROOM << " is taken; not using it.";
             }
         }
 
@@ -508,6 +541,7 @@ void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
         // proper, so unfolding f_spec at any callsite brings the attribute with
         // it exactly once.
         unique_ptr<SpecNode> tail = Shortcut::_Some_u(result(false));
+        if (nofree) tail = std::make_unique<Rely>(std::move(nofree), std::move(tail));
         if (property) tail = std::make_unique<Rely>(std::move(property), std::move(tail));
         auto body = Shortcut::_When_u(result(true), std::move(oracle_call), std::move(tail));
 

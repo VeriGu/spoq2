@@ -217,8 +217,12 @@ LangRef defines it:
   is used only when every pointer parameter carries it (or the function is
   `nofree`), and only for an argmem callee. Such a callee cannot pass a pointer
   from other memory to a deallocator without writing other memory. Each written
-  pointer then gets `max_heap_ptr_offset (post.(heap)) p =
-  max_heap_ptr_offset (st.(heap)) p`.
+  pointer then gets `spoq_nofree_room (post.(heap)) p =
+  spoq_nofree_room (st.(heap)) p`, where `spoq_nofree_room` is
+  `max_heap_ptr_offset` under a name marked DelayUnfold. The clause is a
+  separate Rely from the frame. Unfolded, it is a match on the block in both
+  states; conjoined with the frame, the transformer copied the frame into each
+  arm, and the corpus projects that call `memcpy` ran about 2x slower.
 
 `readonly` on a `memory(readwrite)` callee, as on `pv_shared_11`, says nothing
 usable: the callee may reach the same object through a global.
