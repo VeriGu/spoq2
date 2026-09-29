@@ -3498,6 +3498,22 @@ bool hoist_is_worthwhile(Project *proj, Match *m1, const std::vector<SpecNode *>
                   << (decidable && affordable ? "" : " -- declined");
     return decidable && affordable;
 }
+
+/// Whether [copies] further copies of [a] and [b] fit the hoist budget.  For the
+/// rewrites that duplicate an If's branches under each arm of its condition:
+/// without a bound, conditions that are themselves branch trees (a bounds test
+/// on a heap block, say) copy the rest of the program at every level.
+bool branches_affordable(SpecNode *a, SpecNode *b, size_t copies, const char *what) {
+    size_t const budget = hoist_budget();
+    if (budget == SIZE_MAX || copies == 0) return true;
+    // count_leaves stops once past its bound, so a huge branch costs little to reject.
+    size_t const leaves = a->count_leaves(budget + 1) + b->count_leaves(budget + 1);
+    bool const affordable = leaves <= budget && copies <= budget / std::max<size_t>(leaves, 1);
+    if (std::getenv("SPOQ_TRACE_TRANSFORM"))
+        LOG_DEBUG << "[HOIST] " << what << " copies " << copies << " branch leaves " << leaves
+                  << " budget " << budget << (affordable ? "" : " -- declined");
+    return affordable;
+}
 }  // namespace
 
 rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bool rec,
@@ -3630,6 +3646,9 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bo
         }
         if (auto iff = instance_of(node.get(), If)){
             if(auto m = instance_of(iff->cond.get(), Match)){
+                if (!branches_affordable(iff->then_body.get(), iff->else_body.get(),
+                                         m->match_list->size() - 1, "if-of-match"))
+                    return node;
                 tally.if_of_match++;
                 auto const before = hoist_noop_trace() ? string(*node) : std::string();
                 auto const orig_type = iff->get_type();
@@ -3674,6 +3693,8 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bo
                 return new_node;
             }
             if (auto inner_if = instance_of(iff->cond.get(), If)){
+                if (!branches_affordable(iff->then_body.get(), iff->else_body.get(), 1, "if-of-if"))
+                    return node;
                 // LOG_DEBUG << "Found hoist branch from branch candidate:" << string(*node);
                 /* Currently we have a program as follows:
                     if (if P then A else B)
