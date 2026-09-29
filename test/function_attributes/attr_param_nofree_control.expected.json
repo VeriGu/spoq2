@@ -1,0 +1,5 @@
+{
+  "verified": false,
+  "stderr_contains": "[ATTR] ext_param_nofree_control: argmem-framed over 1 pointer(s)",
+  "stderr_lacks": "[ATTR] ext_param_nofree_control: nofree"
+}

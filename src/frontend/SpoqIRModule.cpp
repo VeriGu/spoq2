@@ -117,32 +117,69 @@ enum class AttrEffect {
     ArgMem,    ///< only the objects named by the pointer arguments may change
 };
 
-/// Classify [func] and, for ArgMem, report which parameters carry the pointers.
-///
-/// This mirrors the reasoning that used to run per callsite.  One narrowing is
-/// worth keeping: argument memory the callee cannot name is argument memory it
-/// cannot touch, so with no pointer parameter a permission like
-/// memory(argmem: readwrite) licenses no write at all.  An integer parameter
-/// holding an address does not make that unsound -- accessing it is a write to
-/// "other" memory, which the remaining effects still have to allow.
-AttrEffect classify_memory_attrs(const llvm::Function &func,
-                                 std::vector<unsigned> &ptr_params) {
-    auto effects = func.getMemoryEffects();
+/// What the function and parameter attributes of a declaration say.
+struct AttrSummary {
+    AttrEffect effect = AttrEffect::Unknown;
+    /// For ArgMem: the pointer parameters the callee may write through.
+    std::vector<unsigned> written;
+    /// The pointer parameters the callee may read through.  With only_via_args,
+    /// these are the only way it reads memory.
+    std::vector<unsigned> read;
+    /// The callee reads no memory except through its pointer parameters.
+    bool only_via_args = false;
+    /// No pointer based on any argument is freed.
+    bool nofree = false;
+};
 
-    ptr_params.clear();
+/// Classify [func].
+///
+/// Argument memory the callee cannot name is argument memory it cannot touch,
+/// so with no pointer parameter a permission like memory(argmem: readwrite)
+/// licenses no access at all.  An integer parameter holding an address does not
+/// make that unsound -- accessing it is an access to "other" memory, which the
+/// remaining effects still have to allow.
+///
+/// Parameter attributes narrow argument memory further: a readonly or readnone
+/// parameter is not written through, and a writeonly or readnone one is not read
+/// through.  Each only speaks of accesses through that parameter, so it narrows
+/// argmem and nothing else.
+///
+/// A nofree parameter forbids freeing through pointers based on it, not freeing
+/// its object through some other pointer.  So it is only used when every
+/// pointer parameter carries it: an alias of a nofree parameter is then based on
+/// another nofree parameter, or is a pointer from "other" memory, which an
+/// argmem-only callee cannot pass to a deallocator without writing it.
+AttrSummary classify_memory_attrs(const llvm::Function &func) {
+    auto effects = func.getMemoryEffects();
+    AttrSummary s;
+
+    std::vector<unsigned> ptr_params;
     for (unsigned i = 0; i < func.arg_size(); i++)
         if (func.getArg(i)->getType()->isPointerTy()) ptr_params.push_back(i);
 
-    if (ptr_params.empty())
-        effects = effects.getWithoutLoc(llvm::IRMemLocation::ArgMem);
+    auto const has = [&](unsigned i, llvm::Attribute::AttrKind kind) {
+        return func.hasParamAttribute(i, kind);
+    };
+    auto const argmem = effects.getModRef(llvm::IRMemLocation::ArgMem);
+    auto const other = effects.getWithoutLoc(llvm::IRMemLocation::ArgMem);
+    for (auto const i : ptr_params) {
+        if (!has(i, llvm::Attribute::ReadOnly) && !has(i, llvm::Attribute::ReadNone))
+            s.written.push_back(i);
+        if (llvm::isRefSet(argmem) && !has(i, llvm::Attribute::WriteOnly) &&
+            !has(i, llvm::Attribute::ReadNone))
+            s.read.push_back(i);
+    }
+    const bool argmem_mod = llvm::isModSet(argmem) && !s.written.empty();
 
-    if (effects.onlyReadsMemory()) return AttrEffect::Pure;
+    s.only_via_args = other.onlyWritesMemory();
+    s.nofree = func.hasFnAttribute(llvm::Attribute::NoFree) ||
+               std::all_of(ptr_params.begin(), ptr_params.end(),
+                           [&](unsigned i) { return has(i, llvm::Attribute::NoFree); });
 
-    if (!ptr_params.empty() &&
-        effects.getWithoutLoc(llvm::IRMemLocation::ArgMem).onlyReadsMemory())
-        return AttrEffect::ArgMem;
-
-    return AttrEffect::Unknown;
+    if (!other.onlyReadsMemory()) return s;
+    s.effect = argmem_mod ? AttrEffect::ArgMem : AttrEffect::Pure;
+    if (s.effect == AttrEffect::Pure) s.written.clear();
+    return s;
 }
 
 /// `post = pre`: the callee wrote nothing.
@@ -166,17 +203,15 @@ unique_ptr<SpecNode> pure_property(const string &pre, const string &post,
 /// framing it per object means a case analysis this cannot construct generically.
 ///
 /// Emitted as one Rely rather than as a rewritten post-state, so the post-state
-/// remains a symbol and later loads and stores do not have to reason through an
-/// if-expression.
-unique_ptr<SpecNode> argmem_property(const string &pre, const string &post,
+/// [post] remains opaque and later loads and stores do not have to reason
+/// through an if-expression.
+unique_ptr<SpecNode> argmem_property(const string &pre, const SpecNode &post,
                                      const std::vector<string> &ptrs,
                                      shared_ptr<SpecType> state_type) {
     auto pre_st = [&]() -> unique_ptr<SpecNode> {
         return std::make_unique<Symbol>(pre, state_type);
     };
-    auto post_st = [&]() -> unique_ptr<SpecNode> {
-        return std::make_unique<Symbol>(post, state_type);
-    };
+    auto post_st = [&]() -> unique_ptr<SpecNode> { return post.deep_copy(); };
     auto arg_ptr = [&](const string &p) -> unique_ptr<SpecNode> {
         return std::make_unique<Symbol>(p, Struct::Ptr);
     };
@@ -264,6 +299,29 @@ unique_ptr<SpecNode> argmem_property(const string &pre, const string &post,
                                    std::move(globals_framed)))));
 }
 
+/// The heap block each of [ptrs] keys is still allocated, with its size
+/// unchanged.  max_heap_ptr_offset is 0 for an unallocated block and the block
+/// size less the offset otherwise, so equality pins both.  For a stack or
+/// global pointer the key names no argument's object, and the callee cannot
+/// free a block it cannot name.
+unique_ptr<SpecNode> nofree_property(const string &pre, const SpecNode &post,
+                                     const std::vector<string> &ptrs,
+                                     const shared_ptr<SpecType> &state_type) {
+    auto const room = [&](unique_ptr<SpecNode> st, const string &p) {
+        auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
+        v->push_back(attr_field(std::move(st), "heap"));
+        v->push_back(std::make_unique<Symbol>(p, Struct::Ptr));
+        return std::make_unique<Expr>(std::string("max_heap_ptr_offset"), std::move(v));
+    };
+    unique_ptr<SpecNode> acc = nullptr;
+    for (auto const &p : ptrs) {
+        auto here = attr_bin(Expr::EQUAL, room(post.deep_copy(), p),
+                             room(std::make_unique<Symbol>(pre, state_type), p));
+        acc = acc ? attr_bin(Expr::AND, std::move(acc), std::move(here)) : std::move(here);
+    }
+    return acc;
+}
+
 }  // namespace
 
 void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
@@ -287,8 +345,8 @@ void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
             continue;
         }
 
-        std::vector<unsigned> ptr_params;
-        const AttrEffect effect = classify_memory_attrs(func, ptr_params);
+        const AttrSummary summary = classify_memory_attrs(func);
+        const AttrEffect effect = summary.effect;
         if (effect == AttrEffect::Unknown) continue;
 
         // The declared type is curried and flattened: the LLVM parameters
@@ -325,52 +383,133 @@ void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
         }
         args->push_back(make_shared<Arg>(pre_state, state_type));
 
-        // The oracle call: the same arguments, forwarded unchanged.
-        auto call_args = std::make_unique<vector<unique_ptr<SpecNode>>>();
-        for (unsigned i = 0; i < func.arg_size(); i++)
-            call_args->push_back(std::make_unique<Symbol>(arg_names[i], (*fn_type->args)[i]));
-        call_args->push_back(std::make_unique<Symbol>(pre_state, state_type));
-        auto oracle_call = std::make_unique<Expr>(oracle_name, std::move(call_args));
-
-        // What the oracle's result is destructured into, and what we hand back.
-        auto const result = [&]() -> unique_ptr<SpecNode> {
-            if (!returns_value) return std::make_unique<Symbol>(post_state, state_type);
-            auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
-            v->push_back(std::make_unique<Symbol>(ret_value, (*ret_tuple->types)[0]));
-            v->push_back(std::make_unique<Symbol>(post_state, state_type));
-            return Shortcut::_Tuple_u(std::move(v));
-        };
-
         // The frame talks about each pointer's pbase, so the *declared* type of
         // every one of those parameters has to actually be Ptr.  A spec that
         // models a pointer as an integer would give an ill-typed property, so
         // fall back to saying nothing rather than emitting Coq that will not
         // typecheck.
-        std::vector<string> ptr_names;
-        bool all_ptr_typed = true;
-        if (effect == AttrEffect::ArgMem)
-            for (auto const i : ptr_params) {
+        auto const names_of = [&](const std::vector<unsigned> &params,
+                                  std::vector<string> &out) {
+            for (auto const i : params) {
                 if ((*fn_type->args)[i] != static_pointer_cast<SpecType>(Struct::Ptr)) {
-                    LOG_WARNING << "[ATTR] " << spec_name << " is argmem-only but parameter "
-                                << i << " is declared as " << (*fn_type->args)[i]->name
+                    LOG_WARNING << "[ATTR] " << spec_name << ": parameter " << i
+                                << " is declared as " << (*fn_type->args)[i]->name
                                 << " rather than Ptr; leaving it uninterpreted.";
-                    all_ptr_typed = false;
-                    break;
+                    return false;
                 }
-                ptr_names.push_back(arg_names[i]);
+                out.push_back(arg_names[i]);
             }
-        if (!all_ptr_typed) continue;
+            return true;
+        };
+        std::vector<string> ptr_names;
+        if (effect == AttrEffect::ArgMem && !names_of(summary.written, ptr_names)) continue;
 
-        auto property = effect == AttrEffect::Pure
-                            ? pure_property(pre_state, post_state, state_type)
-                            : argmem_property(pre_state, post_state, ptr_names, state_type);
+        // A callee that reads memory only through its pointer parameters is
+        // passed a view of the state: the globals are replaced by a fixed value
+        // unless a parameter it reads through may name them.  Its result then
+        // does not depend on globals it cannot read, such as the object of a
+        // writeonly parameter.  The layout of the globals is static, so the view
+        // keeps everything a store to them depends on.  The heap and the stack
+        // are passed whole, since which of their objects exist is state.
+        //
+        // The oracle's post-state is computed from the view, so it cannot be
+        // the call's post-state.  That is taken from f_post_oracle applied to
+        // the real state, framed as before; a Pure callee's is the pre-state.
+        const string view_name = name + "_view_globals";
+        const string post_oracle_name = name + "_post_oracle";
+        shared_ptr<SpecType> globals_type = nullptr;
+        std::vector<string> read_names;
+        auto const st_struct = dynamic_pointer_cast<Struct>(state_type);
+        if (summary.only_via_args && st_struct && st_struct->elems_map.count("globals") &&
+            names_of(summary.read, read_names) &&
+            proj->symbols.find(view_name) == proj->symbols.end() &&
+            proj->symbols.find(post_oracle_name) == proj->symbols.end())
+            globals_type = st_struct->elems_map.at("globals");
+        const bool use_view = globals_type != nullptr;
+
+        unique_ptr<SpecNode> oracle_input = std::make_unique<Symbol>(pre_state, state_type);
+        if (use_view) {
+            unique_ptr<SpecNode> globals = std::make_unique<Symbol>(view_name, globals_type);
+            unique_ptr<SpecNode> may_read = nullptr;
+            for (auto const &q : read_names) {
+                auto here = attr_apply("is_global_ptr", std::make_unique<Symbol>(q, Struct::Ptr));
+                may_read = may_read ? attr_bin(Expr::OR, std::move(may_read), std::move(here))
+                                    : std::move(here);
+            }
+            if (may_read)
+                globals = std::make_unique<If>(std::move(may_read),
+                                               attr_field(oracle_input->deep_copy(), "globals"),
+                                               std::move(globals));
+            auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
+            v->push_back(std::move(oracle_input));
+            v->push_back(std::make_unique<Symbol>("globals"));
+            v->push_back(std::move(globals));
+            oracle_input = std::make_unique<Expr>(Expr::RecordSet, std::move(v));
+        }
+
+        // The oracle call: the same arguments, forwarded unchanged.
+        auto const arg_syms = [&]() {
+            auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
+            for (unsigned i = 0; i < func.arg_size(); i++)
+                v->push_back(std::make_unique<Symbol>(arg_names[i], (*fn_type->args)[i]));
+            return v;
+        };
+        auto call_args = arg_syms();
+        call_args->push_back(std::move(oracle_input));
+        auto oracle_call = std::make_unique<Expr>(oracle_name, std::move(call_args));
+
+        // The call's post-state.
+        unique_ptr<SpecNode> post = std::make_unique<Symbol>(post_state, state_type);
+        if (use_view && effect == AttrEffect::Pure) {
+            post = std::make_unique<Symbol>(pre_state, state_type);
+        } else if (use_view) {
+            auto v = arg_syms();
+            v->push_back(std::make_unique<Symbol>(pre_state, state_type));
+            post = std::make_unique<Expr>(post_oracle_name, std::move(v));
+        }
+
+        // What the oracle's result is destructured into, and what we hand back.
+        auto const result = [&](bool pattern) -> unique_ptr<SpecNode> {
+            auto st = pattern ? std::make_unique<Symbol>(use_view ? "st_oracle" : post_state,
+                                                         state_type)
+                              : post->deep_copy();
+            if (!returns_value) return st;
+            auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
+            v->push_back(std::make_unique<Symbol>(ret_value, (*ret_tuple->types)[0]));
+            v->push_back(std::move(st));
+            return Shortcut::_Tuple_u(std::move(v));
+        };
+
+        unique_ptr<SpecNode> property = nullptr;
+        auto const conj = [&](unique_ptr<SpecNode> p) {
+            property = property ? attr_bin(Expr::AND, std::move(property), std::move(p))
+                                : std::move(p);
+        };
+        if (effect == AttrEffect::ArgMem)
+            conj(argmem_property(pre_state, *post, ptr_names, state_type));
+        else if (!use_view)
+            conj(pure_property(pre_state, post_state, state_type));
+        std::vector<string> facts;
+        if (use_view) facts.push_back("globals viewed");
+
+        // A block a written pointer names stays allocated.  Pure needs nothing:
+        // the post-state is the pre-state.
+        if (effect == AttrEffect::ArgMem && summary.nofree) {
+            if (proj->defs.find("max_heap_ptr_offset") != proj->defs.end()) {
+                conj(nofree_property(pre_state, *post, ptr_names, state_type));
+                facts.push_back("nofree");
+            } else {
+                LOG_WARNING << "[ATTR] " << spec_name << " is nofree but max_heap_ptr_offset "
+                            << "is not defined; not using it.";
+            }
+        }
 
         // rely (<attribute>); Some <result> -- the Rely is the top of the body
         // proper, so unfolding f_spec at any callsite brings the attribute with
         // it exactly once.
-        auto body = Shortcut::_When_u(
-            result(), std::move(oracle_call),
-            std::make_unique<Rely>(std::move(property), Shortcut::_Some_u(result())));
+        unique_ptr<SpecNode> tail = Shortcut::_Some_u(result(false));
+        if (property) tail = std::make_unique<Rely>(std::move(property), std::move(tail));
+        auto body = Shortcut::_When_u(result(true), std::move(oracle_call), std::move(tail));
 
         // Demote the Parameter to the oracle it now is, and define the wrapper in
         // its place.  Callers keep referring to f_spec and see the wrapper.
@@ -379,6 +518,17 @@ void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
         proj->decls.erase(decl_it);
         proj->symbols.erase(spec_name);
         proj->add_declaration(std::move(oracle), loc);
+        if (use_view) {
+            proj->add_declaration(make_unique<Declaration>(view_name, globals_type), loc);
+            if (effect == AttrEffect::ArgMem) {
+                auto const types = std::make_shared<vector<shared_ptr<SpecType>>>(
+                    fn_type->args->begin(), fn_type->args->end());
+                proj->add_declaration(
+                    make_unique<Declaration>(post_oracle_name,
+                                             std::make_shared<Function>(state_type, types)),
+                    loc);
+            }
+        }
         proj->add_definition(
             make_unique<Definition>(spec_name, fn_type->rettype, std::move(args), std::move(body)),
             loc);
@@ -388,6 +538,7 @@ void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
                          ? "state-preserving"
                          : "argmem-framed over " + std::to_string(ptr_names.size()) + " pointer(s)")
                  << " by attribute; " << spec_name << " defined over " << oracle_name << ".";
+        for (auto const &f : facts) LOG_INFO << "[ATTR] " << name << ": " << f << " by attribute.";
     }
 }
 

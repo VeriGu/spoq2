@@ -1,0 +1,4 @@
+{
+  "verified": false,
+  "stderr_contains": "[ATTR] ext_param_writeonly_control: globals viewed by attribute"
+}

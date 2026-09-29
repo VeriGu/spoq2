@@ -179,10 +179,63 @@ Two limits worth knowing:
 - Only the single-pointer case is framed. With several pointer arguments the
   frame would have to permit all of them to change at once.
 
+### Parameter attributes
+
+The `attr_param_*` cases exercise `readonly`, `writeonly` and `nofree` on the
+pointer parameters of a declaration, as the patchverification pipeline emits
+them on outlined `pv_shared_*` functions. Each positive case fails without the
+attribute; its control differs from it only in the attribute.
+
+| test | callee | expected | why |
+|---|---|---|---|
+| `attr_param_readonly` | `memory(read, argmem: readwrite, ...)`, `ptr readonly`, `&g` passed | `verified: true` | the only pointer is not written through, so the callee is state-preserving; `attr_argmem` is the same without `readonly` |
+| `attr_param_readonly_mixed` | the same, `ptr readonly` `&g` and `ptr` `&local` | `verified: true` | only `&local` is framed as written, so the globals are pinned |
+| `attr_param_readonly_unframed` | `memory(readwrite)`, `ptr nofree readonly captures(none)` | `verified: false` | control: `readonly` forbids writes through the parameter, not to `g` directly |
+| `attr_param_writeonly` | `memory(argmem: readwrite)`, `ptr writeonly`, `&g` passed | `verified: true` | vuln and patch store different values to `g` before the call; the callee cannot read `g`, so the call behaves the same in both |
+| `attr_param_writeonly_control` | the same without `writeonly` | `verified: false` | control: the callee may read `g` |
+| `attr_param_nofree` | `memory(argmem: readwrite)`, `ptr nofree`, argument pointer | `verified: true` | patch loads through `p` after the call; the block is still allocated with its size unchanged |
+| `attr_param_nofree_control` | the same without `nofree` | `verified: false` | control: the callee may free `p`, so the load in patch may be undefined |
+
+`classify_memory_attrs` applies each attribute only to argument memory, as
+LangRef defines it:
+
+- A `readonly` or `readnone` parameter is not written through. It is left out of
+  the argmem frame, and if no written parameter remains the callee is Pure.
+  Aliasing is sound: an object named by both a readonly and a written parameter
+  is framed through the written one.
+- A `writeonly` or `readnone` parameter is not read through. When the callee
+  reads no "other" memory, it reads only through its remaining parameters, so
+  the oracle is passed a view of the state with `globals` replaced by
+  `<f>_view_globals` unless one of those parameters `is_global_ptr`. The layout of
+  the globals is static, so the view keeps everything their definedness
+  depends on. The heap and the stack are passed whole, because which of their
+  objects exist is state. The oracle's post-state is computed from the view, so
+  it cannot be the call's post-state. For an argmem callee that comes from
+  `<f>_post_oracle` applied to the real state and is framed as before; for a
+  Pure callee it is the pre-state.
+- A `nofree` parameter only forbids frees through pointers based on it, so it
+  is used only when every pointer parameter carries it (or the function is
+  `nofree`), and only for an argmem callee. Such a callee cannot pass a pointer
+  from other memory to a deallocator without writing other memory. Each written
+  pointer then gets `max_heap_ptr_offset (post.(heap)) p =
+  max_heap_ptr_offset (st.(heap)) p`.
+
+`readonly` on a `memory(readwrite)` callee, as on `pv_shared_11`, says nothing
+usable: the callee may reach the same object through a global.
+
+The nofree fixtures take `p` as an argument and load through it before the call,
+which establishes that the block exists. A block from `malloc` cannot be used
+here: `malloc` inserts at key `nextBlock`, a load looks up `spvn (pvns
+nextBlock)`, and no axiom relates the two. The writeonly fixtures use a global
+rather than a local. After the call, a later store matches on the slot's
+`StackVal` constructor in the post-state, which the callee leaves unconstrained.
+
 `src/` holds the C the `.ll` files were compiled from, with
 `clang -S -emit-llvm -fno-discard-value-names -O1 -Xclang -disable-llvm-passes`
 (matching how `examples/synthetic` builds its IR). `attr_writeonly.ll` then has
 `memory(write)` substituted by hand, since C has no attribute that spells it.
+The `attr_param_*` files are then run through `opt -passes=mem2reg` and have
+their function and parameter attributes substituted by hand.
 
 ## demand_unfolding/
 
