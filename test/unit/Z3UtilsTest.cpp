@@ -186,6 +186,61 @@ TEST_P(Z3CheckTest, BothQueriesTimeOutIsUnknown) {
               Z3Result::Unknown);
 }
 
+/* -- decided by the path literals before Z3 is called ---------------------- */
+// The hard state makes every solver call time out, so these verdicts come
+// from the literal check alone.
+
+TEST_P(Z3CheckTest, PathLiteralIsTrue) {
+    EXPECT_EQ(z3_check(state_of({pigeonhole(11), x() > 0}), x() > 0, nullptr, kTimeout), Z3Result::True);
+}
+
+TEST_P(Z3CheckTest, NegatedPathLiteralIsFalse) {
+    EXPECT_EQ(z3_check(state_of({pigeonhole(11), !(x() > 0)}), x() > 0, nullptr, kTimeout), Z3Result::False);
+    EXPECT_EQ(z3_check(state_of({pigeonhole(11), x() > 0}), !!!(x() > 0), nullptr, kTimeout), Z3Result::False);
+}
+
+TEST_P(Z3CheckTest, ConstantConditionIsDecided) {
+    EXPECT_EQ(z3_check(state_of({pigeonhole(11)}), !z3ctx.bool_val(true), nullptr, kTimeout), Z3Result::False);
+    EXPECT_EQ(z3_check(state_of({pigeonhole(11)}), z3ctx.bool_val(true), nullptr, kTimeout), Z3Result::True);
+}
+
+// Equalities match with their arguments swapped, disjunctions in any order,
+// and literals inside a top-level conjunction of the path.
+TEST_P(Z3CheckTest, LiteralsMatchUpToOrder) {
+    z3::expr const y = z3ctx.int_const("y"), b = z3ctx.bool_const("b");
+    EXPECT_EQ(z3_check(state_of({pigeonhole(11), !(x() == y)}), y == x(), nullptr, kTimeout), Z3Result::False);
+    EXPECT_EQ(z3_check(state_of({pigeonhole(11), b || x() == 1 || x() == 2}), (x() == 2 || b) || 1 == x(), nullptr,
+                       kTimeout),
+              Z3Result::True);
+    EXPECT_EQ(z3_check(state_of({pigeonhole(11) && x() == 1 && b}), b, nullptr, kTimeout), Z3Result::True);
+}
+
+// Recognizers of different constructors exclude each other, and excluding one
+// constructor of a two-constructor sort proves the other.
+TEST_P(Z3CheckTest, RecognizersAreDecided) {
+    z3::func_decl_vector cs3(z3ctx), ts3(z3ctx), cs2(z3ctx), ts2(z3ctx);
+    // Sort names are global to the context, so each parameter declares its own.
+    std::string const sfx = GetParam() ? "R" : "P";
+    std::string const names[] = {"Red" + sfx, "Green" + sfx, "Blue" + sfx, "Nothing" + sfx, "Just" + sfx};
+    char const *three_names[] = {names[0].c_str(), names[1].c_str(), names[2].c_str()};
+    char const *two_names[] = {names[3].c_str(), names[4].c_str()};
+    z3::sort const color = z3ctx.enumeration_sort(("Color" + sfx).c_str(), 3, three_names, cs3, ts3);
+    z3::sort const opt = z3ctx.enumeration_sort(("Opt" + sfx).c_str(), 2, two_names, cs2, ts2);
+    z3::expr const c = z3ctx.constant("c", color), o = z3ctx.constant("o", opt);
+    auto const hard = pigeonhole(11);
+    EXPECT_EQ(z3_check(state_of({hard, ts3[0](c)}), ts3[1](c), nullptr, kTimeout), Z3Result::False);
+    EXPECT_EQ(z3_check(state_of({hard, ts3[0](c)}), !ts3[2](c), nullptr, kTimeout), Z3Result::True);
+    EXPECT_EQ(z3_check(state_of({hard, !ts3[0](c)}), ts3[1](c), nullptr, kTimeout), Z3Result::Unknown);
+    EXPECT_EQ(z3_check(state_of({hard, !ts2[0](o)}), ts2[1](o), nullptr, kTimeout), Z3Result::True);
+    EXPECT_EQ(z3_check(state_of({hard}), ts3[1](cs3[2]()), nullptr, kTimeout), Z3Result::False);
+    EXPECT_EQ(z3_verify_state_sat(state_of({hard, ts3[0](c), ts3[1](c)}), nullptr, kTimeout), Z3Result::False);
+}
+
+TEST_P(Z3CheckTest, ComplementaryPathIsFalse) {
+    EXPECT_EQ(z3_check(state_of({pigeonhole(11), x() > 0, !(x() > 0)}), x() == 1, nullptr, kTimeout),
+              Z3Result::False);
+}
+
 /* -- unknown from incompleteness rather than from the clock ---------------- */
 
 // Z3 answers this one unknown immediately: quantified nonlinear reals are
@@ -330,6 +385,15 @@ TEST_P(VerifyStateSatTest, CacheIsKeyedByTimeout) {
     auto const before = z3_state_cache_hits;
     EXPECT_EQ(z3_verify_state_sat(sat, nullptr, kTimeout + 1), Z3Result::True);
     EXPECT_EQ(z3_state_cache_hits, before);
+}
+
+TEST_P(VerifyStateSatTest, ComplementaryLiteralsAreFalse) {
+    EXPECT_EQ(z3_verify_state_sat(state_of({pigeonhole(11), x() > 0, !(x() > 0)}), nullptr, kTimeout),
+              Z3Result::False);
+    EXPECT_EQ(z3_verify_state_sat(state_of({pigeonhole(11), !z3ctx.bool_val(true)}), nullptr, kTimeout),
+              Z3Result::False);
+    EXPECT_EQ(z3_verify_state_sat(prove_state_of({pigeonhole(11), x() > 0}, {!(x() > 0)}), nullptr, kTimeout),
+              Z3Result::False);
 }
 
 /* -- the result cache is keyed by exactly what was asked ------------------- */

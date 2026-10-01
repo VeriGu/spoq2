@@ -763,12 +763,184 @@ static std::string to_string(z3::check_result r) {
     return r == z3::sat ? "sat" : r == z3::unsat ? "unsat" : "unknown";
 }
 
+unsigned long z3_literal_hits = 0;
+
+/// The constructor that the recognizer application e tests for, if e is one.
+static std::optional<z3::func_decl> recognized_constructor(const z3::expr &e) {
+    if (!e.is_app() || e.num_args() != 1) return std::nullopt;
+    auto const kind = e.decl().decl_kind();
+    if (kind != Z3_OP_DT_IS && kind != Z3_OP_DT_RECOGNISER) return std::nullopt;
+    z3::func_decl const d = e.decl();
+    if (Z3_get_decl_num_parameters(z3ctx, d) > 0 && Z3_get_decl_parameter_kind(z3ctx, d, 0) == Z3_PARAMETER_FUNC_DECL)
+        return z3::func_decl(z3ctx, Z3_get_decl_func_decl_parameter(z3ctx, d, 0));
+    z3::sort srt = e.arg(0).get_sort();
+    auto const ctors = srt.constructors();
+    auto const recs = srt.recognizers();
+    for (unsigned i = 0; i < recs.size(); ++i)
+        if (recs[i].id() == d.id()) return ctors[i];
+    return std::nullopt;
+}
+
+/// An equivalent formula in which equal literals share one AST: double
+/// negations are removed, `distinct a b` becomes `not (= a b)`, the arguments
+/// of `=` are ordered by AST id, and `and`/`or` are flattened, deduplicated
+/// and sorted by id.  Memoised by AST id; the memo keeps its keys alive, so
+/// the ids are not reused.
+static z3::expr canonical_literal(const z3::expr &e) {
+    static std::unordered_map<unsigned, std::pair<z3::expr, z3::expr>> memo;
+    if (!e.is_bool() || !e.is_app()) return e;
+    auto const it = memo.find(e.id());
+    if (it != memo.end()) return it->second.second;
+    z3::expr r = e;
+    auto const tested = recognized_constructor(e);
+    if (tested && e.arg(0).is_app() && e.arg(0).decl().decl_kind() == Z3_OP_DT_CONSTRUCTOR) {
+        r = z3ctx.bool_val(e.arg(0).decl().id() == tested->id());
+    } else if (e.is_not()) {
+        z3::expr const a = canonical_literal(e.arg(0));
+        r = a.is_not() ? a.arg(0) : a.is_true() ? z3ctx.bool_val(false) : a.is_false() ? z3ctx.bool_val(true) : !a;
+    } else if (e.is_distinct() && e.num_args() == 2) {
+        r = canonical_literal(!(e.arg(0) == e.arg(1)));
+    } else if (e.is_eq() && e.num_args() == 2) {
+        if (e.arg(1).id() < e.arg(0).id()) r = e.arg(1) == e.arg(0);
+    } else if (e.is_and() || e.is_or()) {
+        bool const is_and = e.is_and();
+        std::vector<z3::expr> parts, open{e};
+        while (!open.empty()) {
+            z3::expr const t = open.back();
+            open.pop_back();
+            if (t.is_app() && t.decl().decl_kind() == e.decl().decl_kind()) {
+                for (unsigned i = 0; i < t.num_args(); ++i) open.push_back(t.arg(i));
+                continue;
+            }
+            z3::expr const c = canonical_literal(t);
+            if (c.is_app() && c.decl().decl_kind() == e.decl().decl_kind()) {
+                for (unsigned i = 0; i < c.num_args(); ++i) parts.push_back(c.arg(i));
+            } else {
+                parts.push_back(c);
+            }
+        }
+        std::sort(parts.begin(), parts.end(), [](const z3::expr &a, const z3::expr &b) { return a.id() < b.id(); });
+        z3::expr_vector v(z3ctx);
+        for (size_t i = 0; i < parts.size(); ++i) {
+            if (i > 0 && parts[i].id() == parts[i - 1].id()) continue;
+            // The absorbing constant decides the connective; the neutral one is dropped.
+            if (is_and ? parts[i].is_false() : parts[i].is_true()) {
+                v = z3::expr_vector(z3ctx);
+                v.push_back(parts[i]);
+                break;
+            }
+            if (is_and ? parts[i].is_true() : parts[i].is_false()) continue;
+            v.push_back(parts[i]);
+        }
+        r = v.empty() ? z3ctx.bool_val(is_and) : v.size() == 1 ? v[0] : is_and ? z3::mk_and(v) : z3::mk_or(v);
+    }
+    memo.emplace(e.id(), std::make_pair(e, r));
+    return r;
+}
+
+/// The canonical literals of a path: its conditions with top-level `and`
+/// flattened.  `contradictory` is set when the path holds `false`, a
+/// literal together with its negation, or two recognizers of different
+/// constructors on one term.
+struct PathLiterals {
+    std::unordered_set<unsigned> ids;
+    /// Term id -> id of the constructor the path proves it was built with.
+    std::unordered_map<unsigned, unsigned> constructor_of;
+    bool contradictory = false;
+
+    void add(const z3::expr &cond) {
+        z3::expr const c = canonical_literal(cond);
+        if (c.is_and()) {
+            for (unsigned i = 0; i < c.num_args(); ++i) add_literal(c.arg(i));
+        } else {
+            add_literal(c);
+        }
+    }
+    void add_all(const std::vector<z3::expr> &conds) {
+        for (auto const &c : conds) add(c);
+    }
+    bool holds(const z3::expr &l) const {
+        if (l.is_true() || ids.count(l.id())) return true;
+        if (auto const k = known_test(l)) return *k;
+        return l.is_not() && known_test(l.arg(0)) == false;
+    }
+    bool refuted(const z3::expr &l) const {
+        if (l.is_false() || ids.count(negated(l).id())) return true;
+        if (auto const k = known_test(l)) return !*k;
+        return l.is_not() && known_test(l.arg(0)) == true;
+    }
+    /// True if the path entails c, False if it refutes c, else Unknown.
+    Z3Result decide(const z3::expr &cond) const {
+        z3::expr const c = canonical_literal(cond);
+        if (holds(c)) return Z3Result::True;
+        if (refuted(c)) return Z3Result::False;
+        if (c.is_and() || c.is_or()) {
+            bool all_hold = true, all_refuted = true;
+            for (unsigned i = 0; i < c.num_args(); ++i) {
+                bool const h = holds(c.arg(i)), r = !h && refuted(c.arg(i));
+                if (c.is_or() && h) return Z3Result::True;
+                if (c.is_and() && r) return Z3Result::False;
+                all_hold &= h;
+                all_refuted &= r;
+            }
+            if (c.is_and() && all_hold) return Z3Result::True;
+            if (c.is_or() && all_refuted) return Z3Result::False;
+        }
+        return Z3Result::Unknown;
+    }
+
+private:
+    static z3::expr negated(const z3::expr &l) { return canonical_literal(!l); }
+    /// The value of recognizer application l when the path fixes the
+    /// constructor of its argument.
+    std::optional<bool> known_test(const z3::expr &l) const {
+        auto const tested = recognized_constructor(l);
+        if (!tested) return std::nullopt;
+        auto const it = constructor_of.find(l.arg(0).id());
+        if (it == constructor_of.end()) return std::nullopt;
+        return it->second == tested->id();
+    }
+    void add_literal(const z3::expr &l) {
+        if (refuted(l)) contradictory = true;
+        if (!l.is_true()) ids.insert(l.id());
+        if (contradictory) return;
+        if (auto const tested = recognized_constructor(l)) {
+            constructor_of.emplace(l.arg(0).id(), tested->id());
+        } else if (l.is_not()) {
+            // Excluding one constructor of a two-constructor sort fixes the other.
+            if (auto const excluded = recognized_constructor(l.arg(0))) {
+                z3::sort srt = l.arg(0).arg(0).get_sort();
+                auto const ctors = srt.constructors();
+                if (ctors.size() == 2)
+                    constructor_of.emplace(l.arg(0).arg(0).id(),
+                                           ctors[ctors[0].id() == excluded->id() ? 1 : 0].id());
+            }
+        }
+    }
+};
+
+/// The literals of the conditions and, if not null, the inductions.  A
+/// condition that is a literal, or whose negation is one, is decided without
+/// Z3; on a contradictory path every condition is refuted, as the two solver
+/// calls of z3_check would find.
+static PathLiterals path_literals(const std::vector<z3::expr> &conds, const std::vector<z3::expr> *inductions) {
+    PathLiterals lits;
+    lits.add_all(conds);
+    if (inductions) lits.add_all(*inductions);
+    return lits;
+}
+
 /** specialized z3 checker for automated proof
  *  1. only check !cond if UNSAT (True) or not
  *  2. automatically dump queries
  *  3. use local solver, which significantly speedup path-by-path verification
   */
 Z3Result z3_verify(const shared_ptr<ProveState>& state, const z3::expr& cond, QueryInfo *qinfo, int timeout) {
+    if (auto const lits = path_literals(*state->conds, state->inductions.get());
+        lits.contradictory || lits.decide(cond) == Z3Result::True) {
+        z3_literal_hits++;
+        return Z3Result::True;
+    }
     auto const start = std::chrono::high_resolution_clock::now();
     z3::solver solve = make_solver();
     timeout = scaled_timeout(timeout);
@@ -818,6 +990,10 @@ Z3Result z3_verify(const shared_ptr<ProveState>& state, const z3::expr& cond, Qu
  * 2. Check deterministic path for simulation
  * */
 Z3Result z3_verify_state_sat(const shared_ptr<ProveState>& state, QueryInfo *qinfo, int timeout) {
+    if (path_literals(*state->conds, state->inductions.get()).contradictory) {
+        z3_literal_hits++;
+        return Z3Result::False;
+    }
     auto const start = std::chrono::high_resolution_clock::now();
     z3::solver solve = make_solver();
 
@@ -861,6 +1037,10 @@ Z3Result z3_verify_state_sat(const shared_ptr<ProveState>& state, QueryInfo *qin
     }
 }
 Z3Result z3_verify_state_sat(const shared_ptr<EvalState>& state, QueryInfo *qinfo, int timeout) {
+    if (path_literals(*state->conds, nullptr).contradictory) {
+        z3_literal_hits++;
+        return Z3Result::False;
+    }
     // Decided answers are cached; Unknown is not, so a later call can still
     // decide the state.
     auto const cache_query = Z3ResultCache::query(Z3ResultCache::Kind::VerifyState, *state, nullptr, timeout);
@@ -912,6 +1092,13 @@ Z3Result z3_verify_state_sat(const shared_ptr<EvalState>& state, QueryInfo *qinf
 }
 // Defautl value of timeout is 50
 Z3Result z3_check(const shared_ptr<EvalState>& state, const z3::expr& cond, QueryInfo *qinfo, int timeout) {
+    auto const prover = dynamic_cast<const ProveState *>(state.get());
+    auto const lits = path_literals(*state->conds, prover ? prover->inductions.get() : nullptr);
+    auto const decided = lits.contradictory ? Z3Result::False : lits.decide(cond);
+    if (decided != Z3Result::Unknown) {
+        z3_literal_hits++;
+        return decided;
+    }
     auto const start = std::chrono::high_resolution_clock::now();
     auto const cache_query = Z3ResultCache::query(Z3ResultCache::Kind::Check, *state, &cond, timeout);
     z3_checks++;
@@ -1016,6 +1203,11 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, const z3::expr& cond, Quer
 }
 
 Z3Result z3_check(const shared_ptr<EvalState>& state, int timeout) {
+    auto const prover = dynamic_cast<const ProveState *>(state.get());
+    if (path_literals(*state->conds, prover ? prover->inductions.get() : nullptr).contradictory) {
+        z3_literal_hits++;
+        return Z3Result::False;
+    }
     auto const start = std::chrono::high_resolution_clock::now();
     auto const cache_query = Z3ResultCache::query(Z3ResultCache::Kind::CheckState, *state, nullptr, timeout);
     z3_checks++;
@@ -1082,6 +1274,11 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, int timeout) {
 //@model will get assigned to the return model.
 Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& cond, z3::model& ce, QueryInfo *qinfo, int timeout,
                         bool count_unknown) {
+    if (auto const lits = path_literals(*state->conds, state->inductions.get());
+        lits.contradictory || lits.decide(cond) == Z3Result::True) {
+        z3_literal_hits++;
+        return Z3Result::True;
+    }
     auto const start = std::chrono::high_resolution_clock::now();
     // Sat is not cached: it comes with the counterexample in [ce].
     auto const cache_query = Z3ResultCache::query(Z3ResultCache::Kind::CheckUnsat, *state, &cond, timeout);

@@ -484,8 +484,10 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             }
             if (force_simpl || !__unfold) {
                     auto const start = std::chrono::high_resolution_clock::now();
-                    extern unsigned long z3_checks, z3_cache_hits, z3_race_solves, z3_state_sat[3], z3_retries, z3_state_cache_hits;
-                    auto const checks_before = z3_checks, hits_before = z3_cache_hits, races_before = z3_race_solves;
+                    extern unsigned long z3_checks, z3_cache_hits, z3_race_solves, z3_state_sat[3], z3_retries,
+                        z3_state_cache_hits, z3_literal_hits;
+                    auto const checks_before = z3_checks, hits_before = z3_cache_hits, races_before = z3_race_solves,
+                               literal_before = z3_literal_hits;
                     auto const state_hits_before = z3_state_cache_hits;
                     unsigned long const sat_before[3] = {z3_state_sat[0], z3_state_sat[1], z3_state_sat[2]};
                     auto const retries_before = z3_retries;
@@ -517,7 +519,8 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 auto const duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
                 LOG_DEBUG << "spec transformer for " << def->name << " Z3 time: " << duration.count() / 1000.0
                           << " seconds, checks " << z3_checks - checks_before << ", cache hits "
-                          << z3_cache_hits - hits_before << ", race solves " << z3_race_solves - races_before
+                          << z3_cache_hits - hits_before << ", literal hits " << z3_literal_hits - literal_before
+                          << ", race solves " << z3_race_solves - races_before
                           << ", state checks unsat/sat/unknown " << z3_state_sat[0] - sat_before[0] << "/"
                           << z3_state_sat[1] - sat_before[1] << "/" << z3_state_sat[2] - sat_before[2]
                           << ", state cache hits " << z3_state_cache_hits - state_hits_before
