@@ -404,8 +404,9 @@ static z3::check_result check_retrying(z3::solver &solver, z3::model *model = nu
  * is uninterpreted, so without this a pointer to a global stored to memory and
  * loaded back is an arbitrary pointer.  The table is read from the project's
  * global_to_ptr, whose arms are `if (v >=? BASE) then (mkPtr "name" (v - BASE))`
- * behind a first test against MAX_GLOBAL.  Values outside the range -- 0 and
- * -1 among them, which have axioms of their own -- stay uninterpreted.
+ * behind a first test against MAX_GLOBAL.  Values outside the range stay
+ * uninterpreted; with the generated int_to_ptr definition, add_ptr_int_lemmas
+ * gives them its other arms.
  */
 namespace {
 struct GlobalAddressTable {
@@ -413,15 +414,34 @@ struct GlobalAddressTable {
     std::vector<std::pair<long, std::string>> blocks;  // base, pbase; ascending
 };
 
-/// The value of a definition whose body is an integer literal.
-std::optional<long> int_def_value(Project *proj, SpecNode *n) {
-    auto const sym = dynamic_cast<Symbol *>(n);
-    if (!sym) return std::nullopt;
-    auto const it = proj->defs.find(sym->text);
+/// The value of the definition [name] when its body is an integer literal.
+std::optional<long> def_int(Project *proj, const std::string &name) {
+    auto const it = proj->defs.find(name);
     if (it == proj->defs.end()) return std::nullopt;
     auto const c = dynamic_cast<IntConst *>(it->second->body().get());
     if (!c) return std::nullopt;
     return (long)c->get_value();
+}
+
+/// The value of a definition, named by the symbol [n], whose body is an
+/// integer literal.
+std::optional<long> int_def_value(Project *proj, SpecNode *n) {
+    auto const sym = dynamic_cast<Symbol *>(n);
+    return sym ? def_int(proj, sym->text) : std::nullopt;
+}
+
+/// [v] in the sort of the address [x], integer or bitvector.
+z3::expr numeral(const z3::expr &x, long v) {
+    return x.is_bv() ? z3ctx.bv_val((int64_t)v, x.get_sort().bv_size()) : z3ctx.int_val((int64_t)v);
+}
+
+/// x < v, signed under bitvector sorts.
+z3::expr signed_lt(const z3::expr &x, long v) { return x.is_bv() ? z3::slt(x, numeral(x, v)) : x < numeral(x, v); }
+
+/// The pointer mkPtr pbase ofs.
+z3::expr mk_ptr(const std::string &pbase, const z3::expr &ofs) {
+    vector<shared_ptr<SpecValue>> fields{make_shared<StringValue>(z3ctx.string_val(pbase)), make_shared<IntValue>(ofs)};
+    return Struct::Ptr->construct(fields)->get_z3_value();
 }
 
 const GlobalAddressTable &global_address_table(Project *proj) {
@@ -448,6 +468,108 @@ const GlobalAddressTable &global_address_table(Project *proj) {
 }
 }  // namespace
 
+namespace {
+/// An integer literal of value [v].
+bool is_int(SpecNode *n, long v) {
+    auto const c = dynamic_cast<IntConst *>(n);
+    return c && (long)c->get_value() == v;
+}
+
+/// -1, as `0 - 1`, `- 1` or a literal.
+bool is_neg_one(SpecNode *n) {
+    if (is_int(n, -1)) return true;
+    auto e = dynamic_cast<Expr *>(n);
+    if (!e || !(op_eq(e->op, Expr::binops::MINUS) || op_eq(e->op, Expr::ops::__NEG))) return false;
+    if (e->elems->size() == 1) return is_int(e->elems->at(0).get(), 1);
+    return e->elems->size() == 2 && is_int(e->elems->at(0).get(), 0) && is_int(e->elems->at(1).get(), 1);
+}
+
+bool is_symbol(SpecNode *n, const std::string &name) {
+    auto const s = dynamic_cast<Symbol *>(n);
+    return s && s->text == name;
+}
+
+/// `f x` with f declared by a Parameter and x the symbol [arg].
+bool is_parameter_call(Project *proj, SpecNode *n, const std::string &arg) {
+    auto const e = dynamic_cast<Expr *>(n);
+    auto const f = e ? std::get_if<string>(&e->op) : nullptr;
+    return f && e->elems->size() == 1 && is_symbol(e->elems->at(0).get(), arg) && !proj->defs.count(*f) &&
+           proj->decls.count(*f);
+}
+
+/// `mkPtr "null" ofs` with ofs satisfying [offset].
+bool is_null_based(SpecNode *n, const std::function<bool(SpecNode *)> &offset) {
+    auto const e = dynamic_cast<Expr *>(n);
+    if (!e || !op_eq(e->op, "mkPtr") || e->elems->size() != 2) return false;
+    auto const b = dynamic_cast<StringConst *>(e->elems->at(0).get());
+    return b && std::get<string>(b->value) == "null" && offset(e->elems->at(1).get());
+}
+
+/// The global range, if int_to_ptr's body is the generated chain
+///   if (v =? (0 - 1)) then (mkPtr "null" (0 - 1)) else
+///   if ((0 <=? v) && (v <? MIN_GLOBAL)) then (mkPtr "null" v) else
+///   if ((MIN_GLOBAL <=? v) && (v <? MAX_GLOBAL)) then (global_to_ptr v) else (int_to_ptr_other v)
+/// over the address table, with int_to_ptr_other a Parameter.
+struct IntToPtrArms {
+    long min, max;
+};
+const std::optional<IntToPtrArms> &encoded_int_to_ptr(Project *proj) {
+    static std::map<Project *, std::optional<IntToPtrArms>> memo;
+    if (auto const it = memo.find(proj); it != memo.end()) return it->second;
+    auto &slot = memo[proj];
+    auto const it = proj->defs.find("int_to_ptr");
+    if (it == proj->defs.end() || it->second->args->size() != 1) return slot;
+    auto const &arg = it->second->args->at(0)->name;
+    auto const min = def_int(proj, "MIN_GLOBAL"), max = def_int(proj, "MAX_GLOBAL");
+    auto const &table = global_address_table(proj);
+    if (!min || !max || (!table.blocks.empty() && (table.max != *max || table.blocks.front().first < *min))) return slot;
+    auto const test = [&](SpecNode *c, Expr::binops op, SpecNode **l, SpecNode **r) {
+        auto const e = dynamic_cast<Expr *>(c);
+        if (!e || !op_eq(e->op, op) || e->elems->size() != 2) return false;
+        *l = e->elems->at(0).get();
+        *r = e->elems->at(1).get();
+        return true;
+    };
+    // (lo <=? v) && (v <? hi), with lo and hi tested by [is_lo] and [is_hi].
+    auto const range = [&](SpecNode *c, const std::function<bool(SpecNode *)> &is_lo,
+                           const std::function<bool(SpecNode *)> &is_hi) {
+        SpecNode *l = nullptr, *r = nullptr, *l2 = nullptr, *r2 = nullptr;
+        if (!(test(c, Expr::binops::BAND, &l, &r) || test(c, Expr::binops::AND, &l, &r))) return false;
+        SpecNode *lo = l, *hi = r;
+        return test(lo, Expr::binops::BLE, &l, &r) && is_lo(l) && is_symbol(r, arg) &&
+               test(hi, Expr::binops::BLT, &l2, &r2) && is_symbol(l2, arg) && is_hi(r2);
+    };
+    auto const zero = [](SpecNode *n) { return is_int(n, 0); };
+    auto const sym = [](const std::string &name) { return [name](SpecNode *n) { return is_symbol(n, name); }; };
+    SpecNode *l = nullptr, *r = nullptr;
+    auto const i0 = dynamic_cast<If *>(it->second->body().get());
+    if (!i0 || !test(i0->cond.get(), Expr::binops::BEQ, &l, &r) || !is_symbol(l, arg) || !is_neg_one(r) ||
+        !is_null_based(i0->then_body.get(), is_neg_one))
+        return slot;
+    auto const i1 = dynamic_cast<If *>(i0->else_body.get());
+    if (!i1 || !range(i1->cond.get(), zero, sym("MIN_GLOBAL")) || !is_null_based(i1->then_body.get(), sym(arg)))
+        return slot;
+    auto const i2 = dynamic_cast<If *>(i1->else_body.get());
+    if (!i2 || !range(i2->cond.get(), sym("MIN_GLOBAL"), sym("MAX_GLOBAL"))) return slot;
+    auto const decode = dynamic_cast<Expr *>(i2->then_body.get());
+    if (!decode || !op_eq(decode->op, "global_to_ptr") || decode->elems->size() != 1 ||
+        !is_symbol(decode->elems->at(0).get(), arg) || !is_parameter_call(proj, i2->else_body.get(), arg) ||
+        !Expr::is_str_op(i2->else_body, "int_to_ptr_other"))
+        return slot;
+    slot = IntToPtrArms{*min, *max};
+    return slot;
+}
+
+/// [arm] with the definition's argument [arg] bound to [value].
+z3::expr eval_arm(Project *proj, SpecNode *arm, const std::string &arg, const shared_ptr<SpecValue> &value) {
+    auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
+    (*vars)[arg] = value;
+    return z3_eval(proj, arm, std::make_shared<EvalState>(vars, std::make_shared<vector<z3::expr>>()))->get_z3_value();
+}
+}  // namespace
+
+bool int_to_ptr_encoded(Project *proj) { return proj && encoded_int_to_ptr(proj).has_value(); }
+
 shared_ptr<SpecValue> int_to_ptr_value(Project *proj, vector<shared_ptr<SpecValue>> &elems) {
     auto const opaque = static_pointer_cast<FuncValue>(autov::int_to_ptr())->call(elems);
     if (!proj || elems.size() != 1) return opaque;
@@ -457,15 +579,134 @@ shared_ptr<SpecValue> int_to_ptr_value(Project *proj, vector<shared_ptr<SpecValu
     // bitvector sorts a Z literal becomes the bitvector it denotes.
     auto const v = coerce_to_sort(elems[0]->get_z3_value(), Int::size_t_int()->get_z3_type(), "int_to_ptr");
     if (!v.is_int() && !v.is_bv()) return opaque;
-    auto const num = [&](long x) { return v.is_bv() ? z3ctx.bv_val((int64_t)x, v.get_sort().bv_size()) : z3ctx.int_val((int64_t)x); };
-    auto const ge = [&](long x) { return v.is_bv() ? z3::sge(v, num(x)) : v >= num(x); };
-    z3::expr chosen = opaque->get_z3_value();
-    for (auto const &[base, pbase] : table.blocks) {
-        vector<shared_ptr<SpecValue>> fields{make_shared<StringValue>(z3ctx.string_val(pbase)),
-                                             make_shared<IntValue>(v - num(base))};
-        chosen = z3::ite(ge(base), Struct::Ptr->construct(fields)->get_z3_value(), chosen);
+    // The generated definition decodes [MIN_GLOBAL, MAX_GLOBAL), null below
+    // the lowest global; add_ptr_int_lemmas gives the uninterpreted call its
+    // other arms.  An older model decodes from the lowest global.
+    auto const &arms = encoded_int_to_ptr(proj);
+    z3::expr decoded = arms ? mk_ptr("null", numeral(v, 0)) : opaque->get_z3_value();
+    for (auto const &[base, pbase] : table.blocks)
+        decoded = z3::ite(!signed_lt(v, base), mk_ptr(pbase, v - numeral(v, base)), decoded);
+    auto const in_range = arms ? !signed_lt(v, arms->min) && signed_lt(v, arms->max) : signed_lt(v, table.max);
+    return Struct::Ptr->from_z3_value(z3::ite(in_range, decoded, opaque->get_z3_value()));
+}
+
+/* -- ptr_to_int as a term ----------------------------------------------------
+ *
+ * extractpointers defines ptr_to_int as a chain over the globals: -1 for a
+ * negative offset, the offset below MIN_GLOBAL for null (0 in older models),
+ * BASE_n + offset for global n, and for any other pointer the uninterpreted
+ * ptr_to_int_other (-1 in older models).
+ * Unfolded in the spec, the chain splits every continuation of the value into
+ * one branch per global.  When the project's definition is exactly that chain
+ * over the address table, it is encoded here as one ite term and is not
+ * unfolded.
+ */
+namespace {
+/// ptr_to_int's arms: (pbase, BASE value) per global, and the final arm for
+/// any other pointer, -1 or a call of an uninterpreted function on the
+/// argument.
+struct PtrToIntArms {
+    std::map<std::string, long> globals;
+    /// A null-based pointer's address is its offset below MIN_GLOBAL, and
+    /// the final arm from there, instead of 0.
+    bool null_offset = false;
+    long min = 0;  // MIN_GLOBAL, when null_offset
+    SpecNode *other = nullptr;  // null for -1
+    std::string arg;
+};
+
+/// The arms, if ptr_to_int's body is the generated chain.
+std::optional<PtrToIntArms> ptr_to_int_arms(Project *proj) {
+    auto const it = proj->defs.find("ptr_to_int");
+    if (it == proj->defs.end() || it->second->args->size() != 1) return std::nullopt;
+    auto const &arg = it->second->args->at(0)->name;
+    auto const field_of = [&](SpecNode *n, const char *field) {
+        auto e = dynamic_cast<Expr *>(n);
+        if (!e || !op_eq(e->op, Expr::RecordGet) || e->elems->size() != 2) return false;
+        auto rec = dynamic_cast<Symbol *>(e->elems->at(0).get());
+        auto f = dynamic_cast<Symbol *>(e->elems->at(1).get());
+        return rec && f && rec->text == arg && f->text == field;
+    };
+    PtrToIntArms result;
+    result.arg = arg;
+    auto &arms = result.globals;
+    SpecNode *n = it->second->body().get();
+    auto i = dynamic_cast<If *>(n);
+    // if (p.(poffset) <? 0) then (-1)
+    auto c0 = i ? dynamic_cast<Expr *>(i->cond.get()) : nullptr;
+    if (!c0 || !op_eq(c0->op, Expr::binops::BLT) || !field_of(c0->elems->at(0).get(), "poffset") ||
+        !is_neg_one(i->then_body.get()))
+        return std::nullopt;
+    for (n = i->else_body.get(); (i = dynamic_cast<If *>(n)); n = i->else_body.get()) {
+        // if (p.(pbase) =s "name") then (BASE + p.(poffset)), or the null arm
+        auto c = dynamic_cast<Expr *>(i->cond.get());
+        if (!c || !op_eq(c->op, Expr::binops::SEQ) || !field_of(c->elems->at(0).get(), "pbase")) return std::nullopt;
+        auto name = dynamic_cast<StringConst *>(c->elems->at(1).get());
+        if (!name) return std::nullopt;
+        auto const pbase = std::get<string>(name->value);
+        if (pbase == "null") {
+            // 0, or (if (p.(poffset) <? MIN_GLOBAL) then p.(poffset) else (f p))
+            if (is_int(i->then_body.get(), 0)) continue;
+            auto const low = dynamic_cast<If *>(i->then_body.get());
+            auto const c = low ? dynamic_cast<Expr *>(low->cond.get()) : nullptr;
+            auto const min = def_int(proj, "MIN_GLOBAL");
+            if (!c || !op_eq(c->op, Expr::binops::BLT) || c->elems->size() != 2 || !field_of(c->elems->at(0).get(), "poffset") ||
+                !is_symbol(c->elems->at(1).get(), "MIN_GLOBAL") || !field_of(low->then_body.get(), "poffset") ||
+                !is_parameter_call(proj, low->else_body.get(), arg) || !min)
+                return std::nullopt;
+            result.null_offset = true;
+            result.min = *min;
+            continue;
+        }
+        auto add = dynamic_cast<Expr *>(i->then_body.get());
+        if (!add || !op_eq(add->op, Expr::binops::ADD) || add->elems->size() != 2 ||
+            !field_of(add->elems->at(1).get(), "poffset"))
+            return std::nullopt;
+        auto const base = int_def_value(proj, add->elems->at(0).get());
+        if (!base) return std::nullopt;
+        arms.emplace(pbase, *base);
     }
-    return Struct::Ptr->from_z3_value(z3::ite(!ge(table.max), chosen, opaque->get_z3_value()));
+    if (is_neg_one(n)) return result;
+    if (!is_parameter_call(proj, n, arg)) return std::nullopt;
+    result.other = n;
+    return result;
+}
+
+/// The arms when they agree with the address table int_to_ptr decodes.
+const std::optional<PtrToIntArms> &encoded_ptr_to_int(Project *proj) {
+    static std::map<Project *, std::optional<PtrToIntArms>> memo;
+    if (auto const it = memo.find(proj); it != memo.end()) return it->second;
+    auto &slot = memo[proj];
+    auto arms = ptr_to_int_arms(proj);
+    auto const &table = global_address_table(proj);
+    if (!arms || arms->globals.size() != table.blocks.size()) return slot;
+    for (auto const &[base, pbase] : table.blocks) {
+        auto const a = arms->globals.find(pbase);
+        if (a == arms->globals.end() || a->second != base) return slot;
+    }
+    slot = std::move(arms);
+    return slot;
+}
+}  // namespace
+
+bool ptr_to_int_encoded(Project *proj) { return proj && encoded_ptr_to_int(proj).has_value(); }
+
+shared_ptr<SpecValue> ptr_to_int_value(Project *proj, vector<shared_ptr<SpecValue>> &elems) {
+    auto const opaque = static_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems);
+    if (!proj || elems.size() != 1) return opaque;
+    auto const &arms = encoded_ptr_to_int(proj);
+    auto const p = dynamic_pointer_cast<StructValue>(elems[0]);
+    if (!arms || !p) return opaque;
+    auto const sort = Int::size_t_int()->get_z3_type();
+    auto const off = coerce_to_sort(p->get("poffset")->get_z3_value(), sort, "ptr_to_int");
+    auto const base = p->get("pbase")->get_z3_value();
+    auto const other =
+        arms->other ? coerce_to_sort(eval_arm(proj, arms->other, arms->arg, elems[0]), sort, "ptr_to_int") : numeral(off, -1);
+    z3::expr r = other;
+    for (auto const &[pbase, b] : arms->globals) r = z3::ite(base == z3ctx.string_val(pbase), numeral(off, b) + off, r);
+    auto const null_address = arms->null_offset ? z3::ite(signed_lt(off, arms->min), off, other) : numeral(off, 0);
+    r = z3::ite(base == z3ctx.string_val("null"), null_address, r);
+    return make_shared<IntValue>(z3::ite(signed_lt(off, 0), numeral(off, -1), r));
 }
 
 /* -- stack typing ------------------------------------------------------------
@@ -606,6 +847,34 @@ static void add_stack_typing_facts(z3::solver &s, const z3::expr *goal = nullptr
 }
 
 
+/// The terms a check's lemmas look at, gathered in one pass over its assertions
+/// and goal, each in visiting order: uninterpreted applications by declaration,
+/// and integer divisions.  Quantifier bodies are not entered: their terms may
+/// mention bound variables.
+struct QueryTerms {
+    std::map<unsigned, std::vector<z3::expr>> apps;
+    std::vector<z3::expr> divisions;
+};
+
+static QueryTerms collect_query_terms(z3::solver &s, const z3::expr *goal) {
+    QueryTerms q;
+    std::unordered_set<unsigned> seen;
+    std::vector<z3::expr> todo;
+    for (auto const a : s.assertions()) todo.push_back(a);
+    if (goal) todo.push_back(*goal);
+    while (!todo.empty()) {
+        z3::expr const e = todo.back();
+        todo.pop_back();
+        if (!e.is_app() || !seen.insert(e.id()).second) continue;
+        for (unsigned i = 0; i < e.num_args(); ++i) todo.push_back(e.arg(i));
+        z3::func_decl const f = e.decl();
+        auto const kind = f.decl_kind();
+        if (kind == Z3_OP_UNINTERPRETED && f.arity() > 0) q.apps[f.id()].push_back(e);
+        else if (kind == Z3_OP_IDIV) q.divisions.push_back(e);
+    }
+    return q;
+}
+
 /// Under bitvector sorts, asserts `args(a) = args(b) -> a = b` for each pair of
 /// applications of one uninterpreted function with a bitvector argument whose
 /// bitvector arguments are syntactically identical, so the antecedent equates
@@ -617,7 +886,7 @@ static void add_stack_typing_facts(z3::solver &s, const z3::expr *goal = nullptr
 /// argument are left out: on lua002 they add work without a net gain.  The
 /// lemmas are valid, so they do not change any verdict.  `goal` names a formula
 /// checked as an assumption rather than asserted.  SPOQ_BV_CONGRUENCE=0 disables.
-static void add_congruence_lemmas(z3::solver &s, const z3::expr *goal = nullptr) {
+static void add_congruence_lemmas(z3::solver &s, const QueryTerms &q) {
     static const bool enabled = [] {
         const char *e = std::getenv("SPOQ_BV_CONGRUENCE");
         return z3_bv_sorts_enabled() && !(e && std::string(e) == "0");
@@ -627,22 +896,11 @@ static void add_congruence_lemmas(z3::solver &s, const z3::expr *goal = nullptr)
     constexpr size_t max_apps = 64;
 
     std::map<unsigned, std::vector<z3::expr>> apps;
-    std::unordered_set<unsigned> seen;
-    std::vector<z3::expr> todo;
-    for (auto const a : s.assertions()) todo.push_back(a);
-    if (goal) todo.push_back(*goal);
-    while (!todo.empty()) {
-        z3::expr const e = todo.back();
-        todo.pop_back();
-        // Quantifier bodies are not entered: their applications may mention bound variables.
-        if (!e.is_app() || !seen.insert(e.id()).second) continue;
-        for (unsigned i = 0; i < e.num_args(); ++i) todo.push_back(e.arg(i));
-        z3::func_decl const f = e.decl();
-        if (f.decl_kind() != Z3_OP_UNINTERPRETED || f.arity() == 0) continue;
+    for (auto const &[id, all] : q.apps) {
+        z3::func_decl const f = all.front().decl();
         bool bv_arg = false;
         for (unsigned i = 0; i < f.arity(); ++i) bv_arg |= f.domain(i).is_bv();
-        auto &v = apps[f.id()];
-        if (bv_arg && v.size() < max_apps) v.push_back(e);
+        if (bv_arg) apps[id].assign(all.begin(), all.begin() + std::min(all.size(), max_apps));
     }
     for (auto const &[_, v] : apps) {
         for (size_t i = 0; i < v.size(); ++i) {
@@ -670,7 +928,7 @@ static void add_congruence_lemmas(z3::solver &s, const z3::expr *goal = nullptr)
 /// Z3 decides relations between the two forms only with these instances; a
 /// quantified form is never instantiated.  Integer sorts; SPOQ_DIV_LEMMAS=0
 /// disables.
-static void add_rounding_division_lemmas(z3::solver &s, const z3::expr *goal = nullptr) {
+static void add_rounding_division_lemmas(z3::solver &s, const QueryTerms &q) {
     static const bool enabled = [] {
         const char *e = std::getenv("SPOQ_DIV_LEMMAS");
         return !(e && std::string(e) == "0");
@@ -681,17 +939,9 @@ static void add_rounding_division_lemmas(z3::solver &s, const z3::expr *goal = n
     auto const is_mod_by_numeral = [](const z3::expr &e) {
         return e.is_app() && e.decl().decl_kind() == Z3_OP_MOD && e.arg(1).is_numeral();
     };
-    std::unordered_set<unsigned> seen;
-    std::vector<z3::expr> todo;
-    for (auto const a : s.assertions()) todo.push_back(a);
-    if (goal) todo.push_back(*goal);
     size_t added = 0;
-    while (!todo.empty() && added < max_lemmas) {
-        z3::expr const e = todo.back();
-        todo.pop_back();
-        if (!e.is_app() || !seen.insert(e.id()).second) continue;
-        for (unsigned i = 0; i < e.num_args(); ++i) todo.push_back(e.arg(i));
-        if (e.decl().decl_kind() != Z3_OP_IDIV) continue;
+    for (auto const &e : q.divisions) {
+        if (added >= max_lemmas) break;
         z3::expr const num = e.arg(0), den = e.arg(1);
         if (!is_mod_by_numeral(num) || !is_mod_by_numeral(den) || !z3::eq(num.arg(1), den.arg(1))) continue;
         z3::expr const M = num.arg(1), sum = num.arg(0), b = den.arg(0);
@@ -738,10 +988,97 @@ static void add_rounding_division_lemmas(z3::solver &s, const z3::expr *goal = n
     }
 }
 
+/* -- assumptions on the uninterpreted addresses -------------------------------
+ *
+ * The model states, as `forall` propositions, that ptr_to_int_other avoids the
+ * global range [MIN_GLOBAL, MAX_GLOBAL) and the null-based range
+ * [-1, MIN_GLOBAL), that int_to_ptr_other inverts it, and that it inverts
+ * int_to_ptr_other where int_to_ptr uses that, below -1 and from MAX_GLOBAL.
+ * A check gets their instances at the ptr_to_int_other and int_to_ptr_other
+ * terms it contains, one round deep.  The quantified forms are not asserted:
+ * under bitvector sorts the first inverse, over every Ptr, has no model.
+ */
+namespace {
+struct PtrIntAssumptions {
+    bool outside = false, not_null = false, int_to_ptr_inverse = false, ptr_to_int_inverse = false;
+    /// int_to_ptr is the generated definition, encoded by int_to_ptr_value.
+    bool int_to_ptr_defined = false;
+    long min = 0, max = 0;
+};
+PtrIntAssumptions g_ptr_int;
+}  // namespace
+
+void init_ptr_int_assumptions(Project *proj) {
+    static bool done = false;
+    if (done) return;
+    done = true;
+    auto const min = def_int(proj, "MIN_GLOBAL"), max = def_int(proj, "MAX_GLOBAL");
+    if (!min || !max || !proj->decls.count("ptr_to_int_other") || !proj->decls.count("int_to_ptr_other")) return;
+    g_ptr_int = {proj->defs.count("ptr_to_int_other_outside_globals") > 0,
+                 proj->defs.count("ptr_to_int_other_not_null") > 0,
+                 proj->defs.count("int_to_ptr_other_inverse") > 0,
+                 proj->defs.count("ptr_to_int_other_inverse") > 0,
+                 int_to_ptr_encoded(proj),
+                 *min,
+                 *max};
+}
+
+static void add_ptr_int_lemmas(z3::solver &s, const QueryTerms &q) {
+    auto const &a = g_ptr_int;
+    if (!a.outside && !a.not_null && !a.int_to_ptr_inverse && !a.ptr_to_int_inverse && !a.int_to_ptr_defined) return;
+    // The applications of the three functions, by declaration name.
+    std::vector<z3::expr> p2i, i2p, opaque;
+    for (auto const &[_, all] : q.apps) {
+        if (all.front().num_args() != 1) continue;
+        auto const n = all.front().decl().name().str();
+        auto *dst = n.rfind("ptr_to_int_other.", 0) == 0 ? &p2i
+                    : n.rfind("int_to_ptr_other.", 0) == 0 ? &i2p
+                    : n.rfind("int_to_ptr.", 0) == 0       ? &opaque
+                                                           : nullptr;
+        if (dst) dst->insert(dst->end(), all.begin(), all.end());
+    }
+    auto const below = signed_lt;
+    auto const from = [](const z3::expr &x, long v) { return !signed_lt(x, v); };
+    // Where int_to_ptr is int_to_ptr_other: below -1 and from MAX_GLOBAL.
+    auto const other_range = [&](const z3::expr &v) { return below(v, -1) || from(v, a.max); };
+    // The other function of the pair, by its name and the swapped signature.
+    auto const inverse = [](const z3::expr &t, const char *name) {
+        return z3::function(name, t.get_sort(), t.arg(0).get_sort());
+    };
+    // An instance is added only where the other side of its pair occurs: a
+    // round trip needs both conversions, and int_to_ptr_other means nothing
+    // without them.
+    bool const conversions = !i2p.empty() || !opaque.empty();
+    for (auto const &x : p2i) {
+        if (a.outside) s.add(below(x, a.min) || from(x, a.max));
+        if (a.not_null) s.add(below(x, -1) || from(x, a.min));
+        if (a.int_to_ptr_inverse && conversions) s.add(inverse(x, "int_to_ptr_other.0_call")(x) == x.arg(0));
+    }
+    for (auto const &y : i2p)
+        if (a.ptr_to_int_inverse && !p2i.empty())
+            s.add(z3::implies(other_range(y.arg(0)), inverse(y, "ptr_to_int_other.0_call")(y) == y.arg(0)));
+    // The rest of int_to_ptr's definition at its uninterpreted terms: -1 is
+    // the poison pointer, by congruence with a ground fact; below MIN_GLOBAL an
+    // integer is a null-based pointer; elsewhere outside the global range it is
+    // int_to_ptr_other.
+    if (!a.int_to_ptr_defined || opaque.empty()) return;
+    auto const w0 = opaque.front();
+    s.add(w0.decl()(numeral(w0.arg(0), -1)) == mk_ptr("null", numeral(w0.arg(0), -1)));
+    if (i2p.empty() && p2i.empty()) return;
+    auto const other = z3::function("int_to_ptr_other.0_call", w0.arg(0).get_sort(), w0.get_sort());
+    for (auto const &w : opaque) {
+        auto const v = w.arg(0);
+        s.add(z3::implies(from(v, 0) && below(v, a.min), w == mk_ptr("null", v)));
+        s.add(z3::implies(other_range(v), w == other(v)));
+    }
+}
+
 /// Every lemma kind, for one check.
 static void add_lemmas(z3::solver &s, const z3::expr *goal = nullptr) {
-    add_congruence_lemmas(s, goal);
-    add_rounding_division_lemmas(s, goal);
+    auto const q = collect_query_terms(s, goal);
+    add_congruence_lemmas(s, q);
+    add_rounding_division_lemmas(s, q);
+    add_ptr_int_lemmas(s, q);
 }
 
 /// SPOQ_SLOW_QUERY_DIR, if set, receives every check that took at least
@@ -2259,7 +2596,7 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
         else if (auto const reduced = width_reduction(expr->op, elems))
             states.push_back(std::make_pair(make_shared<IntValue>(reduced->simplify()), state));
         else if (op_eq(expr->op,"ptr_to_int"))
-            states.push_back(std::make_pair(static_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems), state));
+            states.push_back(std::make_pair(ptr_to_int_value(proj, elems), state));
         else if (op_eq(expr->op,"int_to_ptr"))
             states.push_back(std::make_pair(int_to_ptr_value(proj, elems), state));
         else if (op_eq(expr->op, "z_to_nat"))
@@ -2776,7 +3113,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         else if (auto const reduced = width_reduction(expr->op, elems))
             result = make_shared<IntValue>(reduced->simplify());
         else if (op_eq(expr->op,"ptr_to_int"))
-            result = static_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems);
+            result = ptr_to_int_value(proj, elems);
         else if (op_eq(expr->op,"int_to_ptr"))
             result = int_to_ptr_value(proj, elems);
         else if (op_eq(expr->op, "z_to_nat"))
@@ -3188,7 +3525,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         else if (auto const reduced = width_reduction(expr->op, elems))
             return make_shared<IntValue>(reduced->simplify());
         else if (op_eq(expr->op,"ptr_to_int"))
-            return static_pointer_cast<FuncValue>(autov::ptr_to_int())->call(elems);
+            return ptr_to_int_value(proj, elems);
         else if (op_eq(expr->op,"int_to_ptr"))
             return int_to_ptr_value(proj, elems);
         else if (op_eq(expr->op, "z_to_nat"))

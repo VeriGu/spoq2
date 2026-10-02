@@ -156,6 +156,7 @@ unique_ptr<SpecNode> spec_transformer_v2(Project *proj, unique_ptr<SpecNode> nod
 
 void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfold, bool low_spec, int max_iter) {
     init_stack_typing(proj);
+    init_ptr_int_assumptions(proj);
     LOG_INFO << "Transforming " << def->name << ", unfold: " << unfold;
     // LOG_INFO << "Transforming " << def->name << "def: " << string(*def);
     proj->query_saver = query_saver_dir(def->name, "transforms" + std::to_string(layer_id) + std::to_string(max_iter));

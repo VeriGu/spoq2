@@ -1,0 +1,5 @@
+{
+  "spec_has_ub": true,
+  "impl_eliminates_ub": true,
+  "coq_contains": "(ptr_to_int_other p)"
+}

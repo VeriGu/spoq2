@@ -3238,6 +3238,97 @@ static unique_ptr<SpecNode> fold_width_op(Expr *e) {
     return std::make_unique<Expr>(Expr::binops::MINUS, std::move(elems), ty);
 }
 
+/// `q.(pbase)` with q returned in [q], or false.
+static bool is_pbase_of(SpecNode *n, SpecNode **q) {
+    auto e = instance_of(n, Expr);
+    if (!e || !op_eq(e->op, Expr::RecordGet) || e->elems->size() != 2) return false;
+    auto field = instance_of(e->elems->at(1).get(), Symbol);
+    if (!field || field->text != "pbase") return false;
+    *q = e->elems->at(0).get();
+    return true;
+}
+
+/// The bases a predicate on one pointer accepts, if its body is a disjunction
+/// of `p.(pbase) =s "<name>"` tests and `false = true`, as is_stack_ptr and
+/// is_global_ptr are.  Memoised by name.
+static const std::set<string> *pbase_membership(Project *proj, const string &name) {
+    static std::unordered_map<string, std::optional<std::set<string>>> memo;
+    if (auto const it = memo.find(name); it != memo.end()) return it->second ? &*it->second : nullptr;
+    auto &slot = memo[name];
+    auto const def = proj->defs.find(name);
+    if (def == proj->defs.end() || def->second->args->size() != 1 || !def->second->body()) return nullptr;
+    auto const &arg = def->second->args->at(0)->name;
+    std::set<string> names;
+    std::function<bool(SpecNode *)> leaves = [&](SpecNode *n) -> bool {
+        auto e = instance_of(n, Expr);
+        if (!e || e->elems->size() != 2) return false;
+        SpecNode *l = e->elems->at(0).get(), *r = e->elems->at(1).get();
+        if (op_eq(e->op, Expr::OR) || op_eq(e->op, Expr::BOR)) return leaves(l) && leaves(r);
+        if (op_eq(e->op, Expr::EQUAL)) {
+            auto a = instance_of(l, BoolConst), b = instance_of(r, BoolConst);
+            return a && b && std::get<bool>(a->value) != std::get<bool>(b->value);
+        }
+        if (!op_eq(e->op, Expr::SEQ)) return false;
+        SpecNode *q = nullptr;
+        auto c = instance_of(r, StringConst);
+        if (!c) { std::swap(l, r); c = instance_of(r, StringConst); }
+        auto sym = is_pbase_of(l, &q) ? instance_of(q, Symbol) : nullptr;
+        if (!c || !sym || sym->text != arg) return false;
+        names.insert(std::get<string>(c->value));
+        return true;
+    };
+    if (leaves(def->second->body().get())) slot = std::move(names);
+    return slot ? &*slot : nullptr;
+}
+
+/// The argument whose base a pointer-valued definition keeps: its body is
+/// `mkPtr (arg.(pbase)) ...`, as ptr_add's is.
+static std::optional<size_t> base_preserving_arg(Project *proj, const string &name) {
+    static std::unordered_map<string, std::optional<size_t>> memo;
+    if (auto const it = memo.find(name); it != memo.end()) return it->second;
+    auto &slot = memo[name];
+    auto const def = proj->defs.find(name);
+    if (def == proj->defs.end() || !def->second->body()) return slot;
+    auto e = instance_of(def->second->body().get(), Expr);
+    SpecNode *q = nullptr;
+    if (!e || !Expr::is_str_op(def->second->body(), "mkPtr") || e->elems->empty() || !is_pbase_of(e->elems->at(0).get(), &q))
+        return slot;
+    auto sym = instance_of(q, Symbol);
+    for (size_t i = 0; sym && i < def->second->args->size(); i++)
+        if (def->second->args->at(i)->name == sym->text) slot = i;
+    return slot;
+}
+
+/// A base-only predicate on a pointer with a known base is a constant, and
+/// on a pointer built from q's base it is the predicate on q.  Null if
+/// nothing applies.
+static unique_ptr<SpecNode> fold_pbase_predicate(Project *proj, Expr *s) {
+    auto const name = std::get_if<string>(&s->op);
+    if (!name || s->elems->size() != 1) return nullptr;
+    auto const accepted = pbase_membership(proj, *name);
+    if (!accepted) return nullptr;
+    SpecNode *arg = s->elems->at(0).get();
+    while (auto e = instance_of(arg, Expr)) {
+        auto const op = std::get_if<string>(&e->op);
+        if (!op) break;
+        SpecNode *q = nullptr;
+        if (*op == "mkPtr" && !e->elems->empty()) {
+            if (auto c = instance_of(e->elems->at(0).get(), StringConst))
+                return make_unique<BoolConst>(accepted->count(std::get<string>(c->value)) > 0);
+            if (!is_pbase_of(e->elems->at(0).get(), &q)) break;
+            arg = q;
+        } else if (auto const i = base_preserving_arg(proj, *op); i && *i < e->elems->size()) {
+            arg = e->elems->at(*i).get();
+        } else {
+            break;
+        }
+    }
+    if (arg == s->elems->at(0).get()) return nullptr;
+    auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+    elems->push_back(arg->deep_copy());
+    return make_unique<Expr>(*name, std::move(elems), s->type);
+}
+
 rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
     auto const f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
@@ -3246,34 +3337,22 @@ rule_ret_t SpecRules::rule_simple_builtin_functions(std::unique_ptr<SpecNode> sp
                 changed = true;
                 return folded;
             }
-            if (holds_alternative<string>(s->op) && (std::get<string>(s->op) == "store_RData")) {
-                if(auto e = instance_of(s->elems->at(1).get(), Expr)){
-                    if(holds_alternative<string>(e->op) && std::get<string>(e->op) == "mkPtr"){
-                        if(auto strconst = dynamic_cast<Const*>(e->elems->at(0).get())){
-                            if(std::holds_alternative<string>(strconst->value)){
-                                auto const strval = std::get<string>(strconst->value);
-                                if(strval.find("stack", 0) == 0){
-                                    auto new_expr = make_unique<Expr>("store_stack_bypass", std::move(s->elems), s->type);
-                                    return new_expr;
-                                }
-                            }
-                        }
-                    }
-                }
+            if (auto folded = fold_pbase_predicate(proj, s)) {
+                changed = true;
+                return folded;
             }
-            if (holds_alternative<string>(s->op) && (std::get<string>(s->op) == "load_RData")) {
-                if(auto e = instance_of(s->elems->at(1).get(), Expr)){
-                    if(holds_alternative<string>(e->op) && std::get<string>(e->op) == "mkPtr"){
-                        if(auto strconst = dynamic_cast<Const*>(e->elems->at(0).get())){
-                            if(std::holds_alternative<string>(strconst->value)){
-                                auto const strval = std::get<string>(strconst->value);
-                                if(strval.find("stack", 0) == 0){
-                                    auto new_expr = make_unique<Expr>("load_stack_bypass", std::move(s->elems), s->type);
-                                    return new_expr;
-                                }
-                            }
-                        }
-                    }
+            // A memory operation on a named stack slot goes straight to the stack.
+            static const std::map<string, string> stack_bypass = {
+                {"store_RData", "store_stack_bypass"},
+                {"load_RData", "load_stack_bypass"},
+                {"store_RData_ptr", "store_stack_ptr_bypass"},
+                {"load_RData_ptr", "load_stack_ptr_bypass"}};
+            if (auto const op = std::get_if<string>(&s->op)) {
+                if (auto const bypass = stack_bypass.find(*op); bypass != stack_bypass.end()) {
+                    auto const ptr = instance_of(s->elems->at(1).get(), Expr);
+                    auto const base = ptr && op_eq(ptr->op, "mkPtr") ? instance_of(ptr->elems->at(0).get(), StringConst) : nullptr;
+                    if (base && std::get<string>(base->value).rfind("stack", 0) == 0)
+                        return make_unique<Expr>(bypass->second, std::move(s->elems), s->type);
                 }
             }
 
@@ -4723,6 +4802,10 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
                     else return node;
                 }
 
+                // Encoded as one Z3 term; unfolding would split its continuation per global.
+                if ((define->name == "ptr_to_int" && ptr_to_int_encoded(proj)) ||
+                    (define->name == "int_to_ptr" && int_to_ptr_encoded(proj)))
+                    return node;
                 if (restrict_to) {
                     // Expanding a closure.  Membership is the whole test: the
                     // skip and defer decisions were made for the root.

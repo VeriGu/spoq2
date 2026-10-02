@@ -1292,8 +1292,10 @@ void Project::compute_mem_op_closures() {
     for (auto const &L : layers)
         for (auto const &key : {"load", "store"}) {
             auto const it = L->ops.find(key);
-            if (it != L->ops.end() && defs.find(it->second) != defs.end())
-                roots.insert(it->second);
+            if (it == L->ops.end()) continue;
+            // The pointer-valued variant, `<op>_ptr`, is a root of its own.
+            for (auto const &name : {it->second, it->second + "_ptr"})
+                if (defs.find(name) != defs.end()) roots.insert(name);
         }
 
     for (auto const &root : roots) {

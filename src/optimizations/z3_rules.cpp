@@ -613,6 +613,17 @@ static bool pattern_binds_nothing(Project *proj, SpecNode *pattern) {
     return true;
 }
 
+/// Whether [n] is built from expressions, constants and symbols only, so
+/// z3_eval needs no simplification of a match, if or binding first.
+static bool is_term(SpecNode *n) {
+    if (dynamic_cast<Const *>(n) || dynamic_cast<Symbol *>(n)) return true;
+    auto const e = dynamic_cast<Expr *>(n);
+    if (!e || std::holds_alternative<unique_ptr<SpecNode>>(e->op)) return false;
+    for (auto const &x : *e->elems)
+        if (!is_term(x.get())) return false;
+    return true;
+}
+
 rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, const std::shared_ptr<EvalState>& state) {
     // string orig_src = string(*spec);
     // auto logthis = orig_src.find("if ((call_dup - (call16_dup)) <>? (0))") != std::string::npos;
@@ -695,6 +706,11 @@ rule_ret_t SpecRules::simple_match_by_z3(std::unique_ptr<Match> spec, const std:
         auto const none_pattern = (exp_pat && op_eq(exp_pat->op, Expr::ops::None))
                                || (sym_pat && (sym_pat->text == "None" || sym_pat->text == "_"));
         auto const is_catchall_none = none_pattern && bod_sym && bod_sym->text == "None";
+        // An arm whose body first relies on a proposition that is false in
+        // the arm's state is pruned by that rely; skip its feasibility check.
+        if (auto const rely = dynamic_cast<Rely *>((*pm)->body.get()); rely && is_term(rely->prop.get())) {
+            if (z3_eval(proj, rely->prop.get(), new_state)->get_z3_value().simplify().is_false()) continue;
+        }
         // Drop the arms the state rules out -- except `None => None` and
         // `_ => None`, which the totality repair below re-adds as soon as the
         // survivors stop covering both cases.  Pruning one of those and having

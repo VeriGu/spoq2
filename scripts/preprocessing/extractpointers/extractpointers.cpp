@@ -1,3 +1,4 @@
+#include <functional>
 #include "llvm_coq_type.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
@@ -94,6 +95,9 @@ class ExtractPointersPass : public llvm::PassInfoMixin<ExtractPointersPass> {
   // and link each type to a set of subtypes (including itself)
   // since a pointer with that pbase could have any of those types
   std::map<std::string, llvm::Type*> named_stack_ty;
+  // load_stack, store_stack and their pointer-valued variants; emitted after
+  // ptr_to_int, which they use.
+  std::string stack_access_defs;
   std::map<std::string, llvm::Type*> named_global_ty;
   std::map<llvm::Type*, std::set<llvm::Type*>> elements_of_type;
 
@@ -260,6 +264,7 @@ class ExtractPointersPass : public llvm::PassInfoMixin<ExtractPointersPass> {
     for (auto g: gv_list) {
       result += "Definition " + getGVBaseConst(g) + " : intSizeT := " + std::to_string(gv_addr[g].first + base_offset) + ".\n";
     }
+    result += "Definition MIN_GLOBAL : intSizeT := " + std::to_string(base_offset) + ".\n";
     result += "Definition MAX_GLOBAL : intSizeT := " + std::to_string(base + base_offset) + ".\n";
     return result;
   }
@@ -273,23 +278,46 @@ class ExtractPointersPass : public llvm::PassInfoMixin<ExtractPointersPass> {
       auto const base_const = getGVBaseConst(g);
       result += " if (v >=? " + base_const + ") then (mkPtr \"" + getGVBaseName(g) + "\" (v - " + base_const + ")) else\n";
     }
-    result += "   (mkPtr \"null\" 0).";
+    result += "   (mkPtr \"null\" 0).\n";
+    // Addresses below MIN_GLOBAL are null-based pointers, and -1 is the
+    // poison pointer.  Any other integer outside the globals' addresses is the
+    // address of a heap or stack pointer, which is not modelled:
+    // int_to_ptr_other is uninterpreted.
+    result += "Parameter int_to_ptr_other : (intSizeT -> (Ptr)).\n"
+              "Definition int_to_ptr (v: intSizeT) : Ptr := \n"
+              " if (v =? (0 - 1)) then (mkPtr \"null\" (0 - 1)) else\n"
+              " if ((0 <=? v) && (v <? MIN_GLOBAL)) then (mkPtr \"null\" v) else\n"
+              " if ((MIN_GLOBAL <=? v) && (v <? MAX_GLOBAL)) then (global_to_ptr v) else\n"
+              "    (int_to_ptr_other v).";
     return result; 
   }
 
   std::string generatePtrToInt() {
     // intSizeT, the type a pointer word has in memory, so that storing the
-    // result is not a conversion.
-    std::string result = "Definition ptr_to_int (p: Ptr) : intSizeT := \n" \
+    // result is not a conversion.  The address of a heap or stack pointer is
+    // not modelled: ptr_to_int_other is uninterpreted.
+    std::string result = "Parameter ptr_to_int_other : (Ptr -> (intSizeT)).\n"
+    "Definition ptr_to_int (p: Ptr) : intSizeT := \n" \
     " if (p.(poffset) <? 0) then (-1) else\n" \
     // " if (p.(pbase) =s \"status\") then (MAX_ERR + p.(poffset)) else\n" 
-    " if (p.(pbase) =s \"null\") then 0 else\n" ;
+    // A null-based pointer below MIN_GLOBAL has its offset as its address.
+    " if (p.(pbase) =s \"null\") then (if (p.(poffset) <? MIN_GLOBAL) then p.(poffset) else (ptr_to_int_other p)) else\n" ;
     // " if (v <? 0 ) then (mkPtr \"null\" 0) else\n";
     for (auto it = gv_list.rbegin(); it != gv_list.rend(); it++) {
       auto g = *it;
       result += " if (p.(pbase) =s \"" + getGVBaseName(g) + "\") then (" + getGVBaseConst(g) + " + p.(poffset)) else\n";
     }
-    result += "    (-1).";
+    result += "    (ptr_to_int_other p).\n";
+    // Assumptions on the uninterpreted addresses.  spoq adds their instances
+    // for the ptr_to_int_other and int_to_ptr_other terms of each query.
+    result += "Definition ptr_to_int_other_outside_globals : Prop := forall (p: Ptr), "
+              "(((ptr_to_int_other p) <? MIN_GLOBAL) \\/ (MAX_GLOBAL <=? (ptr_to_int_other p))).\n"
+              "Definition ptr_to_int_other_not_null : Prop := forall (p: Ptr), "
+              "(((ptr_to_int_other p) <? (0 - 1)) \\/ (MIN_GLOBAL <=? (ptr_to_int_other p))).\n"
+              "Definition int_to_ptr_other_inverse : Prop := forall (p: Ptr), "
+              "((int_to_ptr_other (ptr_to_int_other p)) = p).\n"
+              "Definition ptr_to_int_other_inverse : Prop := forall (v: intSizeT), "
+              "((((v <? (0 - 1)) \\/ (MAX_GLOBAL <=? v))) -> ((ptr_to_int_other (int_to_ptr_other v)) = v)).";
     return result; 
   }
 
@@ -650,6 +678,15 @@ We can do this in a proxy definition for each type
   "\t\t| Some sv => match sv with\n";
   // "\t\t\t| ZVal z => Some (stack_map # p.(pbase) == Some(ZVal v))\n"
   // "\t\t\t| ZMapVal zmap => Some (stack_map # p.(pbase) == Some(ZMapVal (zmap # p.(poffset) == v)))\n";
+  // A pointer slot (PtrVal) holds a Ptr.  Integer accesses convert with
+  // ptr_to_int/int_to_ptr; load_stack_ptr/store_stack_ptr move a Ptr in and
+  // out of a pointer slot unchanged and convert at every other slot.
+  std::string load_ptr_result = "Definition load_stack_ptr (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option Ptr) := \n" \
+  "\tmatch (stack_map @ p.(pbase)) with\n" \
+  "\t\t| Some sv => match sv with\n";
+  std::string store_ptr_result = "Definition store_stack_ptr (sz: intSizeT) (p: Ptr) (v: Ptr) (stack_map: STACK): (option STACK) := \n" \
+  "\tmatch (stack_map @ p.(pbase)) with\n" \
+  "\t\t| Some sv => match sv with\n";
   std::string is_stack_ptr = "Definition is_stack_ptr (p: Ptr): bool := (false = true)";
   for (auto &x : sn) {
     std::string stackval_branch_id = "";
@@ -703,11 +740,12 @@ We can do this in a proxy definition for each type
     auto [stackval_ident, is_map, is_struct, struct_id_opt, element_size, pointers] = entry;
     std::string constr_e_ident = stackval_ident + "_val";
 
+    bool const is_ptr_slot = stackval_ident == "PtrVal";
     // StackVal
     if(is_map){
       stackval_def += "\t| "+stackval_ident+" ("+stackval_ident+"Constr: (ZMap.t "+type_ident+"))\n";
     } else {
-      stackval_def += "\t| "+stackval_ident+" ("+stackval_ident+"Constr: "+type_ident+")\n";
+      stackval_def += "\t| "+stackval_ident+" ("+stackval_ident+"Constr: "+(is_ptr_slot ? "Ptr" : type_ident)+")\n";
     }
 
     std::string rely_clause;
@@ -716,52 +754,68 @@ We can do this in a proxy definition for each type
       rely_clause += " \\/ (p.(pbase) =s \"" + pointer_name + "\")";
     }
     rely_clause = "rely ("+rely_clause+");";
-    // Load & Store
-    if(!is_map && !is_struct){
-      // Z
-      load_result  += "\t\t\t| " + stackval_ident + " " + constr_e_ident + " => "+rely_clause+\
-        "\n\t\t\t\tSome " + constr_e_ident + "\n";
-      store_result += "\t\t\t| " + stackval_ident + " " + constr_e_ident + " => "+rely_clause+\
-      "\n\t\t\t\tSome (stack_map # p.(pbase) == Some(" + stackval_ident + " " + "v" + "))\n";
-    } else if(is_map && !is_struct){
-      // ZMap.t Z
-    } else if(!is_map && is_struct){
-      auto struct_id = struct_id_opt.value();
-      std::string load_ret_name = "ret_load_" + stackval_ident;
-      std::string store_ret_name = "ret_store_" + stackval_ident;
+    // Load & Store.  [wrap] turns the value read from the slot into the
+    // result, and [stored] is the value written.  The integer accessors
+    // convert at a pointer slot; the pointer accessors convert everywhere else.
+    auto const arms = [&](std::string &load_out, std::string &store_out,
+                          const std::function<std::string(const std::string &)> &wrap, const std::string &stored) {
+      if(!is_map && !is_struct){
+        // Z, or a Ptr at a pointer slot
+        load_out  += "\t\t\t| " + stackval_ident + " " + constr_e_ident + " => "+rely_clause+\
+          "\n\t\t\t\tSome " + wrap(constr_e_ident) + "\n";
+        store_out += "\t\t\t| " + stackval_ident + " " + constr_e_ident + " => "+rely_clause+\
+        "\n\t\t\t\tSome (stack_map # p.(pbase) == Some(" + stackval_ident + " " + stored + "))\n";
+      } else if(is_map && !is_struct){
+        // ZMap.t Z
+      } else if(!is_map && is_struct){
+        auto struct_id = struct_id_opt.value();
+        std::string load_ret_name = "ret_load_" + stackval_ident;
+        std::string store_ret_name = "ret_store_" + stackval_ident;
 
-      load_result += "\t\t\t| "+stackval_ident+" "+constr_e_ident +" => \n";
-      load_result += "\t\t\t\t" + rely_clause + "\n";
-      load_result += "\t\t\t\twhen "+load_ret_name+" == load_" + struct_id + " sz p.(poffset) " + constr_e_ident + ";\n";
-      load_result += "\t\t\t\t\tSome("+load_ret_name+")\n";
+        load_out += "\t\t\t| "+stackval_ident+" "+constr_e_ident +" => \n";
+        load_out += "\t\t\t\t" + rely_clause + "\n";
+        load_out += "\t\t\t\twhen "+load_ret_name+" == load_" + struct_id + " sz p.(poffset) " + constr_e_ident + ";\n";
+        load_out += "\t\t\t\t\tSome("+wrap(load_ret_name)+")\n";
 
-      store_result += "\t\t\t| " + stackval_ident + " "+ constr_e_ident+" => \n"\
-                      "\t\t\t\t" + rely_clause +"\n"\
-                      "\t\t\t\twhen "+store_ret_name+" == store_" + struct_id + " sz p.(poffset) v "+constr_e_ident+";\n"\
-                      "\t\t\t\tSome(stack_map # p.(pbase) == Some(" + stackval_ident + " "+store_ret_name+"))\n";
+        store_out += "\t\t\t| " + stackval_ident + " "+ constr_e_ident+" => \n"\
+                        "\t\t\t\t" + rely_clause +"\n"\
+                        "\t\t\t\twhen "+store_ret_name+" == store_" + struct_id + " sz p.(poffset) " + stored + " "+constr_e_ident+";\n"\
+                        "\t\t\t\tSome(stack_map # p.(pbase) == Some(" + stackval_ident + " "+store_ret_name+"))\n";
 
-      // struct
-    } else if(is_map && is_struct){
-      auto struct_id = struct_id_opt.value();
-      std::string load_ret_name = "ret_load_arr_" + struct_id;
-      std::string store_ret_name = "ret_store_arr_" + struct_id;
-        load_result += "\t\t\t| " + stackval_ident + " "+constr_e_ident+" => \n";
-        load_result += "\t\t\t\t" + rely_clause + "\n";
-        load_result += "\t\t\t\tlet idx := p.(poffset) /" + std::to_string(element_size) + " in\n" \
-          "\t\t\t\tlet elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
-          "\t\t\t\twhen "+load_ret_name+" == load_" + struct_id + " sz elem_ofs ("+constr_e_ident+" @ idx);\n"\
-          "\t\t\t\t\tSome("+load_ret_name+")\n";
-        store_result += "\t\t\t| " + stackval_ident +" "+constr_e_ident+" => \n"\
-                      "\t\t\t\t" + rely_clause +"\n"\
-                      "\t\t\t\tlet idx := p.(poffset) /" + std::to_string(element_size) + " in\n" \
-                      "\t\t\t\tlet elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
-                      
-                      "\t\t\t\twhen "+store_ret_name+" == store_" + struct_id + " sz p.(poffset) v ("+constr_e_ident+" @ idx);\n"\
-                      "\t\t\t\tSome(stack_map # p.(pbase) == Some(" + stackval_ident + " ("+constr_e_ident+" # idx == "+store_ret_name+")))\n";
+        // struct
+      } else if(is_map && is_struct){
+        auto struct_id = struct_id_opt.value();
+        std::string load_ret_name = "ret_load_arr_" + struct_id;
+        std::string store_ret_name = "ret_store_arr_" + struct_id;
+          load_out += "\t\t\t| " + stackval_ident + " "+constr_e_ident+" => \n";
+          load_out += "\t\t\t\t" + rely_clause + "\n";
+          load_out += "\t\t\t\tlet idx := p.(poffset) /" + std::to_string(element_size) + " in\n" \
+            "\t\t\t\tlet elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
+            "\t\t\t\twhen "+load_ret_name+" == load_" + struct_id + " sz elem_ofs ("+constr_e_ident+" @ idx);\n"\
+            "\t\t\t\t\tSome("+wrap(load_ret_name)+")\n";
+          store_out += "\t\t\t| " + stackval_ident +" "+constr_e_ident+" => \n"\
+                        "\t\t\t\t" + rely_clause +"\n"\
+                        "\t\t\t\tlet idx := p.(poffset) /" + std::to_string(element_size) + " in\n" \
+                        "\t\t\t\tlet elem_ofs := p.(poffset) mod " + std::to_string(element_size) + " in\n" \
+                        
+                        "\t\t\t\twhen "+store_ret_name+" == store_" + struct_id + " sz p.(poffset) " + stored + " ("+constr_e_ident+" @ idx);\n"\
+                        "\t\t\t\tSome(stack_map # p.(pbase) == Some(" + stackval_ident + " ("+constr_e_ident+" # idx == "+store_ret_name+")))\n";
 
-      // ZMap.t struct
+        // ZMap.t struct
+      } else {
+        assert(false);
+      }
+    };
+    auto const same = [](const std::string &x) { return x; };
+    auto const conv = [](const std::string &f) {
+      return [f](const std::string &x) { return "(" + f + " " + x + ")"; };
+    };
+    if (is_ptr_slot) {
+      arms(load_result, store_result, conv("ptr_to_int"), "(int_to_ptr v)");
+      arms(load_ptr_result, store_ptr_result, same, "v");
     } else {
-      assert(false);
+      arms(load_result, store_result, same, "v");
+      arms(load_ptr_result, store_ptr_result, conv("int_to_ptr"), "(ptr_to_int v)");
     }
   }
 
@@ -774,6 +828,10 @@ We can do this in a proxy definition for each type
   store_result += "\t\tend\n" \
                   "\t| None => None\n" \
                  "end.";
+  for (auto *def : {&load_ptr_result, &store_ptr_result})
+    *def += "\t\tend\n"
+            "\t| None => None\n"
+            "end.";
   is_stack_ptr += ".\n";
   stackkey_def += "| sk_Null.\n";
   std::string hint_result = "";
@@ -799,8 +857,8 @@ We can do this in a proxy definition for each type
   fout << "\n" << is_stack_ptr << "\n";
   fout << "\n" << stackval_def << "\n";
   fout << "\n" << stackkey_def << "\n";
-  fout << "\n" << load_result << " (* load_stack *)\n"; 
-  fout << store_result << " (* store_stack *)\n"; 
+  stack_access_defs = "\n" + load_result + " (* load_stack *)\n" + store_result + " (* store_stack *)\n" +
+                      load_ptr_result + " (* load_stack_ptr *)\n" + store_ptr_result + " (* store_stack_ptr *)\n";
     
 }
 void ExtractPointersPass::dumpMemTypInfo(std::string filename, llvm::Module &M){
@@ -1043,7 +1101,7 @@ void ExtractPointersPass::generate(llvm::Module& M) {
 
   std::string result = generateGlobalBaseDefinition() + "\n" +
                        generateIntToPtr() + "\n" + generatePtrToInt() + "\n";
-  fout << result;
+  fout << result << stack_access_defs;
   fillTypeElements(M);
   dumpMemTypInfo(M.getName().str() + ".memtypes.json", M);
 }

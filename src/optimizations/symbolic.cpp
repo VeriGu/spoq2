@@ -279,8 +279,7 @@ shared_ptr<SpecValue> z3_expr(Project *proj, SpecNode *val,
         else if (auto const reduced = width_reduction(expr->op, elems))
             return make_shared<IntValue>(reduced->simplify());
         else if (op_eq(expr->op, "ptr_to_int"))
-            return static_pointer_cast<FuncValue>(autov::ptr_to_int())
-                              ->call(elems);
+            return ptr_to_int_value(proj, elems);
         else if (op_eq(expr->op, "int_to_ptr"))
             return int_to_ptr_value(proj, elems);
         else if (op_eq(expr->op, "z_to_nat"))
@@ -1645,6 +1644,7 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
                    Definition *rel_pre, Definition *rel_post, SpecNode  const*ret_rel,
                    std::unordered_set<string>  const&used_abs, SimulateResult *out) {
     init_stack_typing(proj);
+    init_ptr_int_assumptions(proj);
     Z3Cache.clear();
     forget_unfolded_sites();
     extern std::chrono::duration<double> z3_accumulative_time;

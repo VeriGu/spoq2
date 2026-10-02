@@ -117,23 +117,6 @@ Definition STACK := (SMap (option StackVal)).
 Inductive StackKey :=
 | sk_Null.
 
-
-Definition load_stack (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option int64) :=
-	match (stack_map @ p.(pbase)) with
-		| Some sv => match sv with
-			| ZVal ZVal_val => rely (false);
-				Some ZVal_val
-		end
-	| None => None
-end. (* load_stack *)
-Definition store_stack (sz: intSizeT) (p: Ptr) (v: int64) (stack_map: STACK): (option STACK) :=
-	match (stack_map @ p.(pbase)) with
-		| Some sv => match sv with
-			| ZVal ZVal_val => rely (false);
-				Some (stack_map # p.(pbase) == Some(ZVal v))
-		end
-	| None => None
-end. (* store_stack *)
 Parameter g_mask: (ZMap.t (ZMap.t (ZMap.t int64))).
 Record GLOBALS :=
   mkGLOBALS {
@@ -161,6 +144,7 @@ Definition store_global (sz: intSizeT) (p: Ptr) (v: int64) (st: RData) : option 
   None. (* store_global *)
 
 Definition MASK_BASE : intSizeT := 67108864.
+Definition MIN_GLOBAL : intSizeT := 67108864.
 Definition MAX_GLOBAL : intSizeT := 67112960.
 
 Definition global_to_ptr (v: intSizeT) : Ptr :=
@@ -168,11 +152,55 @@ Definition global_to_ptr (v: intSizeT) : Ptr :=
  if (v <? 0 ) then (mkPtr "null" 0) else
  if (v >=? MASK_BASE) then (mkPtr "mask" (v - MASK_BASE)) else
    (mkPtr "null" 0).
+Parameter int_to_ptr_other : (intSizeT -> (Ptr)).
+Definition int_to_ptr (v: intSizeT) : Ptr := 
+ if (v =? (0 - 1)) then (mkPtr "null" (0 - 1)) else
+ if ((0 <=? v) && (v <? MIN_GLOBAL)) then (mkPtr "null" v) else
+ if ((MIN_GLOBAL <=? v) && (v <? MAX_GLOBAL)) then (global_to_ptr v) else
+    (int_to_ptr_other v).
+Parameter ptr_to_int_other : (Ptr -> (intSizeT)).
 Definition ptr_to_int (p: Ptr) : intSizeT :=
  if (p.(poffset) <? 0) then (-1) else
- if (p.(pbase) =s "null") then 0 else
+ if (p.(pbase) =s "null") then (if (p.(poffset) <? MIN_GLOBAL) then p.(poffset) else (ptr_to_int_other p)) else
  if (p.(pbase) =s "mask") then (MASK_BASE + p.(poffset)) else
-    (-1).
+    (ptr_to_int_other p).
+Definition ptr_to_int_other_outside_globals : Prop := forall (p: Ptr), (((ptr_to_int_other p) <? MIN_GLOBAL) \/ (MAX_GLOBAL <=? (ptr_to_int_other p))).
+Definition ptr_to_int_other_not_null : Prop := forall (p: Ptr), (((ptr_to_int_other p) <? (0 - 1)) \/ (MIN_GLOBAL <=? (ptr_to_int_other p))).
+Definition int_to_ptr_other_inverse : Prop := forall (p: Ptr), ((int_to_ptr_other (ptr_to_int_other p)) = p).
+Definition ptr_to_int_other_inverse : Prop := forall (v: intSizeT), ((((v <? (0 - 1)) \/ (MAX_GLOBAL <=? v))) -> ((ptr_to_int_other (int_to_ptr_other v)) = v)).
+
+Definition load_stack (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option int64) :=
+	match (stack_map @ p.(pbase)) with
+		| Some sv => match sv with
+			| ZVal ZVal_val => rely (false);
+				Some ZVal_val
+		end
+	| None => None
+end. (* load_stack *)
+Definition store_stack (sz: intSizeT) (p: Ptr) (v: int64) (stack_map: STACK): (option STACK) :=
+	match (stack_map @ p.(pbase)) with
+		| Some sv => match sv with
+			| ZVal ZVal_val => rely (false);
+				Some (stack_map # p.(pbase) == Some(ZVal v))
+		end
+	| None => None
+end. (* store_stack *)
+Definition load_stack_ptr (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option Ptr) := 
+	match (stack_map @ p.(pbase)) with
+		| Some sv => match sv with
+			| ZVal ZVal_val => rely (false);
+				Some (int_to_ptr ZVal_val)
+		end
+	| None => None
+end. (* load_stack_ptr *)
+Definition store_stack_ptr (sz: intSizeT) (p: Ptr) (v: Ptr) (stack_map: STACK): (option STACK) := 
+	match (stack_map @ p.(pbase)) with
+		| Some sv => match sv with
+			| ZVal ZVal_val => rely (false);
+				Some (stack_map # p.(pbase) == Some(ZVal (ptr_to_int v)))
+		end
+	| None => None
+end. (* store_stack_ptr *)
 (* One function and no patch, so these cases read the spec spoq derives for it
    rather than a refinement.  CheckInv is what asks for one. *)
 Hint CheckInv vuln_spec.
@@ -320,6 +348,30 @@ Definition store_stack_bypass (sz: intSizeT) (p: Ptr) (v: int64) (st: RData) : o
   end.
 Definition load_stack_bypass (sz: intSizeT) (p: Ptr) (st: RData) : (option int64) :=
   load_stack sz p st.(stack).
+(* Pointer-valued accesses.  A stack slot keeps a stored Ptr, base included;
+   other memory holds the pointer as ptr_to_int. *)
+Definition load_RData_ptr (sz: intSizeT) (p: Ptr) (st: RData) : (option Ptr) :=
+  if (is_stack_ptr p) then load_stack_ptr sz p st.(stack)
+  else match (load_RData sz p st) with
+    | Some v => Some (int_to_ptr v)
+    | None => None
+  end.
+Definition store_RData_ptr (sz: intSizeT) (p: Ptr) (v: Ptr) (st: RData) : option RData :=
+  if (is_stack_ptr p) then
+  match (store_stack_ptr sz p v st.(stack)) with
+    | Some new_stack => Some(st.[stack] :< new_stack)
+    | None => None
+  end
+  else store_RData sz p (ptr_to_int v) st.
+Hint DelayUnfold load_RData_ptr.
+Hint DelayUnfold store_RData_ptr.
+Definition store_stack_ptr_bypass (sz: intSizeT) (p: Ptr) (v: Ptr) (st: RData) : option RData :=
+  match (store_stack_ptr sz p v st.(stack)) with
+    | Some new_stack => Some(st.[stack] :< new_stack)
+    | None => None
+  end.
+Definition load_stack_ptr_bypass (sz: intSizeT) (p: Ptr) (st: RData) : (option Ptr) :=
+  load_stack_ptr sz p st.(stack).
 (*
 Definition load_RData (sz: intSizeT) (p: Ptr) (st: RData) : (option int64) :=
   if (is_static_pbase p.(pbase)) then
@@ -345,6 +397,7 @@ Section Axioms.
   Definition LAYER_DATA := RData.
   (* Definition load_RData_no_effect : Prop := forall (sz: intSizeT) (p: Ptr) (st: RData) (st2: RData) (ret: Z),
      ((load_RData sz p st = Some (ret, st2)) -> (st2 = st)). *)
+  (* int_to_ptr_zero and int_to_ptr_neg_one follow from int_to_ptr's definition. *)
   Definition int_to_ptr_zero : Prop := (int_to_ptr 0) = (mkPtr "null" 0).
   Definition int_to_ptr_neg_one : Prop := (int_to_ptr (0 - 1)) = (mkPtr "null" (0 - 1)).
   (* Definition pvns_spvn : Prop := forall (p: Provenance), (spvn (pvns p) = p). *) (* This axiom causes false preconditions *)
@@ -359,7 +412,6 @@ End Axioms.
 (* Of the three casts, only int_to_ptr has no generated definition, so the
    axioms above are all that constrain it.  extractpointers emits ptr_to_int
    and global_to_ptr into <module>.machine.v. *)
-Parameter int_to_ptr: (intSizeT -> (Ptr)).
 
 Parameter llvm_memcpy_p0i8_p0i8_i64_spec: (Ptr -> (Ptr -> (int64 -> (bool -> (RData -> (option RData)))))).
 Parameter llvm_memcpy_p0_p0_i64_spec: (Ptr -> (Ptr -> (int64 -> (bool -> (RData -> (option RData)))))).

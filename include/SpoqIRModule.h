@@ -733,6 +733,9 @@ std::unique_ptr<SpecNode> rely_in_width(std::unique_ptr<SpecNode> body,
         shared_ptr<SpecType> abs_data_type = nullptr;
         std::string load_op_name = "load_RData";
         std::string store_op_name = "store_RData";
+        /// Pointer-valued load and store; used when the model defines both.
+        std::string load_ptr_op_name = "load_RData_ptr";
+        std::string store_ptr_op_name = "store_RData_ptr";
         std::string ptr2int_op_name = "ptr_to_int";
         std::string int2ptr_op_name = "int_to_ptr";
         std::string ptr_eqb_op_name = "ptr_eqb";

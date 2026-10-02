@@ -50,6 +50,14 @@ bool project_declares(Project* proj, const std::string& name) {
     return proj && proj->is_known_symbol(name);
 }
 
+/// Whether pointers are loaded and stored as Ptr values: the model defines
+/// the pointer-valued memory operations.  Otherwise a pointer is stored as
+/// ptr_to_int and loaded through int_to_ptr.
+static bool ptr_valued_memory(SpoqIRContext &context) {
+    return project_declares(context.proj, context.load_ptr_op_name) &&
+           project_declares(context.proj, context.store_ptr_op_name);
+}
+
 /**
  * @brief This look up table is incomplete and only contains the most common binary ops in llvm.
  *
@@ -1164,10 +1172,11 @@ SpoqIRModule::store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context
             // int_ty->
             return std::make_pair(std::move(ret), std::move(expr));
         }
-        else if (value_type->isPointerTy()) {
+        bool const ptr_load = value_type->isPointerTy() && ptr_valued_memory(context);
+        if (value_type->isPointerTy() && !ptr_load) {
             ret = context.get_llvm_value_spec_ptr_in_Z(load);
         }
-        else if (value_type->isFloatingPointTy()){
+        else if (value_type->isFloatingPointTy() || ptr_load){
             ret = context.get_llvm_value_spec(load, nullptr, false);
         }
         else {
@@ -1175,7 +1184,7 @@ SpoqIRModule::store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context
         }
         // children->push_back(context.get_abs_data());
         // auto ret = Shortcut::_Tuple_u(std::move(children));
-        auto expr = std::make_unique<Expr>(context.load_op_name, std::move(operands));
+        auto expr = std::make_unique<Expr>(ptr_load ? context.load_ptr_op_name : context.load_op_name, std::move(operands));
         return std::make_pair(std::move(ret), std::move(expr));
     } else if (auto store = llvm::dyn_cast<llvm::StoreInst>(inst)) {
         unique_ptr<vector<unique_ptr<SpecNode>>> operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
@@ -1184,7 +1193,8 @@ SpoqIRModule::store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context
         operands->push_back(size_t_const(value_size));
         operands->push_back(context.get_llvm_value_spec(store->getPointerOperand()));
         auto value_op = context.get_llvm_value_spec(store->getValueOperand());
-        if (value_type->isIntegerTy()) {
+        bool const ptr_store = value_type->isPointerTy() && ptr_valued_memory(context);
+        if (value_type->isIntegerTy() || ptr_store) {
             operands->push_back(std::move(value_op));
         } else if (value_type->isPointerTy()) {
             auto vec = std::make_unique<vector<unique_ptr<SpecNode>>>();
@@ -1201,7 +1211,8 @@ SpoqIRModule::store_load_to_spec(llvm::Instruction* inst, SpoqIRContext& context
         operands->push_back(context.get_abs_data());
 
         auto ret = context.get_abs_data();
-        return std::make_pair(std::move(ret), std::make_unique<Expr>(context.store_op_name, std::move(operands)));
+        auto const &op = ptr_store ? context.store_ptr_op_name : context.store_op_name;
+        return std::make_pair(std::move(ret), std::make_unique<Expr>(op, std::move(operands)));
     }
     assert(false && "store_load_to_spec: Not implemented yet[store inst]");
 }
@@ -1268,33 +1279,21 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             auto ptr0 = context.is_ptr_to_int(bi->getOperand(0));
             auto ptr1 = context.is_ptr_to_int(bi->getOperand(1));
 
-            bool const movein = bi->getOpcode() == llvm::Instruction::BinaryOps::Add && ((!ptr0) != (!ptr1));
-            std::unique_ptr<SpecNode> movein_base = nullptr;
-            bool const reduce = bi->getOpcode() == llvm::Instruction::BinaryOps::Sub && ptr0;
+            // The difference of two converted pointers is the difference of
+            // their offsets, relying that they share a base.  Any other
+            // arithmetic on a converted pointer is integer arithmetic on its
+            // address.
+            bool const pointer_difference = bi->getOpcode() == llvm::Instruction::BinaryOps::Sub && ptr0 && ptr1;
 
             std::unique_ptr<Expr> rely_expr = nullptr;
-            auto rely_operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
 
-            if ( reduce || movein ) {
-                if (ptr0) {
-                    rely_operands->push_back(context.ptr2int_to_field(ptr0, "pbase"));
-                    if (movein) movein_base = context.ptr2int_to_field(ptr0, "pbase");
-                    operands->push_back(context.ptr2int_to_field(ptr0, "poffset"));
-                } else {
-                    rely_operands->push_back(context.get_llvm_value_spec(bi->getOperand(0)));
-                    operands->push_back(std::move(op0));
-                }
-                if (ptr1) {
-                    rely_operands->push_back(context.ptr2int_to_field(ptr1, "pbase"));
-                    if (movein) movein_base = context.ptr2int_to_field(ptr1, "pbase");
-                    operands->push_back(context.ptr2int_to_field(ptr1, "poffset"));
-                } else {
-                    rely_operands->push_back(context.get_llvm_value_spec(bi->getOperand(1)));
-                    operands->push_back(std::move(op1));
-                }
-                if (ptr0 && ptr1) {
-                    rely_expr = std::make_unique<Expr>(Expr::EQUAL, std::move(rely_operands));
-                }
+            if (pointer_difference) {
+                auto rely_operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                rely_operands->push_back(context.ptr2int_to_field(ptr0, "pbase"));
+                rely_operands->push_back(context.ptr2int_to_field(ptr1, "pbase"));
+                rely_expr = std::make_unique<Expr>(Expr::EQUAL, std::move(rely_operands));
+                operands->push_back(context.ptr2int_to_field(ptr0, "poffset"));
+                operands->push_back(context.ptr2int_to_field(ptr1, "poffset"));
             } else {
                 operands->push_back(std::move(op0));
                 operands->push_back(std::move(op1));
@@ -1359,27 +1358,14 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 assert(false && "Binary operation not supported");
             }
 
-            // The result is reduced back into its width.  Not under movein or
-            // reduce: those build an address out of a pointer's offset, and an
-            // address is unbounded.  i64 is left exact because 2^64 is not a
-            // representable constant, which is also what keeps a pointer offset
-            // out of the reduction.
-            if (!movein && !reduce && bi->getType()->isIntegerTy() &&
+            // The result is reduced back into its width.  Not for a pointer
+            // difference, a difference of unbounded offsets.  i64 is left exact
+            // because 2^64 is not a representable constant.
+            if (!pointer_difference && bi->getType()->isIntegerTy() &&
                 leaves_its_width(bi->getOpcode())) {
                 auto const bits = bi->getType()->getIntegerBitWidth();
                 if (bits > 1 && width_is_representable(bits))
                     expr = wrap_to_width(proj, std::move(expr), bits);
-            }
-
-            if (movein) {
-                assert(movein_base != nullptr && "move offset into the base");
-                auto children = make_unique<vector<unique_ptr<SpecNode>>>();
-                children->push_back(movein_base->deep_copy());
-                children->push_back(std::move(expr));
-                auto mkptr = std::make_unique<Expr>("mkPtr", std::move(children));
-                auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
-                operands->push_back(std::move(mkptr));
-                expr = std::make_unique<Expr>(context.ptr2int_op_name, std::move(operands));
             }
 
             unique_ptr<SpecNode> sym = context.get_llvm_value_spec(bi);
@@ -1607,7 +1593,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
 
         if (auto load = llvm::dyn_cast<llvm::LoadInst>(spoq_inst->inst)) {
             auto rhs = store_load_to_spec(spoq_inst->inst, context);
-            if (load->getType()->isPointerTy()) {
+            if (load->getType()->isPointerTy() && !ptr_valued_memory(context)) {
                 // TODO: pointer abstraction here
 
                 auto children = std::make_unique<vector<unique_ptr<SpecNode>>>();

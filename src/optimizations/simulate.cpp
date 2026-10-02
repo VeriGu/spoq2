@@ -1012,6 +1012,7 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 	 */
 	bool check_hprop_by_path(Project *proj, Definition* rel, Definition *spec, Definition *impl, bool det, Definition* endrel) {
 		init_stack_typing(proj);
+		init_ptr_int_assumptions(proj);
 		LOG_DEBUG << "rel: " << string(*rel->body());
 		LOG_DEBUG << "end_rel: " << string(*rel->body());
 		auto vars = std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();

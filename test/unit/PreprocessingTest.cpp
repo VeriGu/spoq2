@@ -223,10 +223,10 @@ TEST(ExtractBasics, VectorTypesMapToAZMap) {
 TEST(ExtractPointers, StackValueTypes) {
     RUN_OR_SKIP(e, "stack_types.ll");
     // Every integer slot is the 64-bit word, so they share one constructor and a
-    // load yields a bitvector under bitvector sorts.  A pointer slot is an
-    // intSizeT, with a constructor of its own.
+    // load yields a bitvector under bitvector sorts.  A pointer slot holds a
+    // Ptr, with a constructor of its own.
     EXPECT_NE(e.machine.find("ZVal (ZValConstr: int64)"), std::string::npos) << e.machine;
-    EXPECT_NE(e.machine.find("PtrVal (PtrValConstr: intSizeT)"), std::string::npos) << e.machine;
+    EXPECT_NE(e.machine.find("PtrVal (PtrValConstr: Ptr)"), std::string::npos) << e.machine;
     EXPECT_NE(e.machine.find("Definition load_stack (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option int64) :="),
               std::string::npos) << e.machine;
     EXPECT_NE(e.machine.find("Definition store_stack (sz: intSizeT) (p: Ptr) (v: int64) (stack_map: STACK)"),
@@ -234,6 +234,26 @@ TEST(ExtractPointers, StackValueTypes) {
     EXPECT_NE(e.machine.find("ZFloatVal (ZFloatValConstr: Float)"), std::string::npos) << e.machine;
     EXPECT_NE(e.machine.find("ZFloatVal (ZFloatValConstr: Double)"), std::string::npos) << e.machine;
     EXPECT_NE(e.machine.find("s_TwoVal (s_TwoValConstr: s_Two)"), std::string::npos) << e.machine;
+}
+
+/// A pointer slot keeps the stored Ptr: the pointer-valued accessors move it
+/// unchanged, and the integer accessors convert.  The accessors use ptr_to_int,
+/// so they follow its definition.
+TEST(ExtractPointers, PointerSlotsHoldPointers) {
+    RUN_OR_SKIP(e, "stack_types.ll");
+    auto const load_ptr =
+        e.machine.find("Definition load_stack_ptr (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option Ptr) :=");
+    auto const store_ptr = e.machine.find(
+        "Definition store_stack_ptr (sz: intSizeT) (p: Ptr) (v: Ptr) (stack_map: STACK): (option STACK) :=");
+    ASSERT_NE(load_ptr, std::string::npos) << e.machine;
+    ASSERT_NE(store_ptr, std::string::npos) << e.machine;
+    EXPECT_NE(e.machine.find("Some (stack_map # p.(pbase) == Some(PtrVal v))", store_ptr), std::string::npos)
+        << e.machine;
+    EXPECT_NE(e.machine.find("Some (ptr_to_int PtrVal_val)"), std::string::npos) << e.machine;
+    EXPECT_NE(e.machine.find("Some(PtrVal (int_to_ptr v))"), std::string::npos) << e.machine;
+    auto const p2i = e.machine.find("Definition ptr_to_int");
+    ASSERT_NE(p2i, std::string::npos) << e.machine;
+    EXPECT_LT(p2i, e.machine.find("Definition load_stack ")) << e.machine;
 }
 
 /// The same fix on this side: an alloca of a vector no longer contributes a

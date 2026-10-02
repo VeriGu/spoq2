@@ -1,0 +1,5 @@
+{
+  "verified": true,
+  "spec_has_ub": false,
+  "coq_contains": "(int_to_ptr_other v)"
+}
