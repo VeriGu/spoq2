@@ -228,6 +228,7 @@ Dumps and traces:
 |---|---|
 | `SPOQ_DUMP_REFINES` (set) | write the vuln and patch bodies at each refinement check to `refines_<fn>_<n>_{vuln,patch}` in the working directory |
 | `SPOQ_DUMP_HOIST=<def>` | write `<def>` before and after each hoist pass to `<def>_iter<N>_{pre,post}_hoist.txt` |
+| `SPOQ_DUMP_SPEC=<def>[,<def>...]` | write each listed definition before transformation to `<def>_iter0.txt` and after each transformation iteration to `<def>_iter<N>.txt`, in the working directory |
 | `SPOQ_SLOW_QUERY_DIR=<dir>` | save every check that takes at least `SPOQ_SLOW_QUERY_MS` (default 200) as `<dir>/slow_<n>.smt2`, with its time and result; the directory is created |
 | `SPOQ_CURRENT_QUERY=<file>` | overwrite `<file>` with each query before it is checked, so a hang leaves the query behind |
 | `SPOQ_TRACE_TRANSFORM` (set) | log spec size after each transformation pass (`[PASS]`), hoist decisions (`[HOIST]`) and unfolds (`[TRACE]`) |

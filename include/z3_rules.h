@@ -120,7 +120,7 @@ enum class Z3Result {
 /// while it exists.
 class Z3ResultCache {
 public:
-    enum class Kind { Check, CheckState, CheckUnsat };
+    enum class Kind { Check, CheckState, CheckUnsat, VerifyState };
     struct Query {
         std::vector<unsigned> ids;
         std::vector<z3::expr> formulas;

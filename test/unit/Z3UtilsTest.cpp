@@ -42,6 +42,8 @@
 /* main.cpp is not linked into this binary, so its globals live here instead. */
 SpoqOption OPTS;
 
+namespace autov { extern unsigned long z3_state_cache_hits; }
+
 using namespace autov;
 
 namespace {
@@ -288,6 +290,46 @@ TEST_P(VerifyStateSatTest, ProveStateInductionsAreAsserted) {
 TEST_P(VerifyStateSatTest, ProveStateTimedOutIsUnknown) {
     EXPECT_EQ(z3_verify_state_sat(prove_state_of({}, {pigeonhole(11)}), nullptr, kTimeout),
               Z3Result::Unknown);
+}
+
+/* -- the EvalState overload caches decided answers ------------------------- */
+
+TEST_P(VerifyStateSatTest, DecidedAnswersAreCached) {
+    auto const sat = state_of({x() > 0}), unsat = state_of({x() > 0, x() < 0});
+    auto const before = z3_state_cache_hits;
+    EXPECT_EQ(z3_verify_state_sat(sat, nullptr, kTimeout), Z3Result::True);
+    EXPECT_EQ(z3_verify_state_sat(unsat, nullptr, kTimeout), Z3Result::False);
+    EXPECT_EQ(z3_state_cache_hits, before);
+    EXPECT_EQ(z3_verify_state_sat(sat, nullptr, kTimeout), Z3Result::True);
+    EXPECT_EQ(z3_verify_state_sat(unsat, nullptr, kTimeout), Z3Result::False);
+    EXPECT_EQ(z3_state_cache_hits, before + 2);
+}
+
+// A later call, with more time or another solver, may decide the state.
+TEST_P(VerifyStateSatTest, UnknownIsNotCached) {
+    auto const hard = state_of({pigeonhole(11)});
+    auto const before = z3_state_cache_hits;
+    EXPECT_EQ(z3_verify_state_sat(hard, nullptr, kTimeout), Z3Result::Unknown);
+    EXPECT_EQ(z3_verify_state_sat(hard, nullptr, kTimeout), Z3Result::Unknown);
+    EXPECT_EQ(z3_state_cache_hits, before);
+}
+
+// z3_check(state, timeout) answers Sat for a satisfiable state, where
+// z3_verify_state_sat answers True; the two must not share entries.
+TEST_P(VerifyStateSatTest, CacheIsSeparateFromStateCheck) {
+    auto const sat = state_of({x() > 0});
+    EXPECT_EQ(z3_check(sat, kTimeout), Z3Result::Sat);
+    EXPECT_EQ(z3_verify_state_sat(sat, nullptr, kTimeout), Z3Result::True);
+    EXPECT_EQ(z3_check(sat, kTimeout), Z3Result::Sat);
+}
+
+// The key holds the timeout: an answer at one budget is not reused at another.
+TEST_P(VerifyStateSatTest, CacheIsKeyedByTimeout) {
+    auto const sat = state_of({x() > 0});
+    EXPECT_EQ(z3_verify_state_sat(sat, nullptr, kTimeout), Z3Result::True);
+    auto const before = z3_state_cache_hits;
+    EXPECT_EQ(z3_verify_state_sat(sat, nullptr, kTimeout + 1), Z3Result::True);
+    EXPECT_EQ(z3_state_cache_hits, before);
 }
 
 /* -- the result cache is keyed by exactly what was asked ------------------- */

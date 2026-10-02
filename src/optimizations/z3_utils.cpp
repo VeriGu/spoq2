@@ -122,6 +122,7 @@ unsigned long z3_unknowns = 0;
 unsigned long z3_retries = 0, z3_retries_decided = 0;
 unsigned long z3_checks = 0;
 unsigned long z3_cache_hits = 0;
+unsigned long z3_state_cache_hits = 0;
 unsigned long z3_race_solves = 0;
 unsigned long z3_state_sat[3] = {0, 0, 0};  // unsat, sat, unknown
 std::chrono::duration<double> z3_accumulative_time = std::chrono::duration<double>::zero();
@@ -860,6 +861,13 @@ Z3Result z3_verify_state_sat(const shared_ptr<ProveState>& state, QueryInfo *qin
     }
 }
 Z3Result z3_verify_state_sat(const shared_ptr<EvalState>& state, QueryInfo *qinfo, int timeout) {
+    // Decided answers are cached; Unknown is not, so a later call can still
+    // decide the state.
+    auto const cache_query = Z3ResultCache::query(Z3ResultCache::Kind::VerifyState, *state, nullptr, timeout);
+    if (auto const hit = Z3Cache.find(cache_query)) {
+        z3_state_cache_hits++;
+        return *hit;
+    }
     auto const start = std::chrono::high_resolution_clock::now();
     z3::solver solve = make_solver();
 
@@ -893,8 +901,10 @@ Z3Result z3_verify_state_sat(const shared_ptr<EvalState>& state, QueryInfo *qinf
     // std::cout << "z3 check res: " << res << std::endl;
     // std::cout << "-----------------Z3_verify_state_sat-----------------" << std::endl;
     if (res == z3::sat) {
+        Z3Cache.insert(cache_query, Z3Result::True);
         return Z3Result::True;
     } else if (res == z3::unsat) {
+        Z3Cache.insert(cache_query, Z3Result::False);
         return Z3Result::False;
     } else {
         return Z3Result::Unknown;

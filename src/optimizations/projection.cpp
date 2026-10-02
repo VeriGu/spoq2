@@ -1,3 +1,4 @@
+#include <sstream>
 #include <rules.h>
 #include <z3_rules.h>
 #include <projection.h>
@@ -203,6 +204,21 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
     UNFOLD_POLICY.set_skip(true);
     bool have_done_no_div_by_zero = false;
     int cur_iter = 0;
+    // SPOQ_DUMP_SPEC=<def>[,<def>...]: the term before transformation
+    // (<def>_iter0.txt) and after each iteration (<def>_iter<N>.txt).
+    bool const dump_spec = [&] {
+        const char *list = std::getenv("SPOQ_DUMP_SPEC");
+        if (!list) return false;
+        std::stringstream ss(list);
+        for (std::string name; std::getline(ss, name, ',');)
+            if (name == def->name) return true;
+        return false;
+    }();
+    auto const write_spec = [&](int iter) {
+        std::ofstream ofs(def->name + "_iter" + std::to_string(iter) + ".txt");
+        ofs << def->body();
+    };
+    if (dump_spec) write_spec(0);
     while(cur_iter < max_iter) {
             cur_iter++;
             profile_clear_epoch();
@@ -468,8 +484,9 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             }
             if (force_simpl || !__unfold) {
                     auto const start = std::chrono::high_resolution_clock::now();
-                    extern unsigned long z3_checks, z3_cache_hits, z3_race_solves, z3_state_sat[3], z3_retries;
+                    extern unsigned long z3_checks, z3_cache_hits, z3_race_solves, z3_state_sat[3], z3_retries, z3_state_cache_hits;
                     auto const checks_before = z3_checks, hits_before = z3_cache_hits, races_before = z3_race_solves;
+                    auto const state_hits_before = z3_state_cache_hits;
                     unsigned long const sat_before[3] = {z3_state_sat[0], z3_state_sat[1], z3_state_sat[2]};
                     auto const retries_before = z3_retries;
                     force_simpl = true;
@@ -503,6 +520,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                           << z3_cache_hits - hits_before << ", race solves " << z3_race_solves - races_before
                           << ", state checks unsat/sat/unknown " << z3_state_sat[0] - sat_before[0] << "/"
                           << z3_state_sat[1] - sat_before[1] << "/" << z3_state_sat[2] - sat_before[2]
+                          << ", state cache hits " << z3_state_cache_hits - state_hits_before
                           << ", retries " << z3_retries - retries_before << "\n";
                 LOG_DEBUG << "z3_changed: " << z3_changed << ", me_changed: " << me_changed << ", we_changed: " << we_changed << ", le_changed: " << le_changed << ",um_changed: " << um_changed << ", cb_changed: " << cb_changed << ", unfolded: " << __unfold;
             }
@@ -545,6 +563,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             profile_update_epoch();
             assert(spec);
             def->body() = std::move(spec);
+            if (dump_spec) write_spec(cur_iter);
 
             // SPOQ_TRACE_TRANSFORM: size and identity per iteration, which
             // separates a spec that is growing from one cycling between forms
