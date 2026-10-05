@@ -1607,6 +1607,259 @@ static bool lazy_spec_derivation() {
     return on;
 }
 
+static bool has_prefix_suffix(const string &s, const string &prefix, const string &suffix) {
+    return s.size() >= prefix.size() + suffix.size() && s.compare(0, prefix.size(), prefix) == 0 &&
+           s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+static bool same_type(const shared_ptr<SpecType> &a, const shared_ptr<SpecType> &b) {
+    if (!a || !b) return a == b;
+    return !(*a != *b);
+}
+
+/// Alpha-equivalence of the untransformed low specs of a patch loop and a vuln
+/// loop.  Bound names may differ under a consistent renaming.  A call to a loop
+/// of the patch helper must face a call to a loop of the vuln helper; the pair
+/// is assumed equal and queued in [pending], so nested and mutually recursive
+/// loops are checked as one simultaneous fixpoint.  Every other free name and
+/// callee must be identical.
+struct LoopSpecMatcher {
+    Project *proj;
+    string patch_prefix;  // "<base>_patch_loop_"
+    string vuln_prefix;   // "<base>_vuln_loop_"
+    std::map<string, string> pairs;  // patch loop low spec -> vuln loop low spec
+    std::vector<std::pair<string, string>> pending;
+
+    using env_t = std::map<string, string>;
+
+    bool free_names(const string &p, const string &v) {
+        bool const p_loop = has_prefix_suffix(p, patch_prefix, "_low");
+        bool const v_loop = has_prefix_suffix(v, vuln_prefix, "_low");
+        if (p_loop != v_loop) return false;
+        if (!p_loop) return p == v;
+        auto const it = pairs.find(p);
+        if (it != pairs.end()) return it->second == v;
+        pairs[p] = v;
+        pending.emplace_back(p, v);
+        return true;
+    }
+
+    static bool bound_pair(const env_t &l, const env_t &r, const string &x, const string &y) {
+        auto const lx = l.find(x);
+        auto const ry = r.find(y);
+        if (lx == l.end() || ry == r.end()) return false;
+        return lx->second == y && ry->second == x;
+    }
+
+    static void bind(env_t &l, env_t &r, const string &x, const string &y) {
+        l[x] = y;
+        r[y] = x;
+    }
+
+    /// A bound name on either side must be bound to the other; else both are free.
+    bool name(const string &x, const string &y, const env_t &l, const env_t &r) {
+        if (l.count(x) || r.count(y)) return bound_pair(l, r, x, y);
+        return free_names(x, y);
+    }
+
+    bool elems(const Expr *a, const Expr *b, const env_t &l, const env_t &r) {
+        if (!a->elems || !b->elems) return !a->elems && !b->elems;
+        if (a->elems->size() != b->elems->size()) return false;
+        for (size_t i = 0; i < a->elems->size(); i++)
+            if (!eq(a->elems->at(i).get(), b->elems->at(i).get(), l, r)) return false;
+        return true;
+    }
+
+    /// The innermost pair of subterms that differ, for the log.
+    string mismatch;
+
+    bool note(bool same, SpecNode *a, SpecNode *b) {
+        if (!same && mismatch.empty() && a && b) mismatch = string(*a) + "  vs  " + string(*b);
+        return same;
+    }
+
+    bool pattern(SpecNode *a, SpecNode *b, env_t &l, env_t &r) {
+        return note(pattern_node(a, b, l, r), a, b);
+    }
+
+    bool eq(SpecNode *a, SpecNode *b, const env_t &l, const env_t &r) {
+        return note(eq_node(a, b, l, r), a, b);
+    }
+
+    bool pattern_node(SpecNode *a, SpecNode *b, env_t &l, env_t &r) {
+        if (!a || !b) return a == b;
+        if (typeid(*a) != typeid(*b)) return false;
+        if (auto sa = instance_of(a, Symbol)) {
+            auto sb = static_cast<Symbol *>(b);
+            bool const ka = proj->is_known_symbol(sa->text), kb = proj->is_known_symbol(sb->text);
+            if (ka || kb) return ka && kb && sa->text == sb->text;
+            bind(l, r, sa->text, sb->text);
+            return true;
+        }
+        if (auto ea = instance_of(a, Expr)) {
+            auto eb = static_cast<Expr *>(b);
+            if (std::holds_alternative<unique_ptr<SpecNode>>(ea->op) || ea->op != eb->op) return false;
+            if (ea->elems->size() != eb->elems->size()) return false;
+            for (size_t i = 0; i < ea->elems->size(); i++)
+                if (!pattern(ea->elems->at(i).get(), eb->elems->at(i).get(), l, r)) return false;
+            return true;
+        }
+        if (instance_of(a, Const)) return eq(a, b, l, r);
+        return false;
+    }
+
+    bool eq_node(SpecNode *a, SpecNode *b, const env_t &l, const env_t &r) {
+        if (!a || !b) return a == b;
+        if (typeid(*a) != typeid(*b)) return false;
+        if (auto sa = instance_of(a, Symbol)) return name(sa->text, static_cast<Symbol *>(b)->text, l, r);
+        if (auto ca = instance_of(a, Const)) {
+            auto cb = static_cast<Const *>(b);
+            return *ca == *cb && string(*ca) == string(*cb) && same_type(ca->get_type(), cb->get_type());
+        }
+        if (auto ea = instance_of(a, Expr)) {
+            auto eb = static_cast<Expr *>(b);
+            if (ea->is_lens != eb->is_lens || ea->op.index() != eb->op.index()) return false;
+            bool same_op;
+            if (auto s = std::get_if<string>(&ea->op))
+                same_op = name(*s, std::get<string>(eb->op), l, r);
+            else if (auto f = std::get_if<unique_ptr<SpecNode>>(&ea->op))
+                same_op = eq(f->get(), std::get<unique_ptr<SpecNode>>(eb->op).get(), l, r);
+            else
+                same_op = ea->op == eb->op;
+            return same_op && elems(ea, eb, l, r);
+        }
+        if (auto ma = instance_of(a, Match)) {
+            auto mb = static_cast<Match *>(b);
+            if (!eq(ma->src.get(), mb->src.get(), l, r)) return false;
+            if (ma->match_list->size() != mb->match_list->size()) return false;
+            for (size_t i = 0; i < ma->match_list->size(); i++) {
+                auto &pa = ma->match_list->at(i);
+                auto &pb = mb->match_list->at(i);
+                env_t l2 = l, r2 = r;
+                if (!pattern(pa->pattern.get(), pb->pattern.get(), l2, r2)) return false;
+                if (!eq(pa->body.get(), pb->body.get(), l2, r2)) return false;
+            }
+            return true;
+        }
+        if (auto ra = instance_of(a, RelyAnno)) {
+            auto rb = static_cast<RelyAnno *>(b);
+            return eq(ra->prop.get(), rb->prop.get(), l, r) && eq(ra->body.get(), rb->body.get(), l, r);
+        }
+        if (auto ia = instance_of(a, If)) {
+            auto ib = static_cast<If *>(b);
+            return eq(ia->cond.get(), ib->cond.get(), l, r) &&
+                   eq(ia->then_body.get(), ib->then_body.get(), l, r) &&
+                   eq(ia->else_body.get(), ib->else_body.get(), l, r);
+        }
+        if (auto fa = instance_of(a, ForallExists)) {
+            auto fb = static_cast<ForallExists *>(b);
+            if (fa->vars->size() != fb->vars->size()) return false;
+            env_t l2 = l, r2 = r;
+            for (size_t i = 0; i < fa->vars->size(); i++) {
+                auto &va = fa->vars->at(i);
+                auto &vb = fb->vars->at(i);
+                if (va->expr || vb->expr || !same_type(va->type, vb->type)) return false;
+                bind(l2, r2, va->name, vb->name);
+            }
+            return eq(fa->body.get(), fb->body.get(), l2, r2);
+        }
+        return false;
+    }
+
+    /// Signatures equal position by position, and bodies equal with the
+    /// parameters bound in order.
+    bool loops(const string &p, const string &v) {
+        auto const dp = proj->defs.find(p), dv = proj->defs.find(v);
+        auto const bp = proj->loop_low_raw.find(p), bv = proj->loop_low_raw.find(v);
+        if (dp == proj->defs.end() || dv == proj->defs.end() ||
+            bp == proj->loop_low_raw.end() || bv == proj->loop_low_raw.end())
+            return false;
+        auto *const fp = dp->second.get(), *const fv = dv->second.get();
+        if (fp->args->size() != fv->args->size() || !same_type(fp->rettype, fv->rettype)) return false;
+        env_t l, r;
+        for (size_t i = 0; i < fp->args->size(); i++) {
+            auto const &ap = fp->args->at(i), &av = fv->args->at(i);
+            if (ap->expr || av->expr || !same_type(ap->type, av->type)) return false;
+            bind(l, r, ap->name, av->name);
+        }
+        return eq(bp->second.get(), bv->second.get(), l, r);
+    }
+
+    /// Check [p] against [v] and every pair that check assumes.
+    bool run(const string &p, const string &v) {
+        pairs[p] = v;
+        pending.emplace_back(p, v);
+        for (size_t i = 0; i < pending.size(); i++) {
+            auto const [pp, vv] = pending[i];
+            if (!loops(pp, vv)) {
+                LOG_DEBUG << "Loop " << pp << " differs from " << vv << ": "
+                          << (mismatch.empty() ? "signature" : mismatch);
+                return false;
+            }
+        }
+        return true;
+    }
+};
+
+/// For a patch helper `<base>_patch`, define each loop whose low spec is
+/// alpha-equivalent to a loop of `<base>_vuln` as that vuln loop:
+///
+///   Definition <base>_patch_loop_k a_1 ... a_n st := <base>_vuln_loop_j a_1 ... a_n st.
+///
+/// The high spec loop below then takes it as provided.  Equal specs denote
+/// the same function of their arguments and state, so both helpers reach
+/// related states after the loop.  Requires the vuln helper to have been
+/// inferred first; otherwise the loops stay separate.
+static void identify_patch_loops(Project *proj, int layer_id, const string &fname,
+                                 const vector<string> &low_specs_name) {
+    if (!OPTS.check_refinements || !has_prefix_suffix(fname, "", "_patch")) return;
+    string const base = fname.substr(0, fname.size() - 6);
+    string const patch_prefix = fname + "_loop_";
+    string const vuln_prefix = base + "_vuln_loop_";
+
+    vector<string> vuln_loops;
+    for (auto const &[name, body] : proj->loop_low_raw)
+        if (has_prefix_suffix(name, vuln_prefix, "_low")) vuln_loops.push_back(name);
+    if (vuln_loops.empty()) return;
+    std::sort(vuln_loops.begin(), vuln_loops.end());
+
+    auto const high = [](const string &low) { return low.substr(0, low.size() - 4); };
+
+    std::map<string, string> identified;
+    for (auto const &p : low_specs_name) {
+        if (!has_prefix_suffix(p, patch_prefix, "_low") || identified.count(p)) continue;
+        if (proj->defs.count(high(p))) continue;  // provided by the user
+        // The same loop index first.
+        string const same = vuln_prefix + p.substr(patch_prefix.size());
+        vector<string> order = vuln_loops;
+        std::stable_partition(order.begin(), order.end(), [&](const string &v) { return v == same; });
+        for (auto const &v : order) {
+            LoopSpecMatcher m{proj, patch_prefix, vuln_prefix};
+            if (!m.run(p, v)) continue;
+            for (auto const &[pp, vv] : m.pairs) identified.emplace(pp, vv);
+            break;
+        }
+    }
+
+    for (auto const &[p, v] : identified) {
+        auto const hp = high(p), hv = high(v);
+        if (proj->defs.count(hp)) continue;
+        if (!proj->defs.count(hv)) {
+            LOG_WARNING << "Loop " << p << " equals " << v << ", but " << hv
+                        << " is not defined; not identified.";
+            continue;
+        }
+        auto const *low = proj->defs[p].get();
+        auto args = make_unique<vector<shared_ptr<Arg>>>(*low->args);
+        auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+        for (auto const &a : *args) elems->push_back(make_unique<Symbol>(a->name, a->type));
+        auto call = make_unique<Expr>(hv, std::move(elems), low->rettype);
+        auto def = make_unique<Definition>(hp, low->rettype, std::move(args), std::move(call));
+        LOG_INFO << "Identified loop " << hp << " with " << hv;
+        proj->add_definition(std::move(def), make_shared<loc_t>(proj->layers[layer_id]->name, Project::LOC_SPEC, ""));
+    }
+}
+
 std::tuple<string, vector<Definition *> *, vector<unique_ptr<Definition>> *>
 Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
 
@@ -1623,6 +1876,8 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
     } else {
         LOG_DEBUG << "Infer low spec for " << fname << " ok" << std::endl;
     }
+
+    identify_patch_loops(proj, layer_id, fname, low_specs_name);
 
     // auto &L = proj->layers[layer_id];
     unsigned long const symbol_order = proj->symbols.size();
@@ -1728,6 +1983,13 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
         if(!ret) {
             LOG_ERROR << "fail to generate low spec for: " << fname << "\n";
             return false;
+        }
+        // Snapshot before finish_body is installed, while body() still returns
+        // the untransformed translation, and before the retry throw below.
+        for (auto const &def_name : low_specs) {
+            auto def = proj->defs[def_name].get();
+            if (is_instance(def, Fixpoint) && def->body())
+                proj->loop_low_raw[def_name] = def->body()->deep_copy();
         }
         auto subs_defs_low = new vector<Definition*>();
         for(auto  const&def_name: low_specs) {

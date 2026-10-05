@@ -164,6 +164,9 @@ public:
     unordered_map<string, unique_ptr<Declaration>> decls;
     unordered_map<string, unique_ptr<Definition>> defs;
     vector<string> def_order;
+    /// Untransformed body of each generated loop low spec, kept for the
+    /// vuln/patch loop identification in infer_spec_task_v2.
+    unordered_map<string, unique_ptr<SpecNode>> loop_low_raw;
     unordered_map<string, SymbolInfo> symbols;
 
     std::set<string> skip_state_specs;

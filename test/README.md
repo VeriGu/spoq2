@@ -268,6 +268,20 @@ Discrimination: with `SPOQ_EAGER_UNFOLD=1` the proof still verifies but both
 structural assertions fail (`helper_spec ` gone, `g_g2` present), so the test
 distinguishes unfolding from provability rather than re-testing the verdict.
 
+## loop_identification/
+
+A loop is a Fixpoint with postcondition `true`, so after two separately
+translated loops the vuln and patch states are unrelated.  When the low spec of
+`<base>_patch_loop_k` is alpha-equivalent to that of a `<base>_vuln_loop_j`,
+`identify_patch_loops` (`project.cpp`) defines the patch loop as a call to the
+vuln loop.  The log reports `Identified loop ...`.
+
+| test | input | expected | discriminates |
+|---|---|---|---|
+| `loop_ident_equal` | same loop up to value and block names, guard added after it | `verified: true` | without identification the result is `false` |
+| `loop_ident_nested` | the same with a nested loop | `verified: true` | the inner pair is matched together with the outer pair |
+| `loop_ident_differ` | the patch loop adds `2 * pick()` | `verified: false` | the loops are not identified |
+
 ## Attribute disposition
 
 Every function attribute appearing in the reference corpus
