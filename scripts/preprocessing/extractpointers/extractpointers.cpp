@@ -710,8 +710,10 @@ We can do this in a proxy definition for each type
         stackval_branch_id = struct_id + "ArrVal";
         stackval_accessor = ("(ZMap.t "+struct_id+")", struct_id);
       } else {
-        stackval_accessor = generateField(x.first);
-        stackval_branch_id = stackval_accessor == "(ZMap.t intSizeT)" ? "ZMapPtrVal" : "ZMapOtherVal";
+        // A non-struct array, of any depth or element type, is one flat map
+        // from byte offset to the value stored there, as a heap block is.
+        stackval_accessor = "(ZMap.t int64)";
+        stackval_branch_id = "ZMapVal";
       }
     } else if(x.first->isFloatingPointTy()) {
       stackval_branch_id = "ZFloatVal";
@@ -742,7 +744,9 @@ We can do this in a proxy definition for each type
 
     bool const is_ptr_slot = stackval_ident == "PtrVal";
     // StackVal
-    if(is_map){
+    if(is_map && !is_struct){
+      stackval_def += "\t| "+stackval_ident+" ("+stackval_ident+"Constr: "+type_ident+")\n";
+    } else if(is_map){
       stackval_def += "\t| "+stackval_ident+" ("+stackval_ident+"Constr: (ZMap.t "+type_ident+"))\n";
     } else {
       stackval_def += "\t| "+stackval_ident+" ("+stackval_ident+"Constr: "+(is_ptr_slot ? "Ptr" : type_ident)+")\n";
@@ -766,7 +770,29 @@ We can do this in a proxy definition for each type
         store_out += "\t\t\t| " + stackval_ident + " " + constr_e_ident + " => "+rely_clause+\
         "\n\t\t\t\tSome (stack_map # p.(pbase) == Some(" + stackval_ident + " " + stored + "))\n";
       } else if(is_map && !is_struct){
-        // ZMap.t Z
+        // Flat array: a value is kept at the byte offset it was stored at, and
+        // an access must lie within the slot's allocation, as in blk_load and
+        // blk_store.  Slots are grouped by allocation size.
+        std::map<uint64_t, std::vector<std::string>> slots_of_size;
+        for (auto &pointer_name : pointers)
+          slots_of_size[dl->getTypeAllocSize(named_stack_ty.at(pointer_name))].push_back(pointer_name);
+        auto const by_size = [&](const std::string &in_bounds) {
+          std::string chain = "None";
+          for (auto it = slots_of_size.rbegin(); it != slots_of_size.rend(); ++it) {
+            std::string is_slot = "false";
+            for (auto &name : it->second) is_slot += " \\/ (p.(pbase) =s \"" + name + "\")";
+            std::string const bounds = "((0 <=? p.(poffset)) && (p.(poffset) <=? " +
+                                       std::to_string(it->first) + " - sz))";
+            chain = "(if (" + is_slot + ")\n\t\t\t\tthen (if " + bounds + " then " + in_bounds +
+                    " else None)\n\t\t\t\telse " + chain + ")";
+          }
+          return chain;
+        };
+        load_out += "\t\t\t| " + stackval_ident + " " + constr_e_ident + " => " + rely_clause + "\n\t\t\t\t" +
+                    by_size("(Some " + wrap("(" + constr_e_ident + " @ p.(poffset))") + ")") + "\n";
+        store_out += "\t\t\t| " + stackval_ident + " " + constr_e_ident + " => " + rely_clause + "\n\t\t\t\t" +
+                     by_size("(Some (stack_map # p.(pbase) == Some(" + stackval_ident + " (" + constr_e_ident +
+                             " # p.(poffset) == " + stored + "))))") + "\n";
       } else if(!is_map && is_struct){
         auto struct_id = struct_id_opt.value();
         std::string load_ret_name = "ret_load_" + stackval_ident;

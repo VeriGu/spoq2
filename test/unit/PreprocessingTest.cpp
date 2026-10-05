@@ -267,10 +267,10 @@ TEST(ExtractPointers, NoStackSlotIsUnnamed) {
 /// rejects an Inductive with duplicates, so a module that produces two emits a
 /// file that does not compile.
 ///
-/// Two collide today -- the name comes from a coarse family (ZVal, ZFloatVal,
-/// ZMapVal, ZMapOtherVal) while the payload type is the precise one, so two
-/// types in one family share a name -- and this reports a skip.  Independent of
-/// the type mapping: the payload types are right, only the names are not.
+/// Two collide today -- the name comes from a coarse family (ZVal, ZFloatVal)
+/// while the payload type is the precise one, so float and double share a
+/// name -- and this reports a skip.  Independent of the type mapping: the
+/// payload types are right, only the names are not.
 TEST(ExtractPointers, StackValConstructorNamesAreDistinct_Unimplemented) {
     RUN_OR_SKIP(e, "stack_types.ll");
     // Only the declaration; the constructors are also used in load_stack and
@@ -286,12 +286,43 @@ TEST(ExtractPointers, StackValConstructorNamesAreDistinct_Unimplemented) {
             n++;
         return n;
     };
-    if (count("| ZFloatVal ") > 1 || count("| ZMapOtherVal ") > 1)
-        GTEST_SKIP() << "unimplemented: float and double share ZFloatVal, and "
-                        "[2 x [3 x i32]] and [4 x double] share ZMapOtherVal:\n"
-                     << inductive;
+    if (count("| ZFloatVal ") > 1)
+        GTEST_SKIP() << "unimplemented: float and double share ZFloatVal:\n" << inductive;
     EXPECT_EQ(count("| ZFloatVal "), 1u) << inductive;
-    EXPECT_EQ(count("| ZMapOtherVal "), 1u) << inductive;
+    EXPECT_EQ(count("| ZMapVal "), 1u) << inductive;
+}
+
+/// Every non-struct array slot, of any depth or element type, is one flat map
+/// from byte offset to value, as a heap block is.  An access is in bounds of
+/// the slot's allocation or is None: [4 x i32] is 16 bytes, [2 x [3 x i32]]
+/// 24, [4 x double] 32.
+TEST(ExtractPointers, StackArraysAreBoundedByteMaps) {
+    RUN_OR_SKIP(e, "stack_types.ll");
+    EXPECT_NE(e.machine.find("| ZMapVal (ZMapValConstr: (ZMap.t int64))"), std::string::npos) << e.machine;
+    EXPECT_EQ(e.machine.find("ZMapOtherVal"), std::string::npos) << e.machine;
+    EXPECT_EQ(e.machine.find("ZMapPtrVal"), std::string::npos) << e.machine;
+    const size_t load = e.machine.find("Definition load_stack ");
+    const size_t store = e.machine.find("Definition store_stack ");
+    const size_t load_ptr = e.machine.find("Definition load_stack_ptr ");
+    const size_t store_ptr = e.machine.find("Definition store_stack_ptr ");
+    ASSERT_NE(load, std::string::npos) << e.machine;
+    ASSERT_NE(store, std::string::npos) << e.machine;
+    ASSERT_NE(load_ptr, std::string::npos) << e.machine;
+    ASSERT_NE(store_ptr, std::string::npos) << e.machine;
+    const std::string load_def = e.machine.substr(load, store - load);
+    const std::string store_def = e.machine.substr(store, load_ptr - store);
+    for (const char *bytes : {"16", "24", "32"}) {
+        const std::string bound = std::string("(p.(poffset) <=? ") + bytes + " - sz)";
+        EXPECT_NE(load_def.find(bound), std::string::npos) << load_def;
+        EXPECT_NE(store_def.find(bound), std::string::npos) << store_def;
+    }
+    EXPECT_NE(load_def.find("(Some (ZMapVal_val @ p.(poffset)))"), std::string::npos) << load_def;
+    EXPECT_NE(store_def.find("Some(ZMapVal (ZMapVal_val # p.(poffset) == v))"), std::string::npos) << store_def;
+    // The pointer accessors convert, as at an integer slot.
+    EXPECT_NE(e.machine.find("(Some (int_to_ptr (ZMapVal_val @ p.(poffset))))", load_ptr), std::string::npos)
+        << e.machine;
+    EXPECT_NE(e.machine.find("ZMapVal (ZMapVal_val # p.(poffset) == (ptr_to_int v))", store_ptr), std::string::npos)
+        << e.machine;
 }
 
 /* -- ExtractPointers: the extent of a global --------------------------------- */
