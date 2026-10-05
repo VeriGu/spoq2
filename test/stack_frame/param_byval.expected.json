@@ -1,0 +1,4 @@
+{
+  "verified": true,
+  "stderr_contains": "[FRAME] f_vuln: call to ext_spec preserves \"stack_type_1\""
+}

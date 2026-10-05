@@ -284,6 +284,14 @@ vuln loop.  The log reports `Identified loop ...`.
 | `loop_ident_nested` | the same with a nested loop | `verified: true` | the inner pair is matched together with the outer pair |
 | `loop_ident_differ` | the patch loop adds `2 * pick()` | `verified: false` | the loops are not identified |
 
+## stack_frame/
+
+A stack slot whose provenance never escapes its function keeps its value across
+a call whose arguments based on the slot are all `readonly`, `readnone` or
+`byval`; the translator states this after each call.  The cases cover each
+parameter attribute, several pointer parameters, derived pointers and each
+`captures(...)` annotation.  See `stack_frame/README.md`.
+
 ## Attribute disposition
 
 Every function attribute appearing in the reference corpus
@@ -297,6 +305,10 @@ parameter, since the callee then has no argument memory to write.
 **Used, framed rather than preserved.** The per-location argmem forms when the
 function has exactly one pointer parameter — at most the object that pointer
 designates changes, and the rest of `RData` is pinned. See the frame above.
+
+**Used, at the call site.** Parameter `readonly` / `readnone` / `byval` and
+`captures(...)` — together they show a call cannot write a caller's stack slot
+whose provenance has not escaped. See `stack_frame/`.
 
 **Deliberately unused, unsound to exploit as-is:**
 
