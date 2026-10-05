@@ -92,6 +92,8 @@ back from a global after the call is unknown.
 | `attr_argmem` | `memory(read, argmem: readwrite, inaccessiblemem: none, target_mem: none)`, `&g` passed | `verified: false` | the granular form still permits writes through pointer arguments |
 | `attr_argmem_nopointers` | the same attribute, no pointer passed | `verified: true` | argument memory the callee cannot name is memory it cannot write |
 | `attr_argmem_frame` | the same attribute, `&local` passed | `verified: true` | the pointer can only name the stack, so the globals stay framed |
+| `attr_return_range` | `memory(none)`, `range(i32 0, 2)` on the result | `verified: true` | the patch returns the result if it is below 2 and 7 otherwise, which equals the vuln's result only within the range |
+| `attr_return_range_control` | `memory(none)`, no range | `verified: false` | negative control for the range |
 
 The last two are a pair over the *same* attribute, differing only in whether a
 pointer reaches the callee, and they isolate the per-location narrowing: argument

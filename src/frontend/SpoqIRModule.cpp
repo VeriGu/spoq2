@@ -523,6 +523,32 @@ void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
         std::vector<string> facts;
         if (use_view) facts.push_back("globals viewed");
 
+        // An integer result with a `range` attribute lies in the range's signed
+        // hull, the representation of an iN value here.  i1 is left alone.
+        unique_ptr<SpecNode> ret_range = nullptr;
+        if (returns_value) {
+            auto const *int_ty = llvm::dyn_cast<llvm::IntegerType>(func.getReturnType());
+            const llvm::Attribute range = func.getRetAttribute(llvm::Attribute::Range);
+            if (int_ty && int_ty->getBitWidth() > 1 && int_ty->getBitWidth() <= 64 &&
+                range.isValid() && !range.getRange().isFullSet() &&
+                !range.getRange().isEmptySet()) {
+                auto const lit = [](int64_t v) {
+                    auto c = std::make_unique<IntConst>((unsigned long)v);
+                    c->smart_set_sign(true);
+                    return c;
+                };
+                auto const ret = [&]() {
+                    return std::make_unique<Symbol>(ret_value, (*ret_tuple->types)[0]);
+                };
+                const llvm::ConstantRange &cr = range.getRange();
+                ret_range = attr_bin(
+                    Expr::AND,
+                    attr_bin(Expr::LTE, lit(cr.getSignedMin().getSExtValue()), ret()),
+                    attr_bin(Expr::LTE, ret(), lit(cr.getSignedMax().getSExtValue())));
+                facts.push_back("return range");
+            }
+        }
+
         // A block a written pointer names stays allocated.  Pure needs nothing:
         // the post-state is the pre-state.  A separate Rely: max_heap_ptr_offset
         // unfolds to a match on both blocks, and the transformer splits a Rely
@@ -541,6 +567,7 @@ void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
         // proper, so unfolding f_spec at any callsite brings the attribute with
         // it exactly once.
         unique_ptr<SpecNode> tail = Shortcut::_Some_u(result(false));
+        if (ret_range) tail = std::make_unique<Rely>(std::move(ret_range), std::move(tail));
         if (nofree) tail = std::make_unique<Rely>(std::move(nofree), std::move(tail));
         if (property) tail = std::make_unique<Rely>(std::move(property), std::move(tail));
         auto body = Shortcut::_When_u(result(true), std::move(oracle_call), std::move(tail));
