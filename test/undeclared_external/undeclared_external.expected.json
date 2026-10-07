@@ -1,0 +1,4 @@
+{
+  "stderr_contains": "declaring llvm_memmove_p0_p0_i64_spec for an external function with no spec;imply post condition :) : vuln_spec",
+  "stderr_lacks": "does not imply post condition;[ERR]"
+}

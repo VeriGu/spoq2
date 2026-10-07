@@ -1,0 +1,4 @@
+{
+  "stderr_contains": "imply post condition :) : vuln_spec",
+  "stderr_lacks": "does not imply post condition;[ERR]"
+}

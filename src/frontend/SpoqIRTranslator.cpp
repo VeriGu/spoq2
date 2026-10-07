@@ -1068,9 +1068,16 @@ unique_ptr<SpecNode> construct_return_spec(Project  const*proj,
                "multiple return value only supported for loop component");
 
     if (context.return_list.size() >= 1) {
+        // An i1 is a Bool here, but an i1 loaded from memory, or returned by a
+        // spec ExtractBasics generated, is a Z.  Each return of an i1 is a
+        // Bool, so that the returns on different paths -- one of the constant
+        // false, one of a loaded flag -- have one type (mruby's
+        // check_method_noarg).
         for (int i = 0; i < context.return_list.size(); i++) {
-            tuple->push_back(
-                context.get_llvm_value_spec(context.return_list[i]));
+            auto v = context.get_llvm_value_spec(context.return_list[i]);
+            if (context.return_list[i]->getType()->isIntegerTy(1))
+                v = as_condition(std::move(v));
+            tuple->push_back(std::move(v));
         }
         if (context.return_list.size() == 1)
             context.rettype = tuple->at(0)->type;
@@ -1078,8 +1085,10 @@ unique_ptr<SpecNode> construct_return_spec(Project  const*proj,
             std::shared_ptr<std::vector<shared_ptr<SpecType>>> const children_type =
                 std::make_shared<std::vector<shared_ptr<SpecType>>>();
             for (int i = 0; i < context.return_list.size(); i++) {
-                children_type->push_back(
-                    context.get_llvm_value_type(context.return_list[i]));
+                auto *const rv = context.return_list[i];
+                children_type->push_back(rv->getType()->isIntegerTy(1)
+                                             ? Bool::BOOL
+                                             : context.get_llvm_value_type(rv));
             }
             context.rettype = std::make_shared<Tuple>(children_type);
         }
@@ -1518,6 +1527,32 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 }
 
                 auto callee_name = callee->getName().str() + "_spec";
+                if (callee_func && callee_func->isDeclaration() &&
+                    proj->defs.find(callee_name) == proj->defs.end() &&
+                    proj->decls.find(callee_name) == proj->decls.end()) {
+                    // An external function the project gives no spec, such as an
+                    // intrinsic the optimizer introduced (loop-idiom's memmove
+                    // in mruby), so the preprocessing that declares the specs
+                    // never saw it.  Declare it an oracle of the arguments and
+                    // the state, the type a generated declaration has.  In
+                    // GlobalDefs, since several functions may call it.
+                    auto fn_args = make_shared<vector<shared_ptr<SpecType>>>();
+                    for (unsigned i = 0; i < call->arg_size(); i++)
+                        fn_args->push_back(context.get_llvm_value_type(call->getArgOperand(i)));
+                    fn_args->push_back(context.abs_data_type);
+                    shared_ptr<SpecType> rettype;
+                    if (call->getType()->isVoidTy()) {
+                        rettype = make_shared<Option>(context.abs_data_type);
+                    } else {
+                        auto elems = make_shared<vector<shared_ptr<SpecType>>>();
+                        elems->push_back(context.get_llvm_value_type(call));
+                        elems->push_back(context.abs_data_type);
+                        rettype = make_shared<Option>(make_shared<Tuple>(elems));
+                    }
+                    LOG_INFO << "declaring " << callee_name
+                             << " for an external function with no spec" << std::endl;
+                    declare_uninterpreted(proj, callee_name, fn_args, rettype);
+                }
                 if (!callee_func) {
                     callee_name = context.get_llvm_value_name(callee) + "_" + std::to_string(call->arg_size()) + "_fptr_";
                     callee_name = callee_name + context.spoq_func.llvm_func->getName().str() + "_spec";
@@ -1614,6 +1649,18 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 auto const value_name = static_cast<Symbol *>(value.get())->text;
                 auto word = std::make_unique<Symbol>(value_name + "_word", Int::of_width(64));
                 auto rest = Shortcut::_Let_u(std::move(value), wrap_to_width(proj, word->deep_copy(), *bits),
+                                             spoq_inst_to_spec(proj, vec, num + 1, context));
+                return with_alignment(proj, context, load,
+                                      Shortcut::_When_u(std::move(word), std::move(rhs.second), std::move(rest)));
+            } else if (load->getType()->isIntegerTy(1)) {
+                // An i1 is a Bool, and memory holds words: the load yields a
+                // word, and the value is whether it is nonzero.  Binding the
+                // Bool-typed name to the word directly gives it the Z the
+                // load returns.
+                auto value = std::move(rhs.first);
+                auto const value_name = static_cast<Symbol *>(value.get())->text;
+                auto word = std::make_unique<Symbol>(value_name + "_word", Int::of_width(64));
+                auto rest = Shortcut::_Let_u(std::move(value), as_condition(word->deep_copy()),
                                              spoq_inst_to_spec(proj, vec, num + 1, context));
                 return with_alignment(proj, context, load,
                                       Shortcut::_When_u(std::move(word), std::move(rhs.second), std::move(rest)));
@@ -1926,6 +1973,8 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
         // cannot name each other and their order does not matter.
         auto sym = context.get_llvm_value_spec(inst->phi);
         auto value = context.get_llvm_value_spec(inst->incoming);
+        // An i1 phi is a Bool; an incoming i1 from a generated spec is a Z.
+        if (inst->phi->getType()->isIntegerTy(1)) value = as_condition(std::move(value));
         return Shortcut::_Let_u(std::move(sym), std::move(value),
                                 spoq_inst_to_spec(proj, vec, num + 1, context));
     } else if (auto inst = Shortcut::dyn_cast_u<SpoqJoinInst>(vec[num])) {
@@ -1939,8 +1988,15 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
         // is option-typed: a `rely` anywhere inside it can yield None.
         assert(num == vec.size() - 1 && "a join is not the last instruction in its arm");
         auto values = std::make_unique<vector<unique_ptr<SpecNode>>>();
-        for (auto *incoming : inst->incoming)
-            values->push_back(context.get_llvm_value_spec(incoming));
+        // An i1 is a Bool, as the join's phi is; an incoming i1 from a
+        // generated spec, which renders it as Z, is coerced, so that every arm
+        // yields the same type (mruby's check_method_noarg: the constant false
+        // on one arm, mrb_hash_empty_p's result on another).
+        for (auto *incoming : inst->incoming) {
+            auto v = context.get_llvm_value_spec(incoming);
+            if (incoming->getType()->isIntegerTy(1)) v = as_condition(std::move(v));
+            values->push_back(std::move(v));
+        }
         values->push_back(context.get_abs_data());
         auto yielded = values->size() == 1 ? std::move(values->at(0))
                                            : Shortcut::_Tuple_u(std::move(values));
