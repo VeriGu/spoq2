@@ -145,6 +145,10 @@ public:
                                  const std::set<string> *restrict_to = nullptr,
                                  const std::set<string> *scope_seed = nullptr);
     rule_ret_t rule_simplify_map_get_set(std::unique_ptr<SpecNode> spec, bool rec);
+    /// At `when <pattern binding state S> == E; body`, a stack slot every Some
+    /// result of E writes with one value V, which E does not bind, holds V in
+    /// body: `(S.(stack)) @ "slot"` there becomes V.
+    rule_ret_t rule_forward_join_slots(std::unique_ptr<SpecNode> spec);
     rule_ret_t rule_simplify_expr(std::unique_ptr<SpecNode> spec, bool rec);
     rule_ret_t rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state);
     rule_ret_t rule_keep_fields_of_interest(std::unique_ptr<SpecNode> spec);

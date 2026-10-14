@@ -593,6 +593,7 @@ void SpoqIRModule::synthesize_attribute_specs(Project *proj) {
         proj->add_definition(
             make_unique<Definition>(spec_name, fn_type->rettype, std::move(args), std::move(body)),
             loc);
+        proj->attribute_specs.insert(spec_name);
 
         LOG_INFO << "[ATTR] " << name << ": "
                  << (effect == AttrEffect::Pure

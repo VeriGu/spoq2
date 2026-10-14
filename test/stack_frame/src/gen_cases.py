@@ -230,19 +230,41 @@ def write(out, name, doc, body, verified):
     (out / f"{name}.expected.json").write_text(json.dumps(expected, indent=2) + "\n")
 
 
+# Cases whose callee spec main.v defines.  The definition states the call's
+# effect exactly, so no frame fact is emitted for it.
+DEFINED = {
+    "defined_spec": ("param_readonly",
+                     "main.v defines ext_spec as (Some st), which states the call's effect: "
+                     "no frame fact is emitted for it, though &x is passed to a readonly parameter.",
+                     "Definition ext_spec (p: Ptr) (st: RData) : (option RData) := (Some st)."),
+}
+
+
+def case_body(c):
+    body = "\n".join([INIT] + c["decls"]) + "\n\n"
+    for side, ret in (("vuln", "%v"), ("patch", "5")):
+        body += FUNC.format(side=side, params=c["params"], pre=c["pre"],
+                            call=c["call"] if c["call"].endswith("\n") else f"  {c['call']}\n",
+                            ret=ret) + "\n"
+    return body
+
+
 def main():
     out = Path(sys.argv[1])
     for name, c in CASES.items():
-        body = "\n".join([INIT] + c["decls"]) + "\n\n"
-        for side, ret in (("vuln", "%v"), ("patch", "5")):
-            body += FUNC.format(side=side, params=c["params"], pre=c["pre"],
-                                call=c["call"] if c["call"].endswith("\n") else f"  {c['call']}\n",
-                                ret=ret) + "\n"
-        write(out, name, c["doc"], body, c["verified"])
+        write(out, name, c["doc"], case_body(c), c["verified"])
     for name, (verified, doc, body) in EXTRA.items():
         if body is None:
             body = array_case(RO if verified else RW)
         write(out, name, doc, body, verified)
+    for name, (base, doc, definition) in DEFINED.items():
+        (out / f"{name}.ll").write_text(f"; {doc}\n\n" + HEADER + "\n" + case_body(CASES[base]))
+        main_v = out / f"{name}.main.v"
+        if not main_v.exists():
+            continue
+        main_v.write_text(re.sub(r"^Parameter ext_spec :.*$", definition, main_v.read_text(), flags=re.M))
+        expected = {"verified": True, "stderr_lacks": "[FRAME] f_vuln: call to ext_spec preserves"}
+        (out / f"{name}.expected.json").write_text(json.dumps(expected, indent=2) + "\n")
 
 
 if __name__ == "__main__":

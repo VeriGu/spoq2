@@ -325,6 +325,14 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 spec = std::move(_spec);
                 trace_pass("unfold");
                 // type_inference::check_well_typed(*proj, spec.get(), known);
+            } else if (!proj->cmds.Unfold.empty() && !proj->cmds.NoUnfoldAll) {
+                // A transformation that does not unfold still inlines the
+                // definitions `Hint Unfold` names.
+                auto [_spec, unfolded] = proj->rules.rule_unfold_specs(std::move(spec), true, &proj->cmds.Unfold);
+                changed |= unfolded;
+                still_unfolding |= unfolded;
+                spec = std::move(_spec);
+                trace_pass("unfold hinted");
             }
             // LOG_DEBUG << "end unfold , start eliminate" << "\n";
             
@@ -489,6 +497,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                         z3_state_cache_hits, z3_literal_hits;
                     auto const checks_before = z3_checks, hits_before = z3_cache_hits, races_before = z3_race_solves,
                                literal_before = z3_literal_hits;
+                    auto const literal_only_before = z3_literal_only_skips;
                     auto const state_hits_before = z3_state_cache_hits;
                     unsigned long const sat_before[3] = {z3_state_sat[0], z3_state_sat[1], z3_state_sat[2]};
                     auto const retries_before = z3_retries;
@@ -521,6 +530,7 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
                 LOG_DEBUG << "spec transformer for " << def->name << " Z3 time: " << duration.count() / 1000.0
                           << " seconds, checks " << z3_checks - checks_before << ", cache hits "
                           << z3_cache_hits - hits_before << ", literal hits " << z3_literal_hits - literal_before
+                          << ", literal-only skips " << z3_literal_only_skips - literal_only_before
                           << ", race solves " << z3_race_solves - races_before
                           << ", state checks unsat/sat/unknown " << z3_state_sat[0] - sat_before[0] << "/"
                           << z3_state_sat[1] - sat_before[1] << "/" << z3_state_sat[2] - sat_before[2]
@@ -543,6 +553,10 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             }
             std::tie(spec, hoist_changed) = proj->rules.hoist_match_from_branch(std::move(spec));
             trace_pass("hoist_match_from_branch");
+            bool join_changed = false;
+            std::tie(spec, join_changed) = proj->rules.rule_forward_join_slots(std::move(spec));
+            trace_pass("forward_join_slots");
+            changed |= join_changed;
             if (dump_hoist && def->name == dump_hoist) {
                 std::ofstream ofs(def->name + "_iter" + std::to_string(cur_iter) + "_post_hoist.txt");
                 ofs << spec;

@@ -15,6 +15,7 @@ which is the behaviour these cases are measured against.
 | `unfold_needed` | a proof that needs the callee, so the retry fires |
 | `unfold_needed_nounfold` | the same, with `Hint NoUnfold` blocking the retry |
 | `unfold_hinted` | `Hint Unfold` inlining a callee no proof asks for |
+| `unfold_hinted_low` | `Hint Unfold` inlining a callee in the low spec, whose transformation does not unfold |
 | `hidden_ub_unfold_not_triggered_fail` | the retry on a real case, against the eager result |
 
 ## `unfold_needed` / `unfold_needed_nounfold`

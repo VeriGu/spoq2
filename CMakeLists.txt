@@ -351,6 +351,14 @@ target_compile_definitions(HoistScopeTest PRIVATE
     SPOQ_DEMAND_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/demand_unfolding")
 add_test(NAME HoistScope COMMAND HoistScopeTest)
 
+# JoinScopeTest -- rule_forward_join_slots keeps values in the scope they mean
+add_executable(JoinScopeTest test/unit/JoinScopeTest.cpp $<TARGET_OBJECTS:spoq_core>)
+target_link_libraries(JoinScopeTest GTest::gtest_main GTest::gtest irloader parser
+    antlr4_shared ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
+target_compile_definitions(JoinScopeTest PRIVATE
+    SPOQ_STACK_FRAME_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/stack_frame")
+add_test(NAME JoinScope COMMAND JoinScopeTest)
+
 add_executable(Z3SimplifyFixpointTest test/unit/Z3SimplifyFixpointTest.cpp $<TARGET_OBJECTS:spoq_core>)
 target_link_libraries(Z3SimplifyFixpointTest GTest::gtest_main GTest::gtest irloader parser
     antlr4_shared ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})

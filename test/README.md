@@ -290,7 +290,18 @@ A stack slot whose provenance never escapes its function keeps its value across
 a call whose arguments based on the slot are all `readonly`, `readnone` or
 `byval`; the translator states this after each call.  The cases cover each
 parameter attribute, several pointer parameters, derived pointers and each
-`captures(...)` annotation.  See `stack_frame/README.md`.
+`captures(...)` annotation.  The `join_slot_*` and `loop_slot_*` cases cover
+forwarding a slot's value across joins and loops, and the `join_scope_*` cases,
+with `unit/JoinScopeTest.cpp`, cover the scope checks on a forwarded value.  See
+`stack_frame/README.md`.
+
+## path_facts/
+
+Path facts that decide conditions without Z3: a negated disjunction, such as an
+unfolded `~ (is_stack_ptr p)`, refutes each of its disjuncts.  The cases check
+that the stack arms of an access through `p` are pruned under the fact, and kept
+without it or when `is_stack_ptr` is defined so that the fact excludes no slot.
+See `path_facts/README.md`.
 
 ## Attribute disposition
 

@@ -90,3 +90,66 @@ TEST(MatchOutWhen, ThreeOrMoreInnerArms) {
             EXPECT_NE(out.find("(Some " + std::to_string(10 + i) + ")"), std::string::npos) << out;
     }
 }
+
+/* SpecRules::rule_move_when_out_when, the associativity of `when`:
+ *
+ *     when x == (when y == a; b); c  ->  when y == a; when x == b; c
+ *
+ * Its guard tested the inner `when`'s Some arm for the None constructor, so it
+ * never fired; a chain of `rely`s and `when`s inside a `when` then came apart
+ * one step per transformation iteration. */
+
+/// [text] parsed, with the outermost node typed `option Z`: parseExpr infers no
+/// types, and the rule applies to an option-valued `when` only.
+std::unique_ptr<SpecNode> parse_option(Project &p, const std::string &text) {
+    auto node = parse(p, text);
+    node->type = std::make_shared<Option>(Int::INT);
+    return node;
+}
+
+TEST(MoveWhenOutWhen, FlattensANestedWhen) {
+    Project proj;
+    auto [spec, changed] = proj.rules.rule_move_when_out_when(
+        parse_option(proj, "when x == ((when y == (s); (Some (y + 1)))); (Some (x + 2))"), false);
+    ASSERT_TRUE(changed) << std::string(*spec);
+    EXPECT_EQ(flat(std::string(*spec)), flat("when y == (s); when x == ((Some (y + (1)))); (Some (x + (2)))"))
+        << std::string(*spec);
+}
+
+/// The continuation names a y bound outside; moving it under the inner `when`,
+/// which binds y, would capture it.
+TEST(MoveWhenOutWhen, KeepsANestedWhenThatWouldCapture) {
+    Project proj;
+    auto [spec, changed] = proj.rules.rule_move_when_out_when(
+        parse_option(proj, "when x == ((when y == (s); (Some (y + 1)))); (Some (x + y))"), false);
+    EXPECT_FALSE(changed) << std::string(*spec);
+}
+
+/* The case budget: rule_move_match_out_when copies the continuation once per
+ * inner arm after the first, and declines when the copies would pass
+ * SPOQ_CASE_BUDGET leaves (4096 by default). */
+
+/// A balanced sum of [n] copies of x: the depth stays logarithmic, so the
+/// parser's recursion does too.
+std::string balanced_sum(int n) {
+    if (n <= 1) return "x";
+    return "(" + balanced_sum(n / 2) + " + " + balanced_sum(n - n / 2) + ")";
+}
+
+/// `when x == (match s with | 0 => Some 10 | _ => None); Some (x + ... + x)`
+/// with [terms] leaves in the continuation.
+std::string when_over_match_with(int terms) {
+    return "when x == ((match s with | 0 => (Some 10) | _ => None end)); (Some " + balanced_sum(terms) + ")";
+}
+
+TEST(MatchOutWhenBudget, SmallContinuationIsMoved) {
+    Project proj;
+    auto [spec, changed] = proj.rules.rule_move_match_out_when(parse(proj, when_over_match_with(10)), false);
+    EXPECT_TRUE(changed) << std::string(*spec);
+}
+
+TEST(MatchOutWhenBudget, ContinuationOverTheBudgetIsKept) {
+    Project proj;
+    auto [spec, changed] = proj.rules.rule_move_match_out_when(parse(proj, when_over_match_with(5000)), false);
+    EXPECT_FALSE(changed);
+}

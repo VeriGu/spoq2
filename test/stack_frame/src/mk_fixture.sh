@@ -59,3 +59,19 @@ perl -0777 -i -pe 's/;(\n[\t ]+)}/\1}/g' "$out"
 for n in $(grep -oE '^Definition [A-Za-z_0-9]+' "$pipe/main_v_suffix_common.v" | cut -d' ' -f2); do
     sed -i "/^Parameter $n :/d" "$out"
 done
+# <case>.defs.v next to <case>.ll: Definitions that replace the Parameters of
+# the same names, so a fixture can state an external function's spec.
+defs="$dir/$stem.defs.v"
+if [ -f "$defs" ]; then
+    for n in $(grep -oE '^Definition [A-Za-z_0-9]+' "$defs" | cut -d' ' -f2); do
+        sed -i "/^Parameter $n :/d" "$out"
+    done
+    python3 - "$out" "$defs" <<'PY'
+import sys
+out, defs = sys.argv[1], sys.argv[2]
+s = open(out).read()
+d = open(defs).read()
+i = s.index("Section Bottom.")
+open(out, "w").write(s[:i] + d + "\n" + s[i:])
+PY
+fi

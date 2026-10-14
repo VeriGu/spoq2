@@ -509,12 +509,22 @@ rule_ret_t SpecRules::simple_if_by_z3(std::unique_ptr<If> spec, const std::share
     PROFILE_END(z3_rule_check);
     PROFILE_END(if_rule_check);
 
-    if (res == Z3Result::Unknown) {
+    // SPOQ_SIMPLIFY_UNKNOWN_IF=1: simplify both branches of an undecided
+    // condition, under the condition and its negation, as for a contingent one,
+    // deciding from the path's literals only: a solver that could not decide
+    // the condition is not asked about what lies beneath it.
+    static bool const simplify_unknown = [] {
+        const char *e = std::getenv("SPOQ_SIMPLIFY_UNKNOWN_IF");
+        return e && std::string(e) == "1";
+    }();
+    if (res == Z3Result::Unknown && !simplify_unknown) {
         return {
             std::move(spec),
             changed
         };
     } else if (res == Z3Result::Sat || res == Z3Result::Unknown) {
+        std::optional<LiteralOnlyScope> literals_only;
+        if (res == Z3Result::Unknown) literals_only.emplace();
         // profile_log_rule_if_unsolved(string(orig_cond));
         auto const unknown_value = c->get_z3_value();
 

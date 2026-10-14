@@ -1,0 +1,8 @@
+{
+  "verified": true,
+  "env": "SPOQ_HOIST_BUDGET=1",
+  "stderr_contains": "[FRAME] f_vuln: call to fill_spec preserves \"stack_type_2\"",
+  "spec_v_definition": "f_vuln_spec",
+  "spec_v_contains": "(Some ((mkPtr \"g\" 0),",
+  "spec_v_lacks": "@ \"stack_type_2\")"
+}

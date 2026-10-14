@@ -1,0 +1,6 @@
+{
+  "verified": true,
+  "spec_v_definition": "f_vuln_spec_low",
+  "spec_v_contains": "load_RData 4 (mkPtr \"stack_type_1\" 0)",
+  "spec_v_lacks": "mark_spec"
+}

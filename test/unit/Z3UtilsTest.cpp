@@ -236,6 +236,69 @@ TEST_P(Z3CheckTest, RecognizersAreDecided) {
     EXPECT_EQ(z3_verify_state_sat(state_of({hard, ts3[0](c), ts3[1](c)}), nullptr, kTimeout), Z3Result::False);
 }
 
+// A negated disjunction on the path refutes each of its disjuncts, and so any
+// disjunction of them and any conjunction containing one: the shape of a
+// negated is_stack_ptr p against the slot comparisons of the memory model.
+TEST_P(Z3CheckTest, NegatedDisjunctionRefutesDisjuncts) {
+    z3::expr const p = z3ctx.string_const("pb");
+    auto const is = [&](const char *s) { return p == z3ctx.string_val(s); };
+    auto const hard = pigeonhole(11);
+    auto const not_any = !(is("a") || is("b") || is("c"));
+    EXPECT_EQ(z3_check(state_of({hard, not_any}), is("b"), nullptr, kTimeout), Z3Result::False);
+    EXPECT_EQ(z3_check(state_of({hard, not_any}), z3ctx.string_val("b") == p, nullptr, kTimeout), Z3Result::False);
+    EXPECT_EQ(z3_check(state_of({hard, not_any}), is("a") || is("c"), nullptr, kTimeout), Z3Result::False);
+    EXPECT_EQ(z3_check(state_of({hard, not_any}), is("b") && x() > 0, nullptr, kTimeout), Z3Result::False);
+    EXPECT_EQ(z3_check(state_of({hard, not_any}), !is("a"), nullptr, kTimeout), Z3Result::True);
+    // Nested disjunctions are flattened first.
+    EXPECT_EQ(z3_check(state_of({hard, !(is("a") || (is("b") || x() > 0))}), x() > 0, nullptr, kTimeout),
+              Z3Result::False);
+}
+
+// Nothing follows about a comparison outside the disjunction.
+TEST_P(Z3CheckTest, NegatedDisjunctionLeavesOthersOpen) {
+    z3::expr const p = z3ctx.string_const("pb");
+    auto const is = [&](const char *s) { return p == z3ctx.string_val(s); };
+    auto const hard = pigeonhole(11);
+    auto const not_any = !(is("a") || is("b"));
+    EXPECT_EQ(z3_check(state_of({hard, not_any}), is("d"), nullptr, kTimeout), Z3Result::Unknown);
+    EXPECT_EQ(z3_check(state_of({hard, not_any}), is("a") || is("d"), nullptr, kTimeout), Z3Result::Unknown);
+}
+
+// A disjunction on the path whose every disjunct the path refutes makes the
+// path contradictory, in either order.
+TEST_P(Z3CheckTest, RefutedDisjunctionOnPathIsContradictory) {
+    z3::expr const p = z3ctx.string_const("pb");
+    auto const is = [&](const char *s) { return p == z3ctx.string_val(s); };
+    auto const hard = pigeonhole(11);
+    auto const not_any = !(is("a") || is("b") || is("c"));
+    EXPECT_EQ(z3_check(state_of({hard, not_any, is("a") || is("b")}), x() > 0, nullptr, kTimeout), Z3Result::False);
+    EXPECT_EQ(z3_check(state_of({hard, is("a") || is("b"), not_any}), x() > 0, nullptr, kTimeout), Z3Result::False);
+}
+
+// The expansion is propositional: an uninterpreted predicate standing where
+// is_stack_ptr's definition would unfold says nothing about the comparisons.
+TEST_P(Z3CheckTest, UninterpretedPredicateInfersNothing) {
+    z3::expr const p = z3ctx.string_const("pb");
+    z3::func_decl const on_stack = z3ctx.function("on_stack_uf", z3ctx.string_sort(), z3ctx.bool_sort());
+    auto const hard = pigeonhole(11);
+    EXPECT_EQ(z3_check(state_of({hard, !on_stack(p)}), p == z3ctx.string_val("a"), nullptr, kTimeout),
+              Z3Result::Unknown);
+}
+
+// Inside a LiteralOnlyScope a check the path's literals do not decide is
+// Unknown, where the solver would decide it; the literals still decide.
+TEST_P(Z3CheckTest, LiteralOnlyScopeSkipsTheSolver) {
+    Z3Cache.clear();
+    {
+        LiteralOnlyScope const scope;
+        EXPECT_EQ(z3_check(state_of({x() > 0}), x() < 0, nullptr, kTimeout), Z3Result::Unknown);
+        EXPECT_EQ(z3_verify_state_sat(state_of({x() > 0, x() < 0}), nullptr, kTimeout), Z3Result::Unknown);
+        EXPECT_EQ(z3_check(state_of({!(x() > 0)}), x() > 0, nullptr, kTimeout), Z3Result::False);
+    }
+    EXPECT_FALSE(literal_only());
+    EXPECT_EQ(z3_check(state_of({x() > 0}), x() < 0, nullptr, kTimeout), Z3Result::False);
+}
+
 TEST_P(Z3CheckTest, ComplementaryPathIsFalse) {
     EXPECT_EQ(z3_check(state_of({pigeonhole(11), x() > 0, !(x() > 0)}), x() == 1, nullptr, kTimeout),
               Z3Result::False);

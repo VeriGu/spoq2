@@ -2473,10 +2473,9 @@ std::unique_ptr<SpecNode> SpecRules::eliminate_ambiguity(
                 }
             };
             collect_symbols(pm->pattern.get());
-            for (auto [sym,_] : symbols){
-                if(proj->is_known_symbol(sym)){
-                    symbols.erase(sym);
-                }
+            for (auto it = symbols.begin(); it != symbols.end();) {
+                if (proj->is_known_symbol(it->first)) it = symbols.erase(it);
+                else ++it;
             }
             // set `symbols` now has all symbols defined in this pattern.
 
@@ -4080,6 +4079,723 @@ rule_ret_t SpecRules::rule_simplify_map_get_set(std::unique_ptr<SpecNode> spec, 
     }
 }
 
+namespace {
+
+bool is_none_term(SpecNode *n) {
+    if (auto s = instance_of(n, Symbol)) return s->text == "None";
+    if (auto e = instance_of(n, Expr)) return op_eq(e->op, Expr::None);
+    return false;
+}
+
+/// The state a `when` binds: for `match src with Some P => body | None => None`,
+/// the name P binds to the whole value, or to the last element of a tuple,
+/// where a spec puts its state, with that element's position (-1 for the whole
+/// value).
+std::optional<std::pair<std::string, int>> when_state(Match *m) {
+    if (m->match_list->size() != 2 || !is_none_term((*m->match_list)[1]->body.get())) return std::nullopt;
+    auto pat = instance_of((*m->match_list)[0]->pattern.get(), Expr);
+    if (!pat || !op_eq(pat->op, Expr::Some)) return std::nullopt;
+    if (auto s = instance_of(pat->elems->at(0).get(), Symbol)) return std::make_pair(s->text, -1);
+    if (auto t = instance_of(pat->elems->at(0).get(), Expr); t && op_eq(t->op, Expr::Tuple))
+        if (auto s = instance_of(t->elems->back().get(), Symbol))
+            return std::make_pair(s->text, (int)t->elems->size() - 1);
+    return std::nullopt;
+}
+
+/// One binding in scope, in a persistent list from the innermost binding out.
+/// A Let frame binds [name] to the term [src]; a When frame binds the state
+/// [name] to the Some results of [src], at tuple position [pos]; an Opaque
+/// frame binds a name with no known term.  [src] is evaluated in [env].
+/// Two references to a name mean the same binding iff they find the same frame.
+/// A Fact frame binds no name: it records that the proposition [src], negated
+/// when [pos] is 0, holds on the path from here, with names as in [env].
+struct ScopeFrame {
+    enum Kind { Let, When, Opaque, Fact } kind;
+    std::string name;
+    SpecNode *src;
+    int pos;
+    std::shared_ptr<const ScopeFrame> env;
+    std::shared_ptr<const ScopeFrame> parent;
+};
+using Scope = std::shared_ptr<const ScopeFrame>;
+
+/// The names [pattern] binds: its symbols other than constructors.  Unlike
+/// free_vars, a binder that reuses the name of a global is included.
+void pattern_names(Project *proj, SpecNode *pattern, std::set<std::string> &out) {
+    if (auto s = instance_of(pattern, Symbol)) {
+        if (!proj->is_ind_constr(s->text) && !proj->is_struct_constr(s->text)) out.insert(s->text);
+    } else if (auto e = instance_of(pattern, Expr)) {
+        if (e->elems)
+            for (auto const &x : *e->elems) pattern_names(proj, x.get(), out);
+    }
+}
+
+/// Every symbol in [n], bound or free, global or local: an over-approximation
+/// of the names whose bindings [n]'s meaning depends on.
+void term_names(SpecNode *n, std::set<std::string> &out) {
+    if (!n) return;
+    if (auto s = instance_of(n, Symbol)) {
+        out.insert(s->text);
+    } else if (auto m = instance_of(n, Match)) {
+        term_names(m->src.get(), out);
+        for (auto &pm : *m->match_list) {
+            term_names(pm->pattern.get(), out);
+            term_names(pm->body.get(), out);
+        }
+    } else if (auto i = instance_of(n, If)) {
+        term_names(i->cond.get(), out);
+        term_names(i->then_body.get(), out);
+        term_names(i->else_body.get(), out);
+    } else if (auto r = instance_of(n, RelyAnno)) {
+        term_names(r->prop.get(), out);
+        term_names(r->body.get(), out);
+    } else if (auto e = instance_of(n, Expr)) {
+        if (auto const *o = std::get_if<std::unique_ptr<SpecNode>>(&e->op)) term_names(o->get(), out);
+        if (e->elems)
+            for (auto &x : *e->elems) term_names(x.get(), out);
+    }
+}
+
+const ScopeFrame *lookup(const Scope &scope, const std::string &name) {
+    for (auto f = scope.get(); f; f = f->parent.get())
+        if (f->name == name) return f;
+    return nullptr;
+}
+
+/// Whether every name in [v] refers to the same binding in [from] as in [to].
+bool same_bindings(Project *, SpecNode *v, const Scope &from, const Scope &to) {
+    std::set<std::string> free;
+    term_names(v, free);
+    for (auto const &n : free)
+        if (lookup(from, n) != lookup(to, n)) return false;
+    return true;
+}
+
+/// [scope] extended with the names arm [k] of [m] binds.
+Scope bind_arm(Project *proj, Match *m, size_t k, const Scope &scope) {
+    auto &pm = (*m->match_list)[k];
+    Scope out = scope;
+    auto const when = k == 0 ? when_state(m) : std::nullopt;
+    if (auto x = instance_of(pm->pattern.get(), Symbol); x && m->match_list->size() == 1)
+        return std::make_shared<const ScopeFrame>(ScopeFrame{ScopeFrame::Let, x->text, m->src.get(), -1, scope, scope});
+    std::set<std::string> names;
+    pattern_names(proj, pm->pattern.get(), names);
+    for (auto const &n : names) {
+        if (when && n == when->first) continue;
+        out = std::make_shared<const ScopeFrame>(ScopeFrame{ScopeFrame::Opaque, n, nullptr, -1, nullptr, out});
+    }
+    if (when)
+        out = std::make_shared<const ScopeFrame>(
+            ScopeFrame{ScopeFrame::When, when->first, m->src.get(), when->second, scope, out});
+    return out;
+}
+
+/// [scope] extended with the fact that [prop] holds, or fails when [holds] is false.
+Scope with_fact(SpecNode *prop, bool holds, const Scope &scope) {
+    return std::make_shared<const ScopeFrame>(ScopeFrame{ScopeFrame::Fact, "", prop, holds ? 1 : 0, scope, scope});
+}
+
+enum class KeyIs { Unknown, Same, Different };
+
+/// The string constant in [n], if it is one.
+const std::string *string_const(SpecNode *n) {
+    auto c = instance_of(n, Const);
+    return c ? std::get_if<std::string>(&c->value) : nullptr;
+}
+
+/// For `(X.(stack)) @ "s"` with X a name, X and s.
+std::optional<std::pair<Symbol *, std::string>> slot_read(SpecNode *n) {
+    auto get = instance_of(n, Expr);
+    if (!get || !op_eq(get->op, Expr::GET) || get->elems->size() != 2) return std::nullopt;
+    auto const *slot = string_const(get->elems->at(1).get());
+    auto field = instance_of(get->elems->at(0).get(), Expr);
+    if (!slot || !field || !op_eq(field->op, Expr::RecordGet)) return std::nullopt;
+    auto obj = instance_of(field->elems->at(0).get(), Symbol);
+    auto name = instance_of(field->elems->at(1).get(), Symbol);
+    if (!obj || !name || name->text != "stack") return std::nullopt;
+    return std::make_pair(obj, *slot);
+}
+
+/// For `k =s "c"` or `"c" =s k` with k equal to [key], the constant.
+const std::string *key_equals(SpecNode *n, SpecNode *key) {
+    auto e = instance_of(n, Expr);
+    if (!e || !op_eq(e->op, Expr::binops::SEQ) || e->elems->size() != 2) return nullptr;
+    if (*e->elems->at(0) == *key) return string_const(e->elems->at(1).get());
+    if (*e->elems->at(1) == *key) return string_const(e->elems->at(0).get());
+    return nullptr;
+}
+
+bool is_false_const(SpecNode *n) {
+    if (auto b = instance_of(n, BoolConst)) {
+        auto const *v = std::get_if<bool>(&b->value);
+        return v && !*v;
+    }
+    if (auto s = instance_of(n, Symbol)) return s->text == "false";
+    return false;
+}
+
+/// Collects the constants of a disjunction of `key =s "c"` atoms; false if
+/// some disjunct is another proposition.
+bool key_one_of(SpecNode *n, SpecNode *key, std::set<std::string> &out) {
+    if (is_false_const(n)) return true;
+    if (auto c = key_equals(n, key)) {
+        out.insert(*c);
+        return true;
+    }
+    auto e = instance_of(n, Expr);
+    if (!e || !op_eq(e->op, Expr::binops::OR)) return false;
+    for (auto &x : *e->elems)
+        if (!key_one_of(x.get(), key, out)) return false;
+    return true;
+}
+
+/// Whether [prop], or its negation when [holds] is false, decides that [key]
+/// is or is not the string [slot].
+KeyIs fact_decides(SpecNode *prop, bool holds, SpecNode *key, const std::string &slot) {
+    auto e = instance_of(prop, Expr);
+    if (!e || !e->elems) return KeyIs::Unknown;
+    if (op_eq(e->op, Expr::NOT) && e->elems->size() == 1) return fact_decides(e->elems->at(0).get(), !holds, key, slot);
+    // A conjunction that holds, or a disjunction that fails: each part holds
+    // (fails) on its own.
+    if ((holds && op_eq(e->op, Expr::binops::AND)) || (!holds && op_eq(e->op, Expr::binops::OR))) {
+        for (auto &x : *e->elems)
+            if (auto r = fact_decides(x.get(), holds, key, slot); r != KeyIs::Unknown) return r;
+        return KeyIs::Unknown;
+    }
+    if (auto c = key_equals(prop, key)) {
+        if (holds) return *c == slot ? KeyIs::Same : KeyIs::Different;
+        return *c == slot ? KeyIs::Different : KeyIs::Unknown;
+    }
+    if (holds && op_eq(e->op, Expr::binops::OR)) {
+        std::set<std::string> one_of;
+        if (!key_one_of(prop, key, one_of)) return KeyIs::Unknown;
+        if (!one_of.count(slot)) return KeyIs::Different;
+        if (one_of.size() == 1) return KeyIs::Same;
+    }
+    return KeyIs::Unknown;
+}
+
+/// Whether the facts in [scope] decide that the term [key], meaning what it
+/// means in [scope], is or is not the string [slot].  A fact counts only where
+/// every name in [key] refers to the same binding at the fact as in [scope].
+KeyIs decide_key(Project *proj, SpecNode *key, const std::string &slot, const Scope &scope);
+
+/// Pre-unfolding: the analysis reads a call to a Definition through a private
+/// copy of the definition's current body, with the arguments substituted.  The
+/// spec is not changed.  Nothing is assumed about what a definition says, so a
+/// change to the memory model's definitions changes what the analysis
+/// concludes, and a shape it does not recognize decides nothing.
+struct PreUnfold {
+    std::vector<std::unique_ptr<SpecNode>> arena;  // inlined bodies, live for one rule run
+    std::map<SpecNode *, SpecNode *> inlined;      // call -> body, for the current `when`
+    int budget = 0;                                // inlinings left for the current `when`
+    unsigned fresh = 0;
+};
+PreUnfold pre_unfold;
+
+/// The body of the call [call] with its arguments substituted, or null if
+/// [call] is not a call to a definition the analysis may read: a Fixpoint, a
+/// definition whose body is not derived yet, one hinted NoUnfold, or one over
+/// the size limit is not read.
+SpecNode *inline_call(Project *proj, SpecNode *call) {
+    auto e = instance_of(call, Expr);
+    if (!e || !e->elems) return nullptr;
+    auto const *name = std::get_if<std::string>(&e->op);
+    if (!name) return nullptr;
+    if (auto const hit = pre_unfold.inlined.find(call); hit != pre_unfold.inlined.end()) return hit->second;
+    if (pre_unfold.budget <= 0) return nullptr;
+    auto const it = proj->defs.find(*name);
+    if (it == proj->defs.end() || !it->second) return nullptr;
+    auto &def = *it->second;
+    if (dynamic_cast<Fixpoint *>(&def) || def.finish_body || !def.args || def.args->size() != e->elems->size() ||
+        proj->cmds.NoUnfold.count(*name))
+        return nullptr;
+    auto &body = def.body();
+    if (!body || body->count_leaves(4000) > 4000) return nullptr;
+    pre_unfold.budget--;
+    // Binders in the copy are renamed apart from the arguments' names and the
+    // parameters, the parameters renamed to fresh names, and the fresh names
+    // replaced by the arguments: a simultaneous, capture-free substitution.
+    std::set<std::string> known;
+    for (auto const &a : *e->elems) term_names(a.get(), known);
+    for (auto const &a : *def.args) known.insert(a->name);
+    bool changed = false;
+    auto copy = proj->rules.eliminate_ambiguity(body->deep_copy(), known, changed);
+    std::vector<std::string> fresh;
+    for (auto const &a : *def.args) {
+        fresh.push_back("__pre_unfold_" + std::to_string(pre_unfold.fresh++));
+        Symbol sym(fresh.back(), a->type);
+        bool succ = false;
+        copy = subst(std::move(copy), a->name, &sym, succ);
+    }
+    for (size_t i = 0; i < fresh.size(); i++) {
+        bool succ = false;
+        copy = subst(std::move(copy), fresh[i], e->elems->at(i).get(), succ);
+    }
+    pre_unfold.arena.push_back(std::move(copy));
+    pre_unfold.inlined[call] = pre_unfold.arena.back().get();
+    return pre_unfold.arena.back().get();
+}
+
+/// For `(mkR a1 ... an).(f)`, the argument for field f of record R, read from
+/// the record's declaration; null otherwise.
+SpecNode *constructor_field(Project *proj, SpecNode *n) {
+    auto get = instance_of(n, Expr);
+    if (!get || !op_eq(get->op, Expr::RecordGet) || get->elems->size() != 2) return nullptr;
+    auto field = instance_of(get->elems->at(1).get(), Symbol);
+    auto mk = instance_of(get->elems->at(0).get(), Expr);
+    if (!field || !mk || !mk->elems) return nullptr;
+    auto const *ctor = std::get_if<std::string>(&mk->op);
+    if (!ctor || ctor->rfind("mk", 0) != 0) return nullptr;
+    auto const st = proj->structs.find(ctor->substr(2));
+    if (st == proj->structs.end() || !st->second->elems || st->second->elems->size() != mk->elems->size())
+        return nullptr;
+    for (size_t i = 0; i < st->second->elems->size(); i++)
+        if ((*st->second->elems)[i]->name == field->text) return mk->elems->at(i).get();
+    return nullptr;
+}
+
+/// The state component of each Some result of [e]: the whole value when [pos]
+/// is negative, else element [pos] of the tuple, with the scope there.  False
+/// when some result is neither a Some nor None -- an option-valued call, say
+/// -- so the results are not all known.
+bool some_states(Project *proj, SpecNode *e, int pos, std::vector<std::pair<SpecNode *, Scope>> &out,
+                 const Scope &scope) {
+    if (auto i = instance_of(e, If))
+        return some_states(proj, i->then_body.get(), pos, out, with_fact(i->cond.get(), true, scope)) &&
+               some_states(proj, i->else_body.get(), pos, out, with_fact(i->cond.get(), false, scope));
+    if (auto r = instance_of(e, Rely))
+        return some_states(proj, r->body.get(), pos, out, with_fact(r->prop.get(), true, scope));
+    if (auto r = instance_of(e, RelyAnno)) return some_states(proj, r->body.get(), pos, out, scope);
+    if (auto m = instance_of(e, Match)) {
+        for (size_t k = 0; k < m->match_list->size(); k++) {
+            auto &pm = (*m->match_list)[k];
+            if (is_none_term(pm->body.get())) continue;
+            if (!some_states(proj, pm->body.get(), pos, out, bind_arm(proj, m, k, scope))) return false;
+        }
+        return true;
+    }
+    if (is_none_term(e)) return true;
+    auto x = instance_of(e, Expr);
+    if (!x || !op_eq(x->op, Expr::Some)) {
+        auto body = inline_call(proj, e);
+        return body && some_states(proj, body, pos, out, scope);
+    }
+    SpecNode *v = x->elems->at(0).get();
+    if (pos >= 0) {
+        auto t = instance_of(v, Expr);
+        if (!t || !op_eq(t->op, Expr::Tuple) || (int)t->elems->size() <= pos) return false;
+        v = t->elems->at(pos).get();
+    }
+    out.emplace_back(v, scope);
+    return true;
+}
+
+std::unique_ptr<SpecNode> slot_value(Project *proj, SpecNode *st, const std::string &slot, const Scope &scope,
+                                     int &fuel, int depth = 0);
+std::unique_ptr<SpecNode> stack_slot_value(Project *proj, SpecNode *stack, const std::string &slot,
+                                           const Scope &scope, int &fuel, int depth);
+
+/// Joined values already computed for the current `when`, by bound term,
+/// scope, position, slot and kind.  Cleared for each `when`, since a
+/// substitution frees nodes whose addresses a later term could reuse.  An
+/// entry keeps its scope alive, so the scope's address is not reused while
+/// the entry exists.  A failure for want of fuel is not recorded.
+using JoinedKey = std::tuple<SpecNode *, const ScopeFrame *, int, std::string, bool>;
+struct JoinedEntry {
+    Scope keep;
+    std::unique_ptr<SpecNode> value;  // null: the results do not agree
+};
+std::map<JoinedKey, JoinedEntry> joined_memo;
+
+/// The value every Some result of [src], evaluated in [scope], leaves in
+/// [slot], if they agree and the value means the same in [scope].
+/// The results are states, or stack maps when [of_stack] is set.
+std::unique_ptr<SpecNode> joined_slot_value(Project *proj, SpecNode *src, int pos, const std::string &slot,
+                                            const Scope &scope, int &fuel, int depth, bool of_stack = false) {
+    JoinedKey const key{src, scope.get(), pos, slot, of_stack};
+    if (auto const hit = joined_memo.find(key); hit != joined_memo.end())
+        return hit->second.value ? hit->second.value->deep_copy() : nullptr;
+    bool out_of_fuel = false;
+    auto const compute = [&]() -> std::unique_ptr<SpecNode> {
+        std::vector<std::pair<SpecNode *, Scope>> states;
+        if (!some_states(proj, src, pos, states, scope) || states.empty()) return nullptr;
+        std::unique_ptr<SpecNode> value;
+        for (auto &[leaf, leaf_scope] : states) {
+            if (--fuel < 0) {
+                out_of_fuel = true;
+                return nullptr;
+            }
+            auto here = of_stack ? stack_slot_value(proj, leaf, slot, leaf_scope, fuel, depth + 1)
+                                 : slot_value(proj, leaf, slot, leaf_scope, fuel, depth + 1);
+            if (fuel < 0) out_of_fuel = true;
+            if (!here || !same_bindings(proj, here.get(), leaf_scope, scope)) return nullptr;
+            if (value && !(*here == *value)) return nullptr;
+            if (!value) value = std::move(here);
+        }
+        return value;
+    };
+    auto value = compute();
+    if (!out_of_fuel) joined_memo[key] = JoinedEntry{scope, value ? value->deep_copy() : nullptr};
+    return value;
+}
+
+/// For a fact in [scope] that states `(T.(stack)) = M` of the state term [st],
+/// as a conjunct of a proposition that holds on the path, the value [slot]
+/// holds in M.  This reads a state with no structure of its own, such as a
+/// call's post-state from an oracle, through what the path assumes of it.
+std::unique_ptr<SpecNode> slot_value_by_fact(Project *proj, SpecNode *st, const std::string &slot, const Scope &scope,
+                                             int &fuel, int depth) {
+    std::vector<SpecNode *> conjuncts;
+    auto const stack_of_st = [&](SpecNode *n) {
+        auto get = instance_of(n, Expr);
+        if (!get || !op_eq(get->op, Expr::RecordGet) || get->elems->size() != 2) return false;
+        auto f = instance_of(get->elems->at(1).get(), Symbol);
+        return f && f->text == "stack" && *get->elems->at(0) == *st;
+    };
+    for (auto f = scope.get(); f; f = f->parent.get()) {
+        if (f->kind != ScopeFrame::Fact || f->pos != 1 || !same_bindings(proj, st, f->env, scope)) continue;
+        conjuncts.assign(1, f->src);
+        while (!conjuncts.empty()) {
+            auto e = instance_of(conjuncts.back(), Expr);
+            conjuncts.pop_back();
+            if (!e || !e->elems) continue;
+            if (op_eq(e->op, Expr::binops::AND)) {
+                for (auto &x : *e->elems) conjuncts.push_back(x.get());
+                continue;
+            }
+            if (!op_eq(e->op, Expr::binops::EQUAL) || e->elems->size() != 2) continue;
+            for (int side = 0; side < 2; side++) {
+                if (!stack_of_st(e->elems->at(side).get())) continue;
+                auto m = e->elems->at(1 - side).get();
+                if (!same_bindings(proj, m, f->env, scope)) continue;
+                if (auto v = stack_slot_value(proj, m, slot, scope, fuel, depth + 1)) return v;
+            }
+        }
+    }
+    return nullptr;
+}
+
+/// The value [slot] holds in the term [f] binds -- a state, or a stack map when
+/// [of_stack] is set -- as a term meaning the same in [scope]: through the
+/// bound term for a `let`, and the value its results agree on for a `when`.
+std::unique_ptr<SpecNode> bound_slot_value(Project *proj, const ScopeFrame *f, const std::string &slot,
+                                           const Scope &scope, int &fuel, int depth, bool of_stack) {
+    std::unique_ptr<SpecNode> v;
+    if (f->kind == ScopeFrame::Let)
+        v = of_stack ? stack_slot_value(proj, f->src, slot, f->env, fuel, depth + 1)
+                     : slot_value(proj, f->src, slot, f->env, fuel, depth + 1);
+    else if (f->kind == ScopeFrame::When)
+        v = joined_slot_value(proj, f->src, f->pos, slot, f->env, fuel, depth, of_stack);
+    return v && same_bindings(proj, v.get(), f->env, scope) ? std::move(v) : nullptr;
+}
+
+/// The value slot [slot] holds in state term [st], evaluated in [scope], as a
+/// term meaning the same in [scope]: the value of its last explicit write;
+/// through an update of another field, or of other slots, the value in the
+/// base state; for a let-bound name, the value in the bound term; for a name a
+/// `when` binds, the value all of its term's results agree on; for any other
+/// name X, the read `(X.(stack)) @ "slot"`.  Null when [st] has another shape
+/// or [fuel] runs out, so the value is not known.
+std::unique_ptr<SpecNode> slot_value(Project *proj, SpecNode *st, const std::string &slot, const Scope &scope,
+                                     int &fuel, int depth) {
+    if (depth > 64) return nullptr;
+    if (auto s = instance_of(st, Symbol)) {
+        if (auto const f = lookup(scope, s->text)) {
+            if (auto v = bound_slot_value(proj, f, slot, scope, fuel, depth, false)) return v;
+            if (f->kind == ScopeFrame::Let) return nullptr;
+        }
+        if (auto v = slot_value_by_fact(proj, st, slot, scope, fuel, depth)) return v;
+        auto field = std::make_unique<vector<unique_ptr<SpecNode>>>();
+        field->push_back(st->deep_copy());
+        field->push_back(std::make_unique<Symbol>("stack"));
+        auto get = std::make_unique<vector<unique_ptr<SpecNode>>>();
+        get->push_back(std::make_unique<Expr>(Expr::RecordGet, std::move(field)));
+        get->push_back(std::make_unique<StringConst>(slot));
+        return std::make_unique<Expr>(Expr::GET, std::move(get));
+    }
+    // `X.[f1].[f2]... :< v`: an update under a field other than the stack
+    // leaves the stack as X has it.
+    auto rs = instance_of(st, Expr);
+    if (!rs || !op_eq(rs->op, Expr::RecordSet)) return slot_value_by_fact(proj, st, slot, scope, fuel, depth);
+    if (rs->elems->size() < 3) return nullptr;
+    auto field = instance_of(rs->elems->at(1).get(), Symbol);
+    if (!field) return nullptr;
+    if (field->text != "stack") return slot_value(proj, rs->elems->at(0).get(), slot, scope, fuel, depth + 1);
+    if (rs->elems->size() != 3) return nullptr;
+    return stack_slot_value(proj, rs->elems->at(2).get(), slot, scope, fuel, depth + 1);
+}
+
+/// The value slot [slot] holds in the stack map term [stack], as slot_value
+/// for a state: through writes, and the stack of a state `X.(stack)`; for a
+/// name, the value in the stack map a `let` or `when` binds it to.
+std::unique_ptr<SpecNode> stack_slot_value(Project *proj, SpecNode *stack, const std::string &slot,
+                                           const Scope &scope, int &fuel, int depth) {
+    if (depth > 64) return nullptr;
+    for (SpecNode *m = stack;;) {
+        if (auto s = instance_of(m, Symbol)) {
+            auto const f = lookup(scope, s->text);
+            return f ? bound_slot_value(proj, f, slot, scope, fuel, depth, true) : nullptr;
+        }
+        auto e = instance_of(m, Expr);
+        if (!e) return nullptr;
+        if (op_eq(e->op, Expr::SET)) {
+            auto k = instance_of(e->elems->at(1).get(), Const);
+            auto const *kv = k ? std::get_if<std::string>(&k->value) : nullptr;
+            // A symbolic key is this slot, or another, only as far as the
+            // facts on the path decide.
+            auto const is = kv ? (*kv == slot ? KeyIs::Same : KeyIs::Different)
+                               : decide_key(proj, e->elems->at(1).get(), slot, scope);
+            if (is == KeyIs::Unknown) return nullptr;
+            if (is == KeyIs::Same) {
+                // A write-back `X.(stack) @ "s"` holds what X holds in s.
+                auto const v = e->elems->at(2).get();
+                if (auto const r = slot_read(v)) return slot_value(proj, r->first, r->second, scope, fuel, depth + 1);
+                return v->deep_copy();
+            }
+            m = e->elems->at(0).get();
+            continue;
+        }
+        // The stack the updates start from: `X.(stack)`.
+        if (op_eq(e->op, Expr::RecordGet)) {
+            auto f = instance_of(e->elems->at(1).get(), Symbol);
+            if (!f || f->text != "stack") return nullptr;
+            return slot_value(proj, e->elems->at(0).get(), slot, scope, fuel, depth + 1);
+        }
+        return nullptr;
+    }
+}
+
+/// The terms a key may be, by the shape of the pointer it is the base of:
+/// `(mkPtr b o).(pbase)` is b, `(if c then p else q).(pbase)` is p's or q's,
+/// and a call is read through its definition.  Any other key is itself.
+void key_alternatives(Project *proj, SpecNode *key, std::vector<SpecNode *> &out, int depth = 0) {
+    if (depth > 16) {
+        out.push_back(key);
+        return;
+    }
+    if (auto b = constructor_field(proj, key)) {
+        out.push_back(b);
+        return;
+    }
+    auto get = instance_of(key, Expr);
+    if (!get || !op_eq(get->op, Expr::RecordGet) || get->elems->size() != 2) {
+        out.push_back(key);
+        return;
+    }
+    auto const field_of = [&](SpecNode *record) {
+        auto elems = std::make_unique<vector<unique_ptr<SpecNode>>>();
+        elems->push_back(record->deep_copy());
+        elems->push_back(get->elems->at(1)->deep_copy());
+        pre_unfold.arena.push_back(std::make_unique<Expr>(Expr::RecordGet, std::move(elems)));
+        return pre_unfold.arena.back().get();
+    };
+    auto record = get->elems->at(0).get();
+    if (auto i = instance_of(record, If)) {
+        key_alternatives(proj, field_of(i->then_body.get()), out, depth + 1);
+        key_alternatives(proj, field_of(i->else_body.get()), out, depth + 1);
+        return;
+    }
+    if (auto body = inline_call(proj, record)) {
+        key_alternatives(proj, field_of(body), out, depth + 1);
+        return;
+    }
+    out.push_back(key);
+}
+
+/// [key], a single term, decided by a string constant or the facts in [scope].
+KeyIs decide_term(Project *proj, SpecNode *key, const std::string &slot, const Scope &scope) {
+    if (auto c = string_const(key)) return *c == slot ? KeyIs::Same : KeyIs::Different;
+    for (auto f = scope.get(); f; f = f->parent.get()) {
+        if (f->kind != ScopeFrame::Fact || !same_bindings(proj, key, f->env, scope)) continue;
+        if (auto r = fact_decides(f->src, f->pos == 1, key, slot); r != KeyIs::Unknown) return r;
+    }
+    return KeyIs::Unknown;
+}
+
+KeyIs decide_key(Project *proj, SpecNode *key, const std::string &slot, const Scope &scope) {
+    if (auto r = decide_term(proj, key, slot, scope); r != KeyIs::Unknown) return r;
+    // Decided only if every term the key may be is decided the same way.
+    std::vector<SpecNode *> alts;
+    key_alternatives(proj, key, alts);
+    if (alts.size() == 1 && alts[0] == key) return KeyIs::Unknown;
+    std::optional<KeyIs> all;
+    for (auto a : alts) {
+        auto const r = decide_term(proj, a, slot, scope);
+        if (r == KeyIs::Unknown || (all && *all != r)) return KeyIs::Unknown;
+        all = r;
+    }
+    return all.value_or(KeyIs::Unknown);
+}
+
+/// The first read `(state.(stack)) @ "slot"` in [n] of each slot.
+void slot_reads(SpecNode *n, const std::string &state, std::map<std::string, SpecNode *> &out);
+
+/// Whether [n] is `(S.(stack)) @ "slot"`, returning the slot.
+std::optional<std::string> slot_read_of(SpecNode *n, const std::string &state) {
+    auto const r = slot_read(n);
+    if (!r || r->first->text != state) return std::nullopt;
+    return r->second;
+}
+
+void slot_reads(SpecNode *n, const std::string &state, std::map<std::string, SpecNode *> &out) {
+    if (!n) return;
+    if (auto slot = slot_read_of(n, state)) {
+        out.emplace(*slot, n);
+        return;
+    }
+    if (auto m = instance_of(n, Match)) {
+        slot_reads(m->src.get(), state, out);
+        for (auto &pm : *m->match_list) slot_reads(pm->body.get(), state, out);
+    } else if (auto i = instance_of(n, If)) {
+        slot_reads(i->cond.get(), state, out);
+        slot_reads(i->then_body.get(), state, out);
+        slot_reads(i->else_body.get(), state, out);
+    } else if (auto r = instance_of(n, RelyAnno)) {
+        slot_reads(r->prop.get(), state, out);
+        slot_reads(r->body.get(), state, out);
+    } else if (auto e = instance_of(n, Expr)) {
+        if (e->elems)
+            for (auto &x : *e->elems) slot_reads(x.get(), state, out);
+    }
+}
+
+/// Replace each `(S.(stack)) @ "slot"` in [n] with a copy of common[slot],
+/// where S still refers to the binding the caller found: an arm whose pattern
+/// binds a name in [blocked] -- S, or a name a replacement mentions -- is left
+/// alone, so a replacement is neither misplaced nor captured.
+std::unique_ptr<SpecNode> subst_slot_reads(Project *proj, std::unique_ptr<SpecNode> n, const std::string &state,
+                                           const std::map<std::string, SpecNode *> &common,
+                                           const std::set<std::string> &blocked, bool &changed) {
+    if (!n) return n;
+    if (auto slot = slot_read_of(n.get(), state)) {
+        auto const it = common.find(*slot);
+        if (it != common.end()) {
+            changed = true;
+            return it->second->deep_copy();
+        }
+        return n;
+    }
+    auto const go = [&](std::unique_ptr<SpecNode> &c) {
+        c = subst_slot_reads(proj, std::move(c), state, common, blocked, changed);
+    };
+    if (auto m = instance_of(n.get(), Match)) {
+        go(m->src);
+        for (auto &pm : *m->match_list) {
+            std::set<std::string> names;
+            pattern_names(proj, pm->pattern.get(), names);
+            bool shadows = false;
+            for (auto const &b : names) shadows |= blocked.count(b) > 0;
+            if (!shadows) go(pm->body);
+        }
+    } else if (auto i = instance_of(n.get(), If)) {
+        go(i->cond);
+        go(i->then_body);
+        go(i->else_body);
+    } else if (auto r = instance_of(n.get(), RelyAnno)) {
+        go(r->prop);
+        go(r->body);
+    } else if (auto e = instance_of(n.get(), Expr)) {
+        if (e->elems)
+            for (auto &x : *e->elems) go(x);
+    }
+    return n;
+}
+
+/// Gives the untyped parts of each slot read `(X.(stack)) @ "s"` in [n], as
+/// slot_value builds them, the types of [read], a slot read from the spec.
+void type_slot_reads(SpecNode *n, SpecNode *read) {
+    auto e = instance_of(n, Expr);
+    if (!e || !e->elems) return;
+    for (auto &x : *e->elems) type_slot_reads(x.get(), read);
+    if (!slot_read(n)) return;
+    auto t = instance_of(read, Expr);
+    auto rg = instance_of(e->elems->at(0).get(), Expr);
+    auto const fill = [](SpecNode *node, SpecNode *from) {
+        if (node->get_type() == SpecType::UNKNOWN_TYPE) node->set_type(from->get_type());
+    };
+    fill(e, t);
+    fill(rg, t->elems->at(0).get());
+    fill(rg->elems->at(1).get(), instance_of(t->elems->at(0).get(), Expr)->elems->at(1).get());
+    fill(e->elems->at(1).get(), t->elems->at(1).get());
+}
+
+/// rule_forward_join_slots at [m], a `when` in [scope].
+void forward_join_at(Project *proj, Match *m, const Scope &scope, bool &changed) {
+    auto const when = when_state(m);
+    if (!when) return;
+    joined_memo.clear();
+    // Per `when`: a call node's address may be reused once a substitution
+    // frees it, so the inlining memo does not outlive the `when`.
+    pre_unfold.inlined.clear();
+    pre_unfold.budget = 4096;
+    auto some_pm = (*m->match_list)[0].get();
+    auto const &[state, pos] = *when;
+    std::set<std::string> bound_names;
+    pattern_names(proj, some_pm->pattern.get(), bound_names);
+    // For each slot the body reads from the state, the value every result
+    // leaves there, if they agree and it means the same at the when.
+    std::map<std::string, SpecNode *> reads;
+    slot_reads(some_pm->body.get(), state, reads);
+    std::map<std::string, std::unique_ptr<SpecNode>> values;
+    for (auto const &[slot, read] : reads) {
+        int fuel = 4096;
+        auto value = joined_slot_value(proj, m->src.get(), pos, slot, scope, fuel, 0);
+        if (!value) continue;
+        // The pattern rebinds a name the value mentions: the state itself, say.
+        std::set<std::string> names;
+        term_names(value.get(), names);
+        bool captured = false;
+        for (auto const &n : names) captured |= bound_names.count(n) > 0;
+        if (captured) continue;
+        type_slot_reads(value.get(), read);
+        values[slot] = std::move(value);
+    }
+    std::map<std::string, SpecNode *> common;
+    for (auto &[slot, value] : values) common[slot] = value.get();
+    if (common.empty()) return;
+    std::set<std::string> blocked{state};
+    for (auto const &[key, value] : common) term_names(value, blocked);
+    joined_memo.clear();
+    pre_unfold.inlined.clear();
+    some_pm->body = subst_slot_reads(proj, std::move(some_pm->body), state, common, blocked, changed);
+}
+
+/// Visits each `when` under [n] outermost first, with the bindings in scope.
+void forward_joins(Project *proj, SpecNode *n, const Scope &scope, bool &changed) {
+    if (!n) return;
+    if (auto m = instance_of(n, Match)) {
+        forward_join_at(proj, m, scope, changed);
+        forward_joins(proj, m->src.get(), scope, changed);
+        for (size_t k = 0; k < m->match_list->size(); k++)
+            forward_joins(proj, (*m->match_list)[k]->body.get(), bind_arm(proj, m, k, scope), changed);
+    } else if (auto i = instance_of(n, If)) {
+        forward_joins(proj, i->cond.get(), scope, changed);
+        forward_joins(proj, i->then_body.get(), with_fact(i->cond.get(), true, scope), changed);
+        forward_joins(proj, i->else_body.get(), with_fact(i->cond.get(), false, scope), changed);
+    } else if (auto r = instance_of(n, Rely)) {
+        forward_joins(proj, r->body.get(), with_fact(r->prop.get(), true, scope), changed);
+    } else if (auto r = instance_of(n, RelyAnno)) {
+        forward_joins(proj, r->body.get(), scope, changed);
+    } else if (auto e = instance_of(n, Expr)) {
+        if (e->elems)
+            for (auto &x : *e->elems) forward_joins(proj, x.get(), scope, changed);
+    }
+}
+
+}  // namespace
+
+rule_ret_t SpecRules::rule_forward_join_slots(std::unique_ptr<SpecNode> spec) {
+    bool changed = false;
+    pre_unfold.arena.clear();
+    pre_unfold.inlined.clear();
+    joined_memo.clear();
+    forward_joins(proj, spec.get(), nullptr, changed);
+    joined_memo.clear();
+    pre_unfold.arena.clear();
+    return {std::move(spec), changed};
+}
+
 rule_ret_t SpecRules::rule_simple_record_get_set(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
     auto const f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
@@ -4347,15 +5063,27 @@ end
 rule_ret_t SpecRules::rule_move_when_out_when(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
 
+    // when x == (when p == A; B); C  ->  when p == A; when x == B; C, unless p
+    // binds a name free in C, which the move would capture.
     auto const f = [&](std::unique_ptr<SpecNode> node) -> std::unique_ptr<SpecNode> {
         if (auto m = instance_of(node.get(), Match)) {
             if (auto src = instance_of(m->src.get(), Match)) {
                 if (src->is_when() && is_instance(m->type.get(), Option)) {
+                    std::set<std::string> bound, free_in_c;
+                    free_vars(proj, src->match_list->at(0)->pattern.get(), bound);
+                    for (auto const &pm : *m->match_list) {
+                        std::set<std::string> arm_free, arm_bound;
+                        free_vars(proj, pm->body.get(), arm_free);
+                        free_vars(proj, pm->pattern.get(), arm_bound);
+                        for (auto const &n : arm_free)
+                            if (!arm_bound.count(n)) free_in_c.insert(n);
+                    }
+                    for (auto const &n : bound)
+                        if (free_in_c.count(n)) return node;
                     for (const auto &pm : *m->match_list) {
                         if (auto pattern = dynamic_cast<Expr*>(src->match_list->at(0)->pattern.get())) {
-                            // if (string(*pm->pattern) == "None" && string(*pm->body) == "None") {
                             auto sym = dynamic_cast<Symbol*>(pm->body.get());
-                            if (op_eq(pattern->op, Expr::ops::None) && sym && sym->text == "None") {
+                            if (op_eq(pattern->op, Expr::ops::Some) && sym && sym->text == "None") {
                                 auto match = make_unique<Match>(std::move(src->match_list->at(0)->body), std::move(m->match_list));
                                 auto new_match = std::unique_ptr<Match>(
                                     Match::raw_when(
@@ -4400,8 +5128,40 @@ The continuation is copied into every arm.  Where the scrutinee is known the
 other arms are pruned at once; where it is not -- a pointer argument that may
 address any stack slot -- the copies stand, which is the price of the split.
 Skipped when a pattern variable of an arm is free in the continuation, which the
-copy would capture.
+copy would capture, and when the copies would exceed the case budget: a `when`
+whose continuation is the rest of a function is left over its match.
 */
+namespace {
+/// Leaves of the continuation rule_move_match_out_when may copy, over all the
+/// copies it makes.  SPOQ_CASE_BUDGET overrides; 0 removes the cap.
+size_t case_budget() {
+    static size_t const b = [] {
+        if (const char *e = std::getenv("SPOQ_CASE_BUDGET")) return (size_t)std::atol(e);
+        return (size_t)4096;
+    }();
+    return b == 0 ? SIZE_MAX : b;
+}
+
+/// Whether [copies] copies of the arms [arms] fit the case budget.  The count
+/// stops once the leaves one copy may have are passed.
+bool case_copies_affordable(const std::vector<std::unique_ptr<PatternMatch>> &arms, size_t copies) {
+    size_t const budget = case_budget();
+    if (budget == SIZE_MAX || copies == 0) return true;
+    size_t const per_copy = budget / copies;
+    size_t leaves = 0;
+    for (auto const &arm : arms) {
+        leaves += arm->count_leaves(per_copy - std::min(leaves, per_copy));
+        if (leaves > per_copy) {
+            if (std::getenv("SPOQ_TRACE_TRANSFORM"))
+                LOG_DEBUG << "[CASE] copies " << copies << " continuation over " << per_copy
+                          << " leaves, budget " << budget << " -- declined";
+            return false;
+        }
+    }
+    return true;
+}
+}  // namespace
+
 rule_ret_t SpecRules::rule_move_match_out_when(std::unique_ptr<SpecNode> spec, bool rec) {
     bool changed = false;
 
@@ -4418,6 +5178,8 @@ rule_ret_t SpecRules::rule_move_match_out_when(std::unique_ptr<SpecNode> spec, b
             for (auto const &outer : *m->match_list)
                 if (contains_vars(proj, outer->body.get(), vars)) return node;
         }
+        // One copy of the continuation per inner arm after the first.
+        if (!case_copies_affordable(*m->match_list, src->match_list->size() - 1)) return node;
 
         // Copies of the outer arms only: m->src is the inner match, whose arms
         // are moved out below, so copying m itself would read moved-from arms.

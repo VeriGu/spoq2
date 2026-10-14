@@ -1,0 +1,7 @@
+{
+  "verified": true,
+  "env": "SPOQ_HOIST_BUDGET=1",
+  "spec_v_definition": "f_vuln_spec",
+  "spec_v_contains": "(Some ((mkPtr \"g\" 0), st_c))",
+  "spec_v_lacks": "@ \"stack_type_2\")"
+}

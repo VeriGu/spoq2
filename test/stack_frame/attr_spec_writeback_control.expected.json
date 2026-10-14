@@ -1,0 +1,5 @@
+{
+  "verified": false,
+  "env": "SPOQ_HOIST_BUDGET=1",
+  "stderr_lacks": "[FRAME] f_vuln: call to fill_spec preserves \"stack_type_2\""
+}

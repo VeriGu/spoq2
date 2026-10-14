@@ -147,6 +147,18 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, int timeout=Z3_TIMEOUT);
 /// [count_unknown] false leaves counting an unknown result to the caller, for a
 /// caller that decides from this check together with another.
 Z3Result z3_check_unsat(const std::shared_ptr<ProveState>& state, const z3::expr& cond, z3::model& model, QueryInfo *qinfo = nullptr, int timeout=Z3_TIMEOUT, bool count_unknown = true);
+/// While a LiteralOnlyScope is live, the checks above decide from the path's
+/// literals alone, and return Unknown where those do not decide, without
+/// calling a solver.
+struct LiteralOnlyScope {
+    LiteralOnlyScope();
+    ~LiteralOnlyScope();
+    LiteralOnlyScope(const LiteralOnlyScope &) = delete;
+    LiteralOnlyScope &operator=(const LiteralOnlyScope &) = delete;
+};
+bool literal_only();
+/// Checks answered Unknown because a LiteralOnlyScope was live.
+extern size_t z3_literal_only_skips;
 
 /// The number of checks whose answer left a decision open, reported as
 /// "Z3 unknowns".

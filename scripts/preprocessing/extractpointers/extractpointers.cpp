@@ -673,8 +673,15 @@ We can do this in a proxy definition for each type
   "\t\t| Some sv => match sv with\n";
   // "\t\t\t| ZVal z => Some z\n"
   // "\t\t\t| ZMapVal zmap => Some (zmap @ p.(poffset))\n";
-  std::string store_result = "Definition store_stack (sz: intSizeT) (p: Ptr) (v: int64) (stack_map: STACK): (option STACK) := \n" \
-  "\tmatch (stack_map @ p.(pbase)) with\n" \
+  // A store to a scalar slot dispatches on the slot's name and writes the new
+  // value without reading the old one: a frame's slots keep their declared
+  // types, so the old value's constructor is known from the slot.  For a
+  // literal slot the dispatch is decided syntactically and the store is a
+  // plain update.  Array and struct slots match on the old value, which the
+  // update needs.
+  std::string store_head = "Definition store_stack (sz: intSizeT) (p: Ptr) (v: int64) (stack_map: STACK): (option STACK) := \n";
+  std::string store_dispatch, store_ptr_dispatch;
+  std::string store_result = "\tmatch (stack_map @ p.(pbase)) with\n" \
   "\t\t| Some sv => match sv with\n";
   // "\t\t\t| ZVal z => Some (stack_map # p.(pbase) == Some(ZVal v))\n"
   // "\t\t\t| ZMapVal zmap => Some (stack_map # p.(pbase) == Some(ZMapVal (zmap # p.(poffset) == v)))\n";
@@ -684,8 +691,8 @@ We can do this in a proxy definition for each type
   std::string load_ptr_result = "Definition load_stack_ptr (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option Ptr) := \n" \
   "\tmatch (stack_map @ p.(pbase)) with\n" \
   "\t\t| Some sv => match sv with\n";
-  std::string store_ptr_result = "Definition store_stack_ptr (sz: intSizeT) (p: Ptr) (v: Ptr) (stack_map: STACK): (option STACK) := \n" \
-  "\tmatch (stack_map @ p.(pbase)) with\n" \
+  std::string store_ptr_head = "Definition store_stack_ptr (sz: intSizeT) (p: Ptr) (v: Ptr) (stack_map: STACK): (option STACK) := \n";
+  std::string store_ptr_result = "\tmatch (stack_map @ p.(pbase)) with\n" \
   "\t\t| Some sv => match sv with\n";
   std::string is_stack_ptr = "Definition is_stack_ptr (p: Ptr): bool := (false = true)";
   for (auto &x : sn) {
@@ -761,14 +768,20 @@ We can do this in a proxy definition for each type
     // Load & Store.  [wrap] turns the value read from the slot into the
     // result, and [stored] is the value written.  The integer accessors
     // convert at a pointer slot; the pointer accessors convert everywhere else.
-    auto const arms = [&](std::string &load_out, std::string &store_out,
+    auto const arms = [&](std::string &load_out, std::string &store_out, std::string &dispatch_out,
                           const std::function<std::string(const std::string &)> &wrap, const std::string &stored) {
       if(!is_map && !is_struct){
         // Z, or a Ptr at a pointer slot
         load_out  += "\t\t\t| " + stackval_ident + " " + constr_e_ident + " => "+rely_clause+\
           "\n\t\t\t\tSome " + wrap(constr_e_ident) + "\n";
-        store_out += "\t\t\t| " + stackval_ident + " " + constr_e_ident + " => "+rely_clause+\
-        "\n\t\t\t\tSome (stack_map # p.(pbase) == Some(" + stackval_ident + " " + stored + "))\n";
+        if (!pointers.empty()) {
+          std::string is_slot = "false";
+          for (auto &pointer_name : pointers) is_slot += " \\/ (p.(pbase) =s \"" + pointer_name + "\")";
+          dispatch_out += "\tif (" + is_slot + ")\n\tthen Some (stack_map # p.(pbase) == Some(" + stackval_ident +
+                          " " + stored + "))\n\telse\n";
+        }
+        // Reached only for a slot of another type holding this constructor.
+        store_out += "\t\t\t| " + stackval_ident + " " + constr_e_ident + " => None\n";
       } else if(is_map && !is_struct){
         // Flat array: a value is kept at the byte offset it was stored at, and
         // an access must lie within the slot's allocation, as in blk_load and
@@ -837,11 +850,11 @@ We can do this in a proxy definition for each type
       return [f](const std::string &x) { return "(" + f + " " + x + ")"; };
     };
     if (is_ptr_slot) {
-      arms(load_result, store_result, conv("ptr_to_int"), "(int_to_ptr v)");
-      arms(load_ptr_result, store_ptr_result, same, "v");
+      arms(load_result, store_result, store_dispatch, conv("ptr_to_int"), "(int_to_ptr v)");
+      arms(load_ptr_result, store_ptr_result, store_ptr_dispatch, same, "v");
     } else {
-      arms(load_result, store_result, same, "v");
-      arms(load_ptr_result, store_ptr_result, conv("int_to_ptr"), "(ptr_to_int v)");
+      arms(load_result, store_result, store_dispatch, same, "v");
+      arms(load_ptr_result, store_ptr_result, store_ptr_dispatch, conv("int_to_ptr"), "(ptr_to_int v)");
     }
   }
 
@@ -858,6 +871,8 @@ We can do this in a proxy definition for each type
     *def += "\t\tend\n"
             "\t| None => None\n"
             "end.";
+  store_result = store_head + store_dispatch + store_result;
+  store_ptr_result = store_ptr_head + store_ptr_dispatch + store_ptr_result;
   is_stack_ptr += ".\n";
   stackkey_def += "| sk_Null.\n";
   std::string hint_result = "";

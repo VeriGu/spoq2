@@ -192,7 +192,8 @@ std::vector<std::string> splitSemi(const std::string &text) {
 }
 
 /// The text of `Definition <name> ...` up to the next blank line, from whichever
-/// generated Spec.v under [work] defines it (cached copies are skipped).
+/// generated Spec.v or LowSpec.v under [work] defines it (cached copies are
+/// skipped).
 /// Every generated Coq file, concatenated.  findDefinitionBody below reads one
 /// Definition's body, which cannot see anything outside it -- a Parameter the
 /// spec references but never declares sits above every Definition, and made
@@ -212,7 +213,9 @@ std::string allGeneratedCoq(const fs::path &work) {
 std::string findDefinitionBody(const fs::path &work, const std::string &name) {
     const std::string head = "Definition " + name + " ";
     for (const auto &entry : fs::recursive_directory_iterator(work)) {
-        if (!entry.is_regular_file() || entry.path().filename() != "Spec.v") continue;
+        // LowSpec.v holds the transformed <fn>_spec_low.
+        if (!entry.is_regular_file() ||
+            (entry.path().filename() != "Spec.v" && entry.path().filename() != "LowSpec.v")) continue;
         if (entry.path().string().find(".CachedSpec") != std::string::npos) continue;
         std::ifstream in(entry.path());
         std::string line, body;

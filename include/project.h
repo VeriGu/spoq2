@@ -163,6 +163,10 @@ public:
 
     unordered_map<string, unique_ptr<Declaration>> decls;
     unordered_map<string, unique_ptr<Definition>> defs;
+    /// Specs synthesize_attribute_specs derived from LLVM memory attributes.
+    /// They state the frame of the call only as a Rely, so the translator
+    /// still writes the frame out after a call to one.
+    std::set<string> attribute_specs;
     vector<string> def_order;
     /// Untransformed body of each generated loop low spec, kept for the
     /// vuln/patch loop identification in infer_spec_task_v2.

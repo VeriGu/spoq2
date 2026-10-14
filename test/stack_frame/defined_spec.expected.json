@@ -1,0 +1,4 @@
+{
+  "verified": true,
+  "stderr_lacks": "[FRAME] f_vuln: call to ext_spec preserves"
+}

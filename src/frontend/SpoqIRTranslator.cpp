@@ -1256,6 +1256,8 @@ static unique_ptr<SpecNode> with_alignment(Project *proj, SpoqIRContext &context
  */
 struct SlotDerivation {
     bool escaped = false;
+    /// Whether the caller loads through a pointer derived from the slot.
+    bool loaded = false;
     std::set<const llvm::Value *> derived;
 };
 
@@ -1274,7 +1276,11 @@ static const SlotDerivation &slot_derivation(const llvm::AllocaInst *slot) {
         work.pop_back();
         for (auto const &use : v->uses()) {
             auto const user = use.getUser();
-            if (llvm::isa<llvm::LoadInst>(user) || llvm::isa<llvm::ICmpInst>(user)) continue;
+            if (llvm::isa<llvm::LoadInst>(user)) {
+                d.loaded = true;
+                continue;
+            }
+            if (llvm::isa<llvm::ICmpInst>(user)) continue;
             if (auto const st = llvm::dyn_cast<llvm::StoreInst>(user)) {
                 if (st->getValueOperand() == v) d.escaped = true;
                 continue;
@@ -1324,14 +1330,22 @@ static const std::set<const llvm::Function *> &reachable_from(const llvm::Functi
 /// The caller's stack slots [call] cannot write, by the rule above.  Empty for a
 /// call that may recurse into the caller: spoq names stack slots per type and
 /// index, not per frame, so a recursive activation's slots are the caller's.
-static std::vector<string> slots_preserved_by(Project *proj, SpoqIRContext &context,
-                                              const llvm::CallBase *call) {
-    std::vector<string> out;
-    auto const caller = context.spoq_func.llvm_func;
-    if (auto const callee = call->getCalledFunction())
-        if (reachable_from(callee).count(caller)) return out;
-    auto const &slot_of = proj->cmds.StackMap[caller->getName().str()];
-    for (auto const &inst : caller->getEntryBlock()) {
+/// Empty for an external function whose spec is a Definition the user wrote:
+/// its body states the call's effect exactly, so the frame adds nothing.  A
+/// spec synthesized from memory attributes states the frame only as a Rely,
+/// so it gets the write-back.
+struct PreservedSlot {
+    string name;
+    /// Whether the caller loads from the slot, so its value is worth carrying.
+    bool loaded;
+};
+/// [f]'s entry-block allocas that the stack map names, with their slots.
+static std::vector<std::pair<const llvm::AllocaInst *, string>> mapped_slots(Project *proj,
+                                                                            const llvm::Function *f) {
+    std::vector<std::pair<const llvm::AllocaInst *, string>> out;
+    if (f->isDeclaration()) return out;
+    auto const &slot_of = proj->cmds.StackMap[f->getName().str()];
+    for (auto const &inst : f->getEntryBlock()) {
         auto const slot = llvm::dyn_cast<llvm::AllocaInst>(&inst);
         if (!slot) continue;
         string name;
@@ -1342,45 +1356,145 @@ static std::vector<string> slots_preserved_by(Project *proj, SpoqIRContext &cont
             name.erase(0, 1);
         }
         auto const it = slot_of.find("v_" + Shortcut::replace_dot(name));
-        if (it == slot_of.end()) continue;
-        auto const &d = slot_derivation(slot);
-        if (d.escaped) continue;
-        bool written = false;
-        for (unsigned i = 0; i < call->arg_size() && !written; i++)
-            if (d.derived.count(call->getArgOperand(i)) && !call->onlyReadsMemory(i)) written = true;
-        if (!written) out.push_back(it->second);
+        if (it != slot_of.end()) out.emplace_back(slot, it->second);
     }
     return out;
 }
 
-/// `post.(stack) @ s = pre.(stack) @ s` for each slot s in [slots].
-static unique_ptr<SpecNode> slot_frame(const std::vector<string> &slots, const string &pre,
-                                       const string &post, const shared_ptr<SpecType> &state_type) {
-    auto const at = [&](const string &st, const string &slot) {
+/// Whether [call] may write a slot whose derived pointers are [d].
+static bool call_may_write(const llvm::CallBase *call, const SlotDerivation &d) {
+    for (unsigned i = 0; i < call->arg_size(); i++)
+        if (d.derived.count(call->getArgOperand(i)) && !call->onlyReadsMemory(i)) return true;
+    return false;
+}
+
+static std::vector<PreservedSlot> slots_preserved_by(Project *proj, SpoqIRContext &context,
+                                                     const llvm::CallBase *call) {
+    std::vector<PreservedSlot> out;
+    auto const caller = context.spoq_func.llvm_func;
+    if (auto const callee = call->getCalledFunction()) {
+        if (reachable_from(callee).count(caller)) return out;
+        auto const spec = callee->getName().str() + "_spec";
+        if (callee->isDeclaration() && proj->defs.count(spec) && !proj->attribute_specs.count(spec)) return out;
+    }
+    for (auto const &[slot, name] : mapped_slots(proj, context.spoq_func.llvm_func)) {
+        auto const &d = slot_derivation(slot);
+        if (!d.escaped && !call_may_write(call, d)) out.push_back({name, d.loaded});
+    }
+    return out;
+}
+
+/// The caller's stack slots no iteration of [loop] can write: no store in the
+/// loop goes through a pointer derived from the slot, and no call in the loop
+/// may write it by the call rule above.  Empty if a call in the loop may
+/// recurse into the caller.
+static std::vector<PreservedSlot> slots_preserved_by_loop(Project *proj, SpoqIRContext &context,
+                                                          const llvm::Loop *loop) {
+    std::vector<PreservedSlot> out;
+    auto const caller = context.spoq_func.llvm_func;
+    std::vector<const llvm::CallBase *> calls;
+    std::vector<const llvm::Value *> stored;
+    for (auto const bb : loop->blocks())
+        for (auto const &inst : *bb) {
+            if (auto const st = llvm::dyn_cast<llvm::StoreInst>(&inst)) stored.push_back(st->getPointerOperand());
+            else if (auto const cb = llvm::dyn_cast<llvm::CallBase>(&inst)) {
+                if (cb->isLifetimeStartOrEnd() || llvm::isa<llvm::DbgInfoIntrinsic>(cb)) continue;
+                auto const callee = cb->getCalledFunction();
+                if (!callee || reachable_from(callee).count(caller)) return out;
+                calls.push_back(cb);
+            } else if (inst.mayWriteToMemory()) {
+                return out;
+            }
+        }
+    for (auto const &[slot, name] : mapped_slots(proj, context.spoq_func.llvm_func)) {
+        auto const &d = slot_derivation(slot);
+        if (d.escaped || !d.loaded) continue;
+        bool written = false;
+        for (auto const p : stored)
+            if (d.derived.count(p)) written = true;
+        for (auto const cb : calls)
+            if (!written && call_may_write(cb, d)) written = true;
+        if (!written) out.push_back({name, d.loaded});
+    }
+    return out;
+}
+
+/// The slots of [f] that a pointer loaded from memory cannot address: those
+/// [f] loads from, every alloca of whose name in the module is not escaped.
+/// No memory ever holds a pointer with such a slot's provenance, in any
+/// activation, so a load or an inttoptr cannot produce one.  A parameter can:
+/// a recursive call may pass a slot of the same name down.
+static const std::vector<string> &unaddressable_slots(Project *proj, const llvm::Function *f) {
+    static std::map<const llvm::Function *, std::vector<string>> cache;
+    static std::map<string, bool> name_escapes;
+    static const llvm::Module *scanned = nullptr;
+    if (scanned != proj->spoq_code.llvm_module.get()) {
+        scanned = proj->spoq_code.llvm_module.get();
+        cache.clear();
+        name_escapes.clear();
+        for (auto const &g : *proj->spoq_code.llvm_module)
+            for (auto const &[slot, name] : mapped_slots(proj, &g)) name_escapes[name] |= slot_derivation(slot).escaped;
+    }
+    auto const found = cache.find(f);
+    if (found != cache.end()) return found->second;
+    std::vector<string> out;
+    for (auto const &[slot, name] : mapped_slots(proj, f))
+        if (slot_derivation(slot).loaded && !name_escapes[name]) out.push_back(name);
+    return cache.emplace(f, std::move(out)).first->second;
+}
+
+/// [body] under `rely (~ (p.(pbase) =s "s1") /\ ...)` for the slots [p], a
+/// pointer loaded from memory or made by inttoptr, cannot address.
+static unique_ptr<SpecNode> rely_unaddressable(Project *proj, SpoqIRContext &context, unique_ptr<SpecNode> body,
+                                               const unique_ptr<SpecNode> &p) {
+    auto const &slots = unaddressable_slots(proj, context.spoq_func.llvm_func);
+    if (slots.empty()) return body;
+    unique_ptr<SpecNode> prop;
+    for (auto const &s : slots) {
+        auto field = std::make_unique<vector<unique_ptr<SpecNode>>>();
+        field->push_back(p->deep_copy());
+        field->push_back(std::make_unique<Symbol>("pbase"));
+        auto eq = binop(Expr::binops::SEQ, std::make_unique<Expr>(Expr::RecordGet, std::move(field)),
+                        std::make_unique<StringConst>(s));
+        auto neg = std::make_unique<vector<unique_ptr<SpecNode>>>();
+        neg->push_back(std::move(eq));
+        unique_ptr<SpecNode> lit = std::make_unique<Expr>(Expr::NOT, std::move(neg));
+        prop = prop ? binop(Expr::binops::AND, std::move(prop), std::move(lit)) : std::move(lit);
+    }
+    LOG_DEBUG << "[NOESC] " << context.spoq_func.llvm_func->getName().str() << ": " << std::string(*p)
+              << " addresses none of " << slots.size() << " slots";
+    return std::make_unique<Rely>(std::move(prop), std::move(body));
+}
+
+/// [post] with each slot in [slots] holding the value [pre] holds there:
+/// `post.[stack] :< (post.(stack) # s1 == pre.(stack) @ s1 # ...)`.  Under the
+/// frame the result equals [post]; written out, a later read of a slot reduces
+/// to the pre-state's value by the map and record rules, where a Rely stating
+/// the equality is visible only to Z3.
+static unique_ptr<SpecNode> slot_writeback(const std::vector<string> &slots, const string &pre,
+                                           const string &post, const shared_ptr<SpecType> &state_type) {
+    auto const stack_of = [&](const string &st) {
         auto field = std::make_unique<vector<unique_ptr<SpecNode>>>();
         field->push_back(std::make_unique<Symbol>(st, state_type));
         field->push_back(std::make_unique<Symbol>("stack"));
-        auto get = std::make_unique<vector<unique_ptr<SpecNode>>>();
-        get->push_back(std::make_unique<Expr>(Expr::RecordGet, std::move(field)));
-        get->push_back(std::make_unique<StringConst>(slot));
-        return std::make_unique<Expr>(Expr::GET, std::move(get));
+        return std::make_unique<Expr>(Expr::RecordGet, std::move(field));
     };
-    unique_ptr<SpecNode> acc = nullptr;
+    unique_ptr<SpecNode> stack = stack_of(post);
     for (auto const &s : slots) {
-        auto eq = std::make_unique<vector<unique_ptr<SpecNode>>>();
-        eq->push_back(at(post, s));
-        eq->push_back(at(pre, s));
-        unique_ptr<SpecNode> here = std::make_unique<Expr>(Expr::EQUAL, std::move(eq));
-        if (acc) {
-            auto both = std::make_unique<vector<unique_ptr<SpecNode>>>();
-            both->push_back(std::move(acc));
-            both->push_back(std::move(here));
-            acc = std::make_unique<Expr>(Expr::AND, std::move(both));
-        } else {
-            acc = std::move(here);
-        }
+        auto get = std::make_unique<vector<unique_ptr<SpecNode>>>();
+        get->push_back(stack_of(pre));
+        get->push_back(std::make_unique<StringConst>(s));
+        auto set = std::make_unique<vector<unique_ptr<SpecNode>>>();
+        set->push_back(std::move(stack));
+        set->push_back(std::make_unique<StringConst>(s));
+        set->push_back(std::make_unique<Expr>(Expr::GET, std::move(get)));
+        stack = std::make_unique<Expr>(Expr::SET, std::move(set));
     }
-    return acc;
+    auto rec = std::make_unique<vector<unique_ptr<SpecNode>>>();
+    rec->push_back(std::make_unique<Symbol>(post, state_type));
+    rec->push_back(std::make_unique<Symbol>("stack"));
+    rec->push_back(std::move(stack));
+    return std::make_unique<Expr>(Expr::RecordSet, std::move(rec));
 }
 
 unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_vec_t& vec, int num, SpoqIRContext& context) {
@@ -1766,7 +1880,10 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 // The post-state is bound under a fresh name so the frame can
                 // relate it to the pre-state, then rebound to the usual name.
                 auto const preserved = slots_preserved_by(proj, context, call);
-                if (!preserved.empty()) {
+                std::vector<string> carried;
+                for (auto const &slot : preserved)
+                    if (slot.loaded) carried.push_back(slot.name);
+                if (!carried.empty()) {
                     static int frame_count = 0;
                     auto const post = context.abs_data_name + "_frame_" + std::to_string(frame_count++);
                     auto post_sym = [&]() { return std::make_unique<Symbol>(post, context.abs_data_type); };
@@ -1778,12 +1895,14 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                         children->push_back(post_sym());
                         ret = Shortcut::_Tuple_u(std::move(children));
                     }
-                    remain = Shortcut::_Let_u(context.get_abs_data(), post_sym(), std::move(remain));
-                    remain = std::make_unique<Rely>(
-                        slot_frame(preserved, context.abs_data_name, post, context.abs_data_type),
+                    remain = Shortcut::_Let_u(
+                        context.get_abs_data(),
+                        slot_writeback(carried, context.abs_data_name, post, context.abs_data_type),
                         std::move(remain));
+                }
+                if (!preserved.empty()) {
                     std::string list;
-                    for (auto const &s : preserved) list += " \"" + s + "\"";
+                    for (auto const &slot : preserved) list += " \"" + slot.name + "\"";
                     LOG_DEBUG << "[FRAME] " << context.spoq_func.llvm_func->getName().str() << ": call to "
                               << callee_name << " preserves" << list;
                 }
@@ -1805,7 +1924,10 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 children->push_back(context.get_llvm_value_spec_ptr_in_Z(load));
                 auto i2p_v = std::make_unique<Expr>(context.int2ptr_op_name, std::move(children));
 
-                auto remain_expr = Shortcut::_Let_u(context.get_llvm_value_spec(load, nullptr, false), std::move(i2p_v), spoq_inst_to_spec(proj, vec, num + 1, context));
+                auto remain_expr = Shortcut::_Let_u(
+                    context.get_llvm_value_spec(load, nullptr, false), std::move(i2p_v),
+                    rely_unaddressable(proj, context, spoq_inst_to_spec(proj, vec, num + 1, context),
+                                       context.get_llvm_value_spec(load, nullptr, false)));
                 return with_alignment(proj, context, load,
                                       Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second), std::move(remain_expr)));
             } else if (auto const bits = narrowed_load_width(load->getType())) {
@@ -1835,9 +1957,10 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 return with_alignment(proj, context, load,
                                       Shortcut::_When_u(std::move(word), std::move(rhs.second), std::move(rest)));
             } else {
+                auto rest = spoq_inst_to_spec(proj, vec, num + 1, context);
+                if (load->getType()->isPointerTy()) rest = rely_unaddressable(proj, context, std::move(rest), rhs.first);
                 return with_alignment(proj, context, load,
-                                      Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second),
-                                                        spoq_inst_to_spec(proj, vec, num + 1, context)));
+                                      Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second), std::move(rest)));
             }
         } else if (auto store = llvm::dyn_cast<llvm::StoreInst>(spoq_inst->inst)) {
             auto rhs = store_load_to_spec(spoq_inst->inst, context);
@@ -2046,7 +2169,8 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             auto expr = std::make_unique<Expr>(context.int2ptr_op_name, std::move(operands));
             auto sym = context.get_llvm_value_spec(i2p);
             context.add_cache(context.get_llvm_value_name(i2p), expr);
-            return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
+            auto rest = rely_unaddressable(proj, context, spoq_inst_to_spec(proj, vec, num + 1, context), sym);
+            return Shortcut::_Let_u(std::move(sym), std::move(expr), std::move(rest));
         }
 
         // TODO: other conversion operations
@@ -2244,9 +2368,37 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
         v->push_back(context.get_abs_data());
         auto src_loop = std::make_unique<Expr>(name, std::move(v));
 
-        auto pass_out_list = Shortcut::_Tuple_u(context.compute_loop_break_return_list(inst->preheader_block));
+        auto pass_out = context.compute_loop_break_return_list(inst->preheader_block);
         auto rest = context.bind_loop_results(inst->preheader_block,
                                               spoq_inst_to_spec(proj, vec, num + 1, context));
+
+        // A slot no iteration writes holds its pre-loop value in the loop's
+        // result state; written back as at a call.
+        const llvm::Loop *loop = nullptr;
+        for (auto const succ : llvm::successors(inst->preheader_block))
+            if (auto const l = context.get_loop_context().loop_of(succ); l && l->getHeader() == succ) loop = l;
+        auto const state = pass_out->empty() ? nullptr : dynamic_cast<Symbol *>(pass_out->back().get());
+        if (loop && state && state->text == context.abs_data_name) {
+            auto const preserved = slots_preserved_by_loop(proj, context, loop);
+            if (!preserved.empty()) {
+                static int loop_frame_count = 0;
+                auto const post = context.abs_data_name + "_loop_frame_" + std::to_string(loop_frame_count++);
+                std::vector<string> carried;
+                std::string list;
+                for (auto const &slot : preserved) {
+                    carried.push_back(slot.name);
+                    list += " \"" + slot.name + "\"";
+                }
+                pass_out->back() = std::make_unique<Symbol>(post, context.abs_data_type);
+                rest = Shortcut::_Let_u(
+                    context.get_abs_data(),
+                    slot_writeback(carried, context.abs_data_name, post, context.abs_data_type),
+                    std::move(rest));
+                LOG_DEBUG << "[FRAME] " << context.spoq_func.llvm_func->getName().str() << ": loop " << name
+                          << " preserves" << list;
+            }
+        }
+        auto pass_out_list = Shortcut::_Tuple_u(std::move(pass_out));
         return with_alignment(proj, context, inst->preheader_block->getTerminator(),
                               Shortcut::_When_u(std::move(pass_out_list), std::move(src_loop), std::move(rest)));
     } else if (auto inst = Shortcut::dyn_cast_u<SpoqContinueInst>(vec[num])) {

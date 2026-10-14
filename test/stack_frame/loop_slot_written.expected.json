@@ -1,0 +1,5 @@
+{
+  "verified": false,
+  "spec_v_definition": "f_vuln_spec",
+  "spec_v_contains": "(PtrVal PtrVal_val)"
+}

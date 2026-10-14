@@ -1176,14 +1176,22 @@ static z3::expr canonical_literal(const z3::expr &e) {
 }
 
 /// The canonical literals of a path: its conditions with top-level `and`
-/// flattened.  `contradictory` is set when the path holds `false`, a
-/// literal together with its negation, or two recognizers of different
-/// constructors on one term.
+/// flattened, and each negated disjunction `not (or a1 ... an)` also as the
+/// literals `not ai` it entails.  `contradictory` is set when the path holds
+/// `false`, a literal together with its negation, a disjunction whose every
+/// disjunct is refuted, or two recognizers of different constructors on one
+/// term.
+///
+/// The expansion is propositional, so it holds whatever definitions the
+/// disjuncts came from: a negated `is_stack_ptr p` refutes the slot comparisons
+/// its definition unfolds to, and nothing when it is left uninterpreted.
 struct PathLiterals {
     std::unordered_set<unsigned> ids;
     /// Term id -> id of the constructor the path proves it was built with.
     std::unordered_map<unsigned, unsigned> constructor_of;
     bool contradictory = false;
+    /// Disjunctions on the path, rechecked once every literal is in.
+    std::vector<z3::expr> disjunctions;
 
     void add(const z3::expr &cond) {
         z3::expr const c = canonical_literal(cond);
@@ -1195,6 +1203,12 @@ struct PathLiterals {
     }
     void add_all(const std::vector<z3::expr> &conds) {
         for (auto const &c : conds) add(c);
+    }
+    /// A disjunction added before the literals refuting its disjuncts is
+    /// refuted only once they are in.
+    void finish() {
+        for (auto const &d : disjunctions)
+            if (decide(d) == Z3Result::False) contradictory = true;
     }
     bool holds(const z3::expr &l) const {
         if (l.is_true() || ids.count(l.id())) return true;
@@ -1241,6 +1255,13 @@ private:
         if (refuted(l)) contradictory = true;
         if (!l.is_true()) ids.insert(l.id());
         if (contradictory) return;
+        if (l.is_or()) disjunctions.push_back(l);
+        // not (a1 or ... or an) entails each not ai.
+        if (l.is_not() && l.arg(0).is_or()) {
+            z3::expr const d = l.arg(0);
+            for (unsigned i = 0; i < d.num_args() && !contradictory; ++i) add_literal(negated(d.arg(i)));
+            return;
+        }
         if (auto const tested = recognized_constructor(l)) {
             constructor_of.emplace(l.arg(0).id(), tested->id());
         } else if (l.is_not()) {
@@ -1256,6 +1277,12 @@ private:
     }
 };
 
+static int literal_only_depth = 0;
+size_t z3_literal_only_skips = 0;
+LiteralOnlyScope::LiteralOnlyScope() { ++literal_only_depth; }
+LiteralOnlyScope::~LiteralOnlyScope() { --literal_only_depth; }
+bool literal_only() { return literal_only_depth > 0; }
+
 /// The literals of the conditions and, if not null, the inductions.  A
 /// condition that is a literal, or whose negation is one, is decided without
 /// Z3; on a contradictory path every condition is refuted, as the two solver
@@ -1264,6 +1291,7 @@ static PathLiterals path_literals(const std::vector<z3::expr> &conds, const std:
     PathLiterals lits;
     lits.add_all(conds);
     if (inductions) lits.add_all(*inductions);
+    lits.finish();
     return lits;
 }
 
@@ -1277,6 +1305,10 @@ Z3Result z3_verify(const shared_ptr<ProveState>& state, const z3::expr& cond, Qu
         lits.contradictory || lits.decide(cond) == Z3Result::True) {
         z3_literal_hits++;
         return Z3Result::True;
+    }
+    if (literal_only()) {
+        z3_literal_only_skips++;
+        return Z3Result::Unknown;
     }
     auto const start = std::chrono::high_resolution_clock::now();
     z3::solver solve = make_solver();
@@ -1331,6 +1363,10 @@ Z3Result z3_verify_state_sat(const shared_ptr<ProveState>& state, QueryInfo *qin
         z3_literal_hits++;
         return Z3Result::False;
     }
+    if (literal_only()) {
+        z3_literal_only_skips++;
+        return Z3Result::Unknown;
+    }
     auto const start = std::chrono::high_resolution_clock::now();
     z3::solver solve = make_solver();
 
@@ -1377,6 +1413,10 @@ Z3Result z3_verify_state_sat(const shared_ptr<EvalState>& state, QueryInfo *qinf
     if (path_literals(*state->conds, nullptr).contradictory) {
         z3_literal_hits++;
         return Z3Result::False;
+    }
+    if (literal_only()) {
+        z3_literal_only_skips++;
+        return Z3Result::Unknown;
     }
     // Decided answers are cached; Unknown is not, so a later call can still
     // decide the state.
@@ -1435,6 +1475,10 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, const z3::expr& cond, Quer
     if (decided != Z3Result::Unknown) {
         z3_literal_hits++;
         return decided;
+    }
+    if (literal_only()) {
+        z3_literal_only_skips++;
+        return Z3Result::Unknown;
     }
     auto const start = std::chrono::high_resolution_clock::now();
     auto const cache_query = Z3ResultCache::query(Z3ResultCache::Kind::Check, *state, &cond, timeout);
@@ -1545,6 +1589,10 @@ Z3Result z3_check(const shared_ptr<EvalState>& state, int timeout) {
         z3_literal_hits++;
         return Z3Result::False;
     }
+    if (literal_only()) {
+        z3_literal_only_skips++;
+        return Z3Result::Unknown;
+    }
     auto const start = std::chrono::high_resolution_clock::now();
     auto const cache_query = Z3ResultCache::query(Z3ResultCache::Kind::CheckState, *state, nullptr, timeout);
     z3_checks++;
@@ -1615,6 +1663,10 @@ Z3Result z3_check_unsat(const shared_ptr<ProveState>& state, const z3::expr& con
         lits.contradictory || lits.decide(cond) == Z3Result::True) {
         z3_literal_hits++;
         return Z3Result::True;
+    }
+    if (literal_only()) {
+        z3_literal_only_skips++;
+        return Z3Result::Unknown;
     }
     auto const start = std::chrono::high_resolution_clock::now();
     // Sat is not cached: it comes with the counterexample in [ce].
