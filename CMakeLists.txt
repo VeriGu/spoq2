@@ -359,6 +359,14 @@ target_compile_definitions(JoinScopeTest PRIVATE
     SPOQ_STACK_FRAME_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/stack_frame")
 add_test(NAME JoinScope COMMAND JoinScopeTest)
 
+# ReuseLookupsTest -- rule_reuse_lookups reuses only what means the same
+add_executable(ReuseLookupsTest test/unit/ReuseLookupsTest.cpp $<TARGET_OBJECTS:spoq_core>)
+target_link_libraries(ReuseLookupsTest GTest::gtest_main GTest::gtest irloader parser
+    antlr4_shared ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})
+target_compile_definitions(ReuseLookupsTest PRIVATE
+    SPOQ_STACK_FRAME_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/stack_frame")
+add_test(NAME ReuseLookups COMMAND ReuseLookupsTest)
+
 add_executable(Z3SimplifyFixpointTest test/unit/Z3SimplifyFixpointTest.cpp $<TARGET_OBJECTS:spoq_core>)
 target_link_libraries(Z3SimplifyFixpointTest GTest::gtest_main GTest::gtest irloader parser
     antlr4_shared ${LLVM_LIBRARIES} ${Z3_LIBRARIES} ${Boost_LIBRARIES})

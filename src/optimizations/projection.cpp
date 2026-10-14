@@ -557,6 +557,10 @@ void spec_transformer_v2(Project *proj, Definition *def, int layer_id, bool unfo
             std::tie(spec, join_changed) = proj->rules.rule_forward_join_slots(std::move(spec));
             trace_pass("forward_join_slots");
             changed |= join_changed;
+            bool reuse_changed = false;
+            std::tie(spec, reuse_changed) = proj->rules.rule_reuse_lookups(std::move(spec));
+            trace_pass("reuse_lookups");
+            changed |= reuse_changed;
             if (dump_hoist && def->name == dump_hoist) {
                 std::ofstream ofs(def->name + "_iter" + std::to_string(cur_iter) + "_post_hoist.txt");
                 ofs << spec;

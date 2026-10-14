@@ -149,6 +149,10 @@ public:
     /// result of E writes with one value V, which E does not bind, holds V in
     /// body: `(S.(stack)) @ "slot"` there becomes V.
     rule_ret_t rule_forward_join_slots(std::unique_ptr<SpecNode> spec);
+    /// Reuses a block lookup, a pair destructuring, or a rely already made on
+    /// the path: a match on T inside an arm `Some x` of a match on the same T,
+    /// a second `let (a, b) := x` of the same x, a rely of a fact in scope.
+    rule_ret_t rule_reuse_lookups(std::unique_ptr<SpecNode> spec);
     rule_ret_t rule_simplify_expr(std::unique_ptr<SpecNode> spec, bool rec);
     rule_ret_t rule_simple_by_z3(std::unique_ptr<SpecNode> spec, std::shared_ptr<EvalState> state);
     rule_ret_t rule_keep_fields_of_interest(std::unique_ptr<SpecNode> spec);

@@ -484,3 +484,66 @@ TEST(JoinScopeOpaque, StackEqualityThatFails) {
                              kOpaquePost);
     EXPECT_TRUE(read_kept(out)) << out;
 }
+
+namespace {
+
+/// Replaces each Symbol QUANT under [n] with a fresh copy of [with].
+void replace_quant(std::unique_ptr<SpecNode> &n, const SpecNode &with) {
+    if (!n) return;
+    if (auto sym = dynamic_cast<Symbol *>(n.get()); sym && sym->text == "QUANT") {
+        n = with.deep_copy();
+        return;
+    }
+    if (auto m = dynamic_cast<Match *>(n.get())) {
+        replace_quant(m->src, with);
+        for (auto &pm : *m->match_list) replace_quant(pm->body, with);
+    } else if (auto i = dynamic_cast<If *>(n.get())) {
+        replace_quant(i->cond, with);
+        replace_quant(i->then_body, with);
+        replace_quant(i->else_body, with);
+    } else if (auto r = dynamic_cast<RelyAnno *>(n.get())) {
+        replace_quant(r->prop, with);
+        replace_quant(r->body, with);
+    } else if (auto e = dynamic_cast<Expr *>(n.get())) {
+        if (e->elems)
+            for (auto &x : *e->elems) replace_quant(x, with);
+    }
+}
+
+}  // namespace
+
+/// Each arm's value names its own q only under a quantifier, and an outer q is
+/// in scope at the join.  The quantified names are names of the value, so it
+/// is not forwarded.  The parser takes a quantifier only as a proposition, so
+/// the condition is put in place of the symbol QUANT after parsing.
+TEST(JoinScope, ArmLocalNameUnderAQuantifier) {
+    std::string const v = "(Some (PtrVal (if QUANT then (mkPtr \"g\" 0) else (mkPtr \"h\" 0))))";
+    auto const body =
+        "  when q, st0 == ((mk_spec st));\n"
+        "  when st_b == (\n"
+        "    if (c =? 0)\n"
+        "    then (when q, st1 == ((mk_spec st0)); (Some (st1.[stack] :< ((st1.(stack)) # \"stack_type_2\" == " + v + "))))\n"
+        "    else (when q, st1 == ((mk_spec st0)); (Some (st1.[stack] :< ((st1.(stack)) # \"stack_type_2\" == " + v + ")))));\n" +
+        read_ret("st_b", "stack_type_2", "st_b");
+    auto const tmp = std::string("/tmp/join_scope_quant_") + std::to_string(::getpid()) + ".v";
+    {
+        std::ofstream out(tmp);
+        out << read_file(kMainV) << "\n\nParameter QUANT : bool.\n"
+            << "Definition join_case (c: int32) (d: int32) (st: RData) : (option (Ptr * RData)) :=\n" << body << ".\n";
+    }
+    Project proj;
+    parser::parse(&proj, tmp);
+    auto def = proj.defs.find("join_case");
+    ASSERT_NE(def, proj.defs.end());
+    auto spec = std::move(def->second->body());
+    auto vars = std::make_unique<std::vector<std::shared_ptr<Arg>>>();
+    vars->push_back(std::make_shared<Arg>("i", Int::INT));
+    auto quant = std::make_unique<Forall>(std::move(vars),
+                                          std::unique_ptr<SpecNode>(parser::parseExpr(&proj, "((q.(poffset)) > i)")));
+    replace_quant(spec, *quant);
+    bool changed = false;
+    std::tie(spec, changed) = proj.rules.rule_forward_join_slots(std::move(spec));
+    auto const out = std::string(*spec);
+    EXPECT_TRUE(contains(out, "forall")) << out;
+    EXPECT_TRUE(contains(out, "((st_b.(stack)) @ \"stack_type_2\")")) << out;
+}

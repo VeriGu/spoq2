@@ -4108,14 +4108,19 @@ std::optional<std::pair<std::string, int>> when_state(Match *m) {
 /// frame binds a name with no known term.  [src] is evaluated in [env].
 /// Two references to a name mean the same binding iff they find the same frame.
 /// A Fact frame binds no name: it records that the proposition [src], negated
-/// when [pos] is 0, holds on the path from here, with names as in [env].
+/// when [pos] is 0, holds on the path from here, with names as in [env].  A
+/// Known frame binds [name] as the x of an arm `Some x` of a match on [src]: on
+/// this path [src], in [env], is `Some name`.  A KnownTuple frame binds no
+/// name: [src] is a name destructured into the bindings [parts].  Only
+/// rule_reuse_lookups makes these two; elsewhere a Known frame is opaque.
 struct ScopeFrame {
-    enum Kind { Let, When, Opaque, Fact } kind;
+    enum Kind { Let, When, Opaque, Fact, Known, KnownTuple } kind;
     std::string name;
     SpecNode *src;
     int pos;
     std::shared_ptr<const ScopeFrame> env;
     std::shared_ptr<const ScopeFrame> parent;
+    std::vector<const ScopeFrame *> parts = {};
 };
 using Scope = std::shared_ptr<const ScopeFrame>;
 
@@ -4149,6 +4154,9 @@ void term_names(SpecNode *n, std::set<std::string> &out) {
     } else if (auto r = instance_of(n, RelyAnno)) {
         term_names(r->prop.get(), out);
         term_names(r->body.get(), out);
+    } else if (auto q = instance_of(n, ForallExists)) {
+        for (auto const &v : *q->vars) out.insert(v->name);
+        term_names(q->body.get(), out);
     } else if (auto e = instance_of(n, Expr)) {
         if (auto const *o = std::get_if<std::unique_ptr<SpecNode>>(&e->op)) term_names(o->get(), out);
         if (e->elems)
@@ -4783,7 +4791,166 @@ void forward_joins(Project *proj, SpecNode *n, const Scope &scope, bool &changed
     }
 }
 
+/// The x of a pattern `Some x`; null for `Some _`, which binds nothing.
+Symbol *some_binder(SpecNode *pattern) {
+    auto e = instance_of(pattern, Expr);
+    if (!e || !op_eq(e->op, Expr::Some) || !e->elems || e->elems->size() != 1) return nullptr;
+    auto x = instance_of(e->elems->at(0).get(), Symbol);
+    return x && x->text != "_" ? x : nullptr;
+}
+
+bool is_none_pattern(SpecNode *pattern) {
+    auto e = instance_of(pattern, Expr);
+    return e && op_eq(e->op, Expr::None);
+}
+
+/// The symbols of a pattern `(a1, ..., an)` of names, or empty.
+std::vector<Symbol *> tuple_names(SpecNode *pattern) {
+    std::vector<Symbol *> out;
+    auto t = instance_of(pattern, Expr);
+    if (!t || !op_eq(t->op, Expr::Tuple) || !t->elems) return out;
+    for (auto &x : *t->elems) {
+        auto sym = instance_of(x.get(), Symbol);
+        if (!sym) return {};
+        out.push_back(sym);
+    }
+    return out;
+}
+
+/// `let x := value in body`, as a one-arm Match on a name pattern.
+std::unique_ptr<SpecNode> let_of(std::unique_ptr<Symbol> x, std::unique_ptr<SpecNode> value,
+                                 std::unique_ptr<SpecNode> body) {
+    auto arms = std::make_unique<std::vector<std::unique_ptr<PatternMatch>>>();
+    arms->push_back(std::make_unique<PatternMatch>(std::move(x), std::move(body)));
+    return std::make_unique<Match>(std::move(value), std::move(arms));
+}
+
+struct ReuseCounts {
+    size_t lookups = 0, tuples = 0, relies = 0;
+};
+
+/// rule_reuse_lookups below [n], with the bindings and facts in scope.
+void reuse_lookups(Project *proj, std::unique_ptr<SpecNode> &n, const Scope &scope, ReuseCounts &counts) {
+    if (!n) return;
+    if (auto r = instance_of(n.get(), Rely)) {
+        for (auto f = scope.get(); f; f = f->parent.get())
+            if (f->kind == ScopeFrame::Fact && f->pos == 1 && *f->src == *r->prop &&
+                same_bindings(proj, r->prop.get(), f->env, scope)) {
+                // The proposition holds on the path already.
+                counts.relies++;
+                n = std::move(r->body);
+                reuse_lookups(proj, n, scope, counts);
+                return;
+            }
+        reuse_lookups(proj, r->body, with_fact(r->prop.get(), true, scope), counts);
+        return;
+    }
+    if (auto r = instance_of(n.get(), RelyAnno)) {
+        reuse_lookups(proj, r->body, scope, counts);
+        return;
+    }
+    if (auto i = instance_of(n.get(), If)) {
+        reuse_lookups(proj, i->cond, scope, counts);
+        reuse_lookups(proj, i->then_body, with_fact(i->cond.get(), true, scope), counts);
+        reuse_lookups(proj, i->else_body, with_fact(i->cond.get(), false, scope), counts);
+        return;
+    }
+    if (auto e = instance_of(n.get(), Expr)) {
+        if (e->elems)
+            for (auto &x : *e->elems) reuse_lookups(proj, x, scope, counts);
+        return;
+    }
+    auto m = instance_of(n.get(), Match);
+    if (!m) return;
+    reuse_lookups(proj, m->src, scope, counts);
+    auto &arms = *m->match_list;
+
+    // `match T with None => _ | Some y => B` where an enclosing arm `Some x` of
+    // a match on the same T is still in scope: on this path T is `Some x`.
+    if (arms.size() == 2) {
+        size_t const some = some_binder(arms[0]->pattern.get()) ? 0 : 1;
+        auto y = some_binder(arms[some]->pattern.get());
+        if (y && is_none_pattern(arms[1 - some]->pattern.get())) {
+            for (auto f = scope.get(); f; f = f->parent.get()) {
+                if (f->kind != ScopeFrame::Known || !(*f->src == *m->src) ||
+                    !same_bindings(proj, m->src.get(), f->env, scope) || lookup(scope, f->name) != f)
+                    continue;
+                counts.lookups++;
+                auto x = std::make_unique<Symbol>(f->name, y->get_type());
+                auto y_copy = std::unique_ptr<Symbol>(static_cast<Symbol *>(y->deep_copy().release()));
+                auto let = let_of(std::move(y_copy), std::move(x), std::move(arms[some]->body));
+                let->copy_alignment_from(*m);
+                n = std::move(let);
+                reuse_lookups(proj, n, scope, counts);
+                return;
+            }
+        }
+    }
+
+    // `let (c1, ..., cn) := x` where an enclosing `let (a1, ..., an) := x` of
+    // the same x is in scope, its names still visible.
+    if (arms.size() == 1) {
+        auto const names = tuple_names(arms[0]->pattern.get());
+        auto x = instance_of(m->src.get(), Symbol);
+        if (!names.empty() && x) {
+            for (auto f = scope.get(); f; f = f->parent.get()) {
+                if (f->kind != ScopeFrame::KnownTuple || f->parts.size() != names.size()) continue;
+                auto known = instance_of(f->src, Symbol);
+                if (!known || known->text != x->text || lookup(f->env, x->text) != lookup(scope, x->text)) continue;
+                bool visible = true;
+                for (auto const part : f->parts) visible &= lookup(scope, part->name) == part;
+                if (!visible) continue;
+                // The lets bind c1 first: a ci that is a later aj would capture
+                // it.  `_` binds nothing, on either side.
+                bool clash = false;
+                for (size_t i = 0; i < names.size(); i++) {
+                    clash |= names[i]->text == "_" || f->parts[i]->name == "_";
+                    for (size_t j = 0; j < names.size(); j++) clash |= i != j && names[i]->text == f->parts[j]->name;
+                }
+                if (clash) continue;
+                counts.tuples++;
+                std::unique_ptr<SpecNode> body = std::move(arms[0]->body);
+                for (size_t i = names.size(); i-- > 0;) {
+                    auto c = std::unique_ptr<Symbol>(static_cast<Symbol *>(names[i]->deep_copy().release()));
+                    auto a = std::make_unique<Symbol>(f->parts[i]->name, names[i]->get_type());
+                    body = let_of(std::move(c), std::move(a), std::move(body));
+                }
+                body->copy_alignment_from(*m);
+                n = std::move(body);
+                reuse_lookups(proj, n, scope, counts);
+                return;
+            }
+            // Record this destructuring for the body, with the frames bind_arm
+            // gives its names.
+            Scope inner = bind_arm(proj, m, 0, scope);
+            std::vector<const ScopeFrame *> parts;
+            for (auto const sym : names) parts.push_back(lookup(inner, sym->text));
+            inner = std::make_shared<const ScopeFrame>(
+                ScopeFrame{ScopeFrame::KnownTuple, "", m->src.get(), -1, scope, inner, parts});
+            reuse_lookups(proj, arms[0]->body, inner, counts);
+            return;
+        }
+    }
+
+    for (size_t k = 0; k < arms.size(); k++) {
+        Scope arm_scope = bind_arm(proj, m, k, scope);
+        if (auto y = some_binder(arms[k]->pattern.get()))
+            arm_scope = std::make_shared<const ScopeFrame>(
+                ScopeFrame{ScopeFrame::Known, y->text, m->src.get(), -1, scope, arm_scope});
+        reuse_lookups(proj, arms[k]->body, arm_scope, counts);
+    }
+}
+
 }  // namespace
+
+rule_ret_t SpecRules::rule_reuse_lookups(std::unique_ptr<SpecNode> spec) {
+    ReuseCounts counts;
+    reuse_lookups(proj, spec, nullptr, counts);
+    if (std::getenv("SPOQ_TRACE_TRANSFORM") && (counts.lookups || counts.tuples || counts.relies))
+        LOG_DEBUG << "[REUSE] lookups " << counts.lookups << " destructurings " << counts.tuples << " relies "
+                  << counts.relies;
+    return {std::move(spec), counts.lookups + counts.tuples + counts.relies > 0};
+}
 
 rule_ret_t SpecRules::rule_forward_join_slots(std::unique_ptr<SpecNode> spec) {
     bool changed = false;
