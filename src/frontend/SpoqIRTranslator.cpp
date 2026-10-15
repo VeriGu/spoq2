@@ -9,6 +9,8 @@
 #include "anon_structs.h"
 
 #include <cassert>
+#include <functional>
+#include <map>
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
@@ -562,6 +564,35 @@ static llvm::BasicBlock *reconvergence_point(llvm::BasicBlock *b, llvm::BasicBlo
 
     for (auto *p : llvm::predecessors(j))
         if (!context.dominates(b, p)) return nullptr;
+
+    // Post-dominance is over the whole CFG, back edges included, but an arm's
+    // walk ends at a back edge (a recursive call) or a loop exit (a break), as
+    // in dfs_llvm_ir_to_spoq_inst_vec.  j is a join only if every walk from
+    // each arm reaches it before ending: in `for (;;) { if (c) { if (d) break;
+    // ... } ... }` the only exit is in the then arm, which post-dominates the
+    // header, and the else arm reaches the back edge instead (jq's
+    // decToString).  A nested loop is jumped over to its postheader.
+    std::map<llvm::BasicBlock *, int> state;  // 1 visiting, 2 reaches j, 3 does not
+    std::function<bool(llvm::BasicBlock *, llvm::BasicBlock *)> reaches =
+        [&](llvm::BasicBlock *bb, llvm::BasicBlock *parent) -> bool {
+        if (context.is_backward(parent, bb) || context.is_exiting(parent, bb)) return false;
+        if (bb == j) return true;
+        auto &s = state[bb];
+        if (s) return s == 2;
+        s = 1;
+        bool ok;
+        if (auto *target = context.require_jump(bb)) {
+            ok = reaches(target, nullptr);
+        } else {
+            auto *term = bb->getTerminator();
+            ok = term && term->getNumSuccessors() > 0;
+            for (unsigned i = 0; ok && i < term->getNumSuccessors(); ++i)
+                ok = reaches(term->getSuccessor(i), bb);
+        }
+        state[bb] = ok ? 2 : 3;
+        return ok;
+    };
+    if (!reaches(t, b) || !reaches(f, b)) return nullptr;
 
     return usable_join(j) ? j : nullptr;
 }
@@ -2241,6 +2272,15 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 llvm::errs() << "Unsupported SpoqIR Cast instruction [LLVM]: " << *spoq_inst->inst << "\n";
                 assert(false && "Unsupported SpoqIR Cast instruction [LLVM]");
             }
+        }
+
+        // A value is never poison or undef in this model, and freeze of a value
+        // that is neither is that value (LangRef), so freeze aliases its operand.
+        if (auto fr = llvm::dyn_cast<llvm::FreezeInst>(spoq_inst->inst)) {
+            auto sym = context.get_llvm_value_spec(fr);
+            auto expr = context.get_llvm_value_spec(fr->getOperand(0));
+            context.add_cache(context.get_llvm_value_name(fr), expr);
+            return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
         }
 
         if (auto phi = llvm::dyn_cast<llvm::PHINode>(spoq_inst->inst)) {
