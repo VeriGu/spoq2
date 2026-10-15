@@ -171,6 +171,10 @@ public:
     /// Untransformed body of each generated loop low spec, kept for the
     /// vuln/patch loop identification in infer_spec_task_v2.
     unordered_map<string, unique_ptr<SpecNode>> loop_low_raw;
+    /// Set once the checks are done.  A spec whose derivation is still deferred
+    /// is then derived without transformation, so reading it (Coq generation)
+    /// neither unfolds nor transforms.
+    bool specs_frozen = false;
     unordered_map<string, SymbolInfo> symbols;
 
     std::set<string> skip_state_specs;

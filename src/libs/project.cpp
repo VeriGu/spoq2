@@ -1944,6 +1944,11 @@ Project::infer_spec_task_v2(Project* proj, int layer_id, string fname) {
                 body = std::move(renamed);
             }
             d.body() = std::move(body);
+            if (proj->specs_frozen) {
+                LOG_DEBUG << "Not transforming " << d.name << ": read after the checks";
+                proj->deps[d.name] = proj->calc_dependencies(d.body().get());
+                return;
+            }
             profile_clear();
             if (!no_trans) {
                 if (OPTS.new_trans) spec_transformer_v2(proj, &d, layer_id, layer_id, true, 300);
@@ -2007,6 +2012,10 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
             // Deferred with the high spec: deriving that reads this body, so
             // deferring this alone has no effect.
             def->finish_body = [proj, layer_id](Definition &d) {
+                if (proj->specs_frozen) {
+                    LOG_DEBUG << "Not transforming " << d.name << ": read after the checks";
+                    return;
+                }
                 QuerySaverGuard const qguard(proj);
                 UnfoldPolicyGuard const pguard;
                 profile_clear();

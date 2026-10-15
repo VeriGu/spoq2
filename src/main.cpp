@@ -28,10 +28,12 @@ int main(int argc, char *argv[])
 
     if (OPTS.use_llvm_frontend) {
         proj->finalize_project_v2();
+        proj->specs_frozen = true;
         autov::generate_proj(proj.get());
     }
     else {
         proj->finalize_project();
+        proj->specs_frozen = true;
         autov::generate_proj(proj.get());
     }
     return 0;

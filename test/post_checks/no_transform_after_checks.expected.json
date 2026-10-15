@@ -1,0 +1,5 @@
+{
+  "verified": false,
+  "stderr_contains": "loop invariant of vuln_loop_0 is not inductive;Not transforming vuln_spec: read after the checks;Not transforming patch_spec: read after the checks",
+  "stderr_lacks": "Transforming vuln_spec, unfold;Transforming patch_spec, unfold"
+}
