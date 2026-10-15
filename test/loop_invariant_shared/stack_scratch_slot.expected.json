@@ -1,0 +1,9 @@
+{
+  "verified": true,
+  "spec_has_ub": true,
+  "impl_eliminates_ub": true,
+  "impl_has_non_spec_ub": false,
+  "env": "SPOQ_STACK_TYPING=1",
+  "stderr_contains": "(memory inlined): R = {;st'.stack @ \"stack_type_1__1\"=st.stack @ \"stack_type_1__1\";st'.stack=st.stack outside the keys;st'.heap=st.heap;st'.globals=st.globals",
+  "stderr_lacks": "st'.stack @ \"stack_type_1\"=st.stack @ \"stack_type_1\""
+}

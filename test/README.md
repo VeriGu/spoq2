@@ -303,6 +303,51 @@ that the stack arms of an access through `p` are pruned under the fact, and kept
 without it or when `is_stack_ptr` is defined so that the fact excludes no slot.
 See `path_facts/README.md`.
 
+## loop_invariant_shared/
+
+Loop pairs that identification leaves separate get a relational postcondition
+(`shared_loop_inv.cpp`, design in `docs/shared_loop_invariant.md`).  Where the
+refinement check meets a call of a vuln loop and of a patch loop on one path, it
+infers by Houdini on the product of the two bodies a relation R of their
+arguments, an exit-code mapping with related results E, the divergence
+predicates Q and U, and adds the theorem at the two calls.  The log reports
+`Shared loop invariant <patch> ~ <vuln>: R = {...}` or `No shared loop
+invariant ...`, which the `stderr_contains` pins check.
+`SPOQ_SHARED_LOOP_INV=0` disables the analysis; every `verified: true` case
+below is then `false`.
+
+| test | loops | expected | discriminates |
+|---|---|---|---|
+| `extra_param` | the patch loop carries `a`, which the vuln loop does not | `verified: true` | R leaves `a` free; E has `r'.a = a'` from the stable argument |
+| `entry_differs` | `extra_param` with the patch accumulator starting at 1 | `verified: false` | `sum' = acc` fails at the call and leaves R |
+| `added_continue` | the patch skips the iterations on which the vuln divides by zero | `verified: true` | the vuln path is None in the same iteration |
+| `added_break_later_ub` | the patch breaks on `c < 0`; the vuln keeps iterating and exits to a division by zero | `verified: true` | U = `c < 0`; the vuln exits under U are diverged |
+| `added_break_no_ub` | as above, but the vuln adds 1 and continues | `verified: false` | no vuln invariant holds where only the patch exits |
+| `early_exit_ub_after` | the patch returns early at `x == 0`, where the vuln breaks to `100 / x` | `verified: true` | exit codes 0 -> 1, 1 -> 2; Q = `r.x = 0` |
+| `early_exit_no_ub` | as above, but the vuln returns `x` after the break | `verified: false` | the same relation; the failure is at the diverged exit |
+| `permuted_exits` | the same exits, numbered in the other order | `verified: true` | exit codes 0 -> 1, 1 -> 0 |
+| `scaled_accumulator` | `loop_ident_differ` | `verified: false` | R has `sum' = 2*acc (mod 2^32)`; the patch's zero test differs under wrap |
+| `unrelated_loops` | count up and add `pick()` vs. count down and add `2 * pick()` | `verified: false` | no relation |
+| `patch_adds_ub` | the patch divides by zero where the vuln continues | `verified: false` | no relation |
+| `nested_inner_differs` | outer loops differ only in their inner loops, which differ as in `extra_param` | `verified: true` | the inner relation is instantiated in the product of the outer loops |
+| `stack_scratch_slot` | the patch loop writes a scratch stack slot `tmp`; both loops read the slot `keep` | `verified: true` | R has the stack equal outside `tmp`'s slot, and at `keep`'s |
+| `stack_scratch_differs` | as above, but the patch loop writes `keep` | `verified: false` | the frame does not relate `keep` |
+| `global_scratch` | the patch loop writes the global `dumb`; both read `keep` after the loop | `verified: true` | R relates `globals.g_keep` and not `globals.g_dumb` |
+| `global_keep_clobbered` | the patch loop writes `keep` | `verified: false` | R does not relate `globals.g_keep` |
+
+When R equates the states, it relates the parts of them too.  When the first
+inference does not, it is repeated with the memory accessors (`load_RData`,
+`store_RData` and what they call) inlined into the loop bodies, since folded
+they are functions of the whole state.  The candidates are then the equality
+of each record field of the state, and for the stack, which is indexed by
+strings, equality outside a set of keys, equality at each key, and that a key
+is allocated on either side.  The keys are the string constants of the bodies
+and the `pbase` of each pointer argument.  The two stack cases set
+`SPOQ_STACK_TYPING=1`: without typed slots, the patch's store to `tmp` may meet
+a slot of another type and is None where the vuln continues, so
+`stack_scratch_slot` is `false`.  Their postcondition relates the heaps and
+globals only, since the stack is dead after the return.
+
 ## Attribute disposition
 
 Every function attribute appearing in the reference corpus

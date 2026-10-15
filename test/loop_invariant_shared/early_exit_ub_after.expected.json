@@ -1,0 +1,7 @@
+{
+  "verified": true,
+  "spec_has_ub": true,
+  "impl_eliminates_ub": true,
+  "impl_has_non_spec_ub": false,
+  "stderr_contains": "exit 0 -> 1;exit 1 -> 2;diverged if (and (= r.n |n'|)"
+}

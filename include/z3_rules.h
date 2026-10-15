@@ -187,6 +187,11 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, const shared_
 shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pat, const shared_ptr<SpecValue>& src,
                                       unordered_map<string, shared_ptr<SpecValue>> &vars,
                                       unordered_map<string, shared_ptr<SpecValue>> &assigns);
+/// The condition under which a match arm is taken; fills [vars] and [assigns]
+/// as resolve_pattern does.
+z3::expr match_arm_condition(Project *proj, SpecNode *val, SpecNode *pattern, const shared_ptr<SpecValue> &src,
+                             unordered_map<string, shared_ptr<SpecValue>> &vars,
+                             unordered_map<string, shared_ptr<SpecValue>> &assigns);
 bool check_loop_inv(Project* proj, Definition *loop);
 bool check_invariant(Project* proj, Definition* prim, SpecNode* inv);
 unique_ptr<SpecNode> formulate_loop_invariant(Project* proj, string fname, vector<unique_ptr<SpecNode>>* args);

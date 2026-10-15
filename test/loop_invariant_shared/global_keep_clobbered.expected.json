@@ -1,0 +1,8 @@
+{
+  "verified": false,
+  "spec_has_ub": true,
+  "impl_eliminates_ub": true,
+  "impl_has_non_spec_ub": false,
+  "stderr_contains": "(memory inlined): R = {;st'.heap=st.heap",
+  "stderr_lacks": "st'.globals.g_keep=st.globals.g_keep"
+}

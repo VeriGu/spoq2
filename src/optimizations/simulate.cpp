@@ -4,6 +4,7 @@
 #include <simulate.h>
 #include <coi.h>
 #include <rules.h>
+#include <shared_loop_inv.h>
 
 // TODO: Implement simulation-aux functions, maybe integrated into prove_by_traverse in future
 namespace autov
@@ -161,6 +162,7 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 		unique_ptr<SpecNode> post_cond;
 		unique_ptr<SpecNode> loop_post_cond;
 		auto const src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
+		relate_loop_calls(proj, state, src->get_z3_value());
 		if (auto expr = instance_of(m->src.get(), Expr)) {
 			/** TODO: add post-conds and loop-invs */
 			if (holds_alternative<string>(expr->op)){
@@ -734,6 +736,7 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 			// SpecNode *st_input = extract_st_from_expr(proj, m->src.get());
 
 			auto const src = z3_eval(proj, m->src.get(), state, true, false, used_fix);
+			relate_loop_calls(proj, state, src->get_z3_value());
 
 			// If the impl node is a `match` and src == impl_src by SMT check
 			// and has the same branch structure, advance the impl into

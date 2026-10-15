@@ -185,6 +185,7 @@ set(SOURCES
     src/optimizations/z3_utils.cpp
     src/optimizations/profile.cpp
     src/optimizations/simulate.cpp
+    src/optimizations/shared_loop_inv.cpp
     src/optimizations/symbolic.cpp
     src/optimizations/decompose.cpp
     src/backend/gen_coq/gen_code.cpp
