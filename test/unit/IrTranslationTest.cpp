@@ -1417,22 +1417,16 @@ TEST(IrTranslationSpec, IntegerTypesCarryTheirWidth) {
 
 /* -- calls through a function pointer --------------------------------------- */
 
-/// An indirect call becomes a call to a spec named after the pointer, its
-/// argument count and the calling function: `<ptr>_<argc>_fptr_<caller>_spec`,
-/// applied to the pointer itself followed by the arguments and the state.
-///
-/// Translation succeeds. Nothing defines that spec, though -- it is a name the
-/// project is expected to supply, as `ext_spec` is for an external declaration
-/// -- so a full run stops at `unknown expr op`, which is where ffm054 now ends:
-///
-///     unknown expr op (v_37_5_fptr_decode_unit_vuln_spec v_37 gb1 rc2 ...)
-///
-/// The convention is pinned here because it is the interface a project has to
-/// write against: change the shape of this name and every hand-written function
-/// pointer spec stops matching, with no error until z3_eval.
-TEST(IrTranslationSpec, FptrCallNamesThePointer) {
+/// An indirect call becomes a call to an uninterpreted function named after the
+/// type of its signature, `fptr_<signature>_spec`, applied to the pointer itself
+/// followed by the arguments and the state.  The name does not depend on the
+/// calling function, so two functions that call one
+/// pointer with equal arguments and state get one result (the vuln and patch
+/// helpers of mruby CVE-2022-0570); test/fptr/fptr_shared_refines checks that
+/// end to end.  The translator declares it in GlobalDefs.
+TEST(IrTranslationSpec, FptrCallNamesTheSignature) {
     std::string spec;
     ASSERT_NO_FATAL_FAILURE(expect_spec("translate_fptr_call.ll", "vuln", {}, &spec));
-    EXPECT_NE(spec.find("(fp_1_fptr_vuln_spec fp n st)"), std::string::npos)
+    EXPECT_NE(spec.find("(fptr_Func_Ptr_Z_RData_Option_Tuple_Z_RData_spec fp n st)"), std::string::npos)
         << "the synthesised name or its arguments changed:\n" << spec;
 }

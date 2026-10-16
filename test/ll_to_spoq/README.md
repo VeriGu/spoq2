@@ -195,17 +195,15 @@ integer vectors and is not a float question.
 ## Calls through a function pointer
 
 `translate_fptr_call.ll`. An indirect call becomes a call to
-`<ptr>_<argc>_fptr_<caller>_spec`, applied to the pointer itself, then the
-arguments, then the state:
+`fptr_<signature>_spec`, where `<signature>` is the name of the call's function
+type, applied to the pointer itself, then the arguments, then the state:
 
-    when call, st == ((fp_1_fptr_vuln_spec fp n st));
+    when call, st == ((fptr_Func_Ptr_Z_RData_Option_Tuple_Z_RData_spec fp n st));
 
-Translation succeeds and the fixture passes. Nothing defines that spec -- it is a
-name the project supplies, as `ext_spec` is for an external declaration -- so a
-full run stops at `unknown expr op`, which is where ffm054 ends once its
-reconvergence problem is out of the way. The convention is pinned because it is
-the interface a project writes against, and changing it would break every
-hand-written function pointer spec with no error until z3_eval.
+The name does not depend on the calling function, so calls through equal
+pointers with equal arguments and state agree wherever they are made.  The
+translator declares the function in GlobalDefs, as an uninterpreted function; a
+project can define a name of that form itself.
 
 ## switch
 

@@ -1,7 +1,7 @@
 {
-  "stderr_contains": "[FPTR] declaring fp_1_fptr_vuln_spec;imply post condition :) : vuln_spec",
-  "stderr_lacks": "does not imply post condition;[ERR];unknown expr op (fp_1_fptr",
+  "stderr_contains": "[FPTR] declaring fptr_Func_Ptr_Z_RData_Option_Tuple_Z_RData_spec;imply post condition :) : vuln_spec",
+  "stderr_lacks": "does not imply post condition;[ERR];unknown expr op (fptr_",
   "spec_v_definition": "vuln_spec",
-  "spec_v_contains": "fp_1_fptr_vuln_spec",
-  "coq_contains": "Parameter fp_1_fptr_vuln_spec :"
+  "spec_v_contains": "fptr_Func_Ptr_Z_RData_Option_Tuple_Z_RData_spec",
+  "coq_contains": "Parameter fptr_Func_Ptr_Z_RData_Option_Tuple_Z_RData_spec :"
 }

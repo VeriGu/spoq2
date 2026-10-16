@@ -165,17 +165,17 @@ static std::string float_intrinsic_name(llvm::StringRef llvm_name) {
 }
 
 /// Declare [name] as an uninterpreted function over [arg_types] -> [rettype],
-/// unless the project already has it.
+/// unless the project already has it.  True if it was declared here.
 ///
 /// GlobalDefs because these are shared: the same `fmul` is used by every
 /// function in every layer, and GlobalDefs is the one location every generated
 /// spec imports.  A declaration whose loc matches no section is registered and
 /// never emitted, which leaves the Coq referencing a name it never declares.
-static void declare_uninterpreted(Project *proj, const std::string &name,
+static bool declare_uninterpreted(Project *proj, const std::string &name,
                                   shared_ptr<vector<shared_ptr<SpecType>>> arg_types,
                                   shared_ptr<SpecType> rettype) {
-    if (proj->defs.find(name) != proj->defs.end()) return;
-    if (proj->decls.find(name) != proj->decls.end()) return;
+    if (proj->defs.find(name) != proj->defs.end()) return false;
+    if (proj->decls.find(name) != proj->decls.end()) return false;
     // A constant is declared at its own type, not as a nullary function: z3_eval
     // reaches a bare symbol through a path that asserts the declaration is not
     // a Function, and a float literal arrives there as a Symbol.
@@ -184,6 +184,7 @@ static void declare_uninterpreted(Project *proj, const std::string &name,
                            : make_shared<Function>(std::move(rettype), std::move(arg_types));
     proj->add_declaration(make_unique<Declaration>(name, std::move(type)),
                           make_shared<loc_t>(Project::LOC_GLOBALDEFS, "", ""));
+    return true;
 }
 
 /// The ordering predicates on pointers, and the test on icmp_ptr each becomes.
@@ -1844,47 +1845,36 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     declare_uninterpreted(proj, callee_name, fn_args, rettype);
                 }
                 if (!callee_func) {
-                    callee_name = context.get_llvm_value_name(callee) + "_" + std::to_string(call->arg_size()) + "_fptr_";
-                    callee_name = callee_name + context.spoq_func.llvm_func->getName().str() + "_spec";
+                    // Nothing says what the pointer refers to, so the call is an
+                    // uninterpreted function of the pointer, the arguments and the
+                    // state, one per call signature.  Calls through equal pointers
+                    // with equal arguments and state agree whichever function
+                    // makes them, the vuln's or the patch's.  In GlobalDefs, since
+                    // several functions may call it.  A project can still define
+                    // or declare the name itself.
+                    auto fn_args = make_shared<vector<shared_ptr<SpecType>>>();
+                    fn_args->push_back(context.get_llvm_value_type(callee));
+                    for (unsigned i = 0; i < call->arg_size(); i++)
+                        fn_args->push_back(context.get_llvm_value_type(call->getArgOperand(i)));
+                    fn_args->push_back(context.abs_data_type);
 
-                    // Nothing says what the pointer refers to.  Declare the spec
-                    // rather than leaving the name dangling: an uninterpreted
-                    // function of the pointer, the arguments and the state, which
-                    // is how an external declaration's spec is treated.  A project
-                    // that knows better can still define or declare it itself --
-                    // this only fills the gap.
-                    if (proj->defs.find(callee_name) == proj->defs.end() &&
-                        proj->decls.find(callee_name) == proj->decls.end()) {
-                        auto fn_args = make_shared<vector<shared_ptr<SpecType>>>();
-                        fn_args->push_back(context.get_llvm_value_type(callee));
-                        for (unsigned i = 0; i < call->arg_size(); i++)
-                            fn_args->push_back(context.get_llvm_value_type(call->getArgOperand(i)));
-                        fn_args->push_back(context.abs_data_type);
+                    shared_ptr<SpecType> rettype;
+                    if (call->getType()->isVoidTy()) {
+                        rettype = make_shared<Option>(context.abs_data_type);
+                    } else {
+                        auto elems = make_shared<vector<shared_ptr<SpecType>>>();
+                        elems->push_back(context.get_llvm_value_type(call));
+                        elems->push_back(context.abs_data_type);
+                        rettype = make_shared<Option>(make_shared<Tuple>(elems));
+                    }
 
-                        shared_ptr<SpecType> rettype;
-                        if (call->getType()->isVoidTy()) {
-                            rettype = make_shared<Option>(context.abs_data_type);
-                        } else {
-                            auto elems = make_shared<vector<shared_ptr<SpecType>>>();
-                            elems->push_back(context.get_llvm_value_type(call));
-                            elems->push_back(context.abs_data_type);
-                            rettype = make_shared<Option>(make_shared<Tuple>(elems));
-                        }
+                    // Named by the signature's type, whose name encodes every
+                    // argument and the result.
+                    callee_name = "fptr_" + make_shared<Function>(rettype, fn_args)->name + "_spec";
 
+                    if (declare_uninterpreted(proj, callee_name, fn_args, rettype))
                         LOG_INFO << "[FPTR] declaring " << callee_name
                                  << " for an indirect call with no spec" << std::endl;
-                        // The LowSpec of the function that calls through the
-                        // pointer, which is where the reference to this name
-                        // will be.  loc_t("", "", "") would register the
-                        // declaration and never emit it: gen_low_spec writes
-                        // the Decls whose loc is the section it is generating,
-                        // and treats the empty loc as "nowhere".
-                        proj->add_declaration(
-                            make_unique<Declaration>(callee_name,
-                                                     make_shared<Function>(rettype, fn_args)),
-                            make_shared<loc_t>(proj->layers[context.layer_id]->name,
-                                               context.fname(), Project::LOC_LOWSPEC));
-                    }
                 }
 
                 auto expr = std::make_unique<Expr>(callee_name, std::move(args));
