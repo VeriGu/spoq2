@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <functional>
 #include <map>
+#include <numeric>
 #include <optional>
 #include <set>
 #include <sstream>
@@ -116,34 +117,30 @@ z3::expr as_bool(const z3::expr &e) { return e.is_bool() ? e : e != 0; }
 
 bool same_sort(const z3::expr &a, const z3::expr &b) { return z3::eq(a.get_sort(), b.get_sort()); }
 
-/// Whether [e] applies [f] anywhere.
-bool mentions(const z3::expr &e, const z3::func_decl &f) {
+/// Whether some application in [e] satisfies [pred].
+bool any_app(const z3::expr &e, const std::function<bool(const z3::expr &)> &pred) {
     std::set<unsigned> seen;
     std::vector<z3::expr> todo{e};
     while (!todo.empty()) {
         auto const t = todo.back();
         todo.pop_back();
         if (!seen.insert(t.id()).second || !t.is_app()) continue;
-        if (t.decl().id() == f.id()) return true;
+        if (pred(t)) return true;
         for (unsigned i = 0; i < t.num_args(); i++) todo.push_back(t.arg(i));
     }
     return false;
+}
+
+/// Whether [e] applies [f] anywhere.
+bool mentions(const z3::expr &e, const z3::func_decl &f) {
+    return any_app(e, [&](const z3::expr &t) { return t.decl().id() == f.id(); });
 }
 
 /// Whether [e] mentions one of [consts].
 bool mentions_any(const z3::expr &e, const z3::expr_vector &consts) {
     std::set<unsigned> ids;
     for (auto const c : consts) ids.insert(c.decl().id());
-    std::set<unsigned> seen;
-    std::vector<z3::expr> todo{e};
-    while (!todo.empty()) {
-        auto const t = todo.back();
-        todo.pop_back();
-        if (!seen.insert(t.id()).second || !t.is_app()) continue;
-        if (t.num_args() == 0 && ids.count(t.decl().id())) return true;
-        for (unsigned i = 0; i < t.num_args(); i++) todo.push_back(t.arg(i));
-    }
-    return false;
+    return any_app(e, [&](const z3::expr &t) { return t.num_args() == 0 && ids.count(t.decl().id()); });
 }
 
 /// A model value built from numerals, string literals and constructors only.
@@ -214,13 +211,6 @@ struct Side {
     }
 
     /// A state over this loop's arguments with [from]'s path conditions.
-    shared_ptr<ProveState> rebind(const shared_ptr<ProveState> &from) const {
-        auto const s = fresh_state();
-        *s->conds = *from->conds;
-        *s->inductions = *from->inductions;
-        return s;
-    }
-
     /// A state over this loop's arguments with [from]'s path conditions, shared.
     shared_ptr<ProveState> share(const shared_ptr<ProveState> &from) const {
         return make_shared<ProveState>(fresh_state()->vars, from->conds, from->inductions);
@@ -329,6 +319,28 @@ bool enumerate(Project *proj, const Side &side, SpecNode *n, const shared_ptr<Pr
     return go(n, Walk{state, nullptr});
 }
 
+/// Calls [f] on each child of [n] that is evaluated, so not on the patterns
+/// of a Match.
+void for_each_child(SpecNode *n, const std::function<void(SpecNode *)> &f) {
+    if (auto e = instance_of(n, Expr)) {
+        if (auto op = std::get_if<unique_ptr<SpecNode>>(&e->op)) f(op->get());
+        if (e->elems)
+            for (auto const &x : *e->elems) f(x.get());
+    } else if (auto m = instance_of(n, Match)) {
+        f(m->src.get());
+        for (auto const &pm : *m->match_list) f(pm->body.get());
+    } else if (auto i = instance_of(n, If)) {
+        f(i->cond.get());
+        f(i->then_body.get());
+        f(i->else_body.get());
+    } else if (auto r = instance_of(n, RelyAnno)) {
+        f(r->prop.get());
+        f(r->body.get());
+    } else if (auto q = instance_of(n, ForallExists)) {
+        f(q->body.get());
+    }
+}
+
 /// Marks in [read] each argument of [loop] that [n] reads other than by
 /// passing it to its own position in a recursive call.
 void mark_reads(SpecNode *n, const Fixpoint *loop, std::vector<bool> &read) {
@@ -336,74 +348,27 @@ void mark_reads(SpecNode *n, const Fixpoint *loop, std::vector<bool> &read) {
     if (auto sym = instance_of(n, Symbol)) {
         for (size_t i = 0; i < loop->args->size(); i++)
             if (loop->args->at(i)->name == sym->text) read[i] = true;
-    } else if (auto e = instance_of(n, Expr)) {
-        if (auto f = std::get_if<unique_ptr<SpecNode>>(&e->op)) mark_reads(f->get(), loop, read);
-        bool const rec = op_eq(e->op, loop->name);
-        if (e->elems)
-            for (size_t k = 0; k < e->elems->size(); k++) {
-                auto const sym = instance_of(e->elems->at(k).get(), Symbol);
-                if (rec && sym && k < loop->args->size() && sym->text == loop->args->at(k)->name) continue;
+        return;
+    }
+    auto const e = instance_of(n, Expr);
+    if (e && op_eq(e->op, loop->name) && e->elems) {
+        for (size_t k = 0; k < e->elems->size(); k++) {
+            auto const sym = instance_of(e->elems->at(k).get(), Symbol);
+            if (!(sym && k < loop->args->size() && sym->text == loop->args->at(k)->name))
                 mark_reads(e->elems->at(k).get(), loop, read);
-            }
-    } else if (auto m = instance_of(n, Match)) {
-        mark_reads(m->src.get(), loop, read);
-        for (auto const &pm : *m->match_list) mark_reads(pm->body.get(), loop, read);
-    } else if (auto i = instance_of(n, If)) {
-        mark_reads(i->cond.get(), loop, read);
-        mark_reads(i->then_body.get(), loop, read);
-        mark_reads(i->else_body.get(), loop, read);
-    } else if (auto r = instance_of(n, RelyAnno)) {
-        mark_reads(r->prop.get(), loop, read);
-        mark_reads(r->body.get(), loop, read);
-    } else if (auto q = instance_of(n, ForallExists)) {
-        mark_reads(q->body.get(), loop, read);
+        }
+        return;
     }
+    for_each_child(n, [&](SpecNode *c) { mark_reads(c, loop, read); });
 }
 
-void collect_callees(SpecNode *n, std::set<string> &out) {
-    if (!n) return;
-    if (auto e = instance_of(n, Expr)) {
-        if (auto op = std::get_if<string>(&e->op)) out.insert(*op);
-        if (auto f = std::get_if<unique_ptr<SpecNode>>(&e->op)) collect_callees(f->get(), out);
-        if (e->elems)
-            for (auto const &x : *e->elems) collect_callees(x.get(), out);
-    } else if (auto m = instance_of(n, Match)) {
-        collect_callees(m->src.get(), out);
-        for (auto const &pm : *m->match_list) collect_callees(pm->body.get(), out);
-    } else if (auto i = instance_of(n, If)) {
-        collect_callees(i->cond.get(), out);
-        collect_callees(i->then_body.get(), out);
-        collect_callees(i->else_body.get(), out);
-    } else if (auto r = instance_of(n, RelyAnno)) {
-        collect_callees(r->prop.get(), out);
-        collect_callees(r->body.get(), out);
-    } else if (auto q = instance_of(n, ForallExists)) {
-        collect_callees(q->body.get(), out);
-    }
-}
-
+/// The string constants in [n].  Unlike the stack typing's, these include
+/// those that are a plain Const of a string.
 void collect_strings(SpecNode *n, std::set<string> &out) {
     if (!n) return;
-    if (auto c = instance_of(n, Const)) {
+    if (auto c = instance_of(n, Const))
         if (auto v = std::get_if<string>(&c->value)) out.insert(*v);
-    }
-    else if (auto e = instance_of(n, Expr)) {
-        if (auto f = std::get_if<unique_ptr<SpecNode>>(&e->op)) collect_strings(f->get(), out);
-        if (e->elems)
-            for (auto const &x : *e->elems) collect_strings(x.get(), out);
-    } else if (auto m = instance_of(n, Match)) {
-        collect_strings(m->src.get(), out);
-        for (auto const &pm : *m->match_list) collect_strings(pm->body.get(), out);
-    } else if (auto i = instance_of(n, If)) {
-        collect_strings(i->cond.get(), out);
-        collect_strings(i->then_body.get(), out);
-        collect_strings(i->else_body.get(), out);
-    } else if (auto r = instance_of(n, RelyAnno)) {
-        collect_strings(r->prop.get(), out);
-        collect_strings(r->body.get(), out);
-    } else if (auto q = instance_of(n, ForallExists)) {
-        collect_strings(q->body.get(), out);
-    }
+    for_each_child(n, [&](SpecNode *c) { collect_strings(c, out); });
 }
 
 /// [loop]'s body with each small, non-recursive callee inlined, so that
@@ -421,7 +386,7 @@ unique_ptr<SpecNode> prepared_body(Project *proj, Fixpoint *loop, bool full) {
     bool any = false;
     for (int round = 0; round < (full ? SLI_INLINE_ROUNDS : 1); round++) {
         std::set<string> callees;
-        collect_callees(body.get(), callees);
+        collect_called_defs(proj, body.get(), callees);
         bool changed_round = false;
         for (auto const &c : callees) {
             auto const it = proj->defs.find(c);
@@ -433,7 +398,7 @@ unique_ptr<SpecNode> prepared_body(Project *proj, Fixpoint *loop, bool full) {
             if ((!full && UNFOLD_POLICY.skip_list.count(c)) || !it->second->body()) continue;
             if (it->second->body()->count_leaves(limit + 1) > limit) continue;
             std::set<string> inner;
-            collect_callees(it->second->body().get(), inner);
+            collect_called_defs(proj, it->second->body().get(), inner);
             if (inner.count(c)) continue;
             bool changed = false;
             std::tie(body, changed) = proj->rules.unfold_calls_to(std::move(body), c);
@@ -732,9 +697,9 @@ string describe(const std::vector<Cand> &cands, const std::vector<int> &idx) {
 }
 
 string describe(const std::vector<Cand> &cands) {
-    std::ostringstream o;
-    for (size_t k = 0; k < cands.size(); k++) o << (k ? ", " : "") << cands[k].desc;
-    return o.str();
+    std::vector<int> all(cands.size());
+    std::iota(all.begin(), all.end(), 0);
+    return describe(cands, all);
 }
 
 string short_expr(const z3::expr &e) {

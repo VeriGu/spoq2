@@ -1251,7 +1251,6 @@ void Project::finalize_project()
 }
 
 
-namespace {
 /// Definitions [spec] calls, added to [out].
 void collect_called_defs(Project *proj, SpecNode *spec, std::set<string> &out) {
     if (!spec) return;
@@ -1284,6 +1283,8 @@ void collect_called_defs(Project *proj, SpecNode *spec, std::set<string> &out) {
         collect_called_defs(proj, ex->body.get(), out);
     }
 }
+
+namespace {
 }  // namespace
 
 void Project::compute_mem_op_closures() {

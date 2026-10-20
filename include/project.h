@@ -323,4 +323,7 @@ public:
     std::vector<std::string>& low_specs);
 };
 
+/// The names of the definitions of [proj] that [spec] calls.
+void collect_called_defs(Project *proj, SpecNode *spec, std::set<string> &out);
+
 }; // namespace autov
