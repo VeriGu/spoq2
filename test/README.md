@@ -325,6 +325,7 @@ below is then `false`.
 | `added_break_no_ub` | as above, but the vuln adds 1 and continues | `verified: false` | no vuln invariant holds where only the patch exits |
 | `early_exit_ub_after` | the patch returns early at `x == 0`, where the vuln breaks to `100 / x` | `verified: true` | exit codes 0 -> 1, 1 -> 2; Q = `r.x = 0` |
 | `early_exit_no_ub` | as above, but the vuln returns `x` after the break | `verified: false` | the same relation; the failure is at the diverged exit |
+| `early_exit_first` | the patch tests `i == 7` and exits before the vuln calls `pick()` and tests it; the vuln exits there to a division by zero | `verified: true` | in the product walk the patch reaches its exit first, and the exits are still paired |
 | `permuted_exits` | the same exits, numbered in the other order | `verified: true` | exit codes 0 -> 1, 1 -> 0 |
 | `scaled_accumulator` | `loop_ident_differ` | `verified: false` | R has `sum' = 2*acc (mod 2^32)`; the patch's zero test differs under wrap |
 | `unrelated_loops` | count up and add `pick()` vs. count down and add `2 * pick()` | `verified: false` | no relation |
@@ -334,6 +335,7 @@ below is then `false`.
 | `stack_scratch_differs` | as above, but the patch loop writes `keep` | `verified: false` | the frame does not relate `keep` |
 | `global_scratch` | the patch loop writes the global `dumb`; both read `keep` after the loop | `verified: true` | R relates `globals.g_keep` and not `globals.g_dumb` |
 | `global_keep_clobbered` | the patch loop writes `keep` | `verified: false` | R does not relate `globals.g_keep` |
+| `state_differs_at_call` | the bodies call `pick()`, and the patch calls it once more before its loop | `verified: false` | the loops write the state and no relation of the states holds at the call, so inference is skipped |
 
 When R equates the states, it relates the parts of them too.  When the first
 inference does not, it is repeated with the memory accessors (`load_RData`,
