@@ -1,0 +1,5 @@
+{
+  "verified": false,
+  "stderr_lacks": "Unknown symbol",
+  "coq_contains": "((p_06.(poffset)) - ((dst.(poffset))))"
+}

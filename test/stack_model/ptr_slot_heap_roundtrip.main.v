@@ -486,7 +486,7 @@ Parameter llvm_memcpy_p0_p0_i64_spec: (Ptr -> (Ptr -> (int64 -> (bool -> (RData 
     (Some st). *)
 Definition llvm_lifetime_start_p0_spec (p: Ptr) (st: RData) : (option RData) := (Some st).
 Definition llvm_lifetime_end_p0_spec (p: Ptr) (st: RData) : (option RData) := (Some st).
-Definition llvm_assume_spec (b: bool) (st: RData) : (option RData) := st.
+Definition llvm_assume_spec (b: bool) (st: RData) : (option RData) := if b then Some st else None.
 (* Parameter io_read_stub (fd: Z) (len: Z) : (Block).
 Definition read_spec (fd: Z) (buf: Ptr) (len: Z) (st: RData) : (option RData) :=
   (let (bytemap, read_bytes) := (io_read_stub fd len) in

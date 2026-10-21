@@ -1,0 +1,596 @@
+(* SPOQ START HERE *)
+
+Definition pvn := Z. (* Provenance *)
+Parameter spvn: string -> (Z).
+Parameter pvns : Z -> (string).
+Definition next_pvn (p: pvn): pvn := p + 1.
+(* The value a load yields and a store takes: a 64-bit word.  The model is
+   whole-value -- `sz` carries the width -- so this is the widest machine
+   integer and a narrower value sign-extends into it.  int64 is Z in Coq, and a
+   64-bit bitvector to the solver under SPOQ_BV_SORTS, so a loaded value is a
+   bitvector rather than an unbounded integer. *)
+Definition Byte := int64.
+Definition Block := ((ZMap.t Byte) * intSizeT).
+Parameter empty_bks: PMap.t (option Block).
+Parameter empty_bk: ZMap.t Byte.
+Definition bk := Block.
+Record MEM := mkMEM {
+  blocks: (PMap.t (option Block));
+  nextBlock: pvn
+}.
+Definition empty_MEM: MEM := mkMEM empty_bks 1.
+(* An object is smaller than 2^62 bytes, so a size can be added to or
+   subtracted from an offset without leaving the 64-bit range.  The bound is
+   assumed of every block size; a pointer offset is not bounded, since an
+   argument may carry any value. *)
+Definition MAX_OBJECT : intSizeT := 4611686018427387904.
+Definition size_in_range (sz: intSizeT) : bool := (0 <=? sz) && (sz <? MAX_OBJECT).
+(* The block is keyed by spvn of the new pointer's base, the key every access
+   through that pointer looks up, as in realloc.  Allocation always succeeds:
+   the pointer is not null. *)
+Definition malloc (m: MEM) (sz: intSizeT): option (Ptr * MEM) :=
+  let new_mem := mkMEM (m.(blocks) # (spvn (pvns m.(nextBlock))) == (Some (empty_bk,sz))) (next_pvn m.(nextBlock)) in
+  let new_ptr := (mkPtr (pvns m.(nextBlock)) 0) in
+  rely (size_in_range sz);
+  (* The allocation key is unused. *)
+  rely ((m.(blocks) @ (spvn (pvns m.(nextBlock)))) = None);
+  rely (~((pvns m.(nextBlock)) =s "null"));
+  rely (~(is_global_ptr new_ptr));
+  rely (~(is_stack_ptr new_ptr));
+  Some (new_ptr, new_mem).
+
+(* void *calloc(size_t nmemb, size_t size); malloc of nmemb * size bytes whose
+   contents are zero. *)
+Definition calloc (m: MEM) (n: intSizeT) (sz: intSizeT): option (Ptr * MEM) :=
+  let new_mem := mkMEM (m.(blocks) # (spvn (pvns m.(nextBlock))) == (Some ((ZMap.init 0), n * sz))) (next_pvn m.(nextBlock)) in
+  let new_ptr := (mkPtr (pvns m.(nextBlock)) 0) in
+  rely (size_in_range (n * sz));
+  rely ((m.(blocks) @ (spvn (pvns m.(nextBlock)))) = None);
+  rely (~((pvns m.(nextBlock)) =s "null"));
+  rely (~(is_global_ptr new_ptr));
+  rely (~(is_stack_ptr new_ptr));
+  Some (new_ptr, new_mem).
+
+(* void *realloc(void *ptr, size_t size); *)
+Definition realloc (m: MEM) (p: Ptr) (sz: intSizeT) : option (Ptr * MEM) :=
+  if (p.(pbase) =s "null") then (malloc m sz) else
+  match (m.(blocks) @ (spvn p.(pbase))) with
+  | None => None
+  | Some b => match b with
+    | (bytemap, old_sz) =>
+      if (p.(poffset) =? 0) then
+        let new_ptr := (mkPtr (pvns m.(nextBlock)) 0) in
+        rely (size_in_range sz);
+        rely ((m.(blocks) @ (spvn (pvns m.(nextBlock)))) = None);
+        rely (~(is_global_ptr new_ptr));
+        rely (~(is_stack_ptr new_ptr));
+        Some (new_ptr, mkMEM ((m.(blocks) # (spvn p.(pbase)) == None) # (spvn (pvns m.(nextBlock))) == (Some (bytemap, sz))) (next_pvn m.(nextBlock)))
+      else None
+    end
+  end.
+
+Definition free (m: MEM) (p: Ptr) : option MEM :=
+  let deref := m.(blocks) @ (spvn p.(pbase)) in
+  match deref with
+  | Some deref_bk => Some (mkMEM (m.(blocks) # (spvn p.(pbase)) == None) m.(nextBlock))
+  | None => None
+  end.
+
+Definition blk_store (b: Block) (p: Ptr) (sz: intSizeT) (v: Byte) : option Block :=
+  if (p.(pbase) =s "null") then None else
+  match b with
+    | (bytemap, bk_sz) => rely (size_in_range bk_sz);
+      match (p.(poffset) <=? bk_sz - sz) with
+      | false => None
+      | true => if (p.(poffset) >=? 0) then
+      (* The block keeps the object's size; sz is the width of this store. *)
+      Some (bytemap # p.(poffset) == v, bk_sz)
+      else None
+      end
+    end.
+
+Definition blk_load (b: Block) (p: Ptr) (sz: intSizeT) : option Byte :=
+  if (p.(pbase) =s "null") then None else
+  match b with
+    | (bytemap, bk_sz) => rely (size_in_range bk_sz);
+      (if (p.(poffset) <=? bk_sz - sz) then
+      (if (p.(poffset) >=? 0) then
+        (if (sz >? 0) then
+          (Some (bytemap @ (p.(poffset))))
+        else None)
+      else None)
+    else None)
+    end.
+
+Definition heap_store (m: MEM) (sz: intSizeT) (p: Ptr) (v: int64) : option MEM :=
+  let pb := (spvn p.(pbase)) in
+  let blk := (m.(blocks) @ pb) in
+    (match blk with
+      | None => None
+      | Some b => (let new_blk := (blk_store b p sz v) in
+        match new_blk with
+        | None => None
+        | Some snb => Some (mkMEM (m.(blocks) # pb == (Some snb)) (m.(nextBlock)))
+        end)
+      end).
+
+Definition heap_load (m: MEM) (sz: intSizeT) (p: Ptr) : option (Byte) :=
+  let pb := (spvn p.(pbase)) in
+  let blk := (m.(blocks) @ pb) in
+    (match blk with
+      | None => None
+      | Some b => (blk_load b p sz)
+      end).
+
+Definition ptr_add (p: Ptr) (idx: intSizeT) : Ptr :=
+  (mkPtr p.(pbase) (p.(poffset) + idx)).
+
+(* Given a heap and a pointer, max_heap_ptr_offset gives the
+   number of valid bytes that can be read after that pointer *)
+Definition max_heap_ptr_offset (m: MEM) (p: Ptr) : intSizeT :=
+  let blk := (m.(blocks) @ (spvn p.(pbase))) in
+    (match blk with
+     | None => 0
+     | Some b => match b with
+      | (bytemap, blk_sz) => (blk_sz - p.(poffset))
+      end
+      end).
+
+Definition Float := Z.
+Definition Double := Z.
+Definition Metadata := Z.
+
+(* SPOQ STOP *)
+Definition PROJ_NAME: string := "assume_call".
+Definition PROJ_BASE: string := "assume_call".
+Definition PROJ_BC_PATH: string := "assume_call.bc".
+
+
+
+
+
+Definition is_stack_ptr (p: Ptr): bool := (false = true).
+
+
+Inductive StackVal := 
+	| ZMapVal (ZMapValConstr: (ZMap.t (ZMap.t int64)))
+	| ZVal (ZValConstr: int64)
+.
+Definition STACK := (SMap (option StackVal)).
+
+Inductive StackKey := 
+| sk_Null.
+
+Record GLOBALS :=
+  mkGLOBALS {
+    __spoq_dummy_field: Z    }.
+Record RData := mkRData {	stack: STACK;	heap: MEM;	globals: GLOBALS}.
+Definition is_global_ptr (p: Ptr): bool := (false = true).
+
+
+Definition global_in_bounds (sz: intSizeT) (p: Ptr) (limit: intSizeT) : bool :=
+  (0 <=? p.(poffset)) && (p.(poffset) <=? limit - sz).
+
+Definition load_global (sz: intSizeT) (p: Ptr) (st: RData) : (option int64) :=
+  None. (* load_global *)
+
+Definition store_global (sz: intSizeT) (p: Ptr) (v: int64) (st: RData) : option RData :=
+  None. (* store_global *)
+
+Definition MIN_GLOBAL : intSizeT := 67108864.
+Definition MAX_GLOBAL : intSizeT := 67108864.
+
+Definition global_to_ptr (v: intSizeT) : Ptr := 
+ if (v >=? MAX_GLOBAL ) then (mkPtr "null" 0) else
+ if (v <? 0 ) then (mkPtr "null" 0) else
+   (mkPtr "null" 0).
+Parameter int_to_ptr_other : (intSizeT -> (Ptr)).
+Definition int_to_ptr (v: intSizeT) : Ptr := 
+ if (v =? (0 - 1)) then (mkPtr "null" (0 - 1)) else
+ if ((0 <=? v) && (v <? MIN_GLOBAL)) then (mkPtr "null" v) else
+ if ((MIN_GLOBAL <=? v) && (v <? MAX_GLOBAL)) then (global_to_ptr v) else
+    (int_to_ptr_other v).
+Parameter ptr_to_int_other : (Ptr -> (intSizeT)).
+Definition ptr_to_int (p: Ptr) : intSizeT := 
+ if (p.(poffset) <? 0) then (-1) else
+ if (p.(pbase) =s "null") then (if (p.(poffset) <? MIN_GLOBAL) then p.(poffset) else (ptr_to_int_other p)) else
+    (ptr_to_int_other p).
+Definition ptr_to_int_other_outside_globals : Prop := forall (p: Ptr), (((ptr_to_int_other p) <? MIN_GLOBAL) \/ (MAX_GLOBAL <=? (ptr_to_int_other p))).
+Definition ptr_to_int_other_not_null : Prop := forall (p: Ptr), (((ptr_to_int_other p) <? (0 - 1)) \/ (MIN_GLOBAL <=? (ptr_to_int_other p))).
+Definition int_to_ptr_other_inverse : Prop := forall (p: Ptr), ((int_to_ptr_other (ptr_to_int_other p)) = p).
+Definition ptr_to_int_other_inverse : Prop := forall (v: intSizeT), ((((v <? (0 - 1)) \/ (MAX_GLOBAL <=? v))) -> ((ptr_to_int_other (int_to_ptr_other v)) = v)).
+
+Definition load_stack (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option int64) := 
+	match (stack_map @ p.(pbase)) with
+		| Some sv => match sv with
+			| ZVal ZVal_val => rely (false);
+				Some ZVal_val
+		end
+	| None => None
+end. (* load_stack *)
+Definition store_stack (sz: intSizeT) (p: Ptr) (v: int64) (stack_map: STACK): (option STACK) := 
+	match (stack_map @ p.(pbase)) with
+		| Some sv => match sv with
+			| ZVal ZVal_val => rely (false);
+				Some (stack_map # p.(pbase) == Some(ZVal v))
+		end
+	| None => None
+end. (* store_stack *)
+Definition load_stack_ptr (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option Ptr) := 
+	match (stack_map @ p.(pbase)) with
+		| Some sv => match sv with
+			| ZVal ZVal_val => rely (false);
+				Some (int_to_ptr ZVal_val)
+		end
+	| None => None
+end. (* load_stack_ptr *)
+Definition store_stack_ptr (sz: intSizeT) (p: Ptr) (v: Ptr) (stack_map: STACK): (option STACK) := 
+	match (stack_map @ p.(pbase)) with
+		| Some sv => match sv with
+			| ZVal ZVal_val => rely (false);
+				Some (stack_map # p.(pbase) == Some(ZVal (ptr_to_int v)))
+		end
+	| None => None
+end. (* store_stack_ptr *)
+Definition patch_correct_postcondition (st: RData) (st_sim: RData): Prop := 
+st = st_sim.
+Definition patch_correct_precondition (st: RData) (st_sim: RData): Prop :=
+st = st_sim.
+
+Hint Refines entry_sec0_vuln_spec entry_sec0_patch_spec patch_correct_precondition patch_correct_postcondition (vuln_ret = patch_ret).
+
+
+Section Bottom.
+    Definition LAYER_DATA := RData.
+    Definition LAYER_LOAD : string := "load_RData".
+    Definition LAYER_STORE : string := "store_RData".
+    Definition LAYER_PTR2INT: string := "ptr_to_int".
+    Definition LAYER_INT2PTR: string := "int_to_ptr".
+    Definition LAYER_PTR_EQB: string := "ptr_eqb".
+    Definition LAYER_PTR_GTB: string := "ptr_gtb".
+    Definition LAYER_PTR_LTB: string := "ptr_ltb".
+    Definition LAYER_PRIMS: list string :=
+        "llvm_lifetime_end_p0"::
+        "malloc"::
+        "llvm_lifetime_start_p0"::
+        nil.
+End Bottom.
+
+Section Layer1.
+    Definition LAYER_DATA := RData.
+    Definition LAYER_LOAD : string := "load_RData".
+    Definition LAYER_STORE : string := "store_RData".
+    Definition LAYER_PTR2INT: string := "ptr_to_int".
+    Definition LAYER_INT2PTR: string := "int_to_ptr".
+    Definition LAYER_PTR_EQB: string := "ptr_eqb".
+    Definition LAYER_PTR_GTB: string := "ptr_gtb".
+    Definition LAYER_PTR_LTB: string := "ptr_ltb".
+    Definition LAYER_PRIMS: list string :=
+        "scale"::
+        nil.
+End Layer1.
+
+Section Layer2.
+    Definition LAYER_DATA := RData.
+    Definition LAYER_LOAD : string := "load_RData".
+    Definition LAYER_STORE : string := "store_RData".
+    Definition LAYER_PTR2INT: string := "ptr_to_int".
+    Definition LAYER_INT2PTR: string := "int_to_ptr".
+    Definition LAYER_PTR_EQB: string := "ptr_eqb".
+    Definition LAYER_PTR_GTB: string := "ptr_gtb".
+    Definition LAYER_PTR_LTB: string := "ptr_ltb".
+    Definition LAYER_PRIMS: list string :=
+        "entry_sec0_vuln"::
+        "entry_sec0_patch"::
+        nil.
+End Layer2.
+
+
+Hint InitRely entry_sec0_vuln ((((st.(heap)).(blocks)) @ ((st.(heap)).(nextBlock))) = None).
+Hint InitRely entry_sec0_vuln ((((st.(heap)).(blocks)) @ (spvn (pvns ((st.(heap)).(nextBlock))))) = None).
+Hint InitRely entry_sec0_patch ((((st.(heap)).(blocks)) @ ((st.(heap)).(nextBlock))) = None).
+Hint InitRely entry_sec0_patch ((((st.(heap)).(blocks)) @ (spvn (pvns ((st.(heap)).(nextBlock))))) = None).
+
+Parameter poison_vector: (ZMap.t Z).
+Parameter poison_vector_4: (ZMap.t Z).
+Parameter undef_vector: (ZMap.t Z).
+Parameter undef_vector_4: (ZMap.t Z).
+Parameter zeroinitializer_vector: (ZMap.t Z).
+(* Definition zeroinitializer_vector: (ZMap.t Z) := fun k => 0. *)
+
+Definition zmap_z_add (a: (ZMap.t Z)) (b: (ZMap.t Z)) : (ZMap.t Z) :=
+  (zmap_z_add_inner a b k).
+
+Definition zmap_z_add_inner (a: (ZMap.t Z)) (b: (ZMap.t Z)) (k: intSizeT) : Z :=
+  ((a @ k) + (b @ k)).
+
+(* Parameter llvm_vector_reduce_add_v4i32_spec : ((ZMap.t Z) -> ((RData) -> (option ((Z) * RData)))). *)
+Definition llvm_vector_reduce_add_v4i32_spec (v: (ZMap.t Z)) (st: RData): option ((Z) * RData) :=
+  Some (((v @ 0) + (v @ 1) + (v @ 2) + (v @ 3)), st).
+
+Definition llvm_umin_i32_spec (a: int32) (b: int32) (st: RData): (option ((int32) * RData)) :=
+    Some ((if a < b then a else b), st).
+
+
+(* Whether p is an in-bounds address of the object it is based on: an offset
+   from 0 to the object's size, the end included.  Only heap objects have a
+   size here, so a global or stack pointer counts as in bounds.  A heap
+   pointer whose block is absent counts as in bounds, since being in bounds of
+   a freed object is sufficient.  No offset of null is in bounds of an object. *)
+Definition ptr_in_object (p: Ptr) (st: RData) : bool :=
+  if (p.(pbase) =s "null") then false else
+  if (is_global_ptr p) then true else
+  if (is_stack_ptr p) then true else
+  match (((st.(heap)).(blocks)) @ (spvn p.(pbase))) with
+  | None => true
+  | Some b => match b with
+    | (bytemap, blk_sz) => (0 <=? p.(poffset)) && (p.(poffset) <=? blk_sz)
+    end
+  end.
+
+(* One step of `getelementptr inbounds`: p offset by ofs, or poison.  The
+   result is poison when ofs is not 0 and p or p + ofs is not in bounds
+   (LangRef, getelementptr).  Poison is mkPtr "null" (-1): a load or store
+   through a "null" base is None, and ptr_to_int maps it to -1. *)
+Definition ptr_offset_inbounds (p: Ptr) (ofs: intSizeT) (st: RData) : Ptr :=
+  if (ofs =? 0) then p else
+  if ((ptr_in_object p st) && (ptr_in_object (ptr_add p ofs) st))
+  then (ptr_add p ofs)
+  else (mkPtr "null" (0 - 1)).
+
+Definition ptr_eqb (p1: Ptr) (p2: Ptr) : bool :=
+  (p1.(pbase)) =s (p2.(pbase)) && (p1.(poffset) =? p2.(poffset)).
+  (* ptr_to_int p1 =? ptr_to_int p2. *)
+
+
+Definition ptr_ltb (p1: Ptr) (p2: Ptr) : bool :=
+  ptr_to_int p1 <? ptr_to_int p2.
+Definition ptr_leb (p1: Ptr) (p2: Ptr) : bool :=
+  ptr_to_int p1 <=? ptr_to_int p2.
+
+Definition ptr_gtb (p1: Ptr) (p2: Ptr) : bool :=
+  ptr_to_int p1 >? ptr_to_int p2.
+
+Definition ptr_ugt (p1: Ptr) (p2: Ptr) : bool :=
+  ptr_to_int p1 >? ptr_to_int p2.
+
+(* The order of two pointers, as a three-way comparison.  spoq turns every
+   ordering predicate on pointers -- signed and unsigned lt, le, gt, ge -- into
+   a test of this against 0.  The state is an argument because where a base sits
+   is fixed by the allocation state.  Two pointers into one block are ordered by
+   their offsets, which is the case a bound check on a buffer walk produces;
+   across blocks the order is uninterpreted, since this layer does not place
+   the blocks. *)
+Parameter icmp_ptr_unrelated : (Ptr -> (Ptr -> (RData -> (intSizeT)))).
+Definition icmp_ptr (p1: Ptr) (p2: Ptr) (st: RData) : intSizeT :=
+  if (p1.(pbase) =s p2.(pbase))
+  then (p1.(poffset) - p2.(poffset))
+  else (icmp_ptr_unrelated p1 p2 st).
+Definition spoq_zext_spec (v_0: bool) : Z := (* used to model LLVM zext *)
+  if (v_0) then 1 else 0.
+
+Definition pv_assert_spec (v_0: int32) (st: RData) : (option RData) :=
+  let v_1 := (v_0 <>? (0)) in
+  if v_1
+  then (Some st)
+  else None.
+
+Definition exit_spec (v_0: int32) (st: RData) : (option RData) := None.
+Definition malloc_spec (sz: intSizeT) (st: RData) : option (Ptr * RData) :=
+  let result := (malloc st.(heap) sz) in
+  match result with
+  | None => None
+  | Some (p, m') => Some (p, st.[heap] :< m')
+  end.
+
+Definition calloc_spec (n: intSizeT) (sz: intSizeT) (st: RData) : option (Ptr * RData) :=
+  let result := (calloc st.(heap) n sz) in
+  match result with
+  | None => None
+  | Some (p, m') => Some (p, st.[heap] :< m')
+  end.
+
+Definition realloc_spec (p: Ptr) (sz: intSizeT) (st: RData) : option (Ptr * RData) :=
+  let result := (realloc st.(heap) p sz) in
+  match result with
+  | None => None
+  | Some (q, m') => Some (q, st.[heap] :< m')
+  end.
+
+Definition free_spec (p: Ptr) (st: RData) : option RData :=
+  let result := (free st.(heap) p) in
+  match result with
+  | None => None
+  | Some m' => Some (st.[heap] :< m')
+  end.
+
+Definition load_RData (sz: intSizeT) (p: Ptr) (st: RData) : (option int64) :=
+  if (p.(pbase) =s "null") then None else
+  if (is_global_ptr p) then
+  match (load_global sz p st) with
+  | Some new_st => Some(new_st)
+  | None => None
+  end else
+  if (is_stack_ptr p) then
+  match (load_stack sz p st.(stack)) with
+    | Some byte => Some(byte)
+    | None => None
+  end
+  else match (heap_load st.(heap) sz p) with
+      | None => None
+      | Some byte => Some(byte)
+  end.
+
+Definition store_RData (sz: intSizeT) (p: Ptr) (v: int64) (st: RData) : option RData :=
+  if (p.(pbase) =s "null") then None else
+  if (is_global_ptr p) then
+    store_global sz p v st
+  else
+  if (is_stack_ptr p) then
+  match (store_stack sz p v st.(stack)) with
+    | Some new_stack => Some(st.[stack] :< new_stack)
+    | None => None
+  end else
+  match (heap_store st.(heap) sz p v) with
+      | None => None
+      | Some new_heap => Some(st.[heap] :< new_heap)
+  end.
+Hint DelayUnfold load_RData.
+Hint DelayUnfold store_RData.
+Definition store_stack_bypass (sz: intSizeT) (p: Ptr) (v: int64) (st: RData) : option RData :=
+  match (store_stack sz p v st.(stack)) with
+    | Some new_stack => Some(st.[stack] :< new_stack)
+    | None => None
+  end.
+Definition load_stack_bypass (sz: intSizeT) (p: Ptr) (st: RData) : (option int64) :=
+  load_stack sz p st.(stack).
+(* Pointer-valued accesses.  A stack slot keeps a stored Ptr, base included;
+   other memory holds the pointer as ptr_to_int. *)
+Definition load_RData_ptr (sz: intSizeT) (p: Ptr) (st: RData) : (option Ptr) :=
+  if (is_stack_ptr p) then load_stack_ptr sz p st.(stack)
+  else match (load_RData sz p st) with
+    | Some v => Some (int_to_ptr v)
+    | None => None
+  end.
+Definition store_RData_ptr (sz: intSizeT) (p: Ptr) (v: Ptr) (st: RData) : option RData :=
+  if (is_stack_ptr p) then
+  match (store_stack_ptr sz p v st.(stack)) with
+    | Some new_stack => Some(st.[stack] :< new_stack)
+    | None => None
+  end
+  else store_RData sz p (ptr_to_int v) st.
+Hint DelayUnfold load_RData_ptr.
+Hint DelayUnfold store_RData_ptr.
+Definition store_stack_ptr_bypass (sz: intSizeT) (p: Ptr) (v: Ptr) (st: RData) : option RData :=
+  match (store_stack_ptr sz p v st.(stack)) with
+    | Some new_stack => Some(st.[stack] :< new_stack)
+    | None => None
+  end.
+Definition load_stack_ptr_bypass (sz: intSizeT) (p: Ptr) (st: RData) : (option Ptr) :=
+  load_stack_ptr sz p st.(stack).
+(*
+Definition load_RData (sz: intSizeT) (p: Ptr) (st: RData) : (option int64) :=
+  if (is_static_pbase p.(pbase)) then
+    (load_static_RData sz p st)
+  else match (heap_load st.(heap) sz p) with
+  | None => None
+  | Some byte => Some(byte)
+  end.
+
+Definition store_RData (sz: intSizeT) (p: Ptr) (v: int64) (st: RData) : option RData :=
+  if (is_static_pbase p.(pbase)) then
+    (store_static_RData  sz p v st)
+  else match (heap_store st.(heap) sz p v) with
+  | None => None
+  | Some new_heap => Some(st.[heap] :< new_heap)
+  end. *)
+
+Definition xorb_spec (b1 : bool) (b2 : bool) : bool :=
+  if b1 then if b2 then false else true
+  else if b2 then true else false.
+
+Section Axioms.
+  Definition LAYER_DATA := RData.
+  (* Definition load_RData_no_effect : Prop := forall (sz: intSizeT) (p: Ptr) (st: RData) (st2: RData) (ret: Z),
+     ((load_RData sz p st = Some (ret, st2)) -> (st2 = st)). *)
+  (* int_to_ptr_zero and int_to_ptr_neg_one follow from int_to_ptr's definition. *)
+  Definition int_to_ptr_zero : Prop := (int_to_ptr 0) = (mkPtr "null" 0).
+  Definition int_to_ptr_neg_one : Prop := (int_to_ptr (0 - 1)) = (mkPtr "null" (0 - 1)).
+  (* Definition pvns_spvn : Prop := forall (p: Provenance), (spvn (pvns p) = p). *) (* This axiom causes false preconditions *)
+  (* Definition pvns_not_static_unfold : Prop := forall (p: Provenance), (let pb := pvns p in (~(is_static_pbase pb))). *)
+  (* Hint Unfold pvns_not_static_unfold. *)
+  (* Definition max_heap_ptr_offset_no_deref_zero (m: MEM) (p: Ptr): Prop :=   *)
+    (* ((max_heap_ptr_offset m p) <= 0) -> (forall (sz: intSizeT), ((heap_load m sz p) = None)). *)
+
+(* Definition malloc_not_static: Prop := forall (h: MEM), (let pb := pvns (h.(nextBlock)) in (~(is_static_pbase pb))). *)
+End Axioms.
+
+
+Parameter llvm_memcpy_p0i8_p0i8_i64_spec: (Ptr -> (Ptr -> (int64 -> (bool -> (RData -> (option RData)))))).
+Parameter llvm_memcpy_p0_p0_i64_spec: (Ptr -> (Ptr -> (int64 -> (bool -> (RData -> (option RData)))))).
+
+(* Definition llvm_memcpy_p0i8_p0i8_i64_spec (v_dest: Ptr) (v_src: Ptr) (sz: intSizeT) (is_volatile: bool) (st: RData) : (option RData) :=
+    (Some st). *)
+
+(* llvm.memset and llvm.memmove into a heap block.  A length of 0 does
+   nothing.  Otherwise [poffset, poffset + len) must lie in the destination's
+   block, and for memmove in a heap source's block; outside is None, as for a
+   store.  Only the destination block changes: it keeps its size, and its
+   bytes are an oracle of the inputs, since a fill or copy of symbolic length
+   is not a finite map update.  Other blocks, the stack and the globals are
+   unchanged, so facts about them survive the call.  A length of 2^63 or
+   more, which the model sees as negative, exceeds every block and is None.
+   A stack or global destination changes only the stack or the globals,
+   through an oracle that may fail: the model has no extent to check there.
+   The intrinsics write only through their pointer arguments. *)
+Parameter memset_bytes : ((ZMap.t Byte)-> (Z-> (Z-> (Z-> ((ZMap.t Byte)))))).
+Parameter memmove_bytes : ((ZMap.t Byte)-> (Z-> (Ptr-> (Z-> (RData-> ((ZMap.t Byte))))))).
+Parameter memset_stack : (Ptr-> (int8-> (int64-> (RData-> (option STACK))))).
+Parameter memset_globals : (Ptr-> (int8-> (int64-> (RData-> (option GLOBALS))))).
+Parameter memmove_stack : (Ptr-> (Ptr-> (int64-> (RData-> (option STACK))))).
+Parameter memmove_globals : (Ptr-> (Ptr-> (int64-> (RData-> (option GLOBALS))))).
+
+Definition llvm_memset_p0_i64_spec (dest: Ptr) (val: int8) (len: int64) (is_volatile: bool) (st: RData) : (option RData) :=
+  if (len =? 0) then (Some st) else
+  if (len <? 0) then None else
+  if (dest.(pbase) =s "null") then None else
+  if (is_stack_ptr dest) then (match (memset_stack dest val len st) with | None => None | Some s => Some (st.[stack] :< s) end) else
+  if (is_global_ptr dest) then (match (memset_globals dest val len st) with | None => None | Some g => Some (st.[globals] :< g) end) else
+  let pb := (spvn dest.(pbase)) in
+  match ((st.(heap)).(blocks) @ pb) with
+  | None => None
+  | Some b => (match b with
+    | (bytemap, bk_sz) =>
+      if ((dest.(poffset) >=? 0) && ((dest.(poffset) + len) <=? bk_sz)) then
+        Some (st.[heap] :< (mkMEM ((st.(heap)).(blocks) # pb == (Some ((memset_bytes bytemap dest.(poffset) len val), bk_sz))) ((st.(heap)).(nextBlock))))
+      else None
+    end)
+  end.
+
+(* The source is checked when it is a heap pointer.  A stack source is not:
+   the stack model ignores offsets.  Nor is a global one: load_global
+   dispatches on the global's type, and a copy of a struct or array global
+   would read as out of bounds, a None that is not undefined behaviour.  So an
+   over-read from a local or a global is not detected. *)
+Definition memmove_src_ok (src: Ptr) (len: int64) (st: RData) : bool :=
+  if (src.(pbase) =s "null") then false else
+  if (is_stack_ptr src) then true else
+  if (is_global_ptr src) then true else
+  match ((st.(heap)).(blocks) @ (spvn src.(pbase))) with
+  | None => false
+  | Some b => (match b with
+    | (bytemap, bk_sz) => ((src.(poffset) >=? 0) && ((src.(poffset) + len) <=? bk_sz))
+    end)
+  end.
+
+Definition llvm_memmove_p0_p0_i64_spec (dest: Ptr) (src: Ptr) (len: int64) (is_volatile: bool) (st: RData) : (option RData) :=
+  if (len =? 0) then (Some st) else
+  if (len <? 0) then None else
+  if (dest.(pbase) =s "null") then None else
+  if (is_stack_ptr dest) then (match (memmove_stack dest src len st) with | None => None | Some s => Some (st.[stack] :< s) end) else
+  if (is_global_ptr dest) then (match (memmove_globals dest src len st) with | None => None | Some g => Some (st.[globals] :< g) end) else
+  if (memmove_src_ok src len st) then (
+    let pb := (spvn dest.(pbase)) in
+    match ((st.(heap)).(blocks) @ pb) with
+    | None => None
+    | Some b => (match b with
+      | (bytemap, bk_sz) =>
+        if ((dest.(poffset) >=? 0) && ((dest.(poffset) + len) <=? bk_sz)) then
+          Some (st.[heap] :< (mkMEM ((st.(heap)).(blocks) # pb == (Some ((memmove_bytes bytemap dest.(poffset) src len st), bk_sz))) ((st.(heap)).(nextBlock))))
+        else None
+      end)
+    end)
+  else None.
+Definition llvm_lifetime_start_p0_spec (p: Ptr) (st: RData) : (option RData) := (Some st).
+Definition llvm_lifetime_end_p0_spec (p: Ptr) (st: RData) : (option RData) := (Some st).
+(* The lifetime markers leave the state unchanged; inlined in every
+   transformation so their calls do not accumulate. *)
+Hint Unfold llvm_lifetime_start_p0_spec.
+Hint Unfold llvm_lifetime_end_p0_spec.
+Definition llvm_assume_spec (b: bool) (st: RData) : (option RData) := if b then Some st else None.
+(* Parameter io_read_stub (fd: Z) (len: Z) : (Block).
+Definition read_spec (fd: Z) (buf: Ptr) (len: Z) (st: RData) : (option RData) :=
+  (let (bytemap, read_bytes) := (io_read_stub fd len) in
+  (store_RData read_bytes buf
+  ). *)
+

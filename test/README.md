@@ -350,6 +350,23 @@ a slot of another type and is None where the vuln continues, so
 `stack_scratch_slot` is `false`.  Their postcondition relates the heaps and
 globals only, since the stack is dead after the return.
 
+## loop_pass/
+
+A pointer difference is translated from the pointers under its ptrtoint casts,
+so those pointers are loop parameters or results even where the casts are on
+the other side of the loop boundary.  See `loop_pass/README.md`.
+
+## undef/
+
+A scalar floating-point `undef` is the declared constant `undef_<type>`.  See
+`undef/README.md`.
+
+## assume/
+
+`llvm_assume_spec` is `if b then Some st else None`, and a definition that
+returns its state argument where it declares an option is rejected when
+unfolded.  See `assume/README.md`.
+
 ## Attribute disposition
 
 Every function attribute appearing in the reference corpus

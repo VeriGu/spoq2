@@ -471,6 +471,19 @@ static unique_ptr<SpecNode> undefined_vector_symbol(Project *proj, const char *k
     return std::make_unique<Symbol>(name, type);
 }
 
+/// The symbol standing for a scalar floating-point `undef` or `poison`,
+/// declared.  `undef_double` for a double: one constant per type, so all of
+/// them are equal, as for the vectors above.
+static unique_ptr<SpecNode> undefined_float_symbol(Project *proj, llvm::Type *ty) {
+    std::string type_name;
+    llvm::raw_string_ostream os(type_name);
+    ty->print(os);
+    auto const name = "undef_" + os.str();
+    assert(proj && "an undefined float needs a project to declare it in");
+    declare_uninterpreted(proj, name, make_shared<vector<shared_ptr<SpecType>>>(), Int::INT);
+    return std::make_unique<Symbol>(name, Int::INT);
+}
+
 /// A stable name for a float literal, from its exact bits.
 ///
 /// hexfloat because it round-trips: 0.1 and the double nearest it must not
@@ -842,6 +855,11 @@ unique_ptr<SpecNode> SpoqIRContext::get_llvm_value_spec(llvm::Value* value, llvm
                     auto expr = std::make_unique<Expr>("mkPtr", std::move(vec));
                     expr->type = Struct::Ptr;
                     return expr;
+                } else if (data->getType()->isFloatingPointTy()) {
+                    // A declared constant, one per type, as for vectors and
+                    // float literals.  Spoq passes one as the initial value of
+                    // a loop's pass_out argument, which is never read.
+                    return undefined_float_symbol(proj, data->getType());
                 }
             }
         } else if (auto expr = llvm::dyn_cast<llvm::ConstantExpr>(value)) {

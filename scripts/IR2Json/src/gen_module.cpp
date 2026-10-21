@@ -153,6 +153,17 @@ namespace ir2json
         }
     }
 
+    /// A data member of a composite type: an element that occupies storage in
+    /// the object.  A C++ struct also lists its methods (DISubprogram) and its
+    /// static data members among its elements, and neither is a field.
+    static llvm::DIDerivedType *field_of(llvm::DINode *element)
+    {
+        auto *didt = llvm::dyn_cast<llvm::DIDerivedType>(element);
+        if (!didt || didt->isStaticMember())
+            return nullptr;
+        return didt;
+    }
+
     int calc_struct_ofs(llvm::DICompositeType *dict, int ofs, int indent)
     {
         DINodeArray elements = dict->getElements();
@@ -160,7 +171,9 @@ namespace ir2json
         std::cerr << get_indent(indent) << "struct " << dict->getName().str() << " {" << std::endl;
         indent++;
         for (const auto &element : elements) {
-            llvm::DIDerivedType *didt = llvm::cast<llvm::DIDerivedType>(element);
+            llvm::DIDerivedType *didt = field_of(element);
+            if (!didt)
+                continue;
             llvm::DIType *dit = unwrap_volatile_type(didt->getBaseType());
             std::string basic_type_str = basic_type_name(dit);
 
@@ -201,8 +214,12 @@ namespace ir2json
         json::Value str = json::Array();
 
         for (const auto &element : elements) {
-            llvm::DIDerivedType *didt = llvm::cast<llvm::DIDerivedType>(element);
+            llvm::DIDerivedType *didt = field_of(element);
+            if (!didt)
+                continue;
             TypeMap::iterator it = MDTracker.find(didt);
+            if (it == MDTracker.end())
+                continue;
 
             str.getAsArray()->push_back(std::to_string(it->second));
         }

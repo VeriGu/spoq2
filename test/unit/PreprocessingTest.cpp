@@ -1,11 +1,13 @@
 /* Characterisation tests for the preprocessing passes that generate a project's
- * Coq skeleton: ExtractBasics (records, load/store, function specs) and
- * ExtractPointers (memory type map, the StackVal inductive).
+ * Coq skeleton: ExtractBasics (records, load/store, function specs),
+ * ExtractPointers (memory type map, the StackVal inductive) and IR2Json (the
+ * debug-info type table).
  *
- * Both are `opt` plugins built separately from spoq by scripts/preprocessing/
- * build-passes.sh, so they cannot be linked into this binary.  These tests run
- * them the way extract-info.sh does and read what they wrote.  If `opt` or the
- * plugins are missing the tests skip rather than fail -- a spoq build does not
+ * The two passes are `opt` plugins built separately from spoq by
+ * scripts/preprocessing/build-passes.sh, and ir2json is built by
+ * scripts/IR2Json/Makefile, so none can be linked into this binary.  These
+ * tests run them the way extract-info.sh does and read what they wrote.  If a
+ * tool is missing its tests skip rather than fail -- a spoq build does not
  * build them.
  *
  * What is pinned is the LLVM-type -> Coq-type mapping, once per type.  That
@@ -23,12 +25,15 @@
 
 #include "../skip_code.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <sstream>
 #include <string>
+#include <sys/wait.h>
 #include <unistd.h>
 
 namespace fs = std::filesystem;
@@ -454,6 +459,52 @@ TEST(ExtractPointers, NestedArrayGlobalIsIndexedPerDimension) {
                              "      let idx_2 := (p.(poffset) mod 12) / 4 in\n"
                              "      Some(g_mask @ idx_0 @ idx_1 @ idx_2)\n"),
               std::string::npos) << e.machine;
+}
+
+/* -- IR2Json: the module's debug-info types ---------------------------------- */
+
+/// Run scripts/IR2Json/ir2json on [fixture].  No `status` when ir2json is not
+/// built; otherwise its exit status and stdout.
+struct Ir2Json {
+    std::optional<int> status;
+    std::string json;
+};
+
+Ir2Json runIr2Json(const std::string &fixture) {
+    Ir2Json out;
+    const fs::path tool = fs::path(SPOQ_PASS_DIR) / ".." / "IR2Json" / "ir2json";
+    if (!fs::exists(tool)) return out;
+    const fs::path json = fs::temp_directory_path() /
+                          ("spoq-ir2json-" + fixture + "-" + std::to_string(::getpid()) + ".json");
+    const std::string cmd = tool.string() + " " +
+                            (fs::path(SPOQ_PASS_FIXTURE_DIR) / fixture).string() + " > " +
+                            json.string() + " 2> /dev/null";
+    const int raw = std::system(cmd.c_str());
+    out.status = WIFEXITED(raw) ? WEXITSTATUS(raw) : 128 + WTERMSIG(raw);
+    out.json = readFile(json);
+    fs::remove(json);
+    return out;
+}
+
+/// A C++ struct's elements include its methods (DISubprogram) and static data
+/// members as well as its fields.  ir2json cast every element to
+/// DIDerivedType and aborted on the method, which stopped openexr
+/// CVE-2020-16588 at ir2json.  Neither is a field: Point's mdtype entry lists
+/// one element, the member x.
+TEST(IR2Json, StructWithMethodDebugInfo) {
+    const Ir2Json r = runIr2Json("cxx_struct_method.ll");
+    if (!r.status) GTEST_SKIP() << "ir2json is not built; see scripts/IR2Json/Makefile";
+    ASSERT_EQ(*r.status, 0) << "ir2json failed on a struct with a method";
+
+    const size_t point = r.json.find("\"name\":\"Point\"");
+    ASSERT_NE(point, std::string::npos) << r.json;
+    const size_t open = r.json.find("\"elements\":[", point);
+    ASSERT_NE(open, std::string::npos) << r.json;
+    const std::string elements = r.json.substr(open, r.json.find(']', open) - open);
+    EXPECT_EQ(std::count(elements.begin(), elements.end(), '"'), 4)  // "elements" and one id
+        << "Point does not have exactly one element: " << elements;
+    EXPECT_NE(r.json.find("\"tag\":\"member\""), std::string::npos) << r.json;
+    EXPECT_NE(r.json.find("\"name\":\"x\""), std::string::npos) << r.json;
 }
 
 }  // namespace
