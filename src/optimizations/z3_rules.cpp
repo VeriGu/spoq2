@@ -94,6 +94,15 @@ void resolve_pattern(Project* proj, SpecNode* spec, SpecNode* pat, const shared_
             // The tester below is asserted, so the payload is the value; it
             // saves the solver unwrapping every If on the way to it.
             auto const ind = dynamic_pointer_cast<IndValue>(src);
+            // An ill-typed spec, such as an inlined definition returning a
+            // state where an option is declared.
+            if (!ind) {
+                auto msg = "a Some pattern meets a value of type " +
+                           (src->get_type() ? string(*src->get_type()) : string("null"));
+                if (auto m = dynamic_cast<Match *>(spec)) msg += ": " + string(*m->src).substr(0, 500);
+                LOG_ERROR << "[resolve_pattern] " << msg;
+                throw std::runtime_error(msg);
+            }
             auto value = ind->some_payload();
             if (!value) value = ind->get("value");
             auto const t = dynamic_pointer_cast<Option>(src->get_type());

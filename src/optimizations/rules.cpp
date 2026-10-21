@@ -5684,6 +5684,48 @@ rule_ret_t SpecRules::unfold_calls_to(std::unique_ptr<SpecNode> spec,
     return result;
 }
 
+/// An argument of type T that [def], declared to return `option T`, returns
+/// unwrapped, as in `Definition f (st: RData) : option RData := st`; null if
+/// none.  Inlined, such a body puts a state where a `when` expects an option.
+static const Arg *bare_argument_result(Project *proj, Definition *def, SpecNode *n,
+                                       std::set<string> &bound) {
+    if (!n) return nullptr;
+    if (auto r = instance_of(n, Rely)) return bare_argument_result(proj, def, r->body.get(), bound);
+    if (auto i = instance_of(n, If)) {
+        if (auto a = bare_argument_result(proj, def, i->then_body.get(), bound)) return a;
+        return bare_argument_result(proj, def, i->else_body.get(), bound);
+    }
+    if (auto m = instance_of(n, Match)) {
+        for (auto const &pm : *m->match_list) {
+            auto inner = bound;
+            get_vars_from_pattern(proj, pm->pattern.get(), inner);
+            if (auto a = bare_argument_result(proj, def, pm->body.get(), inner)) return a;
+        }
+        return nullptr;
+    }
+    if (auto sym = instance_of(n, Symbol)) {
+        if (bound.count(sym->text)) return nullptr;
+        auto const elem = string(*static_cast<Option *>(def->rettype.get())->elem_type);
+        for (auto const &arg : *def->args)
+            if (arg->name == sym->text && arg->type && string(*arg->type) == elem) return arg.get();
+    }
+    return nullptr;
+}
+
+/// Throws if [def] returns an argument unwrapped where an option is declared.
+static void check_option_result(Project *proj, Definition *def) {
+    static std::set<string> checked;
+    if (!checked.insert(def->name).second) return;
+    if (!def->rettype || !instance_of(def->rettype.get(), Option) || is_instance(def, Fixpoint)) return;
+    std::set<string> bound;
+    if (auto arg = bare_argument_result(proj, def, def->body().get(), bound)) {
+        auto const msg = "Definition " + def->name + " returns its argument " + arg->name + " of type " +
+                         string(*arg->type) + " where its result type is " + string(*def->rettype);
+        LOG_ERROR << msg;
+        throw std::runtime_error(msg);
+    }
+}
+
 rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec,
                                         const std::set<string> *restrict_to,
                                         const std::set<string> *scope_seed) {
@@ -5773,6 +5815,7 @@ rule_ret_t SpecRules::rule_unfold_specs(std::unique_ptr<SpecNode> spec, bool rec
                     define->deleyed_type_inference = false;
                 }
 
+                check_option_result(proj, define);
                 unique_ptr<SpecNode> body;
                 if (self_unfold) { body = node->deep_copy(); }
                 else body = define->body()->deep_copy();

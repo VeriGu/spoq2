@@ -601,6 +601,25 @@ bool SpoqIRModule::control_flow_conversion_DAG(const string& fname, SpoqFunction
 //   }
 //   %z = add %y, ...       ; uses %y → %y must be "passed out" of the loop
 
+// The value `is_ptr_to_int` rebuilds `ptr_to_int(p)` from: the pointer
+// operand of a ptrtoint reached through a chain of casts.  Sets `found` when
+// `value` is such a chain; `p` is then returned, or nullptr for a constant
+// expression, which needs no binding.
+static llvm::Value* ptr_to_int_source(llvm::Value* value, bool& found) {
+    if (auto expr = llvm::dyn_cast<llvm::ConstantExpr>(value)) {
+        found = expr->getOpcode() == llvm::Instruction::PtrToInt;
+        return nullptr;
+    }
+    if (auto inst = llvm::dyn_cast<llvm::PtrToIntInst>(value)) {
+        found = true;
+        return inst->getPointerOperand();
+    }
+    if (auto inst = llvm::dyn_cast<llvm::CastInst>(value))
+        return ptr_to_int_source(inst->getOperand(0), found);
+    found = false;
+    return nullptr;
+}
+
 void SpoqIRModule::pass_analysis(llvm::BasicBlock* block, std::vector<llvm::BasicBlock*>& stack,
         SpoqLoopContext& context,
         std::set<std::pair<llvm::BasicBlock*, std::vector<llvm::BasicBlock*>>>& visited) {
@@ -677,7 +696,20 @@ void SpoqIRModule::pass_analysis(llvm::BasicBlock* block, std::vector<llvm::Basi
             }
             continue;
         }
-        for (auto& ops: inst.operands()) {
+        std::vector<llvm::Value*> uses(inst.op_begin(), inst.op_end());
+        // A pointer difference is translated from the pointers under the
+        // ptrtoint casts (see `is_ptr_to_int`), so those pointers are used
+        // here too, even where the casts are defined outside the loop.
+        if (inst.getOpcode() == llvm::Instruction::Sub) {
+            bool found0 = false, found1 = false;
+            auto src0 = ptr_to_int_source(inst.getOperand(0), found0);
+            auto src1 = ptr_to_int_source(inst.getOperand(1), found1);
+            if (found0 && found1) {
+                if (src0) uses.push_back(src0);
+                if (src1) uses.push_back(src1);
+            }
+        }
+        for (auto *ops: uses) {
             if (auto op = llvm::dyn_cast<llvm::Instruction>(ops)) {
                 auto op_header = context.real_header(op);
                 context.recursive_update_pass(op_header, stack, op);

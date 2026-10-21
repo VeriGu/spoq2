@@ -306,9 +306,13 @@ set(PREPROCESSING_UNIMPLEMENTED
     ExtractBasics.ArrayOfDoubleKeepsItsElementType_Unimplemented
     ExtractPointers.StackValConstructorNamesAreDistinct_Unimplemented)
 list(JOIN PREPROCESSING_UNIMPLEMENTED ":" PREPROCESSING_UNIMPLEMENTED_FILTER)
+# IR2Json cases need scripts/IR2Json/ir2json, which a spoq build does not build
+# either; they are a separate entry so the group does not depend on it.
 add_test(NAME Preprocessing
-         COMMAND PreprocessingTest --gtest_filter=-${PREPROCESSING_UNIMPLEMENTED_FILTER})
+         COMMAND PreprocessingTest --gtest_filter=-${PREPROCESSING_UNIMPLEMENTED_FILTER}:IR2Json.*)
 set_tests_properties(Preprocessing PROPERTIES TIMEOUT 120)
+add_test(NAME PreprocessingIR2Json COMMAND PreprocessingTest --gtest_filter=IR2Json.*)
+set_tests_properties(PreprocessingIR2Json PROPERTIES TIMEOUT 120)
 foreach(case ${PREPROCESSING_UNIMPLEMENTED})
     add_test(NAME ${case} COMMAND PreprocessingTest --gtest_filter=${case})
     set_tests_properties(${case} PROPERTIES TIMEOUT 120)
