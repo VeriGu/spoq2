@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <chrono>
-#include <iterator>
 #include <cstdlib>
 #include <functional>
 #include <map>
@@ -117,6 +116,29 @@ z3::expr as_bool(const z3::expr &e) { return e.is_bool() ? e : e != 0; }
 
 bool same_sort(const z3::expr &a, const z3::expr &b) { return z3::eq(a.get_sort(), b.get_sort()); }
 
+std::vector<int> indices(size_t n) {
+    std::vector<int> out(n);
+    std::iota(out.begin(), out.end(), 0);
+    return out;
+}
+
+/// [a] mapped to [b] componentwise, for substitution.
+struct Subst {
+    z3::expr_vector from{z3ctx}, to{z3ctx};
+
+    Subst &add(const z3::expr_vector &a, const z3::expr_vector &b) {
+        for (unsigned i = 0; i < a.size(); i++) from.push_back(a[i]), to.push_back(b[i]);
+        return *this;
+    }
+    z3::expr operator()(z3::expr f) const { return f.substitute(from, to); }
+};
+
+z3::expr_vector args_of(const z3::expr &call) {
+    z3::expr_vector out(z3ctx);
+    for (unsigned i = 0; i < call.num_args(); i++) out.push_back(call.arg(i));
+    return out;
+}
+
 /// Whether some application in [e] satisfies [pred].
 bool any_app(const z3::expr &e, const std::function<bool(const z3::expr &)> &pred) {
     std::set<unsigned> seen;
@@ -172,151 +194,10 @@ std::optional<z3::expr> congruent(const z3::expr &y, const z3::expr &x, int c) {
     return std::nullopt;
 }
 
-/// One loop of the pair: fresh values for its arguments and its result
-/// components, and the result component that holds its exit code.
-struct Side {
-    Fixpoint *def = nullptr;
-    /// The body with small callees inlined, and with the memory accessors
-    /// inlined as well, for relating parts of the state.
-    std::shared_ptr<SpecNode> body, full;
-    /// The string constants of the full body, which may key the stack.
-    std::vector<string> strings;
-    shared_ptr<Option> rettype;
-    std::vector<shared_ptr<Arg>> args;
-    std::vector<shared_ptr<SpecValue>> params;
-    z3::expr_vector param_z3{z3ctx};
-    z3::expr_vector res{z3ctx};
-    std::optional<z3::func_decl> call;
-    int code = -1;
-    /// Arguments the body reads; the others are passed through unchanged.
-    std::vector<bool> read;
-    /// Whether the body may change the state.
-    bool writes = false;
-
-    z3::expr is_some(const z3::expr &t) const { return rettype->get_recognizer(rettype->some_name())(t); }
-    z3::expr is_none(const z3::expr &t) const { return rettype->get_recognizer(rettype->none_name())(t); }
-
-    z3::expr_vector components(const z3::expr &t) const {
-        auto const opt = static_pointer_cast<IndValue>(rettype->from_z3_value(t));
-        auto const tup = static_pointer_cast<StructValue>(opt->get("value"));
-        z3::expr_vector out(z3ctx);
-        for (unsigned i = 0; i < res.size(); i++) out.push_back(tup->get((int)i)->get_z3_value().simplify());
-        return out;
-    }
-
-    shared_ptr<ProveState> fresh_state() const {
-        auto const s = make_shared<ProveState>();
-        for (size_t i = 0; i < args.size(); i++) (*s->vars)[args[i]->name] = params[i];
-        return s;
-    }
-
-    /// A state over this loop's arguments with [from]'s path conditions.
-    /// A state over this loop's arguments with [from]'s path conditions, shared.
-    shared_ptr<ProveState> share(const shared_ptr<ProveState> &from) const {
-        return make_shared<ProveState>(fresh_state()->vars, from->conds, from->inductions);
-    }
-
-    unsigned st() const { return args.size() - 1; }
-};
-
-struct Leaf {
-    enum Kind { None, Cont, Exit } kind;
-    shared_ptr<ProveState> state;
-    z3::expr value;
-    z3::expr_vector next;
-};
-
-/// The state of a walk over one body, or two in lockstep.  The two sides have
-/// their own bindings and share the path condition.
-struct Walk {
-    shared_ptr<ProveState> v, p;  // p is null for one body
-
-    shared_ptr<ProveState> &at(bool patch) { return patch ? p : v; }
-
-    /// A copy for one branch: the path condition is the branch's own.
-    Walk fork() const {
-        auto conds = make_shared<vector<z3::expr>>(*v->conds);
-        auto inductions = make_shared<vector<z3::expr>>(*v->inductions);
-        auto const side = [&](const shared_ptr<ProveState> &s) -> shared_ptr<ProveState> {
-            if (!s) return nullptr;
-            auto vars = make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*s->vars);
-            return make_shared<ProveState>(vars, conds, inductions);
-        };
-        return Walk{side(v), side(p)};
-    }
-};
-
-using Child = std::function<bool(SpecNode *, const Walk &)>;
-using AtLeaf = std::function<bool(const Leaf &, const Walk &)>;
-
-/// One step of [side]'s body at [n], on the vuln or [patch] side of [w]: calls
-/// [child] with each feasible successor and its walk, or [leaf] at a leaf.  A
-/// branch that is cut keeps its condition negated on the other: an If's other
-/// branch, and a Match's later arms.  A leaf calling the loop is a continuation
-/// with the call's arguments.  False if the loop recurses other than in tail
-/// position.  With [hooks], nested loop calls get their relational
-/// postconditions.
-bool step(Project *proj, const Side &side, SpecNode *n, const Walk &w, bool patch, bool hooks, const Child &child,
-          const AtLeaf &leaf) {
-    auto const state = patch ? w.p : w.v;
-    if (auto r = instance_of(n, Rely)) {
-        auto next = w.fork();
-        next.at(patch)->conds->push_back(as_bool(z3_eval(proj, r->prop.get(), state)->get_z3_value()));
-        if (!feasible(next.at(patch))) return true;
-        return child(r->body.get(), next);
-    }
-    if (auto a = instance_of(n, Anno)) return child(a->body.get(), w);
-    if (auto iff = instance_of(n, If)) {
-        auto const c = as_bool(z3_eval(proj, iff->cond.get(), state)->get_z3_value());
-        for (bool const b : {true, false}) {
-            auto next = w.fork();
-            next.at(patch)->conds->push_back(b ? c : !c);
-            if (!feasible(next.at(patch))) continue;
-            if (!child(b ? iff->then_body.get() : iff->else_body.get(), next)) return false;
-        }
-        return true;
-    }
-    if (auto m = instance_of(n, Match)) {
-        auto const src = z3_eval(proj, m->src.get(), state);
-        if (mentions(src->get_z3_value(), *side.call)) return false;
-        auto base = w.fork();
-        if (hooks) relate_loop_calls(proj, base.at(patch), src->get_z3_value());
-        std::vector<z3::expr> earlier;
-        for (auto const &pm : *m->match_list) {
-            unordered_map<string, shared_ptr<SpecValue>> vars, assigns;
-            auto const cond = match_arm_condition(proj, m, pm->pattern.get(), src, vars, assigns);
-            auto next = base.fork();
-            for (auto const &[k, v] : assigns) (*next.at(patch)->vars)[k] = v;
-            for (auto const &e : earlier) next.at(patch)->conds->push_back(!e);
-            next.at(patch)->conds->push_back(cond);
-            earlier.push_back(cond);
-            if (!feasible(next.at(patch))) continue;
-            if (!child(pm->body.get(), next)) return false;
-        }
-        return true;
-    }
-    auto const v = z3_eval(proj, n, state)->get_z3_value().simplify();
-    if (v.is_app() && v.decl().id() == side.call->id()) {
-        z3::expr_vector next(z3ctx);
-        for (unsigned i = 0; i < v.num_args(); i++) next.push_back(v.arg(i));
-        return leaf(Leaf{Leaf::Cont, state, v, next}, w);
-    }
-    if (mentions(v, *side.call)) return false;
-    bool const none = v.is_app() && v.decl().name().str() == side.rettype->none_name();
-    return leaf(Leaf{none ? Leaf::None : Leaf::Exit, state, v, z3::expr_vector(z3ctx)}, w);
-}
-
-/// The paths of one iteration of [side]'s body from [state].  False if the
-/// loop recurses other than in tail position.
-bool enumerate(Project *proj, const Side &side, SpecNode *n, const shared_ptr<ProveState> &state, std::vector<Leaf> &out,
-               bool hooks) {
-    std::function<bool(SpecNode *, const Walk &)> go = [&](SpecNode *node, const Walk &w) {
-        return step(proj, side, node, w, false, hooks, go, [&](const Leaf &l, const Walk &) {
-            out.push_back(l);
-            return true;
-        });
-    };
-    return go(n, Walk{state, nullptr});
+string short_expr(const z3::expr &e) {
+    auto s = e.to_string();
+    std::replace(s.begin(), s.end(), '\n', ' ');
+    return s.size() > 300 ? s.substr(0, 300) + "..." : s;
 }
 
 /// Calls [f] on each child of [n] that is evaluated, so not on the patterns
@@ -371,12 +252,40 @@ void collect_strings(SpecNode *n, std::set<string> &out) {
     for_each_child(n, [&](SpecNode *c) { collect_strings(c, out); });
 }
 
+/// The body of [c] if a call to it in [loop] is inlined, with the memory
+/// accessors if [full]: a small, non-recursive definition other than a loop.
+SpecNode *inlinable(Project *proj, const Fixpoint *loop, const string &c, bool full) {
+    auto const it = proj->defs.find(c);
+    if (it == proj->defs.end() || !it->second || c == loop->name || instance_of(it->second.get(), Fixpoint))
+        return nullptr;
+    // A body still to be derived is a generated function spec, not a helper;
+    // reading it would transform it.
+    if (it->second->finish_body) return nullptr;
+    if ((!full && UNFOLD_POLICY.skip_list.count(c)) || !it->second->body()) return nullptr;
+    size_t const limit = full ? SLI_FULL_INLINE_LEAVES : SLI_INLINE_LEAVES;
+    auto *const body = it->second->body().get();
+    if (body->count_leaves(limit + 1) > limit) return nullptr;
+    std::set<string> inner;
+    collect_called_defs(proj, body, inner);
+    return inner.count(c) ? nullptr : body;
+}
+
+/// The string constants of [n] and of the bodies the memory-inlined body of
+/// [loop] would take in, without inlining them.
+void inlined_strings(Project *proj, const Fixpoint *loop, SpecNode *n, int depth, std::set<string> &out) {
+    collect_strings(n, out);
+    if (depth == SLI_INLINE_ROUNDS) return;
+    std::set<string> callees;
+    collect_called_defs(proj, n, callees);
+    for (auto const &c : callees)
+        if (auto *const body = inlinable(proj, loop, c, true)) inlined_strings(proj, loop, body, depth + 1, out);
+}
+
 /// [loop]'s body with each small, non-recursive callee inlined, so that
 /// conditions such as `xorb_spec c true` are visible to the solver.  Loops stay
 /// folded, and callees marked DelayUnfold unless [full].
 unique_ptr<SpecNode> prepared_body(Project *proj, Fixpoint *loop, bool full) {
     auto body = loop->body()->deep_copy();
-    size_t const limit = full ? SLI_FULL_INLINE_LEAVES : SLI_INLINE_LEAVES;
     // DelayUnfold callees are otherwise skipped by the unfolding itself.
     struct SkipGuard {
         bool saved = UNFOLD_POLICY.skip;
@@ -389,17 +298,7 @@ unique_ptr<SpecNode> prepared_body(Project *proj, Fixpoint *loop, bool full) {
         collect_called_defs(proj, body.get(), callees);
         bool changed_round = false;
         for (auto const &c : callees) {
-            auto const it = proj->defs.find(c);
-            if (it == proj->defs.end() || !it->second || c == loop->name || instance_of(it->second.get(), Fixpoint))
-                continue;
-            // A body still to be derived is a generated function spec, not a
-            // helper; reading it would transform it.
-            if (it->second->finish_body) continue;
-            if ((!full && UNFOLD_POLICY.skip_list.count(c)) || !it->second->body()) continue;
-            if (it->second->body()->count_leaves(limit + 1) > limit) continue;
-            std::set<string> inner;
-            collect_called_defs(proj, it->second->body().get(), inner);
-            if (inner.count(c)) continue;
+            if (!inlinable(proj, loop, c, full)) continue;
             bool changed = false;
             std::tie(body, changed) = proj->rules.unfold_calls_to(std::move(body), c);
             changed_round |= changed;
@@ -414,6 +313,34 @@ unique_ptr<SpecNode> prepared_body(Project *proj, Fixpoint *loop, bool full) {
         body = proj->rules.eliminate_ambiguity(std::move(body), known, amb);
     }
     return body;
+}
+
+/// The tuples of the exits `Some (t_1, ..., t_k)` of the body [n].
+void exit_tuples(SpecNode *n, std::vector<Expr *> &out) {
+    if (auto m = instance_of(n, Match)) {
+        for (auto const &pm : *m->match_list) exit_tuples(pm->body.get(), out);
+    } else if (auto i = instance_of(n, If)) {
+        exit_tuples(i->then_body.get(), out);
+        exit_tuples(i->else_body.get(), out);
+    } else if (auto r = instance_of(n, RelyAnno)) {
+        exit_tuples(r->body.get(), out);
+    } else if (auto e = instance_of(n, Expr); e && op_eq(e->op, Expr::Some) && e->elems && !e->elems->empty()) {
+        if (auto t = instance_of(e->elems->at(0).get(), Expr); t && op_eq(t->op, Expr::Tuple) && t->elems) out.push_back(t);
+    }
+}
+
+/// The last component other than the state that is an integer literal at
+/// every exit of the body [n], which holds the exit code; -1 if none.
+int code_slot(SpecNode *n, size_t arity) {
+    std::vector<Expr *> exits;
+    exit_tuples(n, exits);
+    if (exits.empty()) return -1;
+    for (int k = (int)arity - 2; k >= 0; k--)
+        if (std::all_of(exits.begin(), exits.end(), [&](Expr *t) {
+                return t->elems->size() == arity && instance_of(t->elems->at(k).get(), IntConst);
+            }))
+            return k;
+    return -1;
 }
 
 /// Whether [n] binds [name] in a pattern.
@@ -455,6 +382,154 @@ bool writes_state(SpecNode *n, const Fixpoint *loop, const string &st) {
     return false;
 }
 
+/// One loop of the pair: fresh values for its arguments and its result
+/// components, and the result component that holds its exit code.
+struct Side {
+    Fixpoint *def = nullptr;
+    /// The body with small callees inlined.
+    std::shared_ptr<SpecNode> body;
+    mutable std::shared_ptr<SpecNode> full_cache;
+    Project *proj = nullptr;
+
+    /// The body with the memory accessors inlined too, for relating parts of
+    /// the states; built on first use.
+    SpecNode *full() const {
+        if (!full_cache) full_cache = prepared_body(proj, def, true);
+        return full_cache.get();
+    }
+    /// The string constants of the memory-inlined body, which may key the stack.
+    std::vector<string> strings;
+    shared_ptr<Option> rettype;
+    std::vector<shared_ptr<Arg>> args;
+    std::vector<shared_ptr<SpecValue>> params;
+    z3::expr_vector param_z3{z3ctx};
+    z3::expr_vector res{z3ctx};
+    std::optional<z3::func_decl> call;
+    int code = -1;
+    /// Arguments the body reads; the others are passed through unchanged.
+    std::vector<bool> read;
+    /// Whether the body may change the state.
+    bool writes = false;
+
+    z3::expr is_some(const z3::expr &t) const { return rettype->get_recognizer(rettype->some_name())(t); }
+    z3::expr is_none(const z3::expr &t) const { return rettype->get_recognizer(rettype->none_name())(t); }
+
+    z3::expr_vector components(const z3::expr &t) const {
+        auto const opt = static_pointer_cast<IndValue>(rettype->from_z3_value(t));
+        auto const tup = static_pointer_cast<StructValue>(opt->get("value"));
+        z3::expr_vector out(z3ctx);
+        for (unsigned i = 0; i < res.size(); i++) out.push_back(tup->get((int)i)->get_z3_value().simplify());
+        return out;
+    }
+
+    shared_ptr<ProveState> fresh_state() const {
+        auto const s = make_shared<ProveState>();
+        for (size_t i = 0; i < args.size(); i++) (*s->vars)[args[i]->name] = params[i];
+        return s;
+    }
+
+    /// A state over this loop's arguments sharing [from]'s path conditions.
+    shared_ptr<ProveState> share(const shared_ptr<ProveState> &from) const {
+        return make_shared<ProveState>(fresh_state()->vars, from->conds, from->inductions);
+    }
+
+    unsigned st() const { return args.size() - 1; }
+};
+
+struct Leaf {
+    enum Kind { None, Cont, Exit } kind;
+    shared_ptr<ProveState> state;
+    z3::expr value;
+    z3::expr_vector next;
+};
+
+/// The state of a walk over one body, or two in lockstep.  The two sides have
+/// their own bindings and share the path condition.
+struct Walk {
+    shared_ptr<ProveState> v, p;  // p is null for one body
+
+    shared_ptr<ProveState> &at(bool patch) { return patch ? p : v; }
+
+    /// A copy for one branch: the path condition is the branch's own.
+    Walk fork() const {
+        auto conds = make_shared<vector<z3::expr>>(*v->conds);
+        auto inductions = make_shared<vector<z3::expr>>(*v->inductions);
+        auto const side = [&](const shared_ptr<ProveState> &s) -> shared_ptr<ProveState> {
+            if (!s) return nullptr;
+            auto vars = make_shared<unordered_map<string, shared_ptr<SpecValue>>>(*s->vars);
+            return make_shared<ProveState>(vars, conds, inductions);
+        };
+        return Walk{side(v), side(p)};
+    }
+};
+
+using Child = std::function<bool(SpecNode *, const Walk &)>;
+using AtLeaf = std::function<bool(const Leaf &, const Walk &)>;
+
+/// One step of [side]'s body at [n], on the vuln or [patch] side of [w]: calls
+/// [child] with each feasible successor and its walk, or [leaf] at a leaf.  A
+/// branch that is cut keeps its condition negated on the other: an If's other
+/// branch, and a Match's later arms.  A leaf calling the loop is a continuation
+/// with the call's arguments, and a nested loop call gets its relational
+/// postcondition.  False if the loop recurses other than in tail position.
+bool step(Project *proj, const Side &side, SpecNode *n, const Walk &w, bool patch, const Child &child,
+          const AtLeaf &leaf) {
+    auto const state = patch ? w.p : w.v;
+    if (auto r = instance_of(n, Rely)) {
+        auto next = w.fork();
+        next.at(patch)->conds->push_back(as_bool(z3_eval(proj, r->prop.get(), state)->get_z3_value()));
+        if (!feasible(next.at(patch))) return true;
+        return child(r->body.get(), next);
+    }
+    if (auto a = instance_of(n, Anno)) return child(a->body.get(), w);
+    if (auto iff = instance_of(n, If)) {
+        auto const c = as_bool(z3_eval(proj, iff->cond.get(), state)->get_z3_value());
+        for (bool const b : {true, false}) {
+            auto next = w.fork();
+            next.at(patch)->conds->push_back(b ? c : !c);
+            if (!feasible(next.at(patch))) continue;
+            if (!child(b ? iff->then_body.get() : iff->else_body.get(), next)) return false;
+        }
+        return true;
+    }
+    if (auto m = instance_of(n, Match)) {
+        auto const src = z3_eval(proj, m->src.get(), state);
+        if (mentions(src->get_z3_value(), *side.call)) return false;
+        auto base = w.fork();
+        relate_loop_calls(proj, base.at(patch), src->get_z3_value());
+        std::vector<z3::expr> earlier;
+        for (auto const &pm : *m->match_list) {
+            unordered_map<string, shared_ptr<SpecValue>> vars, assigns;
+            auto const cond = match_arm_condition(proj, m, pm->pattern.get(), src, vars, assigns);
+            auto next = base.fork();
+            for (auto const &[k, v] : assigns) (*next.at(patch)->vars)[k] = v;
+            for (auto const &e : earlier) next.at(patch)->conds->push_back(!e);
+            next.at(patch)->conds->push_back(cond);
+            earlier.push_back(cond);
+            if (!feasible(next.at(patch))) continue;
+            if (!child(pm->body.get(), next)) return false;
+        }
+        return true;
+    }
+    auto const v = z3_eval(proj, n, state)->get_z3_value().simplify();
+    if (v.is_app() && v.decl().id() == side.call->id()) return leaf(Leaf{Leaf::Cont, state, v, args_of(v)}, w);
+    if (mentions(v, *side.call)) return false;
+    bool const none = v.is_app() && v.decl().name().str() == side.rettype->none_name();
+    return leaf(Leaf{none ? Leaf::None : Leaf::Exit, state, v, z3::expr_vector(z3ctx)}, w);
+}
+
+/// The paths of one iteration of [side]'s body from [state].  False if the
+/// loop recurses other than in tail position.
+bool enumerate(Project *proj, const Side &side, SpecNode *n, const shared_ptr<ProveState> &state, std::vector<Leaf> &out) {
+    std::function<bool(SpecNode *, const Walk &)> go = [&](SpecNode *node, const Walk &w) {
+        return step(proj, side, node, w, false, go, [&](const Leaf &l, const Walk &) {
+            out.push_back(l);
+            return true;
+        });
+    };
+    return go(n, Walk{state, nullptr});
+}
+
 std::optional<Side> make_side(Project *proj, const string &name) {
     auto const it = proj->defs.find(name);
     if (it == proj->defs.end() || !it->second) return std::nullopt;
@@ -476,30 +551,15 @@ std::optional<Side> make_side(Project *proj, const string &name) {
         s.res.push_back(tup->types->at(i)->declare("__sli_" + name + "_r" + std::to_string(i), 0)->get_z3_value());
     s.call = fix->absf()->z3_func;
     s.body = prepared_body(proj, fix, false);
-    s.full = prepared_body(proj, fix, true);
+    s.proj = proj;
     std::set<string> strings;
-    collect_strings(s.full.get(), strings);
+    inlined_strings(proj, fix, s.body.get(), 0, strings);
     s.strings.assign(strings.begin(), strings.end());
     s.read.assign(s.args.size(), false);
     mark_reads(s.body.get(), fix, s.read);
     s.writes = writes_state(s.body.get(), fix, s.args.back()->name);
     s.read.back() = true;
-
-    // The exit code is the last component that is a numeral at every exit.
-    std::vector<Leaf> leaves;
-    if (!enumerate(proj, s, s.body.get(), s.fresh_state(), leaves, false)) return std::nullopt;
-    std::vector<bool> numeral(s.res.size() - 1, true);
-    bool any_exit = false;
-    for (auto const &l : leaves) {
-        if (l.kind != Leaf::Exit) continue;
-        any_exit = true;
-        auto const c = s.components(l.value);
-        for (unsigned k = 0; k + 1 < s.res.size(); k++)
-            if (!c[k].is_numeral()) numeral[k] = false;
-    }
-    if (any_exit)
-        for (int k = (int)numeral.size() - 1; k >= 0; k--)
-            if (numeral[k]) { s.code = k; break; }
+    s.code = code_slot(s.body.get(), s.res.size());
     return s;
 }
 
@@ -528,14 +588,6 @@ std::vector<int> reduced(const std::vector<Cand> &cands, const std::vector<int> 
         if (whole && cands[i].part) continue;
         if (cands[i].c == 1 || cands[i].c == 0 || !eqs.count({cands[i].xi, cands[i].yj})) out.push_back(i);
     }
-    return out;
-}
-
-std::vector<Cand> reduced(const std::vector<Cand> &cands) {
-    std::vector<int> all;
-    for (int i = 0; i < (int)cands.size(); i++) all.push_back(i);
-    std::vector<Cand> out;
-    for (int const i : reduced(cands, all)) out.push_back(cands[i]);
     return out;
 }
 
@@ -577,8 +629,6 @@ void add_candidates(std::vector<Cand> &out, const z3::expr_vector &xs, const z3:
         }
     }
 }
-
-string short_expr(const z3::expr &e);
 
 bool is_string_sort(const z3::sort &s) { return Z3_is_string_sort(z3ctx, s); }
 
@@ -696,17 +746,7 @@ string describe(const std::vector<Cand> &cands, const std::vector<int> &idx) {
     return o.str();
 }
 
-string describe(const std::vector<Cand> &cands) {
-    std::vector<int> all(cands.size());
-    std::iota(all.begin(), all.end(), 0);
-    return describe(cands, all);
-}
-
-string short_expr(const z3::expr &e) {
-    auto s = e.to_string();
-    std::replace(s.begin(), s.end(), '\n', ' ');
-    return s.size() > 300 ? s.substr(0, 300) + "..." : s;
-}
+string describe(const std::vector<Cand> &cands) { return describe(cands, indices(cands.size())); }
 
 struct PairLeaf {
     Leaf v, p;
@@ -734,7 +774,7 @@ bool enumerate_pairs(Project *proj, const Side &V, const Side &P, SpecNode *vbod
         }
         if (!lv && (lp || kv <= kp))
             return step(
-                proj, V, nv, w, false, true,
+                proj, V, nv, w, false,
                 [&](SpecNode *c, const Walk &w2) { return go(c, np, w2, kv + 1, kp, lv, lp); },
                 [&](const Leaf &l, const Walk &w2) {
                     if (l.kind == Leaf::None) return true;
@@ -744,7 +784,7 @@ bool enumerate_pairs(Project *proj, const Side &V, const Side &P, SpecNode *vbod
                     return go(nullptr, np, next, kv, kp, l, lp);
                 });
         return step(
-            proj, P, np, w, true, true, [&](SpecNode *c, const Walk &w2) { return go(nv, c, w2, kv, kp + 1, lv, lp); },
+            proj, P, np, w, true, [&](SpecNode *c, const Walk &w2) { return go(nv, c, w2, kv, kp + 1, lv, lp); },
             [&](const Leaf &l, const Walk &w2) { return go(nv, nullptr, w2, kv, kp, lv, l); });
     };
     return go(vbody, pbody, w, 0, 0, std::nullopt, std::nullopt);
@@ -773,12 +813,8 @@ string show(const Pair &pr, z3::expr e) {
 std::optional<Relation> infer(Project *proj, Pair &pr, const std::vector<int> &C0, bool full) {
     auto const &V = pr.v;
     auto const &P = pr.p;
-    auto *const vbody = (full ? V.full : V.body).get();
-    auto *const pbody = (full ? P.full : P.body).get();
-    z3::expr_vector params(z3ctx);
-    for (auto const e : V.param_z3) params.push_back(e);
-    for (auto const e : P.param_z3) params.push_back(e);
-
+    auto *const vbody = full ? V.full() : V.body.get();
+    auto *const pbody = full ? P.full() : P.body.get();
     Relation rel;
     rel.R = C0;
     std::vector<PairLeaf> pairs;
@@ -794,10 +830,8 @@ std::optional<Relation> infer(Project *proj, Pair &pr, const std::vector<int> &C
         auto next = rel.R;
         for (auto const &pl : pairs) {
             if (pl.v.kind != Leaf::Cont || pl.p.kind != Leaf::Cont) continue;
-            z3::expr_vector to(z3ctx);
-            for (auto const e : pl.v.next) to.push_back(e);
-            for (auto const e : pl.p.next) to.push_back(e);
-            prune(pl.p.state, next, [&](int i) { return pr.R[i].f.substitute(params, to); });
+            auto const at_next = Subst().add(V.param_z3, pl.v.next).add(P.param_z3, pl.p.next);
+            prune(pl.p.state, next, [&](int i) { return at_next(pr.R[i].f); });
         }
         rprune.done(std::to_string(next.size()) + " candidates left");
         if (next == rel.R) break;
@@ -824,7 +858,7 @@ std::optional<Relation> infer(Project *proj, Pair &pr, const std::vector<int> &C
         if (c.is_numeral()) return c;
         return std::nullopt;
     };
-    auto const key = [](const std::optional<z3::expr> &c) { return c ? c->to_string() : string("*"); };
+    auto const key = [](const std::optional<z3::expr> &c) { return c ? c->get_decimal_string(0) : string("*"); };
 
     // A vuln exit on which the patch is unconstrained: [state] is the pair's,
     // or the vuln's alone for an exit reached under U.
@@ -874,8 +908,7 @@ std::optional<Relation> infer(Project *proj, Pair &pr, const std::vector<int> &C
                 if (seen.insert(a.id()).second) atoms.push_back(a);
             }
         }
-        std::vector<int> alive;
-        for (int i = 0; i < (int)atoms.size(); i++) alive.push_back(i);
+        auto alive = indices(atoms.size());
         for (size_t const k : vuln_continues)
             prune(pairs[k].p.state, alive, [&](int i) { return atoms[i].substitute(V.param_z3, pairs[k].v.next); });
         std::vector<Leaf> uexits;
@@ -889,7 +922,7 @@ std::optional<Relation> infer(Project *proj, Pair &pr, const std::vector<int> &C
             auto const base = V.fresh_state();
             for (int const i : alive) base->conds->push_back(atoms[i]);
             std::vector<Leaf> vl;
-            if (!enumerate(proj, V, vbody, base, vl, true)) return std::nullopt;
+            if (!enumerate(proj, V, vbody, base, vl)) return std::nullopt;
             uexits.clear();
             auto next = alive;
             for (auto const &l : vl) {
@@ -927,18 +960,9 @@ std::optional<Relation> infer(Project *proj, Pair &pr, const std::vector<int> &C
                                       -1, 0});
 
     auto const E_at = [&](const PairLeaf &pl, int i) {
-        z3::expr_vector from(z3ctx), to(z3ctx);
-        auto const cv = V.components(pl.v.value), cp = P.components(pl.p.value);
-        for (unsigned k = 0; k < V.res.size(); k++) from.push_back(V.res[k]), to.push_back(cv[k]);
-        for (unsigned k = 0; k < P.res.size(); k++) from.push_back(P.res[k]), to.push_back(cp[k]);
-        return ecands[i].f.substitute(from, to);
+        return Subst().add(V.res, V.components(pl.v.value)).add(P.res, P.components(pl.p.value))(ecands[i].f);
     };
-
-    auto const at_vuln = [&](const Leaf &l, z3::expr f) {
-        z3::expr_vector to(z3ctx);
-        for (auto const e : V.components(l.value)) to.push_back(e);
-        return f.substitute(V.res, to);
-    };
+    auto const at_vuln = [&](const Leaf &l, z3::expr f) { return Subst().add(V.res, V.components(l.value))(f); };
 
     // Q for the diverged exits [ds]: the atoms over the vuln's result and the
     // stable patch arguments that hold on each.  Constants come from a model.
@@ -960,8 +984,7 @@ std::optional<Relation> infer(Project *proj, Pair &pr, const std::vector<int> &C
             for (int const k : stable_p)
                 if (same_sort(V.res[i], P.param_z3[k])) atoms.push_back(V.res[i] == P.param_z3[k]);
         }
-        std::vector<int> alive;
-        for (int i = 0; i < (int)atoms.size(); i++) alive.push_back(i);
+        auto alive = indices(atoms.size());
         for (auto const &d : ds) prune(d.state, alive, [&](int i) { return at_vuln(d.v, atoms[i]); });
         z3::expr_vector q(z3ctx);
         for (int const i : alive) q.push_back(atoms[i]);
@@ -997,8 +1020,7 @@ std::optional<Relation> infer(Project *proj, Pair &pr, const std::vector<int> &C
                 for (size_t const k : cks) prune(pairs[k].p.state, parts, [&](int i) { return E_at(pairs[k], i); });
                 alive.insert(alive.end(), parts.begin(), parts.end());
             }
-            for (int const i : alive) g.E.push_back(ecands[i]);
-            g.E = reduced(g.E);
+            for (int const i : reduced(ecands, alive)) g.E.push_back(ecands[i]);
             auto div = base;
             for (auto const &[cp2, cks2] : by_cp)
                 if (cp2 != cp)
@@ -1023,13 +1045,12 @@ std::optional<Relation> infer(Project *proj, Pair &pr, const std::vector<int> &C
     }
 
     pexits.done(std::to_string(rel.groups.size()) + " exit codes");
-    auto const code_str = [](const std::optional<z3::expr> &c) { return c ? c->get_decimal_string(0) : string("*"); };
     std::ostringstream o;
     o << "Shared loop invariant " << pr.pname << " ~ " << pr.vname << (full ? " (memory inlined)" : "") << ": R = {"
       << describe(pr.R, rel.R) << "}";
     for (auto const &g : rel.groups) {
-        o << "; exit " << code_str(g.cv);
-        if (g.related) o << " -> " << code_str(g.cp) << " {" << describe(g.E) << "}";
+        o << "; exit " << key(g.cv);
+        if (g.related) o << " -> " << key(g.cp) << " {" << describe(g.E) << "}";
         if (g.Q) o << " diverged if " << show(pr, *g.Q);
     }
     if (!u_desc.empty()) o << "; where only the patch exits, the vuln continues under " << u_desc;
@@ -1081,21 +1102,24 @@ void find_calls(Project *proj, const std::vector<z3::expr> &roots, const string 
     }
 }
 
+/// The pairs whose inference is in progress.
+std::set<std::pair<string, string>> active;
+
 /// The theorem at vuln call [vc] and patch call [pc], or nothing.
-std::optional<z3::expr> instantiate(Project *proj, const shared_ptr<ProveState> &state, const string &vname,
-                                    const z3::expr &vc, const string &pname, const z3::expr &pc) {
-    static std::set<std::pair<string, string>> active;
+std::optional<z3::expr> instantiate_uncached(Project *proj, const shared_ptr<ProveState> &state, const string &vname,
+                                             const z3::expr &vc, const string &pname, const z3::expr &pc) {
     auto const key = std::make_pair(vname, pname);
-    if (active.count(key)) return std::nullopt;
+    Phase const ppair{"pair " + pname + " ~ " + vname};
     auto *const pr = get_pair(proj, vname, pname);
+    ppair.done();
     if (!pr) return std::nullopt;
     auto const &V = pr->v;
     auto const &P = pr->p;
     if (vc.num_args() != V.param_z3.size() || pc.num_args() != P.param_z3.size()) return std::nullopt;
 
-    z3::expr_vector params(z3ctx), args(z3ctx);
-    for (unsigned i = 0; i < V.param_z3.size(); i++) params.push_back(V.param_z3[i]), args.push_back(vc.arg(i));
-    for (unsigned i = 0; i < P.param_z3.size(); i++) params.push_back(P.param_z3[i]), args.push_back(pc.arg(i));
+    auto const at_call = Subst().add(V.param_z3, args_of(vc)).add(P.param_z3, args_of(pc));
+    auto const &params = at_call.from;
+    auto const &args = at_call.to;
 
     // Arguments with a ground value at this call.
     for (unsigned i = 0; i < params.size(); i++) {
@@ -1111,10 +1135,10 @@ std::optional<z3::expr> instantiate(Project *proj, const shared_ptr<ProveState> 
         pr->R.push_back(Cand{params[i] == a, desc, -1, -1, 0});
     }
 
-    std::vector<int> C0;
-    for (int i = 0; i < (int)pr->R.size(); i++) C0.push_back(i);
-    auto const all_cands = C0;
-    prune(state, C0, [&](int i) { return pr->R[i].f.substitute(params, args); });
+    auto C0 = indices(pr->R.size());
+    Phase const pcall{"candidates at the call"};
+    prune(state, C0, [&](int i) { return at_call(pr->R[i].f); });
+    pcall.done(std::to_string(C0.size()) + " of " + std::to_string(pr->R.size()) + " hold");
 
     // Where a body writes the state, the loops run in lockstep only from
     // related states.
@@ -1123,9 +1147,6 @@ std::optional<z3::expr> instantiate(Project *proj, const shared_ptr<ProveState> 
                  << ": the loops write the state, and no relation of the states holds at the call";
         return std::nullopt;
     }
-    if (C0.size() < pr->R.size())
-        LOG_DEBUG << "Shared loop invariant " << pname << " ~ " << vname << ": " << pr->R.size() - C0.size()
-                  << " of " << pr->R.size() << " candidates fail at the call";
 
     // With the memory accessors folded, a load or store is a function of the
     // whole state, so parts of the states are related only with them inlined.
@@ -1136,28 +1157,14 @@ std::optional<z3::expr> instantiate(Project *proj, const shared_ptr<ProveState> 
     auto const attempt = [&](const std::vector<int> &C0, bool full) -> const std::optional<Relation> & {
         auto it = pr->cache.find({C0, full});
         if (it == pr->cache.end()) {
-            if (log_infer_calls()) {
-                std::ostringstream o;
-                o << "Shared loop invariant: inferring " << pname << " ~ " << vname
-                  << (full ? " (memory inlined)" : "") << ", nested in {";
-                for (auto const &[v, p] : active) o << p << " ~ " << v << "; ";
-                std::vector<int> dropped;
-                std::set_difference(all_cands.begin(), all_cands.end(), C0.begin(), C0.end(),
-                                    std::back_inserter(dropped));
-                o << "}\n  vuln call: " << short_expr(vc.simplify()) << "\n  patch call: " << short_expr(pc.simplify())
-                  << "\n  " << C0.size() << " candidates: " << describe(pr->R, C0) << "\n  " << dropped.size()
-                  << " dropped at the call: " << describe(pr->R, dropped);
-                LOG_DEBUG << o.str();
-            }
-            auto const t0 = std::chrono::steady_clock::now();
+            std::ostringstream nested;
+            for (auto const &[v, p] : active) nested << " in " << p << " ~ " << v;
+            Phase const pinf{"inference of " + pname + " ~ " + vname + (full ? " (memory inlined)" : "") +
+                             nested.str() + " from {" + describe(pr->R, C0) + "}"};
             active.insert(key);
             auto rel = infer(proj, *pr, C0, full);
             active.erase(key);
-            if (log_infer_calls())
-                LOG_DEBUG << "Shared loop invariant: inferred " << pname << " ~ " << vname
-                          << (full ? " (memory inlined)" : "") << " in "
-                          << std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count() << " s: "
-                          << (rel ? "relation" : "none");
+            pinf.done(rel ? "relation" : "none");
             it = pr->cache.emplace(std::make_pair(C0, full), std::move(rel)).first;
         }
         return it->second;
@@ -1180,15 +1187,18 @@ std::optional<z3::expr> instantiate(Project *proj, const shared_ptr<ProveState> 
     if (!found) {
         found = &attempt(C0, false);
         if (!equates(*found)) {
-            auto const &second = attempt(C0, true);
-            if (second) found = &second;
+            // Inlining the accessors serves only to relate parts of the states.
+            if (std::any_of(C0.begin(), C0.end(), [&](int i) { return pr->R[i].part && pr->R[i].relates; })) {
+                auto const &second = attempt(C0, true);
+                if (second) found = &second;
+            }
         }
     }
     if (!*found) return std::nullopt;
     auto const &rel = **found;
 
     z3::expr_vector ent(z3ctx);
-    for (int const i : rel.R) ent.push_back(pr->R[i].f.substitute(params, args));
+    for (int const i : rel.R) ent.push_back(at_call(pr->R[i].f));
 
     z3::expr post = z3ctx.bool_val(true);
     z3::expr some_code = z3ctx.bool_val(false);
@@ -1207,13 +1217,27 @@ std::optional<z3::expr> instantiate(Project *proj, const shared_ptr<ProveState> 
     }
     post = post && some_code;
 
-    z3::expr_vector from(z3ctx), to(z3ctx);
-    auto const cv = V.components(vc), cp = P.components(pc);
-    for (unsigned k = 0; k < V.res.size(); k++) from.push_back(V.res[k]), to.push_back(cv[k]);
-    for (unsigned k = 0; k < P.res.size(); k++) from.push_back(P.res[k]), to.push_back(cp[k]);
-    for (unsigned k = 0; k < V.param_z3.size(); k++) from.push_back(V.param_z3[k]), to.push_back(vc.arg(k));
-    for (unsigned k = 0; k < P.param_z3.size(); k++) from.push_back(P.param_z3[k]), to.push_back(pc.arg(k));
-    return z3::implies(z3::mk_and(ent) && V.is_some(vc), post.substitute(from, to));
+    auto const at_results = Subst(at_call).add(V.res, V.components(vc)).add(P.res, P.components(pc));
+    return z3::implies(z3::mk_and(ent) && V.is_some(vc), at_results(post));
+}
+
+/// The theorem at vuln call [vc] and patch call [pc], once per pair of calls.
+/// It holds whichever candidates the first call's path left, so a later path
+/// reuses it; a relation from that path's candidates could only be stronger.
+std::optional<z3::expr> instantiate(Project *proj, const shared_ptr<ProveState> &state, const string &vname,
+                                    const z3::expr &vc, const string &pname, const z3::expr &pc) {
+    if (active.count({vname, pname})) return std::nullopt;
+    struct Entry {
+        z3::expr vc, pc;  // keep the ids of the key alive
+        std::optional<z3::expr> instance;
+    };
+    // Never destroyed: it holds z3 terms, which must not outlive the context.
+    static auto &memo = *new std::map<std::tuple<string, string, unsigned, unsigned>, Entry>();
+    auto const key = std::make_tuple(vname, pname, vc.id(), pc.id());
+    if (auto const it = memo.find(key); it != memo.end()) return it->second.instance;
+    auto inst = instantiate_uncached(proj, state, vname, vc, pname, pc);
+    memo.emplace(key, Entry{vc, pc, inst});
+    return inst;
 }
 
 }  // namespace
