@@ -1928,7 +1928,8 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
 /// `vuln_ret`, `patch_ret` and the entry parameters.  Checked before the specs
 /// are transformed and the refinement search begins.
 static void check_refines_relation_names(Project *proj, Definition *vuln, Definition *patched,
-                                         const vector<Definition *> &state_rels, SpecNode *ret_rel) {
+                                         const vector<Definition *> &state_rels, SpecNode *ret_rel,
+                                         SpecNode *valid) {
     std::map<string, string> params;  // name -> type
     for (size_t i = 0; i + 1 < vuln->args->size(); i++)
         params[vuln->args->at(i)->name] = string(*vuln->args->at(i)->type);
@@ -1964,6 +1965,31 @@ static void check_refines_relation_names(Project *proj, Definition *vuln, Defini
             if (name != "vuln_ret" && name != "patch_ret" && !params.count(name))
                 fail("for the return values", name, "refers to");
     }
+    if (valid) {
+        std::set<string> free;
+        free_vars(proj, valid, free);
+        for (auto const &name : free)
+            if (!params.count(name)) fail("ValidInput of " + vuln->name, name, "refers to");
+    }
+}
+
+/// [valid] -> [rel], over the state relation's parameters and any entry
+/// parameters [valid] uses.
+static unique_ptr<Definition> guard_state_relation(Project *proj, Definition *rel, Definition *vuln,
+                                                   SpecNode *valid) {
+    auto args = make_unique<vector<shared_ptr<Arg>>>(*rel->args);
+    for (size_t i = 0; i + 1 < vuln->args->size(); i++) {
+        auto const &p = vuln->args->at(i);
+        if (std::none_of(args->begin(), args->end(), [&](auto const &a) { return a->name == p->name; }))
+            args->push_back(p);
+    }
+    auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+    elems->push_back(valid->deep_copy());
+    elems->push_back(rel->body()->deep_copy());
+    auto guarded = make_unique<Definition>(rel->name, rel->rettype, std::move(args),
+                                           make_unique<Expr>(Expr::binops::IMPLIES, std::move(elems)));
+    guarded->infer_type(*proj);
+    return guarded;
 }
 
 /// Names of callee specs still folded inside [spec], in a deterministic order.
@@ -2478,10 +2504,35 @@ void spec_prover(Project *proj) {
                     << "vuln_def and patched_def are the same, cannot analyze.";
                 // continue;
             }
+            // Hint ValidInput: the postcondition and the return relation are
+            // required only on valid inputs, so each becomes valid -> relation.
+            // The precondition is still assumed everywhere, and an impl None
+            // where the spec is defined is still a failure.
+            unique_ptr<SpecNode> valid;
+            for (auto const &v : proj->cmds.ValidInput[vuln_name]) {
+                if (!valid) { valid = v->deep_copy(); continue; }
+                auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                elems->push_back(std::move(valid));
+                elems->push_back(v->deep_copy());
+                valid = make_unique<Expr>(Expr::binops::AND, std::move(elems));
+            }
             if (rel_pre_def != proj->defs.end() && rel_post_def != proj->defs.end())
                 check_refines_relation_names(proj, vuln_def->second.get(), patched_def->second.get(),
                                              {rel_pre_def->second.get(), rel_post_def->second.get()},
-                                             refines_info.ret_val_rel.get());
+                                             refines_info.ret_val_rel.get(), valid.get());
+            Definition *post_rel = rel_post_def->second.get();
+            SpecNode *ret_rel = refines_info.ret_val_rel.get();
+            unique_ptr<Definition> guarded_post;
+            unique_ptr<SpecNode> guarded_ret;
+            if (valid) {
+                guarded_post = guard_state_relation(proj, post_rel, vuln_def->second.get(), valid.get());
+                post_rel = guarded_post.get();
+                auto elems = make_unique<vector<unique_ptr<SpecNode>>>();
+                elems->push_back(valid->deep_copy());
+                elems->push_back(ret_rel->deep_copy());
+                guarded_ret = make_unique<Expr>(Expr::binops::IMPLIES, std::move(elems));
+                ret_rel = guarded_ret.get();
+            }
 
             // Demand-driven unfolding: the specs were transformed with calls to
             // other functions left folded, so this first attempt proves the
@@ -2495,8 +2546,7 @@ void spec_prover(Project *proj) {
             SimulateResult result{};
             bool refined = check_refines(
                 proj, vuln_def->second.get(), patched_def->second.get(),
-                rel_pre_def->second.get(), rel_post_def->second.get(),
-                refines_info.ret_val_rel.get(), used_abstract_funcs, &result);
+                rel_pre_def->second.get(), post_rel, ret_rel, used_abstract_funcs, &result);
             // The proof was attempted with every callee uninterpreted.  If it
             // failed, that may be an artefact of one particular callee being
             // opaque rather than a real counterexample, so inline the callees
@@ -2517,8 +2567,7 @@ void spec_prover(Project *proj) {
                           << ") and re-checking.";
                 refined = check_refines(
                     proj, vuln_def->second.get(), patched_def->second.get(),
-                    rel_pre_def->second.get(), rel_post_def->second.get(),
-                    refines_info.ret_val_rel.get(), used_abstract_funcs, &result);
+                    rel_pre_def->second.get(), post_rel, ret_rel, used_abstract_funcs, &result);
                 // A newly inlined body can itself contain folded calls.
                 collect_folded_callees(proj, vuln_def->second->body().get(), candidates);
                 collect_folded_callees(proj, patched_def->second->body().get(), candidates);

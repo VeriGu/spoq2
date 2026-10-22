@@ -239,6 +239,9 @@ public:
         bool CheckLoopInv = false;
         std::set<string> invs;
         std::map<string, vector<unique_ptr<SpecNode>>> InitRely;
+        /// Hint ValidInput: predicates on a vuln spec's parameters.  Refinement
+        /// relations need hold only where they do; UB checks are unchanged.
+        std::map<string, vector<unique_ptr<SpecNode>>> ValidInput;
         std::map<string, vector<unique_ptr<SpecNode>>> PreCond;
         std::map<string, vector<unique_ptr<SpecNode>>> PostEnsure;
         std::map<string, vector<unique_ptr<SpecNode>>> PostCond;

@@ -367,6 +367,28 @@ A scalar floating-point `undef` is the declared constant `undef_<type>`.  See
 returns its state argument where it declares an option is rejected when
 unfolded.  See `assume/README.md`.
 
+## valid_input/
+
+`Hint ValidInput <vuln_spec> (<prop>).` gives a predicate over the vuln spec's
+parameters, in its names.  Several hints for one spec are and-ed into one
+predicate.  On inputs that satisfy it, the refinement relations
+must hold as usual; on others they need not, but the patch still may not have
+UB where the vuln is defined.  The postcondition and return relation each
+become `prop -> relation`; nothing is assumed.  A predicate given as a
+parameter of the precondition relation is instead assumed, as `Hint InitRely`
+on both functions would be.
+
+| test | program / predicate | expected | discriminates |
+|---|---|---|---|
+| `valid_input_differs_outside` | differ on `x > 100`; `x <= 100` | `verified: true` | `valid_input_none` (no hint) is false |
+| `valid_input_differs_inside` | same; `x <= 200` | `verified: false` | the difference is on valid inputs |
+| `valid_input_new_ub_outside` | patch UB at `x == 101`; `x <= 100` | `verified: false`, `impl_has_non_spec_ub` | new UB outside the predicate is still reported |
+| `precondition_param_assumes` | the same program, `x <= 100` in the precondition | `verified: true` | the precondition is an assumption |
+| `valid_input_vuln_ub_outside` | vuln UB at `x == 101`; `x <= 100` | `verified: true` | the patch may remove UB outside |
+| `valid_input_two_hints` | differ on `x > 100`; `x <= 200` and `x <= 100` | `verified: true` | the hints are and-ed, not or-ed |
+| `valid_input_two_params` | differ on `x < y`; `y <= x` | `verified: true` | two parameters |
+| `valid_input_error_unknown_name` | `n <= 100` | error before the search | names are the vuln's parameters |
+
 ## Attribute disposition
 
 Every function attribute appearing in the reference corpus

@@ -281,6 +281,10 @@ void Project::add_command(unique_ptr<Expr> cmd) {
 
             cmd->elems->at(1).release();
             this->cmds.InitRely[s->text].push_back(unique_ptr<SpecNode>(expr));
+        } else if (op_str == "ValidInput") {
+            assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()));
+            auto const fn = static_cast<Symbol *>(cmd->elems->at(0).get())->text;
+            this->cmds.ValidInput[fn].push_back(std::move(cmd->elems->at(1)));
         } else if (op_str == "PostEnsure") {
             assert(cmd->elems->size() == 2 && dynamic_cast<Symbol *>(cmd->elems->at(0).get()) &&
                    dynamic_cast<Expr *>(cmd->elems->at(1).get()));
