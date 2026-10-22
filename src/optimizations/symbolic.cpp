@@ -1818,6 +1818,8 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
         auto const patch_arg = make_shared<Arg>("patch_ret", inner_val_ty);
         ret_rel_args->push_back(vuln_arg);
         ret_rel_args->push_back(patch_arg);
+        // The entry parameters, which the relation may use; bound by name.
+        for (size_t i = 0; i + 1 < vuln_def->args->size(); i++) ret_rel_args->push_back(vuln_def->args->at(i));
 
         ret_rel_uniq = ret_rel->deep_copy();
         // ret_rel_values.push_back(vuln_body->deep_copy());
@@ -1830,6 +1832,7 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
     auto const ret_rel_def = make_unique<Definition>(
         "_ret_rel_from_input_expr", Bool::BOOL, std::move(ret_rel_args),
         std::move(ret_rel_uniq));
+    ret_rel_def->infer_type(*proj);
 
     // unique_ptr<SpecNode> combined_rel = make_unique<Expr>(Expr::AND,
     // std::move(ret_rel_elems), Bool::BOOL);
@@ -1916,6 +1919,52 @@ bool check_refines(Project *proj, Definition *vuln_def, Definition *patched_def,
                                        ret_rel_def.get(), state, p, false));
 }
 
+
+/// Throws unless every name the refinement relations use is bound.
+///
+/// A state relation takes the two states and then any of the vuln entry
+/// function's parameters, by name and at their types; parsing has checked that
+/// its body uses only its own parameters.  The return relation may use
+/// `vuln_ret`, `patch_ret` and the entry parameters.  Checked before the specs
+/// are transformed and the refinement search begins.
+static void check_refines_relation_names(Project *proj, Definition *vuln, Definition *patched,
+                                         const vector<Definition *> &state_rels, SpecNode *ret_rel) {
+    std::map<string, string> params;  // name -> type
+    for (size_t i = 0; i + 1 < vuln->args->size(); i++)
+        params[vuln->args->at(i)->name] = string(*vuln->args->at(i)->type);
+    string listed;
+    for (auto const &[name, type] : params) listed += (listed.empty() ? "" : ", ") + name;
+    auto const fail = [&](const string &rel, const string &name, const string &what) {
+        string msg = "Refinement relation " + rel + " " + what + " " + name + ", which is not a parameter of " +
+                     vuln->name + " (" + (listed.empty() ? "it has none" : listed) + ")";
+        // Relations name the vuln's parameters; the patch's are bound to them by position.
+        for (size_t i = 0; i + 1 < patched->args->size(); i++)
+            if (patched->args->at(i)->name == name && i + 1 < vuln->args->size())
+                msg += "; " + name + " is the patch's name for " + vuln->args->at(i)->name;
+        LOG_ERROR << msg;
+        throw std::runtime_error(msg);
+    };
+    for (auto *rel : state_rels) {
+        for (size_t i = 2; i < rel->args->size(); i++) {
+            auto const &arg = rel->args->at(i);
+            auto const it = params.find(arg->name);
+            if (it == params.end()) fail(rel->name, arg->name, "has the parameter");
+            if (it->second != string(*arg->type)) {
+                auto const msg = "Refinement relation " + rel->name + " declares " + arg->name + " : " +
+                                 string(*arg->type) + ", but it is " + it->second + " in " + vuln->name;
+                LOG_ERROR << msg;
+                throw std::runtime_error(msg);
+            }
+        }
+    }
+    if (ret_rel) {
+        std::set<string> free;
+        free_vars(proj, ret_rel, free);
+        for (auto const &name : free)
+            if (name != "vuln_ret" && name != "patch_ret" && !params.count(name))
+                fail("for the return values", name, "refers to");
+    }
+}
 
 /// Names of callee specs still folded inside [spec], in a deterministic order.
 static void collect_folded_callees(Project *proj, SpecNode *spec,
@@ -2429,6 +2478,10 @@ void spec_prover(Project *proj) {
                     << "vuln_def and patched_def are the same, cannot analyze.";
                 // continue;
             }
+            if (rel_pre_def != proj->defs.end() && rel_post_def != proj->defs.end())
+                check_refines_relation_names(proj, vuln_def->second.get(), patched_def->second.get(),
+                                             {rel_pre_def->second.get(), rel_post_def->second.get()},
+                                             refines_info.ret_val_rel.get());
 
             // Demand-driven unfolding: the specs were transformed with calls to
             // other functions left folded, so this first attempt proves the

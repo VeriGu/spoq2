@@ -909,15 +909,9 @@ bool check_well_typed(Project &proj, SpecNode *spec, std::set<string> &vars) {
         if (proj.is_known_symbol(sym->text))
             return true;
 
-        well_typed = vars.find(sym->text) != vars.end();
-
-        if (!well_typed) {
-            LOG_ERROR << "Unknown symbol: " << sym->text;
-            LOG_ERROR << "Symbol type: " << string(*sym->type);
-        }
-
-        assert(well_typed);
-        return well_typed;
+        if (vars.find(sym->text) == vars.end())
+            throw std::runtime_error("refers to " + sym->text + ", which is not bound in it");
+        return true;
     } else if (spec->type == SpecType::UNKNOWN_TYPE) {
         LOG_ERROR << "Unknown type: " << string(*spec) << "\n";
         assert(false);

@@ -1,0 +1,3 @@
+{
+  "expect_error": "Refinement relation patch_correct_postcondition declares x : bool, but it is Z in entry_vuln_spec"
+}

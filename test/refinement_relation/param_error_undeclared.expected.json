@@ -1,0 +1,3 @@
+{
+  "expect_error": "Definition patch_correct_postcondition refers to x, which is not bound in it"
+}

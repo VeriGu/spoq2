@@ -1076,7 +1076,13 @@ void Definition::infer_type(Project &proj) {
         vars.insert((*it)->name);
     }
 
-    well_typed = type_inference::check_well_typed(proj, body_.get(), vars);
+    try {
+        well_typed = type_inference::check_well_typed(proj, body_.get(), vars);
+    } catch (const std::runtime_error &e) {
+        auto const msg = "Definition " + name + " " + e.what();
+        LOG_ERROR << msg;
+        throw std::runtime_error(msg);
+    }
     assert(well_typed);
 }
 
