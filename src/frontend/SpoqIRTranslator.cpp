@@ -1547,6 +1547,21 @@ static unique_ptr<SpecNode> slot_writeback(const std::vector<string> &slots, con
     return std::make_unique<Expr>(Expr::RecordSet, std::move(rec));
 }
 
+/// The record extractbasics declares for [sty] in the .main.v, or null:
+/// `s_<name>` (`u_<name>` for a union) for a named struct, anonStructName for a
+/// literal one.  The field order is the struct's element order.
+static shared_ptr<Struct> record_of(Project *proj, llvm::StructType *sty) {
+    std::string name;
+    if (!sty->hasName()) name = anonStructName(sty);
+    else if (sty->getName().starts_with("union.")) name = "u_" + sty->getName().str().substr(6);
+    else name = "s_" + sty->getName().str().substr(sty->getName().starts_with("struct.") ? 7 : 0);
+    std::replace(name.begin(), name.end(), '.', '_');
+    std::replace(name.begin(), name.end(), ':', '_');
+    auto const it = proj->structs.find(name);
+    if (it == proj->structs.end() || it->second->elems->size() != sty->getNumElements()) return nullptr;
+    return it->second;
+}
+
 unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_vec_t& vec, int num, SpoqIRContext& context) {
     if(num >= vec.size()) {
         return construct_return_spec(proj, context);
@@ -2169,10 +2184,16 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             auto array = ex->getAggregateOperand();
             auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
             operands->push_back(context.get_llvm_value_spec(array));
-            for(auto const index: ex->getIndices()) {
-                operands->push_back(std::make_unique<IntConst>(index));
-            }
-            auto expr = std::make_unique<Expr>(Expr::ops::GET, std::move(operands));
+            // A struct is a record: its field, by position.  Arrays are maps.
+            auto const sty = llvm::dyn_cast<llvm::StructType>(array->getType());
+            auto const rec = sty ? record_of(proj, sty) : nullptr;
+            if (rec)
+                operands->push_back(std::make_unique<Symbol>(rec->elems->at(ex->getIndices()[0])->name));
+            else
+                for(auto const index: ex->getIndices()) {
+                    operands->push_back(std::make_unique<IntConst>(index));
+                }
+            auto expr = std::make_unique<Expr>(rec ? Expr::ops::RecordGet : Expr::ops::GET, std::move(operands));
             auto sym = context.get_llvm_value_spec(ex);
             context.add_cache(context.get_llvm_value_name(spoq_inst->inst), expr);
             return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
@@ -2181,11 +2202,16 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
             auto array = in->getAggregateOperand();
             auto operands = std::make_unique<vector<unique_ptr<SpecNode>>>();
             operands->push_back(context.get_llvm_value_spec(array));
-            for(auto const index: in->getIndices()) {
-                operands->push_back(std::make_unique<IntConst>(index));
-            }
+            auto const sty = llvm::dyn_cast<llvm::StructType>(array->getType());
+            auto const rec = sty ? record_of(proj, sty) : nullptr;
+            if (rec)
+                operands->push_back(std::make_unique<Symbol>(rec->elems->at(in->getIndices()[0])->name));
+            else
+                for(auto const index: in->getIndices()) {
+                    operands->push_back(std::make_unique<IntConst>(index));
+                }
             operands->push_back(context.get_llvm_value_spec(in->getInsertedValueOperand()));
-            auto expr = std::make_unique<Expr>(Expr::ops::SET, std::move(operands));
+            auto expr = std::make_unique<Expr>(rec ? Expr::ops::RecordSet : Expr::ops::SET, std::move(operands));
             auto sym = context.get_llvm_value_spec(in);
             context.add_cache(context.get_llvm_value_name(in), expr);
             return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));

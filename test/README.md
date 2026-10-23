@@ -367,6 +367,14 @@ A scalar floating-point `undef` is the declared constant `undef_<type>`.  See
 returns its state argument where it declares an option is rejected when
 unfolded.  See `assume/README.md`.
 
+## aggregate/
+
+A call that returns a first-class aggregate, read with `extractvalue`.
+
+| test | program | expected | status |
+|---|---|---|---|
+| `umul_with_overflow_extractvalue` | identical vuln and patch reading both fields of `llvm.umul.with.overflow.i64`'s `{ i64, i1 }` (the spec returns the record `s_Anon_64Z_1Z`) | `verified: true` | passes: a struct `extractvalue` is the record field `r.(e_s_Anon_64Z_1Z_1)` (openexr cve-2020-16588) |
+
 ## valid_input/
 
 `Hint ValidInput <vuln_spec> (<prop>).` gives a predicate over the vuln spec's
