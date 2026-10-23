@@ -177,6 +177,42 @@ TEST(ExtractBasics, StructFieldTypes) {
 /// and a comment is not a type -- so this reports a skip.  It asserts the types
 /// the fields should have rather than the ones they have, so it will simply pass
 /// once the mapping distinguishes them.
+/// PAF_FMT (libsndfile, snd001) is an anonymous struct named by a typedef, so
+/// its LLVM type carries no field names; they come from the DW_TAG_member
+/// entries of the struct the typedef refers to.
+const char *const kPafFields[] = {"version", "endianness", "samplerate", "format", "channels", "source"};
+
+void expectPafFieldsNamed(const Emitted &e) {
+    for (const char *f : kPafFields)
+        EXPECT_NE(e.datatype.find(std::string("e_") + f + " : int32"), std::string::npos)
+            << "no field e_" << f << ":\n" << e.datatype;
+    // Loads and stores use the same names.
+    EXPECT_NE(e.datatype.find("if (ofs =? 8) then Some (st_s_PAF_FMT.(e_samplerate))"), std::string::npos)
+        << e.datatype;
+    EXPECT_EQ(e.datatype.find("e_s_PAF_FMT_"), std::string::npos) << e.datatype;
+}
+
+TEST(ExtractBasics, DebugInfoNamesStructFields) {
+    RUN_OR_SKIP(e, "paf_fmt_debuginfo.ll");
+    expectPafFieldsNamed(e);
+}
+
+/// The typedef reachable only from the compile unit's retainedTypes, as after
+/// the functions that used it are erased.
+TEST(ExtractBasics, RetainedDebugTypeNamesStructFields) {
+    RUN_OR_SKIP(e, "paf_fmt_retained.ll");
+    expectPafFieldsNamed(e);
+}
+
+/// Without debug info the fields are numbered.
+TEST(ExtractBasics, FieldsNumberedWithoutDebugInfo) {
+    RUN_OR_SKIP(e, "paf_fmt_nodebug.ll");
+    for (int i = 0; i < 6; i++)
+        EXPECT_NE(e.datatype.find("e_s_PAF_FMT_" + std::to_string(i) + " : int32"), std::string::npos)
+            << e.datatype;
+    EXPECT_EQ(e.datatype.find("e_samplerate"), std::string::npos) << e.datatype;
+}
+
 TEST(ExtractBasics, ArrayOfDoubleKeepsItsElementType_Unimplemented) {
     RUN_OR_SKIP(e, "all_types.ll");
     auto const field = [&e](const char *name) {
