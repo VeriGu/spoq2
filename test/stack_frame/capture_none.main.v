@@ -131,15 +131,15 @@ Definition PROJ_BC_PATH: string := "capture_none.bc".
 
 
 
-Hint StackVar f_vuln v_x stack_type_1.
-Hint StackVar f_vuln v_y stack_type_1__1.
-Hint StackVar f_patch v_x stack_type_1.
-Hint StackVar f_patch v_y stack_type_1__1.
+Hint StackVar f_vuln v_x stack_f__x.
+Hint StackVar f_vuln v_y stack_f__y.
+Hint StackVar f_patch v_x stack_f__x.
+Hint StackVar f_patch v_y stack_f__y.
 
 
 Definition is_stack_ptr (p: Ptr): bool := (false = true) \/ 
-	p.(pbase) =s "stack_type_1" \/ 
-	p.(pbase) =s "stack_type_1__1".
+	p.(pbase) =s "stack_f__x" \/ 
+	p.(pbase) =s "stack_f__y".
 
 
 Inductive StackVal := 
@@ -149,8 +149,8 @@ Inductive StackVal :=
 Definition STACK := (SMap (option StackVal)).
 
 Inductive StackKey := 
-	| sk_stack_type_1
-	| sk_stack_type_1__1
+	| sk_stack_f__x
+	| sk_stack_f__y
 | sk_Null.
 
 Record GLOBALS :=
@@ -225,7 +225,7 @@ Definition load_stack (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option int64)
 		| Some sv => match sv with
 			| ZMapVal ZMapVal_val => rely (false);
 				None
-			| ZVal ZVal_val => rely (false \/ (p.(pbase) =s "stack_type_1") \/ (p.(pbase) =s "stack_type_1__1"));
+			| ZVal ZVal_val => rely (false \/ (p.(pbase) =s "stack_f__x") \/ (p.(pbase) =s "stack_f__y"));
 				Some ZVal_val
 		end
 	| None => None
@@ -235,7 +235,7 @@ Definition store_stack (sz: intSizeT) (p: Ptr) (v: int64) (stack_map: STACK): (o
 		| Some sv => match sv with
 			| ZMapVal ZMapVal_val => rely (false);
 				None
-			| ZVal ZVal_val => rely (false \/ (p.(pbase) =s "stack_type_1") \/ (p.(pbase) =s "stack_type_1__1"));
+			| ZVal ZVal_val => rely (false \/ (p.(pbase) =s "stack_f__x") \/ (p.(pbase) =s "stack_f__y"));
 				Some (stack_map # p.(pbase) == Some(ZVal v))
 		end
 	| None => None
@@ -245,7 +245,7 @@ Definition load_stack_ptr (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option Pt
 		| Some sv => match sv with
 			| ZMapVal ZMapVal_val => rely (false);
 				None
-			| ZVal ZVal_val => rely (false \/ (p.(pbase) =s "stack_type_1") \/ (p.(pbase) =s "stack_type_1__1"));
+			| ZVal ZVal_val => rely (false \/ (p.(pbase) =s "stack_f__x") \/ (p.(pbase) =s "stack_f__y"));
 				Some (int_to_ptr ZVal_val)
 		end
 	| None => None
@@ -255,7 +255,7 @@ Definition store_stack_ptr (sz: intSizeT) (p: Ptr) (v: Ptr) (stack_map: STACK): 
 		| Some sv => match sv with
 			| ZMapVal ZMapVal_val => rely (false);
 				None
-			| ZVal ZVal_val => rely (false \/ (p.(pbase) =s "stack_type_1") \/ (p.(pbase) =s "stack_type_1__1"));
+			| ZVal ZVal_val => rely (false \/ (p.(pbase) =s "stack_f__x") \/ (p.(pbase) =s "stack_f__y"));
 				Some (stack_map # p.(pbase) == Some(ZVal (ptr_to_int v)))
 		end
 	| None => None

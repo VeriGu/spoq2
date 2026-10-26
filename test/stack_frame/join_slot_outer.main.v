@@ -147,15 +147,15 @@ Definition PROJ_BC_PATH: string := "join_slot_outer.bc".
 
 
 
-Hint StackVar f_vuln v_x stack_type_2.
-Hint StackVar f_vuln v_y stack_type_1.
-Hint StackVar f_patch v_x stack_type_2.
-Hint StackVar f_patch v_y stack_type_1.
+Hint StackVar f_vuln v_x stack_f__x.
+Hint StackVar f_vuln v_y stack_f__y.
+Hint StackVar f_patch v_x stack_f__x.
+Hint StackVar f_patch v_y stack_f__y.
 
 
 Definition is_stack_ptr (p: Ptr): bool := (false = true) \/ 
-	p.(pbase) =s "stack_type_1" \/ 
-	p.(pbase) =s "stack_type_2".
+	p.(pbase) =s "stack_f__y" \/ 
+	p.(pbase) =s "stack_f__x".
 
 
 Inductive StackVal := 
@@ -166,8 +166,8 @@ Inductive StackVal :=
 Definition STACK := (SMap (option StackVal)).
 
 Inductive StackKey := 
-	| sk_stack_type_1
-	| sk_stack_type_2
+	| sk_stack_f__y
+	| sk_stack_f__x
 | sk_Null.
 
 Record GLOBALS :=
@@ -228,18 +228,18 @@ Definition load_stack (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option int64)
 		| Some sv => match sv with
 			| ZMapVal ZMapVal_val => rely (false);
 				None
-			| ZVal ZVal_val => rely (false \/ (p.(pbase) =s "stack_type_1"));
+			| ZVal ZVal_val => rely (false \/ (p.(pbase) =s "stack_f__y"));
 				Some ZVal_val
-			| PtrVal PtrVal_val => rely (false \/ (p.(pbase) =s "stack_type_2"));
+			| PtrVal PtrVal_val => rely (false \/ (p.(pbase) =s "stack_f__x"));
 				Some (ptr_to_int PtrVal_val)
 		end
 	| None => None
 end. (* load_stack *)
 Definition store_stack (sz: intSizeT) (p: Ptr) (v: int64) (stack_map: STACK): (option STACK) := 
-	if (false \/ (p.(pbase) =s "stack_type_1"))
+	if (false \/ (p.(pbase) =s "stack_f__y"))
 	then Some (stack_map # p.(pbase) == Some(ZVal v))
 	else
-	if (false \/ (p.(pbase) =s "stack_type_2"))
+	if (false \/ (p.(pbase) =s "stack_f__x"))
 	then Some (stack_map # p.(pbase) == Some(PtrVal (int_to_ptr v)))
 	else
 	match (stack_map @ p.(pbase)) with
@@ -256,18 +256,18 @@ Definition load_stack_ptr (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option Pt
 		| Some sv => match sv with
 			| ZMapVal ZMapVal_val => rely (false);
 				None
-			| ZVal ZVal_val => rely (false \/ (p.(pbase) =s "stack_type_1"));
+			| ZVal ZVal_val => rely (false \/ (p.(pbase) =s "stack_f__y"));
 				Some (int_to_ptr ZVal_val)
-			| PtrVal PtrVal_val => rely (false \/ (p.(pbase) =s "stack_type_2"));
+			| PtrVal PtrVal_val => rely (false \/ (p.(pbase) =s "stack_f__x"));
 				Some PtrVal_val
 		end
 	| None => None
 end. (* load_stack_ptr *)
 Definition store_stack_ptr (sz: intSizeT) (p: Ptr) (v: Ptr) (stack_map: STACK): (option STACK) := 
-	if (false \/ (p.(pbase) =s "stack_type_1"))
+	if (false \/ (p.(pbase) =s "stack_f__y"))
 	then Some (stack_map # p.(pbase) == Some(ZVal (ptr_to_int v)))
 	else
-	if (false \/ (p.(pbase) =s "stack_type_2"))
+	if (false \/ (p.(pbase) =s "stack_f__x"))
 	then Some (stack_map # p.(pbase) == Some(PtrVal v))
 	else
 	match (stack_map @ p.(pbase)) with
@@ -289,7 +289,7 @@ Hint Refines f_vuln_spec f_patch_spec patch_correct_precondition patch_correct_p
 Parameter init_spec : (Ptr-> (Ptr-> (RData-> (option RData)))).
 Parameter use_spec : (int32-> (RData-> (option RData))).
 
-(* st_b's join has a then result that writes &g to stack_type_2 and an else
+(* st_b's join has a then result that writes &g to stack_f__x and an else
    result that updates another slot of st_a, a state bound by an earlier join
    outside st_b's.  Both of st_a's results write &g there, so the read of st_b
    after the join is &g, found by resolving st_a through its binding
@@ -297,18 +297,18 @@ Parameter use_spec : (int32-> (RData-> (option RData))).
 Definition body_spec (c: int32) (d: int32) (st: RData) : (option (Ptr * RData)) :=
   when st_a == (
     if (c =? 0)
-    then (Some (st.[stack] :< ((st.(stack)) # "stack_type_2" == (Some (PtrVal (mkPtr "g" 0))))))
+    then (Some (st.[stack] :< ((st.(stack)) # "stack_f__x" == (Some (PtrVal (mkPtr "g" 0))))))
     else (
       when st2 == ((use_spec 1 st));
-      (Some (st2.[stack] :< ((st2.(stack)) # "stack_type_2" == (Some (PtrVal (mkPtr "g" 0))))))));
+      (Some (st2.[stack] :< ((st2.(stack)) # "stack_f__x" == (Some (PtrVal (mkPtr "g" 0))))))));
   when st_b == (
     if (d =? 0)
     then (
       when st3 == ((use_spec 2 st_a));
-      (Some (st3.[stack] :< ((st3.(stack)) # "stack_type_2" == (Some (PtrVal (mkPtr "g" 0)))))))
-    else (Some (st_a.[stack] :< ((st_a.(stack)) # "stack_type_1" == (Some (ZVal 4))))));
+      (Some (st3.[stack] :< ((st3.(stack)) # "stack_f__x" == (Some (PtrVal (mkPtr "g" 0)))))))
+    else (Some (st_a.[stack] :< ((st_a.(stack)) # "stack_f__y" == (Some (ZVal 4))))));
   when st_c == ((use_spec 3 st_b));
-  match ((st_b.(stack)) @ "stack_type_2") with
+  match ((st_b.(stack)) @ "stack_f__x") with
   | (Some sv) =>
     match sv with
     | (ZMapVal z) => None
@@ -323,16 +323,16 @@ Hint Unfold body_spec.
 Definition body2_spec (c: int32) (d: int32) (st: RData) : (option (Ptr * RData)) :=
   when st_a == (
     if (c =? 0)
-    then (Some (st.[stack] :< ((st.(stack)) # "stack_type_2" == (Some (PtrVal (mkPtr "g" 0))))))
+    then (Some (st.[stack] :< ((st.(stack)) # "stack_f__x" == (Some (PtrVal (mkPtr "g" 0))))))
     else (
       when st2 == ((use_spec 1 st));
-      (Some (st2.[stack] :< ((st2.(stack)) # "stack_type_2" == (Some (PtrVal (mkPtr "g" 0))))))));
+      (Some (st2.[stack] :< ((st2.(stack)) # "stack_f__x" == (Some (PtrVal (mkPtr "g" 0))))))));
   when st_b == (
     if (d =? 0)
     then (
       when st3 == ((use_spec 2 st_a));
-      (Some (st3.[stack] :< ((st3.(stack)) # "stack_type_2" == (Some (PtrVal (mkPtr "g" 0)))))))
-    else (Some (st_a.[stack] :< ((st_a.(stack)) # "stack_type_1" == (Some (ZVal 4))))));
+      (Some (st3.[stack] :< ((st3.(stack)) # "stack_f__x" == (Some (PtrVal (mkPtr "g" 0)))))))
+    else (Some (st_a.[stack] :< ((st_a.(stack)) # "stack_f__y" == (Some (ZVal 4))))));
   when st_c == ((use_spec 3 st_b));
   (Some ((mkPtr "g" 0), st_c)).
 Hint Unfold body2_spec.

@@ -2,5 +2,5 @@
   "verified": false,
   "env": "SPOQ_HOIST_BUDGET=1",
   "spec_v_definition": "f_vuln_spec",
-  "spec_v_contains": "@ \"stack_type_2\")"
+  "spec_v_contains": "@ \"stack_f__x\")"
 }

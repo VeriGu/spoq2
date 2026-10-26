@@ -28,6 +28,10 @@
 #include <vector>
 #include <queue>
 #include <map>
+#include <set>
+#include <tuple>
+#include <cctype>
+#include <cstdlib>
 #include <fstream>
 #include <filesystem>
 #include <iostream>
@@ -38,6 +42,15 @@
 // cl::Hidden, cl::init(false), cl::desc("Preserve debug info in thunk when
 // mergefunc "
 //  "transformations are made."));
+
+/// [ai]'s IR name, or its slot number without the '%' if it has none.
+static std::string allocaName(llvm::AllocaInst *ai, llvm::Module &M) {
+  if (!ai->getName().empty()) return ai->getName().str();
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  ai->printAsOperand(os, false, &M);
+  return name.erase(0, 1);
+}
 
 /**
  * @brief Recover the type a pointer argument points at, or nullptr if unknown.
@@ -109,6 +122,15 @@ class ExtractPointersPass : public llvm::PassInfoMixin<ExtractPointersPass> {
     std::string result;
     if( id == 0 ) return "stack_" + getTypeIdentifier(ty);
     return "stack_" + getTypeIdentifier(ty) + "__" + std::to_string(id);
+  }
+  /// Whether slots are named per alloca (the default) or per type and index
+  /// along the call graph (SPOQ_STACK_SLOTS=type).
+  bool per_alloca_slots = true;
+  /// The slot of each alloca in stack_list, under per-alloca naming.
+  std::map<llvm::AllocaInst*, std::string> alloca_slot;
+  void assignAllocaSlots(llvm::Module &M);
+  std::string slotOf(llvm::AllocaInst *ai) {
+    return per_alloca_slots ? alloca_slot.at(ai) : getStackIdentifier(ai->getAllocatedType(), alloca_id[ai]);
   }
   std::string getGVIdentifier(llvm::GlobalVariable* v) {
     if(v->isConstant() && v->getValueType()->isArrayTy() &&
@@ -332,7 +354,10 @@ class ExtractPointersPass : public llvm::PassInfoMixin<ExtractPointersPass> {
 
 
   bool is_debug_intrinsic(llvm::StringRef fname);
-  ExtractPointersPass() { }
+  ExtractPointersPass() {
+    auto const mode = std::getenv("SPOQ_STACK_SLOTS");
+    per_alloca_slots = !(mode && std::string(mode) == "type");
+  }
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
     runOnModule(M);
     return llvm::PreservedAnalyses::none();
@@ -568,6 +593,42 @@ void ExtractPointersPass::fillTypeElements(llvm::Module &M) {
     }
   }
 }
+/// Name each alloca in stack_list `stack_<function>__<alloca>`, its function's
+/// name without a _vuln or _patch suffix, with each character that is not a
+/// letter, digit or '_' replaced by '_'.  The two versions of a function thus
+/// name the same slots, which a relation `st = st_sim` on the states needs;
+/// they never run in one execution.  Every other pair of allocas gets distinct
+/// slots: an alloca whose name is taken is suffixed `__<n>`.  No slot shares a
+/// global's pbase.
+void ExtractPointersPass::assignAllocaSlots(llvm::Module &M) {
+  auto const sanitize = [](std::string s) {
+    for (auto &c : s)
+      if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_') c = '_';
+    return s;
+  };
+  // The allocas a slot may hold: the function without its version suffix,
+  // whether it had one, the alloca's name and its type.
+  using Owner = std::tuple<std::string, bool, std::string, llvm::Type *>;
+  std::map<std::string, std::optional<Owner>> owner;
+  for (auto &G : M.globals()) owner.emplace(getGVBaseName(&G), std::nullopt);
+  for (auto &F : M) {
+    llvm::StringRef fn = F.getName();
+    bool const versioned = fn.consume_back("_vuln") || fn.consume_back("_patch");
+    for (auto ai : stack_list[&F]) {
+      auto const alloca = allocaName(ai, M);
+      Owner const own{fn.str(), versioned, alloca, ai->getAllocatedType()};
+      std::string const base = "stack_" + sanitize(fn.str()) + "__" + sanitize(alloca);
+      std::string name = base;
+      for (int n = 1;; n++) {
+        auto const [it, fresh] = owner.emplace(name, own);
+        if (fresh || (versioned && it->second == own)) break;
+        name = base + "__" + std::to_string(n);
+      }
+      alloca_slot[ai] = name;
+    }
+  }
+}
+
 void ExtractPointersPass::collectStack(llvm::Module &M) {
   std::map<llvm::Function*, int> has_pre;
   int passed_count = 0, local_count = 0;
@@ -618,13 +679,34 @@ void ExtractPointersPass::collectStack(llvm::Module &M) {
     }
   }
 
-  std::vector<llvm::Function*> vec;
-  std::map<llvm::Type*, int> sn;
-  for (auto& F : M) {
-    if (has_pre[&F]) continue;
-    auto sn_suc = dfsStack(&F, vec);
-    for (auto& x : sn_suc) {
-      sn[x.first] = std::max(sn[x.first], x.second);
+  // Each slot type with its slots.
+  std::vector<std::pair<llvm::Type*, std::vector<std::string>>> slots_by_type;
+  if (per_alloca_slots) {
+    assignAllocaSlots(M);
+    std::map<llvm::Type*, size_t> type_index;
+    std::set<std::string> listed;
+    for (auto& F : M)
+      for (auto ai : stack_list[&F]) {
+        auto const &name = alloca_slot.at(ai);
+        if (!listed.insert(name).second) continue;
+        auto const ty = ai->getAllocatedType();
+        auto const [it, fresh] = type_index.emplace(ty, slots_by_type.size());
+        if (fresh) slots_by_type.push_back({ty, {}});
+        slots_by_type[it->second].second.push_back(name);
+      }
+  } else {
+    std::vector<llvm::Function*> vec;
+    std::map<llvm::Type*, int> sn;
+    for (auto& F : M) {
+      if (has_pre[&F]) continue;
+      auto sn_suc = dfsStack(&F, vec);
+      for (auto& x : sn_suc) {
+        sn[x.first] = std::max(sn[x.first], x.second);
+      }
+    }
+    for (auto& [ty, n] : sn) {
+      slots_by_type.push_back({ty, {}});
+      for (int i = 0; i < n; i++) slots_by_type.back().second.push_back(getStackIdentifier(ty, i));
     }
   }
 /*
@@ -640,8 +722,7 @@ The necessary information is:
 What are all the types that are stored on the stack?
 For each stack pointer, what type is in it?
 
-At this point we have the sn map from type to the number of times that type occurs in the stack
-and getStackIdentifies which tells us for each type and idx what the right name is.
+At this point slots_by_type lists the slots of each type.
 Therefore, we are ready to build the stack model.
 
 We first make one pass through the types to build the StackVal type
@@ -695,19 +776,21 @@ We can do this in a proxy definition for each type
   std::string store_ptr_result = "\tmatch (stack_map @ p.(pbase)) with\n" \
   "\t\t| Some sv => match sv with\n";
   std::string is_stack_ptr = "Definition is_stack_ptr (p: Ptr): bool := (false = true)";
-  for (auto &x : sn) {
+  for (auto const &entry : slots_by_type) {
+    llvm::Type *const ty = entry.first;
+    auto const &names = entry.second;
     std::string stackval_branch_id = "";
     std::string stackval_accessor = "";
     std::optional<std::string> struct_name = std::nullopt;
     bool is_struct = false;
     int element_size = 0;
-    if (auto sty = llvm::dyn_cast<llvm::StructType>(x.first)){
+    if (auto sty = llvm::dyn_cast<llvm::StructType>(ty)){
       is_struct = true;
       auto struct_id = getStructTypeIdentifier(sty);
       struct_name = struct_id;
       stackval_branch_id = struct_id + "Val";
       stackval_accessor = struct_id;
-    } else if(auto aty = llvm::dyn_cast<llvm::ArrayType>(x.first)){
+    } else if(auto aty = llvm::dyn_cast<llvm::ArrayType>(ty)){
       auto ety = aty->getElementType();
       if (auto sty = llvm::dyn_cast<llvm::StructType>(ety)){
         is_struct = true;
@@ -722,26 +805,26 @@ We can do this in a proxy definition for each type
         stackval_accessor = "(ZMap.t int64)";
         stackval_branch_id = "ZMapVal";
       }
-    } else if(x.first->isFloatingPointTy()) {
+    } else if(ty->isFloatingPointTy()) {
       stackval_branch_id = "ZFloatVal";
-      stackval_accessor = generateField(x.first);
+      stackval_accessor = generateField(ty);
 
     } else {
-      stackval_accessor = generateField(x.first);
+      stackval_accessor = generateField(ty);
       stackval_branch_id = stackval_accessor == "int64"      ? "ZVal"
                            : stackval_accessor == "intSizeT" ? "PtrVal"
                                                              : "ZWideVal";
     }
     if(stackval_info.count(stackval_accessor) == 0){
-      stackval_info_entry_t entry = {stackval_branch_id, x.first->isArrayTy(), is_struct, struct_name, element_size, {}};
+      stackval_info_entry_t entry = {stackval_branch_id, ty->isArrayTy(), is_struct, struct_name, element_size, {}};
       stackval_info.emplace(stackval_accessor, entry);
     }
-    for(int i = 0; i < x.second; i++){
-      this->named_stack_ty[getStackIdentifier(x.first, i)] = x.first;
-      is_stack_ptr += " \\/ \n\tp.(pbase) =s \"" + getStackIdentifier(x.first, i) + "\"";
-      stackkey_def += "\t| sk_"+getStackIdentifier(x.first, i) + "\n";
+    for (auto const &name : names) {
+      this->named_stack_ty[name] = ty;
+      is_stack_ptr += " \\/ \n\tp.(pbase) =s \"" + name + "\"";
+      stackkey_def += "\t| sk_"+name + "\n";
       auto &[branch_id, is_map, is_struct, struct_name, element_size, name_vec] = stackval_info.at(stackval_accessor);
-      name_vec.push_back(getStackIdentifier(x.first, i));
+      name_vec.push_back(name);
     }
   }
 
@@ -878,20 +961,9 @@ We can do this in a proxy definition for each type
   std::string hint_result = "";
   for (auto& F : M) {
     auto func = &F;
-    for (auto ti : stack_list[func]) {
-      auto ai = llvm::dyn_cast<llvm::AllocaInst>(ti);
-      std::string name;
-      if (!ai->getName().empty())
-        name = ai->getName().str();
-      else {
-        llvm::raw_string_ostream os(name);
-        ti->printAsOperand(os, false, &M);
-        name.erase(0, 1);
-      }
-      name = "v_" + name;
-      hint_result = hint_result + "Hint StackVar " + func->getName().str() + " " + name + " "
-                   + getStackIdentifier(ai->getAllocatedType(), alloca_id[ti])
-                   + ".\n";
+    for (auto ai : stack_list[func]) {
+      hint_result = hint_result + "Hint StackVar " + func->getName().str() + " v_" + allocaName(ai, M) + " "
+                   + slotOf(ai) + ".\n";
     }
   }
   fout << "\n" << hint_result << "\n";

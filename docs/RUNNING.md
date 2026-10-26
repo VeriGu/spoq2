@@ -276,6 +276,12 @@ Other:
 `<tool>-23` on `PATH`).  The rename pass reads `RENAMING_PLAN` (required, the
 plan JSON) and `RENAME_SUFFIX`; the case Makefiles set both.
 
+`extract-info.sh` names each alloca's stack slot `stack_<function>__<alloca>`,
+the function's name without a `_vuln` or `_patch` suffix, so the two versions
+of a function share their slots.  With `SPOQ_STACK_SLOTS=type` it names them
+per type and index along the call graph instead (`stack_<type>__<k>`), which
+reuses a slot across functions that are not on one call path.
+
 ### patchverification Makefiles
 
 Per case (`examples/<project>/<case>/Makefile`) and in `examples/synthetic`:

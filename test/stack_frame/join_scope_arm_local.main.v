@@ -147,15 +147,15 @@ Definition PROJ_BC_PATH: string := "join_scope_arm_local.bc".
 
 
 
-Hint StackVar f_vuln v_x stack_type_2.
-Hint StackVar f_vuln v_y stack_type_1.
-Hint StackVar f_patch v_x stack_type_2.
-Hint StackVar f_patch v_y stack_type_1.
+Hint StackVar f_vuln v_x stack_f__x.
+Hint StackVar f_vuln v_y stack_f__y.
+Hint StackVar f_patch v_x stack_f__x.
+Hint StackVar f_patch v_y stack_f__y.
 
 
 Definition is_stack_ptr (p: Ptr): bool := (false = true) \/ 
-	p.(pbase) =s "stack_type_1" \/ 
-	p.(pbase) =s "stack_type_2".
+	p.(pbase) =s "stack_f__y" \/ 
+	p.(pbase) =s "stack_f__x".
 
 
 Inductive StackVal := 
@@ -166,8 +166,8 @@ Inductive StackVal :=
 Definition STACK := (SMap (option StackVal)).
 
 Inductive StackKey := 
-	| sk_stack_type_1
-	| sk_stack_type_2
+	| sk_stack_f__y
+	| sk_stack_f__x
 | sk_Null.
 
 Record GLOBALS :=
@@ -228,18 +228,18 @@ Definition load_stack (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option int64)
 		| Some sv => match sv with
 			| ZMapVal ZMapVal_val => rely (false);
 				None
-			| ZVal ZVal_val => rely (false \/ (p.(pbase) =s "stack_type_1"));
+			| ZVal ZVal_val => rely (false \/ (p.(pbase) =s "stack_f__y"));
 				Some ZVal_val
-			| PtrVal PtrVal_val => rely (false \/ (p.(pbase) =s "stack_type_2"));
+			| PtrVal PtrVal_val => rely (false \/ (p.(pbase) =s "stack_f__x"));
 				Some (ptr_to_int PtrVal_val)
 		end
 	| None => None
 end. (* load_stack *)
 Definition store_stack (sz: intSizeT) (p: Ptr) (v: int64) (stack_map: STACK): (option STACK) := 
-	if (false \/ (p.(pbase) =s "stack_type_1"))
+	if (false \/ (p.(pbase) =s "stack_f__y"))
 	then Some (stack_map # p.(pbase) == Some(ZVal v))
 	else
-	if (false \/ (p.(pbase) =s "stack_type_2"))
+	if (false \/ (p.(pbase) =s "stack_f__x"))
 	then Some (stack_map # p.(pbase) == Some(PtrVal (int_to_ptr v)))
 	else
 	match (stack_map @ p.(pbase)) with
@@ -256,18 +256,18 @@ Definition load_stack_ptr (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option Pt
 		| Some sv => match sv with
 			| ZMapVal ZMapVal_val => rely (false);
 				None
-			| ZVal ZVal_val => rely (false \/ (p.(pbase) =s "stack_type_1"));
+			| ZVal ZVal_val => rely (false \/ (p.(pbase) =s "stack_f__y"));
 				Some (int_to_ptr ZVal_val)
-			| PtrVal PtrVal_val => rely (false \/ (p.(pbase) =s "stack_type_2"));
+			| PtrVal PtrVal_val => rely (false \/ (p.(pbase) =s "stack_f__x"));
 				Some PtrVal_val
 		end
 	| None => None
 end. (* load_stack_ptr *)
 Definition store_stack_ptr (sz: intSizeT) (p: Ptr) (v: Ptr) (stack_map: STACK): (option STACK) := 
-	if (false \/ (p.(pbase) =s "stack_type_1"))
+	if (false \/ (p.(pbase) =s "stack_f__y"))
 	then Some (stack_map # p.(pbase) == Some(ZVal (ptr_to_int v)))
 	else
-	if (false \/ (p.(pbase) =s "stack_type_2"))
+	if (false \/ (p.(pbase) =s "stack_f__x"))
 	then Some (stack_map # p.(pbase) == Some(PtrVal v))
 	else
 	match (stack_map @ p.(pbase)) with
@@ -300,11 +300,11 @@ Definition body_spec (c: int32) (d: int32) (st: RData) : (option (Ptr * RData)) 
     if (c =? 0)
     then (
       when q, st1 == ((mk_spec st0));
-      (Some (st1.[stack] :< ((st1.(stack)) # "stack_type_2" == (Some (PtrVal q))))))
+      (Some (st1.[stack] :< ((st1.(stack)) # "stack_f__x" == (Some (PtrVal q))))))
     else (
       when q, st1 == ((mk_spec st0));
-      (Some (st1.[stack] :< (((st1.(stack)) # "stack_type_2" == (Some (PtrVal q))) # "stack_type_1" == (Some (ZVal 4)))))));
-  match (((st_b.(stack)) @ "stack_type_2")) with
+      (Some (st1.[stack] :< (((st1.(stack)) # "stack_f__x" == (Some (PtrVal q))) # "stack_f__y" == (Some (ZVal 4)))))));
+  match (((st_b.(stack)) @ "stack_f__x")) with
   | (Some sv) =>
     match sv with
     | (ZMapVal z) => None
@@ -321,10 +321,10 @@ Definition body2_spec (c: int32) (d: int32) (st: RData) : (option (Ptr * RData))
     if (c =? 0)
     then (
       when q, st1 == ((mk_spec st0));
-      (Some (st1.[stack] :< ((st1.(stack)) # "stack_type_2" == (Some (PtrVal q))))))
+      (Some (st1.[stack] :< ((st1.(stack)) # "stack_f__x" == (Some (PtrVal q))))))
     else (
       when q, st1 == ((mk_spec st0));
-      (Some (st1.[stack] :< (((st1.(stack)) # "stack_type_2" == (Some (PtrVal q))) # "stack_type_1" == (Some (ZVal 4)))))));
+      (Some (st1.[stack] :< (((st1.(stack)) # "stack_f__x" == (Some (PtrVal q))) # "stack_f__y" == (Some (ZVal 4)))))));
   (Some (q, st_b)).
 Hint Unfold body2_spec.
 

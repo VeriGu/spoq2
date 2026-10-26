@@ -1378,8 +1378,8 @@ static const std::set<const llvm::Function *> &reachable_from(const llvm::Functi
 }
 
 /// The caller's stack slots [call] cannot write, by the rule above.  Empty for a
-/// call that may recurse into the caller: spoq names stack slots per type and
-/// index, not per frame, so a recursive activation's slots are the caller's.
+/// call that may recurse into the caller: spoq names stack slots per alloca,
+/// not per activation, so a recursive activation's slots are the caller's.
 /// Empty for an external function whose spec is a Definition the user wrote:
 /// its body states the call's effect exactly, so the frame adds nothing.  A
 /// spec synthesized from memory attributes states the frame only as a Rely,

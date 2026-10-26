@@ -131,12 +131,12 @@ Definition PROJ_BC_PATH: string := "ptr_slot_readonly.bc".
 
 
 
-Hint StackVar f_vuln v_x stack_type_1.
-Hint StackVar f_patch v_x stack_type_1.
+Hint StackVar f_vuln v_x stack_f__x.
+Hint StackVar f_patch v_x stack_f__x.
 
 
 Definition is_stack_ptr (p: Ptr): bool := (false = true) \/ 
-	p.(pbase) =s "stack_type_1".
+	p.(pbase) =s "stack_f__x".
 
 
 Inductive StackVal := 
@@ -147,7 +147,7 @@ Inductive StackVal :=
 Definition STACK := (SMap (option StackVal)).
 
 Inductive StackKey := 
-	| sk_stack_type_1
+	| sk_stack_f__x
 | sk_Null.
 
 Record GLOBALS :=
@@ -224,7 +224,7 @@ Definition load_stack (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option int64)
 				None
 			| ZVal ZVal_val => rely (false);
 				Some ZVal_val
-			| PtrVal PtrVal_val => rely (false \/ (p.(pbase) =s "stack_type_1"));
+			| PtrVal PtrVal_val => rely (false \/ (p.(pbase) =s "stack_f__x"));
 				Some (ptr_to_int PtrVal_val)
 		end
 	| None => None
@@ -236,7 +236,7 @@ Definition store_stack (sz: intSizeT) (p: Ptr) (v: int64) (stack_map: STACK): (o
 				None
 			| ZVal ZVal_val => rely (false);
 				Some (stack_map # p.(pbase) == Some(ZVal v))
-			| PtrVal PtrVal_val => rely (false \/ (p.(pbase) =s "stack_type_1"));
+			| PtrVal PtrVal_val => rely (false \/ (p.(pbase) =s "stack_f__x"));
 				Some (stack_map # p.(pbase) == Some(PtrVal (int_to_ptr v)))
 		end
 	| None => None
@@ -248,7 +248,7 @@ Definition load_stack_ptr (sz: intSizeT) (p: Ptr) (stack_map: STACK): (option Pt
 				None
 			| ZVal ZVal_val => rely (false);
 				Some (int_to_ptr ZVal_val)
-			| PtrVal PtrVal_val => rely (false \/ (p.(pbase) =s "stack_type_1"));
+			| PtrVal PtrVal_val => rely (false \/ (p.(pbase) =s "stack_f__x"));
 				Some PtrVal_val
 		end
 	| None => None
@@ -260,7 +260,7 @@ Definition store_stack_ptr (sz: intSizeT) (p: Ptr) (v: Ptr) (stack_map: STACK): 
 				None
 			| ZVal ZVal_val => rely (false);
 				Some (stack_map # p.(pbase) == Some(ZVal (ptr_to_int v)))
-			| PtrVal PtrVal_val => rely (false \/ (p.(pbase) =s "stack_type_1"));
+			| PtrVal PtrVal_val => rely (false \/ (p.(pbase) =s "stack_f__x"));
 				Some (stack_map # p.(pbase) == Some(PtrVal v))
 		end
 	| None => None

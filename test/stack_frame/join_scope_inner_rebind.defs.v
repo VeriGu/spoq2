@@ -9,9 +9,9 @@ Definition body_spec (c: int32) (d: int32) (st: RData) : (option (Ptr * RData)) 
     if (c =? 0)
     then (
       when s == ((use_spec 1 s));
-      (Some (s.[stack] :< ((s.(stack)) # "stack_type_1" == (Some (ZVal 3))))))
-    else (Some (s.[stack] :< ((s.(stack)) # "stack_type_1" == (Some (ZVal 4))))));
-  match (((st_b.(stack)) @ "stack_type_2")) with
+      (Some (s.[stack] :< ((s.(stack)) # "stack_f__y" == (Some (ZVal 3))))))
+    else (Some (s.[stack] :< ((s.(stack)) # "stack_f__y" == (Some (ZVal 4))))));
+  match (((st_b.(stack)) @ "stack_f__x")) with
   | (Some sv) =>
     match sv with
     | (ZMapVal z) => None
@@ -28,9 +28,9 @@ Definition body2_spec (c: int32) (d: int32) (st: RData) : (option (Ptr * RData))
     if (c =? 0)
     then (
       when s == ((use_spec 1 s));
-      (Some (s.[stack] :< ((s.(stack)) # "stack_type_1" == (Some (ZVal 3))))))
-    else (Some (s.[stack] :< ((s.(stack)) # "stack_type_1" == (Some (ZVal 4))))));
-  match (((s.(stack)) @ "stack_type_2")) with
+      (Some (s.[stack] :< ((s.(stack)) # "stack_f__y" == (Some (ZVal 3))))))
+    else (Some (s.[stack] :< ((s.(stack)) # "stack_f__y" == (Some (ZVal 4))))));
+  match (((s.(stack)) @ "stack_f__x")) with
   | (Some sv) =>
     match sv with
     | (ZMapVal z) => None

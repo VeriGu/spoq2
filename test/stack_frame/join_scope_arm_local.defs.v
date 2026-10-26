@@ -8,11 +8,11 @@ Definition body_spec (c: int32) (d: int32) (st: RData) : (option (Ptr * RData)) 
     if (c =? 0)
     then (
       when q, st1 == ((mk_spec st0));
-      (Some (st1.[stack] :< ((st1.(stack)) # "stack_type_2" == (Some (PtrVal q))))))
+      (Some (st1.[stack] :< ((st1.(stack)) # "stack_f__x" == (Some (PtrVal q))))))
     else (
       when q, st1 == ((mk_spec st0));
-      (Some (st1.[stack] :< (((st1.(stack)) # "stack_type_2" == (Some (PtrVal q))) # "stack_type_1" == (Some (ZVal 4)))))));
-  match (((st_b.(stack)) @ "stack_type_2")) with
+      (Some (st1.[stack] :< (((st1.(stack)) # "stack_f__x" == (Some (PtrVal q))) # "stack_f__y" == (Some (ZVal 4)))))));
+  match (((st_b.(stack)) @ "stack_f__x")) with
   | (Some sv) =>
     match sv with
     | (ZMapVal z) => None
@@ -29,9 +29,9 @@ Definition body2_spec (c: int32) (d: int32) (st: RData) : (option (Ptr * RData))
     if (c =? 0)
     then (
       when q, st1 == ((mk_spec st0));
-      (Some (st1.[stack] :< ((st1.(stack)) # "stack_type_2" == (Some (PtrVal q))))))
+      (Some (st1.[stack] :< ((st1.(stack)) # "stack_f__x" == (Some (PtrVal q))))))
     else (
       when q, st1 == ((mk_spec st0));
-      (Some (st1.[stack] :< (((st1.(stack)) # "stack_type_2" == (Some (PtrVal q))) # "stack_type_1" == (Some (ZVal 4)))))));
+      (Some (st1.[stack] :< (((st1.(stack)) # "stack_f__x" == (Some (PtrVal q))) # "stack_f__y" == (Some (ZVal 4)))))));
   (Some (q, st_b)).
 Hint Unfold body2_spec.
