@@ -712,9 +712,10 @@ TEST(BranchPlausibility, DecidedChecksAreNotUnknown) {
     EXPECT_FALSE(undecided);
 }
 
-/* bv_bitwise on integers: x & (2^k - 1) is x mod 2^k for every integer, which
- * is linear, where the general encoding goes through int2bv and bv2int (printed
- * int_to_bv and ubv_to_int). */
+/* bv_bitwise on integers: x & (2^k - 1) is x mod 2^k and x & 2^k is
+ * 2^k * ((x div 2^k) mod 2) for every integer, which are linear, where the
+ * general encoding goes through int2bv and bv2int (printed int_to_bv and
+ * ubv_to_int). */
 namespace {
 
 /// The general encoding of x & c on a 64-bit integer x.
@@ -742,6 +743,17 @@ bool agree_on_samples(z3::expr a, z3::expr b, const z3::expr &x) {
 TEST(BitwiseAndTest, LowMaskIsModulo) {
     auto const x = z3ctx.int_const("mask_x");
     for (auto const *mask : {"1", "7", "255", "4294967295"}) {
+        auto const c = z3ctx.int_val(mask);
+        for (auto const &r : {bv_bitwise(BitOp::And, x, c, land_func), bv_bitwise(BitOp::And, c, x, land_func)}) {
+            EXPECT_EQ(r.to_string().find("int_to_bv"), std::string::npos) << mask << ": " << r;
+            EXPECT_TRUE(agree_on_samples(r, bitvector_and(x, c), x)) << mask << ": " << r;
+        }
+    }
+}
+
+TEST(BitwiseAndTest, SingleBitMaskIsLinear) {
+    auto const x = z3ctx.int_const("mask_x");
+    for (auto const *mask : {"2", "4", "1024", "2147483648", "4611686018427387904"}) {
         auto const c = z3ctx.int_val(mask);
         for (auto const &r : {bv_bitwise(BitOp::And, x, c, land_func), bv_bitwise(BitOp::And, c, x, land_func)}) {
             EXPECT_EQ(r.to_string().find("int_to_bv"), std::string::npos) << mask << ": " << r;
