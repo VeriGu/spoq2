@@ -2272,6 +2272,17 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                     // context.add_cache(context.get_llvm_value_name(bc), expr);
                     return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
                 }
+                if (llvm::isa<llvm::TruncInst>(bc) && dst->isIntegerTy(1)) {
+                    // An i1 is a Bool: trunc to i1 keeps bit 0, so the value
+                    // is whether x is odd.  x mod 2 is that bit for every x,
+                    // and unlike x & 1 it is linear on integers.
+                    auto sym = context.get_llvm_value_spec(bc);
+                    auto args = std::make_unique<vector<unique_ptr<SpecNode>>>();
+                    args->push_back(context.get_llvm_value_spec(bc->getOperand(0)));
+                    args->push_back(std::make_unique<IntConst>(2));
+                    auto expr = as_condition(std::make_unique<Expr>(Expr::binops::MOD, std::move(args)));
+                    return Shortcut::_Let_u(std::move(sym), std::move(expr), spoq_inst_to_spec(proj, vec, num + 1, context));
+                }
                 auto const from = src->getIntegerBitWidth();
                 auto const to = dst->getIntegerBitWidth();
                 auto sym = context.get_llvm_value_spec(bc);

@@ -1,0 +1,6 @@
+{
+  "verified": true,
+  "spec_has_ub": false,
+  "spec_v_definition": "f_vuln_spec",
+  "spec_v_lacks": "wrap1"
+}

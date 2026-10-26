@@ -287,6 +287,17 @@ z3::expr bv_bitwise(BitOp op, const z3::expr &a0, const z3::expr &b0,
     auto const [a, b] = reconcile_sorts(a0, b0);
     // Exact at that width, so no guard, and no fallback to switch off.
     if (a.is_bv()) return apply(a, b).simplify();
+    // x & (2^k - 1) is x mod 2^k for every integer (Z.land_ones), which is
+    // linear, unlike the conversions below.
+    if (op == BitOp::And && a.is_int() && b.is_int()) {
+        auto const low_mask = [](const z3::expr &c) -> std::optional<z3::expr> {
+            uint64_t v;
+            if (!c.is_numeral_u64(v) || v == UINT64_MAX || (v & (v + 1)) != 0) return std::nullopt;
+            return z3ctx.int_val(v + 1);
+        };
+        if (auto const m = low_mask(b)) return z3::mod(a, *m);
+        if (auto const m = low_mask(a)) return z3::mod(b, *m);
+    }
     if (!z3_bitvec_bitwise_enabled() || !a.is_int() || !b.is_int()) return fallback(a, b);
     auto const bits = apply(z3::int2bv(kBitwiseWidth, a), z3::int2bv(kBitwiseWidth, b));
     // Two's complement at this width agrees with Z.land and its siblings only

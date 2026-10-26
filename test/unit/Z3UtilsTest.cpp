@@ -711,3 +711,48 @@ TEST(BranchPlausibility, DecidedChecksAreNotUnknown) {
     EXPECT_FALSE(none.first || none.second);
     EXPECT_FALSE(undecided);
 }
+
+/* bv_bitwise on integers: x & (2^k - 1) is x mod 2^k for every integer, which
+ * is linear, where the general encoding goes through int2bv and bv2int (printed
+ * int_to_bv and ubv_to_int). */
+namespace {
+
+/// The general encoding of x & c on a 64-bit integer x.
+z3::expr bitvector_and(const z3::expr &x, const z3::expr &c) {
+    return z3::bv2int(z3::int2bv(kBitwiseWidth, x) & z3::int2bv(kBitwiseWidth, c), true);
+}
+
+/// Whether [a] and [b], terms over [x], agree at each 64-bit value in a sample
+/// that includes 0, +-1, the masks' neighbours and both ends of the range.
+bool agree_on_samples(z3::expr a, z3::expr b, const z3::expr &x) {
+    for (auto const *v : {"0", "1", "-1", "6", "7", "8", "254", "255", "256", "-255", "-256", "2147483647",
+                          "-2147483648", "4294967295", "4294967296", "-4294967297", "9223372036854775807",
+                          "-9223372036854775808"}) {
+        z3::expr_vector from(z3ctx), to(z3ctx);
+        from.push_back(x);
+        to.push_back(z3ctx.int_val(v));
+        auto const av = a.substitute(from, to).simplify(), bv = b.substitute(from, to).simplify();
+        if (!av.is_numeral() || !bv.is_numeral() || av.get_decimal_string(0) != bv.get_decimal_string(0)) return false;
+    }
+    return true;
+}
+
+}  // namespace
+
+TEST(BitwiseAndTest, LowMaskIsModulo) {
+    auto const x = z3ctx.int_const("mask_x");
+    for (auto const *mask : {"1", "7", "255", "4294967295"}) {
+        auto const c = z3ctx.int_val(mask);
+        for (auto const &r : {bv_bitwise(BitOp::And, x, c, land_func), bv_bitwise(BitOp::And, c, x, land_func)}) {
+            EXPECT_EQ(r.to_string().find("int_to_bv"), std::string::npos) << mask << ": " << r;
+            EXPECT_TRUE(agree_on_samples(r, bitvector_and(x, c), x)) << mask << ": " << r;
+        }
+    }
+}
+
+TEST(BitwiseAndTest, OtherConstantsKeepTheBitvectorEncoding) {
+    auto const x = z3ctx.int_const("mask_x");
+    auto const six = z3ctx.int_val(6), seven = z3ctx.int_val(7);
+    EXPECT_NE(bv_bitwise(BitOp::And, x, six, land_func).to_string().find("int_to_bv"), std::string::npos);
+    EXPECT_NE(bv_bitwise(BitOp::Or, x, seven, lor_func).to_string().find("int_to_bv"), std::string::npos);
+}
