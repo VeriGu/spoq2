@@ -1,0 +1,7 @@
+{
+  "verified": true,
+  "spec_has_ub": false,
+  "spec_reaches_some": true,
+  "spec_v_definition": "f_vuln_spec",
+  "spec_v_contains": "((rely ((x <? (1000)))"
+}

@@ -190,7 +190,11 @@ const string Expr::to_string() const {
             string fst_str;
             auto const& elem = *this->elems->at(0);
 
-            if (typeid(elem) == typeid(Match))
+            // A Match, If, Rely or Anno extends as far right as it can, so as a
+            // first operand it takes the operator and the second operand into
+            // its last branch unless it is parenthesized.
+            if (dynamic_cast<const Match *>(&elem) || dynamic_cast<const If *>(&elem) ||
+                dynamic_cast<const RelyAnno *>(&elem))
                 fst_str = "(" + string(*elems->at(0)) + ")";
             else
                 fst_str = string(*elems->at(0));
