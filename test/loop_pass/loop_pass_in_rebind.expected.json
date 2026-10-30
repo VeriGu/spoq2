@@ -1,0 +1,6 @@
+{
+  "impl_eliminates_ub": true,
+  "spec_v_definition": "entry_sec0_vuln_spec",
+  "spec_v_contains": "rely ((~ ((p.(pbase)) =s (\"stack_entry__s\"))))",
+  "spec_v_lacks": "(p_after.(pbase)) =s (\"stack_entry__s\")"
+}

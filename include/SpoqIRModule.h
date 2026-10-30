@@ -940,20 +940,21 @@ std::unique_ptr<SpecNode> rely_in_width(std::unique_ptr<SpecNode> body,
         }
 
         /**
-         * @brief Rebind the loop's carried values to the results it returned.
+         * @brief Rebind the loop's header phis to the results it returned.
          *
          * compute_loop_break_return_list names the pass-in and header-phi
-         * results `<v>_after`, because the loop may have changed them.  Code
-         * after the loop still refers to those values by their own names -- a
-         * phi at a join below the loop takes `%tmp.0` on its loop-exit edge, for
-         * instance -- so bind each one to the value the loop produced:
+         * results `<v>_after`.  Code after the loop still refers to the header
+         * phis by their own names -- a phi at a join below the loop takes
+         * `%tmp.0` on its loop-exit edge, for instance -- so bind each one to
+         * the value of the last iteration:
          *
          *     let tmp_0 := tmp_0_after in <rest>
          *
-         * Shadowing the pre-loop name is what makes those references correct:
-         * for a value the loop carries, the post-loop value is the one meant,
-         * and for one it merely passes through the two are equal.  Bindings the
-         * continuation never reads are left for rule_eliminate_let to drop.
+         * A pass-in value is not rebound.  It is defined before the loop, and
+         * the loop returns it unchanged, so the code after the loop reads it by
+         * its own name, where the facts about it before the loop (a rely on an
+         * argument, say) still apply.  Bindings the continuation never reads
+         * are left for rule_eliminate_let to drop.
          *
          * @param preheader
          * @param body the code following the loop
@@ -967,8 +968,11 @@ std::unique_ptr<SpecNode> rely_in_width(std::unique_ptr<SpecNode> body,
                                         std::make_unique<Symbol>(name + "_after", type),
                                         std::move(body));
             };
+            // A pass-in value is defined before the loop, and an SSA value does
+            // not change, so the code after the loop reads it directly: the
+            // facts about it before the loop still hold.  Only the header phis
+            // take their values from the last iteration.
             for (auto &phi: spoq_func.loop_context.header_phi[preheader]) bind(phi);
-            for (auto &val: spoq_func.loop_context.pass_in[preheader]) bind(val);
             return body;
         }
 
