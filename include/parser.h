@@ -36,6 +36,8 @@ public:
 
     antlrcpp::Any visitType(SpecParser::TypeContext* ctx) override;
 
+    antlrcpp::Any visitBinder_type(SpecParser::Binder_typeContext* ctx) override;
+
     antlrcpp::Any visitDef(SpecParser::DefContext* ctx) override;
 
     antlrcpp::Any visitTypedef(SpecParser::TypedefContext* ctx) override;
@@ -110,6 +112,17 @@ public:
 
 protected:
     // utility functions that can be used by subclasses
+
+    template <class Ctx> antlrcpp::Any visit_type_tree(Ctx *ctx);
+
+    // '*' binds tighter than '->', so `(A -> B * C)` denotes A -> (B * C).  The
+    // tuple rule would read it as ((A -> B), C); reject that parse.
+    template <class Ctx> static void check_tuple_component(Ctx *component) {
+        if (component->domain)
+            throw std::runtime_error("Parenthesize the function type " +
+                                     component->getText() +
+                                     " in a tuple component");
+    }
     Expr::binops parse_binop(const antlr4::Token *binop);
 };
 

@@ -35,14 +35,15 @@ public:
     RuleProgram = 0, RuleStatement = 1, RuleTypedef = 2, RuleDef = 3, RuleInvdef = 4, 
     RuleDecl = 5, RuleFixpoint = 6, RulePath = 7, RuleInclude = 8, RuleCommand = 9, 
     RuleGlobal_anno = 10, RuleAnno_struct = 11, RuleLoop_inv = 12, RuleSection_begin = 13, 
-    RuleSection_end = 14, RuleType = 15, RuleExpr = 16, RuleExpr_op = 17, 
-    RuleTerm = 18, RuleTuple = 19, RuleFunc_call = 20, RuleForall_expr = 21, 
-    RuleExists_expr = 22, RuleVar_anno = 23, RuleLet_stmt = 24, RuleWhen_stmt = 25, 
-    RuleMatch_stmt = 26, RuleMatch_branch = 27, RuleAssert_stmt = 28, RuleAnno_stmt = 29, 
-    RuleIf_stmt = 30, RuleInductive_decl = 31, RuleInduct_arm = 32, RuleRecord_decl = 33, 
-    RuleRecord_fields = 34, RuleRecord_def_stmt = 35, RuleRecord_fields_def = 36, 
-    RuleValue = 37, RuleMk = 38, RuleName = 39, RuleNumber = 40, RuleString = 41, 
-    RuleBool = 42, RuleVeclen = 43, RuleVecget = 44, RuleVecreplace = 45
+    RuleSection_end = 14, RuleType = 15, RuleBinder_type = 16, RuleExpr = 17, 
+    RuleExpr_op = 18, RuleTerm = 19, RuleTuple = 20, RuleFunc_call = 21, 
+    RuleForall_expr = 22, RuleExists_expr = 23, RuleVar_anno = 24, RuleLet_stmt = 25, 
+    RuleWhen_stmt = 26, RuleMatch_stmt = 27, RuleMatch_branch = 28, RuleAssert_stmt = 29, 
+    RuleAnno_stmt = 30, RuleIf_stmt = 31, RuleInductive_decl = 32, RuleInduct_arm = 33, 
+    RuleRecord_decl = 34, RuleRecord_fields = 35, RuleRecord_def_stmt = 36, 
+    RuleRecord_fields_def = 37, RuleValue = 38, RuleMk = 39, RuleName = 40, 
+    RuleNumber = 41, RuleString = 42, RuleBool = 43, RuleVeclen = 44, RuleVecget = 45, 
+    RuleVecreplace = 46
   };
 
   explicit SpecParser(antlr4::TokenStream *input);
@@ -78,6 +79,7 @@ public:
   class Section_beginContext;
   class Section_endContext;
   class TypeContext;
+  class Binder_typeContext;
   class ExprContext;
   class Expr_opContext;
   class TermContext;
@@ -375,6 +377,41 @@ public:
 
   TypeContext* type();
   TypeContext* type(int precedence);
+  class  Binder_typeContext : public antlr4::ParserRuleContext {
+  public:
+    SpecParser::Binder_typeContext *domain = nullptr;
+    antlr4::Token *Z_type = nullptr;
+    antlr4::Token *bool_type = nullptr;
+    antlr4::Token *str_type = nullptr;
+    antlr4::Token *type_type = nullptr;
+    antlr4::Token *prop_type = nullptr;
+    antlr4::Token *list_type = nullptr;
+    antlr4::Token *option_type = nullptr;
+    antlr4::Token *zmap_type = nullptr;
+    antlr4::Token *pmap_type = nullptr;
+    antlr4::Token *smap_type = nullptr;
+    antlr4::Token *vector_type = nullptr;
+    antlr4::Token *tup = nullptr;
+    SpecParser::Binder_typeContext *par = nullptr;
+    SpecParser::Binder_typeContext *codomain = nullptr;
+    Binder_typeContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    std::vector<Binder_typeContext *> binder_type();
+    Binder_typeContext* binder_type(size_t i);
+    antlr4::tree::TerminalNode *LP();
+    antlr4::tree::TerminalNode *RP();
+    std::vector<antlr4::tree::TerminalNode *> MULT();
+    antlr4::tree::TerminalNode* MULT(size_t i);
+    NameContext *name();
+    antlr4::tree::TerminalNode *IMPLIES();
+
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+   
+  };
+
+  Binder_typeContext* binder_type();
+  Binder_typeContext* binder_type(int precedence);
   class  ExprContext : public antlr4::ParserRuleContext {
   public:
     ExprContext(antlr4::ParserRuleContext *parent, size_t invokingState);
@@ -549,7 +586,7 @@ public:
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *LP();
     NameContext *name();
-    TypeContext *type();
+    Binder_typeContext *binder_type();
     antlr4::tree::TerminalNode *RP();
     ExprContext *expr();
 
@@ -728,8 +765,8 @@ public:
     virtual size_t getRuleIndex() const override;
     std::vector<NameContext *> name();
     NameContext* name(size_t i);
-    std::vector<TypeContext *> type();
-    TypeContext* type(size_t i);
+    std::vector<Binder_typeContext *> binder_type();
+    Binder_typeContext* binder_type(size_t i);
     std::vector<ExprContext *> expr();
     ExprContext* expr(size_t i);
 
@@ -889,6 +926,7 @@ public:
   bool sempred(antlr4::RuleContext *_localctx, size_t ruleIndex, size_t predicateIndex) override;
 
   bool typeSempred(TypeContext *_localctx, size_t predicateIndex);
+  bool binder_typeSempred(Binder_typeContext *_localctx, size_t predicateIndex);
   bool expr_opSempred(Expr_opContext *_localctx, size_t predicateIndex);
   bool termSempred(TermContext *_localctx, size_t predicateIndex);
 

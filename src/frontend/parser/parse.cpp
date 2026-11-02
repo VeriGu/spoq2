@@ -161,10 +161,30 @@ antlrcpp::Any ProgramVisitor::visitCommand(SpecParser::CommandContext *ctx) {
     return std::any();
 }
 
-// Always return a shared_ptr<SpecType>
+static std::vector<SpecParser::TypeContext *> subtypes(SpecParser::TypeContext *ctx) {
+    return ctx->type();
+}
+static std::vector<SpecParser::Binder_typeContext *>
+subtypes(SpecParser::Binder_typeContext *ctx) {
+    return ctx->binder_type();
+}
+
 antlrcpp::Any ProgramVisitor::visitType(SpecParser::TypeContext *ctx) {
+    return visit_type_tree(ctx);
+}
+
+antlrcpp::Any
+ProgramVisitor::visitBinder_type(SpecParser::Binder_typeContext *ctx) {
+    return visit_type_tree(ctx);
+}
+
+// Always return a shared_ptr<SpecType>.  `type` and `binder_type` share labels.
+template <class Ctx> antlrcpp::Any ProgramVisitor::visit_type_tree(Ctx *ctx) {
+    auto const sub = [&](size_t i) {
+        return any_cast<shared_ptr<SpecType>>(visit(subtypes(ctx)[i]));
+    };
     if (ctx->par) {
-        return visit(ctx->type(0));
+        return visit(subtypes(ctx)[0]);
     } else if (ctx->Z_type) {
         return static_pointer_cast<SpecType>(Int::INT);
     } else if (ctx->bool_type) {
@@ -177,14 +197,14 @@ antlrcpp::Any ProgramVisitor::visitType(SpecParser::TypeContext *ctx) {
         return static_pointer_cast<SpecType>(Prop::PROP);
     } else if (ctx->list_type) {
         return static_pointer_cast<SpecType>(make_shared<List>(
-            any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)))));
+            sub(0)));
     } else if (ctx->option_type) {
-        auto const type = any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)));
+        auto const type = sub(0);
         return static_pointer_cast<SpecType>(make_shared<Option>(type));
     } else if (ctx->domain) {
-        auto const domain = any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)));
+        auto const domain = sub(0);
         auto const curried_type =
-            any_cast<shared_ptr<SpecType>>(visitType(ctx->type(1)));
+            sub(1);
         auto const args = make_shared<std::vector<shared_ptr<SpecType>>>();
 
         args->push_back(shared_ptr<SpecType>(domain));
@@ -208,23 +228,24 @@ antlrcpp::Any ProgramVisitor::visitType(SpecParser::TypeContext *ctx) {
     } else if (ctx->tup) {
         auto const types = make_shared<vector<shared_ptr<SpecType>>>();
 
-        for (auto type : ctx->type()) {
-            types->push_back(any_cast<shared_ptr<SpecType>>(visitType(type)));
+        for (auto type : subtypes(ctx)) {
+            check_tuple_component(type);
+            types->push_back(any_cast<shared_ptr<SpecType>>(visit(type)));
         }
 
         return static_pointer_cast<SpecType>(make_shared<Tuple>(types));
     } else if (ctx->zmap_type) {
         return static_pointer_cast<SpecType>(make_shared<ZMap>(
-            any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)))));
+            sub(0)));
     } else if (ctx->pmap_type) {
         return static_pointer_cast<SpecType>(make_shared<ZMap>(
-            any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0))), Int::INT));
+            sub(0), Int::INT));
     } else if (ctx->smap_type) {
         return static_pointer_cast<SpecType>(make_shared<SMap>(
-            any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)))));
+            sub(0)));
     } else if (ctx->vector_type) {
         return static_pointer_cast<SpecType>(make_shared<Vector>(
-            any_cast<shared_ptr<SpecType>>(visitType(ctx->type(0)))
+            sub(0)
         ));
     } else if (ctx->name()) {
         std::string const name = ctx->name()->getText();
@@ -546,7 +567,7 @@ antlrcpp::Any
 ProgramVisitor::visitRecord_fields(SpecParser::Record_fieldsContext *ctx) {
     auto args =
         shared_ptr<vector<shared_ptr<Arg>>>(new vector<shared_ptr<Arg>>());
-    auto type = ctx->type();
+    auto type = ctx->binder_type();
     auto name = ctx->name();
     auto type_it = type.begin();
     auto name_it = name.begin();
@@ -561,7 +582,7 @@ ProgramVisitor::visitRecord_fields(SpecParser::Record_fieldsContext *ctx) {
         // }
         args->push_back(make_shared<Arg>(
             (*name_it)->getText(),
-            any_cast<shared_ptr<SpecType>>(visitType(*type_it))));
+            any_cast<shared_ptr<SpecType>>(visit(*type_it))));
     }
 
     return args;
@@ -1095,9 +1116,9 @@ antlrcpp::Any ProgramVisitor::visitName(SpecParser::NameContext *ctx) {
 
 // Returns a shared_ptr<Arg>
 antlrcpp::Any ProgramVisitor::visitVar_anno(SpecParser::Var_annoContext *ctx) {
-    if (ctx->type()) {
+    if (ctx->binder_type()) {
         shared_ptr<SpecType> const arg_type =
-            any_cast<shared_ptr<SpecType>>(visitType(ctx->type()));
+            any_cast<shared_ptr<SpecType>>(visit(ctx->binder_type()));
         return make_shared<Arg>(ctx->name()->getText(), arg_type);
     } else if (ctx->expr()) {
         auto s = any_cast<SpecNode *>(visitExpr(ctx->expr()));

@@ -32,6 +32,7 @@ loop_inv : 'Loop_inv' expr '.';
 section_begin: SECTION name '.';
 section_end: SECTION_END name '.';
 
+// '->' is right-associative and binds looser than the type constructors.
 type:
 	Z_type = 'Z'
 	| bool_type = 'bool'
@@ -45,8 +46,28 @@ type:
 	| smap_type = 'SMap' type
 	| vector_type = 'Vector' type
 	| '(' type ( tup = '*' type  ) + ')'
-	| domain = type '->' '(' codomain = type ')'
+	| <assoc=right> domain = type '->' codomain = type
 	| '(' par=type ')'
+	| name;
+
+// Binder and record-field type: an arrow's codomain must be parenthesized.
+// Kept separate so that these positions, which also accept an expr, do not
+// gain type/expr ambiguities from unparenthesized arrows.
+binder_type:
+	Z_type = 'Z'
+	| bool_type = 'bool'
+	| str_type = 'string'
+	| type_type = 'Type'
+	| prop_type = 'Prop'
+	| list_type = 'list' binder_type
+	| option_type = 'option' binder_type
+	| zmap_type = 'ZMap.t' binder_type
+	| pmap_type = 'PMap.t' binder_type
+	| smap_type = 'SMap' binder_type
+	| vector_type = 'Vector' binder_type
+	| '(' binder_type ( tup = '*' binder_type  ) + ')'
+	| domain = binder_type '->' '(' codomain = binder_type ')'
+	| '(' par=binder_type ')'
 	| name;
 
 expr:
@@ -90,7 +111,7 @@ func_call: name expr+;
 forall_expr: FORALL var_anno+;
 exists_expr: EXISTS var_anno+;
 var_anno:
-	'(' name ':' type ')'
+	'(' name ':' binder_type ')'
 	| '(' name ':' expr ')';
 
 let_stmt:
@@ -108,7 +129,7 @@ inductive_decl: INDUC name ':=' induct_arm+ '.';
 induct_arm: '|' name var_anno*;
 
 record_decl: RECORD name var_anno* ':=' name '{' record_fields '}' '.';
-record_fields: (name ':' (type | expr)) (';' name ':' (type | expr))*;
+record_fields: (name ':' (binder_type | expr)) (';' name ':' (binder_type | expr))*;
 
 record_def_stmt: '{|' record_fields_def '|}';
 record_fields_def: (name ':=' name) (';' name ':=' name)*;

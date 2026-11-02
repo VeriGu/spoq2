@@ -51,6 +51,8 @@ public:
 
     virtual std::any visitType(SpecParser::TypeContext *context) = 0;
 
+    virtual std::any visitBinder_type(SpecParser::Binder_typeContext *context) = 0;
+
     virtual std::any visitExpr(SpecParser::ExprContext *context) = 0;
 
     virtual std::any visitExpr_op(SpecParser::Expr_opContext *context) = 0;

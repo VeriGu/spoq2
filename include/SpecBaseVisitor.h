@@ -79,6 +79,10 @@ public:
     return visitChildren(ctx);
   }
 
+  virtual std::any visitBinder_type(SpecParser::Binder_typeContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
   virtual std::any visitExpr(SpecParser::ExprContext *ctx) override {
     return visitChildren(ctx);
   }

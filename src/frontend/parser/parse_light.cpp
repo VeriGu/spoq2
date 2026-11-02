@@ -269,6 +269,7 @@ antlrcpp::Any LightProgramVisitor::visitType(SpecParser::TypeContext* ctx) {
         auto const types = make_shared<vector<shared_ptr<SpecType>>>();
 
         for (auto type : ctx->type()) {
+            check_tuple_component(type);
             types->push_back(any_cast<shared_ptr<SpecType>>(visitType(type)));
         }
 
