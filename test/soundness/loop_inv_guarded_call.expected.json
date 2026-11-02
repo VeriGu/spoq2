@@ -1,0 +1,4 @@
+{
+  "verified": true,
+  "stderr_contains": "Loop Invariant Adding loop postcondition: count_loop_0 (under an If)"
+}

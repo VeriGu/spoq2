@@ -713,6 +713,21 @@ z3::expr formulate_post_cond_z3(Project *proj, const std::string& fname,
     return post;
 }
 
+/// The variable holding argument [arg] of [fname] as the body was entered.
+/// The body may rebind [arg] (`when st == (store_RData .. st)`), so an `_old`
+/// in an invariant or postcondition must not resolve to [arg] itself.
+static string entry_name(const string &fname, const string &arg) {
+    return fname + "_" + arg + "_entry";
+}
+
+/// Declares each argument of [def] and binds its entry name to the same value.
+static void declare_args(Definition *def, unordered_map<string, shared_ptr<SpecValue>> &vars) {
+    for (auto const &arg : *def->args) {
+        vars[arg->name] = arg->type->declare(arg->name, 0);
+        vars[entry_name(def->name, arg->name)] = vars[arg->name];
+    }
+}
+
 /** prove_by_traverse:
  * 		works on specs with abstract functions, symbolically check inv
  * path-by-path It is a general function that can check pre condition implies
@@ -794,8 +809,8 @@ bool prove_by_traverse(
                                 elems.push_back(ret_st->deep_copy());
 
                                 names.push_back("st_old");
-                                elems.push_back(
-                                    make_unique<Symbol>("st", ret_st->type));
+                                elems.push_back(make_unique<Symbol>(
+                                    entry_name(fname, "st"), ret_st->type));
                             }
                         }
                     } else if (auto ret_Some = instance_of(
@@ -803,8 +818,8 @@ bool prove_by_traverse(
                         names.push_back("st");
                         elems.push_back(ret_st->deep_copy());
                         names.push_back("st_old");
-                        elems.push_back(
-                            make_unique<Symbol>("st", ret_st->type));
+                        elems.push_back(make_unique<Symbol>(
+                            entry_name(fname, "st"), ret_st->type));
                     }
                     prop = subst_v2(proj, inv->deep_copy(), &names, &elems);
                     LOG_DEBUG << "[Prove Pre/Post Condition] Post Condition: "
@@ -822,15 +837,16 @@ bool prove_by_traverse(
                                 ret_Some->elems->at(i)->deep_copy());
                             names.push_back(arg_name + "_old");
                             elems.push_back(make_unique<Symbol>(
-                                arg_name, loop->args->at(i)->type));
+                                entry_name(fname, arg_name),
+                                loop->args->at(i)->type));
                         }
                     } else if (auto ret_Some = instance_of(
                                    expr->elems->at(0).get(), Symbol)) {
                         names.push_back("st");
                         elems.push_back(ret_st->deep_copy());
                         names.push_back("st_old");
-                        elems.push_back(
-                            make_unique<Symbol>("st", ret_st->type));
+                        elems.push_back(make_unique<Symbol>(
+                            entry_name(fname, "st"), ret_st->type));
                     }
                     prop = subst_v2(proj, inv->deep_copy(), &names, &elems);
                     LOG_DEBUG << "[Prove Loop Invariant] loop invariant: "
@@ -928,7 +944,8 @@ bool prove_by_traverse(
 
                             names.push_back(arg_name + "_old");
                             elems.push_back(make_unique<Symbol>(
-                                arg_name, loop->args->at(i)->type));
+                                entry_name(fname, arg_name),
+                                loop->args->at(i)->type));
 
                             (*state->vars)[fname + "_" + arg_name + "_new"] =
                                 loop->args->at(i)->type->declare(
@@ -1472,11 +1489,7 @@ bool check_loop_inv_v2(Project *proj, Definition *loop,
                                 Bool::BOOL);
     }
 
-    for (auto const &arg : *loop->args) {
-        (*vars)[arg->name] = arg->type->declare(arg->name, 0);
-        //(*vars)[arg->name + "_old"] = arg->type->declare(arg->name + "_old",
-        // 0);
-    }
+    declare_args(loop, *vars);
     auto induction = std::make_shared<vector<z3::expr>>();
     auto const state = make_shared<ProveState>(vars, conds, induction);
     set<string> used_fixpoint;
@@ -1570,9 +1583,7 @@ bool check_pre_post(Project *proj, Definition *def,
         std::make_shared<unordered_map<string, shared_ptr<SpecValue>>>();
     auto conds = std::make_shared<vector<z3::expr>>();
 
-    for (auto const &arg : *def->args) {
-        (*vars)[arg->name] = arg->type->declare(arg->name, 0);
-    }
+    declare_args(def, *vars);
 
     auto &preconds = proj->cmds.PreCond[def->name];
     auto &postconds = proj->cmds.PostCond[def->name];
@@ -1603,7 +1614,10 @@ bool check_pre_post(Project *proj, Definition *def,
     }
     auto spec_def = new Definition(def->name, def->rettype, std::move(l_args),
                                    def->body()->deep_copy());
-    coi_reduction(proj, spec_def, postcond.get());
+    // COI keeps the writes to fields the postcondition reads; one over the whole
+    // state reads every field.
+    if (!uses_whole_record(postcond.get()))
+        coi_reduction(proj, spec_def, postcond.get());
 
     proj->query_saver = QueryInfo(query_saver_dir(def->name, "integrity"));
 
@@ -2265,9 +2279,12 @@ void spec_prover(Project *proj) {
         for (auto const &prim : proj->cmds.invs) {
             used_abstract_funcs.insert(prim);
         }
-        if (check_facts)
+        if (check_facts) {
             for (auto const &[loop, _] : proj->loop_invs)
                 used_abstract_funcs.insert(loop);
+            for (auto const &[def, conds] : proj->cmds.PostCond)
+                if (!conds.empty()) used_abstract_funcs.insert(def);
+        }
         while (used_abstract_funcs.size() > 0) {
             auto func = *(used_abstract_funcs.begin());
             used_abstract_funcs.erase(used_abstract_funcs.begin());

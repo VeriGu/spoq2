@@ -578,6 +578,35 @@ rule_ret_t SpecRules::merge_branch(std::unique_ptr<SpecNode> spec) {
 }
 
 
+bool uses_whole_record(SpecNode *prop) {
+    if (auto s = instance_of(prop, Symbol))
+        return s->type && instance_of(s->type.get(), Struct);
+    if (is_instance(prop, Const)) return false;
+    if (auto r = instance_of(prop, RelyAnno))
+        return uses_whole_record(r->prop.get()) || uses_whole_record(r->body.get());
+    if (auto wa = instance_of(prop, ForallExists)) {
+        for (auto const &var : *wa->vars)
+            if (var->expr && uses_whole_record(var->expr.get())) return true;
+        return uses_whole_record(wa->body.get());
+    }
+    auto e = instance_of(prop, Expr);
+    if (!e) return true;  // unanalysed node: assume it may
+    auto const *op = std::get_if<Expr::ops>(&e->op);
+    if (op && *op == Expr::RecordGet) {
+        // A field access reads one field of its base, not the whole record.
+        auto base = e->elems->at(0).get();
+        while (auto b = instance_of(base, Expr)) {
+            auto const *bop = std::get_if<Expr::ops>(&b->op);
+            if (!bop || *bop != Expr::RecordGet) break;
+            base = b->elems->at(0).get();
+        }
+        return !is_instance(base, Symbol) && uses_whole_record(base);
+    }
+    for (auto const &x : *e->elems)
+        if (uses_whole_record(x.get())) return true;
+    return false;
+}
+
 void coi_reduction(Project *proj, Definition *def, SpecNode *inv) {
     if (!OPTS.coi) 
         return;

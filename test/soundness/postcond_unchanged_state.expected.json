@@ -1,0 +1,4 @@
+{
+  "verified": true,
+  "stderr_contains": "Precondition imply post condition :) : get_spec"
+}

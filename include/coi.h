@@ -35,6 +35,9 @@ namespace autov {
                                                 std::set<string> blacklist = {});
     void analyze_invariant_fields(Project *proj, SpecNode *inv, std::set<field_t> &fields);
     void coi_reduction(Project *proj, Definition *def, SpecNode *inv);
+    /* Whether [prop] uses a record value other than through a field access,
+       as `st = st_old` does.  Its cone is then every field of that record. */
+    bool uses_whole_record(SpecNode *prop);
     void mark_determ_branch(Project* proj, Definition* rel_def, Definition* spec_def);
     bool contains_field(const field_t &f_check, const field_t &f_interested);
 }
