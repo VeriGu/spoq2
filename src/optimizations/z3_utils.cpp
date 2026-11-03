@@ -1843,6 +1843,15 @@ shared_ptr<SpecValue> resolve_pattern(Project* proj, SpecNode* val, SpecNode* pa
     throw std::runtime_error("Unknown pattern(" + std::to_string(__LINE__) + "): " + string(*pat));
 }
 
+/// `if cond then then_val else rest` for the arms of a match.  The arms of a Z
+/// match may differ in sort: a literal arm is an integer, an arm reading a
+/// machine value a bitvector.
+static shared_ptr<SpecValue> match_arms_ite(const z3::expr &cond, const shared_ptr<SpecValue> &then_val,
+                                            const shared_ptr<SpecValue> &rest) {
+    auto const [t, e] = reconcile_sorts(then_val->get_z3_value(), rest->get_z3_value());
+    return rest->get_type()->from_z3_value(z3::ite(cond, t, e));
+}
+
 /// The condition under which a match arm is taken, without quantifiers.
 ///
 /// Fills [vars] with the pattern's binders and [assigns] with the accessor term
@@ -2760,40 +2769,29 @@ void symbolic(Project* proj, SpecNode* val, const shared_ptr<EvalState>& state, 
 
     } else if (auto match = instance_of(val, Match)) {
         auto const src = z3_eval(proj, match->src.get(), state);
-        shared_ptr<SpecValue> match_val = nullptr;
-        for (auto pm = match->match_list->rbegin(); pm != match->match_list->rend(); pm++) {
-            unordered_map<string, shared_ptr<SpecValue>> vars;
-            unordered_map<string, shared_ptr<SpecValue>> assigns;
-            auto const cond =
-                match_arm_condition(proj, val, (*pm)->pattern.get(), src, vars, assigns);
-            auto const z3_res = z3_check(state, cond);
-            if (z3_res == Z3Result::False) {
-                continue;
-            }
-            //new state, v1 = val1, v2 = val2,...., body
-            auto const new_state = state->copy();
-            for (auto v = assigns.begin(); v != assigns.end(); v++) {
-                new_state->vars->emplace(v->first, v->second);
-            }
-            // new_state->conds->push_back(cond);
-            if (match_val == nullptr) {
-                match_val = z3_eval(proj, (*pm)->body.get(), new_state);
-            } else {
-                auto const then_val = z3_eval(proj, (*pm)->body.get(), new_state);
-                /** Optimization: instantiate Exists:
-                 *      Original: (vars: v = src), if ((Exists v' (v' = src)) then Prop(v') else True)
-                 *      --> v is the evidence of (Exists...)
-                 *      --> (Exists v' (v' = src)) == True
-                 *      --> Instantiate v' by v
-                 *  * It's always sufficient to jsut have Prop(v) for proof!
-                 */
-                if (match_val->get_z3_value().is_true()) {
-                    match_val = then_val;
-                } else {
-                    match_val = match_val->get_type()->from_z3_value(z3::ite(cond, then_val->get_z3_value(), match_val->get_z3_value()));
+        // An arm whose condition the path refutes is left out.  On a path that
+        // refutes every arm, the path is infeasible and any value will do, but
+        // the match may have no None: all arms are then kept.
+        auto const eval_arms = [&](bool prune) {
+            shared_ptr<SpecValue> match_val = nullptr;
+            for (auto pm = match->match_list->rbegin(); pm != match->match_list->rend(); pm++) {
+                unordered_map<string, shared_ptr<SpecValue>> vars;
+                unordered_map<string, shared_ptr<SpecValue>> assigns;
+                auto const cond =
+                    match_arm_condition(proj, val, (*pm)->pattern.get(), src, vars, assigns);
+                if (prune && z3_check(state, cond) == Z3Result::False) continue;
+                //new state, v1 = val1, v2 = val2,...., body
+                auto const new_state = state->copy();
+                for (auto v = assigns.begin(); v != assigns.end(); v++) {
+                    new_state->vars->emplace(v->first, v->second);
                 }
+                auto const then_val = z3_eval(proj, (*pm)->body.get(), new_state);
+                match_val = match_val == nullptr ? then_val : match_arms_ite(cond, then_val, match_val);
             }
-        }
+            return match_val;
+        };
+        auto match_val = eval_arms(true);
+        if (match_val == nullptr && !dynamic_pointer_cast<Option>(val->get_type())) match_val = eval_arms(false);
         if (match_val == nullptr) {
             auto const opt = static_pointer_cast<Option>(val->get_type());
             return states.push_back(std::make_pair(opt->construct("None", {}), state));
@@ -3259,22 +3257,7 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
                 }
             } else {
                 auto const then_val = z3_eval(proj, (*pm)->body.get(), new_state,  check_loop);
-                /** Optimization: instantiate Exists:
-                 *      Original: (vars: v = src), if ((Exists v' (v' = src)) then Prop(v') else True)
-                 *      --> v is the evidence of (Exists...)
-                 *      --> (Exists v' (v' = src)) == True
-                 *      --> Instantiate v' by v
-                 *  * It's always sufficient to jsut have Prop(v) for proof!
-                 */
-                if (match_val->get_z3_value().is_true()) {
-                    if(then_val->get_z3_value().get_sort().is_bool()) {
-                        match_val = make_shared<SpecValue>(then_val->typ, then_val->get_z3_value() && cond);
-                    } else {
-                        match_val = then_val;
-                    }
-                } else {
-                    match_val = match_val->get_type()->from_z3_value(z3::ite(cond, then_val->get_z3_value(), match_val->get_z3_value()));
-                }
+                match_val = match_arms_ite(cond, then_val, match_val);
             }
 
         }
@@ -3648,41 +3631,26 @@ shared_ptr<SpecValue> z3_eval(Project* proj, SpecNode* val, const shared_ptr<Eva
         throw std::runtime_error("Unknown expression: " + string(*expr));
     } else if (auto match = instance_of(val, Match)) {
         auto const src = z3_eval(proj, match->src.get(), state,  check_loop, unfold, used_fixpoint);
-        shared_ptr<SpecValue> match_val = nullptr;
-        for (auto pm = match->match_list->rbegin(); pm != match->match_list->rend(); pm++) {
-            unordered_map<string, shared_ptr<SpecValue>> vars;
-            unordered_map<string, shared_ptr<SpecValue>> assigns;
-            auto const cond =
-                match_arm_condition(proj, val, (*pm)->pattern.get(), src, vars, assigns);
-
-            auto const z3_res = z3_check(state, cond);
-            if (z3_res == Z3Result::False) {
-                continue;
-            }
-            auto const new_state = state->copy();
-            for (auto v = assigns.begin(); v != assigns.end(); v++) {
-                (*new_state->vars)[v->first] = v->second;
-            }
-            // new_state->conds->push_back(cond);
-
-            if (match_val == nullptr) {
-                match_val = z3_eval(proj, (*pm)->body.get(), new_state,  check_loop, unfold, used_fixpoint);
-            } else {
-                auto const then_val = z3_eval(proj, (*pm)->body.get(), new_state,  check_loop, unfold, used_fixpoint);
-                /** Optimization: instantiate Exists:
-                 *      Original: (vars: v = src), if ((Exists v' (v' = src)) then Prop(v') else True)
-                 *      --> v is the evidence of (Exists...)
-                 *      --> (Exists v' (v' = src)) == True
-                 *      --> Instantiate v' by v
-                 *  * It's always sufficient to jsut have Prop(v) for proof!
-                 */
-                if (match_val->get_z3_value().is_true()) {
-                    match_val = then_val;
-                } else {
-                    match_val = match_val->get_type()->from_z3_value(z3::ite(cond, then_val->get_z3_value(), match_val->get_z3_value()));
+        // As in symbolic: refuted arms are left out unless the path refutes all.
+        auto const eval_arms = [&](bool prune) {
+            shared_ptr<SpecValue> match_val = nullptr;
+            for (auto pm = match->match_list->rbegin(); pm != match->match_list->rend(); pm++) {
+                unordered_map<string, shared_ptr<SpecValue>> vars;
+                unordered_map<string, shared_ptr<SpecValue>> assigns;
+                auto const cond =
+                    match_arm_condition(proj, val, (*pm)->pattern.get(), src, vars, assigns);
+                if (prune && z3_check(state, cond) == Z3Result::False) continue;
+                auto const new_state = state->copy();
+                for (auto v = assigns.begin(); v != assigns.end(); v++) {
+                    (*new_state->vars)[v->first] = v->second;
                 }
+                auto const then_val = z3_eval(proj, (*pm)->body.get(), new_state,  check_loop, unfold, used_fixpoint);
+                match_val = match_val == nullptr ? then_val : match_arms_ite(cond, then_val, match_val);
             }
-        }
+            return match_val;
+        };
+        auto match_val = eval_arms(true);
+        if (match_val == nullptr && !dynamic_pointer_cast<Option>(val->get_type())) match_val = eval_arms(false);
         if (match_val == nullptr) {
             auto const opt = static_pointer_cast<Option>(val->get_type());
             return opt->construct("None", {});
