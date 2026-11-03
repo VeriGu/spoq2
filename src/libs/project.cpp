@@ -1090,6 +1090,27 @@ static void collect_field_ancestors(Project *proj)
         LOG_DEBUG << kv.first << " -> " << kv.second;
 }
 
+/// Transforms the invariants of each loop that is defined and not yet done.
+/// An invariant refers to its loop's arguments, so it is transformed only once
+/// the translator has defined the loop: unfolding a definition in it (ptr_eqb r p)
+/// binds values that need the arguments' types.
+void trans_loop_invs(Project *proj) {
+    static std::set<string> done;
+    for (auto &[name, loop_inv] : proj->loop_invs) {
+        auto const it = proj->defs.find(name);
+        if (it == proj->defs.end() || !done.insert(name).second) continue;
+        auto const known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
+        for (auto const &arg : *it->second->args) {
+            (*known)[arg->name] = arg->type;
+            (*known)[arg->name + "_old"] = arg->type;
+        }
+        for (auto &inv : loop_inv) {
+            type_inference::infer_type(*proj, inv.get(), known, Bool::BOOL);
+            inv = spec_transformer_v2(proj, std::move(inv), 0, true, true);
+        }
+    }
+}
+
 void trans_inv(Project *proj) {
     auto known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
     (*known)["st"] = proj->layers.at(0)->abs_data;
@@ -1099,23 +1120,10 @@ void trans_inv(Project *proj) {
         proj->sys_invs[name] = std::move(new_node);
     }
 
-    for(auto &[name, loop_inv]: proj->loop_invs) {
-        known = make_shared<unordered_map<string, shared_ptr<SpecType>>>();
-        // (*known)["st"] = proj->layers.at(0)->abs_data;
-        // (*known)["st_old"] = proj->layers.at(0)->abs_data;
-        // auto name2 = name + "_spec";
-        // for(auto arg: *proj->defs[name]->args) {
-        //     (*known)[arg->name] = arg->type;
-        //     (*known)[arg->name + "_old"] = arg->type;
-        // }
+    trans_loop_invs(proj);
 
-        for(auto &inv: loop_inv) {
-            // LOG_DEBUG << "Processing loop invariant for " << string(*inv);
-            type_inference::infer_type(*proj, inv.get(), known, Bool::BOOL);
-            auto new_node = spec_transformer_v2(proj, std::move(inv), 0, true, true);
-            inv.reset(new_node.release());
-        }
-    }
+    // A pre- or postcondition names the callee's state as st and st_old.
+    (*known)["st_old"] = proj->layers.at(0)->abs_data;
 
     for(auto &[name, postconds] : proj->cmds.PostCond) {
         for(auto &post: postconds) {
@@ -1487,6 +1495,7 @@ bool Project::finalize_project_v2() {
     }
 
     LOG_DEBUG << "low spec ok" << "\n";
+    trans_loop_invs(this);
 
     auto const start = std::chrono::high_resolution_clock::now();
     collect_field_ancestors(this);

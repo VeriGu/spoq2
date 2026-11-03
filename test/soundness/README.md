@@ -22,6 +22,8 @@ nearest correct one, which the fix must still prove.
 | `loop_inv_unguarded_call` / `loop_inv_guarded_call` | true / true | a loop invariant is assumed of the loop's result also when the loop call is under an `if` in the match scrutinee, as an `inbounds` GEP argument places it (`then f(q+8) else f(null)`); the vuln reads `*q` before the loop and the patch after it |
 | `loop_inv_guarded_call_weak` | false | control: with the invariant weakened to `true`, the guarded loop call constrains nothing |
 | `loop_inv_unguarded_writes` / `loop_inv_guarded_call_writes` | false | the loop stores to `*q` and rebinds `st`; `st_old` in the invariant denotes the state at loop entry, not the rebound `st`, so `st = st_old` is not inductive |
+| `loop_inv_checked_unchecked_args` | false | one loop called bounds-checked (`if` in the scrutinee) and unchecked; the checked call's invariant instances (`rf = q+8` under the check, `rf = poison` under its negation) stay under their guards, or the path becomes vacuous |
+| `loop_inv_checked_unchecked_strict` / `loop_inv_checked_unchecked_cond` | false / false | the same program: `st = st_old` fails for the poison argument and is not inductive; an invariant conditional on `ptr_eqb rf p` (decided by the bounds check) parses and unfolds with the loop's argument types |
 | `postcond_rebound_state` / `postcond_unchanged_state` | false / true | a callee postcondition is proved before a refinement assumes it; `st_old` denotes the entry state, and COI keeps every write when the postcondition reads the whole state |
 | `srem_pow2_*`, `srem_other_*`, `sdiv_pow2_*`, `sdiv_other_*` | false / true | `srem` and `sdiv` truncate toward zero, as LLVM defines them, in both sort modes and for divisors that are and are not powers of two |
 

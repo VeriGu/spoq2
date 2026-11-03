@@ -579,8 +579,8 @@ rule_ret_t SpecRules::merge_branch(std::unique_ptr<SpecNode> spec) {
 
 
 bool uses_whole_record(SpecNode *prop) {
-    if (auto s = instance_of(prop, Symbol))
-        return s->type && instance_of(s->type.get(), Struct);
+    if (auto s = instance_of(prop, Symbol))  // untyped: it may be a record
+        return !s->type || s->type == SpecType::UNKNOWN_TYPE || instance_of(s->type.get(), Struct);
     if (is_instance(prop, Const)) return false;
     if (auto r = instance_of(prop, RelyAnno))
         return uses_whole_record(r->prop.get()) || uses_whole_record(r->body.get());
