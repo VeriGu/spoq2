@@ -1,0 +1,5 @@
+{
+  "verified": false,
+  "env": "SPOQ_SHARED_LOOP_INV_TOTAL=0",
+  "stderr_contains": "the run's search budget of 0 s is spent"
+}

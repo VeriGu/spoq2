@@ -58,7 +58,48 @@ bool enabled() {
     return on;
 }
 
+double env_seconds(const char *name, double dflt) {
+    auto const e = std::getenv(name);
+    return e ? std::atof(e) : dflt;
+}
+
+/// Wall-clock budget of the search.  An outermost instantiation, with the
+/// inferences nested in it, gets SPOQ_SHARED_LOOP_INV_BUDGET seconds (300), and
+/// the run SPOQ_SHARED_LOOP_INV_TOTAL seconds (600).  Once spent, the checks
+/// answer without the solver and the instantiation yields no theorem, which
+/// only omits the relation.
+struct Budget {
+    using clock = std::chrono::steady_clock;
+    double const per_call = env_seconds("SPOQ_SHARED_LOOP_INV_BUDGET", 300);
+    double const total = env_seconds("SPOQ_SHARED_LOOP_INV_TOTAL", 600);
+    double used = 0;            // seconds spent by finished outermost instantiations
+    clock::time_point start, deadline;
+    bool armed = false, spent = false;
+    std::set<std::pair<string, string>> abandoned;  // pairs whose search ran out
+
+    /// Starts an outermost instantiation; false if the run's budget is spent.
+    bool arm() {
+        if (used >= total) return false;
+        start = clock::now();
+        deadline = start + std::chrono::duration_cast<clock::duration>(
+                               std::chrono::duration<double>(std::min(per_call, total - used)));
+        armed = true;
+        spent = false;
+        return true;
+    }
+    void disarm() {
+        used += std::chrono::duration<double>(clock::now() - start).count();
+        armed = false;
+    }
+    bool exhausted() {
+        if (!spent && armed && clock::now() >= deadline) spent = true;
+        return spent;
+    }
+};
+Budget budget;
+
 bool valid(const shared_ptr<ProveState> &s, const z3::expr &f) {
+    if (budget.exhausted()) return false;
     z3::model ce(z3ctx);
     return z3_check_unsat(s, f, ce, nullptr, sli_timeout(), false) == Z3Result::True;
 }
@@ -86,12 +127,19 @@ struct Phase {
     }
 };
 
-bool feasible(const shared_ptr<ProveState> &s) { return z3_verify_state_sat(s, nullptr, sli_timeout()) != Z3Result::False; }
+/// Once the budget is spent a path is cut; the inference then yields nothing.
+bool feasible(const shared_ptr<ProveState> &s) {
+    return !budget.exhausted() && z3_verify_state_sat(s, nullptr, sli_timeout()) != Z3Result::False;
+}
 
 /// Keeps the indices in [alive] whose formula f(i) is valid under [s].  A
 /// counterexample to the conjunction refutes every conjunct it falsifies.
 void prune(const shared_ptr<ProveState> &s, std::vector<int> &alive, const std::function<z3::expr(int)> &f) {
     while (!alive.empty()) {
+        if (budget.exhausted()) {
+            alive.clear();
+            return;
+        }
         z3::expr_vector fs(z3ctx);
         for (int const i : alive) fs.push_back(f(i));
         z3::model ce(z3ctx);
@@ -819,7 +867,7 @@ std::optional<Relation> infer(Project *proj, Pair &pr, const std::vector<int> &C
     rel.R = C0;
     std::vector<PairLeaf> pairs;
     for (int round = 0;; round++) {
-        if (round == SLI_MAX_ROUNDS) return std::nullopt;
+        if (round == SLI_MAX_ROUNDS || budget.exhausted()) return std::nullopt;
         pairs.clear();
         auto const base = V.fresh_state();
         for (int const i : rel.R) base->conds->push_back(pr.R[i].f);
@@ -1045,6 +1093,7 @@ std::optional<Relation> infer(Project *proj, Pair &pr, const std::vector<int> &C
     }
 
     pexits.done(std::to_string(rel.groups.size()) + " exit codes");
+    if (budget.exhausted()) return std::nullopt;
     std::ostringstream o;
     o << "Shared loop invariant " << pr.pname << " ~ " << pr.vname << (full ? " (memory inlined)" : "") << ": R = {"
       << describe(pr.R, rel.R) << "}";
@@ -1139,6 +1188,7 @@ std::optional<z3::expr> instantiate_uncached(Project *proj, const shared_ptr<Pro
     Phase const pcall{"candidates at the call"};
     prune(state, C0, [&](int i) { return at_call(pr->R[i].f); });
     pcall.done(std::to_string(C0.size()) + " of " + std::to_string(pr->R.size()) + " hold");
+    if (budget.exhausted()) return std::nullopt;
 
     // Where a body writes the state, the loops run in lockstep only from
     // related states.
@@ -1194,7 +1244,7 @@ std::optional<z3::expr> instantiate_uncached(Project *proj, const shared_ptr<Pro
             }
         }
     }
-    if (!*found) return std::nullopt;
+    if (!*found || budget.exhausted()) return std::nullopt;
     auto const &rel = **found;
 
     z3::expr_vector ent(z3ctx);
@@ -1226,7 +1276,7 @@ std::optional<z3::expr> instantiate_uncached(Project *proj, const shared_ptr<Pro
 /// reuses it; a relation from that path's candidates could only be stronger.
 std::optional<z3::expr> instantiate(Project *proj, const shared_ptr<ProveState> &state, const string &vname,
                                     const z3::expr &vc, const string &pname, const z3::expr &pc) {
-    if (active.count({vname, pname})) return std::nullopt;
+    if (active.count({vname, pname}) || budget.abandoned.count({vname, pname})) return std::nullopt;
     struct Entry {
         z3::expr vc, pc;  // keep the ids of the key alive
         std::optional<z3::expr> instance;
@@ -1235,7 +1285,20 @@ std::optional<z3::expr> instantiate(Project *proj, const shared_ptr<ProveState> 
     static auto &memo = *new std::map<std::tuple<string, string, unsigned, unsigned>, Entry>();
     auto const key = std::make_tuple(vname, pname, vc.id(), pc.id());
     if (auto const it = memo.find(key); it != memo.end()) return it->second.instance;
+    bool const outermost = !budget.armed;
+    if (outermost && !budget.arm()) {
+        LOG_INFO << "No shared loop invariant " << pname << " ~ " << vname << ": the run's search budget of "
+                 << budget.total << " s is spent";
+        return std::nullopt;
+    }
     auto inst = instantiate_uncached(proj, state, vname, vc, pname, pc);
+    if (budget.exhausted()) {
+        LOG_INFO << "No shared loop invariant " << pname << " ~ " << vname << ": search budget spent ("
+                 << budget.per_call << " s per call, " << budget.total << " s per run)";
+        inst = std::nullopt;
+        budget.abandoned.insert({vname, pname});
+    }
+    if (outermost) budget.disarm();
     memo.emplace(key, Entry{vc, pc, inst});
     return inst;
 }

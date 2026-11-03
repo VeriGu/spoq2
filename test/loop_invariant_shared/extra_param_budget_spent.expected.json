@@ -1,0 +1,6 @@
+{
+  "verified": false,
+  "env": "SPOQ_SHARED_LOOP_INV_BUDGET=0",
+  "stderr_contains": "search budget spent",
+  "stderr_lacks": "R = {"
+}
