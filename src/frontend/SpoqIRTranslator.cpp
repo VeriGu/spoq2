@@ -1562,6 +1562,58 @@ static shared_ptr<Struct> record_of(Project *proj, llvm::StructType *sty) {
     return it->second;
 }
 
+/// `if cond then body else None`.
+static unique_ptr<SpecNode> or_none(unique_ptr<SpecNode> cond, unique_ptr<SpecNode> body) {
+    return std::make_unique<If>(std::move(cond), std::move(body), std::make_unique<Symbol>("None"));
+}
+
+/// The application `f args...`.
+template <typename... Args> static unique_ptr<Expr> app(string const &f, Args... args) {
+    auto v = std::make_unique<vector<unique_ptr<SpecNode>>>();
+    (v->push_back(std::move(args)), ...);
+    return std::make_unique<Expr>(f, std::move(v));
+}
+
+/// Makes [body] None unless valid_field_<T>_<f> [value] and
+/// valid_rel_<T>_<f> [value] p st hold, for an access of field f through
+/// [ptr] = `getelementptr %T, p, 0, k`.  None, not a Rely: a Rely would discard
+/// the path.  p is [ptr] minus the field's offset because the GEP base may not
+/// be bound inside a loop.
+static unique_ptr<SpecNode> check_field_validity(Project *proj, SpoqIRContext &context, llvm::Value *ptr,
+                                                llvm::Value *value, unique_ptr<SpecNode> body) {
+    auto *const gep = llvm::dyn_cast<llvm::GEPOperator>(ptr);
+    if (!gep || gep->getNumIndices() != 2) return body;
+    auto *const sty = llvm::dyn_cast<llvm::StructType>(gep->getSourceElementType());
+    auto const *first = llvm::dyn_cast<llvm::ConstantInt>(gep->idx_begin()->get());
+    if (!sty || !first || !first->isZero()) return body;
+    auto const rec = record_of(proj, sty);
+    if (!rec) return body;
+    // A struct index is a constant in range (LLVM verifier), and record_of
+    // matches the element count.
+    auto const field = llvm::cast<llvm::ConstantInt>((gep->idx_begin() + 1)->get())->getZExtValue();
+    // The predicates are of the field's type: an access at another type (a
+    // narrower load, a union member, an array element) is not checked.
+    if (value->getType() != sty->getElementType(field)) return body;
+    auto const suffix = rec->name + "_" + rec->elems->at(field)->name;
+    auto const applies = [&](string const &pred, size_t arity) {
+        auto const it = proj->defs.find(pred);
+        return it != proj->defs.end() && it->second->args->size() == arity &&
+               (it->second->args->at(0)->type == Struct::Ptr) == value->getType()->isPointerTy();
+    };
+    if (auto const rel = "valid_rel_" + suffix; applies(rel, 3)) {
+        auto const off = context.llvm_dl->getStructLayout(sty)->getElementOffset(field);
+        auto base = context.get_llvm_value_spec(ptr);
+        if (off != 0)
+            base = app("ptr_add", std::move(base),
+                       size_t_binop(Expr::binops::MINUS, size_t_const(0), size_t_const(off)));
+        body = or_none(app(rel, context.get_llvm_value_spec(value), std::move(base), context.get_abs_data()),
+                       std::move(body));
+    }
+    if (auto const pred = "valid_field_" + suffix; applies(pred, 1))
+        body = or_none(app(pred, context.get_llvm_value_spec(value)), std::move(body));
+    return body;
+}
+
 unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_vec_t& vec, int num, SpoqIRContext& context) {
     if(num >= vec.size()) {
         return construct_return_spec(proj, context);
@@ -1971,6 +2023,8 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
 
         if (auto load = llvm::dyn_cast<llvm::LoadInst>(spoq_inst->inst)) {
             auto rhs = store_load_to_spec(spoq_inst->inst, context);
+            auto rest = check_field_validity(proj, context, load->getPointerOperand(), load,
+                                             spoq_inst_to_spec(proj, vec, num + 1, context));
             if (load->getType()->isPointerTy() && !ptr_valued_memory(context)) {
                 // TODO: pointer abstraction here
 
@@ -1980,7 +2034,7 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
 
                 auto remain_expr = Shortcut::_Let_u(
                     context.get_llvm_value_spec(load, nullptr, false), std::move(i2p_v),
-                    rely_unaddressable(proj, context, spoq_inst_to_spec(proj, vec, num + 1, context),
+                    rely_unaddressable(proj, context, std::move(rest),
                                        context.get_llvm_value_spec(load, nullptr, false)));
                 return with_alignment(proj, context, load,
                                       Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second), std::move(remain_expr)));
@@ -1994,8 +2048,8 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 auto value = std::move(rhs.first);
                 auto const value_name = static_cast<Symbol *>(value.get())->text;
                 auto word = std::make_unique<Symbol>(value_name + "_word", Int::of_width(64));
-                auto rest = Shortcut::_Let_u(std::move(value), wrap_to_width(proj, word->deep_copy(), *bits),
-                                             spoq_inst_to_spec(proj, vec, num + 1, context));
+                rest = Shortcut::_Let_u(std::move(value), wrap_to_width(proj, word->deep_copy(), *bits),
+                                        std::move(rest));
                 return with_alignment(proj, context, load,
                                       Shortcut::_When_u(std::move(word), std::move(rhs.second), std::move(rest)));
             } else if (load->getType()->isIntegerTy(1)) {
@@ -2006,12 +2060,10 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
                 auto value = std::move(rhs.first);
                 auto const value_name = static_cast<Symbol *>(value.get())->text;
                 auto word = std::make_unique<Symbol>(value_name + "_word", Int::of_width(64));
-                auto rest = Shortcut::_Let_u(std::move(value), as_condition(word->deep_copy()),
-                                             spoq_inst_to_spec(proj, vec, num + 1, context));
+                rest = Shortcut::_Let_u(std::move(value), as_condition(word->deep_copy()), std::move(rest));
                 return with_alignment(proj, context, load,
                                       Shortcut::_When_u(std::move(word), std::move(rhs.second), std::move(rest)));
             } else {
-                auto rest = spoq_inst_to_spec(proj, vec, num + 1, context);
                 if (load->getType()->isPointerTy()) rest = rely_unaddressable(proj, context, std::move(rest), rhs.first);
                 return with_alignment(proj, context, load,
                                       Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second), std::move(rest)));
@@ -2019,7 +2071,8 @@ unique_ptr<SpecNode> SpoqIRModule::spoq_inst_to_spec(Project* proj, spoq_inst_ve
         } else if (auto store = llvm::dyn_cast<llvm::StoreInst>(spoq_inst->inst)) {
             auto rhs = store_load_to_spec(spoq_inst->inst, context);
             auto remain = spoq_inst_to_spec(proj, vec, num + 1, context);
-            return Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second), std::move(remain));
+            return check_field_validity(proj, context, store->getPointerOperand(), store->getValueOperand(),
+                                       Shortcut::_When_u(std::move(rhs.first), std::move(rhs.second), std::move(remain)));
         }
 
         if (auto alloc = llvm::dyn_cast<llvm::AllocaInst>(spoq_inst->inst)) {
