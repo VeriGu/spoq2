@@ -1,0 +1,4 @@
+{
+  "verified": true,
+  "stderr_contains": "No transformation for vuln_spec_low;No transformation for patch_spec_low;hoisted the spec scrutinee;hoisted the impl scrutinee;Simultaneously resolving pattern: (Some x_word"
+}

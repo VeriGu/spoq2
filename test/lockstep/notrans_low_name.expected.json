@@ -1,0 +1,5 @@
+{
+  "verified": true,
+  "stderr_contains": "No transformation for vuln_spec_low;No transformation for patch_spec_low",
+  "stderr_lacks": "No transformation for vuln_spec\n;No transformation for patch_spec\n"
+}

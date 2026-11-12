@@ -1,0 +1,5 @@
+{
+  "env": "SPOQ_NO_LOCKSTEP=1",
+  "verified": true,
+  "stderr_lacks": "Simultaneously resolving pattern;advancing impl"
+}

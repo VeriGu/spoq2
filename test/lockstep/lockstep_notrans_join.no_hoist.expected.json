@@ -1,0 +1,5 @@
+{
+  "env": "SPOQ_TRAVERSAL_HOIST_BUDGET=0",
+  "verified": true,
+  "stderr_lacks": "hoist_for_traversal"
+}

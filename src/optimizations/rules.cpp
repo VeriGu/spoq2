@@ -2911,6 +2911,40 @@ static std::unique_ptr<SpecNode> rename_shadowing_binders(
     return body;
 }
 
+/// Rename the binders of [pm]'s pattern whose names occur in a term of
+/// [moved], in the pattern and in [pm]'s body, so that the terms keep their
+/// meaning when placed under [pm].  Any occurrence counts, not only a free
+/// variable: a binder may have the name of a global, which free_vars omits.
+/// A binder with the name of a global is renamed in any case: the refinement
+/// traversal binds spec and impl patterns in one state, so a spec binder
+/// would also bind the impl's uses of the global.  A new name clashes with
+/// nothing in [scope], in [moved] or in [pm].
+static void rename_capturing_binders(Project *proj, PatternMatch &pm,
+                                     std::initializer_list<SpecNode *> moved,
+                                     const std::set<std::string> &scope) {
+    std::vector<std::string> bound;
+    collect_pattern_symbols(pm.pattern.get(), bound);
+    std::map<std::string, std::shared_ptr<SpecType>> unused;
+    std::set<std::string> moved_names;
+    for (auto *t : moved) collect_binders_and_names(t, unused, moved_names);
+    std::set<std::string> taboo = scope;
+    taboo.insert(moved_names.begin(), moved_names.end());
+    collect_binders_and_names(pm.body.get(), unused, taboo);
+    taboo.insert(bound.begin(), bound.end());
+    std::map<std::string, std::string> rename;
+    std::set<std::string> active;
+    for (auto const &n : bound) {
+        if (n == "_" || proj->is_ind_constr(n) || rename.count(n)) continue;
+        if (!moved_names.count(n) && !proj->is_known_symbol(n)) continue;
+        auto const fresh = pick_new_name(n, taboo);
+        taboo.insert(fresh);
+        rename[n] = fresh;
+        active.insert(n);
+    }
+    rename_symbols_in_place(pm.pattern.get(), rename, active);
+    rename_symbols_in_place(pm.body.get(), rename, active);
+}
+
 std::unique_ptr<SpecNode> SpecRules::rec_apply_scoped(
     std::unique_ptr<SpecNode> spec,
     const std::function<std::unique_ptr<SpecNode>(std::unique_ptr<SpecNode>)>& f,
@@ -3594,6 +3628,44 @@ bool branches_affordable(SpecNode *a, SpecNode *b, size_t copies, const char *wh
 }
 }  // namespace
 
+rule_ret_t SpecRules::hoist_match_root(std::unique_ptr<SpecNode> spec) {
+    auto m1 = instance_of(spec.get(), Match);
+    if (!m1 || !(instance_of(m1->src.get(), Match) || instance_of(m1->src.get(), If)))
+        return {std::move(spec), false};
+    std::set<std::string> scope;
+    free_vars(proj, spec.get(), scope);
+    auto const orig_type = m1->get_type();
+    if (instance_of(m1->src.get(), Match)) {
+        std::unique_ptr<Match> outer(static_cast<Match *>(m1->src.release()));
+        for (auto &pm : *outer->match_list) {
+            // The copy of m1's arms moves under pm's binders; rename pm's that
+            // would capture the arms' free names, and the arms' that would now
+            // shadow.
+            rename_capturing_binders(proj, *pm, {m1}, scope);
+            std::set<std::string> under = scope;
+            std::vector<std::string> bound;
+            collect_pattern_symbols(pm->pattern.get(), bound);
+            under.insert(bound.begin(), bound.end());
+            std::unique_ptr<Match> body(static_cast<Match *>(rename_shadowing_binders(m1->deep_copy(), under).release()));
+            body->src = std::move(pm->body);
+            pm->body = rule_eliminate_match_simple(std::move(body), false).first;
+            pm->type = orig_type;
+            pm->body->type = orig_type;
+        }
+        outer->type = orig_type;
+        return {std::move(outer), true};
+    }
+    std::unique_ptr<If> iff(static_cast<If *>(m1->src.release()));
+    std::unique_ptr<Match> then_m(static_cast<Match *>(m1->deep_copy().release()));
+    then_m->src = std::move(iff->then_body);
+    std::unique_ptr<Match> else_m(static_cast<Match *>(spec.release()));
+    else_m->src = std::move(iff->else_body);
+    iff->then_body = rule_eliminate_match_simple(std::move(then_m), false).first;
+    iff->else_body = rule_eliminate_match_simple(std::move(else_m), false).first;
+    iff->type = orig_type;
+    return {std::move(iff), true};
+}
+
 rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bool rec,
                                               const std::set<string> *scope_seed) {
     bool changed = false;
@@ -3639,6 +3711,7 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bo
                 assert(!m1->src);
                 for (auto &pm: *new_node->match_list) {
                     std::unique_ptr<Match> new_body;
+                    rename_capturing_binders(proj, *pm, {m1}, hoist_scope);
                     // m1 was the outer match, so its binders were never under
                     // pm's.  The copy is, so rename the ones that would now
                     // shadow.
@@ -3740,7 +3813,9 @@ rule_ret_t SpecRules::hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bo
                     std::unique_ptr<If> new_body = nullptr;
                     // The branches were outside the match; they end up under
                     // pm's binders, so anything they bind that collides has to
-                    // move first.
+                    // move first, and pm's binders must not capture their
+                    // free names.
+                    rename_capturing_binders(proj, *pm, {iff->then_body.get(), iff->else_body.get()}, hoist_scope);
                     auto const inner = scope_under(pm->pattern.get());
                     if(pm.get() == m->match_list->back().get()){
                         new_body = make_unique<If>(

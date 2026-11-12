@@ -162,6 +162,12 @@ public:
     /// larger term, which its own free variables do not name.
     rule_ret_t hoist_match_from_branch(std::unique_ptr<SpecNode> spec, bool rec=true,
                                        const std::set<string> *scope_seed = nullptr);
+    /// One step of hoisting at the root only: `match (if c then a else b) with
+    /// ps` becomes `if c then (match a with ps) else (match b with ps)`, and
+    /// `match (match e with q => b) with ps` becomes `match e with q => (match b
+    /// with ps)`.  Nothing below the root is rewritten.  Returns [spec]
+    /// unchanged (second false) when its root is not such a match.
+    rule_ret_t hoist_match_root(std::unique_ptr<SpecNode> spec);
     rule_ret_t collect_all_vars(std::unique_ptr<SpecNode> spec, std::set<string> &vars);
     rule_ret_t wrap_none_call_with_cond(Project *proj,
                                         std::unique_ptr<SpecNode> spec,

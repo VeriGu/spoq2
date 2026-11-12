@@ -620,6 +620,17 @@ static std::set<string> get_prim_dependencies(const vector<unique_ptr<IRLoader::
     return deps;
 }
 
+/// Whether `Hint NoTrans` covers the low spec \p low_name: a hint names
+/// either the high spec (the low name without "_low") or the low spec itself.
+static bool no_trans_low(Project const *proj, string const &low_name) {
+    auto const &nt = proj->cmds.NoTrans;
+    if (nt.count(low_name)) return true;
+    string const suffix = "_low";
+    return low_name.size() > suffix.size() &&
+           low_name.compare(low_name.size() - suffix.size(), suffix.size(), suffix) == 0 &&
+           nt.count(low_name.substr(0, low_name.size() - suffix.size()));
+}
+
 static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, const string& fname, bool &have_loop, bool &have_sub,
                                             std::unordered_map<string, string> &name_map) {
     vector<Definition *> *low_specs = nullptr;
@@ -655,7 +666,9 @@ static vector<Definition *> *infer_low_spec(Project *proj, int layer_id, const s
             }
 
             profile_clear();
-            if(OPTS.new_trans) {
+            if (no_trans_low(proj, def->name)) {
+                LOG_INFO << "No transformation for " << def->name;
+            } else if(OPTS.new_trans) {
                 spec_transformer_v2(proj, def, layer_id, false, true);
             } else {
                 spec_transformer(proj, def, layer_id, false, true);
@@ -2030,6 +2043,10 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
                     LOG_DEBUG << "Not transforming " << d.name << ": read after the checks";
                     return;
                 }
+                if (no_trans_low(proj, d.name)) {
+                    LOG_INFO << "No transformation for " << d.name;
+                    return;
+                }
                 QuerySaverGuard const qguard(proj);
                 UnfoldPolicyGuard const pguard;
                 profile_clear();
@@ -2075,8 +2092,10 @@ bool Project::infer_low_spec_v2(Project* proj, int layer_id, string fname, bool 
             generated->deleyed_type_inference = false;
             generated->pending_transform = false;
             profile_clear();
-            if (OPTS.new_trans) spec_transformer_v2(proj, generated, layer_id, false, true);
-            else                spec_transformer(proj, generated, layer_id, false, true);
+            if (no_trans_low(proj, low_name))
+                LOG_INFO << "No transformation for " << low_name;
+            else if (OPTS.new_trans) spec_transformer_v2(proj, generated, layer_id, false, true);
+            else                     spec_transformer(proj, generated, layer_id, false, true);
             profile_finalize();
         } else {
             LOG_DEBUG << "low spec provided: " << low_name << "\n";

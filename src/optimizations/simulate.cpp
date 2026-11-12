@@ -1,3 +1,4 @@
+#include <deque>
 #include <cstdlib>
 #include "log.h"
 #include <symbolic.h>
@@ -603,6 +604,57 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 	/// consumed first, and an impl leaf waits for the spec to reach its own.
 	/// With both heads aligned the lower index goes first; with one aligned, the
 	/// unaligned side goes first; with neither, the spec does.
+	/// Whether an impl If or Match whose condition or scrutinee is equivalent to
+	/// the spec's is stepped together with it; SPOQ_NO_LOCKSTEP disables this.
+	static bool lockstep_on() {
+		static bool const on = std::getenv("SPOQ_NO_LOCKSTEP") == nullptr;
+		return on;
+	}
+
+	/// Whether impl pattern \p b binds the same shape as spec pattern \p a: equal
+	/// up to the names of the variables they bind, which differ because the
+	/// impl's are renamed.  A variable is a Symbol that is neither a
+	/// constructor nor `_`.
+	static bool patterns_correspond(Project *proj, SpecNode *a, SpecNode *b) {
+		auto const var = [proj](SpecNode *n) {
+			auto const s = instance_of(n, Symbol);
+			return s && s->text != "_" && !proj->is_ind_constr(s->text);
+		};
+		if (var(a) && var(b)) return true;
+		auto const ea = instance_of(a, Expr), eb = instance_of(b, Expr);
+		if (ea && eb) {
+			if (!(ea->op == eb->op) || !ea->elems || !eb->elems || ea->elems->size() != eb->elems->size())
+				return false;
+			for (size_t i = 0; i < ea->elems->size(); ++i)
+				if (!patterns_correspond(proj, ea->elems->at(i).get(), eb->elems->at(i).get())) return false;
+			return true;
+		}
+		return b->deep_eq(a);
+	}
+
+	/// Hoists a match out of its scrutinee at the root of [n] (rules.h,
+	/// hoist_match_root), so that the branches of an untransformed spec meet the
+	/// lockstep pairing.  At most SPOQ_TRAVERSAL_HOIST_BUDGET (default 2000)
+	/// rewrites per run; after that, or with 0, no rewrite is applied.  The rewritten nodes live until
+	/// the process exits.
+	static SpecNode *hoist_for_traversal(Project *proj, SpecNode *n, char const *side) {
+		static long budget = [] {
+			char const *b = std::getenv("SPOQ_TRAVERSAL_HOIST_BUDGET");
+			return b ? std::atol(b) : 2000L;
+		}();
+		// Never destroyed: other static state may refer to these nodes at exit.
+		static auto &kept = *new std::deque<unique_ptr<SpecNode>>;
+		auto const m = instance_of(n, Match);
+		if (!m || !(instance_of(m->src.get(), Match) || instance_of(m->src.get(), If))) return n;
+		if (budget <= 0) return n;
+		if (--budget == 0) LOG_INFO << "[hoist_for_traversal] budget exhausted; no further rewrites";
+		auto [out, changed] = proj->rules.hoist_match_root(n->deep_copy());
+		if (!changed) return n;
+		LOG_DEBUG << "[hoist_for_traversal] hoisted the " << side << " scrutinee";
+		kept.push_back(std::move(out));
+		return kept.back().get();
+	}
+
 	static bool impl_steps_first(SpecNode *spec, SpecNode *impl) {
 		auto const steppable = [](SpecNode *n) { return instance_of(n, If) || instance_of(n, Match); };
 		if (!steppable(spec) || !steppable(impl)) return false;
@@ -621,6 +673,8 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 			state->conds->push_back(c->get_z3_value());
 			return simulate_by_traverse(proj, spec, impl_rely->body.get(), rel, ret_rel, state, p, det);
 		}
+		spec = hoist_for_traversal(proj, spec, "spec");
+		impl = hoist_for_traversal(proj, impl, "impl");
 		// A deterministic simulation pairs branches in order, so only a
 		// non-deterministic one may reorder by alignment.
 		if (!det && impl_steps_first(spec, impl)) {
@@ -691,18 +745,28 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 			// state so its bound variables are available to the impl body.
 			Match *impl_match = nullptr;
 			shared_ptr<SpecValue> impl_src;
-			if (auto impl_m = instance_of(impl, Match)) {
-
-				if (src->get_type() == impl_m->src.get()->get_type() &&
-					impl_m->match_list->size() == m->match_list->size()) {
+			if (!instance_of(impl, Match))
+				LOG_DEBUG << "[simulate_by_traverse " << random_code << "] No lockstep: impl is not a Match: " << string(*impl).substr(0, 160);
+			if (auto impl_m = lockstep_on() ? instance_of(impl, Match) : nullptr) {
+				if (impl_m->match_list->size() != m->match_list->size())
+					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] No lockstep: branch counts " << m->match_list->size() << " and " << impl_m->match_list->size();
+				// The scrutinees are compared by sort after evaluation: the impl
+				// node's annotated type need not be the object the spec value
+				// carries (a boolean let, for example).
+				if (impl_m->match_list->size() == m->match_list->size()) {
 					set<string> impl_used_fix;
 					impl_src = z3_eval(proj, impl_m->src.get(), state, true, false, impl_used_fix);
-					// srcs are equivalent iff there is no model in which they differ.
-					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Comparing Match src values: " << "Spec: " << string(*src) << "\nImpl: " << string(*impl_src);
-					auto const diff_res = z3_check(state, (z3_ne(src->get_z3_value(), impl_src->get_z3_value())), &proj->query_saver, Z3_SIM_TIMEOUT);
-					if (diff_res == Z3Result::False) {
-						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Impl match src provably equivalent to spec, advancing impl.";
-						impl_match = impl_m;
+					if (!z3::eq(src->get_z3_value().get_sort(), impl_src->get_z3_value().get_sort()))
+						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] No lockstep: sorts " << src->get_z3_value().get_sort()
+						          << " and " << impl_src->get_z3_value().get_sort() << ": " << string(*src) << " vs " << string(*impl_src);
+					if (z3::eq(src->get_z3_value().get_sort(), impl_src->get_z3_value().get_sort())) {
+						// srcs are equivalent iff there is no model in which they differ.
+						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Comparing Match src values: " << "Spec: " << string(*src) << "\nImpl: " << string(*impl_src);
+						auto const diff_res = z3_check(state, (z3_ne(src->get_z3_value(), impl_src->get_z3_value())), &proj->query_saver, Z3_SIM_TIMEOUT);
+						if (diff_res == Z3Result::False) {
+							LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Impl match src provably equivalent to spec, advancing impl.";
+							impl_match = impl_m;
+						}
 					}
 				}
 			}
@@ -725,7 +789,7 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 					auto impl_pm = impl_match->match_list->at(branch_idx).get();
 				    auto impl_pat = impl_pm->pattern.get();
 					LOG_DEBUG << "Can skip? Pattern: " << string(*pat) << " vs " << string(*impl_pat);
-					if (impl_pat->deep_eq(pat)) {
+					if (patterns_correspond(proj, pat, impl_pat)) {
 	                    LOG_DEBUG << "Simultaneously resolving pattern: " << string(*impl_pat);
 						resolve_pattern(proj, impl_match, impl_pat, impl_src, new_state);
 						impl_branch = impl_pm->body.get();
@@ -798,7 +862,7 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 			// branch alongside the spec instead of descending into it separately.
 			SpecNode *impl_then = impl;
 			SpecNode *impl_else = impl;
-			if (auto impl_if = instance_of(impl, If)) {
+			if (auto impl_if = lockstep_on() ? instance_of(impl, If) : nullptr) {
                 // Check the types are the same.
                 if (impl_if->cond.get()->get_type() == c->get_type()){
     			    auto const impl_c = z3_eval(proj, impl_if->cond.get(), state);
