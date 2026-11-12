@@ -390,6 +390,7 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 			if (!then_sim_result.verified) {
 				LOG_DEBUG << "[forward_simulation " << random_code << "] Then branch of if not verified";
 				LOG_DEBUG << "[forward_simulation " << random_code << "] Guilty condition " << cond.get()->get_z3_value();
+				if (OPTS.fail_fast) return then_sim_result;
 			}
 			auto const else_sim_result = descend(iff->else_body.get(), else_state, false);
 			if (!else_sim_result.verified) {
@@ -820,6 +821,9 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 						LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Match pat: " << string(*(*pm)->pattern) << " not verified.";
 					}
 					sim_result = sim_result + new_result;
+					// The recovery below redoes the whole Match, so the remaining
+					// branches need not be visited.
+					if (OPTS.fail_fast && !sim_result.verified) break;
 				} else {
 					// This match branch is not plausible, skip it.
 					// LOG_DEBUG << "[simulate_by_traverse " << random_code << "] In Match: " << string(*m->src).substr(0,200) << ". Pattern not plausible: " << string(*(*pm)->pattern.get()).substr(0,100) << ".";
@@ -888,6 +892,7 @@ static unique_ptr<SpecNode> inline_folded_scrutinee(Project *proj, const Match &
 				sim_result = sim_result + simulate_by_traverse(proj, i->then_body.get(), impl_then, rel, ret_rel, true_state, p_then, det);
 				if (!sim_result.verified) {
 					LOG_DEBUG << "[simulate_by_traverse " << random_code << "] Then branch of if not verified" << c->get_z3_value();
+					if (OPTS.fail_fast) return sim_result;
 				}
 			}
 			if (false_branch_plausible){

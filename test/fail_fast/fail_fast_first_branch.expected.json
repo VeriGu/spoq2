@@ -1,0 +1,5 @@
+{
+  "verified": false,
+  "stderr_contains": "fail-fast: true;spec: (Some (1, st)) moving to forward_simulation",
+  "stderr_lacks": "spec: (Some (7, st))"
+}

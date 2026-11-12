@@ -1,4 +1,5 @@
 {
+  "args": "--no-fail-fast",
   "verified": false,
   "impl_has_non_spec_ub": true
 }

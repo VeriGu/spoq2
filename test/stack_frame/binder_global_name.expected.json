@@ -1,0 +1,4 @@
+{
+  "verified": false,
+  "unimplemented": "the refinement traversal binds spec and impl patterns in one state; the spec's binder gq then also binds the impl's uses of the global Parameter gq, so both return mk's result and the wrong patch verifies"
+}

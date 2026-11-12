@@ -29,6 +29,9 @@ public:
     bool check_none = false;
     bool transform_io = false;
     bool race = false;
+    /// The refinement traversal returns at the first leaf that does not
+    /// verify, without visiting the remaining branches.
+    bool fail_fast = true;
     // int race_timeout = 120; // 2min as default
     int race_timeout = 2000; // 2sec as default
     bool dry_run_asm = false; // used to show all register 
@@ -66,6 +69,7 @@ public:
         std::cerr << "  transform_io: " << std::boolalpha << transform_io << "\n";
         std::cerr << "  race: " << std::boolalpha << race << "\n";
         std::cerr << "  race timeout: " << std::boolalpha << race_timeout << "s\n";
+        std::cerr << "  fail-fast: " << std::boolalpha << fail_fast << "\n";
         std::cerr << "  dry run asm: " << std::boolalpha << dry_run_asm << "\n";
 
         std::cerr << std::endl;
@@ -106,6 +110,7 @@ public:
             ("transform-io", po::bool_switch()->default_value(false), "transform io path")
             ("race", po::bool_switch()->default_value(false), "multi-solver support")
             ("race-timeout", po::value<int>(&race_timeout)->default_value(race_timeout), "Z3 CPU limit in seconds")
+            ("no-fail-fast", po::bool_switch()->default_value(false), "visit every branch of the refinement traversal after a leaf fails to verify")
             ("dry-run-asm", po::bool_switch()->default_value(false), "dry run inline assembly to show all assmebly spec without definitions (outputs to missing_asm.txt by default)")
             ("target-transition",
              po::value<std::string>(&target_spec)->default_value(target_spec),
@@ -166,6 +171,7 @@ public:
         this->decompose_check_simulation = vmap["decom-check-simul"].as<bool>();
         this->transform_io = vmap["transform-io"].as<bool>();
         this->race = vmap["race"].as<bool>();
+        this->fail_fast = !vmap["no-fail-fast"].as<bool>();
 
         if (vmap.count("no-coi")) {
             this->lens = false;
